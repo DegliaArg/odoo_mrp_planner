@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Server Action vinculado a mrp.production.
+        Aparece en el menú "Acción" de la vista lista de órdenes de fabricación.
+        Soporta:
+          - 0 registros seleccionados: abre el wizard con campo pivot vacío.
+          - 1 registro seleccionado: pre-completa la orden pivot.
+          - 2+ registros: lanza UserError pidiendo selección única.
+    -->
+    <record id="action_mrp_reschedule_cascade_server" model="ir.actions.server">
+        <field name="name">Reprogramar en cascada</field>
+        <field name="model_id" ref="mrp.model_mrp_production"/>
+        <field name="binding_model_id" ref="mrp.model_mrp_production"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_reschedule_wizard()</field>
+    </record>
+
+</odoo>

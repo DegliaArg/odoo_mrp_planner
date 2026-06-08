@@ -150,7 +150,16 @@ class MrpRescheduleGantt extends Component {
             const d = r.data;
             const isMrp = d.record_type === "mrp";
             const m2o   = isMrp ? d.production_id : d.purchase_id;
-            const name  = Array.isArray(m2o) ? m2o[1] : String(m2o || "—");
+            let name;
+            if (!m2o) {
+                name = "—";
+            } else if (Array.isArray(m2o)) {
+                name = m2o[1] || String(m2o[0] || "—");
+            } else if (typeof m2o === "object") {
+                name = m2o.display_name || m2o.name || String(m2o.id || "—");
+            } else {
+                name = String(m2o);
+            }
             return {
                 type:  d.record_type || "mrp",
                 level: d.level || 0,

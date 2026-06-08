@@ -105,8 +105,7 @@
 
                     <field name="line_ids"
                            readonly="state in ('applied', 'cancelled')"
-                           nolabel="1"
-                           context="{'group_by': 'parent_label'}">
+                           nolabel="1">
                         <list string="Líneas"
                               editable="bottom"
                               decoration-muted="is_anchor"

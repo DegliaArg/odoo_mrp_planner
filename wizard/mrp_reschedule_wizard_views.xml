@@ -24,7 +24,7 @@
 
                 <field name="line_ids" nolabel="1">
                     <list string="Cambios propuestos"
-                          editable="1"
+                          editable="bottom"
                           decoration-muted="is_anchor"
                           decoration-info="record_type == 'mrp' and not warning_type and not is_anchor"
                           decoration-warning="record_type == 'purchase' and not warning_type"

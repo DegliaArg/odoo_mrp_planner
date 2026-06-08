@@ -42,8 +42,9 @@ class MrpReschedulePlan(models.Model):
         string='Nueva fecha de finalización', default=fields.Datetime.now,
     )
     delta_display = fields.Char(string='Desplazamiento', compute='_compute_delta_display')
-    line_ids = fields.One2many('mrp.reschedule.plan.line', 'plan_id', string='Líneas')
-    line_count = fields.Integer(compute='_compute_line_count')
+    line_ids    = fields.One2many('mrp.reschedule.plan.line',    'plan_id', string='Líneas')
+    wc_line_ids = fields.One2many('mrp.reschedule.plan.wc.line', 'plan_id', string='Líneas WC')
+    line_count  = fields.Integer(compute='_compute_line_count')
 
     applied_date = fields.Datetime(string='Fecha de aplicación', readonly=True, copy=False)
     applied_by = fields.Many2one('res.users', string='Aplicado por', readonly=True, copy=False)
@@ -117,11 +118,13 @@ class MrpReschedulePlan(models.Model):
     def action_reset_draft(self):
         self.ensure_one()
         self.line_ids.unlink()
+        self.wc_line_ids.unlink()
         self.state = 'draft'
 
     def action_cancel(self):
         self.ensure_one()
         self.line_ids.unlink()
+        self.wc_line_ids.unlink()
         self.write({'state': 'cancelled'})
         self.message_post(body=_('Plan cancelado.'))
 
@@ -339,7 +342,7 @@ class MrpReschedulePlan(models.Model):
         _logger.warning('MRP Reschedule: sin slot en 365 días (%s)', calendar.name)
         return (after_dt, after_dt + timedelta(hours=duration_hours))
 
-    def _schedule_mo_block(self, mo, wc_anchors, base_dt, duration_override=None):
+    def _schedule_mo_block(self, mo, wc_anchors, base_dt, duration_override=None, wc_collector=None):
         wos = mo.workorder_ids.sorted('sequence')
         total_wo_dur = sum(wo.duration_expected or 0.0 for wo in wos)
 
@@ -372,6 +375,14 @@ class MrpReschedulePlan(models.Model):
             earliest = max(wo_prev_end, wc_anchors.get(wc_id, base_dt), base_dt)
             wo_start, wo_end = self._schedule_duration(calendar, earliest, wo_dur_h)
             wc_anchors[wc_id] = wo_end
+            if wc_collector is not None and wc_id and wo_start and wo_end:
+                wc_collector.append({
+                    'production_id': mo.id,
+                    'workorder_id':  wo.id,
+                    'workcenter_id': wc_id,
+                    'new_date_start':  wo_start,
+                    'new_date_finish': wo_end,
+                })
             if mo_start is None:
                 mo_start = wo_start
             wo_prev_end = wo_end
@@ -413,8 +424,10 @@ class MrpReschedulePlan(models.Model):
                     sequence_overrides[pid] = line.reschedule_sequence
 
         self.line_ids.unlink()
+        self.wc_line_ids.unlink()
 
         lines_vals = []
+        wc_lines_data = []
         seq = 10
         visited_mo_ids = {pivot.id}
         visited_po_ids = set()
@@ -471,6 +484,7 @@ class MrpReschedulePlan(models.Model):
             elif level == 0:
                 new_start, new_end = self._schedule_mo_block(
                     mo, wc_anchors, base_dt, duration_override=duration_h,
+                    wc_collector=wc_lines_data,
                 )
             else:
                 pd = parent_delta or timedelta(0)
@@ -478,6 +492,7 @@ class MrpReschedulePlan(models.Model):
                 child_wc_anchors = dict(wc_anchors)
                 new_start, new_end = self._schedule_mo_block(
                     mo, child_wc_anchors, proposed_start, duration_override=duration_h,
+                    wc_collector=wc_lines_data,
                 )
                 if mo.date_start and abs((new_start - proposed_start).total_seconds()) > 900:
                     warning_type = 'child_adjusted'
@@ -547,6 +562,10 @@ class MrpReschedulePlan(models.Model):
 
         if lines_vals:
             self.env['mrp.reschedule.plan.line'].create(lines_vals)
+        if wc_lines_data:
+            for d in wc_lines_data:
+                d['plan_id'] = self.id
+            self.env['mrp.reschedule.plan.wc.line'].create(wc_lines_data)
 
 
 class MrpReschedulePlanLine(models.Model):
@@ -584,7 +603,9 @@ class MrpReschedulePlanLine(models.Model):
     description_label = fields.Char(string='Producto / Proveedor', compute='_compute_display', store=True)
     workcenter_label  = fields.Char(string='Centros de trabajo',   compute='_compute_display', store=True)
     product_qty_display = fields.Char(string='Cantidad',           compute='_compute_display', store=True)
+    type_label        = fields.Char(string='Tipo',                 compute='_compute_display', store=True)
     state_display     = fields.Char(string='Estado',               compute='_compute_display', store=False)
+    date_delta_display = fields.Char(string='Δ Tiempo',            compute='_compute_delta_display_line', store=False)
 
     current_date_start  = fields.Datetime(string='Inicio actual')
     current_date_finish = fields.Datetime(string='Fin actual')
@@ -621,6 +642,7 @@ class MrpReschedulePlanLine(models.Model):
                 qty = mo.product_qty
                 uom = mo.product_uom_id.name if mo.product_uom_id else ''
                 line.product_qty_display = f'{qty:g} {uom}'.strip() if qty else ''
+                line.type_label         = 'OF' if line.level == 0 else 'OF hija'
             elif line.record_type == 'purchase' and line.purchase_id:
                 po = line.purchase_id
                 line.record_label        = f'{prefix}{po.name}'
@@ -628,9 +650,77 @@ class MrpReschedulePlanLine(models.Model):
                 line.state_display       = PO_STATES.get(po.state, po.state)
                 line.workcenter_label    = ''
                 line.product_qty_display = ''
+                line.type_label          = 'OC'
             else:
                 line.record_label        = f'{prefix}—'
                 line.description_label   = ''
                 line.state_display       = ''
                 line.workcenter_label    = ''
                 line.product_qty_display = ''
+                line.type_label          = ''
+
+    @api.depends('current_date_finish', 'new_date_finish')
+    def _compute_delta_display_line(self):
+        for line in self:
+            cur = line.current_date_finish
+            new = line.new_date_finish
+            if not cur or not new:
+                line.date_delta_display = '—'
+                continue
+            secs = (new - cur).total_seconds()
+            if abs(secs) < 60:
+                line.date_delta_display = 'sin cambio'
+                continue
+            sign = '+' if secs >= 0 else '-'
+            h = abs(secs) / 3600.0
+            d = int(h // 24)
+            h_rem = int(h % 24)
+            if d and h_rem:
+                line.date_delta_display = f'{sign}{d}d {h_rem}h'
+            elif d:
+                line.date_delta_display = f'{sign}{d}d'
+            else:
+                line.date_delta_display = f'{sign}{h_rem}h'
+
+
+class MrpReschedulePlanWcLine(models.Model):
+    _name = 'mrp.reschedule.plan.wc.line'
+    _description = 'Carga de centro de trabajo — plan de reprogramación'
+    _order = 'new_date_start, id'
+    _rec_name = 'record_label'
+
+    plan_id       = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade', string='Plan')
+    production_id = fields.Many2one('mrp.production', string='Orden de fabricación')
+    workorder_id  = fields.Many2one('mrp.workorder',  string='Operación')
+    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
+
+    new_date_start  = fields.Datetime(string='Nuevo inicio')
+    new_date_finish = fields.Datetime(string='Nuevo fin')
+
+    record_label = fields.Char(string='OF',        compute='_compute_display', store=True)
+    wo_name      = fields.Char(string='Operación', compute='_compute_display', store=True)
+    color        = fields.Integer(compute='_compute_color', store=True)
+
+    plan_state = fields.Selection(related='plan_id.state', store=True, string='Estado plan')
+    plan_name  = fields.Char(related='plan_id.name',  store=True, string='Plan')
+
+    @api.depends('production_id', 'workorder_id')
+    def _compute_display(self):
+        for line in self:
+            mo = line.production_id
+            wo = line.workorder_id
+            line.record_label = mo.name if mo else '—'
+            line.wo_name = (
+                wo.name if wo
+                else (mo.product_id.display_name if mo and mo.product_id else '')
+            )
+
+    @api.depends('plan_state')
+    def _compute_color(self):
+        for line in self:
+            if line.plan_state == 'applied':
+                line.color = 10   # verde
+            elif line.plan_state == 'calculated':
+                line.color = 4    # azul
+            else:
+                line.color = 0    # gris

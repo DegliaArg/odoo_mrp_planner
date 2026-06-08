@@ -29,6 +29,11 @@ Características:
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'odoo_mrp_reschedule/static/src/css/reschedule_gantt.css',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

@@ -10,11 +10,22 @@ _logger = logging.getLogger(__name__)
 INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
 
 
-def _get_old_code(record):
-    """Devuelve x_studio_cdigo_viejo desde el record mismo o su product_id, o '' si no existe."""
-    for obj in (record, getattr(record, 'product_id', None)):
-        if obj and 'x_studio_cdigo_viejo' in (obj._fields if hasattr(obj, '_fields') else {}):
-            return obj.x_studio_cdigo_viejo or ''
+def _get_old_code(mo):
+    """
+    Devuelve x_studio_cdigo_viejo (campo Studio en product.template) para una
+    mrp.production.  La delegación de herencia de Odoo no propaga el campo al
+    _fields de product.product, por eso buscamos en product_tmpl_id._fields.
+    Retorna '' si el campo no existe en la instancia.
+    """
+    # 1. Directo en la orden de fabricación (por si Studio lo puso ahí)
+    if 'x_studio_cdigo_viejo' in mo._fields:
+        return mo.x_studio_cdigo_viejo or ''
+    # 2. En product.template vía product_id.product_tmpl_id
+    product = getattr(mo, 'product_id', None)
+    if product:
+        tmpl = getattr(product, 'product_tmpl_id', None)
+        if tmpl and 'x_studio_cdigo_viejo' in tmpl._fields:
+            return tmpl.x_studio_cdigo_viejo or ''
     return ''
 
 

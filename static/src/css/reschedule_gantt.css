@@ -1,0 +1,5 @@
+/* Quita el border-radius de las barras del Gantt para que barras
+   consecutivas (WOs encadenados) no se superpongan visualmente */
+.o_gantt_pill {
+    border-radius: 2px !important;
+}

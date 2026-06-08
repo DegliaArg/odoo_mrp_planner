@@ -201,7 +201,10 @@ class MrpRescheduleWizard(models.TransientModel):
                 h_from, m_from = _hm(att.hour_from)
                 h_to,   m_to   = _hm(att.hour_to)
                 iv_start = tz.localize(datetime.combine(day_date, time(h_from, m_from)), is_dst=False)
-                iv_end   = tz.localize(datetime.combine(day_date, time(h_to,   m_to)),   is_dst=False)
+                if h_to >= 24:
+                    iv_end = tz.localize(datetime.combine(day_date + timedelta(days=1), time(0, 0)), is_dst=False)
+                else:
+                    iv_end = tz.localize(datetime.combine(day_date, time(h_to, m_to)), is_dst=False)
                 if current >= iv_end:
                     continue
                 seg_start = max(current, iv_start)

@@ -17,10 +17,15 @@
                     </group>
                 </group>
 
-                <div class="o_horizontal_separator mt8 mb8">Cambios propuestos</div>
-
-                <!-- Gantt OWL (lee line_ids y dibuja las barras) -->
-                <widget name="reschedule_gantt"/>
+                <div class="o_horizontal_separator mt8 mb8"
+                     style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Cambios propuestos</span>
+                    <button name="action_open_gantt"
+                            type="object"
+                            string="Ver Gantt"
+                            class="btn btn-sm btn-secondary"
+                            invisible="not has_lines"/>
+                </div>
 
                 <field name="line_ids" nolabel="1">
                     <list string="Cambios propuestos"
@@ -57,6 +62,14 @@
                         <field name="description_label"
                                string="Producto / Proveedor"
                                readonly="1"/>
+                        <field name="product_qty_display"
+                               string="Cantidad"
+                               readonly="1"
+                               optional="show"/>
+                        <field name="workcenter_label"
+                               string="Centros de trabajo"
+                               readonly="1"
+                               optional="show"/>
                         <field name="duration_hours"
                                string="Duración (hs)"
                                readonly="record_type != 'mrp' or is_anchor"
@@ -75,7 +88,7 @@
                                readonly="1"
                                optional="show"/>
 
-                        <!-- Campos ocultos: necesarios para el Gantt y decoraciones -->
+                        <!-- Campos ocultos: necesarios para decoraciones y Gantt -->
                         <field name="record_type"        column_invisible="True"/>
                         <field name="level"              column_invisible="True"/>
                         <field name="warning_type"       column_invisible="True"/>
@@ -83,6 +96,8 @@
                         <field name="purchase_id"        column_invisible="True"/>
                         <field name="current_date_start" column_invisible="True"/>
                         <field name="new_date_start"     column_invisible="True"/>
+                        <field name="workcenter_label"   column_invisible="True"/>
+                        <field name="product_qty_display" column_invisible="True"/>
 
                     </list>
                 </field>
@@ -103,6 +118,30 @@
                 </footer>
 
             </form>
+        </field>
+    </record>
+
+
+    <!-- Vista Gantt nativa para líneas de reprogramación -->
+    <record id="mrp_reschedule_wizard_line_gantt" model="ir.ui.view">
+        <field name="name">mrp.reschedule.wizard.line.gantt</field>
+        <field name="model">mrp.reschedule.wizard.line</field>
+        <field name="arch" type="xml">
+            <gantt date_start="new_date_start"
+                   date_stop="new_date_finish"
+                   string="Cambios propuestos"
+                   default_scale="week"
+                   create="0"
+                   edit="0"
+                   delete="0">
+                <field name="record_label"/>
+                <field name="description_label"/>
+                <field name="workcenter_label"/>
+                <field name="product_qty_display"/>
+                <field name="state_display"/>
+                <field name="is_anchor"/>
+                <field name="apply"/>
+            </gantt>
         </field>
     </record>
 

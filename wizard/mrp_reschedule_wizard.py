@@ -504,12 +504,44 @@ class MrpRescheduleWizard(models.TransientModel):
             'target': 'new',
         }
 
+    def action_open_gantt(self):
+        self.ensure_one()
+        if not self.line_ids:
+            raise UserError(_('Primero calcule los cambios propuestos.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Gantt — cambios propuestos'),
+            'res_model': 'mrp.reschedule.wizard.line',
+            'view_mode': 'gantt',
+            'domain': [
+                ('wizard_id', '=', self.id),
+                ('record_type', '=', 'mrp'),
+                ('new_date_start', '!=', False),
+            ],
+            'context': {'create': False, 'edit': False, 'delete': False},
+            'target': 'new',
+        }
+
     def action_apply(self):
         """Aplica cambios marcados. Las líneas is_anchor (apply=False) se omiten."""
         self.ensure_one()
         active_lines = self.line_ids.filtered('apply')
         if not active_lines:
             raise UserError(_('No hay líneas marcadas para aplicar.'))
+
+        # Actualizar la pivot si está confirmada y hay desplazamiento real
+        pivot = self.production_id
+        delta = self._get_delta()
+        if pivot.state == 'confirmed' and delta:
+            pivot_vals = {'date_finished': self.new_finish_date}
+            if pivot.date_start:
+                pivot_vals['date_start'] = pivot.date_start + delta
+            pivot.write(pivot_vals)
+            if pivot.workorder_ids:
+                try:
+                    pivot.button_plan()
+                except Exception as e:
+                    _logger.warning('No se pudo replanificar pivot %s: %s', pivot.name, e)
 
         mos_to_replan = self.env['mrp.production']
 
@@ -547,6 +579,7 @@ class MrpRescheduleWizardLine(models.TransientModel):
     _name = 'mrp.reschedule.wizard.line'
     _description = 'Línea de reprogramación en cascada'
     _order = 'reschedule_sequence, id'
+    _rec_name = 'record_label'
 
     wizard_id    = fields.Many2one('mrp.reschedule.wizard', required=True, ondelete='cascade')
     sequence     = fields.Integer(default=10)
@@ -583,31 +616,44 @@ class MrpRescheduleWizardLine(models.TransientModel):
         [('confirmed_po', 'OC confirmada'), ('child_adjusted', 'Hija ajustada')],
         string='Tipo advertencia', default=False,
     )
-    warning_message  = fields.Char(string='Advertencia')
-    record_label     = fields.Char(string='Referencia',           compute='_compute_display', store=False)
-    description_label= fields.Char(string='Producto / Proveedor', compute='_compute_display', store=False)
-    state_display    = fields.Char(string='Estado actual',        compute='_compute_display', store=False)
+    warning_message   = fields.Char(string='Advertencia')
+    record_label      = fields.Char(string='Referencia',           compute='_compute_display', store=False)
+    description_label = fields.Char(string='Producto / Proveedor', compute='_compute_display', store=False)
+    state_display     = fields.Char(string='Estado actual',        compute='_compute_display', store=False)
+    workcenter_label  = fields.Char(string='Centros de trabajo',   compute='_compute_display', store=False)
+    product_qty_display = fields.Char(string='Cantidad',           compute='_compute_display', store=False)
 
     current_date_start  = fields.Datetime(string='Inicio actual')
     current_date_finish = fields.Datetime(string='Fin actual')
     new_date_start      = fields.Datetime(string='Nuevo inicio')
     new_date_finish     = fields.Datetime(string='Nuevo fin')
 
-    @api.depends('level', 'record_type', 'production_id', 'purchase_id')
+    @api.depends('level', 'record_type', 'production_id', 'purchase_id',
+                 'production_id.workorder_ids.workcenter_id',
+                 'production_id.product_qty', 'production_id.product_uom_id')
     def _compute_display(self):
         for line in self:
             prefix = INDENT_MAP.get(line.level, '         └─ ')
             if line.record_type == 'mrp' and line.production_id:
                 mo = line.production_id
-                line.record_label      = f'{prefix}{mo.name}'
-                line.description_label = mo.product_id.display_name if mo.product_id else ''
-                line.state_display     = MRP_STATES.get(mo.state, mo.state)
+                line.record_label       = f'{prefix}{mo.name}'
+                line.description_label  = mo.product_id.display_name if mo.product_id else ''
+                line.state_display      = MRP_STATES.get(mo.state, mo.state)
+                wcs = mo.workorder_ids.mapped('workcenter_id')
+                line.workcenter_label   = ' › '.join(wcs.mapped('name')) if wcs else ''
+                qty = mo.product_qty
+                uom = mo.product_uom_id.name if mo.product_uom_id else ''
+                line.product_qty_display = f'{qty:g} {uom}'.strip() if qty else ''
             elif line.record_type == 'purchase' and line.purchase_id:
                 po = line.purchase_id
-                line.record_label      = f'{prefix}{po.name}'
-                line.description_label = po.partner_id.display_name if po.partner_id else ''
-                line.state_display     = PO_STATES.get(po.state, po.state)
+                line.record_label        = f'{prefix}{po.name}'
+                line.description_label   = po.partner_id.display_name if po.partner_id else ''
+                line.state_display       = PO_STATES.get(po.state, po.state)
+                line.workcenter_label    = ''
+                line.product_qty_display = ''
             else:
-                line.record_label = f'{prefix}—'
-                line.description_label = ''
-                line.state_display = ''
+                line.record_label        = f'{prefix}—'
+                line.description_label   = ''
+                line.state_display       = ''
+                line.workcenter_label    = ''
+                line.product_qty_display = ''

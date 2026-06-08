@@ -232,7 +232,7 @@
             <gantt date_start="new_date_start"
                    date_stop="new_date_finish"
                    string="Carga de centros de trabajo (propuesto)"
-                   default_scale="week"
+                   default_scale="day"
                    color="color"
                    create="0"
                    edit="0"

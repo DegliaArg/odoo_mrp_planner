@@ -9,6 +9,15 @@ _logger = logging.getLogger(__name__)
 
 INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
 
+
+def _get_old_code(record):
+    """Devuelve x_studio_cdigo_viejo desde el record mismo o su product_id, o '' si no existe."""
+    for obj in (record, getattr(record, 'product_id', None)):
+        if obj and 'x_studio_cdigo_viejo' in (obj._fields if hasattr(obj, '_fields') else {}):
+            return obj.x_studio_cdigo_viejo or ''
+    return ''
+
+
 MRP_STATES = {
     'draft': 'Borrador', 'confirmed': 'Confirmado', 'progress': 'En proceso',
     'to_close': 'Por cerrar', 'done': 'Hecho', 'cancel': 'Cancelado',
@@ -634,7 +643,9 @@ class MrpReschedulePlanLine(models.Model):
             prefix = INDENT_MAP.get(line.level, '         └─ ')
             if line.record_type == 'mrp' and line.production_id:
                 mo = line.production_id
-                line.record_label       = f'{prefix}{mo.name}'
+                code = _get_old_code(mo)
+                base_label = f'[{code}] {mo.name}' if code else mo.name
+                line.record_label       = f'{prefix}{base_label}'
                 line.description_label  = mo.product_id.display_name if mo.product_id else ''
                 line.state_display      = MRP_STATES.get(mo.state, mo.state)
                 wcs = mo.workorder_ids.mapped('workcenter_id')
@@ -709,10 +720,13 @@ class MrpReschedulePlanWcLine(models.Model):
         for line in self:
             mo = line.production_id
             wo = line.workorder_id
-            line.record_label = mo.name if mo else '—'
-            line.wo_name = (
-                wo.name if wo
-                else (mo.product_id.display_name if mo and mo.product_id else '')
+            if mo:
+                code = _get_old_code(mo)
+                line.record_label = f'[{code}] {mo.name}' if code else mo.name
+            else:
+                line.record_label = '—'
+            line.wo_name = wo.name if wo else (
+                mo.product_id.display_name if mo and mo.product_id else ''
             )
 
     @api.depends('plan_state')

@@ -41,7 +41,7 @@ action = records.action_open_reschedule_wizard()
                 Fase 2: Campo x_parent_mo_id junto al campo Origen.
                 Readonly, solo visible cuando está definido.
             -->
-            <xpath expr="//field[@name='origin']" position="after">
+            <xpath expr="//page[@name='miscellaneous']//field[@name='origin']" position="after">
                 <field name="x_parent_mo_id"
                        readonly="1"
                        invisible="not x_parent_mo_id"

@@ -200,8 +200,8 @@ class MrpRescheduleWizard(models.TransientModel):
                     return h, min(int(round((hf - h) * 60)), 59)
                 h_from, m_from = _hm(att.hour_from)
                 h_to,   m_to   = _hm(att.hour_to)
-                iv_start = tz.localize(datetime.combine(day_date, time(h_from, m_from)))
-                iv_end   = tz.localize(datetime.combine(day_date, time(h_to,   m_to)))
+                iv_start = tz.localize(datetime.combine(day_date, time(h_from, m_from)), is_dst=False)
+                iv_end   = tz.localize(datetime.combine(day_date, time(h_to,   m_to)),   is_dst=False)
                 if current >= iv_end:
                     continue
                 seg_start = max(current, iv_start)
@@ -219,7 +219,7 @@ class MrpRescheduleWizard(models.TransientModel):
                 remaining -= seg_hours
                 current = iv_end
 
-            current = tz.localize(datetime.combine(day_date + timedelta(days=1), time(0, 0)))
+            current = tz.localize(datetime.combine(day_date + timedelta(days=1), time(0, 0)), is_dst=False)
 
         _logger.warning('MRP Reschedule: sin slot en 365 días (%s)', calendar.name)
         return (after_dt, after_dt + timedelta(hours=duration_hours))
@@ -250,6 +250,8 @@ class MrpRescheduleWizard(models.TransientModel):
 
         mo_start = None
         wo_prev_end = base_dt
+        scale = (duration_override / (total_wo_dur / 60.0)
+                 if duration_override and total_wo_dur > 0 else None)
 
         for wo in wos:
             wc = wo.workcenter_id
@@ -260,6 +262,8 @@ class MrpRescheduleWizard(models.TransientModel):
                 else self.env.company.resource_calendar_id
             )
             wo_dur_h = (wo.duration_expected or 60.0) / 60.0
+            if scale is not None:
+                wo_dur_h *= scale
             earliest = max(wo_prev_end, wc_anchors.get(wc_id, base_dt), base_dt)
             wo_start, wo_end = self._schedule_duration(calendar, earliest, wo_dur_h)
             wc_anchors[wc_id] = wo_end
@@ -388,6 +392,8 @@ class MrpRescheduleWizard(models.TransientModel):
             if is_anchor:
                 new_start = mo.date_start
                 new_end   = mo.date_finished
+                if not new_end and mo.date_start:
+                    new_end = mo.date_start + timedelta(hours=self._get_mo_duration_hours(mo))
                 if new_end:
                     for wo in mo.workorder_ids:
                         wc_id = wo.workcenter_id.id

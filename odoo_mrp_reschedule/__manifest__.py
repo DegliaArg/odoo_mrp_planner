@@ -25,4 +25,10 @@ menú Acción de la vista lista de órdenes de fabricación.
     'installable': True,
     'application': False,
     'auto_install': False,
+    'assets': {
+        'web.assets_backend': [
+            'odoo_mrp_reschedule/static/src/js/mrp_reschedule_gantt.js',
+        ],
+    },
+    'installable': True,
 }

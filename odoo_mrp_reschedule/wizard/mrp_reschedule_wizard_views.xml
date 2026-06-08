@@ -1,110 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="view_mrp_reschedule_wizard_form" model="ir.ui.view">
+    <record id="mrp_reschedule_wizard_form" model="ir.ui.view">
         <field name="name">mrp.reschedule.wizard.form</field>
         <field name="model">mrp.reschedule.wizard</field>
         <field name="arch" type="xml">
             <form string="Reprogramar en cascada">
-                <sheet>
 
-                    <!-- ── Encabezado: orden pivot + fecha + delta ── -->
+                <group>
                     <group>
-                        <group string="Orden de referencia (pivot)">
-                            <field name="production_id"
-                                   options="{'no_create': True, 'no_edit': True}"
-                                   domain="[('state', 'not in', ['cancel'])]"/>
-                            <field name="delta_display"
-                                   string="Desplazamiento calculado"
-                                   readonly="1"/>
-                        </group>
-                        <group string="Fecha real de finalización">
-                            <field name="new_finish_date" nolabel="1"/>
-                        </group>
+                        <field name="production_id"/>
+                        <field name="new_finish_date"/>
                     </group>
+                    <group>
+                        <field name="delta_display" readonly="1"/>
+                    </group>
+                </group>
 
-                    <!-- ── Botón de cálculo ── -->
-                    <div style="margin: 0 0 12px 0;">
-                        <button name="action_recalculate"
-                                type="object"
-                                string="↻  Calcular / Recalcular cambios"
-                                class="btn btn-secondary"/>
-                        <span style="margin-left: 12px; font-size: 12px; color: var(--color-text-secondary);">
-                            Ajuste la fecha de fin y haga clic para ver
-                            todas las órdenes afectadas.
-                        </span>
-                    </div>
+                <div class="o_horizontal_separator mt8 mb8">Cambios propuestos</div>
 
-                    <!-- ── Aviso cuando no hay líneas aún ── -->
-                    <field name="has_lines" invisible="1"/>
-                    <div invisible="has_lines"
-                         class="alert alert-info"
-                         role="alert"
-                         style="margin-bottom: 8px;">
-                        Haga clic en "Calcular / Recalcular cambios" para ver las órdenes
-                        subsecuentes en los mismos centros de trabajo.
-                    </div>
+                <!--
+                    Widget OWL: lee line_ids del record y dibuja el Gantt.
+                    Debe ir ANTES del field line_ids para que aparezca encima.
+                -->
+                <widget name="reschedule_gantt"/>
 
-                    <!-- ── Tabla de cambios propuestos ── -->
-                    <field name="line_ids"
-                           nolabel="1"
-                           invisible="not has_lines">
-                        <list editable="bottom"
-                              no_open="1"
-                              decoration-info="record_type == 'mrp' and level == 0"
-                              decoration-warning="record_type == 'mrp' and level > 0"
-                              decoration-muted="record_type == 'purchase'">
+                <!--
+                    line_ids: lista editable solo en el campo "apply".
+                    Los campos con column_invisible="True" son necesarios para
+                    que el widget Gantt los pueda leer desde
+                    props.record.data.line_ids.records[i].data.
+                -->
+                <field name="line_ids" nolabel="1">
+                    <list string="Cambios propuestos"
+                          editable="1"
+                          decoration-info="record_type == 'mrp'"
+                          decoration-warning="record_type == 'purchase'">
 
-                            <!-- Campo level disponible para decoraciones pero no visible -->
-                            <field name="level" column_invisible="1"/>
+                        <!-- Columnas visibles -->
+                        <field name="apply"               string="Aplicar"/>
+                        <field name="record_label"        string="Referencia"          readonly="1"/>
+                        <field name="description_label"   string="Producto / Proveedor" readonly="1"/>
+                        <field name="current_date_finish" string="Fin actual"           readonly="1"/>
+                        <field name="new_date_finish"     string="Nuevo fin"            readonly="1"/>
+                        <field name="state_display"       string="Estado"               readonly="1"/>
 
-                            <field name="apply" string="✓"/>
+                        <!-- Campos ocultos requeridos por el widget Gantt -->
+                        <field name="record_type"        column_invisible="True"/>
+                        <field name="level"              column_invisible="True"/>
+                        <field name="production_id"      column_invisible="True"/>
+                        <field name="purchase_id"        column_invisible="True"/>
+                        <field name="current_date_start" column_invisible="True"/>
+                        <field name="new_date_start"     column_invisible="True"/>
 
-                            <field name="record_type"
-                                   widget="badge"
-                                   options="{'colors': {'mrp': 'info', 'purchase': 'success'}}"/>
-
-                            <field name="record_label"
-                                   string="Referencia"
-                                   readonly="1"/>
-
-                            <field name="description_label"
-                                   string="Producto / Proveedor"
-                                   readonly="1"/>
-
-                            <field name="parent_label"
-                                   string="Generado por"
-                                   readonly="1"
-                                   optional="show"/>
-
-                            <field name="state_display"
-                                   string="Estado actual"
-                                   readonly="1"
-                                   optional="show"/>
-
-                            <field name="current_date_finish"
-                                   string="Fin planificado"
-                                   readonly="1"/>
-
-                            <field name="new_date_start"
-                                   string="Nuevo inicio"
-                                   readonly="record_type == 'purchase'"
-                                   optional="show"/>
-
-                            <field name="new_date_finish"
-                                   string="Nuevo fin"/>
-
-                        </list>
-                    </field>
-
-                </sheet>
+                    </list>
+                </field>
 
                 <footer>
+                    <button name="action_recalculate"
+                            type="object"
+                            string="Calcular"
+                            class="btn-secondary"/>
                     <button name="action_apply"
                             type="object"
-                            string="Aplicar cambios"
+                            string="Confirmar"
                             class="btn-primary"
-                            confirm="¿Confirmar la reprogramación? Se modificarán todas las órdenes marcadas y se replanificarán sus órdenes de trabajo en el centro de trabajo."/>
+                            invisible="not has_lines"/>
                     <button string="Cancelar"
                             class="btn-secondary"
                             special="cancel"/>

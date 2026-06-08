@@ -189,7 +189,7 @@
             <gantt date_start="new_date_start"
                    date_stop="new_date_finish"
                    string="Cambios propuestos"
-                   default_scale="week"
+                   default_scale="day"
                    color="color"
                    create="0"
                    edit="0"
@@ -255,7 +255,7 @@
             <gantt date_start="new_date_start"
                    date_stop="new_date_finish"
                    string="Árbol de órdenes (propuesto)"
-                   default_scale="week"
+                   default_scale="day"
                    color="color"
                    create="0"
                    edit="0"
@@ -316,11 +316,31 @@
         </field>
     </record>
 
+    <!-- ── Vista Gantt real de workorders (escala día para precisión horaria) ── -->
+    <record id="mrp_workorder_gantt_real_wc" model="ir.ui.view">
+        <field name="name">mrp.workorder.gantt.reschedule.real</field>
+        <field name="model">mrp.workorder</field>
+        <field name="arch" type="xml">
+            <gantt date_start="date_start"
+                   date_stop="date_finished"
+                   string="Estado real de centros de trabajo"
+                   default_scale="day"
+                   create="0"
+                   edit="0"
+                   delete="0">
+                <field name="production_id"/>
+                <field name="workcenter_id"/>
+                <field name="name"/>
+            </gantt>
+        </field>
+    </record>
+
     <!-- ── Acción: estado real de WC (workorders de MRP) ── -->
     <record id="action_mrp_reschedule_real_wc" model="ir.actions.act_window">
         <field name="name">Estado real de centros de trabajo</field>
         <field name="res_model">mrp.workorder</field>
         <field name="view_mode">gantt,list</field>
+        <field name="view_id" ref="mrp_workorder_gantt_real_wc"/>
         <field name="domain">[('state', 'not in', ('done', 'cancel'))]</field>
         <field name="context">{'group_by': 'workcenter_id'}</field>
     </record>

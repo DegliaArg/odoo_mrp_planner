@@ -80,9 +80,9 @@ class MrpProduction(models.Model):
 
     # ── Acción del botón Reprogramar ─────────────────────────────────────────
 
-    def action_open_reschedule_wizard(self):
+    def action_open_reschedule_plan(self):
         """
-        Abre el wizard de reprogramación. Funciona desde:
+        Crea un plan de reprogramación y lo abre. Funciona desde:
           - La vista lista (Acción → botón servidor).
           - El botón inteligente en el form (cuando x_reschedule_needed=True).
         """
@@ -91,18 +91,17 @@ class MrpProduction(models.Model):
             return
         pivot = self.browse(production_ids[0])
 
-        # Limpiar el flag al abrir el wizard
         pivot.write({'x_reschedule_needed': False})
 
-        wizard = self.env['mrp.reschedule.wizard'].create({
+        plan = self.env['mrp.reschedule.plan'].create({
             'production_id': pivot.id,
             'new_finish_date': pivot.date_finished or fields.Datetime.now(),
         })
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Reprogramar en cascada'),
-            'res_model': 'mrp.reschedule.wizard',
-            'res_id': wizard.id,
+            'name': _('Plan de reprogramación'),
+            'res_model': 'mrp.reschedule.plan',
+            'res_id': plan.id,
             'view_mode': 'form',
-            'target': 'new',
+            'target': 'current',
         }

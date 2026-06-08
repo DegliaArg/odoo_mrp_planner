@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <data noupdate="1">
+        <record id="seq_mrp_reschedule_plan" model="ir.sequence">
+            <field name="name">Plan de reprogramación en cascada</field>
+            <field name="code">mrp.reschedule.plan</field>
+            <field name="prefix">RESCH/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+
+    <!-- ── Vista lista de planes ── -->
+    <record id="mrp_reschedule_plan_list" model="ir.ui.view">
+        <field name="name">mrp.reschedule.plan.list</field>
+        <field name="model">mrp.reschedule.plan</field>
+        <field name="arch" type="xml">
+            <list string="Planes de reprogramación" decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="production_id"/>
+                <field name="new_finish_date"/>
+                <field name="delta_display"/>
+                <field name="line_count" string="Líneas"/>
+                <field name="applied_date" optional="show"/>
+                <field name="applied_by" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'calculated'"
+                       decoration-success="state == 'applied'"
+                       decoration-danger="state == 'cancelled'"/>
+                <field name="create_uid" optional="hide"/>
+                <field name="create_date" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Vista formulario del plan ── -->
+    <record id="mrp_reschedule_plan_form" model="ir.ui.view">
+        <field name="name">mrp.reschedule.plan.form</field>
+        <field name="model">mrp.reschedule.plan</field>
+        <field name="arch" type="xml">
+            <form string="Plan de reprogramación en cascada">
+
+                <header>
+                    <button name="action_calculate"
+                            type="object"
+                            string="Calcular"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_apply"
+                            type="object"
+                            string="Aplicar cambios"
+                            class="btn-primary"
+                            invisible="state != 'calculated'"
+                            confirm="¿Confirmar la reprogramación? Esta acción actualizará las fechas de las órdenes de fabricación y compra marcadas."/>
+                    <button name="action_reset_draft"
+                            type="object"
+                            string="Recalcular"
+                            class="btn-secondary"
+                            invisible="state != 'calculated'"/>
+                    <button name="action_cancel"
+                            type="object"
+                            string="Cancelar plan"
+                            class="btn-secondary"
+                            invisible="state in ('applied', 'cancelled')"
+                            confirm="¿Cancelar este plan? Se eliminarán las líneas calculadas."/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,calculated,applied"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_gantt"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-bar-chart"
+                                invisible="state == 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="line_count"/>
+                                </span>
+                                <span class="o_stat_text">Ver Gantt</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <group>
+                        <group string="Configuración">
+                            <field name="production_id"
+                                   readonly="state in ('applied', 'cancelled')"/>
+                            <field name="new_finish_date"
+                                   readonly="state in ('applied', 'cancelled')"/>
+                            <field name="delta_display" readonly="1"/>
+                        </group>
+                        <group string="Aplicación" invisible="state != 'applied'">
+                            <field name="applied_date" readonly="1"/>
+                            <field name="applied_by" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <field name="line_ids"
+                           readonly="state in ('applied', 'cancelled')"
+                           nolabel="1">
+                        <list string="Líneas"
+                              editable="bottom"
+                              decoration-muted="is_anchor"
+                              decoration-info="record_type == 'mrp' and not warning_type and not is_anchor"
+                              decoration-warning="record_type == 'purchase' and not warning_type"
+                              decoration-danger="warning_type == 'confirmed_po'"
+                              decoration-success="warning_type == 'child_adjusted'">
+
+                            <field name="reschedule_sequence"
+                                   string="Orden"
+                                   readonly="level != 0 or record_type != 'mrp' or is_anchor"
+                                   optional="show"/>
+                            <field name="apply"
+                                   string="Aplicar"
+                                   readonly="is_anchor"/>
+                            <field name="is_anchor"
+                                   string="Fijo"
+                                   readonly="record_type != 'mrp'"
+                                   widget="boolean_toggle"/>
+                            <field name="record_label"
+                                   string="Referencia"
+                                   readonly="1"/>
+                            <field name="description_label"
+                                   string="Producto / Proveedor"
+                                   readonly="1"/>
+                            <field name="product_qty_display"
+                                   string="Cantidad"
+                                   readonly="1"
+                                   optional="show"/>
+                            <field name="workcenter_label"
+                                   string="Centros de trabajo"
+                                   readonly="1"
+                                   optional="show"/>
+                            <field name="duration_hours"
+                                   string="Duración (hs)"
+                                   readonly="record_type != 'mrp' or is_anchor"
+                                   optional="show"/>
+                            <field name="current_date_finish"
+                                   string="Fin actual"
+                                   readonly="1"/>
+                            <field name="new_date_finish"
+                                   string="Nuevo fin"
+                                   readonly="1"/>
+                            <field name="state_display"
+                                   string="Estado"
+                                   readonly="1"/>
+                            <field name="warning_message"
+                                   string="Advertencia"
+                                   readonly="1"
+                                   optional="show"/>
+
+                            <field name="record_type"        column_invisible="True"/>
+                            <field name="level"              column_invisible="True"/>
+                            <field name="warning_type"       column_invisible="True"/>
+                            <field name="production_id"      column_invisible="True"/>
+                            <field name="purchase_id"        column_invisible="True"/>
+                            <field name="current_date_start" column_invisible="True"/>
+                            <field name="new_date_start"     column_invisible="True"/>
+                        </list>
+                    </field>
+                </sheet>
+
+                <chatter/>
+
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Vista Gantt de líneas ── -->
+    <record id="mrp_reschedule_plan_line_gantt" model="ir.ui.view">
+        <field name="name">mrp.reschedule.plan.line.gantt</field>
+        <field name="model">mrp.reschedule.plan.line</field>
+        <field name="arch" type="xml">
+            <gantt date_start="new_date_start"
+                   date_stop="new_date_finish"
+                   string="Cambios propuestos"
+                   default_scale="week"
+                   color="color"
+                   create="0"
+                   edit="0"
+                   delete="0">
+                <field name="record_label"/>
+                <field name="description_label"/>
+                <field name="workcenter_label"/>
+                <field name="product_qty_display"/>
+                <field name="current_date_finish"/>
+                <field name="state_display"/>
+                <field name="color"/>
+            </gantt>
+        </field>
+    </record>
+
+    <!-- ── Acción lista de planes ── -->
+    <record id="action_mrp_reschedule_plan" model="ir.actions.act_window">
+        <field name="name">Planes de reprogramación</field>
+        <field name="res_model">mrp.reschedule.plan</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crear un plan de reprogramación en cascada
+            </p>
+            <p>
+                Seleccioná una orden de fabricación como pivot, fijá su nueva
+                fecha de finalización y calculá el impacto en cascada sobre
+                las órdenes subsecuentes en los mismos centros de trabajo.
+            </p>
+        </field>
+    </record>
+
+    <!-- ── Menús ── -->
+    <menuitem id="mrp_reschedule_menu_root"
+              name="Reprogramación"
+              parent="mrp.menu_mrp_root"
+              sequence="25"
+              action="action_mrp_reschedule_plan"/>
+
+</odoo>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_mrp_reschedule" model="ir.ui.view">
+        <field name="name">res.config.settings.view.mrp.reschedule</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="mrp.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='mrp']" position="inside">
+                <block title="Reprogramación en cascada" name="mrp_reschedule_block">
+                    <setting
+                        string="Criterio de prioridad"
+                        help="Orden en que se programan las OFs cuando compiten por el mismo WC.">
+                        <field name="mrp_reschedule_priority"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

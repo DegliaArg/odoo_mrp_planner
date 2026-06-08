@@ -1,21 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Server Action vinculado a mrp.production.
-        Aparece en el menú "Acción" de la vista lista de órdenes de fabricación.
-        Soporta:
-          - 0 registros seleccionados: abre el wizard con campo pivot vacío.
-          - 1 registro seleccionado: pre-completa la orden pivot.
-          - 2+ registros: lanza UserError pidiendo selección única.
-    -->
-    <record id="action_mrp_reschedule_cascade_server" model="ir.actions.server">
+    <!-- ── Acción servidor: botón en vista lista de MOs ── -->
+    <record id="action_mrp_reschedule" model="ir.actions.server">
         <field name="name">Reprogramar en cascada</field>
         <field name="model_id" ref="mrp.model_mrp_production"/>
         <field name="binding_model_id" ref="mrp.model_mrp_production"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_open_reschedule_wizard()</field>
+        <field name="code">
+action = records.action_open_reschedule_wizard()
+        </field>
+    </record>
+
+    <!-- ── Extensión del form de mrp.production ── -->
+    <record id="mrp_production_form_inherit_reschedule" model="ir.ui.view">
+        <field name="name">mrp.production.form.inherit.reschedule</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp.mrp_production_form_view"/>
+        <field name="arch" type="xml">
+
+            <!--
+                Fase 4: Botón inteligente "Reprogramar sugerido".
+                Solo visible cuando x_reschedule_needed = True.
+            -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_reschedule_wizard"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-calendar-check-o"
+                        invisible="not x_reschedule_needed">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Reprogramar</span>
+                        <span class="o_stat_text">sugerido</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!--
+                Fase 2: Campo x_parent_mo_id junto al campo Origen.
+                Readonly, solo visible cuando está definido.
+            -->
+            <xpath expr="//field[@name='origin']" position="after">
+                <field name="x_parent_mo_id"
+                       readonly="1"
+                       invisible="not x_parent_mo_id"
+                       string="OF madre"/>
+            </xpath>
+
+        </field>
     </record>
 
 </odoo>

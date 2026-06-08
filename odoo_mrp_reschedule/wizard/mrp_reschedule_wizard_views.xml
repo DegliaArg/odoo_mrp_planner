@@ -19,35 +19,66 @@
 
                 <div class="o_horizontal_separator mt8 mb8">Cambios propuestos</div>
 
-                <!--
-                    Widget OWL: lee line_ids del record y dibuja el Gantt.
-                    Debe ir ANTES del field line_ids para que aparezca encima.
-                -->
+                <!-- Gantt OWL (lee line_ids y dibuja las barras) -->
                 <widget name="reschedule_gantt"/>
 
-                <!--
-                    line_ids: lista editable solo en el campo "apply".
-                    Los campos con column_invisible="True" son necesarios para
-                    que el widget Gantt los pueda leer desde
-                    props.record.data.line_ids.records[i].data.
-                -->
                 <field name="line_ids" nolabel="1">
                     <list string="Cambios propuestos"
                           editable="1"
-                          decoration-info="record_type == 'mrp'"
-                          decoration-warning="record_type == 'purchase'">
+                          decoration-muted="is_anchor"
+                          decoration-info="record_type == 'mrp' and not warning_type and not is_anchor"
+                          decoration-warning="record_type == 'purchase' and not warning_type"
+                          decoration-danger="warning_type == 'confirmed_po'"
+                          decoration-success="warning_type == 'child_adjusted'">
 
-                        <!-- Columnas visibles -->
-                        <field name="apply"               string="Aplicar"/>
-                        <field name="record_label"        string="Referencia"          readonly="1"/>
-                        <field name="description_label"   string="Producto / Proveedor" readonly="1"/>
-                        <field name="current_date_finish" string="Fin actual"           readonly="1"/>
-                        <field name="new_date_finish"     string="Nuevo fin"            readonly="1"/>
-                        <field name="state_display"       string="Estado"               readonly="1"/>
+                        <!--
+                            Fase 3: Campo de orden manual.
+                            Solo editable en líneas de nivel 0 de tipo mrp.
+                            El usuario cambia el número y hace clic en "Calcular"
+                            para que el algoritmo respete ese orden (requiere que
+                            el criterio esté configurado en "Manual" en Ajustes).
+                        -->
+                        <field name="reschedule_sequence"
+                               string="Orden"
+                               readonly="level != 0 or record_type != 'mrp' or is_anchor"
+                               optional="show"/>
 
-                        <!-- Campos ocultos requeridos por el widget Gantt -->
+                        <!-- Fase 1: columnas principales -->
+                        <field name="apply"
+                               string="Aplicar"
+                               readonly="is_anchor"/>
+                        <field name="is_anchor"
+                               string="Fijo"
+                               readonly="record_type != 'mrp'"
+                               widget="boolean_toggle"/>
+                        <field name="record_label"
+                               string="Referencia"
+                               readonly="1"/>
+                        <field name="description_label"
+                               string="Producto / Proveedor"
+                               readonly="1"/>
+                        <field name="duration_hours"
+                               string="Duración (hs)"
+                               readonly="record_type != 'mrp' or is_anchor"
+                               optional="show"/>
+                        <field name="current_date_finish"
+                               string="Fin actual"
+                               readonly="1"/>
+                        <field name="new_date_finish"
+                               string="Nuevo fin"
+                               readonly="1"/>
+                        <field name="state_display"
+                               string="Estado"
+                               readonly="1"/>
+                        <field name="warning_message"
+                               string="Advertencia"
+                               readonly="1"
+                               optional="show"/>
+
+                        <!-- Campos ocultos: necesarios para el Gantt y decoraciones -->
                         <field name="record_type"        column_invisible="True"/>
                         <field name="level"              column_invisible="True"/>
+                        <field name="warning_type"       column_invisible="True"/>
                         <field name="production_id"      column_invisible="True"/>
                         <field name="purchase_id"        column_invisible="True"/>
                         <field name="current_date_start" column_invisible="True"/>

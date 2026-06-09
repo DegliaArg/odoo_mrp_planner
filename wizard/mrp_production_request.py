@@ -10,7 +10,7 @@ _logger = logging.getLogger(__name__)
 INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
 
 
-class MrpProductionRequestItem(models.TransientModel):
+class MrpProductionRequestItem(models.Model):
     """Una fila de entrada: qué fabricar, cuánto y para cuándo."""
     _name = 'mrp.production.request.item'
     _description = 'Artículo de solicitud de programación'
@@ -55,9 +55,13 @@ class MrpProductionRequestItem(models.TransientModel):
                 item.feasibility_msg = f'+{d}d {h}h' if d else f'+{h}h'
 
 
-class MrpProductionRequest(models.TransientModel):
+class MrpProductionRequest(models.Model):
     _name = 'mrp.production.request'
     _description = 'Solicitud de programación de fabricación'
+    _order = 'id desc'
+
+    name = fields.Char(string='Referencia', readonly=True, default='Nuevo', copy=False)
+    active = fields.Boolean(default=True)
 
     start_from = fields.Datetime(
         string='Disponible desde', default=fields.Datetime.now,
@@ -65,7 +69,11 @@ class MrpProductionRequest(models.TransientModel):
     )
     item_ids = fields.One2many('mrp.production.request.item', 'request_id', string='Artículos')
     line_ids = fields.One2many('mrp.production.request.line', 'request_id', string='Plan calculado')
-    state    = fields.Selection([('draft', 'Borrador'), ('calculated', 'Calculado')], default='draft')
+    state    = fields.Selection([
+        ('draft',      'Borrador'),
+        ('calculated', 'Calculado'),
+        ('confirmed',  'OFs creadas'),
+    ], default='draft')
 
     all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
     feasibility_summary = fields.Char(compute='_compute_summary', store=False)
@@ -86,6 +94,18 @@ class MrpProductionRequest(models.TransientModel):
                 if ok == total
                 else _('%d de %d artículos no cumplen el plazo') % (total - ok, total)
             )
+
+    # ── Creación ─────────────────────────────────────────────────────────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', 'Nuevo') == 'Nuevo':
+                vals['name'] = (
+                    self.env['ir.sequence'].next_by_code('mrp.production.request')
+                    or 'Nuevo'
+                )
+        return super().create(vals_list)
 
     # ── Acciones ─────────────────────────────────────────────────────────────
 
@@ -142,11 +162,11 @@ class MrpProductionRequest(models.TransientModel):
         }
 
     def action_new(self):
-        """Abre una nueva programación en blanco (desde la página completa)."""
+        """Vuelve a la lista para crear una nueva programación."""
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
-            'view_mode': 'form',
+            'view_mode': 'list,form',
             'target': 'current',
         }
 
@@ -186,6 +206,8 @@ class MrpProductionRequest(models.TransientModel):
         if not created_ids:
             raise UserError(_('No se pudo crear ninguna orden de fabricación.'))
 
+        self.state = 'confirmed'
+
         return {
             'type': 'ir.actions.act_window',
             'name': _('Órdenes de fabricación creadas'),
@@ -216,6 +238,9 @@ class MrpProductionRequest(models.TransientModel):
             return 'subcontract'
 
         # Rutas configuradas en el producto/categoría
+        # Recolectar todos los métodos encontrados y devolver por prioridad:
+        # manufacture > buy  (un producto puede tener ambas rutas configuradas)
+        found = set()
         routes = product.route_ids | product.categ_id.total_route_ids
         for route in routes:
             for rule in route.rule_ids.filtered('active'):
@@ -223,9 +248,13 @@ class MrpProductionRequest(models.TransientModel):
                 if not pt:
                     continue
                 if pt.code == 'mrp_operation':
-                    return 'manufacture'
-                if pt.code == 'incoming':
-                    return 'buy'
+                    found.add('manufacture')
+                elif pt.code == 'incoming':
+                    found.add('buy')
+        if 'manufacture' in found:
+            return 'manufacture'
+        if 'buy' in found:
+            return 'buy'
 
         # Fallback
         if self._find_bom(product):
@@ -517,7 +546,7 @@ class MrpProductionRequest(models.TransientModel):
             self._collect_lines(child, lines_vals, seq, item_id=item_id)
 
 
-class MrpProductionRequestLine(models.TransientModel):
+class MrpProductionRequestLine(models.Model):
     _name = 'mrp.production.request.line'
     _description = 'Línea de solicitud de programación'
     _order = 'sequence'

@@ -520,8 +520,12 @@ class MrpReschedulePlan(models.Model):
         lines_vals = []
         wc_lines_data = []
         seq = 10
-        visited_mo_ids = {pivot.id} if pivot else set()
+        visited_mo_ids = set()
         visited_po_ids = set()
+
+        # En modo pivot el pivot es siempre un anchor (punto fijo de referencia)
+        if pivot:
+            anchor_overrides.setdefault(pivot.id, True)
 
         if is_global:
             base_dt = self.replan_from or fields.Datetime.now()
@@ -668,6 +672,11 @@ class MrpReschedulePlan(models.Model):
                 add_mo(child, level + 1, mo.name, parent_delta=mo_delta)
 
         root_label = pivot.name if pivot else ''
+
+        # Agregar el pivot primero (como anchor) y luego sus hijas en cascada
+        if not is_global and pivot:
+            add_mo(pivot, 0, '')
+
         for mo in mos_sorted:
             add_mo(mo, 0, root_label)
 

@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <data noupdate="1">
+        <record id="seq_mrp_production_request" model="ir.sequence">
+            <field name="name">Programación de fabricación</field>
+            <field name="code">mrp.production.request</field>
+            <field name="prefix">PROG/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+
+    <!-- ── Vista lista ── -->
+    <record id="mrp_production_request_list" model="ir.ui.view">
+        <field name="name">mrp.production.request.list</field>
+        <field name="model">mrp.production.request</field>
+        <field name="arch" type="xml">
+            <list string="Programaciones"
+                  decoration-muted="state == 'draft'"
+                  decoration-success="state == 'confirmed'">
+                <field name="name"/>
+                <field name="start_from" string="Disponible desde"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'calculated'"
+                       decoration-success="state == 'confirmed'"/>
+                <field name="create_uid" string="Creado por" optional="show"/>
+                <field name="create_date" string="Fecha" optional="show"/>
+            </list>
+        </field>
+    </record>
+
     <record id="mrp_production_request_form" model="ir.ui.view">
         <field name="name">mrp.production.request.form</field>
         <field name="model">mrp.production.request</field>
@@ -24,15 +54,18 @@
                             class="btn-primary"
                             invisible="state != 'calculated'"
                             confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
-                    <button name="action_new" type="object" string="Nueva programación"
+                    <button name="action_new" type="object" string="Volver a lista"
                             class="btn-secondary"
-                            invisible="state != 'calculated'"/>
-                    <button special="cancel" string="Cancelar" class="btn-secondary"
-                            invisible="state == 'calculated'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,calculated"/>
+                            invisible="state not in ('calculated', 'confirmed')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,calculated,confirmed"/>
                 </header>
 
                 <sheet>
+
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
 
                     <group>
                         <field name="start_from"/>
@@ -92,9 +125,10 @@
     </record>
 
     <record id="action_mrp_production_request" model="ir.actions.act_window">
-        <field name="name">Nueva programación</field>
+        <field name="name">Programación de fabricación</field>
         <field name="res_model">mrp.production.request</field>
-        <field name="view_mode">form</field>
+        <field name="view_mode">list,form</field>
+        <field name="target">current</field>
     </record>
 
     <menuitem id="mrp_reschedule_menu_request"

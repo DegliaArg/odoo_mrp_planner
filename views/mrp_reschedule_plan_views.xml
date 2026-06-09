@@ -358,64 +358,6 @@
         </field>
     </record>
 
-    <!-- ── Acción: carga de WC propuesto ── -->
-    <record id="action_mrp_reschedule_wc_load" model="ir.actions.act_window">
-        <field name="name">Carga de centros de trabajo</field>
-        <field name="res_model">mrp.reschedule.plan.wc.line</field>
-        <field name="view_mode">gantt,list</field>
-        <field name="domain">[('plan_state', 'in', ('calculated', 'applied')), ('new_date_start', '!=', False)]</field>
-        <field name="context">{'group_by': 'workcenter_id'}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Sin datos de carga de WC
-            </p>
-            <p>Calculá un plan de reprogramación para ver la ocupación propuesta por centro de trabajo.</p>
-        </field>
-    </record>
-
-    <!-- ── Acción: árbol de órdenes (todas las líneas de todos los planes) ── -->
-    <record id="action_mrp_reschedule_order_tree" model="ir.actions.act_window">
-        <field name="name">Árbol de órdenes</field>
-        <field name="res_model">mrp.reschedule.plan.line</field>
-        <field name="view_mode">gantt,list</field>
-        <field name="view_id" ref="mrp_reschedule_plan_line_gantt_global"/>
-        <field name="domain">[('plan_id.state', 'in', ('calculated', 'applied')), ('new_date_start', '!=', False)]</field>
-        <field name="context">{'group_by': 'plan_id'}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Sin planes calculados</p>
-            <p>Calculá un plan de reprogramación para ver el árbol de órdenes en el tiempo.</p>
-        </field>
-    </record>
-
-    <!-- ── Vista Gantt real de workorders (escala día para precisión horaria) ── -->
-    <record id="mrp_workorder_gantt_real_wc" model="ir.ui.view">
-        <field name="name">mrp.workorder.gantt.reschedule.real</field>
-        <field name="model">mrp.workorder</field>
-        <field name="arch" type="xml">
-            <gantt date_start="date_start"
-                   date_stop="date_finished"
-                   string="Estado real de centros de trabajo"
-                   default_scale="day"
-                   create="0"
-                   edit="0"
-                   delete="0">
-                <field name="production_id"/>
-                <field name="workcenter_id"/>
-                <field name="name"/>
-            </gantt>
-        </field>
-    </record>
-
-    <!-- ── Acción: estado real de WC (workorders de MRP) ── -->
-    <record id="action_mrp_reschedule_real_wc" model="ir.actions.act_window">
-        <field name="name">Estado real de centros de trabajo</field>
-        <field name="res_model">mrp.workorder</field>
-        <field name="view_mode">gantt,list</field>
-        <field name="view_id" ref="mrp_workorder_gantt_real_wc"/>
-        <field name="domain">[('state', 'not in', ('done', 'cancel'))]</field>
-        <field name="context">{'group_by': 'workcenter_id'}</field>
-    </record>
-
     <!-- ── Menús ── -->
     <menuitem id="mrp_reschedule_menu_root"
               name="Reprogramación"
@@ -427,26 +369,5 @@
               parent="mrp_reschedule_menu_root"
               sequence="10"
               action="action_mrp_reschedule_plan"/>
-
-    <menuitem id="mrp_reschedule_menu_wc_load"
-              name="Carga de WC (propuesto)"
-              parent="mrp_reschedule_menu_root"
-              sequence="20"
-              groups="base.group_no_one"
-              action="action_mrp_reschedule_wc_load"/>
-
-    <menuitem id="mrp_reschedule_menu_order_tree"
-              name="Árbol de órdenes"
-              parent="mrp_reschedule_menu_root"
-              sequence="30"
-              groups="base.group_no_one"
-              action="action_mrp_reschedule_order_tree"/>
-
-    <menuitem id="mrp_reschedule_menu_real_wc"
-              name="Estado real de WC"
-              parent="mrp_reschedule_menu_root"
-              sequence="40"
-              groups="base.group_no_one"
-              action="action_mrp_reschedule_real_wc"/>
 
 </odoo>

@@ -721,7 +721,7 @@ class MrpReschedulePlanLine(models.Model):
     workcenter_label  = fields.Char(string='Centros de trabajo',   compute='_compute_display', store=True)
     product_qty_display = fields.Char(string='Cantidad',           compute='_compute_display', store=True)
     type_label        = fields.Char(string='Tipo',                 compute='_compute_display', store=True)
-    state_display     = fields.Char(string='Estado',               compute='_compute_display', store=False)
+    state_display     = fields.Char(string='Estado',               compute='_compute_state_display', store=False)
     date_delta_display = fields.Char(string='Δ Tiempo',            compute='_compute_delta_display_line', store=False)
 
     current_date_start  = fields.Datetime(string='Inicio actual')
@@ -753,30 +753,37 @@ class MrpReschedulePlanLine(models.Model):
                 mo = line.production_id
                 code = _get_old_code(mo)
                 base_label = f'[{code}] {mo.name}' if code else mo.name
-                line.record_label       = f'{prefix}{base_label}'
-                line.description_label  = mo.product_id.display_name if mo.product_id else ''
-                line.state_display      = MRP_STATES.get(mo.state, mo.state)
+                line.record_label        = f'{prefix}{base_label}'
+                line.description_label   = mo.product_id.display_name if mo.product_id else ''
                 wcs = mo.workorder_ids.mapped('workcenter_id')
-                line.workcenter_label   = ' › '.join(wcs.mapped('name')) if wcs else ''
+                line.workcenter_label    = ' › '.join(wcs.mapped('name')) if wcs else ''
                 qty = mo.product_qty
                 uom = mo.product_uom_id.name if mo.product_uom_id else ''
                 line.product_qty_display = f'{qty:g} {uom}'.strip() if qty else ''
-                line.type_label         = 'OF' if line.level == 0 else 'OF hija'
+                line.type_label          = 'OF' if line.level == 0 else 'OF hija'
             elif line.record_type == 'purchase' and line.purchase_id:
                 po = line.purchase_id
                 line.record_label        = f'{prefix}{po.name}'
                 line.description_label   = po.partner_id.display_name if po.partner_id else ''
-                line.state_display       = PO_STATES.get(po.state, po.state)
                 line.workcenter_label    = ''
                 line.product_qty_display = ''
                 line.type_label          = 'OC'
             else:
                 line.record_label        = f'{prefix}—'
                 line.description_label   = ''
-                line.state_display       = ''
                 line.workcenter_label    = ''
                 line.product_qty_display = ''
                 line.type_label          = ''
+
+    @api.depends('record_type', 'production_id.state', 'purchase_id.state')
+    def _compute_state_display(self):
+        for line in self:
+            if line.record_type == 'mrp' and line.production_id:
+                line.state_display = MRP_STATES.get(line.production_id.state, line.production_id.state)
+            elif line.record_type == 'purchase' and line.purchase_id:
+                line.state_display = PO_STATES.get(line.purchase_id.state, line.purchase_id.state)
+            else:
+                line.state_display = ''
 
     @api.depends('current_date_finish', 'new_date_finish')
     def _compute_delta_display_line(self):

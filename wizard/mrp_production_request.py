@@ -138,7 +138,16 @@ class MrpProductionRequest(models.TransientModel):
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
-            'target': 'new',
+            'target': 'current',
+        }
+
+    def action_new(self):
+        """Abre una nueva programación en blanco (desde la página completa)."""
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'view_mode': 'form',
+            'target': 'current',
         }
 
     def action_confirm(self):

@@ -423,7 +423,7 @@
               sequence="25"/>
 
     <menuitem id="mrp_reschedule_menu_plans"
-              name="Planes"
+              name="Reprogramación"
               parent="mrp_reschedule_menu_root"
               sequence="10"
               action="action_mrp_reschedule_plan"/>
@@ -432,18 +432,21 @@
               name="Carga de WC (propuesto)"
               parent="mrp_reschedule_menu_root"
               sequence="20"
+              groups="base.group_no_one"
               action="action_mrp_reschedule_wc_load"/>
 
     <menuitem id="mrp_reschedule_menu_order_tree"
               name="Árbol de órdenes"
               parent="mrp_reschedule_menu_root"
               sequence="30"
+              groups="base.group_no_one"
               action="action_mrp_reschedule_order_tree"/>
 
     <menuitem id="mrp_reschedule_menu_real_wc"
               name="Estado real de WC"
               parent="mrp_reschedule_menu_root"
               sequence="40"
+              groups="base.group_no_one"
               action="action_mrp_reschedule_real_wc"/>
 
 </odoo>

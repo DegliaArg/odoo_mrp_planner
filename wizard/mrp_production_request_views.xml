@@ -24,7 +24,11 @@
                             class="btn-primary"
                             invisible="state != 'calculated'"
                             confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
-                    <button special="cancel" string="Cerrar" class="btn-secondary"/>
+                    <button name="action_new" type="object" string="Nueva programación"
+                            class="btn-secondary"
+                            invisible="state != 'calculated'"/>
+                    <button special="cancel" string="Cancelar" class="btn-secondary"
+                            invisible="state == 'calculated'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,calculated"/>
                 </header>
 
@@ -92,7 +96,6 @@
         <field name="name">Nueva programación</field>
         <field name="res_model">mrp.production.request</field>
         <field name="view_mode">form</field>
-        <field name="target">new</field>
     </record>
 
     <menuitem id="mrp_reschedule_menu_request"

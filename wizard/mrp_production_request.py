@@ -311,6 +311,48 @@ class MrpProductionRequest(models.Model):
                 return cal
         return None
 
+    def _forward_schedule_days(self, calendar, from_dt, lead_days):
+        """Avanza lead_days días hábiles desde from_dt según el calendario.
+        Retorna el inicio del primer turno del día resultante."""
+        if not calendar or lead_days <= 0:
+            return from_dt + timedelta(days=lead_days or 0)
+
+        dt = from_dt
+        days_counted = 0
+        max_iter = lead_days * 7 + 30
+
+        for _ in range(max_iter):
+            if days_counted >= lead_days:
+                break
+            dt += timedelta(days=1)
+            dt_date = dt.date()
+            weekday = str(dt.weekday())
+            if any(
+                att.dayofweek == weekday
+                and (not att.date_from or att.date_from <= dt_date)
+                and (not att.date_to   or att.date_to   >= dt_date)
+                for att in calendar.attendance_ids
+            ):
+                days_counted += 1
+
+        dt_date = dt.date()
+        weekday = str(dt.weekday())
+        day_atts = sorted(
+            [
+                a for a in calendar.attendance_ids
+                if a.dayofweek == weekday
+                and (not a.date_from or a.date_from <= dt_date)
+                and (not a.date_to   or a.date_to   >= dt_date)
+            ],
+            key=lambda a: a.hour_from,
+        )
+        if day_atts:
+            h = day_atts[0].hour_from
+            return dt.replace(
+                hour=int(h), minute=int(round((h % 1) * 60)), second=0, microsecond=0
+            )
+        return dt.replace(hour=8, minute=0, second=0, microsecond=0)
+
     def _backward_schedule_days(self, calendar, before_dt, lead_days):
         """Retrocede lead_days días hábiles desde before_dt según el calendario.
         Cae en el primer turno disponible del día resultante."""
@@ -513,6 +555,17 @@ class MrpProductionRequest(models.Model):
         if min_dt:
             after_dt = max(after_dt, min_dt)
 
+        # Si algún hijo es compra/subcont., la OF no puede empezar antes de
+        # min_dt + lead_days hábiles (no podemos pedir antes de hoy).
+        if min_dt:
+            company_calendar = self.env.company.resource_calendar_id
+            for child in node['children']:
+                if child.get('type') in ('purchase', 'subcontract', 'buy'):
+                    lead = child.get('lead_days', 7)
+                    cal  = child.get('supplier_calendar') or company_calendar
+                    earliest_mo_start = self._forward_schedule_days(cal, min_dt, lead)
+                    after_dt = max(after_dt, earliest_mo_start)
+
         node_start = None
         current    = after_dt
 
@@ -532,20 +585,16 @@ class MrpProductionRequest(models.Model):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
-        # Fijar fechas de nodos OC/Subcont./compra: deben llegar antes del inicio del padre
+        # Fijar fechas de nodos OC/Subcont./compra: backward desde el inicio de la OF.
+        # Gracias al push forward de after_dt, la fecha de pedido siempre cae >= min_dt.
         company_calendar = self.env.company.resource_calendar_id
         for child in node['children']:
             if child.get('type') in ('purchase', 'subcontract', 'buy') and node_start:
                 lead = child.get('lead_days', 7)
                 cal  = child.get('supplier_calendar') or company_calendar
-                child['scheduled_end'] = node_start
+                child['scheduled_end']   = node_start
                 raw_start = self._backward_schedule_days(cal, node_start, lead)
                 child['scheduled_start'] = max(raw_start, min_dt) if min_dt else raw_start
-                # Advertencia si el pedido debería haberse emitido antes de hoy
-                if min_dt and raw_start < min_dt:
-                    delta_days = (min_dt - raw_start).days
-                    child['warning_type']    = 'late_start'
-                    child['warning_message'] = f'Debería haberse pedido hace {delta_days}d'
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
         indent    = INDENT_MAP.get(node['level'], '         └─ ')
@@ -654,6 +703,5 @@ class MrpProductionRequestLine(models.Model):
         ('', 'Ninguna'),
         ('stock_ok',      'Stock suficiente'),
         ('stock_partial', 'Stock parcial'),
-        ('late_start',    'Pedido tardío'),
     ], string='Tipo advertencia', default='')
     warning_message = fields.Char(string='Advertencia')

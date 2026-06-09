@@ -104,8 +104,7 @@
                         <list string="Plan de fabricación propuesto"
                               create="0" edit="0" delete="0"
                               decoration-bf="level == 0 and record_type == 'mrp'"
-                              decoration-warning="record_type == 'purchase' and warning_type != 'late_start'"
-                              decoration-danger="warning_type == 'late_start'"
+                              decoration-warning="record_type == 'purchase'"
                               decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
                               decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
                               decoration-muted="level > 0 and record_type == 'mrp'">

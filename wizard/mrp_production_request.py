@@ -10,92 +10,134 @@ _logger = logging.getLogger(__name__)
 INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
 
 
+class MrpProductionRequestItem(models.TransientModel):
+    """Una fila de entrada: qué fabricar, cuánto y para cuándo."""
+    _name = 'mrp.production.request.item'
+    _description = 'Artículo de solicitud de programación'
+    _order = 'sequence, id'
+    _rec_name = 'name'
+
+    request_id  = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
+    sequence    = fields.Integer(default=10)
+    name        = fields.Char(compute='_compute_name', store=True)
+    product_id  = fields.Many2one('product.product', string='Producto', required=True,
+                                  domain=[('type', 'in', ['consu', 'product'])])
+    product_qty = fields.Float(string='Cantidad', default=1.0, required=True)
+    date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
+
+    # Resultado del cálculo — se escribe al calcular
+    projected_end   = fields.Datetime(string='Fin proyectado', readonly=True)
+    feasible        = fields.Boolean(compute='_compute_feasible', store=False)
+    feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Δ Plazo')
+
+    @api.depends('product_id')
+    def _compute_name(self):
+        for item in self:
+            item.name = item.product_id.display_name or '—'
+
+    @api.depends('projected_end', 'date_deadline')
+    def _compute_feasible(self):
+        for item in self:
+            if not item.projected_end or not item.date_deadline:
+                item.feasible = False
+                item.feasibility_msg = '—'
+                continue
+            if item.projected_end <= item.date_deadline:
+                secs = (item.date_deadline - item.projected_end).total_seconds()
+                d, h = int(secs // 86400), int((secs % 86400) // 3600)
+                item.feasible = True
+                item.feasibility_msg = f'+{d}d {h}h' if d else f'+{h}h'
+            else:
+                secs = (item.projected_end - item.date_deadline).total_seconds()
+                d, h = int(secs // 86400), int((secs % 86400) // 3600)
+                item.feasible = False
+                item.feasibility_msg = f'-{d}d {h}h' if d else f'-{h}h'
+
+
 class MrpProductionRequest(models.TransientModel):
     _name = 'mrp.production.request'
     _description = 'Solicitud de programación de fabricación'
 
-    product_id = fields.Many2one(
-        'product.product', string='Producto final', required=True,
-        domain=[('type', 'in', ['consu', 'product'])],
-    )
-    product_qty   = fields.Float(string='Cantidad', default=1.0, required=True)
-    date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
-    start_from    = fields.Datetime(
+    start_from = fields.Datetime(
         string='Disponible desde', default=fields.Datetime.now,
-        help='Fecha mínima de inicio. Por defecto: ahora.',
+        help='Fecha mínima de inicio para todos los artículos. Por defecto: ahora.',
     )
-
-    line_ids = fields.One2many('mrp.production.request.line', 'request_id', string='Líneas')
-    state    = fields.Selection([
+    item_ids = fields.One2many(
+        'mrp.production.request.item', 'request_id', string='Artículos',
+    )
+    line_ids = fields.One2many(
+        'mrp.production.request.line', 'request_id', string='Plan calculado',
+    )
+    state = fields.Selection([
         ('draft', 'Borrador'),
         ('calculated', 'Calculado'),
     ], default='draft')
 
-    feasible            = fields.Boolean(compute='_compute_feasibility', store=False)
-    feasibility_message = fields.Char(compute='_compute_feasibility', store=False)
+    all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
+    feasibility_summary = fields.Char(compute='_compute_summary', store=False)
 
-    # ── Computed ─────────────────────────────────────────────────────────────
-
-    @api.depends('line_ids.new_date_finish', 'line_ids.level', 'date_deadline')
-    def _compute_feasibility(self):
+    @api.depends('item_ids.feasible', 'item_ids.projected_end')
+    def _compute_summary(self):
         for rec in self:
-            top = rec.line_ids.filtered(lambda l: l.level == 0)
-            if not top or not rec.date_deadline:
-                rec.feasible = False
-                rec.feasibility_message = _('Sin datos calculados')
+            done = rec.item_ids.filtered('projected_end')
+            if not done:
+                rec.all_feasible = False
+                rec.feasibility_summary = _('Sin datos calculados')
                 continue
-            ends = [l.new_date_finish for l in top if l.new_date_finish]
-            if not ends:
-                rec.feasible = False
-                rec.feasibility_message = _('Sin fecha calculada')
-                continue
-            top_finish = max(ends)
-            if top_finish <= rec.date_deadline:
-                margin    = rec.date_deadline - top_finish
-                total_h   = margin.total_seconds() / 3600
-                d, h      = int(total_h // 24), int(total_h % 24)
-                margin_s  = f'{d}d {h}h' if d else f'{h}h'
-                rec.feasible = True
-                rec.feasibility_message = _(
-                    'Entrega estimada: %s — margen disponible: %s'
-                ) % (top_finish.strftime('%d/%m %H:%M'), margin_s)
+            ok = sum(1 for i in done if i.feasible)
+            total = len(done)
+            rec.all_feasible = ok == total
+            if ok == total:
+                rec.feasibility_summary = _(
+                    'Todos los artículos cumplen el plazo (%d/%d)'
+                ) % (ok, total)
             else:
-                deficit  = top_finish - rec.date_deadline
-                total_h  = deficit.total_seconds() / 3600
-                d, h     = int(total_h // 24), int(total_h % 24)
-                deficit_s = f'{d}d {h}h' if d else f'{h}h'
-                rec.feasible = False
-                rec.feasibility_message = _(
-                    'Entrega estimada: %s — déficit: %s'
-                ) % (top_finish.strftime('%d/%m %H:%M'), deficit_s)
+                rec.feasibility_summary = _(
+                    '%d de %d artículos no cumplen el plazo'
+                ) % (total - ok, total)
 
     # ── Acciones ─────────────────────────────────────────────────────────────
 
     def action_calculate(self):
         self.ensure_one()
-        if not self.product_id:
-            raise UserError(_('Seleccione un producto.'))
-        if not self.date_deadline:
-            raise UserError(_('Ingrese la fecha de entrega deseada.'))
+        if not self.item_ids:
+            raise UserError(_('Agregue al menos un artículo.'))
+        missing_bom = []
 
         self.line_ids.unlink()
+        self.item_ids.write({'projected_end': False})
 
         plan_model = self.env['mrp.reschedule.plan']
         start = self.start_from or fields.Datetime.now()
         if hasattr(start, 'tzinfo') and start.tzinfo:
             start = start.astimezone(pytz.utc).replace(tzinfo=None)
 
-        root = self._build_bom_tree(self.product_id, self.product_qty, level=0)
-        if not root:
+        # Construir árbol de LdM para cada artículo (en orden de secuencia)
+        item_trees = []
+        for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
+            root = self._build_bom_tree(item.product_id, item.product_qty, level=0)
+            if not root:
+                missing_bom.append(item.product_id.display_name)
+            else:
+                item_trees.append((item, root))
+
+        if missing_bom:
             raise UserError(_(
-                'No se encontró lista de materiales para "%s".'
-            ) % self.product_id.display_name)
+                'Sin lista de materiales para: %s'
+            ) % ', '.join(missing_bom))
 
-        wc_anchors = self._get_wc_anchors(start, root)
-        self._schedule_tree(root, start, wc_anchors, plan_model)
+        # Anclas de WC: carga existente de MOs confirmadas/en progreso
+        all_roots = [r for _, r in item_trees]
+        wc_anchors = self._get_wc_anchors_multi(start, all_roots)
 
+        # Programar todos los artículos compartiendo los mismos anclas de WC
         lines_vals = []
-        self._collect_lines(root, lines_vals, seq=[10])
+        seq = [10]
+        for item, root in item_trees:
+            self._schedule_tree(root, start, wc_anchors, plan_model)
+            self._collect_lines(root, lines_vals, seq, item_id=item.id)
+            item.write({'projected_end': root.get('scheduled_end')})
+
         for vals in lines_vals:
             vals['request_id'] = self.id
         if lines_vals:
@@ -115,48 +157,54 @@ class MrpProductionRequest(models.TransientModel):
         if self.state != 'calculated':
             raise UserError(_('Calcule primero el plan.'))
         if not self.line_ids:
-            raise UserError(_('No hay líneas para confirmar.'))
+            raise UserError(_('No hay líneas calculadas.'))
 
         has_parent_field = 'x_parent_mo_id' in self.env['mrp.production']._fields
-        level_mo = {}  # level -> last created MO at that level
+        all_created_ids = []
 
-        created_ids = []
-        for line in self.line_ids.sorted(lambda l: (l.level, l.sequence)):
-            mo_vals = {
-                'product_id':  line.product_id.id,
-                'product_qty': line.product_qty,
-                'date_start':    line.new_date_start,
-                'date_finished': line.new_date_finish,
-            }
-            if line.bom_id:
-                mo_vals['bom_id'] = line.bom_id.id
-            parent_mo = level_mo.get(line.level - 1) if line.level > 0 else None
-            if parent_mo and has_parent_field:
-                mo_vals['x_parent_mo_id'] = parent_mo.id
-            elif parent_mo:
-                mo_vals['origin'] = parent_mo.name
+        for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
+            item_lines = self.line_ids.filtered(
+                lambda l: l.item_id.id == item.id
+            ).sorted(lambda l: (l.level, l.sequence))
 
-            mo = self.env['mrp.production'].create(mo_vals)
-            level_mo[line.level] = mo
-            created_ids.append(mo.id)
+            if not item_lines:
+                continue
+
+            level_mo = {}
+            for line in item_lines:
+                mo_vals = {
+                    'product_id':  line.product_id.id,
+                    'product_qty': line.product_qty,
+                    'date_start':    line.new_date_start,
+                    'date_finished': line.new_date_finish,
+                }
+                if line.bom_id:
+                    mo_vals['bom_id'] = line.bom_id.id
+                parent_mo = level_mo.get(line.level - 1) if line.level > 0 else None
+                if parent_mo and has_parent_field:
+                    mo_vals['x_parent_mo_id'] = parent_mo.id
+                elif parent_mo:
+                    mo_vals['origin'] = parent_mo.name
+
+                mo = self.env['mrp.production'].create(mo_vals)
+                level_mo[line.level] = mo
+                all_created_ids.append(mo.id)
+
+        if not all_created_ids:
+            raise UserError(_('No se pudo crear ninguna orden de fabricación.'))
 
         return {
             'type': 'ir.actions.act_window',
             'name': _('Órdenes de fabricación creadas'),
             'res_model': 'mrp.production',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', created_ids)],
+            'domain': [('id', 'in', all_created_ids)],
             'target': 'current',
         }
 
     # ── Helpers — BOM explosion ───────────────────────────────────────────────
 
     def _find_bom(self, product):
-        """Encuentra la LdM principal para un product.product.
-
-        Odoo 18: _bom_find recibe un recordset y devuelve {product: bom}.
-        Incluye fallback por search directo para mayor robustez.
-        """
         try:
             result = self.env['mrp.bom']._bom_find(product, company_id=self.env.company.id)
             bom = result.get(product) if isinstance(result, dict) else result
@@ -213,15 +261,18 @@ class MrpProductionRequest(models.TransientModel):
         }
 
         for bom_line in bom.bom_line_ids:
-            child_product = bom_line.product_id
-            child_qty     = bom_line.product_qty * qty
-            child_node = self._build_bom_tree(child_product, child_qty, level + 1, visited)
+            child_node = self._build_bom_tree(
+                bom_line.product_id,
+                bom_line.product_qty * qty,
+                level + 1,
+                visited,
+            )
             if child_node:
                 node['children'].append(child_node)
 
         return node
 
-    def _get_wc_anchors(self, start, root):
+    def _get_wc_anchors_multi(self, start, roots):
         wc_ids = set()
 
         def _collect(node):
@@ -231,16 +282,17 @@ class MrpProductionRequest(models.TransientModel):
             for child in node['children']:
                 _collect(child)
 
-        _collect(root)
+        for root in roots:
+            _collect(root)
+
         if not wc_ids:
             return {}
 
-        mos = self.env['mrp.production'].search([
+        anchors = {}
+        for mo in self.env['mrp.production'].search([
             ('state', 'in', ('confirmed', 'progress')),
             ('workorder_ids.workcenter_id', 'in', list(wc_ids)),
-        ])
-        anchors = {}
-        for mo in mos:
+        ]):
             est_end = mo.date_finished or (
                 mo.date_start + timedelta(hours=8) if mo.date_start else None
             )
@@ -278,7 +330,7 @@ class MrpProductionRequest(models.TransientModel):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
-    def _collect_lines(self, node, lines_vals, seq):
+    def _collect_lines(self, node, lines_vals, seq, item_id=None):
         indent   = INDENT_MAP.get(node['level'], '         └─ ')
         product  = node['product']
         ops      = node['operations']
@@ -287,22 +339,23 @@ class MrpProductionRequest(models.TransientModel):
         dur_h    = sum(d for _, d in ops)
 
         lines_vals.append({
-            'sequence':         seq[0],
-            'level':            node['level'],
-            'product_id':       product.id,
-            'bom_id':           node['bom'].id,
-            'product_qty':      node['qty'],
-            'duration_hours':   round(dur_h, 2),
-            'new_date_start':   node['scheduled_start'],
-            'new_date_finish':  node['scheduled_end'],
-            'workcenter_label': wc_label,
+            'sequence':          seq[0],
+            'level':             node['level'],
+            'item_id':           item_id,
+            'product_id':        product.id,
+            'bom_id':            node['bom'].id,
+            'product_qty':       node['qty'],
+            'duration_hours':    round(dur_h, 2),
+            'new_date_start':    node['scheduled_start'],
+            'new_date_finish':   node['scheduled_end'],
+            'workcenter_label':  wc_label,
             'description_label': f'{indent}{product.display_name}',
-            'type_label':       'OF' if node['level'] == 0 else 'OF hija',
+            'type_label':        'OF' if node['level'] == 0 else 'OF hija',
         })
         seq[0] += 10
 
         for child in node['children']:
-            self._collect_lines(child, lines_vals, seq)
+            self._collect_lines(child, lines_vals, seq, item_id=item_id)
 
 
 class MrpProductionRequestLine(models.TransientModel):
@@ -310,9 +363,11 @@ class MrpProductionRequestLine(models.TransientModel):
     _description = 'Línea de solicitud de programación'
     _order = 'sequence'
 
-    request_id  = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
-    sequence    = fields.Integer(default=10)
-    level       = fields.Integer(default=0)
+    request_id = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
+    item_id    = fields.Many2one('mrp.production.request.item', string='Artículo',
+                                 ondelete='cascade')
+    sequence   = fields.Integer(default=10)
+    level      = fields.Integer(default=0)
 
     product_id  = fields.Many2one('product.product', string='Producto', required=True)
     bom_id      = fields.Many2one('mrp.bom', string='LdM')

@@ -42,15 +42,17 @@ class MrpProductionRequestItem(models.TransientModel):
                 item.feasibility_msg = '—'
                 continue
             if item.projected_end <= item.date_deadline:
+                # Llega antes: margen disponible → signo negativo (días de sobra)
                 secs = (item.date_deadline - item.projected_end).total_seconds()
                 d, h = int(secs // 86400), int((secs % 86400) // 3600)
                 item.feasible = True
-                item.feasibility_msg = f'+{d}d {h}h' if d else f'+{h}h'
+                item.feasibility_msg = f'-{d}d {h}h' if d else f'-{h}h'
             else:
+                # Llega tarde: excede el plazo → signo positivo (días de retraso)
                 secs = (item.projected_end - item.date_deadline).total_seconds()
                 d, h = int(secs // 86400), int((secs % 86400) // 3600)
                 item.feasible = False
-                item.feasibility_msg = f'-{d}d {h}h' if d else f'-{h}h'
+                item.feasibility_msg = f'+{d}d {h}h' if d else f'+{h}h'
 
 
 class MrpProductionRequest(models.TransientModel):
@@ -189,9 +191,22 @@ class MrpProductionRequest(models.TransientModel):
     def _get_supply_method(self, product):
         """
         Determina cómo se abastece un producto según las rutas configuradas.
-        Prioridad: rutas del producto/categoría → picking type de cada regla.
-        Fallback: BOM existe → fabricar; purchase_ok → comprar.
+        Retorna: 'subcontract' | 'manufacture' | 'buy' | 'stock'
+        Prioridad: subcontratación > ruta mrp_operation > ruta incoming > fallback BOM/purchase_ok.
         """
+        # Subcontratación: tiene una LdM de tipo subcontract (máxima prioridad)
+        sub_bom = self.env['mrp.bom'].search([
+            ('type', '=', 'subcontract'),
+            ('company_id', 'in', [False, self.env.company.id]),
+            '|',
+            ('product_id', '=', product.id),
+            '&', ('product_id', '=', False),
+            ('product_tmpl_id', '=', product.product_tmpl_id.id),
+        ], limit=1)
+        if sub_bom:
+            return 'subcontract'
+
+        # Rutas configuradas en el producto/categoría
         routes = product.route_ids | product.categ_id.total_route_ids
         for route in routes:
             for rule in route.rule_ids.filtered('active'):
@@ -200,8 +215,9 @@ class MrpProductionRequest(models.TransientModel):
                     continue
                 if pt.code == 'mrp_operation':
                     return 'manufacture'
-                if pt.code == 'incoming' and product.purchase_ok:
+                if pt.code == 'incoming':
                     return 'buy'
+
         # Fallback
         if self._find_bom(product):
             return 'manufacture'
@@ -279,20 +295,20 @@ class MrpProductionRequest(models.TransientModel):
         }
 
         for bom_line in bom.bom_line_ids:
-            comp    = bom_line.product_id
+            comp     = bom_line.product_id
             comp_qty = bom_line.product_qty * qty
-            method  = self._get_supply_method(comp)
+            method   = self._get_supply_method(comp)
 
             if method == 'manufacture':
                 child = self._build_demand_tree(comp, comp_qty, level + 1, visited)
                 if child:
                     node['children'].append(child)
 
-            elif method == 'buy':
+            elif method == 'subcontract':
                 lead_days = self._get_purchase_lead_days(comp)
                 supplier  = comp.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
                 node['children'].append({
-                    'type':          'purchase',
+                    'type':          'subcontract',
                     'product':       comp,
                     'qty':           comp_qty,
                     'bom':           None,
@@ -304,7 +320,8 @@ class MrpProductionRequest(models.TransientModel):
                     'scheduled_start': None,
                     'scheduled_end':   None,
                 })
-            # method == 'stock': omitir (no genera orden)
+            # method == 'buy': insumo comprado → no se muestra en el plan
+            # method == 'stock': de stock → no genera orden
 
         return node
 
@@ -339,15 +356,15 @@ class MrpProductionRequest(models.TransientModel):
         return anchors
 
     def _schedule_tree(self, node, start, wc_anchors, plan_model):
-        """Programa bottom-up los nodos OF. Los nodos OC se resuelven
+        """Programa bottom-up los nodos OF. Los nodos OC/Subcont. se resuelven
         en un post-paso dentro de este mismo método (sus fechas dependen
         del inicio del padre OF)."""
-        if node.get('type') == 'purchase':
+        if node.get('type') in ('purchase', 'subcontract'):
             return  # Se resuelve desde el padre
 
         children_end = start
         for child in node['children']:
-            if child.get('type') != 'purchase':
+            if child.get('type') not in ('purchase', 'subcontract'):
                 self._schedule_tree(child, start, wc_anchors, plan_model)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
@@ -372,9 +389,9 @@ class MrpProductionRequest(models.TransientModel):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
-        # Fijar fechas de OCs: deben llegar antes de que este nodo empiece
+        # Fijar fechas de nodos OC/Subcont.: deben llegar antes del inicio del padre
         for child in node['children']:
-            if child.get('type') == 'purchase' and node_start:
+            if child.get('type') in ('purchase', 'subcontract') and node_start:
                 lead = child.get('lead_days', 7)
                 child['scheduled_end']   = node_start
                 child['scheduled_start'] = node_start - timedelta(days=lead)
@@ -384,7 +401,7 @@ class MrpProductionRequest(models.TransientModel):
         product  = node['product']
         node_type = node.get('type', 'manufacture')
 
-        if node_type == 'purchase':
+        if node_type in ('purchase', 'subcontract'):
             lines_vals.append({
                 'sequence':          seq[0],
                 'level':             node['level'],
@@ -398,10 +415,10 @@ class MrpProductionRequest(models.TransientModel):
                 'new_date_finish':   node['scheduled_end'],     # fecha llegada
                 'workcenter_label':  node.get('supplier_name', ''),
                 'description_label': f'{indent}{product.display_name}',
-                'type_label':        'OC',
+                'type_label':        'Subcont.' if node_type == 'subcontract' else 'OC',
             })
             seq[0] += 10
-            return  # Las OCs no tienen sub-árbol
+            return  # Nodos hoja, sin sub-árbol
 
         # Nodo OF
         ops      = node['operations']

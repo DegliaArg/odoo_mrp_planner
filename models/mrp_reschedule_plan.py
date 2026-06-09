@@ -301,16 +301,16 @@ class MrpReschedulePlan(models.Model):
             return self.env['mrp.production']
         return self.env['mrp.production'].search([
             ('id', '!=', pivot.id),
-            ('state', 'not in', ['done', 'cancel']),
+            ('state', '=', 'confirmed'),
             ('date_start', '!=', False),
             ('date_start', '>=', pivot.date_start),
             ('workorder_ids.workcenter_id', 'in', wc_ids),
         ], order='date_start, id')
 
     def _get_all_active_mos(self):
-        """Modo global: todas las MOs activas con fecha de inicio."""
+        """Modo global: solo MOs confirmadas (pendientes de iniciar) con fecha de inicio."""
         return self.env['mrp.production'].search([
-            ('state', 'not in', ['done', 'cancel']),
+            ('state', '=', 'confirmed'),
             ('date_start', '!=', False),
         ], order='date_start, id')
 
@@ -566,7 +566,7 @@ class MrpReschedulePlan(models.Model):
                 return
             visited_mo_ids.add(mo.id)
 
-            is_anchor    = anchor_overrides.get(mo.id, mo.state in ('done', 'progress'))
+            is_anchor    = anchor_overrides.get(mo.id, mo.state in ('done', 'progress', 'to_close'))
             forced_start = forced_start_overrides.get(mo.id)
             duration_h   = duration_overrides.get(mo.id) or self._get_mo_duration_hours(mo)
             warning_type = False

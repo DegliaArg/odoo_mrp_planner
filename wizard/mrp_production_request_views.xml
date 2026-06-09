@@ -63,7 +63,8 @@
 
                     <!-- Plan calculado -->
                     <field name="line_ids" readonly="1" nolabel="1"
-                           invisible="state != 'calculated'">
+                           invisible="state != 'calculated'"
+                           context="{'group_by': 'item_id'}">
                         <list string="Plan de fabricación propuesto"
                               create="0" edit="0" delete="0"
                               decoration-bf="level == 0 and record_type == 'mrp'"

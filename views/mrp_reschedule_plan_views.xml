@@ -124,6 +124,7 @@
                     <group>
                         <group string="Configuración">
                             <field name="production_id"
+                                   domain="[('state', '=', 'confirmed')]"
                                    readonly="state in ('applied', 'cancelled')"/>
                             <field name="new_finish_date"
                                    invisible="not production_id"

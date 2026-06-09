@@ -18,8 +18,9 @@
         <field name="arch" type="xml">
             <list string="Planes de reprogramación" decoration-muted="state == 'cancelled'">
                 <field name="name"/>
-                <field name="production_id"/>
-                <field name="new_finish_date"/>
+                <field name="production_id" optional="show"/>
+                <field name="replan_from" optional="show"/>
+                <field name="new_finish_date" optional="show"/>
                 <field name="delta_display"/>
                 <field name="line_count" string="Líneas"/>
                 <field name="applied_date" optional="show"/>
@@ -94,6 +95,10 @@
                             <field name="production_id"
                                    readonly="state in ('applied', 'cancelled')"/>
                             <field name="new_finish_date"
+                                   invisible="not production_id"
+                                   readonly="state in ('applied', 'cancelled')"/>
+                            <field name="replan_from"
+                                   invisible="production_id != False"
                                    readonly="state in ('applied', 'cancelled')"/>
                             <field name="delta_display" readonly="1"/>
                         </group>
@@ -281,12 +286,15 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Crear un plan de reprogramación en cascada
+                Crear un plan de reprogramación
             </p>
             <p>
-                Seleccioná una orden de fabricación como pivot, fijá su nueva
-                fecha de finalización y calculá el impacto en cascada sobre
-                las órdenes subsecuentes en los mismos centros de trabajo.
+                <strong>Modo pivot:</strong> seleccioná una orden de fabricación, fijá su nueva
+                fecha de fin y calculá el impacto en cascada sobre las órdenes subsecuentes.
+            </p>
+            <p>
+                <strong>Modo global:</strong> dejá la orden pivot vacía y fijá una fecha de inicio
+                para reprogramar todas las órdenes activas de forma óptima.
             </p>
         </field>
     </record>

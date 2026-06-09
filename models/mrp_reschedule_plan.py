@@ -54,12 +54,18 @@ class MrpReschedulePlan(models.Model):
     ], string='Estado', default='draft', tracking=True, copy=False)
 
     production_id = fields.Many2one(
-        'mrp.production', string='Orden pivot', required=True,
-        help='Orden de referencia. Las órdenes subsecuentes en los mismos WC '
-             'se reprograman a partir de su nueva fecha de fin.',
+        'mrp.production', string='Orden pivot',
+        help='Orden de referencia. Dejar vacío para reprogramar globalmente '
+             'todas las órdenes activas a partir de "Replanificar desde".',
     )
     new_finish_date = fields.Datetime(
         string='Nueva fecha de finalización', default=fields.Datetime.now,
+    )
+    replan_from = fields.Datetime(
+        string='Replanificar desde',
+        default=fields.Datetime.now,
+        help='Punto de inicio para el modo global (sin pivot). '
+             'En modo pivot se usa la nueva fecha de fin de la MO pivot.',
     )
     delta_display = fields.Char(string='Desplazamiento', compute='_compute_delta_display')
     line_ids    = fields.One2many('mrp.reschedule.plan.line',    'plan_id', string='Líneas')
@@ -68,6 +74,21 @@ class MrpReschedulePlan(models.Model):
 
     applied_date = fields.Datetime(string='Fecha de aplicación', readonly=True, copy=False)
     applied_by = fields.Many2one('res.users', string='Aplicado por', readonly=True, copy=False)
+
+    # ── Migración ────────────────────────────────────────────────────────────
+
+    def _auto_init(self):
+        super()._auto_init()
+        # production_id pasa a ser opcional (modo global sin pivot)
+        self.env.cr.execute("SAVEPOINT drop_nn_production_id")
+        try:
+            self.env.cr.execute(
+                "ALTER TABLE mrp_reschedule_plan "
+                "ALTER COLUMN production_id DROP NOT NULL"
+            )
+            self.env.cr.execute("RELEASE SAVEPOINT drop_nn_production_id")
+        except Exception:
+            self.env.cr.execute("ROLLBACK TO SAVEPOINT drop_nn_production_id")
 
     # ── Ciclo de vida ────────────────────────────────────────────────────────
 
@@ -107,10 +128,17 @@ class MrpReschedulePlan(models.Model):
         for rec in self:
             rec.line_count = len(rec.line_ids)
 
-    @api.depends('new_finish_date', 'production_id', 'production_id.date_finished')
+    @api.depends('new_finish_date', 'replan_from', 'production_id', 'production_id.date_finished')
     def _compute_delta_display(self):
         for rec in self:
-            planned = rec.production_id.date_finished if rec.production_id else False
+            if not rec.production_id:
+                dt = rec.replan_from
+                rec.delta_display = (
+                    _('Replan global desde ') + dt.strftime('%d/%m/%Y %H:%M')
+                    if dt else '—'
+                )
+                continue
+            planned = rec.production_id.date_finished
             if planned and rec.new_finish_date:
                 secs = (rec.new_finish_date - planned).total_seconds()
                 sign = '+' if secs >= 0 else '-'
@@ -126,12 +154,14 @@ class MrpReschedulePlan(models.Model):
 
     def action_calculate(self):
         self.ensure_one()
-        if not self.production_id:
-            raise UserError(_('Seleccione una orden de fabricación primero.'))
-        if not self.production_id.date_finished:
-            raise UserError(_(
-                'La orden "%s" no tiene fecha de finalización planificada.'
-            ) % self.production_id.name)
+        if self.production_id:
+            if not self.production_id.date_finished:
+                raise UserError(_(
+                    'La orden "%s" no tiene fecha de finalización planificada.'
+                ) % self.production_id.name)
+        else:
+            if not self.replan_from:
+                raise UserError(_('Defina la fecha de inicio para el replan global.'))
         self._build_lines()
         self.state = 'calculated'
 
@@ -157,17 +187,18 @@ class MrpReschedulePlan(models.Model):
             raise UserError(_('No hay líneas marcadas para aplicar.'))
 
         pivot = self.production_id
-        delta = self._get_delta()
-        if pivot.state == 'confirmed' and delta:
-            pivot_vals = {'date_finished': self.new_finish_date}
-            if pivot.date_start:
-                pivot_vals['date_start'] = pivot.date_start + delta
-            pivot.write(pivot_vals)
-            if pivot.workorder_ids:
-                try:
-                    pivot.button_plan()
-                except Exception as e:
-                    _logger.warning('No se pudo replanificar pivot %s: %s', pivot.name, e)
+        if pivot:
+            delta = self._get_delta()
+            if pivot.state == 'confirmed' and delta:
+                pivot_vals = {'date_finished': self.new_finish_date}
+                if pivot.date_start:
+                    pivot_vals['date_start'] = pivot.date_start + delta
+                pivot.write(pivot_vals)
+                if pivot.workorder_ids:
+                    try:
+                        pivot.button_plan()
+                    except Exception as e:
+                        _logger.warning('No se pudo replanificar pivot %s: %s', pivot.name, e)
 
         mos_to_replan = self.env['mrp.production']
         for line in active_lines:
@@ -245,6 +276,13 @@ class MrpReschedulePlan(models.Model):
             ('date_start', '!=', False),
             ('date_start', '>=', pivot.date_start),
             ('workorder_ids.workcenter_id', 'in', wc_ids),
+        ], order='date_start, id')
+
+    def _get_all_active_mos(self):
+        """Modo global: todas las MOs activas con fecha de inicio."""
+        return self.env['mrp.production'].search([
+            ('state', 'not in', ['done', 'cancel']),
+            ('date_start', '!=', False),
         ], order='date_start, id')
 
     def _get_pos_for_mo(self, mo):
@@ -430,6 +468,7 @@ class MrpReschedulePlan(models.Model):
     def _build_lines(self):
         self.ensure_one()
         pivot = self.production_id
+        is_global = not pivot
 
         duration_overrides = {}
         anchor_overrides = {}
@@ -452,21 +491,31 @@ class MrpReschedulePlan(models.Model):
         lines_vals = []
         wc_lines_data = []
         seq = 10
-        visited_mo_ids = {pivot.id}
+        visited_mo_ids = {pivot.id} if pivot else set()
         visited_po_ids = set()
-        base_dt = self.new_finish_date
 
-        subsequent_mos = self._get_subsequent_mos()
-        pivot_wc_ids = set(pivot.workorder_ids.mapped('workcenter_id').ids)
+        if is_global:
+            base_dt = self.replan_from or fields.Datetime.now()
+            if hasattr(base_dt, 'tzinfo') and base_dt.tzinfo:
+                import pytz as _pytz
+                base_dt = base_dt.astimezone(_pytz.utc).replace(tzinfo=None)
+            subsequent_mos = self._get_all_active_mos()
+            wc_anchors = {}
+            pivot_wc_ids = set()
+        else:
+            base_dt = self.new_finish_date
+            subsequent_mos = self._get_subsequent_mos()
+            pivot_wc_ids = set(pivot.workorder_ids.mapped('workcenter_id').ids)
+            wc_anchors = {wc_id: base_dt for wc_id in pivot_wc_ids}
+
         all_wc_ids = set(pivot_wc_ids)
         for mo in subsequent_mos:
             all_wc_ids |= set(mo.workorder_ids.mapped('workcenter_id').ids)
 
-        wc_anchors = {wc_id: base_dt for wc_id in pivot_wc_ids}
-
         if all_wc_ids:
+            exclude_ids = ([] if is_global else [pivot.id]) + subsequent_mos.ids
             in_progress = self.env['mrp.production'].search([
-                ('id', 'not in', [pivot.id] + subsequent_mos.ids),
+                ('id', 'not in', exclude_ids),
                 ('state', '=', 'progress'),
                 ('workorder_ids.workcenter_id', 'in', list(all_wc_ids)),
             ])
@@ -590,8 +639,9 @@ class MrpReschedulePlan(models.Model):
             for child in self._get_child_mos(mo):
                 add_mo(child, level + 1, mo.name, parent_delta=mo_delta)
 
+        root_label = pivot.name if pivot else ''
         for mo in mos_sorted:
-            add_mo(mo, 0, pivot.name)
+            add_mo(mo, 0, root_label)
 
         if lines_vals:
             self.env['mrp.reschedule.plan.line'].create(lines_vals)

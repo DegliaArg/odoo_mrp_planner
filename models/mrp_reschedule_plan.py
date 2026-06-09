@@ -434,6 +434,7 @@ class MrpReschedulePlan(models.Model):
         duration_overrides = {}
         anchor_overrides = {}
         sequence_overrides = {}
+        forced_start_overrides = {}
         for line in self.line_ids:
             if line.record_type == 'mrp' and line.production_id:
                 pid = line.production_id.id
@@ -442,6 +443,8 @@ class MrpReschedulePlan(models.Model):
                 anchor_overrides[pid] = line.is_anchor
                 if line.reschedule_sequence:
                     sequence_overrides[pid] = line.reschedule_sequence
+                if line.forced_start_date:
+                    forced_start_overrides[pid] = line.forced_start_date
 
         self.line_ids.unlink()
         self.wc_line_ids.unlink()
@@ -486,16 +489,24 @@ class MrpReschedulePlan(models.Model):
                 return
             visited_mo_ids.add(mo.id)
 
-            is_anchor = anchor_overrides.get(mo.id, mo.state in ('done', 'progress'))
-            duration_h = duration_overrides.get(mo.id) or self._get_mo_duration_hours(mo)
+            is_anchor    = anchor_overrides.get(mo.id, mo.state in ('done', 'progress'))
+            forced_start = forced_start_overrides.get(mo.id)
+            duration_h   = duration_overrides.get(mo.id) or self._get_mo_duration_hours(mo)
             warning_type = False
-            warning_msg = ''
+            warning_msg  = ''
 
             if is_anchor:
-                new_start = mo.date_start
-                new_end = mo.date_finished
-                if not new_end and mo.date_start:
-                    new_end = mo.date_start + timedelta(hours=self._get_mo_duration_hours(mo))
+                if forced_start:
+                    # Anchor con inicio forzado: calcular fin respetando calendario
+                    calendar = self._get_mo_calendar(mo)
+                    new_start, new_end = self._schedule_duration(
+                        calendar, forced_start, duration_h
+                    )
+                else:
+                    new_start = mo.date_start
+                    new_end   = mo.date_finished
+                    if not new_end and mo.date_start:
+                        new_end = mo.date_start + timedelta(hours=duration_h)
                 if new_end:
                     for wo in mo.workorder_ids:
                         wc_id = wo.workcenter_id.id
@@ -535,13 +546,15 @@ class MrpReschedulePlan(models.Model):
                 'parent_label':        parent_label,
                 'duration_hours':      duration_h,
                 'is_anchor':           is_anchor,
+                'forced_start_date':   forced_start or False,
                 'current_date_start':  mo.date_start,
                 'current_date_finish': mo.date_finished,
                 'new_date_start':      new_start,
                 'new_date_finish':     new_end,
                 'warning_type':        warning_type,
                 'warning_message':     warning_msg,
-                'apply':               not is_anchor,
+                # Aplicar si no es anchor, O si es anchor con inicio forzado
+                'apply':               not is_anchor or bool(forced_start),
             })
             seq += 10
 
@@ -598,8 +611,14 @@ class MrpReschedulePlanLine(models.Model):
     sequence = fields.Integer(default=10)
     reschedule_sequence = fields.Integer(string='Orden', default=0)
 
-    apply     = fields.Boolean(string='Aplicar', default=True)
-    is_anchor = fields.Boolean(string='Fijo', default=False)
+    apply             = fields.Boolean(string='Aplicar', default=True)
+    is_anchor         = fields.Boolean(string='Fijo', default=False)
+    forced_start_date = fields.Datetime(
+        string='Inicio forzado',
+        help='Si está definido en una línea fija, el algoritmo programa '
+             'esta OF a partir de esta fecha (respetando el calendario del WC) '
+             'en lugar de usar su fecha actual.',
+    )
     color     = fields.Integer(compute='_compute_color', store=True)
 
     record_type  = fields.Selection(

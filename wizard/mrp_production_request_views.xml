@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Formulario del wizard ── -->
     <record id="mrp_production_request_form" model="ir.ui.view">
         <field name="name">mrp.production.request.form</field>
         <field name="model">mrp.production.request</field>
@@ -24,12 +23,9 @@
                             string="Crear órdenes de fabricación"
                             class="btn-primary"
                             invisible="state != 'calculated'"
-                            confirm="¿Crear las órdenes de fabricación con las fechas propuestas?"/>
-                    <button special="cancel"
-                            string="Cerrar"
-                            class="btn-secondary"/>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="draft,calculated"/>
+                            confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
+                    <button special="cancel" string="Cerrar" class="btn-secondary"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,calculated"/>
                 </header>
 
                 <sheet>
@@ -38,17 +34,17 @@
                         <field name="start_from"/>
                     </group>
 
-                    <!-- Lista de artículos a programar -->
+                    <!-- Artículos a programar -->
                     <field name="item_ids" nolabel="1">
                         <list string="Artículos" editable="bottom"
                               decoration-success="feasible and projected_end"
                               decoration-danger="not feasible and projected_end">
-                            <field name="sequence" widget="handle"/>
-                            <field name="product_id"/>
-                            <field name="product_qty" string="Cantidad"/>
+                            <field name="sequence"      widget="handle"/>
+                            <field name="product_id"    string="Producto"/>
+                            <field name="product_qty"   string="Cantidad"/>
                             <field name="date_deadline" string="Fecha deseada"/>
-                            <field name="projected_end" string="Fin proyectado" readonly="1"/>
-                            <field name="feasibility_msg" string="Δ Plazo" readonly="1"/>
+                            <field name="projected_end"   string="Fin proyectado" readonly="1"/>
+                            <field name="feasibility_msg" string="Δ Plazo"        readonly="1"/>
                             <field name="feasible" column_invisible="True"/>
                         </list>
                     </field>
@@ -65,34 +61,32 @@
                         <field name="feasibility_summary" readonly="1" nolabel="1"/>
                     </div>
 
-                    <!-- Plan calculado — detalle de líneas -->
-                    <field name="line_ids"
-                           readonly="1"
-                           nolabel="1"
+                    <!-- Plan calculado -->
+                    <field name="line_ids" readonly="1" nolabel="1"
                            invisible="state != 'calculated'">
                         <list string="Plan de fabricación propuesto"
                               create="0" edit="0" delete="0"
-                              decoration-bf="level == 0"
-                              decoration-muted="level > 0">
-                            <field name="item_id"    string="Artículo" readonly="1" optional="show"/>
-                            <field name="type_label" string="Tipo"     readonly="1"/>
-                            <field name="description_label" string="Producto" readonly="1"/>
-                            <field name="product_qty"       string="Cantidad"  readonly="1"/>
-                            <field name="duration_hours"    string="Duración (hs)" readonly="1"/>
-                            <field name="workcenter_label"  string="Centros de trabajo" readonly="1" optional="show"/>
-                            <field name="new_date_start"    string="Inicio propuesto" readonly="1"/>
-                            <field name="new_date_finish"   string="Fin propuesto"    readonly="1"/>
-                            <field name="level" column_invisible="True"/>
+                              decoration-bf="level == 0 and record_type == 'mrp'"
+                              decoration-warning="record_type == 'purchase'"
+                              decoration-muted="level > 0 and record_type == 'mrp'">
+                            <field name="item_id"           string="Artículo"      readonly="1" optional="show"/>
+                            <field name="type_label"        string="Tipo"          readonly="1"/>
+                            <field name="description_label" string="Producto"      readonly="1"/>
+                            <field name="product_qty"       string="Cantidad"      readonly="1"/>
+                            <field name="duration_hours"    string="Duración (hs)" readonly="1" optional="show"/>
+                            <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
+                            <field name="new_date_start"    string="Inicio / Pedido" readonly="1"/>
+                            <field name="new_date_finish"   string="Fin / Llegada"   readonly="1"/>
+                            <field name="record_type" column_invisible="True"/>
+                            <field name="level"       column_invisible="True"/>
                         </list>
                     </field>
 
                 </sheet>
-
             </form>
         </field>
     </record>
 
-    <!-- ── Acción ── -->
     <record id="action_mrp_production_request" model="ir.actions.act_window">
         <field name="name">Nueva programación</field>
         <field name="res_model">mrp.production.request</field>
@@ -100,7 +94,6 @@
         <field name="target">new</field>
     </record>
 
-    <!-- ── Menú ── -->
     <menuitem id="mrp_reschedule_menu_request"
               name="Nueva programación"
               parent="mrp_reschedule_menu_root"

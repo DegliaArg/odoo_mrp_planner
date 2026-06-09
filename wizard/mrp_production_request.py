@@ -25,7 +25,6 @@ class MrpProductionRequestItem(models.TransientModel):
     product_qty = fields.Float(string='Cantidad', default=1.0, required=True)
     date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
 
-    # Resultado del cálculo — se escribe al calcular
     projected_end   = fields.Datetime(string='Fin proyectado', readonly=True)
     feasible        = fields.Boolean(compute='_compute_feasible', store=False)
     feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Δ Plazo')
@@ -60,18 +59,11 @@ class MrpProductionRequest(models.TransientModel):
 
     start_from = fields.Datetime(
         string='Disponible desde', default=fields.Datetime.now,
-        help='Fecha mínima de inicio para todos los artículos. Por defecto: ahora.',
+        help='Fecha mínima de inicio para todos los artículos.',
     )
-    item_ids = fields.One2many(
-        'mrp.production.request.item', 'request_id', string='Artículos',
-    )
-    line_ids = fields.One2many(
-        'mrp.production.request.line', 'request_id', string='Plan calculado',
-    )
-    state = fields.Selection([
-        ('draft', 'Borrador'),
-        ('calculated', 'Calculado'),
-    ], default='draft')
+    item_ids = fields.One2many('mrp.production.request.item', 'request_id', string='Artículos')
+    line_ids = fields.One2many('mrp.production.request.line', 'request_id', string='Plan calculado')
+    state    = fields.Selection([('draft', 'Borrador'), ('calculated', 'Calculado')], default='draft')
 
     all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
     feasibility_summary = fields.Char(compute='_compute_summary', store=False)
@@ -84,17 +76,14 @@ class MrpProductionRequest(models.TransientModel):
                 rec.all_feasible = False
                 rec.feasibility_summary = _('Sin datos calculados')
                 continue
-            ok = sum(1 for i in done if i.feasible)
+            ok    = sum(1 for i in done if i.feasible)
             total = len(done)
             rec.all_feasible = ok == total
-            if ok == total:
-                rec.feasibility_summary = _(
-                    'Todos los artículos cumplen el plazo (%d/%d)'
-                ) % (ok, total)
-            else:
-                rec.feasibility_summary = _(
-                    '%d de %d artículos no cumplen el plazo'
-                ) % (total - ok, total)
+            rec.feasibility_summary = (
+                _('Todos los artículos cumplen el plazo (%d/%d)') % (ok, total)
+                if ok == total
+                else _('%d de %d artículos no cumplen el plazo') % (total - ok, total)
+            )
 
     # ── Acciones ─────────────────────────────────────────────────────────────
 
@@ -102,7 +91,6 @@ class MrpProductionRequest(models.TransientModel):
         self.ensure_one()
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
-        missing_bom = []
 
         self.line_ids.unlink()
         self.item_ids.write({'projected_end': False})
@@ -112,25 +100,24 @@ class MrpProductionRequest(models.TransientModel):
         if hasattr(start, 'tzinfo') and start.tzinfo:
             start = start.astimezone(pytz.utc).replace(tzinfo=None)
 
-        # Construir árbol de LdM para cada artículo (en orden de secuencia)
+        # Construir árbol de demanda para cada artículo (en orden de secuencia)
+        missing = []
         item_trees = []
         for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
-            root = self._build_bom_tree(item.product_id, item.product_qty, level=0)
+            root = self._build_demand_tree(item.product_id, item.product_qty, level=0)
             if not root:
-                missing_bom.append(item.product_id.display_name)
+                missing.append(item.product_id.display_name)
             else:
                 item_trees.append((item, root))
 
-        if missing_bom:
-            raise UserError(_(
-                'Sin lista de materiales para: %s'
-            ) % ', '.join(missing_bom))
+        if missing:
+            raise UserError(_('Sin lista de materiales para: %s') % ', '.join(missing))
 
-        # Anclas de WC: carga existente de MOs confirmadas/en progreso
-        all_roots = [r for _, r in item_trees]
+        # Anclas de WC: carga existente en la instancia
+        all_roots  = [r for _, r in item_trees]
         wc_anchors = self._get_wc_anchors_multi(start, all_roots)
 
-        # Programar todos los artículos compartiendo los mismos anclas de WC
+        # Programar todos los artículos compartiendo los mismos anclas
         lines_vals = []
         seq = [10]
         for item, root in item_trees:
@@ -153,44 +140,39 @@ class MrpProductionRequest(models.TransientModel):
         }
 
     def action_confirm(self):
+        """Crea solo las OFs madre (nivel 0) y las confirma.
+        Odoo genera automáticamente las órdenes hijas (OFs y OCs) vía
+        las reglas de abastecimiento configuradas en cada producto.
+        """
         self.ensure_one()
         if self.state != 'calculated':
             raise UserError(_('Calcule primero el plan.'))
-        if not self.line_ids:
-            raise UserError(_('No hay líneas calculadas.'))
 
-        has_parent_field = 'x_parent_mo_id' in self.env['mrp.production']._fields
-        all_created_ids = []
-
+        created_ids = []
         for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
-            item_lines = self.line_ids.filtered(
+            root_lines = self.line_ids.filtered(
                 lambda l: l.item_id.id == item.id
-            ).sorted(lambda l: (l.level, l.sequence))
-
-            if not item_lines:
-                continue
-
-            level_mo = {}
-            for line in item_lines:
+                and l.level == 0
+                and l.record_type == 'mrp'
+            )
+            for line in root_lines:
                 mo_vals = {
-                    'product_id':  line.product_id.id,
-                    'product_qty': line.product_qty,
+                    'product_id':    line.product_id.id,
+                    'product_qty':   line.product_qty,
                     'date_start':    line.new_date_start,
                     'date_finished': line.new_date_finish,
                 }
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id
-                parent_mo = level_mo.get(line.level - 1) if line.level > 0 else None
-                if parent_mo and has_parent_field:
-                    mo_vals['x_parent_mo_id'] = parent_mo.id
-                elif parent_mo:
-                    mo_vals['origin'] = parent_mo.name
-
                 mo = self.env['mrp.production'].create(mo_vals)
-                level_mo[line.level] = mo
-                all_created_ids.append(mo.id)
+                # Confirmar: dispara las reglas de abastecimiento para generar hijos
+                try:
+                    mo.action_confirm()
+                except Exception as e:
+                    _logger.warning('No se pudo confirmar MO %s: %s', mo.name, e)
+                created_ids.append(mo.id)
 
-        if not all_created_ids:
+        if not created_ids:
             raise UserError(_('No se pudo crear ninguna orden de fabricación.'))
 
         return {
@@ -198,11 +180,41 @@ class MrpProductionRequest(models.TransientModel):
             'name': _('Órdenes de fabricación creadas'),
             'res_model': 'mrp.production',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', all_created_ids)],
+            'domain': [('id', 'in', created_ids)],
             'target': 'current',
         }
 
-    # ── Helpers — BOM explosion ───────────────────────────────────────────────
+    # ── Helpers — rutas y demanda ─────────────────────────────────────────────
+
+    def _get_supply_method(self, product):
+        """
+        Determina cómo se abastece un producto según las rutas configuradas.
+        Prioridad: rutas del producto/categoría → picking type de cada regla.
+        Fallback: BOM existe → fabricar; purchase_ok → comprar.
+        """
+        routes = product.route_ids | product.categ_id.total_route_ids
+        for route in routes:
+            for rule in route.rule_ids.filtered('active'):
+                pt = rule.picking_type_id
+                if not pt:
+                    continue
+                if pt.code == 'mrp_operation':
+                    return 'manufacture'
+                if pt.code == 'incoming' and product.purchase_ok:
+                    return 'buy'
+        # Fallback
+        if self._find_bom(product):
+            return 'manufacture'
+        if product.purchase_ok:
+            return 'buy'
+        return 'stock'
+
+    def _get_purchase_lead_days(self, product):
+        if product.seller_ids:
+            main = product.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+            if main:
+                return int(main.delay or 0) or 1
+        return int(getattr(product, 'purchase_delay', 0) or 7)
 
     def _find_bom(self, product):
         try:
@@ -229,7 +241,13 @@ class MrpProductionRequest(models.TransientModel):
         )
         return dur_min * qty / 60.0
 
-    def _build_bom_tree(self, product, qty, level, visited=None):
+    def _build_demand_tree(self, product, qty, level, visited=None):
+        """
+        Construye el árbol de demanda usando las rutas del sistema.
+        - Productos con ruta 'fabricar' (mrp_operation) → nodo OF.
+        - Productos con ruta 'comprar' (incoming) → nodo OC (hoja, sin recursión).
+        - Productos de stock → omitidos.
+        """
         if visited is None:
             visited = set()
         if product.id in visited:
@@ -238,37 +256,55 @@ class MrpProductionRequest(models.TransientModel):
 
         bom = self._find_bom(product)
         if not bom or bom.type == 'phantom':
-            return None
+            return None  # No se puede fabricar el artículo raíz
 
         operations = []
         if bom.operation_ids:
             for op in bom.operation_ids.sorted('sequence'):
                 wc = op.workcenter_id
-                dur_h = self._get_op_duration_hours(op, qty)
-                operations.append((wc, dur_h))
+                operations.append((wc, self._get_op_duration_hours(op, qty)))
         else:
             operations = [(None, 8.0)]
 
         node = {
-            'product':    product,
-            'qty':        qty,
-            'bom':        bom,
-            'level':      level,
+            'type':     'manufacture',
+            'product':  product,
+            'qty':      qty,
+            'bom':      bom,
+            'level':    level,
             'operations': operations,
-            'children':   [],
+            'children': [],
             'scheduled_start': None,
             'scheduled_end':   None,
         }
 
         for bom_line in bom.bom_line_ids:
-            child_node = self._build_bom_tree(
-                bom_line.product_id,
-                bom_line.product_qty * qty,
-                level + 1,
-                visited,
-            )
-            if child_node:
-                node['children'].append(child_node)
+            comp    = bom_line.product_id
+            comp_qty = bom_line.product_qty * qty
+            method  = self._get_supply_method(comp)
+
+            if method == 'manufacture':
+                child = self._build_demand_tree(comp, comp_qty, level + 1, visited)
+                if child:
+                    node['children'].append(child)
+
+            elif method == 'buy':
+                lead_days = self._get_purchase_lead_days(comp)
+                supplier  = comp.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+                node['children'].append({
+                    'type':          'purchase',
+                    'product':       comp,
+                    'qty':           comp_qty,
+                    'bom':           None,
+                    'level':         level + 1,
+                    'lead_days':     lead_days,
+                    'supplier_name': supplier.partner_id.display_name if supplier else '',
+                    'operations':    [],
+                    'children':      [],
+                    'scheduled_start': None,
+                    'scheduled_end':   None,
+                })
+            # method == 'stock': omitir (no genera orden)
 
         return node
 
@@ -284,7 +320,6 @@ class MrpProductionRequest(models.TransientModel):
 
         for root in roots:
             _collect(root)
-
         if not wc_ids:
             return {}
 
@@ -304,11 +339,18 @@ class MrpProductionRequest(models.TransientModel):
         return anchors
 
     def _schedule_tree(self, node, start, wc_anchors, plan_model):
+        """Programa bottom-up los nodos OF. Los nodos OC se resuelven
+        en un post-paso dentro de este mismo método (sus fechas dependen
+        del inicio del padre OF)."""
+        if node.get('type') == 'purchase':
+            return  # Se resuelve desde el padre
+
         children_end = start
         for child in node['children']:
-            self._schedule_tree(child, start, wc_anchors, plan_model)
-            if child['scheduled_end']:
-                children_end = max(children_end, child['scheduled_end'])
+            if child.get('type') != 'purchase':
+                self._schedule_tree(child, start, wc_anchors, plan_model)
+                if child['scheduled_end']:
+                    children_end = max(children_end, child['scheduled_end'])
 
         after_dt   = max(start, children_end)
         node_start = None
@@ -320,7 +362,7 @@ class MrpProductionRequest(models.TransientModel):
                 wc.resource_calendar_id if wc and wc.resource_calendar_id
                 else self.env.company.resource_calendar_id
             )
-            earliest    = max(current, wc_anchors.get(wc_id, after_dt))
+            earliest       = max(current, wc_anchors.get(wc_id, after_dt))
             wo_start, wo_end = plan_model._schedule_duration(calendar, earliest, dur_h)
             wc_anchors[wc_id] = wo_end
             if node_start is None:
@@ -330,9 +372,38 @@ class MrpProductionRequest(models.TransientModel):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
+        # Fijar fechas de OCs: deben llegar antes de que este nodo empiece
+        for child in node['children']:
+            if child.get('type') == 'purchase' and node_start:
+                lead = child.get('lead_days', 7)
+                child['scheduled_end']   = node_start
+                child['scheduled_start'] = node_start - timedelta(days=lead)
+
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
         indent   = INDENT_MAP.get(node['level'], '         └─ ')
         product  = node['product']
+        node_type = node.get('type', 'manufacture')
+
+        if node_type == 'purchase':
+            lines_vals.append({
+                'sequence':          seq[0],
+                'level':             node['level'],
+                'item_id':           item_id,
+                'record_type':       'purchase',
+                'product_id':        product.id,
+                'bom_id':            False,
+                'product_qty':       node['qty'],
+                'duration_hours':    0.0,
+                'new_date_start':    node['scheduled_start'],   # fecha pedido
+                'new_date_finish':   node['scheduled_end'],     # fecha llegada
+                'workcenter_label':  node.get('supplier_name', ''),
+                'description_label': f'{indent}{product.display_name}',
+                'type_label':        'OC',
+            })
+            seq[0] += 10
+            return  # Las OCs no tienen sub-árbol
+
+        # Nodo OF
         ops      = node['operations']
         wcs      = [wc for wc, _ in ops if wc]
         wc_label = ' › '.join(wc.name for wc in wcs) if wcs else ''
@@ -342,8 +413,9 @@ class MrpProductionRequest(models.TransientModel):
             'sequence':          seq[0],
             'level':             node['level'],
             'item_id':           item_id,
+            'record_type':       'mrp',
             'product_id':        product.id,
-            'bom_id':            node['bom'].id,
+            'bom_id':            node['bom'].id if node.get('bom') else False,
             'product_qty':       node['qty'],
             'duration_hours':    round(dur_h, 2),
             'new_date_start':    node['scheduled_start'],
@@ -363,20 +435,24 @@ class MrpProductionRequestLine(models.TransientModel):
     _description = 'Línea de solicitud de programación'
     _order = 'sequence'
 
-    request_id = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
-    item_id    = fields.Many2one('mrp.production.request.item', string='Artículo',
-                                 ondelete='cascade')
-    sequence   = fields.Integer(default=10)
-    level      = fields.Integer(default=0)
+    request_id  = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
+    item_id     = fields.Many2one('mrp.production.request.item', string='Artículo',
+                                  ondelete='cascade')
+    sequence    = fields.Integer(default=10)
+    level       = fields.Integer(default=0)
+    record_type = fields.Selection(
+        [('mrp', 'Fabricación'), ('purchase', 'Compra')],
+        string='Tipo registro', default='mrp',
+    )
 
     product_id  = fields.Many2one('product.product', string='Producto', required=True)
     bom_id      = fields.Many2one('mrp.bom', string='LdM')
     product_qty = fields.Float(string='Cantidad', digits=(16, 2))
     duration_hours = fields.Float(string='Duración (hs)', digits=(10, 2))
 
-    new_date_start  = fields.Datetime(string='Inicio propuesto')
-    new_date_finish = fields.Datetime(string='Fin propuesto')
+    new_date_start  = fields.Datetime(string='Inicio / Pedido')
+    new_date_finish = fields.Datetime(string='Fin / Llegada')
 
-    workcenter_label  = fields.Char(string='Centros de trabajo')
+    workcenter_label  = fields.Char(string='WC / Proveedor')
     description_label = fields.Char(string='Producto')
     type_label        = fields.Char(string='Tipo')

@@ -151,19 +151,27 @@ class MrpProductionRequest(models.TransientModel):
 
     # ── Helpers — BOM explosion ───────────────────────────────────────────────
 
-    def _find_bom(self, product, qty):
+    def _find_bom(self, product):
+        """Encuentra la LdM principal para un product.product.
+
+        Odoo 18: _bom_find recibe un recordset y devuelve {product: bom}.
+        Incluye fallback por search directo para mayor robustez.
+        """
         try:
-            result = self.env['mrp.bom']._bom_find(product, quantity=qty, company_id=self.env.company.id)
-            return result.get(product) if isinstance(result, dict) else result
+            result = self.env['mrp.bom']._bom_find(product, company_id=self.env.company.id)
+            bom = result.get(product) if isinstance(result, dict) else result
+            if bom:
+                return bom
         except Exception:
-            return self.env['mrp.bom'].search([
-                '|',
-                ('product_id', '=', product.id),
-                '&', ('product_id', '=', False),
-                ('product_tmpl_id', '=', product.product_tmpl_id.id),
-                ('type', '!=', 'phantom'),
-                ('company_id', 'in', [False, self.env.company.id]),
-            ], limit=1, order='sequence')
+            pass
+        return self.env['mrp.bom'].search([
+            ('type', 'not in', ['phantom', 'subcontract']),
+            ('company_id', 'in', [False, self.env.company.id]),
+            '|',
+            ('product_id', '=', product.id),
+            '&', ('product_id', '=', False),
+            ('product_tmpl_id', '=', product.product_tmpl_id.id),
+        ], limit=1, order='sequence, id')
 
     def _get_op_duration_hours(self, op, qty):
         dur_min = (
@@ -180,7 +188,7 @@ class MrpProductionRequest(models.TransientModel):
             return None
         visited = visited | {product.id}
 
-        bom = self._find_bom(product, qty)
+        bom = self._find_bom(product)
         if not bom or bom.type == 'phantom':
             return None
 

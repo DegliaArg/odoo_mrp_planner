@@ -78,6 +78,43 @@ class MrpProduction(models.Model):
             # Escribir directamente en la DB para evitar trigger recursivo
             subsequent.write({'x_reschedule_needed': True})
 
+    # ── Contador de planes ───────────────────────────────────────────────────
+
+    reschedule_plan_count = fields.Integer(
+        compute='_compute_reschedule_plan_count',
+        string='Planes',
+    )
+
+    def _compute_reschedule_plan_count(self):
+        for mo in self:
+            pivot_ids = self.env['mrp.reschedule.plan'].search([
+                ('production_id', '=', mo.id),
+                ('state', '!=', 'cancelled'),
+            ]).ids
+            line_ids = self.env['mrp.reschedule.plan.line'].search([
+                ('production_id', '=', mo.id),
+                ('plan_id.state', '!=', 'cancelled'),
+            ]).mapped('plan_id').ids
+            mo.reschedule_plan_count = len(set(pivot_ids + line_ids))
+
+    def action_view_reschedule_plans(self):
+        self.ensure_one()
+        pivot_ids = self.env['mrp.reschedule.plan'].search([
+            ('production_id', '=', self.id),
+        ]).ids
+        line_ids = self.env['mrp.reschedule.plan.line'].search([
+            ('production_id', '=', self.id),
+        ]).mapped('plan_id').ids
+        all_ids = list(set(pivot_ids + line_ids))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Planes de reprogramación'),
+            'res_model': 'mrp.reschedule.plan',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', all_ids)],
+            'target': 'current',
+        }
+
     # ── Acción del botón Reprogramar ─────────────────────────────────────────
 
     def action_open_reschedule_plan(self):

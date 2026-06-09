@@ -53,6 +53,8 @@ class MrpReschedulePlan(models.Model):
         ('cancelled',   'Cancelado'),
     ], string='Estado', default='draft', tracking=True, copy=False)
 
+    active = fields.Boolean(default=True, string='Activo')
+
     production_id = fields.Many2one(
         'mrp.production', string='Orden pivot',
         help='Orden de referencia. Dejar vacío para reprogramar globalmente '
@@ -180,6 +182,10 @@ class MrpReschedulePlan(models.Model):
 
     def action_apply(self):
         self.ensure_one()
+        if not self.env.user.has_group('mrp.group_mrp_manager'):
+            raise UserError(_(
+                'Solo los responsables de fabricación pueden aplicar un plan de reprogramación.'
+            ))
         if self.state != 'calculated':
             raise UserError(_('El plan debe estar en estado Calculado para aplicar.'))
         active_lines = self.line_ids.filtered('apply')
@@ -242,13 +248,36 @@ class MrpReschedulePlan(models.Model):
             raise UserError(_('Primero calcule los cambios propuestos.'))
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Gantt — %s') % self.name,
+            'name': _('Gantt propuesto — %s') % self.name,
             'res_model': 'mrp.reschedule.plan.line',
             'view_mode': 'gantt',
             'domain': [
                 ('plan_id', '=', self.id),
                 ('record_type', '=', 'mrp'),
                 ('new_date_start', '!=', False),
+            ],
+            'context': {'create': False, 'edit': False},
+            'target': 'current',
+        }
+
+    def action_open_current_gantt(self):
+        self.ensure_one()
+        if not self.line_ids:
+            raise UserError(_('Primero calcule los cambios propuestos.'))
+        gantt_view = self.env.ref(
+            'odoo_mrp_reschedule.mrp_reschedule_plan_line_gantt_current',
+            raise_if_not_found=False,
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Gantt actual — %s') % self.name,
+            'res_model': 'mrp.reschedule.plan.line',
+            'view_mode': 'gantt',
+            'views': [(gantt_view.id if gantt_view else False, 'gantt')],
+            'domain': [
+                ('plan_id', '=', self.id),
+                ('record_type', '=', 'mrp'),
+                ('current_date_start', '!=', False),
             ],
             'context': {'create': False, 'edit': False},
             'target': 'current',
@@ -497,8 +526,7 @@ class MrpReschedulePlan(models.Model):
         if is_global:
             base_dt = self.replan_from or fields.Datetime.now()
             if hasattr(base_dt, 'tzinfo') and base_dt.tzinfo:
-                import pytz as _pytz
-                base_dt = base_dt.astimezone(_pytz.utc).replace(tzinfo=None)
+                base_dt = base_dt.astimezone(pytz.utc).replace(tzinfo=None)
             subsequent_mos = self._get_all_active_mos()
             wc_anchors = {}
             pivot_wc_ids = set()

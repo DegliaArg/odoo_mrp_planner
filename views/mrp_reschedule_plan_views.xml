@@ -11,6 +11,26 @@
         </record>
     </data>
 
+    <!-- ── Vista búsqueda de planes ── -->
+    <record id="mrp_reschedule_plan_search" model="ir.ui.view">
+        <field name="name">mrp.reschedule.plan.search</field>
+        <field name="model">mrp.reschedule.plan</field>
+        <field name="arch" type="xml">
+            <search string="Buscar planes">
+                <field name="name"/>
+                <field name="production_id"/>
+                <filter string="Borrador"   name="draft"      domain="[('state','=','draft')]"/>
+                <filter string="Calculados" name="calculated" domain="[('state','=','calculated')]"/>
+                <filter string="Aplicados"  name="applied"    domain="[('state','=','applied')]"/>
+                <separator/>
+                <filter string="Archivados" name="archived"   domain="[('active','=',False)]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <!-- ── Vista lista de planes ── -->
     <record id="mrp_reschedule_plan_list" model="ir.ui.view">
         <field name="name">mrp.reschedule.plan.list</field>
@@ -53,6 +73,7 @@
                             type="object"
                             string="Aplicar cambios"
                             class="btn-primary"
+                            groups="mrp.group_mrp_manager"
                             invisible="state != 'calculated'"
                             confirm="¿Confirmar la reprogramación? Esta acción actualizará las fechas de las órdenes de fabricación y compra marcadas."/>
                     <button name="action_reset_draft"
@@ -75,13 +96,23 @@
                         <button name="action_open_gantt"
                                 type="object"
                                 class="oe_stat_button"
-                                icon="fa-bar-chart"
+                                icon="fa-calendar-check-o"
                                 invisible="state == 'draft'">
                             <div class="o_stat_info">
                                 <span class="o_stat_value">
                                     <field name="line_count"/>
                                 </span>
-                                <span class="o_stat_text">Ver Gantt</span>
+                                <span class="o_stat_text">Gantt propuesto</span>
+                            </div>
+                        </button>
+                        <button name="action_open_current_gantt"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-calendar"
+                                invisible="state == 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Gantt</span>
+                                <span class="o_stat_text">actual</span>
                             </div>
                         </button>
                     </div>
@@ -98,7 +129,7 @@
                                    invisible="not production_id"
                                    readonly="state in ('applied', 'cancelled')"/>
                             <field name="replan_from"
-                                   invisible="production_id != False"
+                                   invisible="production_id"
                                    readonly="state in ('applied', 'cancelled')"/>
                             <field name="delta_display" readonly="1"/>
                         </group>
@@ -120,6 +151,9 @@
                               decoration-danger="warning_type == 'confirmed_po'"
                               decoration-success="warning_type == 'child_adjusted'">
 
+                            <field name="reschedule_sequence"
+                                   widget="handle"
+                                   readonly="level != 0 or record_type != 'mrp' or is_anchor"/>
                             <field name="type_label"
                                    string="Tipo"
                                    readonly="1"/>
@@ -187,6 +221,29 @@
                 <chatter/>
 
             </form>
+        </field>
+    </record>
+
+    <!-- ── Vista Gantt del estado ACTUAL (antes del replan) ── -->
+    <record id="mrp_reschedule_plan_line_gantt_current" model="ir.ui.view">
+        <field name="name">mrp.reschedule.plan.line.gantt.current</field>
+        <field name="model">mrp.reschedule.plan.line</field>
+        <field name="arch" type="xml">
+            <gantt date_start="current_date_start"
+                   date_stop="current_date_finish"
+                   string="Estado actual (antes del replan)"
+                   default_scale="day"
+                   color="color"
+                   create="0"
+                   edit="0"
+                   delete="0">
+                <field name="record_label"/>
+                <field name="description_label"/>
+                <field name="workcenter_label"/>
+                <field name="product_qty_display"/>
+                <field name="state_display"/>
+                <field name="color"/>
+            </gantt>
         </field>
     </record>
 
@@ -284,6 +341,7 @@
         <field name="name">Planes de reprogramación</field>
         <field name="res_model">mrp.reschedule.plan</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="mrp_reschedule_plan_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Crear un plan de reprogramación

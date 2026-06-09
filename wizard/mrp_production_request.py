@@ -266,6 +266,61 @@ class MrpProductionRequest(models.TransientModel):
         )
         return dur_min * qty / 60.0
 
+    def _get_supplier_calendar(self, partner):
+        """Devuelve el calendario del proveedor si está configurado; None si no."""
+        if not partner:
+            return None
+        # Odoo estándar no tiene resource_calendar en res.partner, pero sí
+        # cuando se instala el módulo HR y el proveedor tiene un empleado asociado.
+        if hasattr(partner, 'resource_ids') and partner.resource_ids:
+            cal = partner.resource_ids[:1].calendar_id
+            if cal:
+                return cal
+        return None
+
+    def _backward_schedule_days(self, calendar, before_dt, lead_days):
+        """Retrocede lead_days días hábiles desde before_dt según el calendario.
+        Cae en el primer turno disponible del día resultante."""
+        if not calendar or lead_days <= 0:
+            return before_dt - timedelta(days=lead_days or 0)
+
+        dt = before_dt
+        days_counted = 0
+        max_iter = lead_days * 7 + 30  # margen para calendarios con muchos días libres
+
+        for _ in range(max_iter):
+            if days_counted >= lead_days:
+                break
+            dt -= timedelta(days=1)
+            dt_date = dt.date()
+            weekday = str(dt.weekday())  # '0'=lunes, igual que att.dayofweek
+            if any(
+                att.dayofweek == weekday
+                and (not att.date_from or att.date_from <= dt_date)
+                and (not att.date_to   or att.date_to   >= dt_date)
+                for att in calendar.attendance_ids
+            ):
+                days_counted += 1
+
+        # Posicionar al inicio del primer turno del día resultante
+        dt_date = dt.date()
+        weekday = str(dt.weekday())
+        day_atts = sorted(
+            [
+                a for a in calendar.attendance_ids
+                if a.dayofweek == weekday
+                and (not a.date_from or a.date_from <= dt_date)
+                and (not a.date_to   or a.date_to   >= dt_date)
+            ],
+            key=lambda a: a.hour_from,
+        )
+        if day_atts:
+            h = day_atts[0].hour_from
+            return dt.replace(
+                hour=int(h), minute=int(round((h % 1) * 60)), second=0, microsecond=0
+            )
+        return dt.replace(hour=8, minute=0, second=0, microsecond=0)
+
     def _build_demand_tree(self, product, qty, level, visited=None):
         """
         Construye el árbol de demanda usando las rutas del sistema.
@@ -314,20 +369,24 @@ class MrpProductionRequest(models.TransientModel):
                     node['children'].append(child)
 
             elif method == 'subcontract':
-                lead_days = self._get_purchase_lead_days(comp)
-                supplier  = comp.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+                lead_days    = self._get_purchase_lead_days(comp)
+                seller_rec   = comp.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+                supplier_cal = self._get_supplier_calendar(
+                    seller_rec.partner_id if seller_rec else self.env['res.partner']
+                )
                 node['children'].append({
-                    'type':          'subcontract',
-                    'product':       comp,
-                    'qty':           comp_qty,
-                    'bom':           None,
-                    'level':         level + 1,
-                    'lead_days':     lead_days,
-                    'supplier_name': supplier.partner_id.display_name if supplier else '',
-                    'operations':    [],
-                    'children':      [],
-                    'scheduled_start': None,
-                    'scheduled_end':   None,
+                    'type':              'subcontract',
+                    'product':           comp,
+                    'qty':               comp_qty,
+                    'bom':               None,
+                    'level':             level + 1,
+                    'lead_days':         lead_days,
+                    'supplier_name':     seller_rec.partner_id.display_name if seller_rec else '',
+                    'supplier_calendar': supplier_cal,
+                    'operations':        [],
+                    'children':          [],
+                    'scheduled_start':   None,
+                    'scheduled_end':     None,
                 })
             # method == 'buy': insumo comprado → no se muestra en el plan
             # method == 'stock': de stock → no genera orden
@@ -399,11 +458,13 @@ class MrpProductionRequest(models.TransientModel):
         node['scheduled_end']   = current
 
         # Fijar fechas de nodos OC/Subcont.: deben llegar antes del inicio del padre
+        company_calendar = self.env.company.resource_calendar_id
         for child in node['children']:
             if child.get('type') in ('purchase', 'subcontract') and node_start:
                 lead = child.get('lead_days', 7)
+                cal  = child.get('supplier_calendar') or company_calendar
                 child['scheduled_end']   = node_start
-                child['scheduled_start'] = node_start - timedelta(days=lead)
+                child['scheduled_start'] = self._backward_schedule_days(cal, node_start, lead)
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
         indent   = INDENT_MAP.get(node['level'], '         └─ ')

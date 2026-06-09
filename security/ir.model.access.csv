@@ -2,3 +2,5 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_mrp_reschedule_plan_all,access_mrp_reschedule_plan,model_mrp_reschedule_plan,base.group_user,1,1,1,1
 access_mrp_reschedule_plan_line_all,access_mrp_reschedule_plan_line,model_mrp_reschedule_plan_line,base.group_user,1,1,1,1
 access_mrp_reschedule_plan_wc_line_all,access_mrp_reschedule_plan_wc_line,model_mrp_reschedule_plan_wc_line,base.group_user,1,1,1,1
+access_mrp_production_request_all,access_mrp_production_request,model_mrp_production_request,base.group_user,1,1,1,1
+access_mrp_production_request_line_all,access_mrp_production_request_line,model_mrp_production_request_line,base.group_user,1,1,1,1

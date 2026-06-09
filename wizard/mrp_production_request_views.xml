@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Formulario del wizard ── -->
+    <record id="mrp_production_request_form" model="ir.ui.view">
+        <field name="name">mrp.production.request.form</field>
+        <field name="model">mrp.production.request</field>
+        <field name="arch" type="xml">
+            <form string="Nueva programación de fabricación">
+
+                <header>
+                    <button name="action_calculate"
+                            type="object"
+                            string="Calcular"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_calculate"
+                            type="object"
+                            string="Recalcular"
+                            class="btn-secondary"
+                            invisible="state != 'calculated'"/>
+                    <button name="action_confirm"
+                            type="object"
+                            string="Crear órdenes de fabricación"
+                            class="btn-primary"
+                            invisible="state != 'calculated'"
+                            confirm="¿Crear las órdenes de fabricación con las fechas propuestas?"/>
+                    <button special="cancel"
+                            string="Cerrar"
+                            class="btn-secondary"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,calculated"/>
+                </header>
+
+                <sheet>
+
+                    <group>
+                        <group string="Solicitud">
+                            <field name="product_id"
+                                   readonly="state == 'calculated'"/>
+                            <field name="product_qty"
+                                   readonly="state == 'calculated'"/>
+                            <field name="date_deadline"/>
+                        </group>
+                        <group string="Configuración">
+                            <field name="start_from"
+                                   readonly="state == 'calculated'"/>
+                        </group>
+                    </group>
+
+                    <!-- Banner de factibilidad -->
+                    <div class="alert alert-success mb-2"
+                         invisible="not feasible or state != 'calculated'">
+                        <i class="fa fa-check-circle me-2"/>
+                        <field name="feasibility_message" readonly="1" nolabel="1"/>
+                    </div>
+                    <div class="alert alert-danger mb-2"
+                         invisible="feasible or state != 'calculated'">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        <field name="feasibility_message" readonly="1" nolabel="1"/>
+                    </div>
+
+                    <field name="line_ids"
+                           readonly="1"
+                           nolabel="1"
+                           invisible="state != 'calculated'">
+                        <list string="Plan de fabricación propuesto" create="0" edit="0" delete="0"
+                              decoration-bf="level == 0"
+                              decoration-muted="level > 0">
+                            <field name="type_label"     string="Tipo" readonly="1"/>
+                            <field name="description_label" string="Producto" readonly="1"/>
+                            <field name="product_qty"    string="Cantidad" readonly="1"/>
+                            <field name="duration_hours" string="Duración (hs)" readonly="1"/>
+                            <field name="workcenter_label" string="Centros de trabajo" readonly="1" optional="show"/>
+                            <field name="new_date_start"  string="Inicio propuesto" readonly="1"/>
+                            <field name="new_date_finish" string="Fin propuesto" readonly="1"/>
+                            <field name="level" column_invisible="True"/>
+                        </list>
+                    </field>
+
+                </sheet>
+
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción ── -->
+    <record id="action_mrp_production_request" model="ir.actions.act_window">
+        <field name="name">Nueva programación</field>
+        <field name="res_model">mrp.production.request</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ── Menú ── -->
+    <menuitem id="mrp_reschedule_menu_request"
+              name="Nueva programación"
+              parent="mrp_reschedule_menu_root"
+              sequence="5"
+              action="action_mrp_production_request"/>
+
+</odoo>

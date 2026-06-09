@@ -1,1 +1,1 @@
-# wizard removed — logic migrated to models/mrp_reschedule_plan.py
+from . import mrp_production_request

@@ -1,6 +1,6 @@
 {
     'name': 'MRP Reschedule Cascade',
-    'version': '18.0.3.0.0',
+    'version': '18.0.4.0.0',
     'summary': 'Reprogramación en cascada multi-WC de órdenes de fabricación',
     'description': """
 Reprograma en cascada las órdenes de fabricación subsecuentes en los mismos
@@ -28,6 +28,7 @@ Características:
         'views/res_config_settings_views.xml',
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
+        'wizard/mrp_production_request_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

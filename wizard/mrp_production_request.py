@@ -1,6 +1,6 @@
 import logging
 import pytz
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
@@ -122,6 +122,10 @@ class MrpProductionRequest(models.Model):
         if hasattr(start, 'tzinfo') and start.tzinfo:
             start = start.astimezone(pytz.utc).replace(tzinfo=None)
 
+        # Piso temporal: nada puede programarse antes de hoy (UTC midnight)
+        today_utc = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        min_dt = max(start, today_utc)
+
         # Construir árbol de demanda para cada artículo (en orden de secuencia)
         missing = []
         item_trees = []
@@ -137,13 +141,13 @@ class MrpProductionRequest(models.Model):
 
         # Anclas de WC: carga existente en la instancia
         all_roots  = [r for _, r in item_trees]
-        wc_anchors = self._get_wc_anchors_multi(start, all_roots)
+        wc_anchors = self._get_wc_anchors_multi(min_dt, all_roots)
 
         # Programar todos los artículos compartiendo los mismos anclas
         lines_vals = []
         seq = [10]
         for item, root in item_trees:
-            self._schedule_tree(root, start, wc_anchors, plan_model)
+            self._schedule_tree(root, min_dt, wc_anchors, plan_model, min_dt=min_dt)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             item.write({'projected_end': root.get('scheduled_end')})
 
@@ -390,35 +394,73 @@ class MrpProductionRequest(models.Model):
         for bom_line in bom.bom_line_ids:
             comp     = bom_line.product_id
             comp_qty = bom_line.product_qty * qty
-            method   = self._get_supply_method(comp)
+
+            # Verificar stock disponible antes de decidir el método de abastecimiento
+            stock_avail = comp.qty_available or 0.0
+
+            if stock_avail >= comp_qty:
+                # Completamente cubierto por stock existente
+                node['children'].append({
+                    'type':            'stock',
+                    'product':         comp,
+                    'qty':             comp_qty,
+                    'level':           level + 1,
+                    'warning_type':    'stock_ok',
+                    'warning_message': f'En stock ({stock_avail:g} disponibles)',
+                    'operations':      [],
+                    'children':        [],
+                    'scheduled_start': None,
+                    'scheduled_end':   None,
+                })
+                continue
+
+            remaining_qty = comp_qty
+            if stock_avail > 0:
+                # Stock parcial: mostrar lo disponible y producir/comprar el resto
+                node['children'].append({
+                    'type':            'stock',
+                    'product':         comp,
+                    'qty':             stock_avail,
+                    'level':           level + 1,
+                    'warning_type':    'stock_partial',
+                    'warning_message': f'Stock parcial: {stock_avail:g} de {comp_qty:g}',
+                    'operations':      [],
+                    'children':        [],
+                    'scheduled_start': None,
+                    'scheduled_end':   None,
+                })
+                remaining_qty = comp_qty - stock_avail
+
+            method = self._get_supply_method(comp)
 
             if method == 'manufacture':
-                child = self._build_demand_tree(comp, comp_qty, level + 1, visited)
+                child = self._build_demand_tree(comp, remaining_qty, level + 1, visited)
                 if child:
                     node['children'].append(child)
 
-            elif method == 'subcontract':
+            elif method in ('subcontract', 'buy'):
                 lead_days    = self._get_purchase_lead_days(comp)
                 seller_rec   = comp.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
                 supplier_cal = self._get_supplier_calendar(
                     seller_rec.partner_id if seller_rec else self.env['res.partner']
                 )
                 node['children'].append({
-                    'type':              'subcontract',
+                    'type':              method,
                     'product':           comp,
-                    'qty':               comp_qty,
+                    'qty':               remaining_qty,
                     'bom':               None,
                     'level':             level + 1,
                     'lead_days':         lead_days,
                     'supplier_name':     seller_rec.partner_id.display_name if seller_rec else '',
                     'supplier_calendar': supplier_cal,
+                    'warning_type':      '',
+                    'warning_message':   '',
                     'operations':        [],
                     'children':          [],
                     'scheduled_start':   None,
                     'scheduled_end':     None,
                 })
-            # method == 'buy': insumo comprado → no se muestra en el plan
-            # method == 'stock': de stock → no genera orden
+            # method == 'stock' y sin stock: componente sin método conocido → omitir
 
         return node
 
@@ -452,21 +494,25 @@ class MrpProductionRequest(models.Model):
                         anchors[wc_id] = max(anchors.get(wc_id, est_end), est_end)
         return anchors
 
-    def _schedule_tree(self, node, start, wc_anchors, plan_model):
-        """Programa bottom-up los nodos OF. Los nodos OC/Subcont. se resuelven
+    def _schedule_tree(self, node, start, wc_anchors, plan_model, min_dt=None):
+        """Programa bottom-up los nodos OF. Los nodos OC/Subcont./compra se resuelven
         en un post-paso dentro de este mismo método (sus fechas dependen
-        del inicio del padre OF)."""
-        if node.get('type') in ('purchase', 'subcontract'):
+        del inicio del padre OF). Los nodos stock son hojas sin fechas."""
+        leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
+        if node.get('type') in leaf_types:
             return  # Se resuelve desde el padre
 
         children_end = start
         for child in node['children']:
-            if child.get('type') not in ('purchase', 'subcontract'):
-                self._schedule_tree(child, start, wc_anchors, plan_model)
+            if child.get('type') not in leaf_types:
+                self._schedule_tree(child, start, wc_anchors, plan_model, min_dt=min_dt)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
 
-        after_dt   = max(start, children_end)
+        after_dt = max(start, children_end)
+        if min_dt:
+            after_dt = max(after_dt, min_dt)
+
         node_start = None
         current    = after_dt
 
@@ -486,21 +532,27 @@ class MrpProductionRequest(models.Model):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
-        # Fijar fechas de nodos OC/Subcont.: deben llegar antes del inicio del padre
+        # Fijar fechas de nodos OC/Subcont./compra: deben llegar antes del inicio del padre
         company_calendar = self.env.company.resource_calendar_id
         for child in node['children']:
-            if child.get('type') in ('purchase', 'subcontract') and node_start:
+            if child.get('type') in ('purchase', 'subcontract', 'buy') and node_start:
                 lead = child.get('lead_days', 7)
                 cal  = child.get('supplier_calendar') or company_calendar
-                child['scheduled_end']   = node_start
-                child['scheduled_start'] = self._backward_schedule_days(cal, node_start, lead)
+                child['scheduled_end'] = node_start
+                raw_start = self._backward_schedule_days(cal, node_start, lead)
+                child['scheduled_start'] = max(raw_start, min_dt) if min_dt else raw_start
+                # Advertencia si el pedido debería haberse emitido antes de hoy
+                if min_dt and raw_start < min_dt:
+                    delta_days = (min_dt - raw_start).days
+                    child['warning_type']    = 'late_start'
+                    child['warning_message'] = f'Debería haberse pedido hace {delta_days}d'
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
-        indent   = INDENT_MAP.get(node['level'], '         └─ ')
-        product  = node['product']
+        indent    = INDENT_MAP.get(node['level'], '         └─ ')
+        product   = node['product']
         node_type = node.get('type', 'manufacture')
 
-        if node_type in ('purchase', 'subcontract'):
+        if node_type in ('purchase', 'subcontract', 'buy'):
             lines_vals.append({
                 'sequence':          seq[0],
                 'level':             node['level'],
@@ -510,14 +562,37 @@ class MrpProductionRequest(models.Model):
                 'bom_id':            False,
                 'product_qty':       node['qty'],
                 'duration_hours':    0.0,
-                'new_date_start':    node['scheduled_start'],   # fecha pedido
-                'new_date_finish':   node['scheduled_end'],     # fecha llegada
+                'new_date_start':    node['scheduled_start'],
+                'new_date_finish':   node['scheduled_end'],
                 'workcenter_label':  node.get('supplier_name', ''),
                 'description_label': f'{indent}{product.display_name}',
                 'type_label':        'Subcont.' if node_type == 'subcontract' else 'OC',
+                'warning_type':      node.get('warning_type', ''),
+                'warning_message':   node.get('warning_message', ''),
             })
             seq[0] += 10
-            return  # Nodos hoja, sin sub-árbol
+            return  # Nodo hoja
+
+        if node_type == 'stock':
+            lines_vals.append({
+                'sequence':          seq[0],
+                'level':             node['level'],
+                'item_id':           item_id,
+                'record_type':       'stock',
+                'product_id':        product.id,
+                'bom_id':            False,
+                'product_qty':       node['qty'],
+                'duration_hours':    0.0,
+                'new_date_start':    None,
+                'new_date_finish':   None,
+                'workcenter_label':  '',
+                'description_label': f'{indent}{product.display_name}',
+                'type_label':        'Stock',
+                'warning_type':      node.get('warning_type', 'stock_ok'),
+                'warning_message':   node.get('warning_message', ''),
+            })
+            seq[0] += 10
+            return  # Nodo hoja
 
         # Nodo OF
         ops      = node['operations']
@@ -539,6 +614,8 @@ class MrpProductionRequest(models.Model):
             'workcenter_label':  wc_label,
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',
+            'warning_type':      '',
+            'warning_message':   '',
         })
         seq[0] += 10
 
@@ -557,7 +634,7 @@ class MrpProductionRequestLine(models.Model):
     sequence    = fields.Integer(default=10)
     level       = fields.Integer(default=0)
     record_type = fields.Selection(
-        [('mrp', 'Fabricación'), ('purchase', 'Compra')],
+        [('mrp', 'Fabricación'), ('purchase', 'Compra'), ('stock', 'Stock')],
         string='Tipo registro', default='mrp',
     )
 
@@ -572,3 +649,11 @@ class MrpProductionRequestLine(models.Model):
     workcenter_label  = fields.Char(string='WC / Proveedor')
     description_label = fields.Char(string='Producto')
     type_label        = fields.Char(string='Tipo')
+
+    warning_type = fields.Selection([
+        ('', 'Ninguna'),
+        ('stock_ok',      'Stock suficiente'),
+        ('stock_partial', 'Stock parcial'),
+        ('late_start',    'Pedido tardío'),
+    ], string='Tipo advertencia', default='')
+    warning_message = fields.Char(string='Advertencia')

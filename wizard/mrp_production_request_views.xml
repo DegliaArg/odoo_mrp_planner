@@ -104,18 +104,23 @@
                         <list string="Plan de fabricación propuesto"
                               create="0" edit="0" delete="0"
                               decoration-bf="level == 0 and record_type == 'mrp'"
-                              decoration-warning="record_type == 'purchase'"
+                              decoration-warning="record_type == 'purchase' and warning_type != 'late_start'"
+                              decoration-danger="warning_type == 'late_start'"
+                              decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
+                              decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
                               decoration-muted="level > 0 and record_type == 'mrp'">
-                            <field name="item_id"           string="Artículo"      readonly="1" optional="show"/>
-                            <field name="type_label"        string="Tipo"          readonly="1"/>
-                            <field name="description_label" string="Producto"      readonly="1"/>
-                            <field name="product_qty"       string="Cantidad"      readonly="1"/>
-                            <field name="duration_hours"    string="Duración (hs)" readonly="1" optional="show"/>
+                            <field name="item_id"           string="Artículo"       readonly="1" optional="show"/>
+                            <field name="type_label"        string="Tipo"           readonly="1"/>
+                            <field name="description_label" string="Producto"       readonly="1"/>
+                            <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                            <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
                             <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
                             <field name="new_date_start"    string="Inicio / Pedido" readonly="1"/>
                             <field name="new_date_finish"   string="Fin / Llegada"   readonly="1"/>
-                            <field name="record_type" column_invisible="True"/>
-                            <field name="level"       column_invisible="True"/>
+                            <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
+                            <field name="record_type"   column_invisible="True"/>
+                            <field name="level"         column_invisible="True"/>
+                            <field name="warning_type"  column_invisible="True"/>
                         </list>
                     </field>
 

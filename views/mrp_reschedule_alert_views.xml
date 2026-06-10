@@ -1,20 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <data noupdate="1">
-        <!-- Cron diario de detección de desvíos -->
+    <!-- Cron cada 30 minutos -->
+    <data noupdate="0">
         <record id="ir_cron_check_delays" model="ir.cron">
             <field name="name">Planificador: detectar desvíos de producción</field>
             <field name="model_id" ref="model_mrp_reschedule_alert"/>
             <field name="state">code</field>
             <field name="code">model._cron_check_delays()</field>
-            <field name="interval_number">1</field>
-            <field name="interval_type">days</field>
+            <field name="interval_number">30</field>
+            <field name="interval_type">minutes</field>
             <field name="numbercall">-1</field>
             <field name="active">True</field>
-            <field name="hour">7</field>
         </record>
     </data>
+
+    <!-- Acción servidor: Actualizar alertas (visible en menú Acción de la lista) -->
+    <record id="action_run_cron_manual_server" model="ir.actions.server">
+        <field name="name">Actualizar alertas ahora</field>
+        <field name="model_id" ref="model_mrp_reschedule_alert"/>
+        <field name="binding_model_id" ref="model_mrp_reschedule_alert"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = model.action_run_cron_manual()</field>
+    </record>
 
     <!-- ── Vista búsqueda ── -->
     <record id="mrp_reschedule_alert_search" model="ir.ui.view">
@@ -26,14 +35,17 @@
                 <field name="production_id"/>
                 <field name="purchase_id"/>
                 <field name="picking_id"/>
+                <field name="product_id"/>
                 <separator/>
-                <filter string="Sin resolver"  name="unresolved" domain="[('resolved','=',False)]" default="1"/>
+                <filter string="Sin resolver"  name="unresolved" domain="[('resolved','=',False)]"/>
                 <filter string="Críticas"       name="critical"   domain="[('severity','=','critical')]"/>
                 <filter string="Avisos"         name="warning"    domain="[('severity','=','warning')]"/>
                 <separator/>
                 <filter string="OFs atrasadas"    name="mo_delayed"      domain="[('alert_type','=','mo_delayed')]"/>
                 <filter string="OCs vencidas"     name="po_delayed"      domain="[('alert_type','=','po_delayed')]"/>
+                <filter string="OCs canceladas"   name="po_cancelled"    domain="[('alert_type','=','po_cancelled')]"/>
                 <filter string="Recepciones"      name="receipt_delayed" domain="[('alert_type','=','receipt_delayed')]"/>
+                <filter string="Qty diferente"    name="qty_mismatch"    domain="[('alert_type','=','qty_mismatch')]"/>
                 <filter string="OFs canceladas"   name="mo_cancelled"    domain="[('alert_type','=','mo_cancelled')]"/>
                 <separator/>
                 <filter string="Resueltas" name="resolved" domain="[('resolved','=',True)]"/>
@@ -42,6 +54,68 @@
                     <filter string="Severidad" name="group_severity" context="{'group_by': 'severity'}"/>
                 </group>
             </search>
+        </field>
+    </record>
+
+    <!-- ── Vista form ── -->
+    <record id="mrp_reschedule_alert_form" model="ir.ui.view">
+        <field name="name">mrp.reschedule.alert.form</field>
+        <field name="model">mrp.reschedule.alert</field>
+        <field name="arch" type="xml">
+            <form string="Alerta de planificación">
+                <header>
+                    <button name="action_create_reschedule_plan"
+                            type="object"
+                            string="Crear plan de reprogramación"
+                            class="btn-primary"
+                            invisible="resolved or alert_type == 'qty_mismatch'"/>
+                    <button name="action_resolve"
+                            type="object"
+                            string="Marcar como resuelta"
+                            invisible="resolved"/>
+                    <button name="action_run_cron_manual"
+                            type="object"
+                            string="Actualizar alertas"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Identificación">
+                            <field name="alert_type" readonly="1"/>
+                            <field name="severity" readonly="1"/>
+                            <field name="days_late" readonly="1"/>
+                            <field name="message" readonly="1"/>
+                        </group>
+                        <group string="Referencia">
+                            <field name="production_id" readonly="1" invisible="not production_id"/>
+                            <field name="purchase_id"   readonly="1" invisible="not purchase_id"/>
+                            <field name="picking_id"    readonly="1" invisible="not picking_id"/>
+                            <field name="product_id"    readonly="1" invisible="not product_id"/>
+                            <field name="expected_qty"  readonly="1" invisible="not product_id"/>
+                            <field name="actual_qty"    readonly="1" invisible="not product_id"/>
+                        </group>
+                    </group>
+                    <group string="Resolución" invisible="not resolved">
+                        <field name="resolve_date" readonly="1"/>
+                        <field name="plan_id"      readonly="1"/>
+                    </group>
+                    <notebook>
+                        <page string="OFs afectadas" name="impact_mos" invisible="impact_mo_count == 0">
+                            <field name="impact_mo_ids" readonly="1">
+                                <list string="OFs afectadas">
+                                    <field name="name"/>
+                                    <field name="product_id"/>
+                                    <field name="date_start"/>
+                                    <field name="date_finished"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
         </field>
     </record>
 
@@ -59,22 +133,32 @@
                        decoration-warning="severity == 'warning'"/>
                 <field name="alert_type" widget="badge"
                        decoration-info="alert_type in ('mo_delayed','po_delayed','receipt_delayed')"
-                       decoration-danger="alert_type == 'mo_cancelled'"/>
+                       decoration-danger="alert_type in ('mo_cancelled','po_cancelled')"
+                       decoration-warning="alert_type == 'qty_mismatch'"/>
                 <field name="days_late" string="Atraso (días)"
                        decoration-danger="days_late >= 3"
                        decoration-warning="days_late > 0 and days_late &lt; 3"/>
-                <field name="production_id" string="OF" optional="show"/>
-                <field name="purchase_id"   string="OC" optional="show"/>
+                <field name="production_id" string="OF"       optional="show"/>
+                <field name="purchase_id"   string="OC"       optional="show"/>
                 <field name="picking_id"    string="Recepción" optional="show"/>
-                <field name="message"       string="Detalle" optional="show"/>
-                <field name="plan_id"       string="Plan" optional="show"/>
+                <field name="product_id"    string="Producto"  optional="show"/>
+                <field name="expected_qty"  string="Planificado" optional="hide"/>
+                <field name="actual_qty"    string="Real"        optional="hide"/>
+                <field name="impact_mo_count" string="OFs afect." optional="show"/>
+                <field name="message"       string="Detalle"    optional="show"/>
+                <field name="plan_id"       string="Plan"       optional="show"/>
                 <field name="resolved"      string="Resuelta"/>
                 <field name="resolve_date"  string="Resuelta el" optional="hide"/>
+                <button name="action_view_impact_mos"
+                        type="object"
+                        string="Ver OFs"
+                        class="btn-link btn-sm"
+                        invisible="impact_mo_count == 0"/>
                 <button name="action_create_reschedule_plan"
                         type="object"
                         string="Reprogramar"
                         class="btn-primary btn-sm"
-                        invisible="resolved"/>
+                        invisible="resolved or alert_type == 'qty_mismatch'"/>
                 <button name="action_resolve"
                         type="object"
                         string="Resolver"
@@ -88,7 +172,7 @@
     <record id="action_mrp_reschedule_alert" model="ir.actions.act_window">
         <field name="name">Alertas de planificación</field>
         <field name="res_model">mrp.reschedule.alert</field>
-        <field name="view_mode">list</field>
+        <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="mrp_reschedule_alert_search"/>
         <field name="context">{'search_default_unresolved': 1}</field>
         <field name="help" type="html">

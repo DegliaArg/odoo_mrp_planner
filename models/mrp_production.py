@@ -1,8 +1,9 @@
 from odoo import models, fields, api, _
 
-
 import logging
 _logger = logging.getLogger(__name__)
+
+QTY_TOLERANCE = 0.05
 
 
 class MrpProduction(models.Model):
@@ -34,40 +35,74 @@ class MrpProduction(models.Model):
     # ── Fase 4: override de write() para detección semi-automática ───────────
 
     def write(self, vals):
-        """
-        Detecta cambios de estado relevantes (done / cancel) y marca las MOs
-        subsecuentes en los mismos WC para que muestren el botón de
-        reprogramación sugerida.
-        """
-        trigger = 'state' in vals and vals['state'] in ('done', 'cancel')
+        trigger_state = 'state' in vals and vals['state'] in ('done', 'cancel')
+        going_done = trigger_state and vals['state'] == 'done'
 
-        if trigger:
+        if trigger_state:
             old_states = {mo.id: mo.state for mo in self}
+        if going_done:
+            planned_qtys = {mo.id: mo.product_qty for mo in self}
 
         result = super().write(vals)
 
-        if trigger:
+        if trigger_state:
             for mo in self:
                 old_state = old_states.get(mo.id, mo.state)
-                if old_state not in ('done', 'cancel'):
+                if old_state in ('done', 'cancel'):
+                    continue
+
+                try:
+                    self._flag_subsequent_mos(mo)
+                except Exception as e:
+                    _logger.warning(
+                        'MRP Reschedule: error al marcar MOs subsecuentes de %s: %s',
+                        mo.name, e,
+                    )
+
+                if mo.state == 'cancel':
                     try:
-                        self._flag_subsequent_mos(mo)
+                        self.env['mrp.reschedule.alert']._upsert_alert(
+                            'mo_cancelled', 'critical', 0,
+                            _('OF cancelada: %s') % mo.name,
+                            production_id=mo.id,
+                        )
                     except Exception as e:
                         _logger.warning(
-                            'MRP Reschedule: error al marcar MOs subsecuentes '
-                            'de %s: %s', mo.name, e
+                            'MRP Reschedule: error al crear alerta de cancelación de %s: %s',
+                            mo.name, e,
                         )
-                    if mo.state == 'cancel':
+
+                if mo.state == 'done' and going_done:
+                    planned_qty = planned_qtys.get(mo.id, 0)
+                    if planned_qty:
                         try:
-                            self.env['mrp.reschedule.alert']._upsert_alert(
-                                'mo_cancelled', 'critical', 0,
-                                _('OF cancelada: %s') % mo.name,
-                                production_id=mo.id,
+                            done_moves = mo.move_finished_ids.filtered(
+                                lambda m: m.state == 'done' and m.product_id == mo.product_id
                             )
+                            actual_qty = sum(m.quantity_done for m in done_moves) if done_moves else planned_qty
+                            if actual_qty == 0:
+                                actual_qty = planned_qty
+                            delta = abs(actual_qty - planned_qty) / planned_qty
+                            if delta > QTY_TOLERANCE:
+                                alert_env = self.env['mrp.reschedule.alert']
+                                avail = mo.product_id.qty_available
+                                impacted = alert_env._find_impact_mos(mo.product_id.id, avail)
+                                severity = 'critical' if actual_qty < planned_qty else 'warning'
+                                msg = _('Planificado: %g | Real: %g (%.0f%%)') % (
+                                    planned_qty, actual_qty, (actual_qty / planned_qty) * 100
+                                )
+                                alert_env._upsert_alert(
+                                    'qty_mismatch', severity, 0, msg,
+                                    production_id=mo.id,
+                                    product_id=mo.product_id.id,
+                                    expected_qty=planned_qty,
+                                    actual_qty=actual_qty,
+                                    impact_mo_ids=impacted.ids,
+                                )
                         except Exception as e:
                             _logger.warning(
-                                'MRP Reschedule: error al crear alerta de cancelación '
-                                'de %s: %s', mo.name, e
+                                'MRP Reschedule: error al crear alerta de cantidad de %s: %s',
+                                mo.name, e,
                             )
         return result
 
@@ -88,7 +123,6 @@ class MrpProduction(models.Model):
             ('workorder_ids.workcenter_id', 'in', wc_ids),
         ], limit=20)
         if subsequent:
-            # Escribir directamente en la DB para evitar trigger recursivo
             subsequent.write({'x_reschedule_needed': True})
 
     # ── Contador de planes ───────────────────────────────────────────────────

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-_logger = logging.getLogger(__name__)
+from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import INDENT_MAP
 
-INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
+_logger = logging.getLogger(__name__)
 
 
 class MrpProductionRequestItem(models.Model):
@@ -58,6 +58,7 @@ class MrpProductionRequestItem(models.Model):
 class MrpProductionRequest(models.Model):
     _name = 'mrp.production.request'
     _description = 'Solicitud de programación de fabricación'
+    _inherit = ['mrp.schedule.mixin']
     _order = 'id desc'
 
     name = fields.Char(string='Referencia', readonly=True, default='Nuevo', copy=False)
@@ -117,7 +118,6 @@ class MrpProductionRequest(models.Model):
         self.line_ids.unlink()
         self.item_ids.write({'projected_end': False})
 
-        plan_model = self.env['mrp.reschedule.plan']
         start = self.start_from or fields.Datetime.now()
         if hasattr(start, 'tzinfo') and start.tzinfo:
             start = start.astimezone(pytz.utc).replace(tzinfo=None)
@@ -147,7 +147,7 @@ class MrpProductionRequest(models.Model):
         lines_vals = []
         seq = [10]
         for item, root in item_trees:
-            self._schedule_tree(root, min_dt, wc_anchors, plan_model, min_dt=min_dt)
+            self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             item.write({'projected_end': root.get('scheduled_end')})
 
@@ -242,18 +242,15 @@ class MrpProductionRequest(models.Model):
             return 'subcontract'
 
         # Rutas configuradas en el producto/categoría
-        # Recolectar todos los métodos encontrados y devolver por prioridad:
-        # manufacture > buy  (un producto puede tener ambas rutas configuradas)
+        # Usar rule.action (campo semántico de Odoo 18) en lugar de picking_type_id.code,
+        # que no es confiable con rutas personalizadas (ej. "Mecanizado: suministrar…").
         found = set()
         routes = product.route_ids | product.categ_id.total_route_ids
         for route in routes:
             for rule in route.rule_ids.filtered('active'):
-                pt = rule.picking_type_id
-                if not pt:
-                    continue
-                if pt.code == 'mrp_operation':
+                if rule.action == 'manufacture':
                     found.add('manufacture')
-                elif pt.code == 'incoming':
+                elif rule.action == 'buy':
                     found.add('buy')
         if 'manufacture' in found:
             return 'manufacture'
@@ -399,9 +396,9 @@ class MrpProductionRequest(models.Model):
     def _build_demand_tree(self, product, qty, level, visited=None):
         """
         Construye el árbol de demanda usando las rutas del sistema.
-        - Productos con ruta 'fabricar' (mrp_operation) → nodo OF.
-        - Productos con ruta 'comprar' (incoming) → nodo OC (hoja, sin recursión).
-        - Productos de stock → omitidos.
+        - rule.action == 'manufacture' → nodo OF (recursivo).
+        - rule.action == 'buy' o subcontrato → nodo hoja OC/Subcont.
+        - Stock suficiente → nodo hoja Stock.
         """
         if visited is None:
             visited = set()
@@ -526,20 +523,25 @@ class MrpProductionRequest(models.Model):
             ('state', 'in', ('confirmed', 'progress')),
             ('workorder_ids.workcenter_id', 'in', list(wc_ids)),
         ]):
-            est_end = mo.date_finished or (
-                mo.date_start + timedelta(hours=8) if mo.date_start else None
-            )
-            if est_end:
-                for wo in mo.workorder_ids:
-                    wc_id = wo.workcenter_id.id
-                    if wc_id in wc_ids:
-                        anchors[wc_id] = max(anchors.get(wc_id, est_end), est_end)
+            for wo in mo.workorder_ids:
+                wc_id = wo.workcenter_id.id
+                if wc_id not in wc_ids:
+                    continue
+                # Preferir la fecha real del WO; si no, la del MO; si no, estimarla
+                wo_end = (
+                    wo.date_finished
+                    or mo.date_finished
+                    or (mo.date_start + timedelta(hours=(wo.duration_expected or 60) / 60)
+                        if mo.date_start else None)
+                )
+                if wo_end:
+                    anchors[wc_id] = max(anchors.get(wc_id, wo_end), wo_end)
         return anchors
 
-    def _schedule_tree(self, node, start, wc_anchors, plan_model, min_dt=None):
+    def _schedule_tree(self, node, start, wc_anchors, min_dt=None):
         """Programa bottom-up los nodos OF. Los nodos OC/Subcont./compra se resuelven
-        en un post-paso dentro de este mismo método (sus fechas dependen
-        del inicio del padre OF). Los nodos stock son hojas sin fechas."""
+        en un post-paso (sus fechas dependen del inicio del padre OF).
+        Los nodos stock son hojas sin fechas."""
         leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
         if node.get('type') in leaf_types:
             return  # Se resuelve desde el padre
@@ -547,7 +549,7 @@ class MrpProductionRequest(models.Model):
         children_end = start
         for child in node['children']:
             if child.get('type') not in leaf_types:
-                self._schedule_tree(child, start, wc_anchors, plan_model, min_dt=min_dt)
+                self._schedule_tree(child, start, wc_anchors, min_dt=min_dt)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
 
@@ -555,10 +557,11 @@ class MrpProductionRequest(models.Model):
         if min_dt:
             after_dt = max(after_dt, min_dt)
 
+        company_calendar = self.env.company.resource_calendar_id
+
         # Si algún hijo es compra/subcont., la OF no puede empezar antes de
         # min_dt + lead_days hábiles (no podemos pedir antes de hoy).
         if min_dt:
-            company_calendar = self.env.company.resource_calendar_id
             for child in node['children']:
                 if child.get('type') in ('purchase', 'subcontract', 'buy'):
                     lead = child.get('lead_days', 7)
@@ -571,12 +574,9 @@ class MrpProductionRequest(models.Model):
 
         for wc, dur_h in node['operations']:
             wc_id    = wc.id if wc else 0
-            calendar = (
-                wc.resource_calendar_id if wc and wc.resource_calendar_id
-                else self.env.company.resource_calendar_id
-            )
+            calendar = wc.resource_calendar_id if (wc and wc.resource_calendar_id) else company_calendar
             earliest       = max(current, wc_anchors.get(wc_id, after_dt))
-            wo_start, wo_end = plan_model._schedule_duration(calendar, earliest, dur_h)
+            wo_start, wo_end = self._schedule_duration(calendar, earliest, dur_h)
             wc_anchors[wc_id] = wo_end
             if node_start is None:
                 node_start = wo_start
@@ -585,9 +585,8 @@ class MrpProductionRequest(models.Model):
         node['scheduled_start'] = node_start
         node['scheduled_end']   = current
 
-        # Fijar fechas de nodos OC/Subcont./compra: backward desde el inicio de la OF.
+        # Backward schedule OC/Subcont./compra desde el inicio de la OF.
         # Gracias al push forward de after_dt, la fecha de pedido siempre cae >= min_dt.
-        company_calendar = self.env.company.resource_calendar_id
         for child in node['children']:
             if child.get('type') in ('purchase', 'subcontract', 'buy') and node_start:
                 lead = child.get('lead_days', 7)

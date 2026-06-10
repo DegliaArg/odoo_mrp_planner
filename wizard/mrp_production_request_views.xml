@@ -137,8 +137,8 @@
 
     <menuitem id="mrp_reschedule_menu_request"
               name="Nueva programación"
-              parent="mrp_reschedule_menu_root"
-              sequence="5"
+              parent="mrp_planner_menu_root"
+              sequence="10"
               action="action_mrp_production_request"/>
 
 </odoo>

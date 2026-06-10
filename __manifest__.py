@@ -1,31 +1,30 @@
 {
-    'name': 'MRP Reschedule Cascade',
-    'version': '18.0.19.0.0',
-    'summary': 'Reprogramación en cascada multi-WC de órdenes de fabricación',
+    'name': 'Planificador de producción',
+    'version': '18.0.20.0.0',
+    'summary': 'Planificación y reprogramación inteligente de órdenes de fabricación',
     'description': """
-Reprograma en cascada las órdenes de fabricación subsecuentes en los mismos
-centros de trabajo, respetando el calendario laboral de cada WC y programando
-WO a WO para MOs con operaciones encadenadas en múltiples WCs.
+Planificador de producción para Odoo 18 con programación desde demanda,
+reprogramación en cascada y sistema de alertas proactivo.
 
 Características:
-- Planes de reprogramación persistentes con historial y auditoría.
-- Algoritmo multi-WC con anchors independientes por centro de trabajo.
-- MOs en progreso tratadas como puntos fijos configurables.
+- Nueva programación desde demanda: expansión de BOM, rutas, lead times y stock.
+- Reprogramación en cascada multi-WC con algoritmo calendario-aware.
+- Sistema de alertas: OF atrasadas, OCs vencidas, recepciones demoradas.
+- Detección automática de desvíos con cron diario.
+- Triggers en OCs y recepciones para marcar MOs afectadas.
+- Planes persistentes con historial, Gantt y auditoría completa.
 - Prioridad configurable: cronológico / más cortas primero / manual.
-- Detección semi-automática: botón sugerido al cancelar/completar MOs.
-- Vínculo tipado OF madre (x_parent_mo_id) como alternativa al campo Origen.
-- Vista Gantt nativa a pantalla completa para revisar los cambios propuestos.
-- Advertencias para OCs ya confirmadas y MOs hijas con ajuste de calendario.
     """,
     'author': 'Deglia',
     'website': 'https://www.deglia.xyz',
     'license': 'OPL-1',
     'currency': 'USD',
     'category': 'Manufacturing',
-    'depends': ['mrp', 'purchase', 'mail'],
+    'depends': ['mrp', 'purchase', 'stock', 'mail'],
     'data': [
         'security/ir.model.access.csv',
         'views/res_config_settings_views.xml',
+        'views/mrp_reschedule_alert_views.xml',
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
         'wizard/mrp_production_request_views.xml',

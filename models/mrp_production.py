@@ -1,5 +1,6 @@
 from odoo import models, fields, api, _
 
+
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -56,6 +57,18 @@ class MrpProduction(models.Model):
                             'MRP Reschedule: error al marcar MOs subsecuentes '
                             'de %s: %s', mo.name, e
                         )
+                    if mo.state == 'cancel':
+                        try:
+                            self.env['mrp.reschedule.alert']._upsert_alert(
+                                'mo_cancelled', 'critical', 0,
+                                _('OF cancelada: %s') % mo.name,
+                                production_id=mo.id,
+                            )
+                        except Exception as e:
+                            _logger.warning(
+                                'MRP Reschedule: error al crear alerta de cancelación '
+                                'de %s: %s', mo.name, e
+                            )
         return result
 
     def _flag_subsequent_mos(self, mo):
@@ -112,6 +125,31 @@ class MrpProduction(models.Model):
             'res_model': 'mrp.reschedule.plan',
             'view_mode': 'list,form',
             'domain': [('id', 'in', all_ids)],
+            'target': 'current',
+        }
+
+    # ── Alertas ──────────────────────────────────────────────────────────────
+
+    alert_count = fields.Integer(
+        compute='_compute_alert_count',
+        string='Alertas',
+    )
+
+    def _compute_alert_count(self):
+        for mo in self:
+            mo.alert_count = self.env['mrp.reschedule.alert'].search_count([
+                ('production_id', '=', mo.id),
+                ('resolved', '=', False),
+            ])
+
+    def action_view_alerts(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Alertas'),
+            'res_model': 'mrp.reschedule.alert',
+            'view_mode': 'list,form',
+            'domain': [('production_id', '=', self.id)],
             'target': 'current',
         }
 

@@ -10,7 +10,6 @@
             <field name="code">model._cron_check_delays()</field>
             <field name="interval_number">30</field>
             <field name="interval_type">minutes</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
         </record>
     </data>

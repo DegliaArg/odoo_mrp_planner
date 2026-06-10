@@ -358,6 +358,15 @@
         </field>
     </record>
 
+    <!-- Acción para la vista de carga de WC -->
+    <record id="action_mrp_reschedule_wc_load" model="ir.actions.act_window">
+        <field name="name">Carga de centros de trabajo</field>
+        <field name="res_model">mrp.reschedule.plan.wc.line</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('plan_id.state', 'in', ('calculated', 'applied'))]</field>
+        <field name="context">{'create': False}</field>
+    </record>
+
     <!-- ── Menús bajo "Planificador" (root definido en mrp_reschedule_alert_views.xml) ── -->
     <menuitem id="mrp_reschedule_menu_plans"
               name="Planes activos"
@@ -370,14 +379,5 @@
               parent="mrp_planner_menu_root"
               sequence="20"
               action="action_mrp_reschedule_wc_load"/>
-
-    <!-- Acción para la vista de carga de WC -->
-    <record id="action_mrp_reschedule_wc_load" model="ir.actions.act_window">
-        <field name="name">Carga de centros de trabajo</field>
-        <field name="res_model">mrp.reschedule.plan.wc.line</field>
-        <field name="view_mode">gantt,list</field>
-        <field name="domain">[('plan_id.state', 'in', ('calculated', 'applied'))]</field>
-        <field name="context">{'create': False}</field>
-    </record>
 
 </odoo>

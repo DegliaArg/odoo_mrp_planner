@@ -478,12 +478,14 @@ class MrpProductionRequest(models.Model):
 
             method = self._get_supply_method(comp)
 
-            # Productos gestionados por reglas de reorden (mín/máx): el
-            # reabastecimiento es automático e independiente de esta OF.
-            # No modelar como compra ni fabricación en la programación.
-            if method in ('buy', 'subcontract') and self.env[
-                'stock.warehouse.orderpoint'
-            ].search([('product_id', '=', comp.id), ('active', '=', True)], limit=1):
+            # Productos gestionados por reglas de reorden automáticas (trigger='auto'):
+            # el reabastecimiento es independiente de esta OF, sin importar si la
+            # ruta es compra o fabricación.
+            if self.env['stock.warehouse.orderpoint'].search([
+                ('product_id', '=', comp.id),
+                ('active',     '=', True),
+                ('trigger',    '=', 'auto'),
+            ], limit=1):
                 node['children'].append({
                     'type':            'stock',
                     'product':         comp,

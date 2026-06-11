@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción',
-    'version': '18.0.29.0.0',
+    'version': '18.0.30.0.0',
     'summary': 'Planificación y reprogramación inteligente de órdenes de fabricación',
     'description': """
 Planificador de producción para Odoo 18 con programación desde demanda,

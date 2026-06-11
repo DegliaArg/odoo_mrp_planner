@@ -58,7 +58,7 @@ class MrpProductionRequestItem(models.Model):
 class MrpProductionRequest(models.Model):
     _name = 'mrp.production.request'
     _description = 'Solicitud de programación de fabricación'
-    _inherit = ['mrp.schedule.mixin']
+    _inherit = ['mrp.schedule.mixin', 'mail.thread', 'mail.activity.mixin']
     _order = 'id desc'
 
     name = fields.Char(string='Referencia', readonly=True, default='Nuevo', copy=False)
@@ -79,7 +79,7 @@ class MrpProductionRequest(models.Model):
         ('draft',      'Borrador'),
         ('calculated', 'Calculado'),
         ('confirmed',  'OFs creadas'),
-    ], default='draft')
+    ], default='draft', tracking=True)
 
     all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
     feasibility_summary = fields.Char(compute='_compute_summary', store=False)

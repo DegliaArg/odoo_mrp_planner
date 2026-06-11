@@ -218,6 +218,14 @@ class MrpProductionRequest(models.Model):
                     mo_vals['picking_type_id'] = self.picking_type_id.id
                 mo = self.env['mrp.production'].create(mo_vals)
                 mo.action_confirm()
+                if mo.workorder_ids:
+                    try:
+                        mo.button_plan()
+                    except Exception as e:
+                        _logger.warning(
+                            'MRP Reschedule: no se pudo planificar WOs de %s: %s',
+                            mo.name, e,
+                        )
                 created_ids.append(mo.id)
 
         if not created_ids:

@@ -72,9 +72,6 @@
                             type="object"
                             string="Marcar como resuelta"
                             invisible="resolved"/>
-                    <button name="action_run_cron_manual"
-                            type="object"
-                            string="Actualizar alertas"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -124,6 +121,7 @@
         <field name="model">mrp.reschedule.alert</field>
         <field name="arch" type="xml">
             <list string="Alertas de planificación"
+                  create="0"
                   decoration-danger="severity == 'critical' and not resolved"
                   decoration-warning="severity == 'warning' and not resolved"
                   decoration-muted="resolved">

@@ -88,6 +88,11 @@ class MrpProductionRequest(models.Model):
         string='Ocultar reab. automático',
         default=True,
     )
+    picking_type_id = fields.Many2one(
+        'stock.picking.type',
+        string='Tipo de operación',
+        domain=[('code', '=', 'mrp_operation')],
+    )
 
     @api.depends('item_ids.feasible', 'item_ids.projected_end')
     def _compute_summary(self):
@@ -209,6 +214,8 @@ class MrpProductionRequest(models.Model):
                 }
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id
+                if self.picking_type_id:
+                    mo_vals['picking_type_id'] = self.picking_type_id.id
                 mo = self.env['mrp.production'].create(mo_vals)
                 mo.action_confirm()
                 created_ids.append(mo.id)

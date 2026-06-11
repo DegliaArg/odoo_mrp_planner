@@ -69,6 +69,8 @@
 
                     <group>
                         <field name="start_from"/>
+                        <field name="picking_type_id"
+                               readonly="state == 'confirmed'"/>
                     </group>
 
                     <!-- Artículos a programar -->

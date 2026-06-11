@@ -9,6 +9,13 @@ QTY_TOLERANCE = 0.05
 class MrpProduction(models.Model):
     _inherit = 'mrp.production'
 
+    def _where_calc(self, domain, active_test=True):
+        # Workaround Odoo 18 bug: mrp.stock_rule._run_manufacture construye el
+        # domain como tupla en vez de lista, causando TypeError en _where_calc.
+        if isinstance(domain, tuple):
+            domain = list(domain)
+        return super()._where_calc(domain, active_test=active_test)
+
     # ── Fase 2: vínculo tipado a la OF madre ────────────────────────────────
 
     x_parent_mo_id = fields.Many2one(

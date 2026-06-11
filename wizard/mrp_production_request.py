@@ -200,11 +200,7 @@ class MrpProductionRequest(models.Model):
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id
                 mo = self.env['mrp.production'].create(mo_vals)
-                # Confirmar: dispara las reglas de abastecimiento para generar hijos
-                try:
-                    mo.action_confirm()
-                except Exception as e:
-                    _logger.warning('No se pudo confirmar MO %s: %s', mo.name, e)
+                mo.action_confirm()
                 created_ids.append(mo.id)
 
         if not created_ids:
@@ -471,6 +467,26 @@ class MrpProductionRequest(models.Model):
                 remaining_qty = comp_qty - stock_avail
 
             method = self._get_supply_method(comp)
+
+            # Productos gestionados por reglas de reorden (mín/máx): el
+            # reabastecimiento es automático e independiente de esta OF.
+            # No modelar como compra ni fabricación en la programación.
+            if method in ('buy', 'subcontract') and self.env[
+                'stock.warehouse.orderpoint'
+            ].search([('product_id', '=', comp.id), ('active', '=', True)], limit=1):
+                node['children'].append({
+                    'type':            'stock',
+                    'product':         comp,
+                    'qty':             remaining_qty,
+                    'level':           level + 1,
+                    'warning_type':    'stock_ok',
+                    'warning_message': 'Reposición automática (mín/máx)',
+                    'operations':      [],
+                    'children':        [],
+                    'scheduled_start': None,
+                    'scheduled_end':   None,
+                })
+                continue
 
             if method == 'manufacture':
                 child = self._build_demand_tree(comp, remaining_qty, level + 1, visited)

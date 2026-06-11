@@ -69,7 +69,12 @@ class MrpProductionRequest(models.Model):
         help='Fecha mínima de inicio para todos los artículos.',
     )
     item_ids = fields.One2many('mrp.production.request.item', 'request_id', string='Artículos')
-    line_ids = fields.One2many('mrp.production.request.line', 'request_id', string='Plan calculado')
+    line_ids      = fields.One2many('mrp.production.request.line', 'request_id', string='Plan calculado')
+    line_ids_plan = fields.One2many(
+        'mrp.production.request.line', 'request_id',
+        domain=[('is_auto_reorder', '=', False)],
+        string='Plan calculado (sin automáticos)',
+    )
     state    = fields.Selection([
         ('draft',      'Borrador'),
         ('calculated', 'Calculado'),

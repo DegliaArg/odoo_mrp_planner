@@ -612,7 +612,7 @@ class MrpProductionRequest(models.Model):
                 child['scheduled_start'] = max(raw_start, min_dt) if min_dt else raw_start
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
-        indent    = INDENT_MAP.get(node['level'], '         └─ ')
+        indent    = INDENT_MAP.get(node['level'], ' ' * 9 + '└─ ')
         product   = node['product']
         node_type = node.get('type', 'manufacture')
 

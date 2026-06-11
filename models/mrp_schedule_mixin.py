@@ -6,7 +6,15 @@ from odoo import models
 
 _logger = logging.getLogger(__name__)
 
-INDENT_MAP = {0: '', 1: '└─ ', 2: '   └─ ', 3: '      └─ '}
+_N = ' '  # non-breaking space — los espacios normales colapsan en HTML
+INDENT_MAP = {
+    0: '',
+    1: '└─ ',
+    2: f'{_N*3}└─ ',
+    3: f'{_N*6}└─ ',
+    4: f'{_N*9}└─ ',
+    5: f'{_N*12}└─ ',
+}
 
 
 class MrpScheduleMixin(models.AbstractModel):

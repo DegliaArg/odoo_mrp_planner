@@ -695,7 +695,7 @@ class MrpReschedulePlanLine(models.Model):
                  'production_id.product_qty', 'production_id.product_uom_id')
     def _compute_display(self):
         for line in self:
-            prefix = INDENT_MAP.get(line.level, '         └─ ')
+            prefix = INDENT_MAP.get(line.level, ' ' * 9 + '└─ ')
             if line.record_type == 'mrp' and line.production_id:
                 mo = line.production_id
                 code = _get_old_code(mo)

@@ -101,7 +101,13 @@
                     <!-- Plan calculado: desglose en pestaña separada -->
                     <notebook invisible="state != 'calculated'">
                         <page string="Plan de fabricación" name="plan_detail">
-                            <field name="line_ids" readonly="1" nolabel="1">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <field name="hide_auto_reorder" widget="boolean_toggle"/>
+                                <label for="hide_auto_reorder"
+                                       string="Ocultar reabastecimiento automático (mín/máx)"/>
+                            </div>
+                            <field name="line_ids" readonly="1" nolabel="1"
+                                   domain="[('is_auto_reorder', '=', False)] if hide_auto_reorder else []">
                                 <list string="Plan de fabricación propuesto"
                                       create="0" edit="0" delete="0"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
@@ -117,10 +123,11 @@
                                     <field name="new_date_start"    string="Inicio / Pedido" readonly="1"/>
                                     <field name="new_date_finish"   string="Fin / Llegada"   readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
-                                    <field name="item_id"       column_invisible="True"/>
-                                    <field name="record_type"   column_invisible="True"/>
-                                    <field name="level"         column_invisible="True"/>
-                                    <field name="warning_type"  column_invisible="True"/>
+                                    <field name="item_id"          column_invisible="True"/>
+                                    <field name="record_type"      column_invisible="True"/>
+                                    <field name="level"            column_invisible="True"/>
+                                    <field name="warning_type"     column_invisible="True"/>
+                                    <field name="is_auto_reorder"  column_invisible="True"/>
                                 </list>
                             </field>
                         </page>

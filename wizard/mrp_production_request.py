@@ -79,6 +79,11 @@ class MrpProductionRequest(models.Model):
     all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
     feasibility_summary = fields.Char(compute='_compute_summary', store=False)
 
+    hide_auto_reorder = fields.Boolean(
+        string='Ocultar reab. automático',
+        default=True,
+    )
+
     @api.depends('item_ids.feasible', 'item_ids.projected_end')
     def _compute_summary(self):
         for rec in self:
@@ -638,6 +643,7 @@ class MrpProductionRequest(models.Model):
             return  # Nodo hoja
 
         if node_type == 'stock':
+            wt = node.get('warning_type', 'stock_ok')
             lines_vals.append({
                 'sequence':          seq[0],
                 'level':             node['level'],
@@ -652,8 +658,9 @@ class MrpProductionRequest(models.Model):
                 'workcenter_label':  '',
                 'description_label': f'{indent}{product.display_name}',
                 'type_label':        'Stock',
-                'warning_type':      node.get('warning_type', 'stock_ok'),
+                'warning_type':      wt,
                 'warning_message':   node.get('warning_message', ''),
+                'is_auto_reorder':   wt == 'stock_ok',
             })
             seq[0] += 10
             return  # Nodo hoja
@@ -719,4 +726,5 @@ class MrpProductionRequestLine(models.Model):
         ('stock_ok',      'Stock suficiente'),
         ('stock_partial', 'Stock parcial'),
     ], string='Tipo advertencia', default='')
-    warning_message = fields.Char(string='Advertencia')
+    warning_message  = fields.Char(string='Advertencia')
+    is_auto_reorder  = fields.Boolean(default=False)

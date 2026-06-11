@@ -440,6 +440,27 @@ class MrpProductionRequest(models.Model):
             comp     = bom_line.product_id
             comp_qty = bom_line.product_qty * qty
 
+            # Productos con regla de reorden automática: el sistema los repone solo.
+            # Generar un único nodo stock_ok para la cantidad total y saltar.
+            if self.env['stock.warehouse.orderpoint'].search([
+                ('product_id', '=', comp.id),
+                ('active',     '=', True),
+                ('trigger',    '=', 'auto'),
+            ], limit=1):
+                node['children'].append({
+                    'type':            'stock',
+                    'product':         comp,
+                    'qty':             comp_qty,
+                    'level':           level + 1,
+                    'warning_type':    'stock_ok',
+                    'warning_message': 'Reposición automática (mín/máx)',
+                    'operations':      [],
+                    'children':        [],
+                    'scheduled_start': None,
+                    'scheduled_end':   None,
+                })
+                continue
+
             # Verificar stock disponible antes de decidir el método de abastecimiento
             stock_avail = comp.qty_available or 0.0
 
@@ -475,30 +496,6 @@ class MrpProductionRequest(models.Model):
                     'scheduled_end':   None,
                 })
                 remaining_qty = comp_qty - stock_avail
-
-            method = self._get_supply_method(comp)
-
-            # Productos gestionados por reglas de reorden automáticas (trigger='auto'):
-            # el reabastecimiento es independiente de esta OF, sin importar si la
-            # ruta es compra o fabricación.
-            if self.env['stock.warehouse.orderpoint'].search([
-                ('product_id', '=', comp.id),
-                ('active',     '=', True),
-                ('trigger',    '=', 'auto'),
-            ], limit=1):
-                node['children'].append({
-                    'type':            'stock',
-                    'product':         comp,
-                    'qty':             remaining_qty,
-                    'level':           level + 1,
-                    'warning_type':    'stock_ok',
-                    'warning_message': 'Reposición automática (mín/máx)',
-                    'operations':      [],
-                    'children':        [],
-                    'scheduled_start': None,
-                    'scheduled_end':   None,
-                })
-                continue
 
             if method == 'manufacture':
                 child = self._build_demand_tree(comp, remaining_qty, level + 1, visited)

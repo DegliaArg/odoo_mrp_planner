@@ -504,6 +504,8 @@ class MrpProductionRequest(models.Model):
                 })
                 remaining_qty = comp_qty - stock_avail
 
+            method = self._get_supply_method(comp)
+
             if method == 'manufacture':
                 child = self._build_demand_tree(comp, remaining_qty, level + 1, visited)
                 if child:

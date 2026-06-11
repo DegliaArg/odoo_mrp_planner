@@ -29,6 +29,39 @@ class MrpProductionRequestItem(models.Model):
     feasible        = fields.Boolean(compute='_compute_feasible', store=False)
     feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Δ Plazo')
 
+    production_id = fields.Many2one(
+        'mrp.production', string='OF madre', readonly=True, copy=False, index=True,
+        ondelete='set null',
+    )
+    mo_state    = fields.Selection(related='production_id.state', string='Estado OF')
+    qty_produced = fields.Float(compute='_compute_tracking', string='Producido', store=False)
+    qty_delta    = fields.Float(compute='_compute_tracking', string='Δ Cant.',    store=False)
+
+    @api.depends('production_id', 'production_id.state', 'production_id.qty_producing',
+                 'production_id.move_finished_ids.state')
+    def _compute_tracking(self):
+        for item in self:
+            mo = item.production_id
+            if not mo:
+                item.qty_produced = 0.0
+                item.qty_delta    = 0.0
+                continue
+            if mo.state == 'done':
+                try:
+                    done = mo.move_finished_ids.filtered(
+                        lambda m: m.state == 'done' and m.product_id == mo.product_id
+                    )
+                    qty = sum(
+                        getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
+                        for m in done
+                    ) if done else mo.product_qty
+                except Exception:
+                    qty = mo.product_qty
+                item.qty_produced = qty
+            else:
+                item.qty_produced = mo.qty_producing or 0.0
+            item.qty_delta = item.qty_produced - item.product_qty
+
     @api.depends('product_id')
     def _compute_name(self):
         for item in self:
@@ -92,7 +125,9 @@ class MrpProductionRequest(models.Model):
         'stock.picking.type',
         string='Tipo de operación',
         domain=[('code', '=', 'mrp_operation')],
+        required=True,
     )
+    workorder_count = fields.Integer(compute='_compute_workorder_count', string='OTs')
 
     @api.depends('item_ids.feasible', 'item_ids.projected_end')
     def _compute_summary(self):
@@ -110,6 +145,26 @@ class MrpProductionRequest(models.Model):
                 if ok == total
                 else _('%d de %d artículos no cumplen el plazo') % (total - ok, total)
             )
+
+    @api.depends('item_ids.production_id')
+    def _compute_workorder_count(self):
+        for rec in self:
+            mo_ids = rec.item_ids.mapped('production_id').ids
+            rec.workorder_count = self.env['mrp.workorder'].search_count([
+                ('production_id', 'in', mo_ids),
+            ]) if mo_ids else 0
+
+    def action_view_workorders(self):
+        self.ensure_one()
+        mo_ids = self.item_ids.mapped('production_id').ids
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Órdenes de trabajo'),
+            'res_model': 'mrp.workorder',
+            'view_mode': 'list,form,gantt',
+            'domain': [('production_id', 'in', mo_ids)],
+            'target': 'current',
+        }
 
     # ── Creación ─────────────────────────────────────────────────────────────
 
@@ -226,6 +281,7 @@ class MrpProductionRequest(models.Model):
                             'MRP Reschedule: no se pudo planificar WOs de %s: %s',
                             mo.name, e,
                         )
+                item.write({'production_id': mo.id})
                 created_ids.append(mo.id)
 
         if not created_ids:

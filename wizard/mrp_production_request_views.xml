@@ -60,6 +60,21 @@
 
                 <sheet>
 
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_workorders"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-industry"
+                                invisible="state != 'confirmed' or workorder_count == 0">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="workorder_count"/>
+                                </span>
+                                <span class="o_stat_text">Órdenes de trabajo</span>
+                            </div>
+                        </button>
+                    </div>
+
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
                     </div>
@@ -67,6 +82,7 @@
                     <group>
                         <field name="start_from"/>
                         <field name="picking_type_id"
+                               required="1"
                                readonly="state == 'confirmed'"/>
                     </group>
 
@@ -75,13 +91,27 @@
                         <list string="Artículos" editable="bottom"
                               decoration-success="feasible and projected_end"
                               decoration-danger="not feasible and projected_end">
-                            <field name="sequence"      widget="handle"/>
-                            <field name="product_id"    string="Producto"/>
-                            <field name="product_qty"   string="Cantidad"/>
-                            <field name="date_deadline" string="Fecha deseada"/>
-                            <field name="projected_end"   string="Fin proyectado" readonly="1"/>
-                            <field name="feasibility_msg" string="Δ Plazo"        readonly="1"/>
-                            <field name="feasible" column_invisible="True"/>
+                            <field name="sequence"        widget="handle"/>
+                            <field name="product_id"      string="Producto"/>
+                            <field name="product_qty"     string="Cantidad planificada"/>
+                            <field name="date_deadline"   string="Fecha deseada"/>
+                            <field name="projected_end"   string="Fin proyectado"  readonly="1"/>
+                            <field name="feasibility_msg" string="Δ Plazo"         readonly="1"/>
+                            <field name="production_id"   string="OF madre"        readonly="1"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="mo_state"        string="Estado OF"       readonly="1"
+                                   widget="badge"
+                                   decoration-success="mo_state == 'done'"
+                                   decoration-warning="mo_state in ('progress', 'to_close')"
+                                   decoration-info="mo_state == 'confirmed'"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="qty_produced"    string="Producido"       readonly="1"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="qty_delta"       string="Δ Cant."         readonly="1"
+                                   decoration-danger="qty_delta &lt; 0 and mo_state == 'done'"
+                                   decoration-success="qty_delta >= 0 and mo_state == 'done'"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="feasible"    column_invisible="True"/>
                         </list>
                     </field>
 

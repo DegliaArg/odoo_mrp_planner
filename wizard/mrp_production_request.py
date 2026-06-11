@@ -309,13 +309,13 @@ class MrpProductionRequest(models.Model):
             ('product_tmpl_id', '=', product.product_tmpl_id.id),
         ], limit=1, order='sequence, id')
 
-    def _get_op_duration_hours(self, op, qty):
+    def _get_op_duration_hours(self, op, bom_factor):
         dur_min = (
             getattr(op, 'time_cycle_manual', None)
             or getattr(op, 'time_cycle', None)
             or 60.0
         )
-        return dur_min * qty / 60.0
+        return dur_min * bom_factor / 60.0
 
     def _get_supplier_calendar(self, partner):
         """Devuelve el calendario del proveedor si está configurado; None si no."""
@@ -431,11 +431,15 @@ class MrpProductionRequest(models.Model):
         if not bom or bom.type == 'phantom':
             return None  # No se puede fabricar el artículo raíz
 
+        # Factor de corrección: cuántas corridas de LdM se necesitan para qty unidades.
+        # bom.product_qty es cuántas unidades produce una corrida de la LdM.
+        bom_factor = qty / (bom.product_qty or 1.0)
+
         operations = []
         if bom.operation_ids:
             for op in bom.operation_ids.sorted('sequence'):
                 wc = op.workcenter_id
-                operations.append((wc, self._get_op_duration_hours(op, qty)))
+                operations.append((wc, self._get_op_duration_hours(op, bom_factor)))
         else:
             operations = [(None, 8.0)]
 
@@ -453,7 +457,7 @@ class MrpProductionRequest(models.Model):
 
         for bom_line in bom.bom_line_ids:
             comp     = bom_line.product_id
-            comp_qty = bom_line.product_qty * qty
+            comp_qty = bom_line.product_qty * bom_factor
 
             # Productos con regla de reorden automática: el sistema los repone solo.
             # Generar un único nodo stock_ok para la cantidad total y saltar.

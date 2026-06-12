@@ -254,6 +254,8 @@ class MrpProductionRequest(models.Model):
             raise UserError(_('Calcule primero el plan.'))
 
         created_ids = []
+        mother_mos = self.env['mrp.production']
+
         for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
             root_lines = self.line_ids.filtered(
                 lambda l: l.item_id.id == item.id
@@ -283,9 +285,15 @@ class MrpProductionRequest(models.Model):
                         )
                 item.write({'production_id': mo.id})
                 created_ids.append(mo.id)
+                mother_mos |= mo
 
         if not created_ids:
             raise UserError(_('No se pudo crear ninguna orden de fabricación.'))
+
+        # Planificar recursivamente todas las OFs hijas generadas por Odoo
+        planned = set(created_ids)
+        for mo in mother_mos:
+            self._plan_child_mos(mo, planned)
 
         self.state = 'confirmed'
 
@@ -297,6 +305,47 @@ class MrpProductionRequest(models.Model):
             'domain': [('id', 'in', created_ids)],
             'target': 'current',
         }
+
+    # ── Helpers — planificación de OFs hijas ─────────────────────────────────
+
+    def _plan_child_mos(self, mo, planned, depth=0):
+        """Navega recursivamente el árbol de OFs hijas y llama button_plan() en cada una.
+
+        Vínculo estándar Odoo: mo.move_raw_ids → move_orig_ids → production_id (OF hija).
+        `planned` es un set de IDs ya procesados para evitar loops y trabajo doble.
+        """
+        if depth > 15:
+            return
+
+        child_mos = mo.move_raw_ids.mapped('move_orig_ids').filtered(
+            lambda m: m.production_id and m.production_id.id not in planned
+        ).mapped('production_id').filtered(
+            lambda m: m.state not in ('done', 'cancel')
+        )
+
+        for child in child_mos:
+            planned.add(child.id)
+
+            if child.state == 'draft':
+                try:
+                    child.action_confirm()
+                except Exception as e:
+                    _logger.warning(
+                        'MRP Reschedule: no se pudo confirmar OF hija %s: %s',
+                        child.name, e,
+                    )
+                    continue
+
+            if child.workorder_ids:
+                try:
+                    child.button_plan()
+                except Exception as e:
+                    _logger.warning(
+                        'MRP Reschedule: no se pudo planificar WOs de OF hija %s: %s',
+                        child.name, e,
+                    )
+
+            self._plan_child_mos(child, planned, depth + 1)
 
     # ── Helpers — rutas y demanda ─────────────────────────────────────────────
 

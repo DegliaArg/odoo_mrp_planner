@@ -165,6 +165,10 @@ class MrpProductionRequest(models.Model):
                 ('production_id', 'in', mo_ids),
             ]) if mo_ids else 0
 
+    def action_open_planner_dashboard(self):
+        self.ensure_one()
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_request(self.id)
+
     def action_view_workorders(self):
         self.ensure_one()
         mo_ids = self.item_ids.mapped('production_id').ids

@@ -74,6 +74,10 @@ class PurchaseOrder(models.Model):
 
         return result
 
+    def action_open_planner_dashboard(self):
+        self.ensure_one()
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_purchase(self.id)
+
     def _flag_mos_for_po(self, po):
         """Marca x_reschedule_needed en MOs relacionadas a esta OC."""
         mos = self.env['mrp.production'].search([

@@ -67,6 +67,15 @@
                 <sheet>
 
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_open_planner_dashboard"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-tachometer"
+                                invisible="state != 'confirmed'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Panel</span>
+                            </div>
+                        </button>
                         <button name="action_view_workorders"
                                 type="object"
                                 class="oe_stat_button"

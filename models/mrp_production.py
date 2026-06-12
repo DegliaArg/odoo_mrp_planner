@@ -241,6 +241,10 @@ class MrpProduction(models.Model):
 
     # ── Acción del botón Reprogramar ─────────────────────────────────────────
 
+    def action_open_planner_dashboard(self):
+        self.ensure_one()
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_production(self.id)
+
     def action_open_reschedule_plan(self):
         """
         Crea un plan de reprogramación y lo abre. Funciona desde:

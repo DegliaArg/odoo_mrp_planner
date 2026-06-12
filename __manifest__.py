@@ -28,6 +28,8 @@ Características:
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
         'views/mrp_planner_dashboard_views.xml',
+        'views/mrp_planner_detail_dashboard_views.xml',
+        'views/purchase_order_views.xml',
         'wizard/mrp_production_request_views.xml',
     ],
     'assets': {

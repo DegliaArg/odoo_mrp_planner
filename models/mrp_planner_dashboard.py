@@ -101,6 +101,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_id': rec.id,
             'view_mode': 'form',
             'target': 'main',
+            'flags': {'withControlPanel': False},
         }
 
     def action_refresh(self):

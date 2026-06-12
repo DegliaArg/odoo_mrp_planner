@@ -363,7 +363,9 @@ class MrpProductionRequest(models.Model):
         )
 
     def _plan_child_mos(self, mo, planned, depth=0):
-        """Navega recursivamente el árbol de OFs hijas y llama button_plan() en cada una.
+        """Navega recursivamente el árbol de OFs hijas, llama button_plan() en cada
+        una y propaga las fechas hacia atrás: la hija debe terminar cuando la madre
+        necesita empezar (mo.date_start).
 
         `planned` es un set de IDs ya procesados para evitar loops y trabajo doble.
         """
@@ -371,6 +373,8 @@ class MrpProductionRequest(models.Model):
             return
 
         child_mos = self._find_child_mos(mo, planned)
+        # La hija debe terminar antes o cuando la madre empieza a consumir el componente
+        parent_deadline = mo.date_start
 
         for child in child_mos:
             planned.add(child.id)
@@ -388,7 +392,23 @@ class MrpProductionRequest(models.Model):
 
             if child.workorder_ids:
                 try:
+                    # Primera pasada: obtener duración real del scheduling
                     child.button_plan()
+
+                    if (parent_deadline and child.date_start and child.date_finished
+                            and child.date_finished < parent_deadline):
+                        # Hay margen: desplazar para que la hija termine justo
+                        # cuando la madre la necesita
+                        duration = child.date_finished - child.date_start
+                        target_finish = parent_deadline
+                        target_start  = target_finish - duration
+                        child.write({'date_start': target_start,
+                                     'date_finished': target_finish})
+                        # Segunda pasada: replanificar OTs desde el nuevo inicio
+                        child.button_plan()
+                        # button_plan puede volver a pisar date_finished; restaurar
+                        child.write({'date_finished': target_finish})
+
                 except Exception as e:
                     _logger.warning(
                         'MRP Reschedule: no se pudo planificar WOs de OF hija %s: %s',

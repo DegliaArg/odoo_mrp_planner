@@ -54,6 +54,12 @@
                             class="btn-primary"
                             invisible="state != 'calculated'"
                             confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
+                    <button name="action_plan_all_mos"
+                            type="object"
+                            string="Planificar OFs"
+                            class="btn-secondary"
+                            invisible="state != 'confirmed'"
+                            confirm="Se llamará button_plan() en todas las OFs del árbol (madres e hijas). ¿Continuar?"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,calculated,confirmed"/>
                 </header>

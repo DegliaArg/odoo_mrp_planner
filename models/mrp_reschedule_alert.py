@@ -150,7 +150,7 @@ class MrpRescheduleAlert(models.Model):
         cumulative = 0.0
         for mo in mos:
             required = sum(
-                (m.product_uom_qty - (m.quantity_done or 0.0))
+                (m.product_uom_qty - (getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)))
                 for m in mo.move_raw_ids
                 if m.product_id.id == product_id
                 and m.state not in ('done', 'cancel')

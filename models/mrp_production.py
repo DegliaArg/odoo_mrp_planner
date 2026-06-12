@@ -86,7 +86,10 @@ class MrpProduction(models.Model):
                             done_moves = mo.move_finished_ids.filtered(
                                 lambda m: m.state == 'done' and m.product_id == mo.product_id
                             )
-                            actual_qty = sum(m.quantity_done for m in done_moves) if done_moves else planned_qty
+                            actual_qty = sum(
+                                getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
+                                for m in done_moves
+                            ) if done_moves else planned_qty
                             if actual_qty == 0:
                                 actual_qty = planned_qty
                             delta = abs(actual_qty - planned_qty) / planned_qty

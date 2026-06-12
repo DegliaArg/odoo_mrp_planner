@@ -6,6 +6,8 @@ class MrpPlannerDashboard(models.TransientModel):
     _name = 'mrp.planner.dashboard'
     _description = 'Panel del planificador de producción'
 
+    name = fields.Char(default='Panel del Planificador')
+
     # ── Alertas ──────────────────────────────────────────────────────────────
 
     alert_total           = fields.Integer(compute='_compute_alert_stats', string='Total alertas')
@@ -248,3 +250,14 @@ class MrpPlannerDashboard(models.TransientModel):
             ],
             'target': 'current',
         }
+
+    # ── Apertura de paneles secundarios ──────────────────────────────────────
+
+    def action_open_mos_dashboard(self):
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('mos')
+
+    def action_open_pos_dashboard(self):
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('pos')
+
+    def action_open_requests_dashboard(self):
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')

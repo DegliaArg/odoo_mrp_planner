@@ -166,8 +166,7 @@ class MrpProductionRequest(models.Model):
             ]) if mo_ids else 0
 
     def action_open_planner_dashboard(self):
-        self.ensure_one()
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_request(self.id)
+        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')
 
     def action_view_workorders(self):
         self.ensure_one()

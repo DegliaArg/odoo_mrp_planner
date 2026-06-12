@@ -196,8 +196,8 @@
                                             <div class="o_planner_label">Confirmadas</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_confirmed_mos" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            <button name="action_open_mos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -211,8 +211,8 @@
                                             <div class="o_planner_label">En progreso</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_in_progress_mos" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-info">Ver →</button>
+                                            <button name="action_open_mos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-info">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -226,8 +226,8 @@
                                             <div class="o_planner_label">Atrasadas</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_delayed_mos" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            <button name="action_open_mos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-danger">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -241,8 +241,8 @@
                                             <div class="o_planner_label">Para reprogramar</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_reschedule_needed" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-warning">Ver →</button>
+                                            <button name="action_open_mos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-warning">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -266,8 +266,8 @@
                                             <div class="o_planner_label">Activas (a tiempo)</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_pending_pos" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-success">Ver →</button>
+                                            <button name="action_open_pos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-success">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -281,8 +281,8 @@
                                             <div class="o_planner_label">Vencidas</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_overdue_pos" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            <button name="action_open_pos_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-danger">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -306,8 +306,8 @@
                                             <div class="o_planner_label">En curso</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_active_requests" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            <button name="action_open_requests_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>
@@ -321,8 +321,8 @@
                                             <div class="o_planner_label">Con reprogramación</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_requests_reschedule" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-warning">Ver →</button>
+                                            <button name="action_open_requests_dashboard" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-warning">Ver panel →</button>
                                         </div>
                                     </div>
                                 </div>

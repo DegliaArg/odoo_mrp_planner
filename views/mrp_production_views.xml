@@ -13,25 +13,6 @@ action = records.action_open_reschedule_plan()
         </field>
     </record>
 
-    <!-- ── Filtro de búsqueda: excluir subcontratación ── -->
-    <record id="mrp_production_search_inherit_no_subcontract" model="ir.ui.view">
-        <field name="name">mrp.production.search.inherit.no_subcontract</field>
-        <field name="model">mrp.production</field>
-        <field name="inherit_id" ref="mrp.mrp_production_search_form_view"/>
-        <field name="arch" type="xml">
-            <xpath expr="//search" position="inside">
-                <filter name="no_subcontract"
-                        string="Sólo internas"
-                        domain="[('subcontracting_type', '=', 'none')]"/>
-            </xpath>
-        </field>
-    </record>
-
-    <!-- Activar filtro por defecto en la vista lista estándar de OFs -->
-    <record id="mrp.mrp_production_action" model="ir.actions.act_window">
-        <field name="context">{'search_default_no_subcontract': 1}</field>
-    </record>
-
     <!-- ── Extensión del form de mrp.production ── -->
     <record id="mrp_production_form_inherit_reschedule" model="ir.ui.view">
         <field name="name">mrp.production.form.inherit.reschedule</field>

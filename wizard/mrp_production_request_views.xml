@@ -102,7 +102,7 @@
                             <field name="product_qty"     string="Cantidad planificada"/>
                             <field name="date_deadline"   string="Fecha deseada"/>
                             <field name="projected_end"   string="Fin proyectado"
-                                   readonly="state == 'confirmed' or not earliest_end"/>
+                                   readonly="parent.state == 'confirmed' or not earliest_end"/>
                             <field name="earliest_end"    string="Mínimo posible"  readonly="1"
                                    optional="show"
                                    column_invisible="parent.state == 'draft'"/>
@@ -112,7 +112,7 @@
                                     type="object"
                                     string="Adelantar"
                                     class="btn-link btn-sm"
-                                    invisible="not earliest_end or projected_end == earliest_end or state == 'confirmed'"/>
+                                    invisible="not earliest_end or projected_end == earliest_end or parent.state == 'confirmed'"/>
                             <field name="production_id"   string="OF madre"        readonly="1"
                                    column_invisible="parent.state != 'confirmed'"/>
                             <field name="mo_state"        string="Estado OF"       readonly="1"

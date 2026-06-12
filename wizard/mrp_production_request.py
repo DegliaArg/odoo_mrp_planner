@@ -288,6 +288,7 @@ class MrpProductionRequest(models.Model):
                     mo_vals['bom_id'] = line.bom_id.id
                 if self.picking_type_id:
                     mo_vals['picking_type_id'] = self.picking_type_id.id
+                target_finish = item.projected_end or line.new_date_finish
                 mo = self.env['mrp.production'].create(mo_vals)
                 mo.action_confirm()
                 if mo.workorder_ids:
@@ -298,6 +299,10 @@ class MrpProductionRequest(models.Model):
                             'MRP Reschedule: no se pudo planificar WOs de %s: %s',
                             mo.name, e,
                         )
+                # button_plan() sobreescribe date_finished con la fecha más temprana;
+                # restauramos la fecha elegida por el usuario.
+                if target_finish:
+                    mo.write({'date_finished': target_finish})
                 item.write({'production_id': mo.id})
                 created_ids.append(mo.id)
                 mother_mos |= mo

@@ -278,17 +278,28 @@ class MrpProductionRequest(models.Model):
                 and l.record_type == 'mrp'
             )
             for line in root_lines:
+                target_finish = item.projected_end or line.new_date_finish
+
+                # Si el usuario eligió una fecha fin posterior a la calculada,
+                # desplazamos el inicio por el mismo delta para mantener coherencia
+                # entre date_start, date_finished y los work orders.
+                date_start = line.new_date_start
+                if (target_finish and line.new_date_finish
+                        and target_finish > line.new_date_finish):
+                    delta = target_finish - line.new_date_finish
+                    date_start = line.new_date_start + delta
+
                 mo_vals = {
                     'product_id':    line.product_id.id,
                     'product_qty':   line.product_qty,
-                    'date_start':    line.new_date_start,
-                    'date_finished': item.projected_end or line.new_date_finish,
+                    'date_start':    date_start,
+                    'date_finished': target_finish,
                 }
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id
                 if self.picking_type_id:
                     mo_vals['picking_type_id'] = self.picking_type_id.id
-                target_finish = item.projected_end or line.new_date_finish
+
                 mo = self.env['mrp.production'].create(mo_vals)
                 mo.action_confirm()
                 if mo.workorder_ids:
@@ -299,8 +310,7 @@ class MrpProductionRequest(models.Model):
                             'MRP Reschedule: no se pudo planificar WOs de %s: %s',
                             mo.name, e,
                         )
-                # button_plan() sobreescribe date_finished con la fecha más temprana;
-                # restauramos la fecha elegida por el usuario.
+                # button_plan() puede sobreescribir date_finished; restauramos.
                 if target_finish:
                     mo.write({'date_finished': target_finish})
                 item.write({'production_id': mo.id})

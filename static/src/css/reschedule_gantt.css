@@ -1,0 +1,27 @@
+
+/* ── Dashboard del planificador ─────────────────────────────────────────── */
+
+.o_planner_dashboard {
+    padding: 16px;
+}
+
+.o_planner_section_title {
+    margin-bottom: 12px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 4px;
+}
+
+.o_planner_stat {
+    min-width: 140px;
+    flex: 1 1 140px;
+}
+
+.o_planner_critical .o_stat_value,
+.o_planner_critical .o_button_icon {
+    color: #dc3545 !important;
+}
+
+.o_planner_warning .o_stat_value,
+.o_planner_warning .o_button_icon {
+    color: #fd7e14 !important;
+}

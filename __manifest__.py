@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción',
-    'version': '18.0.36.0.0',
+    'version': '18.0.37.0.0',
     'summary': 'Planificación y reprogramación inteligente de órdenes de fabricación',
     'description': """
 Planificador de producción para Odoo 18 con programación desde demanda,
@@ -27,6 +27,7 @@ Características:
         'views/mrp_reschedule_alert_views.xml',
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
+        'views/mrp_planner_dashboard_views.xml',
         'wizard/mrp_production_request_views.xml',
     ],
     'assets': {

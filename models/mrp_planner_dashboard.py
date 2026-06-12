@@ -7,26 +7,32 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── Alertas ──────────────────────────────────────────────────────────────
 
-    alert_total = fields.Integer(compute='_compute_alert_stats', string='Total alertas')
-    alert_critical = fields.Integer(compute='_compute_alert_stats', string='Críticas')
-    alert_warning = fields.Integer(compute='_compute_alert_stats', string='Avisos')
-    alert_mo_delayed = fields.Integer(compute='_compute_alert_stats', string='OFs atrasadas')
-    alert_po_delayed = fields.Integer(compute='_compute_alert_stats', string='OCs vencidas')
+    alert_total           = fields.Integer(compute='_compute_alert_stats', string='Total alertas')
+    alert_critical        = fields.Integer(compute='_compute_alert_stats', string='Críticas')
+    alert_warning         = fields.Integer(compute='_compute_alert_stats', string='Avisos')
+    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats', string='OFs atrasadas')
+    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats', string='OCs vencidas')
+    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats', string='OCs canceladas')
     alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats', string='Recepciones demoradas')
-    alert_qty_mismatch = fields.Integer(compute='_compute_alert_stats', string='Cant. diferentes')
-    alert_mo_cancelled = fields.Integer(compute='_compute_alert_stats', string='OFs canceladas')
+    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats', string='Cant. diferentes')
+    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats', string='OFs canceladas')
 
     # ── Órdenes de fabricación ───────────────────────────────────────────────
 
-    mo_confirmed = fields.Integer(compute='_compute_mo_stats', string='Confirmadas')
-    mo_in_progress = fields.Integer(compute='_compute_mo_stats', string='En progreso')
-    mo_delayed = fields.Integer(compute='_compute_mo_stats', string='OFs atrasadas')
-    mo_reschedule_needed = fields.Integer(compute='_compute_mo_stats', string='Para reprogramar')
+    mo_confirmed          = fields.Integer(compute='_compute_mo_stats', string='Confirmadas')
+    mo_in_progress        = fields.Integer(compute='_compute_mo_stats', string='En progreso')
+    mo_delayed            = fields.Integer(compute='_compute_mo_stats', string='Atrasadas')
+    mo_reschedule_needed  = fields.Integer(compute='_compute_mo_stats', string='Para reprogramar')
 
     # ── Órdenes de compra ────────────────────────────────────────────────────
 
     po_pending = fields.Integer(compute='_compute_po_stats', string='OCs activas')
     po_overdue = fields.Integer(compute='_compute_po_stats', string='OCs vencidas')
+
+    # ── Programaciones ───────────────────────────────────────────────────────
+
+    request_active            = fields.Integer(compute='_compute_request_stats', string='En curso')
+    request_reschedule_needed = fields.Integer(compute='_compute_request_stats', string='Con reprogramación')
 
     # ── Cómputos ─────────────────────────────────────────────────────────────
 
@@ -35,23 +41,24 @@ class MrpPlannerDashboard(models.TransientModel):
         Alert = self.env['mrp.reschedule.alert']
         base = [('resolved', '=', False)]
         for rec in self:
-            rec.alert_total = Alert.search_count(base)
-            rec.alert_critical = Alert.search_count(base + [('severity', '=', 'critical')])
-            rec.alert_warning = Alert.search_count(base + [('severity', '=', 'warning')])
-            rec.alert_mo_delayed = Alert.search_count(base + [('alert_type', '=', 'mo_delayed')])
-            rec.alert_po_delayed = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
+            rec.alert_total           = Alert.search_count(base)
+            rec.alert_critical        = Alert.search_count(base + [('severity', '=', 'critical')])
+            rec.alert_warning         = Alert.search_count(base + [('severity', '=', 'warning')])
+            rec.alert_mo_delayed      = Alert.search_count(base + [('alert_type', '=', 'mo_delayed')])
+            rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
+            rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
             rec.alert_receipt_delayed = Alert.search_count(base + [('alert_type', '=', 'receipt_delayed')])
-            rec.alert_qty_mismatch = Alert.search_count(base + [('alert_type', '=', 'qty_mismatch')])
-            rec.alert_mo_cancelled = Alert.search_count(base + [('alert_type', '=', 'mo_cancelled')])
+            rec.alert_qty_mismatch    = Alert.search_count(base + [('alert_type', '=', 'qty_mismatch')])
+            rec.alert_mo_cancelled    = Alert.search_count(base + [('alert_type', '=', 'mo_cancelled')])
 
     @api.depends()
     def _compute_mo_stats(self):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         for rec in self:
-            rec.mo_confirmed = MO.search_count([('state', '=', 'confirmed')])
-            rec.mo_in_progress = MO.search_count([('state', 'in', ('progress', 'to_close'))])
-            rec.mo_delayed = MO.search_count([
+            rec.mo_confirmed        = MO.search_count([('state', '=', 'confirmed')])
+            rec.mo_in_progress      = MO.search_count([('state', 'in', ('progress', 'to_close'))])
+            rec.mo_delayed          = MO.search_count([
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
@@ -68,6 +75,19 @@ class MrpPlannerDashboard(models.TransientModel):
         for rec in self:
             rec.po_pending = PO.search_count([('state', '=', 'purchase'), ('date_planned', '>=', now)])
             rec.po_overdue = PO.search_count([('state', '=', 'purchase'), ('date_planned', '<', now)])
+
+    @api.depends()
+    def _compute_request_stats(self):
+        Req = self.env['mrp.production.request']
+        for rec in self:
+            active = Req.search([('state', '=', 'confirmed')])
+            rec.request_active = len(active)
+            rec.request_reschedule_needed = len(active.filtered(
+                lambda r: any(
+                    it.production_id and it.production_id.x_reschedule_needed
+                    for it in r.item_ids
+                )
+            ))
 
     # ── Apertura ─────────────────────────────────────────────────────────────
 
@@ -114,6 +134,9 @@ class MrpPlannerDashboard(models.TransientModel):
 
     def action_view_po_delayed_alerts(self):
         return self._open_alerts([('alert_type', '=', 'po_delayed')])
+
+    def action_view_po_cancelled_alerts(self):
+        return self._open_alerts([('alert_type', '=', 'po_cancelled')])
 
     def action_view_receipt_alerts(self):
         return self._open_alerts([('alert_type', '=', 'receipt_delayed')])
@@ -195,5 +218,30 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
             'domain': [('state', '=', 'purchase'), ('date_planned', '<', now)],
+            'target': 'current',
+        }
+
+    # ── Navegación — Programaciones ──────────────────────────────────────────
+
+    def action_view_active_requests(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Programaciones en curso'),
+            'res_model': 'mrp.production.request',
+            'view_mode': 'list,form',
+            'domain': [('state', '=', 'confirmed')],
+            'target': 'current',
+        }
+
+    def action_view_requests_reschedule(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Programaciones con reprogramación pendiente'),
+            'res_model': 'mrp.production.request',
+            'view_mode': 'list,form',
+            'domain': [
+                ('state', '=', 'confirmed'),
+                ('item_ids.production_id.x_reschedule_needed', '=', True),
+            ],
             'target': 'current',
         }

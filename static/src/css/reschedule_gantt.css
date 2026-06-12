@@ -2,26 +2,79 @@
 /* ── Dashboard del planificador ─────────────────────────────────────────── */
 
 .o_planner_dashboard {
-    padding: 16px;
+    max-width: 1400px;
+}
+
+.o_planner_header {
+    border-bottom: 2px solid #e9ecef;
 }
 
 .o_planner_section_title {
-    margin-bottom: 12px;
-    border-bottom: 1px solid #dee2e6;
-    padding-bottom: 4px;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 6px;
+    letter-spacing: 0.04em;
 }
 
-.o_planner_stat {
-    min-width: 140px;
-    flex: 1 1 140px;
+/* Cards */
+.o_planner_card {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.o_planner_critical .o_stat_value,
-.o_planner_critical .o_button_icon {
-    color: #dc3545 !important;
+.o_planner_card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
 }
 
-.o_planner_warning .o_stat_value,
-.o_planner_warning .o_button_icon {
-    color: #fd7e14 !important;
+.o_planner_card_danger  { border-color: #f5c6cb; }
+.o_planner_card_warning { border-color: #ffdba8; }
+.o_planner_card_info    { border-color: #b8e7f5; }
+.o_planner_card_success { border-color: #b7e4c7; }
+
+.o_planner_card .card-footer {
+    background: transparent;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Número grande */
+.o_planner_number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.o_planner_number .o_field_widget,
+.o_planner_number .o_field_integer {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    display: inline;
+}
+
+.o_planner_number .o_field_widget span {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+}
+
+/* Etiqueta */
+.o_planner_label {
+    font-size: 0.78rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Botón "Ver →" */
+.o_planner_card .btn-link {
+    font-size: 0.78rem;
+    text-decoration: none;
+    opacity: 0.7;
+}
+
+.o_planner_card .btn-link:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.03);
+    text-decoration: none;
 }

@@ -25,9 +25,12 @@ class MrpProductionRequestItem(models.Model):
     product_qty = fields.Float(string='Cantidad', default=1.0, required=True)
     date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
 
-    projected_end   = fields.Datetime(string='Fin proyectado', readonly=True)
+    earliest_end    = fields.Datetime(string='Fecha más temprana', readonly=True,
+                                      help='Fecha mínima posible calculada por el sistema.')
+    projected_end   = fields.Datetime(string='Fin proyectado',
+                                      help='Fecha de fin de producción. Podés adelantarla al mínimo posible con el botón Adelantar.')
     feasible        = fields.Boolean(compute='_compute_feasible', store=False)
-    feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Δ Plazo')
+    feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Info')
 
     production_id = fields.Many2one(
         'mrp.production', string='OF madre', readonly=True, copy=False, index=True,
@@ -67,25 +70,33 @@ class MrpProductionRequestItem(models.Model):
         for item in self:
             item.name = item.product_id.display_name or '—'
 
-    @api.depends('projected_end', 'date_deadline')
+    @api.depends('earliest_end', 'date_deadline')
     def _compute_feasible(self):
         for item in self:
-            if not item.projected_end or not item.date_deadline:
+            if not item.earliest_end or not item.date_deadline:
                 item.feasible = False
                 item.feasibility_msg = '—'
                 continue
-            if item.projected_end <= item.date_deadline:
-                # Llega antes: margen disponible → signo negativo (días de sobra)
-                secs = (item.date_deadline - item.projected_end).total_seconds()
+            if item.earliest_end <= item.date_deadline:
+                secs = (item.date_deadline - item.earliest_end).total_seconds()
                 d, h = int(secs // 86400), int((secs % 86400) // 3600)
                 item.feasible = True
-                item.feasibility_msg = f'-{d}d {h}h' if d else f'-{h}h'
+                delta = f'{d}d {h}h' if d else f'{h}h'
+                item.feasibility_msg = _(
+                    'Puede adelantarse %s (mínimo: %s)'
+                ) % (delta, item.earliest_end.strftime('%d/%m %H:%M'))
             else:
-                # Llega tarde: excede el plazo → signo positivo (días de retraso)
-                secs = (item.projected_end - item.date_deadline).total_seconds()
+                secs = (item.earliest_end - item.date_deadline).total_seconds()
                 d, h = int(secs // 86400), int((secs % 86400) // 3600)
                 item.feasible = False
-                item.feasibility_msg = f'+{d}d {h}h' if d else f'+{h}h'
+                delta = f'{d}d {h}h' if d else f'{h}h'
+                item.feasibility_msg = _('Atraso estimado: %s') % delta
+
+    def action_adelantar(self):
+        """Setea projected_end a la fecha más temprana calculada."""
+        self.ensure_one()
+        if self.earliest_end:
+            self.projected_end = self.earliest_end
 
 
 class MrpProductionRequest(models.Model):
@@ -129,10 +140,10 @@ class MrpProductionRequest(models.Model):
     )
     workorder_count = fields.Integer(compute='_compute_workorder_count', string='OTs')
 
-    @api.depends('item_ids.feasible', 'item_ids.projected_end')
+    @api.depends('item_ids.feasible', 'item_ids.earliest_end')
     def _compute_summary(self):
         for rec in self:
-            done = rec.item_ids.filtered('projected_end')
+            done = rec.item_ids.filtered('earliest_end')
             if not done:
                 rec.all_feasible = False
                 rec.feasibility_summary = _('Sin datos calculados')
@@ -219,7 +230,11 @@ class MrpProductionRequest(models.Model):
         for item, root in item_trees:
             self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
-            item.write({'projected_end': root.get('scheduled_end')})
+            earliest = root.get('scheduled_end')
+            item.write({
+                'earliest_end': earliest,
+                'projected_end': item.date_deadline,
+            })
 
         for vals in lines_vals:
             vals['request_id'] = self.id
@@ -267,7 +282,7 @@ class MrpProductionRequest(models.Model):
                     'product_id':    line.product_id.id,
                     'product_qty':   line.product_qty,
                     'date_start':    line.new_date_start,
-                    'date_finished': line.new_date_finish,
+                    'date_finished': item.projected_end or line.new_date_finish,
                 }
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id

@@ -44,6 +44,7 @@ class MrpProduction(models.Model):
     def write(self, vals):
         trigger_state = 'state' in vals and vals['state'] in ('done', 'cancel')
         going_done = trigger_state and vals['state'] == 'done'
+        track_date = 'date_finished' in vals
 
         if trigger_state:
             old_states = {mo.id: mo.state for mo in self}
@@ -67,6 +68,18 @@ class MrpProduction(models.Model):
                     )
 
                 if mo.state == 'cancel':
+                    # Resolver alertas de atraso inmediatamente al cancelar
+                    try:
+                        self.env['mrp.reschedule.alert']._resolve_for(
+                            ('mo_delayed', 'qty_mismatch'),
+                            production_id=mo.id,
+                        )
+                    except Exception as e:
+                        _logger.warning(
+                            'MRP Reschedule: error al resolver alertas de %s: %s',
+                            mo.name, e,
+                        )
+                    # Crear alerta de cancelación (requiere resolución manual)
                     try:
                         self.env['mrp.reschedule.alert']._upsert_alert(
                             'mo_cancelled', 'critical', 0,
@@ -76,6 +89,19 @@ class MrpProduction(models.Model):
                     except Exception as e:
                         _logger.warning(
                             'MRP Reschedule: error al crear alerta de cancelación de %s: %s',
+                            mo.name, e,
+                        )
+
+                if mo.state == 'done':
+                    # Resolver alerta de atraso al completar
+                    try:
+                        self.env['mrp.reschedule.alert']._resolve_for(
+                            ('mo_delayed',),
+                            production_id=mo.id,
+                        )
+                    except Exception as e:
+                        _logger.warning(
+                            'MRP Reschedule: error al resolver alertas de %s: %s',
                             mo.name, e,
                         )
 
@@ -114,6 +140,22 @@ class MrpProduction(models.Model):
                                 'MRP Reschedule: error al crear alerta de cantidad de %s: %s',
                                 mo.name, e,
                             )
+        # Resolución reactiva: OF reprogramada a fecha futura → ya no está atrasada
+        if track_date:
+            now = fields.Datetime.now()
+            for mo in self:
+                if mo.date_finished and mo.date_finished > now:
+                    try:
+                        self.env['mrp.reschedule.alert']._resolve_for(
+                            ('mo_delayed',),
+                            production_id=mo.id,
+                        )
+                    except Exception as e:
+                        _logger.warning(
+                            'MRP Reschedule: error al resolver alerta de atraso de %s: %s',
+                            mo.name, e,
+                        )
+
         return result
 
     def _flag_subsequent_mos(self, mo):

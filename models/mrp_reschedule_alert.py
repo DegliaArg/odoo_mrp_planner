@@ -298,21 +298,43 @@ class MrpRescheduleAlert(models.Model):
             self.create(create_vals)
 
     @api.model
+    def _resolve_for(self, alert_types, **record_fields):
+        """Resuelve inmediatamente alertas abiertas del tipo dado para un registro.
+        Usado por los write() de OF/OC/Recepción para resolución reactiva.
+        """
+        domain = [('alert_type', 'in', list(alert_types)), ('resolved', '=', False)]
+        for fname, fval in record_fields.items():
+            if fval:
+                domain.append((fname, '=', fval))
+        alerts = self.search(domain)
+        if alerts:
+            alerts.write({'resolved': True, 'resolve_date': fields.Datetime.now()})
+
+    @api.model
     def _auto_resolve_stale(self):
-        """Resuelve alertas cuyos registros ya volvieron a estado normal."""
+        """Resuelve alertas cuyos registros ya volvieron a estado normal.
+        Actúa como red de seguridad: la resolución principal es reactiva (write()).
+        Nota: mo_cancelled NO se resuelve aquí — debe resolverla el usuario a mano.
+        """
         now = fields.Datetime.now()
 
+        # mo_delayed y qty_mismatch: se resuelven cuando la OF termina o se cancela
         stale_mo = self.search([
-            ('alert_type', 'in', ('mo_delayed', 'mo_cancelled', 'qty_mismatch')),
+            ('alert_type', 'in', ('mo_delayed', 'qty_mismatch')),
             ('resolved', '=', False),
             ('production_id.state', 'in', ('done', 'cancel')),
         ])
-        stale_mo_delayed = self.search([
+        if stale_mo:
+            stale_mo.write({'resolved': True, 'resolve_date': now})
+
+        # mo_delayed: también se resuelve si la OF ya no está atrasada
+        stale_mo_on_time = self.search([
             ('alert_type', '=', 'mo_delayed'),
             ('resolved', '=', False),
-            ('production_id.state', '=', 'done'),
+            ('production_id.date_finished', '>', now),
         ])
-        (stale_mo | stale_mo_delayed).write({'resolved': True, 'resolve_date': now})
+        if stale_mo_on_time:
+            stale_mo_on_time.write({'resolved': True, 'resolve_date': now})
 
         stale_po = self.search([
             ('alert_type', 'in', ('po_delayed', 'po_cancelled')),

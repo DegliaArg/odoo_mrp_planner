@@ -1,4 +1,5 @@
 from odoo import models, fields, api, _
+from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
 
 
 class MrpPlannerDashboard(models.TransientModel):
@@ -55,18 +56,19 @@ class MrpPlannerDashboard(models.TransientModel):
     def _compute_mo_stats(self):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
+        no_sc = no_subcontract_domain(self.env)
         for rec in self:
-            rec.mo_confirmed        = MO.search_count([('state', '=', 'confirmed')])
-            rec.mo_in_progress      = MO.search_count([('state', 'in', ('progress', 'to_close'))])
+            rec.mo_confirmed        = MO.search_count([('state', '=', 'confirmed')] + no_sc)
+            rec.mo_in_progress      = MO.search_count([('state', 'in', ('progress', 'to_close'))] + no_sc)
             rec.mo_delayed          = MO.search_count([
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ])
+            ] + no_sc)
             rec.mo_reschedule_needed = MO.search_count([
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ])
+            ] + no_sc)
 
     @api.depends()
     def _compute_po_stats(self):
@@ -156,7 +158,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('OFs confirmadas'),
             'res_model': 'mrp.production',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'confirmed')],
+            'domain': [('state', '=', 'confirmed')] + no_subcontract_domain(self.env),
             'target': 'current',
         }
 
@@ -166,7 +168,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('OFs en progreso'),
             'res_model': 'mrp.production',
             'view_mode': 'list,form',
-            'domain': [('state', 'in', ('progress', 'to_close'))],
+            'domain': [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env),
             'target': 'current',
         }
 
@@ -181,7 +183,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ],
+            ] + no_subcontract_domain(self.env),
             'target': 'current',
         }
 
@@ -194,7 +196,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'domain': [
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ],
+            ] + no_subcontract_domain(self.env),
             'target': 'current',
         }
 

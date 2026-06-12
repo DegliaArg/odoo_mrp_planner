@@ -1,4 +1,5 @@
 from odoo import models, fields, api, _
+from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
 
 
 class MrpPlannerDetailDashboard(models.TransientModel):
@@ -82,7 +83,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
                 '|',
                 ('purchase_order_id', '=', self.purchase_id.id),
                 ('purchase_line_id.order_id', '=', self.purchase_id.id),
-            ])
+            ] + no_subcontract_domain(self.env))
         return self.env['mrp.production'].browse()
 
     def _get_context_pos(self):

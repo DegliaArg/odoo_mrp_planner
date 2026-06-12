@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 from odoo import models, fields, api, _
+from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
 
@@ -144,7 +145,7 @@ class MrpRescheduleAlert(models.Model):
         mos = self.env['mrp.production'].search([
             ('state', 'in', ('confirmed', 'progress')),
             ('move_raw_ids.product_id', '=', product_id),
-        ]).sorted(lambda m: m.date_start or datetime(9999, 12, 31))
+        ] + no_subcontract_domain(self.env)).sorted(lambda m: m.date_start or datetime(9999, 12, 31))
 
         impacted   = self.env['mrp.production']
         cumulative = 0.0
@@ -180,7 +181,7 @@ class MrpRescheduleAlert(models.Model):
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
             ('date_finished', '<', now),
             ('date_finished', '!=', False),
-        ])
+        ] + no_subcontract_domain(self.env))
         for mo in mos:
             days = max(0, (now - mo.date_finished).days)
             severity = 'critical' if days >= 3 else 'warning'
@@ -234,7 +235,7 @@ class MrpRescheduleAlert(models.Model):
             ('state', '=', 'done'),
             ('date_finished', '>=', since),
             ('date_finished', '!=', False),
-        ])
+        ] + no_subcontract_domain(self.env))
         for mo in done_mos:
             planned_qty = mo.product_qty
             if not planned_qty:

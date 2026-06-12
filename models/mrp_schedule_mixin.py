@@ -7,6 +7,14 @@ from odoo import models
 _logger = logging.getLogger(__name__)
 
 _N = ' '  # non-breaking space — los espacios normales colapsan en HTML
+
+
+def no_subcontract_domain(env):
+    """Fragmento de dominio para excluir OFs de subcontratacion.
+    Seguro si mrp_subcontracting no esta instalado."""
+    if 'subcontracting_type' in env['mrp.production']._fields:
+        return [('subcontracting_type', '=', 'none')]
+    return []
 INDENT_MAP = {
     0: '',
     1: '└─ ',

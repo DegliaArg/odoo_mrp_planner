@@ -1,4 +1,5 @@
 from odoo import models, fields, api, _
+from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -173,7 +174,7 @@ class MrpProduction(models.Model):
             ('state', 'not in', ['done', 'cancel']),
             ('date_start', '>=', mo.date_start),
             ('workorder_ids.workcenter_id', 'in', wc_ids),
-        ], limit=20)
+        ] + no_subcontract_domain(self.env), limit=20)
         if subsequent:
             subsequent.write({'x_reschedule_needed': True})
 

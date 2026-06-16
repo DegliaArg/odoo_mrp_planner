@@ -23,6 +23,7 @@ Características:
     'depends': ['mrp', 'purchase', 'stock', 'mail'],
     'data': [
         'security/ir.model.access.csv',
+        'views/product_template_views.xml',
         'views/res_config_settings_views.xml',
         'views/mrp_reschedule_alert_views.xml',
         'views/mrp_reschedule_plan_views.xml',

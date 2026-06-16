@@ -25,9 +25,10 @@ class MrpProductionRequestItem(models.Model):
     product_qty = fields.Float(string='Cantidad', default=1.0, required=True)
     date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
 
-    earliest_end    = fields.Datetime(string='Fecha más temprana', readonly=True,
+    earliest_end    = fields.Datetime(string='Mínimo alcanzable', readonly=True,
                                       help='Fecha mínima posible calculada por el sistema.')
-    projected_end   = fields.Datetime(string='Fin proyectado',
+    projected_start = fields.Datetime(string='Inicio planificado', readonly=True)
+    projected_end   = fields.Datetime(string='Fin planificado',
                                       help='Fecha de fin de producción. Podés adelantarla al mínimo posible con el botón Adelantar.')
     feasible        = fields.Boolean(compute='_compute_feasible', store=False)
     feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Info')
@@ -200,7 +201,7 @@ class MrpProductionRequest(models.Model):
             raise UserError(_('Agregue al menos un artículo.'))
 
         self.line_ids.unlink()
-        self.item_ids.write({'projected_end': False})
+        self.item_ids.write({'projected_end': False, 'projected_start': False})
 
         start = self.start_from or fields.Datetime.now()
         if hasattr(start, 'tzinfo') and start.tzinfo:
@@ -235,8 +236,9 @@ class MrpProductionRequest(models.Model):
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             earliest = root.get('scheduled_end')
             item.write({
-                'earliest_end': earliest,
-                'projected_end': item.date_deadline,
+                'earliest_end':    earliest,
+                'projected_start': root.get('scheduled_start'),
+                'projected_end':   item.date_deadline,
             })
 
         for vals in lines_vals:
@@ -616,6 +618,14 @@ class MrpProductionRequest(models.Model):
             )
         return dt.replace(hour=8, minute=0, second=0, microsecond=0)
 
+    def _get_preferred_workcenter(self, product):
+        """Devuelve el WC preferido activo del producto, o None si no tiene configurados."""
+        centros = product.product_tmpl_id.x_centros_compatibles.filtered('active')
+        if not centros:
+            return None
+        preferred = centros.filtered('is_preferred')
+        return (preferred[:1] if preferred else centros[:1]).workcenter_id or None
+
     def _build_demand_tree(self, product, qty, level, visited=None):
         """
         Construye el árbol de demanda usando las rutas del sistema.
@@ -637,11 +647,18 @@ class MrpProductionRequest(models.Model):
         # bom.product_qty es cuántas unidades produce una corrida de la LdM.
         bom_factor = qty / (bom.product_qty or 1.0)
 
+        preferred_wc = self._get_preferred_workcenter(product)
         operations = []
-        if bom.operation_ids:
+        if preferred_wc:
+            # WC configurado en el producto: tratar como operación única con duración total de la LdM
+            dur_h = (
+                sum(self._get_op_duration_hours(op, bom_factor) for op in bom.operation_ids)
+                if bom.operation_ids else 8.0
+            )
+            operations = [(preferred_wc, dur_h)]
+        elif bom.operation_ids:
             for op in bom.operation_ids.sorted('sequence'):
-                wc = op.workcenter_id
-                operations.append((wc, self._get_op_duration_hours(op, bom_factor)))
+                operations.append((op.workcenter_id, self._get_op_duration_hours(op, bom_factor)))
         else:
             operations = [(None, 8.0)]
 
@@ -941,8 +958,8 @@ class MrpProductionRequestLine(models.Model):
     product_qty = fields.Float(string='Cantidad', digits=(16, 2))
     duration_hours = fields.Float(string='Duración (hs)', digits=(10, 2))
 
-    new_date_start  = fields.Datetime(string='Inicio / Pedido')
-    new_date_finish = fields.Datetime(string='Fin / Llegada')
+    new_date_start  = fields.Datetime(string='Fecha inicio')
+    new_date_finish = fields.Datetime(string='Fecha fin')
 
     workcenter_label  = fields.Char(string='WC / Proveedor')
     description_label = fields.Char(string='Producto')

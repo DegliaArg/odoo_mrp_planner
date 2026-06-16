@@ -109,10 +109,13 @@
                             <field name="sequence"        widget="handle"/>
                             <field name="product_id"      string="Producto"/>
                             <field name="product_qty"     string="Cantidad planificada"/>
-                            <field name="date_deadline"   string="Fecha deseada"/>
-                            <field name="projected_end"   string="Fin proyectado"
+                            <field name="date_deadline"   string="Fecha requerida"/>
+                            <field name="projected_start" string="Inicio planificado" readonly="1"
+                                   optional="show"
+                                   column_invisible="parent.state == 'draft'"/>
+                            <field name="projected_end"   string="Fin planificado"
                                    readonly="parent.state == 'confirmed' or not earliest_end"/>
-                            <field name="earliest_end"    string="Mínimo posible"  readonly="1"
+                            <field name="earliest_end"    string="Mínimo alcanzable" readonly="1"
                                    optional="show"
                                    column_invisible="parent.state == 'draft'"/>
                             <field name="feasibility_msg" string="Info"            readonly="1"
@@ -176,8 +179,8 @@
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
                                     <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
-                                    <field name="new_date_start"    string="Inicio / Pedido" readonly="1"/>
-                                    <field name="new_date_finish"   string="Fin / Llegada"   readonly="1"/>
+                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
+                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
                                     <field name="item_id"       column_invisible="True"/>
                                     <field name="record_type"   column_invisible="True"/>
@@ -201,8 +204,8 @@
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
                                     <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
-                                    <field name="new_date_start"    string="Inicio / Pedido" readonly="1"/>
-                                    <field name="new_date_finish"   string="Fin / Llegada"   readonly="1"/>
+                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
+                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
                                     <field name="item_id"       column_invisible="True"/>
                                     <field name="record_type"   column_invisible="True"/>

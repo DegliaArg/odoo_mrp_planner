@@ -316,12 +316,15 @@ class MrpReschedulePlan(models.Model):
 
     def _get_pos_for_mo(self, mo):
         pos = self.env['purchase.order']
-        if mo.purchase_order_id and mo.purchase_order_id.state not in ('done', 'cancel'):
-            pos |= mo.purchase_order_id
-        if mo.purchase_line_id and mo.purchase_line_id.order_id:
-            po = mo.purchase_line_id.order_id
-            if po.state not in ('done', 'cancel'):
+        mo_fields = mo._fields
+        if 'purchase_order_id' in mo_fields:
+            po = mo.purchase_order_id
+            if po and po.state not in ('done', 'cancel'):
                 pos |= po
+        if 'purchase_line_id' in mo_fields:
+            line = mo.purchase_line_id
+            if line and line.order_id and line.order_id.state not in ('done', 'cancel'):
+                pos |= line.order_id
         if mo.name:
             pos |= self.env['purchase.order'].search([
                 ('origin', 'ilike', mo.name),

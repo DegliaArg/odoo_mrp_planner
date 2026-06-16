@@ -76,11 +76,19 @@ class PurchaseOrder(models.Model):
 
     def _flag_mos_for_po(self, po):
         """Marca x_reschedule_needed en MOs relacionadas a esta OC."""
-        mos = self.env['mrp.production'].search([
-            ('state', 'in', ('confirmed', 'progress')),
-            '|',
-            ('purchase_order_id', '=', po.id),
-            ('purchase_line_id.order_id', '=', po.id),
-        ])
-        if mos:
-            mos.write({'x_reschedule_needed': True})
+        MO = self.env['mrp.production']
+        mo_fields = MO._fields
+        domain = [('state', 'in', ('confirmed', 'progress'))]
+        or_clauses = []
+        if 'purchase_order_id' in mo_fields:
+            or_clauses.append(('purchase_order_id', '=', po.id))
+        if 'purchase_line_id' in mo_fields:
+            or_clauses.append(('purchase_line_id.order_id', '=', po.id))
+        if or_clauses:
+            if len(or_clauses) == 2:
+                domain = domain + ['|'] + or_clauses
+            else:
+                domain = domain + or_clauses
+            mos = MO.search(domain)
+            if mos:
+                mos.write({'x_reschedule_needed': True})

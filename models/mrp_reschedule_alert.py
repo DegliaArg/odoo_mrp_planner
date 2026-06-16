@@ -107,12 +107,28 @@ class MrpRescheduleAlert(models.Model):
             }
         mo = self.production_id
         if not mo and self.purchase_id:
-            mo = self.env['mrp.production'].search([
-                ('state', 'in', ('confirmed', 'progress')),
-                '|',
-                ('purchase_order_id', '=', self.purchase_id.id),
-                ('purchase_line_id.order_id', '=', self.purchase_id.id),
-            ], limit=1)
+            MO = self.env['mrp.production']
+            mo_fields = MO._fields
+            try:
+                domain = [('state', 'in', ('confirmed', 'progress'))]
+                or_clauses = []
+                if 'purchase_order_id' in mo_fields:
+                    or_clauses.append(('purchase_order_id', '=', self.purchase_id.id))
+                if 'purchase_line_id' in mo_fields:
+                    or_clauses.append(('purchase_line_id.order_id', '=', self.purchase_id.id))
+                if or_clauses:
+                    if len(or_clauses) == 2:
+                        domain = domain + ['|'] + or_clauses
+                    else:
+                        domain = domain + or_clauses
+                    mo = MO.search(domain, limit=1)
+                if not mo:
+                    mo = MO.search([
+                        ('state', 'in', ('confirmed', 'progress')),
+                        ('origin', 'ilike', self.purchase_id.name),
+                    ], limit=1)
+            except Exception as e:
+                _logger.warning('MRP Reschedule: no se pudo buscar OF para alerta %s: %s', self.id, e)
 
         plan_vals = {'replan_from': fields.Datetime.now()}
         if mo:
@@ -169,11 +185,18 @@ class MrpRescheduleAlert(models.Model):
     def _cron_check_delays(self):
         """Ejecutado cada 30 minutos. Detecta desvíos y crea/actualiza alertas."""
         now = datetime.utcnow()
-        self._check_delayed_mos(now)
-        self._check_delayed_pos(now)
-        self._check_delayed_receipts(now)
-        self._check_qty_mismatches(now)
-        self._auto_resolve_stale()
+        steps = [
+            (self._check_delayed_mos,     (now,)),
+            (self._check_delayed_pos,     (now,)),
+            (self._check_delayed_receipts,(now,)),
+            (self._check_qty_mismatches,  (now,)),
+            (self._auto_resolve_stale,    ()),
+        ]
+        for fn, args in steps:
+            try:
+                fn(*args)
+            except Exception as e:
+                _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
 
     @api.model
     def _check_delayed_mos(self, now):

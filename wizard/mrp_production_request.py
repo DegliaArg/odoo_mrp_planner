@@ -200,6 +200,12 @@ class MrpProductionRequest(models.Model):
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
 
+        # Preservar WC editados manualmente antes de limpiar las líneas
+        wc_overrides = {
+            (l.item_id.id, l.product_id.id, l.level): l.workcenter_id
+            for l in self.line_ids
+            if l.workcenter_id and l.record_type == 'mrp'
+        }
         self.line_ids.unlink()
         self.item_ids.write({'projected_end': False, 'projected_start': False})
 
@@ -224,6 +230,11 @@ class MrpProductionRequest(models.Model):
         if missing:
             raise UserError(_('Sin lista de materiales para: %s') % ', '.join(missing))
 
+        # Aplicar WC editados manualmente en el cálculo anterior
+        if wc_overrides:
+            for item, root in item_trees:
+                self._apply_wc_overrides(root, item.id, wc_overrides)
+
         # Anclas de WC: carga existente en la instancia
         all_roots  = [r for _, r in item_trees]
         wc_anchors = self._get_wc_anchors_multi(min_dt, all_roots)
@@ -235,10 +246,14 @@ class MrpProductionRequest(models.Model):
             self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             earliest = root.get('scheduled_end')
+            proj_start = self._get_tree_earliest_start(root)
+            proj_end = item.date_deadline
+            if earliest and proj_end and earliest > proj_end:
+                proj_end = earliest
             item.write({
                 'earliest_end':    earliest,
-                'projected_start': root.get('scheduled_start'),
-                'projected_end':   item.date_deadline,
+                'projected_start': proj_start,
+                'projected_end':   proj_end,
             })
 
         for vals in lines_vals:
@@ -618,6 +633,28 @@ class MrpProductionRequest(models.Model):
             )
         return dt.replace(hour=8, minute=0, second=0, microsecond=0)
 
+    def _get_tree_earliest_start(self, node):
+        """Retorna el scheduled_start más temprano entre todos los nodos de fabricación del árbol."""
+        result = None
+        if node.get('type') == 'manufacture' and node.get('scheduled_start'):
+            result = node['scheduled_start']
+        for child in node.get('children', []):
+            child_start = self._get_tree_earliest_start(child)
+            if child_start:
+                result = min(result, child_start) if result else child_start
+        return result
+
+    def _apply_wc_overrides(self, node, item_id, overrides):
+        """Aplica los WC editados manualmente a los nodos del árbol antes de programar."""
+        if node.get('type') == 'manufacture' and node.get('operations'):
+            key = (item_id, node['product'].id, node['level'])
+            if key in overrides:
+                wc = overrides[key]
+                dur_h = sum(d for _, d in node['operations'])
+                node['operations'] = [(wc, dur_h)]
+        for child in node.get('children', []):
+            self._apply_wc_overrides(child, item_id, overrides)
+
     def _get_preferred_workcenter(self, product):
         """Devuelve el WC preferido activo del producto, o None si no tiene configurados."""
         centros = product.product_tmpl_id.x_centros_compatibles.filtered('active')
@@ -648,19 +685,21 @@ class MrpProductionRequest(models.Model):
         bom_factor = qty / (bom.product_qty or 1.0)
 
         preferred_wc = self._get_preferred_workcenter(product)
+        wc_fallback = self.env['ir.config_parameter'].sudo().get_param(
+            'mrp_reschedule.wc_fallback', 'ldm'
+        )
         operations = []
+        dur_bom = (
+            sum(self._get_op_duration_hours(op, bom_factor) for op in bom.operation_ids)
+            if bom.operation_ids else 8.0
+        )
         if preferred_wc:
-            # WC configurado en el producto: tratar como operación única con duración total de la LdM
-            dur_h = (
-                sum(self._get_op_duration_hours(op, bom_factor) for op in bom.operation_ids)
-                if bom.operation_ids else 8.0
-            )
-            operations = [(preferred_wc, dur_h)]
-        elif bom.operation_ids:
+            operations = [(preferred_wc, dur_bom)]
+        elif bom.operation_ids and wc_fallback == 'ldm':
             for op in bom.operation_ids.sorted('sequence'):
                 operations.append((op.workcenter_id, self._get_op_duration_hours(op, bom_factor)))
         else:
-            operations = [(None, 8.0)]
+            operations = [(None, dur_bom)]
 
         node = {
             'type':     'manufacture',
@@ -926,6 +965,7 @@ class MrpProductionRequest(models.Model):
             'duration_hours':    round(dur_h, 2),
             'new_date_start':    node['scheduled_start'],
             'new_date_finish':   node['scheduled_end'],
+            'workcenter_id':     wcs[0].id if wcs else False,
             'workcenter_label':  wc_label,
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',
@@ -960,6 +1000,7 @@ class MrpProductionRequestLine(models.Model):
 
     new_date_start  = fields.Datetime(string='Fecha inicio')
     new_date_finish = fields.Datetime(string='Fecha fin')
+    workcenter_id   = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
 
     workcenter_label  = fields.Char(string='WC / Proveedor')
     description_label = fields.Char(string='Producto')

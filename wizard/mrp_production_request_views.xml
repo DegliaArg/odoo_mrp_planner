@@ -101,6 +101,18 @@
                                readonly="state == 'confirmed'"/>
                     </group>
 
+                    <!-- Banner de factibilidad global -->
+                    <div class="alert alert-success mb-2 mt-2"
+                         invisible="not all_feasible or state == 'draft'">
+                        <i class="fa fa-check-circle me-2"/>
+                        <field name="feasibility_summary" readonly="1" nolabel="1"/>
+                    </div>
+                    <div class="alert alert-warning mb-2 mt-2"
+                         invisible="all_feasible or state == 'draft'">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        <field name="feasibility_summary" readonly="1" nolabel="1"/>
+                    </div>
+
                     <!-- Artículos a programar -->
                     <field name="item_ids" nolabel="1">
                         <list string="Artículos" editable="bottom"
@@ -143,18 +155,6 @@
                         </list>
                     </field>
 
-                    <!-- Banner de factibilidad global -->
-                    <div class="alert alert-success mb-2 mt-2"
-                         invisible="not all_feasible or state == 'draft'">
-                        <i class="fa fa-check-circle me-2"/>
-                        <field name="feasibility_summary" readonly="1" nolabel="1"/>
-                    </div>
-                    <div class="alert alert-warning mb-2 mt-2"
-                         invisible="all_feasible or state == 'draft'">
-                        <i class="fa fa-exclamation-triangle me-2"/>
-                        <field name="feasibility_summary" readonly="1" nolabel="1"/>
-                    </div>
-
                     <!-- Plan calculado: desglose en pestaña separada -->
                     <notebook invisible="state == 'draft'">
                         <page string="Plan de fabricación" name="plan_detail">
@@ -165,10 +165,10 @@
                             </div>
 
                             <!-- Vista filtrada: oculta líneas con reabastecimiento automático -->
-                            <field name="line_ids_plan" readonly="1" nolabel="1"
+                            <field name="line_ids_plan" nolabel="1"
                                    invisible="not hide_auto_reorder">
                                 <list string="Plan de fabricación propuesto"
-                                      create="0" edit="0" delete="0"
+                                      create="0" delete="0"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
@@ -178,6 +178,9 @@
                                     <field name="description_label" string="Producto"       readonly="1"/>
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="workcenter_id"     string="Centro de trabajo"
+                                           readonly="record_type != 'mrp'"
+                                           optional="show"/>
                                     <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
@@ -190,10 +193,10 @@
                             </field>
 
                             <!-- Vista completa: incluye todas las líneas -->
-                            <field name="line_ids" readonly="1" nolabel="1"
+                            <field name="line_ids" nolabel="1"
                                    invisible="hide_auto_reorder">
                                 <list string="Plan de fabricación propuesto"
-                                      create="0" edit="0" delete="0"
+                                      create="0" delete="0"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
@@ -203,6 +206,9 @@
                                     <field name="description_label" string="Producto"       readonly="1"/>
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="workcenter_id"     string="Centro de trabajo"
+                                           readonly="record_type != 'mrp'"
+                                           optional="show"/>
                                     <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>

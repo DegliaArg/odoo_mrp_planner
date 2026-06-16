@@ -4,6 +4,20 @@ from odoo import models, fields
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
+    mrp_reschedule_wc_fallback = fields.Selection(
+        selection=[
+            ('ldm', 'Usar operaciones de la Lista de Materiales'),
+            ('none', 'Sin centro de trabajo'),
+        ],
+        string='Fallback de centro de trabajo',
+        default='ldm',
+        config_parameter='mrp_reschedule.wc_fallback',
+        help='Comportamiento del planificador cuando un producto no tiene centros de '
+             'trabajo configurados en "Centros de trabajo compatibles".\n\n'
+             '• Usar LdM: usa los centros de trabajo definidos en las operaciones de la LdM.\n'
+             '• Sin centro de trabajo: planifica sin asignar máquina.',
+    )
+
     mrp_reschedule_priority = fields.Selection(
         selection=[
             ('chronological', 'Orden cronológico (fecha actual)'),

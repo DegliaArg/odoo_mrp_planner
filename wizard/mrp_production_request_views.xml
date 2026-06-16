@@ -95,7 +95,8 @@
                     </div>
 
                     <group>
-                        <field name="start_from"/>
+                        <field name="start_from"
+                               readonly="state == 'confirmed'"/>
                         <field name="picking_type_id"
                                required="1"
                                readonly="state == 'confirmed'"/>
@@ -114,14 +115,18 @@
                     </div>
 
                     <!-- Artículos a programar -->
-                    <field name="item_ids" nolabel="1">
+                    <field name="item_ids" nolabel="1"
+                           readonly="state == 'confirmed'">
                         <list string="Artículos" editable="bottom"
                               decoration-success="feasible and projected_end"
-                              decoration-danger="not feasible and projected_end">
+                              decoration-danger="(not feasible and projected_end) or bom_warning">
                             <field name="sequence"        widget="handle"/>
                             <field name="product_id"      string="Producto"/>
                             <field name="product_qty"     string="Cantidad planificada"/>
                             <field name="date_deadline"   string="Fecha requerida"/>
+                            <field name="bom_warning"     string="LdM" readonly="1"
+                                   optional="show"
+                                   decoration-danger="bom_warning"/>
                             <field name="projected_start" string="Inicio planificado" readonly="1"
                                    optional="show"
                                    column_invisible="parent.state == 'draft'"/>
@@ -166,7 +171,8 @@
 
                             <!-- Vista filtrada: oculta líneas con reabastecimiento automático -->
                             <field name="line_ids_plan" nolabel="1"
-                                   invisible="not hide_auto_reorder">
+                                   invisible="not hide_auto_reorder"
+                                   readonly="parent.state == 'confirmed'">
                                 <list string="Plan de fabricación propuesto"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
@@ -182,6 +188,9 @@
                                            domain="[('id', 'in', compatible_workcenter_ids)]"
                                            readonly="record_type != 'mrp'"
                                            optional="show"/>
+                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                           optional="show"
+                                           column_invisible="True"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
@@ -200,6 +209,8 @@
                                         <field name="workcenter_id"     string="Centro de trabajo"
                                                domain="[('id', 'in', compatible_workcenter_ids)]"
                                                invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                               invisible="not workcenter_chain"/>
                                         <field name="workcenter_label"  string="Proveedor"      readonly="1"
                                                invisible="record_type != 'purchase'"/>
                                         <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
@@ -214,7 +225,8 @@
 
                             <!-- Vista completa: incluye todas las líneas -->
                             <field name="line_ids" nolabel="1"
-                                   invisible="hide_auto_reorder">
+                                   invisible="hide_auto_reorder"
+                                   readonly="parent.state == 'confirmed'">
                                 <list string="Plan de fabricación propuesto"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
@@ -230,6 +242,9 @@
                                            domain="[('id', 'in', compatible_workcenter_ids)]"
                                            readonly="record_type != 'mrp'"
                                            optional="show"/>
+                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                           optional="show"
+                                           column_invisible="True"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
@@ -248,6 +263,8 @@
                                         <field name="workcenter_id"     string="Centro de trabajo"
                                                domain="[('id', 'in', compatible_workcenter_ids)]"
                                                invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                               invisible="not workcenter_chain"/>
                                         <field name="workcenter_label"  string="Proveedor"      readonly="1"
                                                invisible="record_type != 'purchase'"/>
                                         <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
@@ -258,6 +275,19 @@
                                     <field name="compatible_workcenter_ids" invisible="1"/>
                                     <field name="record_type"               invisible="1"/>
                                 </form>
+                            </field>
+                        </page>
+
+                        <page string="Carga por WC" name="wc_load"
+                              invisible="not wc_load_ids">
+                            <field name="wc_load_ids" nolabel="1" readonly="1">
+                                <list string="Carga por centro de trabajo"
+                                      create="0" delete="0">
+                                    <field name="workcenter_id" string="Centro de trabajo"/>
+                                    <field name="total_hours"   string="Horas totales"/>
+                                    <field name="date_start"    string="Inicio"/>
+                                    <field name="date_end"      string="Fin"/>
+                                </list>
                             </field>
                         </page>
                     </notebook>

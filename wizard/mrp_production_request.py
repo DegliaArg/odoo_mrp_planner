@@ -32,6 +32,44 @@ class MrpProductionRequestItem(models.Model):
                                       help='Fecha de fin de producción. Podés adelantarla al mínimo posible con el botón Adelantar.')
     feasible        = fields.Boolean(compute='_compute_feasible', store=False)
     feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Info')
+    bom_warning     = fields.Char(compute='_compute_bom_warning', store=False)
+
+    @api.depends('product_id')
+    def _compute_bom_warning(self):
+        for item in self:
+            if not item.product_id:
+                item.bom_warning = ''
+                continue
+            bom = self.env['mrp.bom'].search([
+                ('type', 'not in', ['phantom', 'subcontract']),
+                ('company_id', 'in', [False, self.env.company.id]),
+                '|',
+                ('product_id', '=', item.product_id.id),
+                '&', ('product_id', '=', False),
+                ('product_tmpl_id', '=', item.product_id.product_tmpl_id.id),
+            ], limit=1)
+            item.bom_warning = '' if bom else _('Sin LdM')
+
+    @api.onchange('product_id')
+    def _onchange_product_id_bom(self):
+        if not self.product_id:
+            return
+        bom = self.env['mrp.bom'].search([
+            ('type', 'not in', ['phantom', 'subcontract']),
+            ('company_id', 'in', [False, self.env.company.id]),
+            '|',
+            ('product_id', '=', self.product_id.id),
+            '&', ('product_id', '=', False),
+            ('product_tmpl_id', '=', self.product_id.product_tmpl_id.id),
+        ], limit=1)
+        if not bom:
+            return {'warning': {
+                'title': _('Sin Lista de Materiales'),
+                'message': _(
+                    'El producto "%s" no tiene una LdM de fabricación. '
+                    'No se podrá calcular el plan.'
+                ) % self.product_id.display_name,
+            }}
 
     production_id = fields.Many2one(
         'mrp.production', string='OF madre', readonly=True, copy=False, index=True,
@@ -140,6 +178,7 @@ class MrpProductionRequest(models.Model):
         required=True,
     )
     workorder_count = fields.Integer(compute='_compute_workorder_count', string='OTs')
+    wc_load_ids     = fields.One2many('mrp.production.request.wc', 'request_id', string='Carga WC')
 
     @api.depends('item_ids.feasible', 'item_ids.earliest_end')
     def _compute_summary(self):
@@ -207,6 +246,7 @@ class MrpProductionRequest(models.Model):
             if l.workcenter_id and l.record_type == 'mrp'
         }
         self.line_ids.unlink()
+        self.wc_load_ids.unlink()
         self.item_ids.write({'projected_end': False, 'projected_start': False})
 
         start = self.start_from or fields.Datetime.now()
@@ -260,6 +300,36 @@ class MrpProductionRequest(models.Model):
             vals['request_id'] = self.id
         if lines_vals:
             self.env['mrp.production.request.line'].create(lines_vals)
+
+        # Resumen de carga por WC
+        wc_data = {}
+        for vals in lines_vals:
+            wc_id = vals.get('workcenter_id')
+            if not wc_id or vals.get('record_type') != 'mrp':
+                continue
+            if wc_id not in wc_data:
+                wc_data[wc_id] = {'hours': 0.0, 'start': None, 'end': None}
+            wc_data[wc_id]['hours'] += vals.get('duration_hours', 0.0)
+            s = vals.get('new_date_start')
+            e = vals.get('new_date_finish')
+            if s:
+                wc_data[wc_id]['start'] = min(wc_data[wc_id]['start'], s) if wc_data[wc_id]['start'] else s
+            if e:
+                wc_data[wc_id]['end'] = max(wc_data[wc_id]['end'], e) if wc_data[wc_id]['end'] else e
+        if wc_data:
+            self.env['mrp.production.request.wc'].create([
+                {
+                    'request_id':    self.id,
+                    'workcenter_id': wc_id,
+                    'total_hours':   round(data['hours'], 2),
+                    'date_start':    data['start'],
+                    'date_end':      data['end'],
+                }
+                for wc_id, data in sorted(
+                    wc_data.items(),
+                    key=lambda x: x[1]['start'] or datetime.min,
+                )
+            ])
 
         self.state = 'calculated'
         return {
@@ -966,6 +1036,7 @@ class MrpProductionRequest(models.Model):
             'new_date_start':    node['scheduled_start'],
             'new_date_finish':   node['scheduled_end'],
             'workcenter_id':     wcs[0].id if wcs else False,
+            'workcenter_chain':  wc_label if len(wcs) > 1 else '',
             'workcenter_label':  '',
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',
@@ -1025,6 +1096,7 @@ class MrpProductionRequestLine(models.Model):
                 line.compatible_workcenter_ids = all_wcs
 
     workcenter_label  = fields.Char(string='WC / Proveedor')
+    workcenter_chain  = fields.Char(string='Cadena WC', readonly=True)
     description_label = fields.Char(string='Producto')
     type_label        = fields.Char(string='Tipo')
 
@@ -1035,3 +1107,15 @@ class MrpProductionRequestLine(models.Model):
     ], string='Tipo advertencia', default='')
     warning_message  = fields.Char(string='Advertencia')
     is_auto_reorder  = fields.Boolean(default=False)
+
+
+class MrpProductionRequestWc(models.Model):
+    _name = 'mrp.production.request.wc'
+    _description = 'Carga de centro de trabajo en programación'
+    _order = 'date_start, id'
+
+    request_id    = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
+    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo', required=True)
+    total_hours   = fields.Float(string='Horas totales', digits=(10, 2))
+    date_start    = fields.Datetime(string='Inicio')
+    date_end      = fields.Datetime(string='Fin')

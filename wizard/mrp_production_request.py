@@ -966,7 +966,7 @@ class MrpProductionRequest(models.Model):
             'new_date_start':    node['scheduled_start'],
             'new_date_finish':   node['scheduled_end'],
             'workcenter_id':     wcs[0].id if wcs else False,
-            'workcenter_label':  wc_label,
+            'workcenter_label':  '',
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',
             'warning_type':      '',
@@ -1001,6 +1001,28 @@ class MrpProductionRequestLine(models.Model):
     new_date_start  = fields.Datetime(string='Fecha inicio')
     new_date_finish = fields.Datetime(string='Fecha fin')
     workcenter_id   = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
+    compatible_workcenter_ids = fields.Many2many(
+        'mrp.workcenter', compute='_compute_compatible_wc_ids',
+    )
+
+    @api.depends('product_id')
+    def _compute_compatible_wc_ids(self):
+        get_param = self.env['ir.config_parameter'].sudo().get_param
+        fallback = get_param('mrp_reschedule.wc_fallback', 'ldm')
+        all_wcs = None
+        for line in self:
+            if not line.product_id:
+                line.compatible_workcenter_ids = self.env['mrp.workcenter']
+                continue
+            centros = line.product_id.product_tmpl_id.x_centros_compatibles.filtered('active')
+            if centros:
+                line.compatible_workcenter_ids = centros.mapped('workcenter_id')
+            elif fallback == 'none':
+                line.compatible_workcenter_ids = self.env['mrp.workcenter']
+            else:
+                if all_wcs is None:
+                    all_wcs = self.env['mrp.workcenter'].search([])
+                line.compatible_workcenter_ids = all_wcs
 
     workcenter_label  = fields.Char(string='WC / Proveedor')
     description_label = fields.Char(string='Producto')

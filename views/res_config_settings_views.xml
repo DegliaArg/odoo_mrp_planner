@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- Vista dedicada accesible desde el menú del planificador -->
+    <record id="mrp_reschedule_config_form" model="ir.ui.view">
+        <field name="name">res.config.settings.mrp.reschedule.form</field>
+        <field name="model">res.config.settings</field>
+        <field name="arch" type="xml">
+            <form string="Configuración del planificador" class="oe_form_configuration">
+                <header>
+                    <button string="Guardar" name="execute" type="object"
+                            class="btn-primary" data-hotkey="s"/>
+                    <button string="Descartar" special="cancel"
+                            class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <h2>Planificador de producción</h2>
+                    <group string="Centros de trabajo">
+                        <field name="mrp_reschedule_wc_fallback" widget="radio"/>
+                    </group>
+                    <group string="Prioridad de reprogramación">
+                        <field name="mrp_reschedule_priority" widget="radio"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mrp_reschedule_config" model="ir.actions.act_window">
+        <field name="name">Configuración</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="mrp_reschedule_config_form"/>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'odoo_mrp_reschedule'}</field>
+    </record>
+
+    <menuitem id="mrp_reschedule_menu_config"
+              name="Configuración"
+              parent="mrp_reschedule_alert_views.mrp_planner_menu_root"
+              sequence="99"
+              action="action_mrp_reschedule_config"/>
+
+    <!-- Heredado en ajustes generales de Fabricación -->
     <record id="res_config_settings_view_mrp_reschedule" model="ir.ui.view">
         <field name="name">res.config.settings.view.mrp.reschedule</field>
         <field name="model">res.config.settings</field>

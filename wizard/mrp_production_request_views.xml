@@ -168,7 +168,7 @@
                             <field name="line_ids_plan" nolabel="1"
                                    invisible="not hide_auto_reorder">
                                 <list string="Plan de fabricación propuesto"
-                                      create="0" delete="0"
+                                      create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
@@ -179,24 +179,44 @@
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
                                     <field name="workcenter_id"     string="Centro de trabajo"
+                                           domain="[('id', 'in', compatible_workcenter_ids)]"
                                            readonly="record_type != 'mrp'"
                                            optional="show"/>
-                                    <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
-                                    <field name="item_id"       column_invisible="True"/>
-                                    <field name="record_type"   column_invisible="True"/>
-                                    <field name="level"         column_invisible="True"/>
-                                    <field name="warning_type"  column_invisible="True"/>
+                                    <field name="item_id"                   column_invisible="True"/>
+                                    <field name="record_type"               column_invisible="True"/>
+                                    <field name="level"                     column_invisible="True"/>
+                                    <field name="warning_type"              column_invisible="True"/>
+                                    <field name="compatible_workcenter_ids" column_invisible="True"/>
                                 </list>
+                                <form>
+                                    <group>
+                                        <field name="type_label"        string="Tipo"           readonly="1"/>
+                                        <field name="description_label" string="Producto"       readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="workcenter_id"     string="Centro de trabajo"
+                                               domain="[('id', 'in', compatible_workcenter_ids)]"
+                                               invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                               invisible="record_type != 'purchase'"/>
+                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                               invisible="not warning_message"/>
+                                    </group>
+                                    <field name="compatible_workcenter_ids" invisible="1"/>
+                                    <field name="record_type"               invisible="1"/>
+                                </form>
                             </field>
 
                             <!-- Vista completa: incluye todas las líneas -->
                             <field name="line_ids" nolabel="1"
                                    invisible="hide_auto_reorder">
                                 <list string="Plan de fabricación propuesto"
-                                      create="0" delete="0"
+                                      create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
@@ -207,17 +227,37 @@
                                     <field name="product_qty"       string="Cantidad"       readonly="1"/>
                                     <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
                                     <field name="workcenter_id"     string="Centro de trabajo"
+                                           domain="[('id', 'in', compatible_workcenter_ids)]"
                                            readonly="record_type != 'mrp'"
                                            optional="show"/>
-                                    <field name="workcenter_label"  string="WC / Proveedor" readonly="1" optional="show"/>
                                     <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
                                     <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
                                     <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
-                                    <field name="item_id"       column_invisible="True"/>
-                                    <field name="record_type"   column_invisible="True"/>
-                                    <field name="level"         column_invisible="True"/>
-                                    <field name="warning_type"  column_invisible="True"/>
+                                    <field name="item_id"                   column_invisible="True"/>
+                                    <field name="record_type"               column_invisible="True"/>
+                                    <field name="level"                     column_invisible="True"/>
+                                    <field name="warning_type"              column_invisible="True"/>
+                                    <field name="compatible_workcenter_ids" column_invisible="True"/>
                                 </list>
+                                <form>
+                                    <group>
+                                        <field name="type_label"        string="Tipo"           readonly="1"/>
+                                        <field name="description_label" string="Producto"       readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="workcenter_id"     string="Centro de trabajo"
+                                               domain="[('id', 'in', compatible_workcenter_ids)]"
+                                               invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                               invisible="record_type != 'purchase'"/>
+                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                               invisible="not warning_message"/>
+                                    </group>
+                                    <field name="compatible_workcenter_ids" invisible="1"/>
+                                    <field name="record_type"               invisible="1"/>
+                                </form>
                             </field>
                         </page>
                     </notebook>

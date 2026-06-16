@@ -172,7 +172,7 @@
                             <!-- Vista filtrada: oculta líneas con reabastecimiento automático -->
                             <field name="line_ids_plan" nolabel="1"
                                    invisible="not hide_auto_reorder"
-                                   readonly="parent.state == 'confirmed'">
+                                   readonly="state == 'confirmed'">
                                 <list string="Plan de fabricación propuesto"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
@@ -226,7 +226,7 @@
                             <!-- Vista completa: incluye todas las líneas -->
                             <field name="line_ids" nolabel="1"
                                    invisible="hide_auto_reorder"
-                                   readonly="parent.state == 'confirmed'">
+                                   readonly="state == 'confirmed'">
                                 <list string="Plan de fabricación propuesto"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"

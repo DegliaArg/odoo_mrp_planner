@@ -616,6 +616,54 @@ class MrpPlannerDashboard(models.TransientModel):
             'tiempo_muerto':   tiempo_muerto_list,
         }
 
+    # ── Widget OCs con pestañas ──────────────────────────────────────────────
+
+    @api.model
+    def get_po_dashboard_data(self, filter_type='all'):
+        """Datos de OCs filtrados por tipo: all / purchase / subcontract."""
+        PO  = self.env['purchase.order']
+        now = fields.Datetime.now()
+
+        sc_domain = []
+        if filter_type == 'purchase':
+            sc_domain = [('subcontract_production_ids', '=', False)]
+        elif filter_type == 'subcontract':
+            sc_domain = [('subcontract_production_ids', '!=', False)]
+
+        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain
+        approve_dom  = [('state', '=', 'to approve')] + sc_domain
+        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain
+
+        approved = PO.search(approved_dom)
+        overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
+        pending  = approved.filtered(lambda p: not p.date_planned or p.date_planned >= now)
+
+        def _po_dict(po):
+            return {
+                'id':           po.id,
+                'name':         po.name,
+                'partner':      po.partner_id.display_name if po.partner_id else '',
+                'date_planned': po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
+                'amount_total': po.amount_total,
+                'is_subcontract': bool(po.subcontract_production_ids),
+            }
+
+        return {
+            'kpis': {
+                'rfq':              PO.search_count(rfq_dom),
+                'to_approve':       PO.search_count(approve_dom),
+                'total':            len(approved),
+                'pending':          len(pending),
+                'overdue':          len(overdue),
+                'overdue_critical': len(overdue.filtered(
+                    lambda p: (now - p.date_planned).days >= 5
+                )),
+            },
+            'rfqs':       [_po_dict(p) for p in PO.search(rfq_dom, order='date_planned asc', limit=4)],
+            'to_approve': [_po_dict(p) for p in PO.search(approve_dom, order='date_planned asc', limit=3)],
+            'overdue':    [_po_dict(p) for p in overdue.sorted('date_planned')[:5]],
+        }
+
     # ── Widget OFs filtrable ─────────────────────────────────────────────────
 
     @api.model

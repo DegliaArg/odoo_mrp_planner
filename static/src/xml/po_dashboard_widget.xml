@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_reschedule.PoDashboardWidget">
+        <div class="o_po_dashboard_widget">
+
+            <!-- Pestañas -->
+            <ul class="nav nav-pills mb-3">
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'all' ? ' active' : '')"
+                            t-on-click="() => this.setTab('all')">
+                        <i class="fa fa-th-list me-1"/>Todas
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'purchase' ? ' active' : '')"
+                            t-on-click="() => this.setTab('purchase')">
+                        <i class="fa fa-shopping-cart me-1"/>Compras
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'subcontract' ? ' active' : '')"
+                            t-on-click="() => this.setTab('subcontract')">
+                        <i class="fa fa-industry me-1"/>Subcontratación
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Spinner -->
+            <div t-if="state.loading"
+                 class="d-flex align-items-center justify-content-center py-5 text-muted">
+                <i class="fa fa-spinner fa-spin fa-lg me-2"/>
+                <span class="small">Cargando…</span>
+            </div>
+
+            <!-- Contenido -->
+            <div t-else="" class="row g-3 align-items-start">
+
+                <!-- Izquierda: tarjetas KPI -->
+                <div class="col-12 col-lg-4">
+                    <div class="row g-2">
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_info h-100"
+                                 style="cursor:pointer" t-on-click="onClickRfqs">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
+                                    <div class="o_planner_number text-info" t-esc="state.kpis.rfq"/>
+                                    <div class="o_planner_label">Cotizaciones</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_warning h-100"
+                                 style="cursor:pointer" t-on-click="onClickToApprove">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
+                                    <div class="o_planner_number text-warning" t-esc="state.kpis.to_approve"/>
+                                    <div class="o_planner_label">Por aprobar</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card h-100"
+                                 style="cursor:pointer" t-on-click="onClickAll">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
+                                    <div class="o_planner_number" t-esc="state.kpis.total"/>
+                                    <div class="o_planner_label">Aprobadas</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_success h-100"
+                                 style="cursor:pointer" t-on-click="onClickPending">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
+                                    <div class="o_planner_number text-success" t-esc="state.kpis.pending"/>
+                                    <div class="o_planner_label">A tiempo</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_danger h-100"
+                                 style="cursor:pointer" t-on-click="onClickOverdue">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
+                                    <div class="o_planner_number text-danger" t-esc="state.kpis.overdue"/>
+                                    <div class="o_planner_label">Vencidas</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_danger h-100"
+                                 style="cursor:pointer" t-on-click="onClickOverdue">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
+                                    <div class="o_planner_number text-danger" t-esc="state.kpis.overdue_critical"/>
+                                    <div class="o_planner_label">Críticas (+5 días)</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Derecha: listas -->
+                <div class="col-12 col-lg-8">
+
+                    <!-- Vacío total -->
+                    <div t-if="isEmpty"
+                         class="d-flex align-items-center justify-content-center py-5 text-muted">
+                        <div class="text-center small">
+                            <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
+                            Sin órdenes pendientes.
+                        </div>
+                    </div>
+
+                    <!-- Cotizaciones -->
+                    <div t-if="state.rfqs.length > 0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-info fw-semibold small">
+                                <i class="fa fa-file-text-o me-1"/>Solicitudes de cotización
+                            </span>
+                            <button class="btn btn-sm btn-link text-info p-0"
+                                    t-on-click="onClickRfqs">Ver todas →</button>
+                        </div>
+                        <table class="table table-sm table-hover small mb-3">
+                            <thead>
+                                <tr class="text-muted">
+                                    <th>Referencia</th><th>Proveedor</th>
+                                    <th>Entrega estimada</th><th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.rfqs" t-as="po" t-key="po.id">
+                                    <tr style="cursor:pointer" t-on-click="() => this.openPo(po.id)">
+                                        <td class="fw-semibold" t-esc="po.name"/>
+                                        <td t-esc="po.partner"/>
+                                        <td t-esc="po.date_planned"/>
+                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Por aprobar -->
+                    <div t-if="state.to_approve.length > 0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-warning fw-semibold small">
+                                <i class="fa fa-clock-o me-1"/>Por aprobar
+                            </span>
+                            <button class="btn btn-sm btn-link text-warning p-0"
+                                    t-on-click="onClickToApprove">Ver todas →</button>
+                        </div>
+                        <table class="table table-sm table-hover small mb-3">
+                            <thead>
+                                <tr class="text-muted">
+                                    <th>Referencia</th><th>Proveedor</th>
+                                    <th>Entrega estimada</th><th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.to_approve" t-as="po" t-key="po.id">
+                                    <tr class="table-warning" style="cursor:pointer"
+                                        t-on-click="() => this.openPo(po.id)">
+                                        <td class="fw-semibold" t-esc="po.name"/>
+                                        <td t-esc="po.partner"/>
+                                        <td t-esc="po.date_planned"/>
+                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- OCs vencidas -->
+                    <div t-if="state.overdue.length > 0">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-danger fw-semibold small">
+                                <i class="fa fa-exclamation-triangle me-1"/>OCs vencidas
+                            </span>
+                            <button class="btn btn-sm btn-link text-danger p-0"
+                                    t-on-click="onClickOverdue">Ver todas →</button>
+                        </div>
+                        <table class="table table-sm table-hover small mb-0">
+                            <thead>
+                                <tr class="text-muted">
+                                    <th>Referencia</th><th>Proveedor</th>
+                                    <th>Entrega prevista</th><th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.overdue" t-as="po" t-key="po.id">
+                                    <tr class="table-danger" style="cursor:pointer"
+                                        t-on-click="() => this.openPo(po.id)">
+                                        <td class="fw-semibold" t-esc="po.name"/>
+                                        <td t-esc="po.partner"/>
+                                        <td t-esc="po.date_planned"/>
+                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </t>
+
+</templates>

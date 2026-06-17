@@ -469,10 +469,11 @@ class MrpPlannerDashboard(models.TransientModel):
         return result
 
     @api.model
-    def get_wc_chart_data(self, year, month, tag_id=None):
-        """Devuelve horas pendientes y disponibles por WC para el mes indicado."""
-        first_day = datetime(year, month, 1, 0, 0, 0)
-        last_day  = datetime(year, month, _cal.monthrange(year, month)[1], 23, 59, 59)
+    def get_wc_chart_data(self, date_from, date_to, tag_id=None):
+        """Devuelve horas pendientes y disponibles por WC para el rango indicado."""
+        first_day = datetime.strptime(date_from, '%Y-%m-%d')
+        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        days_in_range = (last_day - first_day).days + 1
 
         domain = [('active', '=', True)]
         if tag_id:
@@ -494,16 +495,15 @@ class MrpPlannerDashboard(models.TransientModel):
                     avail *= (wc.time_efficiency or 100.0) / 100.0
                 except Exception as e:
                     _logger.debug("WC chart: error calculando horas disponibles para %s: %s", wc.name, e)
-                    # Fallback: suma de asistencias regulares × semanas del mes
+                    # Fallback: suma de asistencias regulares × semanas del rango
                     weekly = sum(
                         a.hour_to - a.hour_from
                         for a in wc.resource_calendar_id.attendance_ids
                         if not a.date_from and not a.date_to
                     )
-                    weeks = _cal.monthrange(year, month)[1] / 7.0
-                    avail = weekly * weeks * (wc.time_efficiency or 100.0) / 100.0
+                    avail = weekly * (days_in_range / 7.0) * (wc.time_efficiency or 100.0) / 100.0
 
-            # ── Horas pendientes de workorders en el mes ──────────────────────
+            # ── Horas pendientes de workorders en el rango ────────────────────
             workorders = self.env['mrp.workorder'].search([
                 ('workcenter_id', '=', wc.id),
                 ('state', 'not in', ('done', 'cancel')),

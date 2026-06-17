@@ -5,10 +5,9 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 
-const MONTHS = [
-    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
-];
+function toDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 class WcLoadChartWidget extends Component {
     static template = "odoo_mrp_reschedule.WcLoadChartWidget";
@@ -19,24 +18,17 @@ class WcLoadChartWidget extends Component {
         this.chart = null;
 
         const now = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
         this.state = useState({
             tags: [],
             selectedTag: "",
-            year: now.getFullYear(),
-            month: now.getMonth() + 1,
+            dateFrom: toDateStr(firstOfMonth),
+            dateTo:   toDateStr(lastOfMonth),
             loading: false,
             empty: false,
         });
-
-        // Build list of selectable months (current month ± 12)
-        this.monthOptions = [];
-        for (let delta = -6; delta <= 6; delta++) {
-            let d = new Date(now.getFullYear(), now.getMonth() + delta, 1);
-            this.monthOptions.push({
-                value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-                label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
-            });
-        }
 
         onMounted(async () => {
             await loadBundle("web.chartjs_lib");
@@ -52,22 +44,23 @@ class WcLoadChartWidget extends Component {
         });
     }
 
-    get monthValue() {
-        return `${this.state.year}-${String(this.state.month).padStart(2, "0")}`;
-    }
-
     async _loadTags() {
         const tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
         this.state.tags = tags;
     }
 
     async _loadChart() {
+        if (!this.state.dateFrom || !this.state.dateTo) return;
         this.state.loading = true;
         try {
             const data = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_wc_chart_data",
-                [this.state.year, this.state.month, this.state.selectedTag ? parseInt(this.state.selectedTag) : null],
+                [
+                    this.state.dateFrom,
+                    this.state.dateTo,
+                    this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                ],
             );
             this.state.empty = data.labels.length === 0;
             if (!this.state.empty) {
@@ -125,12 +118,10 @@ class WcLoadChartWidget extends Component {
                             title: (items) => items[0].label,
                             label: (ctx) => {
                                 const i = ctx.dataIndex;
-                                const pending = data.pending_hours[i];
-                                const avail   = data.available_hours[i];
                                 return [
                                     `  Carga: ${ctx.raw}%`,
-                                    `  Pendiente: ${pending}h`,
-                                    `  Disponible: ${avail}h`,
+                                    `  Pendiente: ${data.pending_hours[i]}h`,
+                                    `  Disponible: ${data.available_hours[i]}h`,
                                 ];
                             },
                         },
@@ -161,15 +152,18 @@ class WcLoadChartWidget extends Component {
         });
     }
 
-    onTagChange(ev) {
-        this.state.selectedTag = ev.target.value;
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value;
         this._loadChart();
     }
 
-    onMonthChange(ev) {
-        const [year, month] = ev.target.value.split("-");
-        this.state.year  = parseInt(year);
-        this.state.month = parseInt(month);
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value;
+        this._loadChart();
+    }
+
+    onTagChange(ev) {
+        this.state.selectedTag = ev.target.value;
         this._loadChart();
     }
 }

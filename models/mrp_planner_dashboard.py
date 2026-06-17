@@ -111,7 +111,7 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
                 [('resolved', '=', False), ('severity', '=', 'critical')],
                 order='days_late desc, id desc',
-                limit=15,
+                limit=8,
             )
 
     @api.depends()
@@ -140,11 +140,11 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ] + no_sc, order='date_finished asc', limit=10)
+            ] + no_sc, order='date_finished asc', limit=4)
             rec.reschedule_mo_ids = MO.search([
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ] + no_sc, order='date_start asc', limit=10)
+            ] + no_sc, order='date_start asc', limit=4)
 
     @api.depends()
     def _compute_po_stats(self):
@@ -169,7 +169,7 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.overdue_po_ids = self.env['purchase.order'].search([
                 ('state', '=', 'purchase'),
                 ('date_planned', '<', now),
-            ], order='date_planned asc', limit=10)
+            ], order='date_planned asc', limit=6)
 
     @api.depends()
     def _compute_request_stats(self):
@@ -199,7 +199,7 @@ class MrpPlannerDashboard(models.TransientModel):
         for rec in self:
             rec.active_request_ids = self.env['mrp.production.request'].search([
                 ('state', 'in', ('calculated', 'confirmed')),
-            ], order='id desc', limit=15)
+            ], order='id desc', limit=6)
 
     # ── Apertura ─────────────────────────────────────────────────────────────
 

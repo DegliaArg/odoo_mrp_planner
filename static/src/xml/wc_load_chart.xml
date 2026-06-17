@@ -7,7 +7,6 @@
             <!-- Selectores -->
             <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
 
-                <!-- Desde -->
                 <div>
                     <label class="form-label fw-semibold small mb-1 d-block">Desde</label>
                     <input type="date" class="form-control form-control-sm"
@@ -15,7 +14,6 @@
                            t-on-change="onDateFromChange"/>
                 </div>
 
-                <!-- Hasta -->
                 <div>
                     <label class="form-label fw-semibold small mb-1 d-block">Hasta</label>
                     <input type="date" class="form-control form-control-sm"
@@ -23,7 +21,6 @@
                            t-on-change="onDateToChange"/>
                 </div>
 
-                <!-- Sector (solo si existen tags) -->
                 <div t-if="state.tags.length > 0">
                     <label class="form-label fw-semibold small mb-1 d-block">Sector</label>
                     <select class="form-select form-select-sm" style="min-width:180px"
@@ -37,21 +34,32 @@
 
             </div>
 
-            <!-- Spinner -->
-            <div t-if="state.loading" class="text-center py-5 text-muted">
-                <i class="fa fa-spinner fa-spin fa-2x"/>
-                <div class="mt-2 small">Cargando datos…</div>
-            </div>
-
-            <!-- Sin datos -->
-            <div t-elif="state.empty" class="text-center py-5 text-muted">
-                <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
-                <span class="small">Sin centros de trabajo con actividad para el período seleccionado.</span>
-            </div>
-
-            <!-- Canvas -->
-            <div t-else="" style="height:320px; position:relative;">
+            <!--
+                El canvas SIEMPRE está en el DOM para que canvasRef.el esté
+                disponible cuando Chart.js necesita renderizar.
+                El spinner y el mensaje de "sin datos" se superponen como overlays.
+            -->
+            <div class="position-relative" style="height:320px;">
                 <canvas t-ref="chartCanvas"/>
+
+                <!-- Spinner overlay -->
+                <div t-if="state.loading"
+                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                     style="background:rgba(255,255,255,0.80); z-index:10;">
+                    <div class="text-center text-muted">
+                        <i class="fa fa-spinner fa-spin fa-2x"/>
+                        <div class="mt-2 small">Cargando datos…</div>
+                    </div>
+                </div>
+
+                <!-- Sin datos overlay -->
+                <div t-if="!state.loading and state.empty"
+                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                    <div class="text-center">
+                        <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                        <span class="small">Sin centros de trabajo con actividad para el período seleccionado.</span>
+                    </div>
+                </div>
             </div>
 
         </div>

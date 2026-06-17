@@ -52,8 +52,10 @@ class WcLoadChartWidget extends Component {
     async _loadChart() {
         if (!this.state.dateFrom || !this.state.dateTo) return;
         this.state.loading = true;
+        this.state.empty   = false;
+        let chartData = null;
         try {
-            const data = await this.orm.call(
+            chartData = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_wc_chart_data",
                 [
@@ -62,21 +64,32 @@ class WcLoadChartWidget extends Component {
                     this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
                 ],
             );
-            this.state.empty = data.labels.length === 0;
-            if (!this.state.empty) {
-                this._renderChart(data);
-            } else if (this.chart) {
-                this.chart.destroy();
-                this.chart = null;
-            }
+            this.state.empty = !chartData.labels.length;
+        } catch (e) {
+            console.error("[WcLoadChart] Error al obtener datos:", e);
+            this.state.empty = true;
         } finally {
             this.state.loading = false;
+        }
+        // Canvas siempre está en el DOM — no hace falta esperar tick de OWL
+        if (chartData && !this.state.empty) {
+            this._renderChart(chartData);
+        } else if (this.chart) {
+            this.chart.destroy();
+            this.chart = null;
         }
     }
 
     _renderChart(data) {
         const canvas = this.canvasRef.el;
-        if (!canvas) return;
+        if (!canvas) {
+            console.warn("[WcLoadChart] Canvas no disponible");
+            return;
+        }
+        if (!window.Chart) {
+            console.error("[WcLoadChart] Chart.js no está cargado (window.Chart undefined)");
+            return;
+        }
 
         if (this.chart) {
             this.chart.destroy();

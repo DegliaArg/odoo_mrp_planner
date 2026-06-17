@@ -472,24 +472,25 @@ class MrpPlannerDashboard(models.TransientModel):
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):
         """Devuelve datos de carga por WC para el rango indicado.
 
-        Retorna 4 series por WC:
-          programado  = ejecutado + pendiente (total planificado)
-          ejecutado   = workorders done en el rango
-          pendiente   = workorders no terminados en el rango
-          tiempo_muerto = horas pasadas del rango sin workorder ejecutado
+        Bar 1 — Disponible: horas del calendario en el rango (referencia).
+        Bar 2 — Real apilada: ejecutado + pendiente + tiempo_muerto,
+                donde tiempo_muerto = max(0, disponible - ejecutado - pendiente).
+
+        El filtro usa overlap real: date_start <= date_to AND date_finished >= date_from.
+        Las horas de workorders que cruzan los límites del rango se calculan
+        proporcionalmente al solapamiento.
         """
         first_day = datetime.strptime(date_from, '%Y-%m-%d')
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
         days_in_range = (last_day - first_day).days + 1
-        now_dt = fields.Datetime.now()
 
         domain = [('active', '=', True)]
         if tag_id:
             domain.append(('tag_ids', 'in', int(tag_id)))
         workcenters = self.env['mrp.workcenter'].search(domain)
 
-        labels, available_list = [], []
-        programado_list, ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], [], []
+        labels, avail_list = [], []
+        ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
 
         def _avail_hours(calendar, dt_start, dt_end, efficiency):
             try:
@@ -509,51 +510,65 @@ class MrpPlannerDashboard(models.TransientModel):
                 span = (dt_end - dt_start).days + 1
                 return weekly * (span / 7.0) * (efficiency or 100.0) / 100.0
 
+        def _overlap_hours(wo, range_start, range_end):
+            """Horas del workorder que caen dentro del rango, proporcional al solapamiento."""
+            start = wo.date_start
+            end   = wo.date_finished
+            if not start:
+                return 0.0
+            ov_start = max(start, range_start)
+            ov_end   = min(end, range_end) if end else range_end
+            if ov_start >= ov_end:
+                return 0.0
+            if not end:
+                return (wo.duration_expected or 0.0) / 60.0
+            total_secs = (end - start).total_seconds()
+            if total_secs <= 0:
+                return (wo.duration_expected or 0.0) / 60.0
+            proportion = (ov_end - ov_start).total_seconds() / total_secs
+            return (wo.duration_expected or 0.0) / 60.0 * proportion
+
         for wc in workcenters:
             efficiency = wc.time_efficiency or 100.0
 
-            # Horas disponibles totales del rango
+            # Horas disponibles del calendario en el rango
             avail = 0.0
             if wc.resource_calendar_id:
                 avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
 
-            # Workorders en el rango (excluye canceladas)
+            # Workorders que solapan con el rango (overlap real)
             wos = self.env['mrp.workorder'].search([
                 ('workcenter_id', '=', wc.id),
                 ('state', 'not in', ('cancel',)),
-                ('date_start', '>=', fields.Datetime.to_string(first_day)),
+                ('date_start', '!=', False),
                 ('date_start', '<=', fields.Datetime.to_string(last_day)),
+                '|',
+                ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+                ('date_finished', '=', False),
             ])
-            done_wos    = wos.filtered(lambda w: w.state == 'done')
-            pending_wos = wos.filtered(lambda w: w.state not in ('done', 'cancel'))
 
-            ejecutado = sum((w.duration_expected or 0.0) / 60.0 for w in done_wos)
-            pendiente = sum((w.duration_expected or 0.0) / 60.0 for w in pending_wos)
-            programado = ejecutado + pendiente
+            ejecutado = sum(
+                _overlap_hours(w, first_day, last_day)
+                for w in wos if w.state == 'done'
+            )
+            pendiente = sum(
+                _overlap_hours(w, first_day, last_day)
+                for w in wos if w.state not in ('done', 'cancel')
+            )
+            tiempo_muerto = max(0.0, avail - ejecutado - pendiente)
 
-            # Tiempo muerto: horas pasadas del rango no cubiertas por workorders ejecutados
-            tiempo_muerto = 0.0
-            if wc.resource_calendar_id:
-                past_end = min(last_day, now_dt)
-                if past_end > first_day:
-                    past_avail = _avail_hours(wc.resource_calendar_id, first_day, past_end, efficiency)
-                    tiempo_muerto = max(0.0, past_avail - ejecutado)
-
-            # Solo incluir WCs con algún dato relevante
-            if programado == 0.0 and avail == 0.0:
+            if avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
                 continue
 
             labels.append(wc.name)
-            available_list.append(round(avail, 1))
-            programado_list.append(round(programado, 1))
+            avail_list.append(round(avail, 1))
             ejecutado_list.append(round(ejecutado, 1))
             pendiente_list.append(round(pendiente, 1))
             tiempo_muerto_list.append(round(tiempo_muerto, 1))
 
         return {
             'labels':          labels,
-            'available_hours': available_list,
-            'programado':      programado_list,
+            'available_hours': avail_list,
             'ejecutado':       ejecutado_list,
             'pendiente':       pendiente_list,
             'tiempo_muerto':   tiempo_muerto_list,

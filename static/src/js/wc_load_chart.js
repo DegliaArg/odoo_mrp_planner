@@ -91,15 +91,17 @@ class WcLoadChartWidget extends Component {
             data: {
                 labels: data.labels,
                 datasets: [
+                    // ── Bar 1: Disponible (capacidad de referencia) ──────────
                     {
-                        label: "Programado",
-                        data: data.programado,
-                        backgroundColor: "rgba(13,110,253,0.65)",
-                        borderColor: "rgba(13,110,253,1)",
+                        label: "Disponible",
+                        data: data.available_hours,
+                        backgroundColor: "rgba(108,117,125,0.18)",
+                        borderColor: "rgba(108,117,125,0.55)",
                         borderWidth: 1,
                         borderRadius: 3,
-                        stack: "programado",
+                        stack: "disponible",
                     },
+                    // ── Bar 2: Real apilada ──────────────────────────────────
                     {
                         label: "Ejecutado",
                         data: data.ejecutado,
@@ -120,7 +122,7 @@ class WcLoadChartWidget extends Component {
                         label: "Tiempo muerto",
                         data: data.tiempo_muerto,
                         backgroundColor: "rgba(190,190,190,0.40)",
-                        borderColor: "rgba(150,150,150,0.60)",
+                        borderColor: "rgba(140,140,140,0.55)",
                         borderWidth: 1,
                         stack: "real",
                     },
@@ -133,7 +135,7 @@ class WcLoadChartWidget extends Component {
                     legend: {
                         display: true,
                         position: "top",
-                        labels: { boxWidth: 14, padding: 16, font: { size: 12 } },
+                        labels: { boxWidth: 13, padding: 14, font: { size: 12 } },
                     },
                     tooltip: {
                         mode: "index",
@@ -146,7 +148,10 @@ class WcLoadChartWidget extends Component {
                             },
                             footer: (items) => {
                                 const i = items[0].dataIndex;
-                                return `  Disponible: ${data.available_hours[i]}h`;
+                                const avail = data.available_hours[i];
+                                const used  = data.ejecutado[i] + data.pendiente[i];
+                                const pct   = avail > 0 ? Math.round(used / avail * 100) : 0;
+                                return `  Ocupación: ${pct}%`;
                             },
                         },
                         padding: 10,

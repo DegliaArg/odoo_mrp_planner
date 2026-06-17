@@ -38,6 +38,8 @@ Características:
             'odoo_mrp_reschedule/static/src/css/reschedule_gantt.css',
             'odoo_mrp_reschedule/static/src/js/wc_load_chart.js',
             'odoo_mrp_reschedule/static/src/xml/wc_load_chart.xml',
+            'odoo_mrp_reschedule/static/src/js/mo_list_widget.js',
+            'odoo_mrp_reschedule/static/src/xml/mo_list_widget.xml',
         ],
     },
     'installable': True,

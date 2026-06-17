@@ -39,7 +39,6 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── OFs — contadores ─────────────────────────────────────────────────────
 
     mo_total             = fields.Integer(compute='_compute_mo_stats')
-    mo_confirmed         = fields.Integer(compute='_compute_mo_stats')
     mo_in_progress       = fields.Integer(compute='_compute_mo_stats')
     mo_done              = fields.Integer(compute='_compute_mo_stats')
     mo_delayed           = fields.Integer(compute='_compute_mo_stats')
@@ -54,13 +53,25 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── OCs — contadores ─────────────────────────────────────────────────────
 
+    po_rfq              = fields.Integer(compute='_compute_po_stats')
+    po_to_approve       = fields.Integer(compute='_compute_po_stats')
     po_total            = fields.Integer(compute='_compute_po_stats')
     po_pending          = fields.Integer(compute='_compute_po_stats')
     po_overdue          = fields.Integer(compute='_compute_po_stats')
     po_overdue_critical = fields.Integer(compute='_compute_po_stats')
 
-    # ── OCs — lista inline ───────────────────────────────────────────────────
+    # ── OCs — listas inline ──────────────────────────────────────────────────
 
+    rfq_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='Solicitudes de cotización',
+    )
+    to_approve_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='Por aprobar',
+    )
     overdue_po_ids = fields.Many2many(
         'purchase.order',
         compute='_compute_inline_pos',
@@ -122,7 +133,6 @@ class MrpPlannerDashboard(models.TransientModel):
         for rec in self:
             active = MO.search([('state', 'not in', ('done', 'cancel'))] + no_sc)
             rec.mo_total             = len(active)
-            rec.mo_confirmed         = len(active.filtered(lambda m: m.state == 'confirmed'))
             rec.mo_in_progress       = len(active.filtered(lambda m: m.state in ('progress', 'to_close')))
             rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc)
             rec.mo_delayed           = len(active.filtered(
@@ -151,7 +161,10 @@ class MrpPlannerDashboard(models.TransientModel):
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
         for rec in self:
-            active = PO.search([('state', '=', 'purchase')])
+            rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))])
+            rec.po_to_approve = PO.search_count([('state', '=', 'to approve')])
+            # Approved, not fully received
+            active = PO.search([('state', '=', 'purchase'), ('receipt_status', '!=', 'full')])
             overdue = active.filtered(lambda p: p.date_planned and p.date_planned < now)
             rec.po_total            = len(active)
             rec.po_pending          = len(active.filtered(
@@ -164,12 +177,20 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_inline_pos(self):
+        PO = self.env['purchase.order']
         now = fields.Datetime.now()
         for rec in self:
-            rec.overdue_po_ids = self.env['purchase.order'].search([
+            rec.rfq_ids = PO.search([
+                ('state', 'in', ('draft', 'sent')),
+            ], order='date_planned asc', limit=4)
+            rec.to_approve_ids = PO.search([
+                ('state', '=', 'to approve'),
+            ], order='date_planned asc', limit=3)
+            rec.overdue_po_ids = PO.search([
                 ('state', '=', 'purchase'),
                 ('date_planned', '<', now),
-            ], order='date_planned asc', limit=6)
+                ('receipt_status', '!=', 'full'),
+            ], order='date_planned asc', limit=5)
 
     @api.depends()
     def _compute_request_stats(self):
@@ -332,13 +353,6 @@ class MrpPlannerDashboard(models.TransientModel):
             _('OFs activas'),
         )
 
-    def action_view_confirmed_mos(self):
-        no_sc = no_subcontract_domain(self.env)
-        return self._open_mos(
-            [('state', '=', 'confirmed')] + no_sc,
-            _('OFs confirmadas'),
-        )
-
     def action_view_in_progress_mos(self):
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
@@ -388,6 +402,26 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── Navegación — OCs ─────────────────────────────────────────────────────
 
+    def action_view_rfqs(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Solicitudes de cotización'),
+            'res_model': 'purchase.order',
+            'view_mode': 'list,form',
+            'domain': [('state', 'in', ('draft', 'sent'))],
+            'target': 'current',
+        }
+
+    def action_view_to_approve(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Por aprobar'),
+            'res_model': 'purchase.order',
+            'view_mode': 'list,form',
+            'domain': [('state', '=', 'to approve')],
+            'target': 'current',
+        }
+
     def action_view_pending_pos(self):
         now = fields.Datetime.now()
         return {
@@ -395,7 +429,11 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('OCs a tiempo'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase'), ('date_planned', '>=', now)],
+            'domain': [
+                ('state', '=', 'purchase'),
+                ('date_planned', '>=', now),
+                ('receipt_status', '!=', 'full'),
+            ],
             'target': 'current',
         }
 
@@ -406,7 +444,11 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('OCs vencidas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase'), ('date_planned', '<', now)],
+            'domain': [
+                ('state', '=', 'purchase'),
+                ('date_planned', '<', now),
+                ('receipt_status', '!=', 'full'),
+            ],
             'target': 'current',
         }
 
@@ -416,7 +458,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('Órdenes de compra activas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase')],
+            'domain': [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')],
             'target': 'current',
         }
 
@@ -573,6 +615,50 @@ class MrpPlannerDashboard(models.TransientModel):
             'pendiente':       pendiente_list,
             'tiempo_muerto':   tiempo_muerto_list,
         }
+
+    # ── Widget OFs filtrable ─────────────────────────────────────────────────
+
+    @api.model
+    def get_filtered_mos(self, date_from, date_to, tag_id=None):
+        """OFs activas (sin subcontratación) que solapan con el rango, filtradas por sector."""
+        first_day = datetime.strptime(date_from, '%Y-%m-%d')
+        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+
+        no_sc = no_subcontract_domain(self.env)
+        domain = [
+            ('state', 'not in', ('done', 'cancel')),
+            ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            '|',
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '=', False),
+        ] + no_sc
+
+        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
+
+        if tag_id:
+            tag_id = int(tag_id)
+            mos = mos.filtered(
+                lambda m: any(
+                    tag_id in w.workcenter_id.tag_ids.ids
+                    for w in m.workorder_ids
+                    if w.workcenter_id
+                )
+            )
+
+        now = fields.Datetime.now()
+        result = []
+        for mo in mos:
+            result.append({
+                'id':            mo.id,
+                'name':          mo.name,
+                'product':       mo.product_id.display_name if mo.product_id else '',
+                'qty':           mo.product_qty,
+                'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
+                'state':         mo.state,
+                'delayed':       bool(mo.date_finished and mo.date_finished < now),
+                'reschedule':    bool(mo.x_reschedule_needed),
+            })
+        return result
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────
 

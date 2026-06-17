@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_reschedule.MoListWidget">
+        <div class="o_mo_list_widget p-2">
+
+            <!-- Filtros -->
+            <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+                <div>
+                    <label class="form-label fw-semibold small mb-1 d-block">Desde</label>
+                    <input type="date" class="form-control form-control-sm"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                </div>
+                <div>
+                    <label class="form-label fw-semibold small mb-1 d-block">Hasta</label>
+                    <input type="date" class="form-control form-control-sm"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                </div>
+                <div t-if="state.tags.length > 0">
+                    <label class="form-label fw-semibold small mb-1 d-block">Sector</label>
+                    <select class="form-select form-select-sm" style="min-width:180px"
+                            t-on-change="onTagChange">
+                        <option value="">Todos los sectores</option>
+                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                            <option t-att-value="tag.id" t-esc="tag.name"/>
+                        </t>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Spinner -->
+            <div t-if="state.loading"
+                 class="d-flex align-items-center justify-content-center py-4 text-muted">
+                <i class="fa fa-spinner fa-spin me-2"/>
+                <span class="small">Cargando…</span>
+            </div>
+
+            <!-- Sin datos -->
+            <div t-elif="state.mos.length === 0"
+                 class="d-flex align-items-center justify-content-center py-4 text-muted">
+                <div class="text-center small">
+                    <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
+                    Sin órdenes activas para el período seleccionado.
+                </div>
+            </div>
+
+            <!-- Tabla -->
+            <table t-else="" class="table table-sm table-hover small mb-0">
+                <thead>
+                    <tr class="text-muted">
+                        <th>OF</th>
+                        <th>Producto</th>
+                        <th class="text-end">Cant.</th>
+                        <th>Fin planificado</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="state.mos" t-as="mo" t-key="mo.id">
+                        <tr t-att-class="mo.delayed ? 'table-danger' : (mo.reschedule ? 'table-warning' : '')"
+                            style="cursor:pointer"
+                            t-on-click="() => this.openMo(mo.id)">
+                            <td class="fw-semibold" t-esc="mo.name"/>
+                            <td t-esc="mo.product"/>
+                            <td class="text-end" t-esc="mo.qty"/>
+                            <td t-esc="mo.date_finished"/>
+                            <td>
+                                <span t-att-class="stateClass(mo.state)" t-esc="stateLabel(mo.state)"/>
+                                <i t-if="mo.delayed"    class="fa fa-warning text-danger ms-1"  title="Atrasada"/>
+                                <i t-if="mo.reschedule" class="fa fa-refresh text-warning ms-1" title="Reprogramar"/>
+                            </td>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+
+        </div>
+    </t>
+
+</templates>

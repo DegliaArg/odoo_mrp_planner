@@ -177,19 +177,10 @@
                                                     <div class="o_planner_number"><field name="mo_total" nolabel="1"/></div>
                                                     <div class="o_planner_label">Activas</div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-check-square-o fa-lg text-secondary mb-2 d-block"/>
-                                                    <div class="o_planner_number"><field name="mo_confirmed" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Confirmadas</div>
-                                                </div>
                                                 <div class="card-footer p-0">
-                                                    <button name="action_view_confirmed_mos" type="object"
+                                                    <button name="action_view_all_mos" type="object"
                                                             class="btn btn-sm btn-link w-100 py-1 text-secondary"
-                                                            string="Ver →" invisible="mo_confirmed == 0"/>
+                                                            string="Ver →" invisible="mo_total == 0"/>
                                                 </div>
                                             </div>
                                         </div>
@@ -252,54 +243,9 @@
                                     </div>
                                 </div>
 
-                                <!-- Derecha: listas inline -->
+                                <!-- Derecha: lista filtrable por fecha y sector -->
                                 <div class="col-12 col-lg-8">
-                                    <div invisible="not delayed_mo_ids">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="text-danger fw-semibold small">
-                                                <i class="fa fa-warning me-1"/>OFs atrasadas
-                                            </span>
-                                            <button name="action_view_delayed_mos" type="object"
-                                                    string="Ver todas →"
-                                                    class="btn btn-sm btn-link text-danger p-0"/>
-                                        </div>
-                                        <field name="delayed_mo_ids" nolabel="1" readonly="1">
-                                            <list create="0" delete="0" edit="0"
-                                                  decoration-danger="True">
-                                                <field name="name"          string="OF"              readonly="1"/>
-                                                <field name="product_id"    string="Producto"        readonly="1"/>
-                                                <field name="product_qty"   string="Cantidad"        readonly="1" optional="show"/>
-                                                <field name="date_finished" string="Fin planificado" readonly="1"/>
-                                                <field name="state"         string="Estado"          readonly="1"
-                                                       widget="badge"
-                                                       decoration-info="state == 'confirmed'"
-                                                       decoration-warning="state in ('progress','to_close')"/>
-                                            </list>
-                                        </field>
-                                    </div>
-                                    <div class="mt-3" invisible="not reschedule_mo_ids">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="text-warning fw-semibold small">
-                                                <i class="fa fa-refresh me-1"/>Para reprogramar
-                                            </span>
-                                            <button name="action_view_reschedule_needed" type="object"
-                                                    string="Ver todas →"
-                                                    class="btn btn-sm btn-link text-warning p-0"/>
-                                        </div>
-                                        <field name="reschedule_mo_ids" nolabel="1" readonly="1">
-                                            <list create="0" delete="0" edit="0"
-                                                  decoration-warning="True">
-                                                <field name="name"          string="OF"       readonly="1"/>
-                                                <field name="product_id"    string="Producto" readonly="1"/>
-                                                <field name="date_start"    string="Inicio"   readonly="1" optional="show"/>
-                                                <field name="date_finished" string="Fin"      readonly="1"/>
-                                                <field name="state"         string="Estado"   readonly="1"
-                                                       widget="badge"
-                                                       decoration-info="state == 'confirmed'"
-                                                       decoration-warning="state in ('progress','to_close')"/>
-                                            </list>
-                                        </field>
-                                    </div>
+                                    <widget name="mo_list_widget"/>
                                 </div>
 
                             </div>
@@ -323,7 +269,7 @@
                                 <i class="fa fa-shopping-cart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de compra</span>
                                 <button name="action_view_all_pos" type="object"
-                                        string="Ver todas →"
+                                        string="Ver aprobadas →"
                                         class="btn btn-sm btn-link text-muted ms-2"
                                         invisible="po_total == 0"/>
                             </div>
@@ -333,11 +279,44 @@
                                 <div class="col-12 col-lg-4">
                                     <div class="row g-2">
                                         <div class="col-6">
+                                            <div class="card o_planner_card o_planner_card_info h-100">
+                                                <div class="card-body text-center py-3">
+                                                    <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
+                                                    <div class="o_planner_number text-info"><field name="po_rfq" nolabel="1"/></div>
+                                                    <div class="o_planner_label">Cotizaciones</div>
+                                                </div>
+                                                <div class="card-footer p-0">
+                                                    <button name="action_view_rfqs" type="object"
+                                                            class="btn btn-sm btn-link w-100 py-1 text-info"
+                                                            string="Ver →" invisible="po_rfq == 0"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="card o_planner_card o_planner_card_warning h-100">
+                                                <div class="card-body text-center py-3">
+                                                    <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
+                                                    <div class="o_planner_number text-warning"><field name="po_to_approve" nolabel="1"/></div>
+                                                    <div class="o_planner_label">Por aprobar</div>
+                                                </div>
+                                                <div class="card-footer p-0">
+                                                    <button name="action_view_to_approve" type="object"
+                                                            class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                                            string="Ver →" invisible="po_to_approve == 0"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
                                             <div class="card o_planner_card h-100">
                                                 <div class="card-body text-center py-3">
                                                     <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                                     <div class="o_planner_number"><field name="po_total" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Total activas</div>
+                                                    <div class="o_planner_label">Aprobadas</div>
+                                                </div>
+                                                <div class="card-footer p-0">
+                                                    <button name="action_view_all_pos" type="object"
+                                                            class="btn btn-sm btn-link w-100 py-1 text-secondary"
+                                                            string="Ver →" invisible="po_total == 0"/>
                                                 </div>
                                             </div>
                                         </div>
@@ -386,9 +365,52 @@
                                     </div>
                                 </div>
 
-                                <!-- Derecha: lista inline -->
+                                <!-- Derecha: listas inline -->
                                 <div class="col-12 col-lg-8">
-                                    <div invisible="not overdue_po_ids">
+
+                                    <!-- Solicitudes de cotización -->
+                                    <div invisible="not rfq_ids">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="text-info fw-semibold small">
+                                                <i class="fa fa-file-text-o me-1"/>Solicitudes de cotización
+                                            </span>
+                                            <button name="action_view_rfqs" type="object"
+                                                    string="Ver todas →"
+                                                    class="btn btn-sm btn-link text-info p-0"/>
+                                        </div>
+                                        <field name="rfq_ids" nolabel="1" readonly="1">
+                                            <list create="0" delete="0" edit="0">
+                                                <field name="name"         string="Referencia"       readonly="1"/>
+                                                <field name="partner_id"   string="Proveedor"        readonly="1"/>
+                                                <field name="date_planned" string="Entrega estimada" readonly="1"/>
+                                                <field name="amount_total" string="Total"            readonly="1" optional="show"/>
+                                            </list>
+                                        </field>
+                                    </div>
+
+                                    <!-- Por aprobar -->
+                                    <div class="mt-3" invisible="not to_approve_ids">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="text-warning fw-semibold small">
+                                                <i class="fa fa-clock-o me-1"/>Por aprobar
+                                            </span>
+                                            <button name="action_view_to_approve" type="object"
+                                                    string="Ver todas →"
+                                                    class="btn btn-sm btn-link text-warning p-0"/>
+                                        </div>
+                                        <field name="to_approve_ids" nolabel="1" readonly="1">
+                                            <list create="0" delete="0" edit="0"
+                                                  decoration-warning="True">
+                                                <field name="name"         string="Referencia"       readonly="1"/>
+                                                <field name="partner_id"   string="Proveedor"        readonly="1"/>
+                                                <field name="date_planned" string="Entrega estimada" readonly="1"/>
+                                                <field name="amount_total" string="Total"            readonly="1" optional="show"/>
+                                            </list>
+                                        </field>
+                                    </div>
+
+                                    <!-- OCs vencidas -->
+                                    <div class="mt-3" invisible="not overdue_po_ids">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="text-danger fw-semibold small">
                                                 <i class="fa fa-exclamation-triangle me-1"/>OCs vencidas
@@ -407,6 +429,7 @@
                                             </list>
                                         </field>
                                     </div>
+
                                 </div>
 
                             </div>

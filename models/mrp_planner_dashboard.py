@@ -8,34 +8,77 @@ class MrpPlannerDashboard(models.TransientModel):
 
     name = fields.Char(default='Panel del Planificador')
 
-    # ── Alertas ──────────────────────────────────────────────────────────────
+    # ── Alertas — contadores ─────────────────────────────────────────────────
 
-    alert_total           = fields.Integer(compute='_compute_alert_stats', string='Total alertas')
-    alert_critical        = fields.Integer(compute='_compute_alert_stats', string='Críticas')
-    alert_warning         = fields.Integer(compute='_compute_alert_stats', string='Avisos')
-    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats', string='OFs atrasadas')
-    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats', string='OCs vencidas')
-    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats', string='OCs canceladas')
-    alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats', string='Recepciones demoradas')
-    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats', string='Cant. diferentes')
-    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats', string='OFs canceladas')
+    alert_total           = fields.Integer(compute='_compute_alert_stats')
+    alert_critical        = fields.Integer(compute='_compute_alert_stats')
+    alert_warning         = fields.Integer(compute='_compute_alert_stats')
+    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats')
+    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats')
+    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats')
+    alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats')
+    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats')
+    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats')
 
-    # ── Órdenes de fabricación ───────────────────────────────────────────────
+    # ── Alertas — lista inline ───────────────────────────────────────────────
 
-    mo_confirmed          = fields.Integer(compute='_compute_mo_stats', string='Confirmadas')
-    mo_in_progress        = fields.Integer(compute='_compute_mo_stats', string='En progreso')
-    mo_delayed            = fields.Integer(compute='_compute_mo_stats', string='Atrasadas')
-    mo_reschedule_needed  = fields.Integer(compute='_compute_mo_stats', string='Para reprogramar')
+    urgent_alert_ids = fields.Many2many(
+        'mrp.reschedule.alert',
+        compute='_compute_inline_alerts',
+        string='Alertas críticas',
+    )
 
-    # ── Órdenes de compra ────────────────────────────────────────────────────
+    # ── OFs — contadores ─────────────────────────────────────────────────────
 
-    po_pending = fields.Integer(compute='_compute_po_stats', string='OCs activas')
-    po_overdue = fields.Integer(compute='_compute_po_stats', string='OCs vencidas')
+    mo_total             = fields.Integer(compute='_compute_mo_stats')
+    mo_confirmed         = fields.Integer(compute='_compute_mo_stats')
+    mo_in_progress       = fields.Integer(compute='_compute_mo_stats')
+    mo_done              = fields.Integer(compute='_compute_mo_stats')
+    mo_delayed           = fields.Integer(compute='_compute_mo_stats')
+    mo_reschedule_needed = fields.Integer(compute='_compute_mo_stats')
 
-    # ── Programaciones ───────────────────────────────────────────────────────
+    # ── OFs — listas inline ──────────────────────────────────────────────────
 
-    request_active            = fields.Integer(compute='_compute_request_stats', string='En curso')
-    request_reschedule_needed = fields.Integer(compute='_compute_request_stats', string='Con reprogramación')
+    delayed_mo_ids    = fields.Many2many('mrp.production', compute='_compute_inline_mos',
+                                         string='OFs atrasadas')
+    reschedule_mo_ids = fields.Many2many('mrp.production', compute='_compute_inline_mos',
+                                         string='OFs para reprogramar')
+
+    # ── OCs — contadores ─────────────────────────────────────────────────────
+
+    po_total            = fields.Integer(compute='_compute_po_stats')
+    po_pending          = fields.Integer(compute='_compute_po_stats')
+    po_overdue          = fields.Integer(compute='_compute_po_stats')
+    po_overdue_critical = fields.Integer(compute='_compute_po_stats')
+
+    # ── OCs — lista inline ───────────────────────────────────────────────────
+
+    overdue_po_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='OCs vencidas',
+    )
+
+    # ── Programaciones — contadores ──────────────────────────────────────────
+
+    request_active            = fields.Integer(compute='_compute_request_stats')
+    request_calculated        = fields.Integer(compute='_compute_request_stats')
+    request_reschedule_needed = fields.Integer(compute='_compute_request_stats')
+    req_mos_total             = fields.Integer(compute='_compute_request_stats')
+    req_mos_delayed           = fields.Integer(compute='_compute_request_stats')
+    req_mos_done              = fields.Integer(compute='_compute_request_stats')
+
+    # ── Programaciones — lista inline ────────────────────────────────────────
+
+    active_request_ids = fields.Many2many(
+        'mrp.production.request',
+        compute='_compute_inline_requests',
+        string='Programaciones activas',
+    )
+
+    # ── Carga WC ─────────────────────────────────────────────────────────────
+
+    wc_load_ids = fields.One2many('mrp.planner.wc.load', 'dashboard_id', string='Carga WC')
 
     # ── Cómputos ─────────────────────────────────────────────────────────────
 
@@ -55,49 +98,107 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.alert_mo_cancelled    = Alert.search_count(base + [('alert_type', '=', 'mo_cancelled')])
 
     @api.depends()
+    def _compute_inline_alerts(self):
+        for rec in self:
+            rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
+                [('resolved', '=', False), ('severity', '=', 'critical')],
+                order='days_late desc, id desc',
+                limit=15,
+            )
+
+    @api.depends()
     def _compute_mo_stats(self):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
         for rec in self:
-            rec.mo_confirmed        = MO.search_count([('state', '=', 'confirmed')] + no_sc)
-            rec.mo_in_progress      = MO.search_count([('state', 'in', ('progress', 'to_close'))] + no_sc)
-            rec.mo_delayed          = MO.search_count([
+            active = MO.search([('state', 'not in', ('done', 'cancel'))] + no_sc)
+            rec.mo_total             = len(active)
+            rec.mo_confirmed         = len(active.filtered(lambda m: m.state == 'confirmed'))
+            rec.mo_in_progress       = len(active.filtered(lambda m: m.state in ('progress', 'to_close')))
+            rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc)
+            rec.mo_delayed           = len(active.filtered(
+                lambda m: m.date_finished and m.date_finished < now
+            ))
+            rec.mo_reschedule_needed = len(active.filtered(lambda m: m.x_reschedule_needed))
+
+    @api.depends()
+    def _compute_inline_mos(self):
+        MO = self.env['mrp.production']
+        now = fields.Datetime.now()
+        no_sc = no_subcontract_domain(self.env)
+        for rec in self:
+            rec.delayed_mo_ids = MO.search([
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ] + no_sc)
-            rec.mo_reschedule_needed = MO.search_count([
+            ] + no_sc, order='date_finished asc', limit=10)
+            rec.reschedule_mo_ids = MO.search([
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ] + no_sc)
+            ] + no_sc, order='date_start asc', limit=10)
 
     @api.depends()
     def _compute_po_stats(self):
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
         for rec in self:
-            rec.po_pending = PO.search_count([('state', '=', 'purchase'), ('date_planned', '>=', now)])
-            rec.po_overdue = PO.search_count([('state', '=', 'purchase'), ('date_planned', '<', now)])
+            active = PO.search([('state', '=', 'purchase')])
+            overdue = active.filtered(lambda p: p.date_planned and p.date_planned < now)
+            rec.po_total            = len(active)
+            rec.po_pending          = len(active.filtered(
+                lambda p: not p.date_planned or p.date_planned >= now
+            ))
+            rec.po_overdue          = len(overdue)
+            rec.po_overdue_critical = len(overdue.filtered(
+                lambda p: (now - p.date_planned).days >= 5
+            ))
+
+    @api.depends()
+    def _compute_inline_pos(self):
+        now = fields.Datetime.now()
+        for rec in self:
+            rec.overdue_po_ids = self.env['purchase.order'].search([
+                ('state', '=', 'purchase'),
+                ('date_planned', '<', now),
+            ], order='date_planned asc', limit=10)
 
     @api.depends()
     def _compute_request_stats(self):
         Req = self.env['mrp.production.request']
+        now = fields.Datetime.now()
         for rec in self:
-            active = Req.search([('state', '=', 'confirmed')])
-            rec.request_active = len(active)
-            rec.request_reschedule_needed = len(active.filtered(
+            confirmed = Req.search([('state', '=', 'confirmed')])
+            calculated = Req.search([('state', '=', 'calculated')])
+            all_mos = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
+            rec.request_active     = len(confirmed)
+            rec.request_calculated = len(calculated)
+            rec.request_reschedule_needed = len(confirmed.filtered(
                 lambda r: any(
                     it.production_id and it.production_id.x_reschedule_needed
                     for it in r.item_ids
                 )
             ))
+            rec.req_mos_total   = len(all_mos)
+            rec.req_mos_done    = len(all_mos.filtered(lambda m: m.state == 'done'))
+            rec.req_mos_delayed = len(all_mos.filtered(
+                lambda m: m.state not in ('done', 'cancel')
+                and m.date_finished and m.date_finished < now
+            ))
+
+    @api.depends()
+    def _compute_inline_requests(self):
+        for rec in self:
+            rec.active_request_ids = self.env['mrp.production.request'].search([
+                ('state', 'in', ('calculated', 'confirmed')),
+            ], order='id desc', limit=15)
 
     # ── Apertura ─────────────────────────────────────────────────────────────
 
     @api.model
     def action_open(self):
         rec = self.create({})
+        rec._populate_wc_load()
         return {
             'type': 'ir.actions.act_window',
             'name': _('Panel del planificador'),
@@ -111,6 +212,58 @@ class MrpPlannerDashboard(models.TransientModel):
     def action_refresh(self):
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()
+
+    def _populate_wc_load(self):
+        no_sc = no_subcontract_domain(self.env)
+        active_mos = self.env['mrp.production'].search(
+            [('state', 'not in', ('done', 'cancel'))] + no_sc
+        )
+        wc_data = {}
+        pending_wos = active_mos.mapped('workorder_ids').filtered(
+            lambda w: w.state not in ('done', 'cancel') and w.workcenter_id
+        )
+        for wo in pending_wos:
+            wc_id = wo.workcenter_id.id
+            if wc_id not in wc_data:
+                wc_data[wc_id] = {
+                    'wc': wo.workcenter_id,
+                    'mo_ids': set(),
+                    'hours': 0.0,
+                }
+            wc_data[wc_id]['mo_ids'].add(wo.production_id.id)
+            wc_data[wc_id]['hours'] += (wo.duration_expected or 0.0) / 60.0
+
+        vals_list = [
+            {
+                'dashboard_id': self.id,
+                'workcenter_id': data['wc'].id,
+                'mo_count': len(data['mo_ids']),
+                'pending_hours': round(data['hours'], 1),
+            }
+            for data in sorted(wc_data.values(), key=lambda x: x['hours'], reverse=True)[:15]
+        ]
+        if vals_list:
+            self.env['mrp.planner.wc.load'].create(vals_list)
+
+    # ── Accesos rápidos ──────────────────────────────────────────────────────
+
+    def action_new_request(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Nueva programación'),
+            'res_model': 'mrp.production.request',
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_new_plan(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Nuevo plan de reprogramación'),
+            'res_model': 'mrp.reschedule.plan',
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     # ── Navegación — alertas ─────────────────────────────────────────────────
 
@@ -154,51 +307,74 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── Navegación — OFs ─────────────────────────────────────────────────────
 
-    def action_view_confirmed_mos(self):
+    def _open_mos(self, domain, name):
         return {
             'type': 'ir.actions.act_window',
-            'name': _('OFs confirmadas'),
+            'name': name,
             'res_model': 'mrp.production',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'confirmed')] + no_subcontract_domain(self.env),
+            'domain': domain,
             'target': 'current',
         }
 
+    def action_view_all_mos(self):
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [('state', 'not in', ('done', 'cancel'))] + no_sc,
+            _('OFs activas'),
+        )
+
+    def action_view_confirmed_mos(self):
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [('state', '=', 'confirmed')] + no_sc,
+            _('OFs confirmadas'),
+        )
+
     def action_view_in_progress_mos(self):
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('OFs en progreso'),
-            'res_model': 'mrp.production',
-            'view_mode': 'list,form',
-            'domain': [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env),
-            'target': 'current',
-        }
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [('state', 'in', ('progress', 'to_close'))] + no_sc,
+            _('OFs en progreso'),
+        )
 
     def action_view_delayed_mos(self):
         now = fields.Datetime.now()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('OFs atrasadas'),
-            'res_model': 'mrp.production',
-            'view_mode': 'list,form',
-            'domain': [
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ] + no_subcontract_domain(self.env),
-            'target': 'current',
-        }
+            ] + no_sc,
+            _('OFs atrasadas'),
+        )
 
     def action_view_reschedule_needed(self):
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('OFs para reprogramar'),
-            'res_model': 'mrp.production',
-            'view_mode': 'list,form',
-            'domain': [
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ] + no_subcontract_domain(self.env),
+            ] + no_sc,
+            _('OFs para reprogramar'),
+        )
+
+    def action_view_done_mos(self):
+        no_sc = no_subcontract_domain(self.env)
+        return self._open_mos(
+            [('state', '=', 'done')] + no_sc,
+            _('OFs completadas'),
+        )
+
+    def action_view_wc_load(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Carga de centros de trabajo'),
+            'res_model': 'mrp.workorder',
+            'view_mode': 'list,form',
+            'domain': [('state', 'not in', ('done', 'cancel'))],
+            'context': {'group_by': ['workcenter_id']},
             'target': 'current',
         }
 
@@ -208,7 +384,7 @@ class MrpPlannerDashboard(models.TransientModel):
         now = fields.Datetime.now()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('OCs activas'),
+            'name': _('OCs a tiempo'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
             'domain': [('state', '=', 'purchase'), ('date_planned', '>=', now)],
@@ -226,15 +402,35 @@ class MrpPlannerDashboard(models.TransientModel):
             'target': 'current',
         }
 
+    def action_view_all_pos(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Órdenes de compra activas'),
+            'res_model': 'purchase.order',
+            'view_mode': 'list,form',
+            'domain': [('state', '=', 'purchase')],
+            'target': 'current',
+        }
+
     # ── Navegación — Programaciones ──────────────────────────────────────────
 
     def action_view_active_requests(self):
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Programaciones en curso'),
+            'name': _('Programaciones con OFs creadas'),
             'res_model': 'mrp.production.request',
             'view_mode': 'list,form',
             'domain': [('state', '=', 'confirmed')],
+            'target': 'current',
+        }
+
+    def action_view_calculated_requests(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Programaciones calculadas'),
+            'res_model': 'mrp.production.request',
+            'view_mode': 'list,form',
+            'domain': [('state', '=', 'calculated')],
             'target': 'current',
         }
 
@@ -251,7 +447,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'target': 'current',
         }
 
-    # ── Apertura de paneles secundarios ──────────────────────────────────────
+    # ── Backwards compat (paneles de detalle) ─────────────────────────────────
 
     def action_open_mos_dashboard(self):
         return self.env['mrp.planner.detail.dashboard'].action_open_for_category('mos')
@@ -261,3 +457,14 @@ class MrpPlannerDashboard(models.TransientModel):
 
     def action_open_requests_dashboard(self):
         return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')
+
+
+class MrpPlannerWcLoad(models.TransientModel):
+    _name = 'mrp.planner.wc.load'
+    _description = 'Carga de centro de trabajo en el panel'
+    _order = 'pending_hours desc'
+
+    dashboard_id  = fields.Many2one('mrp.planner.dashboard', ondelete='cascade')
+    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
+    mo_count      = fields.Integer(string='OFs activas')
+    pending_hours = fields.Float(string='Horas pendientes', digits=(10, 1))

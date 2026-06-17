@@ -470,56 +470,93 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):
-        """Devuelve horas pendientes y disponibles por WC para el rango indicado."""
+        """Devuelve datos de carga por WC para el rango indicado.
+
+        Retorna 4 series por WC:
+          programado  = ejecutado + pendiente (total planificado)
+          ejecutado   = workorders done en el rango
+          pendiente   = workorders no terminados en el rango
+          tiempo_muerto = horas pasadas del rango sin workorder ejecutado
+        """
         first_day = datetime.strptime(date_from, '%Y-%m-%d')
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
         days_in_range = (last_day - first_day).days + 1
+        now_dt = fields.Datetime.now()
 
         domain = [('active', '=', True)]
         if tag_id:
             domain.append(('tag_ids', 'in', int(tag_id)))
         workcenters = self.env['mrp.workcenter'].search(domain)
 
-        labels, pending_list, available_list = [], [], []
+        labels, available_list = [], []
+        programado_list, ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], [], []
+
+        def _avail_hours(calendar, dt_start, dt_end, efficiency):
+            try:
+                h = calendar.get_work_hours_count(
+                    dt_start.replace(tzinfo=pytz.UTC),
+                    dt_end.replace(tzinfo=pytz.UTC),
+                    compute_leaves=False,
+                )
+                return h * (efficiency or 100.0) / 100.0
+            except Exception as e:
+                _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
+                weekly = sum(
+                    a.hour_to - a.hour_from
+                    for a in calendar.attendance_ids
+                    if not a.date_from and not a.date_to
+                )
+                span = (dt_end - dt_start).days + 1
+                return weekly * (span / 7.0) * (efficiency or 100.0) / 100.0
 
         for wc in workcenters:
-            # ── Horas disponibles del calendario ─────────────────────────────
+            efficiency = wc.time_efficiency or 100.0
+
+            # Horas disponibles totales del rango
             avail = 0.0
             if wc.resource_calendar_id:
-                try:
-                    dt_start = first_day.replace(tzinfo=pytz.UTC)
-                    dt_end   = last_day.replace(tzinfo=pytz.UTC)
-                    avail = wc.resource_calendar_id.get_work_hours_count(
-                        dt_start, dt_end, compute_leaves=False,
-                    )
-                    avail *= (wc.time_efficiency or 100.0) / 100.0
-                except Exception as e:
-                    _logger.debug("WC chart: error calculando horas disponibles para %s: %s", wc.name, e)
-                    # Fallback: suma de asistencias regulares × semanas del rango
-                    weekly = sum(
-                        a.hour_to - a.hour_from
-                        for a in wc.resource_calendar_id.attendance_ids
-                        if not a.date_from and not a.date_to
-                    )
-                    avail = weekly * (days_in_range / 7.0) * (wc.time_efficiency or 100.0) / 100.0
+                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
 
-            # ── Horas pendientes de workorders en el rango ────────────────────
-            workorders = self.env['mrp.workorder'].search([
+            # Workorders en el rango (excluye canceladas)
+            wos = self.env['mrp.workorder'].search([
                 ('workcenter_id', '=', wc.id),
-                ('state', 'not in', ('done', 'cancel')),
+                ('state', 'not in', ('cancel',)),
                 ('date_start', '>=', fields.Datetime.to_string(first_day)),
                 ('date_start', '<=', fields.Datetime.to_string(last_day)),
             ])
-            pending = sum((wo.duration_expected or 0.0) / 60.0 for wo in workorders)
+            done_wos    = wos.filtered(lambda w: w.state == 'done')
+            pending_wos = wos.filtered(lambda w: w.state not in ('done', 'cancel'))
+
+            ejecutado = sum((w.duration_expected or 0.0) / 60.0 for w in done_wos)
+            pendiente = sum((w.duration_expected or 0.0) / 60.0 for w in pending_wos)
+            programado = ejecutado + pendiente
+
+            # Tiempo muerto: horas pasadas del rango no cubiertas por workorders ejecutados
+            tiempo_muerto = 0.0
+            if wc.resource_calendar_id:
+                past_end = min(last_day, now_dt)
+                if past_end > first_day:
+                    past_avail = _avail_hours(wc.resource_calendar_id, first_day, past_end, efficiency)
+                    tiempo_muerto = max(0.0, past_avail - ejecutado)
+
+            # Solo incluir WCs con algún dato relevante
+            if programado == 0.0 and avail == 0.0:
+                continue
 
             labels.append(wc.name)
-            pending_list.append(round(pending, 1))
             available_list.append(round(avail, 1))
+            programado_list.append(round(programado, 1))
+            ejecutado_list.append(round(ejecutado, 1))
+            pendiente_list.append(round(pendiente, 1))
+            tiempo_muerto_list.append(round(tiempo_muerto, 1))
 
         return {
             'labels':          labels,
-            'pending_hours':   pending_list,
             'available_hours': available_list,
+            'programado':      programado_list,
+            'ejecutado':       ejecutado_list,
+            'pendiente':       pendiente_list,
+            'tiempo_muerto':   tiempo_muerto_list,
         }
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────

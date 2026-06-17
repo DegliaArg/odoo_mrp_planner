@@ -71,7 +71,6 @@ class WcLoadChartWidget extends Component {
         } finally {
             this.state.loading = false;
         }
-        // Canvas siempre está en el DOM — no hace falta esperar tick de OWL
         if (chartData && !this.state.empty) {
             this._renderChart(chartData);
         } else if (this.chart) {
@@ -82,60 +81,72 @@ class WcLoadChartWidget extends Component {
 
     _renderChart(data) {
         const canvas = this.canvasRef.el;
-        if (!canvas) {
-            console.warn("[WcLoadChart] Canvas no disponible");
-            return;
-        }
-        if (!window.Chart) {
-            console.error("[WcLoadChart] Chart.js no está cargado (window.Chart undefined)");
-            return;
-        }
+        if (!canvas) { console.warn("[WcLoadChart] canvas no disponible"); return; }
+        if (!window.Chart) { console.error("[WcLoadChart] window.Chart undefined"); return; }
 
-        if (this.chart) {
-            this.chart.destroy();
-        }
-
-        const percentages = data.labels.map((_, i) => {
-            const avail = data.available_hours[i];
-            if (!avail) return 0;
-            return Math.round((data.pending_hours[i] / avail) * 100);
-        });
-
-        const bgColors = percentages.map(p =>
-            p > 90 ? "rgba(220,53,69,0.75)" :
-            p > 70 ? "rgba(255,193,7,0.80)" :
-            "rgba(25,135,84,0.70)"
-        );
-        const borderColors = bgColors.map(c => c.replace(/[\d.]+\)$/, "1)"));
+        if (this.chart) this.chart.destroy();
 
         this.chart = new window.Chart(canvas, {
             type: "bar",
             data: {
                 labels: data.labels,
-                datasets: [{
-                    label: "Carga (%)",
-                    data: percentages,
-                    backgroundColor: bgColors,
-                    borderColor: borderColors,
-                    borderWidth: 1,
-                    borderRadius: 4,
-                }],
+                datasets: [
+                    {
+                        label: "Programado",
+                        data: data.programado,
+                        backgroundColor: "rgba(13,110,253,0.65)",
+                        borderColor: "rgba(13,110,253,1)",
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        stack: "programado",
+                    },
+                    {
+                        label: "Ejecutado",
+                        data: data.ejecutado,
+                        backgroundColor: "rgba(25,135,84,0.75)",
+                        borderColor: "rgba(25,135,84,1)",
+                        borderWidth: 1,
+                        stack: "real",
+                    },
+                    {
+                        label: "Pendiente",
+                        data: data.pendiente,
+                        backgroundColor: "rgba(255,193,7,0.85)",
+                        borderColor: "rgba(200,150,0,1)",
+                        borderWidth: 1,
+                        stack: "real",
+                    },
+                    {
+                        label: "Tiempo muerto",
+                        data: data.tiempo_muerto,
+                        backgroundColor: "rgba(190,190,190,0.40)",
+                        borderColor: "rgba(150,150,150,0.60)",
+                        borderWidth: 1,
+                        stack: "real",
+                    },
+                ],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                        display: true,
+                        position: "top",
+                        labels: { boxWidth: 14, padding: 16, font: { size: 12 } },
+                    },
                     tooltip: {
+                        mode: "index",
+                        intersect: false,
                         callbacks: {
-                            title: (items) => items[0].label,
                             label: (ctx) => {
-                                const i = ctx.dataIndex;
-                                return [
-                                    `  Carga: ${ctx.raw}%`,
-                                    `  Pendiente: ${data.pending_hours[i]}h`,
-                                    `  Disponible: ${data.available_hours[i]}h`,
-                                ];
+                                const v = ctx.raw;
+                                if (v === 0) return null;
+                                return `  ${ctx.dataset.label}: ${v}h`;
+                            },
+                            footer: (items) => {
+                                const i = items[0].dataIndex;
+                                return `  Disponible: ${data.available_hours[i]}h`;
                             },
                         },
                         padding: 10,
@@ -144,21 +155,18 @@ class WcLoadChartWidget extends Component {
                 },
                 scales: {
                     x: {
+                        stacked: true,
                         grid: { display: false },
-                        ticks: { maxRotation: 45 },
+                        ticks: { maxRotation: 40 },
                     },
                     y: {
-                        beginAtZero: true,
-                        suggestedMax: 100,
-                        ticks: {
-                            stepSize: 20,
-                            callback: v => v + "%",
-                        },
+                        stacked: true,
                         title: {
                             display: true,
-                            text: "% de capacidad utilizada",
+                            text: "Horas",
                             font: { size: 11 },
                         },
+                        ticks: { stepSize: 8 },
                     },
                 },
             },

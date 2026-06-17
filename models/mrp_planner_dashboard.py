@@ -1,5 +1,13 @@
+import calendar as _cal
+import logging
+from datetime import datetime
+
+import pytz
+
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
+
+_logger = logging.getLogger(__name__)
 
 
 class MrpPlannerDashboard(models.TransientModel):
@@ -445,6 +453,73 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('item_ids.production_id.x_reschedule_needed', '=', True),
             ],
             'target': 'current',
+        }
+
+    # ── Gráfico de carga WC ──────────────────────────────────────────────────
+
+    @api.model
+    def get_wc_tags(self):
+        """Tags de centros de trabajo que tienen al menos un WC activo."""
+        Tag = self.env['mrp.workcenter.tag']
+        Wc  = self.env['mrp.workcenter']
+        result = []
+        for tag in Tag.search([]):
+            if Wc.search_count([('tag_ids', 'in', tag.id), ('active', '=', True)]):
+                result.append({'id': tag.id, 'name': tag.name})
+        return result
+
+    @api.model
+    def get_wc_chart_data(self, year, month, tag_id=None):
+        """Devuelve horas pendientes y disponibles por WC para el mes indicado."""
+        first_day = datetime(year, month, 1, 0, 0, 0)
+        last_day  = datetime(year, month, _cal.monthrange(year, month)[1], 23, 59, 59)
+
+        domain = [('active', '=', True)]
+        if tag_id:
+            domain.append(('tag_ids', 'in', int(tag_id)))
+        workcenters = self.env['mrp.workcenter'].search(domain)
+
+        labels, pending_list, available_list = [], [], []
+
+        for wc in workcenters:
+            # ── Horas disponibles del calendario ─────────────────────────────
+            avail = 0.0
+            if wc.resource_calendar_id:
+                try:
+                    dt_start = first_day.replace(tzinfo=pytz.UTC)
+                    dt_end   = last_day.replace(tzinfo=pytz.UTC)
+                    avail = wc.resource_calendar_id.get_work_hours_count(
+                        dt_start, dt_end, compute_leaves=False,
+                    )
+                    avail *= (wc.time_efficiency or 100.0) / 100.0
+                except Exception as e:
+                    _logger.debug("WC chart: error calculando horas disponibles para %s: %s", wc.name, e)
+                    # Fallback: suma de asistencias regulares × semanas del mes
+                    weekly = sum(
+                        a.hour_to - a.hour_from
+                        for a in wc.resource_calendar_id.attendance_ids
+                        if not a.date_from and not a.date_to
+                    )
+                    weeks = _cal.monthrange(year, month)[1] / 7.0
+                    avail = weekly * weeks * (wc.time_efficiency or 100.0) / 100.0
+
+            # ── Horas pendientes de workorders en el mes ──────────────────────
+            workorders = self.env['mrp.workorder'].search([
+                ('workcenter_id', '=', wc.id),
+                ('state', 'not in', ('done', 'cancel')),
+                ('date_start', '>=', fields.Datetime.to_string(first_day)),
+                ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            ])
+            pending = sum((wo.duration_expected or 0.0) / 60.0 for wo in workorders)
+
+            labels.append(wc.name)
+            pending_list.append(round(pending, 1))
+            available_list.append(round(avail, 1))
+
+        return {
+            'labels':          labels,
+            'pending_hours':   pending_list,
+            'available_hours': available_list,
         }
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_reschedule.WcLoadChartWidget">
+        <div class="o_wc_load_chart p-2">
+
+            <!-- Selectores -->
+            <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+
+                <!-- Selector de mes -->
+                <div>
+                    <label class="form-label fw-semibold small mb-1 d-block">Mes</label>
+                    <select class="form-select form-select-sm" style="min-width:180px"
+                            t-on-change="onMonthChange">
+                        <t t-foreach="monthOptions" t-as="opt" t-key="opt.value">
+                            <option t-att-value="opt.value"
+                                    t-att-selected="opt.value === monthValue"
+                                    t-esc="opt.label"/>
+                        </t>
+                    </select>
+                </div>
+
+                <!-- Selector de sector (solo si existen tags) -->
+                <div t-if="state.tags.length > 0">
+                    <label class="form-label fw-semibold small mb-1 d-block">Sector</label>
+                    <select class="form-select form-select-sm" style="min-width:180px"
+                            t-on-change="onTagChange">
+                        <option value="">Todos los sectores</option>
+                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                            <option t-att-value="tag.id" t-esc="tag.name"/>
+                        </t>
+                    </select>
+                </div>
+
+            </div>
+
+            <!-- Spinner de carga -->
+            <div t-if="state.loading" class="text-center py-5 text-muted">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+                <div class="mt-2 small">Cargando datos…</div>
+            </div>
+
+            <!-- Sin datos -->
+            <div t-elif="state.empty" class="text-center py-5 text-muted">
+                <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                <span class="small">Sin centros de trabajo con actividad para el período seleccionado.</span>
+            </div>
+
+            <!-- Canvas del gráfico -->
+            <div t-else="" style="height:320px; position:relative;">
+                <canvas t-ref="chartCanvas"/>
+            </div>
+
+        </div>
+    </t>
+
+</templates>

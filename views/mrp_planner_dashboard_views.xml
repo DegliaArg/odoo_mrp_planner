@@ -305,24 +305,16 @@
                             </div>
                         </div>
 
-                        <!-- ── CARGA DE CENTROS DE TRABAJO (full-width) ──────── -->
-                        <div class="o_planner_section mb-4" invisible="not wc_load_ids">
+                        <!-- ── CARGA DE CENTROS DE TRABAJO — gráfico ────────── -->
+                        <div class="o_planner_section mb-4">
                             <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-wrench me-2 text-muted"/>
+                                <i class="fa fa-bar-chart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Carga de centros de trabajo</span>
                                 <button name="action_view_wc_load" type="object"
-                                        string="Ver detalle →"
+                                        string="Ver órdenes →"
                                         class="btn btn-sm btn-link text-muted ms-2"/>
                             </div>
-                            <field name="wc_load_ids" nolabel="1" readonly="1">
-                                <list create="0" delete="0" edit="0"
-                                      decoration-danger="pending_hours > 40"
-                                      decoration-warning="pending_hours > 20 and pending_hours &lt;= 40">
-                                    <field name="workcenter_id" string="Centro de trabajo" readonly="1"/>
-                                    <field name="mo_count"      string="OFs activas"       readonly="1"/>
-                                    <field name="pending_hours" string="Horas pendientes"  readonly="1"/>
-                                </list>
-                            </field>
+                            <widget name="wc_load_chart"/>
                         </div>
 
                         <!-- ── ÓRDENES DE COMPRA — dos columnas ──────────── -->

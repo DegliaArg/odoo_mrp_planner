@@ -636,8 +636,8 @@ class MrpPlannerDashboard(models.TransientModel):
         if date_to:
             date_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
 
-        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain
-        approve_dom  = [('state', '=', 'to approve')] + sc_domain
+        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
+        approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
         approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_domain
 
         approved = PO.search(approved_dom)
@@ -684,7 +684,9 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
             '|',
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            '&',
             ('date_finished', '=', False),
+            ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
         mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
@@ -728,7 +730,9 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
             '|',
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            '&',
             ('date_finished', '=', False),
+            ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
         mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
@@ -829,7 +833,9 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
             '|',
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            '&',
             ('date_finished', '=', False),
+            ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc)
 
         all_mos = done_mos | active_mos

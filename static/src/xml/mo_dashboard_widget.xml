@@ -123,7 +123,7 @@
                                 Sin órdenes en el período.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:200px; overflow-y:auto;"
+                        <div t-else="" style="max-height:230px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">
@@ -216,7 +216,7 @@
                                 Sin programaciones activas.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:200px; overflow-y:auto;"
+                        <div t-else="" style="max-height:230px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">
@@ -304,7 +304,7 @@
                                 Sin datos en el período.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:200px; overflow-y:auto;"
+                        <div t-else="" style="max-height:230px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">

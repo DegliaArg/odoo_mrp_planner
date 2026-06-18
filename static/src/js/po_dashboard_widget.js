@@ -86,19 +86,28 @@ class PoDashboardWidget extends Component {
         });
     }
 
-    onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]]]); }
-    onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"]]); }
-    onClickAll()       { this._navigate("Aprobadas",    [["state", "=", "purchase"], ["receipt_status", "!=", "full"]]); }
+    _dateDomain() {
+        const d = [];
+        if (this.state.dateFrom) d.push(["date_planned", ">=", this.state.dateFrom + " 00:00:00"]);
+        if (this.state.dateTo)   d.push(["date_planned", "<=", this.state.dateTo   + " 23:59:59"]);
+        return d;
+    }
+
+    onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._dateDomain()]); }
+    onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._dateDomain()]); }
+    onClickAll()       { this._navigate("Aprobadas",    [["state", "=", "purchase"], ["receipt_status", "!=", "full"], ...this._dateDomain()]); }
     onClickPending() {
         const now = new Date().toISOString();
         this._navigate("A tiempo", [
-            ["state", "=", "purchase"], ["receipt_status", "!=", "full"], ["date_planned", ">=", now],
+            ["state", "=", "purchase"], ["receipt_status", "!=", "full"],
+            ["date_planned", ">=", now], ...this._dateDomain(),
         ]);
     }
     onClickOverdue() {
         const now = new Date().toISOString();
         this._navigate("Vencidas", [
-            ["state", "=", "purchase"], ["receipt_status", "!=", "full"], ["date_planned", "<", now],
+            ["state", "=", "purchase"], ["receipt_status", "!=", "full"],
+            ["date_planned", "<", now], ...this._dateDomain(),
         ]);
     }
 

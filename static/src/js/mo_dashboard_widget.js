@@ -101,14 +101,25 @@ class MoDashboardWidget extends Component {
         });
     }
 
-    onClickTotal()      { this._navigate("OFs activas",          [["state", "not in", ["done", "cancel"]]]); }
-    onClickInProgress() { this._navigate("OFs en progreso",      [["state", "in", ["progress", "to_close"]]]); }
+    _dateDomain() {
+        const d = [];
+        if (this.state.dateFrom) d.push(["date_finished", ">=", this.state.dateFrom + " 00:00:00"]);
+        if (this.state.dateTo)   d.push(["date_finished", "<=", this.state.dateTo   + " 23:59:59"]);
+        return d;
+    }
+
+    onClickTotal()      { this._navigate("OFs activas",     [["state", "not in", ["done", "cancel"]], ...this._dateDomain()]); }
+    onClickInProgress() { this._navigate("OFs en progreso", [["state", "in", ["progress", "to_close"]], ...this._dateDomain()]); }
     onClickDelayed() {
         const now = new Date().toISOString();
-        this._navigate("OFs atrasadas", [["state", "not in", ["done", "cancel"]], ["date_finished", "<", now]]);
+        this._navigate("OFs atrasadas", [
+            ["state", "not in", ["done", "cancel"]], ["date_finished", "<", now], ...this._dateDomain(),
+        ]);
     }
     onClickReschedule() {
-        this._navigate("Para reprogramar", [["state", "not in", ["done", "cancel"]], ["x_reschedule_needed", "=", true]]);
+        this._navigate("Para reprogramar", [
+            ["state", "not in", ["done", "cancel"]], ["x_reschedule_needed", "=", true], ...this._dateDomain(),
+        ]);
     }
 
     openMo(id) {

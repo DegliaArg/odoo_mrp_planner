@@ -58,7 +58,7 @@
             </div>
 
             <!-- Contenido con dimming durante carga -->
-            <div t-att-class="'row g-3 align-items-start' + (state.loading ? ' opacity-50 pe-none' : '')">
+            <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
 
                 <!-- ══ TAB: OFs ════════════════════════════════════════════════ -->
                 <t t-if="state.tab === 'ofs'">
@@ -115,7 +115,7 @@
                     </div>
 
                     <!-- Lista de OFs -->
-                    <div class="col-12 col-lg-8">
+                    <div class="col-12 col-lg-8 d-flex flex-column">
                         <div t-if="state.mos.length === 0"
                              class="d-flex align-items-center justify-content-center py-5 text-muted">
                             <div class="text-center small">
@@ -123,7 +123,7 @@
                                 Sin órdenes en el período.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:215px; overflow-y:auto;"
+                        <div t-else="" style="flex:1; overflow-y:auto; min-height:0;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">
@@ -216,7 +216,7 @@
                                 Sin programaciones activas.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                        <div t-else="" style="flex:1; overflow-y:auto; min-height:0;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">
@@ -304,7 +304,7 @@
                                 Sin datos en el período.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                        <div t-else="" style="flex:1; overflow-y:auto; min-height:0;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
                                 <thead style="position:sticky;top:0;background:white;z-index:2;">

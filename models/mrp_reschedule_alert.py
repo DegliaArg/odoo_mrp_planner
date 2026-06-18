@@ -155,11 +155,9 @@ class MrpRescheduleAlert(models.Model):
     # ── Helpers — impacto ────────────────────────────────────────────────────
 
     @api.model
-    def _find_impact_mos(self, product_id, available_qty):
+    def _find_impact_mos(self, product_id, available_qty, cache=None):
         """Retorna MOs confirmadas/en progreso que consumen product_id y
-        cuya demanda acumulada supera el stock disponible (orden cronológico).
-        Usa _mo_impact_cache si está disponible para evitar búsquedas repetidas."""
-        cache = getattr(self, '_mo_impact_cache', None)
+        cuya demanda acumulada supera el stock disponible (orden cronológico)."""
         if cache is not None and product_id in cache:
             return cache[product_id]
 
@@ -194,24 +192,21 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _cron_check_delays(self):
-        """Ejecutado cada 30 minutos. Detecta desvíos y crea/actualiza alertas."""
+        """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas."""
         now = datetime.utcnow()
-        self._mo_impact_cache = {}
-        try:
-            steps = [
-                (self._check_delayed_mos,     (now,)),
-                (self._check_delayed_pos,     (now,)),
-                (self._check_delayed_receipts,(now,)),
-                (self._check_qty_mismatches,  (now,)),
-                (self._auto_resolve_stale,    ()),
-            ]
-            for fn, args in steps:
-                try:
-                    fn(*args)
-                except Exception as e:
-                    _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
-        finally:
-            self._mo_impact_cache = {}
+        impact_cache = {}
+        steps = [
+            (self._check_delayed_mos,     (now,)),
+            (self._check_delayed_pos,     (now, impact_cache)),
+            (self._check_delayed_receipts,(now, impact_cache)),
+            (self._check_qty_mismatches,  (now, impact_cache)),
+            (self._auto_resolve_stale,    ()),
+        ]
+        for fn, args in steps:
+            try:
+                fn(*args)
+            except Exception as e:
+                _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
 
     @api.model
     def _check_delayed_mos(self, now):
@@ -245,7 +240,7 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_delayed_pos(self, now):
+    def _check_delayed_pos(self, now, impact_cache=None):
         pos = self.env['purchase.order'].search([
             ('state', '=', 'purchase'),
             ('date_planned', '<', now),
@@ -276,7 +271,7 @@ class MrpRescheduleAlert(models.Model):
             product_ids = po.order_line.mapped('product_id').ids
             impacted = self.env['mrp.production']
             for pid in product_ids:
-                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0))
+                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0), cache=impact_cache)
 
             write_vals = {
                 'days_late': days,
@@ -296,7 +291,7 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_delayed_receipts(self, now):
+    def _check_delayed_receipts(self, now, impact_cache=None):
         pickings = self.env['stock.picking'].search([
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
@@ -328,7 +323,7 @@ class MrpRescheduleAlert(models.Model):
             product_ids = picking.move_ids.mapped('product_id').ids
             impacted = self.env['mrp.production']
             for pid in product_ids:
-                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0))
+                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0), cache=impact_cache)
 
             write_vals = {
                 'days_late': days,
@@ -348,7 +343,7 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_qty_mismatches(self, now):
+    def _check_qty_mismatches(self, now, impact_cache=None):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
         from datetime import timedelta
         since = now - timedelta(hours=1)  # Solo las del último ciclo de cron
@@ -387,7 +382,7 @@ class MrpRescheduleAlert(models.Model):
                 continue
             # Calcular OFs afectadas por el delta de producción
             avail = mo.product_id.qty_available
-            impacted = self._find_impact_mos(mo.product_id.id, avail)
+            impacted = self._find_impact_mos(mo.product_id.id, avail, cache=impact_cache)
             severity = 'critical' if actual_qty < planned_qty else 'warning'
             msg = _('Planificado: %g | Real: %g (%.0f%%)') % (
                 planned_qty, actual_qty, (actual_qty / planned_qty) * 100

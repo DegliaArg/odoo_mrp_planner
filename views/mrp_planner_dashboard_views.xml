@@ -39,16 +39,14 @@
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-bell me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Alertas pendientes</span>
-                                <span class="badge bg-danger ms-2"
-                                      invisible="alert_critical == 0">
+                                <button name="action_view_critical" type="object"
+                                        class="badge bg-danger border-0 text-white ms-2"
+                                        style="cursor:pointer"
+                                        invisible="alert_critical == 0">
                                     <i class="fa fa-exclamation-circle me-1"/>
                                     <field name="alert_critical" nolabel="1" readonly="1"/>
-                                    críticas
-                                </span>
-                                <button name="action_view_critical" type="object"
-                                        string="Ver críticas →"
-                                        class="btn btn-sm btn-link text-danger ms-1"
-                                        invisible="alert_critical == 0"/>
+                                    críticas →
+                                </button>
                                 <button name="action_view_all_alerts" type="object"
                                         string="Ver todas →"
                                         class="btn btn-sm btn-link text-muted ms-2"
@@ -181,10 +179,10 @@
               sequence="1"
               action="action_mrp_planner_dashboard_open"/>
 
-    <!-- Mover "Información general" (mrp_workorder) dentro de Planeación -->
+    <!-- Mover "Información general" (mrp_workorder) dentro de Órdenes de trabajo -->
     <record id="mrp_workorder.menu_mrp_dashboard" model="ir.ui.menu">
-        <field name="parent_id" ref="mrp.mrp_planning_menu_root"/>
-        <field name="sequence">5</field>
+        <field name="parent_id" ref="mrp_workorder.mrp_workorder_menu_planning"/>
+        <field name="sequence">1</field>
     </record>
 
 </odoo>

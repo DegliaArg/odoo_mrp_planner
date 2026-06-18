@@ -125,8 +125,9 @@
 
                     <!-- Sin datos -->
                     <div t-if="isEmpty"
-                         class="d-flex align-items-center justify-content-center py-5 text-muted">
-                        <div class="text-center small">
+                         class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                         style="height:350px;">
+                        <div class="text-center small text-muted">
                             <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                             Sin órdenes pendientes.
                         </div>
@@ -167,40 +168,54 @@
                             </li>
                         </ul>
 
-                        <!-- Contenido de lista con scroll -->
-                        <div style="height:350px; overflow-y:auto;"
-                             class="border border-top-0 rounded-bottom p-2 o_table_scroll">
+                        <!-- Contenido de lista con scroll (split table) -->
+                        <div class="border border-top-0 rounded-bottom d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:350px;">
 
                             <div t-if="activeList.length === 0"
-                                 class="text-center text-muted small py-3">
-                                Sin registros en esta categoría.
+                                 class="d-flex align-items-center justify-content-center flex-grow-1">
+                                <div class="text-center text-muted small">Sin registros en esta categoría.</div>
                             </div>
 
-                            <table t-else="" class="table table-sm table-hover small mb-0">
-                                <thead class="o_sticky_th">
-                                    <tr class="text-muted">
-                                        <th>Referencia</th>
-                                        <th>Proveedor</th>
-                                        <th t-att-title="state.listTab === 'overdue' ? 'Entrega prevista' : 'Entrega estimada'">
-                                            <t t-if="state.listTab === 'overdue'">Vencida el</t>
-                                            <t t-else="">Entrega estimada</t>
-                                        </th>
-                                        <th class="text-end">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <t t-foreach="activeList" t-as="po" t-key="po.id">
-                                        <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
-                                            style="cursor:pointer"
-                                            t-on-click="() => this.openPo(po.id)">
-                                            <td class="fw-semibold" t-esc="po.name"/>
-                                            <td t-esc="po.partner"/>
-                                            <td t-esc="po.date_planned"/>
-                                            <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                            <t t-else="">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                                    <colgroup>
+                                        <col style="width:20%"/><col style="width:38%"/>
+                                        <col style="width:24%"/><col style="width:18%"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted">
+                                            <th>Referencia</th>
+                                            <th>Proveedor</th>
+                                            <th t-att-title="state.listTab === 'overdue' ? 'Entrega prevista' : 'Entrega estimada'">
+                                                <t t-if="state.listTab === 'overdue'">Vencida el</t>
+                                                <t t-else="">Entrega estimada</t>
+                                            </th>
+                                            <th class="text-end">Total</th>
                                         </tr>
-                                    </t>
-                                </tbody>
-                            </table>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                        <colgroup>
+                                            <col style="width:20%"/><col style="width:38%"/>
+                                            <col style="width:24%"/><col style="width:18%"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="activeList" t-as="po" t-key="po.id">
+                                                <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
+                                                    style="cursor:pointer"
+                                                    t-on-click="() => this.openPo(po.id)">
+                                                    <td class="fw-semibold" t-esc="po.name"/>
+                                                    <td t-esc="po.partner"/>
+                                                    <td t-esc="po.date_planned"/>
+                                                    <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
 
                         </div>
 

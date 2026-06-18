@@ -146,6 +146,7 @@ class MoDashboardWidget extends Component {
     onClickReqActive()     { this._navReq("OFs creadas",              [["state", "=", "confirmed"]]); }
     onClickReqCalc()       { this._navReq("Programaciones calculadas", [["state", "=", "calculated"]]); }
     onClickReqReschedule() { this._navReq("Con reprogramación",        [["state", "=", "confirmed"], ["item_ids.production_id.x_reschedule_needed", "=", true]]); }
+    onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
 
     _navReq(name, domain) {
         this.action.doAction({

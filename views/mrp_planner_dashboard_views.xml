@@ -181,4 +181,10 @@
               sequence="1"
               action="action_mrp_planner_dashboard_open"/>
 
+    <!-- Mover "Información general" (mrp_workorder) dentro de Planeación -->
+    <record id="mrp_workorder.menu_mrp_dashboard" model="ir.ui.menu">
+        <field name="parent_id" ref="mrp.mrp_planning_menu_root"/>
+        <field name="sequence">5</field>
+    </record>
+
 </odoo>

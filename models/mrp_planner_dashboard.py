@@ -654,10 +654,14 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_subcontract': bool(po.subcontract_production_ids),
             }
 
+        rfqs_list       = PO.search(rfq_dom,     order='date_planned asc', limit=100)
+        to_approve_list = PO.search(approve_dom, order='date_planned asc', limit=100)
+        overdue_list    = overdue.sorted('date_planned')[:100]
+
         return {
             'kpis': {
-                'rfq':              PO.search_count(rfq_dom),
-                'to_approve':       PO.search_count(approve_dom),
+                'rfq':              len(rfqs_list),
+                'to_approve':       len(to_approve_list),
                 'total':            len(approved),
                 'pending':          len(pending),
                 'overdue':          len(overdue),
@@ -665,9 +669,9 @@ class MrpPlannerDashboard(models.TransientModel):
                     lambda p: (now - p.date_planned).days >= 5
                 )),
             },
-            'rfqs':       [_po_dict(p) for p in PO.search(rfq_dom, order='date_planned asc', limit=4)],
-            'to_approve': [_po_dict(p) for p in PO.search(approve_dom, order='date_planned asc', limit=3)],
-            'overdue':    [_po_dict(p) for p in overdue.sorted('date_planned')[:5]],
+            'rfqs':       [_po_dict(p) for p in rfqs_list],
+            'to_approve': [_po_dict(p) for p in to_approve_list],
+            'overdue':    [_po_dict(p) for p in overdue_list],
         }
 
     # ── Widget OFs filtrable ─────────────────────────────────────────────────
@@ -689,7 +693,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
-        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
+        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=100)
 
         if tag_id:
             tag_id = int(tag_id)
@@ -735,7 +739,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
-        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
+        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=100)
 
         if tag_id:
             tag_id = int(tag_id)

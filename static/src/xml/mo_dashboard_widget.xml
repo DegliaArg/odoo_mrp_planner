@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_reschedule.MoDashboardWidget">
+        <div class="o_mo_dashboard_widget">
+
+            <!-- Pestañas principales -->
+            <ul class="nav nav-pills mb-3">
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'ofs' ? ' active' : '')"
+                            t-on-click="() => this.setTab('ofs')">
+                        <i class="fa fa-industry me-1"/>OFs
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'requests' ? ' active' : '')"
+                            t-on-click="() => this.setTab('requests')">
+                        <i class="fa fa-calendar me-1"/>Programaciones
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button t-att-class="'nav-link' + (state.tab === 'comparison' ? ' active' : '')"
+                            t-on-click="() => this.setTab('comparison')">
+                        <i class="fa fa-bar-chart me-1"/>Producido vs Programado
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Filtros (fecha + sector), ocultos en pestaña Programaciones -->
+            <div t-if="showFilters" class="row g-2 mb-3">
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Desde</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                </div>
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Hasta</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                </div>
+                <div class="col-auto" t-if="state.tags.length > 0">
+                    <label class="col-form-label col-form-label-sm me-1">Sector</label>
+                    <select class="form-select form-select-sm d-inline-block"
+                            style="width:auto"
+                            t-on-change="onTagChange">
+                        <option value="">Todos</option>
+                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                            <option t-att-value="tag.id"
+                                    t-att-selected="state.selectedTag == tag.id"
+                                    t-esc="tag.name"/>
+                        </t>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Contenido con dimming durante carga -->
+            <div t-att-class="'row g-3 align-items-start' + (state.loading ? ' opacity-50 pe-none' : '')">
+
+                <!-- ══ TAB: OFs ════════════════════════════════════════════════ -->
+                <t t-if="state.tab === 'ofs'">
+
+                    <!-- KPIs -->
+                    <div class="col-12 col-lg-4">
+                        <div class="row g-2">
+
+                            <div class="col-6">
+                                <div class="card o_planner_card h-100"
+                                     style="cursor:pointer" t-on-click="onClickTotal">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
+                                        <div class="o_planner_number" t-esc="state.ofs_kpis.total"/>
+                                        <div class="o_planner_label">Activas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_info h-100"
+                                     style="cursor:pointer" t-on-click="onClickInProgress">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
+                                        <div class="o_planner_number text-info" t-esc="state.ofs_kpis.in_progress"/>
+                                        <div class="o_planner_label">En progreso</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_danger h-100"
+                                     style="cursor:pointer" t-on-click="onClickDelayed">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
+                                        <div class="o_planner_number text-danger" t-esc="state.ofs_kpis.delayed"/>
+                                        <div class="o_planner_label">Atrasadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_warning h-100"
+                                     style="cursor:pointer" t-on-click="onClickReschedule">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
+                                        <div class="o_planner_number text-warning" t-esc="state.ofs_kpis.reschedule"/>
+                                        <div class="o_planner_label">Para reprogramar</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Lista de OFs -->
+                    <div class="col-12 col-lg-8">
+                        <div t-if="state.mos.length === 0"
+                             class="d-flex align-items-center justify-content-center py-5 text-muted">
+                            <div class="text-center small">
+                                <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
+                                Sin órdenes en el período.
+                            </div>
+                        </div>
+                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                             class="border rounded p-2">
+                            <table class="table table-sm table-hover small mb-0">
+                                <thead class="sticky-top bg-white">
+                                    <tr class="text-muted">
+                                        <th>Referencia</th>
+                                        <th>Producto</th>
+                                        <th>Fin planificado</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="state.mos" t-as="mo" t-key="mo.id">
+                                        <tr style="cursor:pointer" t-on-click="() => this.openMo(mo.id)"
+                                            t-att-class="mo.delayed ? 'table-danger' : ''">
+                                            <td class="fw-semibold" t-esc="mo.name"/>
+                                            <td t-esc="mo.product"/>
+                                            <td t-esc="mo.date_finished"/>
+                                            <td>
+                                                <span t-att-class="stateClass(mo.state)"
+                                                      t-esc="stateLabel(mo.state)"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </t>
+
+                <!-- ══ TAB: Programaciones ════════════════════════════════════ -->
+                <t t-elif="state.tab === 'requests'">
+
+                    <!-- KPIs -->
+                    <div class="col-12 col-lg-4">
+                        <div class="row g-2">
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_success h-100"
+                                     style="cursor:pointer" t-on-click="onClickReqActive">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
+                                        <div class="o_planner_number text-success" t-esc="state.req_kpis.active"/>
+                                        <div class="o_planner_label">OFs creadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_info h-100"
+                                     style="cursor:pointer" t-on-click="onClickReqCalc">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
+                                        <div class="o_planner_number text-info" t-esc="state.req_kpis.calculated"/>
+                                        <div class="o_planner_label">Calculadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_warning h-100"
+                                     style="cursor:pointer" t-on-click="onClickReqReschedule">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
+                                        <div class="o_planner_number text-warning" t-esc="state.req_kpis.reschedule"/>
+                                        <div class="o_planner_label">Con reprogramación</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_danger h-100">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block"/>
+                                        <div class="o_planner_number text-danger" t-esc="state.req_kpis.mos_delayed"/>
+                                        <div class="o_planner_label">OFs atrasadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Lista de programaciones -->
+                    <div class="col-12 col-lg-8">
+                        <div t-if="state.requests.length === 0"
+                             class="d-flex align-items-center justify-content-center py-5 text-muted">
+                            <div class="text-center small">
+                                <i class="fa fa-calendar-check-o fa-2x mb-2 d-block text-muted"/>
+                                Sin programaciones activas.
+                            </div>
+                        </div>
+                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                             class="border rounded p-2">
+                            <table class="table table-sm table-hover small mb-0">
+                                <thead class="sticky-top bg-white">
+                                    <tr class="text-muted">
+                                        <th>Referencia</th>
+                                        <th>Disponible desde</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="state.requests" t-as="req" t-key="req.id">
+                                        <tr style="cursor:pointer" t-on-click="() => this.openRequest(req.id)">
+                                            <td class="fw-semibold" t-esc="req.name"/>
+                                            <td t-esc="req.start_from"/>
+                                            <td>
+                                                <span t-att-class="reqStateClass(req.state)"
+                                                      t-esc="reqStateLabel(req.state)"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </t>
+
+                <!-- ══ TAB: Producido vs Programado ══════════════════════════ -->
+                <t t-else="">
+
+                    <!-- KPIs -->
+                    <div class="col-12 col-lg-4">
+                        <div class="row g-2">
+
+                            <div class="col-6">
+                                <div class="card o_planner_card h-100">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
+                                        <div class="o_planner_number" t-esc="state.cmp_kpis.planned"/>
+                                        <div class="o_planner_label">Programado</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_success h-100">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
+                                        <div class="o_planner_number text-success" t-esc="state.cmp_kpis.produced"/>
+                                        <div class="o_planner_label">Producido</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card h-100">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-pie-chart fa-lg text-secondary mb-2 d-block"/>
+                                        <div t-att-class="'o_planner_number ' + pctClass(state.cmp_kpis.pct)"
+                                             t-esc="state.cmp_kpis.pct + '%'"/>
+                                        <div class="o_planner_label">Cumplimiento</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_info h-100">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-flag-checkered fa-lg text-info mb-2 d-block"/>
+                                        <div class="o_planner_number text-info" t-esc="state.cmp_kpis.ofs_done"/>
+                                        <div class="o_planner_label">OFs completadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Tabla comparativa -->
+                    <div class="col-12 col-lg-8">
+                        <div t-if="state.comparison.length === 0"
+                             class="d-flex align-items-center justify-content-center py-5 text-muted">
+                            <div class="text-center small">
+                                <i class="fa fa-bar-chart fa-2x mb-2 d-block text-muted"/>
+                                Sin datos en el período.
+                            </div>
+                        </div>
+                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                             class="border rounded p-2">
+                            <table class="table table-sm table-hover small mb-0">
+                                <thead class="sticky-top bg-white">
+                                    <tr class="text-muted">
+                                        <th>Producto</th>
+                                        <th class="text-end">Programado</th>
+                                        <th class="text-end">Producido</th>
+                                        <th class="text-end">%</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="state.comparison" t-as="item" t-key="item.product_id">
+                                        <tr>
+                                            <td t-esc="item.product"/>
+                                            <td class="text-end" t-esc="item.planned_qty"/>
+                                            <td class="text-end" t-esc="item.produced_qty"/>
+                                            <td class="text-end">
+                                                <span t-att-class="pctClass(item.pct)"
+                                                      t-esc="item.pct + '%'"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </t>
+
+            </div>
+        </div>
+    </t>
+
+</templates>

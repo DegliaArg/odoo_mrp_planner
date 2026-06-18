@@ -708,6 +708,172 @@ class MrpPlannerDashboard(models.TransientModel):
             })
         return result
 
+    # ── Widget OFs con pestañas ──────────────────────────────────────────────
+
+    @api.model
+    def get_mo_widget_data(self, date_from, date_to, tag_id=None):
+        """KPIs + lista de OFs activas en el rango, filtradas por sector."""
+        first_day = datetime.strptime(date_from, '%Y-%m-%d')
+        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+
+        no_sc = no_subcontract_domain(self.env)
+        domain = [
+            ('state', 'not in', ('done', 'cancel')),
+            ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            '|',
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '=', False),
+        ] + no_sc
+
+        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=50)
+
+        if tag_id:
+            tag_id = int(tag_id)
+            mos = mos.filtered(
+                lambda m: any(
+                    tag_id in w.workcenter_id.tag_ids.ids
+                    for w in m.workorder_ids if w.workcenter_id
+                )
+            )
+
+        now = fields.Datetime.now()
+
+        def _mo_dict(mo):
+            return {
+                'id':            mo.id,
+                'name':          mo.name,
+                'product':       mo.product_id.display_name if mo.product_id else '',
+                'qty':           mo.product_qty,
+                'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
+                'state':         mo.state,
+                'delayed':       bool(mo.date_finished and mo.date_finished < now),
+                'reschedule':    bool(mo.x_reschedule_needed),
+            }
+
+        return {
+            'kpis': {
+                'total':       len(mos),
+                'in_progress': len(mos.filtered(lambda m: m.state in ('progress', 'to_close'))),
+                'delayed':     len(mos.filtered(lambda m: m.date_finished and m.date_finished < now)),
+                'reschedule':  len(mos.filtered(lambda m: m.x_reschedule_needed)),
+            },
+            'mos': [_mo_dict(m) for m in mos],
+        }
+
+    @api.model
+    def get_request_widget_data(self):
+        """KPIs + lista de programaciones activas."""
+        Req = self.env['mrp.production.request']
+        now = fields.Datetime.now()
+
+        confirmed  = Req.search([('state', '=', 'confirmed')])
+        calculated = Req.search([('state', '=', 'calculated')])
+        all_active = (confirmed | calculated).sorted('id', reverse=True)
+        all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
+
+        def _req_dict(r):
+            mos = r.item_ids.mapped('production_id').filtered(lambda m: m.id)
+            return {
+                'id':          r.id,
+                'name':        r.name,
+                'start_from':  r.start_from.strftime('%d/%m/%Y') if r.start_from else '—',
+                'state':       r.state,
+                'mos_total':   len(mos),
+                'mos_done':    len(mos.filtered(lambda m: m.state == 'done')),
+                'mos_delayed': len(mos.filtered(
+                    lambda m: m.state not in ('done', 'cancel')
+                    and m.date_finished and m.date_finished < now
+                )),
+            }
+
+        return {
+            'kpis': {
+                'active':      len(confirmed),
+                'calculated':  len(calculated),
+                'reschedule':  len(confirmed.filtered(
+                    lambda r: any(
+                        it.production_id and it.production_id.x_reschedule_needed
+                        for it in r.item_ids
+                    )
+                )),
+                'mos_delayed': len(all_mos.filtered(
+                    lambda m: m.state not in ('done', 'cancel')
+                    and m.date_finished and m.date_finished < now
+                )),
+            },
+            'requests': [_req_dict(r) for r in all_active[:6]],
+        }
+
+    @api.model
+    def get_comparison_data(self, date_from, date_to, tag_id=None):
+        """Producido vs programado por producto en el rango."""
+        first_day = datetime.strptime(date_from, '%Y-%m-%d')
+        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+
+        no_sc = no_subcontract_domain(self.env)
+
+        done_mos = self.env['mrp.production'].search([
+            ('state', '=', 'done'),
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '<=', fields.Datetime.to_string(last_day)),
+        ] + no_sc)
+
+        active_mos = self.env['mrp.production'].search([
+            ('state', 'not in', ('done', 'cancel')),
+            ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            '|',
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '=', False),
+        ] + no_sc)
+
+        all_mos = done_mos | active_mos
+
+        if tag_id:
+            tag_id = int(tag_id)
+            all_mos = all_mos.filtered(
+                lambda m: any(
+                    tag_id in w.workcenter_id.tag_ids.ids
+                    for w in m.workorder_ids if w.workcenter_id
+                )
+            )
+
+        product_data = {}
+        for mo in all_mos:
+            pid = mo.product_id.id
+            if not pid:
+                continue
+            if pid not in product_data:
+                product_data[pid] = {
+                    'product':      mo.product_id.display_name,
+                    'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+                    'planned_qty':  0.0,
+                    'produced_qty': 0.0,
+                }
+            product_data[pid]['planned_qty']  += mo.product_qty
+            product_data[pid]['produced_qty'] += mo.qty_produced
+
+        items = sorted(product_data.values(), key=lambda x: x['planned_qty'], reverse=True)
+        for item in items:
+            item['pct'] = round(
+                item['produced_qty'] / item['planned_qty'] * 100, 1
+            ) if item['planned_qty'] > 0 else 0.0
+            item['planned_qty']  = round(item['planned_qty'],  2)
+            item['produced_qty'] = round(item['produced_qty'], 2)
+
+        total_planned  = sum(x['planned_qty']  for x in items)
+        total_produced = sum(x['produced_qty'] for x in items)
+        pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
+
+        return {
+            'kpis': {
+                'planned':  round(total_planned,  2),
+                'produced': round(total_produced, 2),
+                'pct':      pct,
+                'ofs_done': len(done_mos),
+            },
+            'items': items[:20],
+        }
+
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────
 
     def action_open_mos_dashboard(self):

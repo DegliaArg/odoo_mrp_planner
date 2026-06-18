@@ -86,22 +86,36 @@ class WcLoadChartWidget extends Component {
 
         if (this.chart) this.chart.destroy();
 
+        // Bar 1 (stack "plan"): Planificado + No planificado = disponible
+        // Bar 2 (stack "real"): Ejecutado + Pendiente + Tiempo libre = disponible
+        const planificado   = data.ejecutado.map((e, i) => e + data.pendiente[i]);
+        const tiempoLibre   = data.tiempo_muerto;   // max(0, disponible - ejecutado - pendiente)
+        const noplanificado = data.tiempo_muerto;   // same value, different semantic label
+
         this.chart = new window.Chart(canvas, {
             type: "bar",
             data: {
                 labels: data.labels,
                 datasets: [
-                    // ── Bar 1: Disponible (capacidad de referencia) ──────────
+                    // ── Bar 1: Perspectiva de planificación ──────────────────
                     {
-                        label: "Disponible",
-                        data: data.available_hours,
-                        backgroundColor: "rgba(108,117,125,0.18)",
-                        borderColor: "rgba(108,117,125,0.55)",
+                        label: "Planificado",
+                        data: planificado,
+                        backgroundColor: "rgba(13,110,253,0.60)",
+                        borderColor: "rgba(13,110,253,0.90)",
                         borderWidth: 1,
-                        borderRadius: 3,
-                        stack: "disponible",
+                        borderRadius: 2,
+                        stack: "plan",
                     },
-                    // ── Bar 2: Real apilada ──────────────────────────────────
+                    {
+                        label: "No planificado",
+                        data: noplanificado,
+                        backgroundColor: "rgba(200,200,200,0.35)",
+                        borderColor: "rgba(160,160,160,0.50)",
+                        borderWidth: 1,
+                        stack: "plan",
+                    },
+                    // ── Bar 2: Perspectiva de ejecución ─────────────────────
                     {
                         label: "Ejecutado",
                         data: data.ejecutado,
@@ -119,10 +133,10 @@ class WcLoadChartWidget extends Component {
                         stack: "real",
                     },
                     {
-                        label: "Tiempo muerto",
-                        data: data.tiempo_muerto,
-                        backgroundColor: "rgba(190,190,190,0.40)",
-                        borderColor: "rgba(140,140,140,0.55)",
+                        label: "Tiempo libre",
+                        data: tiempoLibre,
+                        backgroundColor: "rgba(220,220,220,0.30)",
+                        borderColor: "rgba(170,170,170,0.45)",
                         borderWidth: 1,
                         stack: "real",
                     },
@@ -147,11 +161,11 @@ class WcLoadChartWidget extends Component {
                                 return `  ${ctx.dataset.label}: ${v}h`;
                             },
                             footer: (items) => {
-                                const i = items[0].dataIndex;
+                                const i     = items[0].dataIndex;
                                 const avail = data.available_hours[i];
                                 const used  = data.ejecutado[i] + data.pendiente[i];
                                 const pct   = avail > 0 ? Math.round(used / avail * 100) : 0;
-                                return `  Ocupación: ${pct}%`;
+                                return `  Ocupación real: ${pct}%  |  Disponible: ${avail}h`;
                             },
                         },
                         padding: 10,

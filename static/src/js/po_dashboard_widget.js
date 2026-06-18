@@ -14,7 +14,8 @@ class PoDashboardWidget extends Component {
         this.action = useService("action");
 
         this.state = useState({
-            tab:        "all",   // "all" | "purchase" | "subcontract"
+            tab:        "all",      // "all" | "purchase" | "subcontract"
+            listTab:    "overdue",  // "rfqs" | "approve" | "overdue"
             loading:    true,
             kpis:       { ...EMPTY_KPIS },
             rfqs:       [],
@@ -47,7 +48,11 @@ class PoDashboardWidget extends Component {
     setTab(tab) {
         if (this.state.tab === tab) return;
         this.state.tab = tab;
-        this._load();
+        this._load();   // dimming keeps previous content visible during load
+    }
+
+    setListTab(tab) {
+        this.state.listTab = tab;
     }
 
     _scDomain() {
@@ -97,6 +102,14 @@ class PoDashboardWidget extends Component {
     get isEmpty() {
         const s = this.state;
         return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0;
+    }
+
+    get activeList() {
+        switch (this.state.listTab) {
+            case "rfqs":    return this.state.rfqs;
+            case "approve": return this.state.to_approve;
+            default:        return this.state.overdue;
+        }
     }
 }
 

@@ -185,11 +185,6 @@
     </record>
 
     <!-- ── Menús bajo "Planificador" ── -->
-    <menuitem id="mrp_planner_menu_root"
-              name="Planificador"
-              parent="mrp.menu_mrp_root"
-              sequence="25"/>
-
     <menuitem id="mrp_planner_menu_alerts"
               name="Alertas"
               parent="mrp_planner_menu_root"

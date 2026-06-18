@@ -34,39 +34,21 @@
                             </div>
                         </div>
 
-                        <!-- ── ATENCIÓN INMEDIATA (solo si hay críticas) ───── -->
-                        <div class="alert alert-danger mb-4 p-3"
-                             invisible="alert_critical == 0">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold">
-                                    <i class="fa fa-exclamation-circle me-2"/>
-                                    Atención inmediata —
-                                    <field name="alert_critical" nolabel="1" readonly="1"/>
-                                    alertas críticas
-                                </span>
-                                <button name="action_view_critical" type="object"
-                                        string="Ver todas →"
-                                        class="btn btn-sm btn-outline-danger"/>
-                            </div>
-                            <field name="urgent_alert_ids" nolabel="1" readonly="1">
-                                <list create="0" delete="0" edit="0"
-                                      decoration-danger="severity == 'critical'">
-                                    <field name="alert_type" string="Tipo" widget="badge"
-                                           decoration-danger="severity == 'critical'"
-                                           decoration-warning="severity == 'warning'"/>
-                                    <field name="name"       string="Referencia"   readonly="1"/>
-                                    <field name="days_late"  string="Días"         readonly="1"/>
-                                    <field name="message"    string="Detalle"      readonly="1"/>
-                                    <field name="severity"   column_invisible="True"/>
-                                </list>
-                            </field>
-                        </div>
-
                         <!-- ── ALERTAS — resumen por tipo (full-width) ──────── -->
                         <div class="o_planner_section mb-4">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-bell me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Alertas pendientes</span>
+                                <span class="badge bg-danger ms-2"
+                                      invisible="alert_critical == 0">
+                                    <i class="fa fa-exclamation-circle me-1"/>
+                                    <field name="alert_critical" nolabel="1" readonly="1"/>
+                                    críticas
+                                </span>
+                                <button name="action_view_critical" type="object"
+                                        string="Ver críticas →"
+                                        class="btn btn-sm btn-link text-danger ms-1"
+                                        invisible="alert_critical == 0"/>
                                 <button name="action_view_all_alerts" type="object"
                                         string="Ver todas →"
                                         class="btn btn-sm btn-link text-muted ms-2"
@@ -155,100 +137,13 @@
                             </div>
                         </div>
 
-                        <!-- ── ÓRDENES DE FABRICACIÓN — dos columnas ──────── -->
+                        <!-- ── ÓRDENES DE FABRICACIÓN — widget con pestañas ── -->
                         <div class="o_planner_section mb-4">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-industry me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de fabricación</span>
-                                <button name="action_view_all_mos" type="object"
-                                        string="Ver todas →"
-                                        class="btn btn-sm btn-link text-muted ms-2"
-                                        invisible="mo_total == 0"/>
                             </div>
-                            <div class="row g-3 align-items-start">
-
-                                <!-- Izquierda: tarjetas KPI -->
-                                <div class="col-12 col-lg-4">
-                                    <div class="row g-2">
-                                        <div class="col-6">
-                                            <div class="card o_planner_card h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
-                                                    <div class="o_planner_number"><field name="mo_total" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Activas</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_all_mos" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-secondary"
-                                                            string="Ver →" invisible="mo_total == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_info h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
-                                                    <div class="o_planner_number text-info"><field name="mo_in_progress" nolabel="1"/></div>
-                                                    <div class="o_planner_label">En progreso</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_in_progress_mos" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-info"
-                                                            string="Ver →" invisible="mo_in_progress == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_success h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                                    <div class="o_planner_number text-success"><field name="mo_done" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Completadas</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_done_mos" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-success"
-                                                            string="Ver →" invisible="mo_done == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_danger h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
-                                                    <div class="o_planner_number text-danger"><field name="mo_delayed" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Atrasadas</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_delayed_mos" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-danger"
-                                                            string="Ver →" invisible="mo_delayed == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_warning h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
-                                                    <div class="o_planner_number text-warning"><field name="mo_reschedule_needed" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Para reprogramar</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_reschedule_needed" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-warning"
-                                                            string="Ver →" invisible="mo_reschedule_needed == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Derecha: lista filtrable por fecha y sector -->
-                                <div class="col-12 col-lg-8">
-                                    <widget name="mo_list_widget"/>
-                                </div>
-
-                            </div>
+                            <widget name="mo_dashboard_widget"/>
                         </div>
 
                         <!-- ── CARGA DE CENTROS DE TRABAJO — gráfico ────────── -->
@@ -272,100 +167,18 @@
                             <widget name="po_dashboard_widget"/>
                         </div>
 
-                        <!-- ── PROGRAMACIONES — dos columnas ─────────────── -->
-                        <div class="o_planner_section mb-4">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-calendar me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Programaciones</span>
-                                <button name="action_new_request" type="object"
-                                        string="+ Nueva →"
-                                        class="btn btn-sm btn-link text-primary ms-2"/>
-                            </div>
-                            <div class="row g-3 align-items-start">
-
-                                <!-- Izquierda: tarjetas KPI -->
-                                <div class="col-12 col-lg-4">
-                                    <div class="row g-2">
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_success h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                                    <div class="o_planner_number text-success"><field name="request_active" nolabel="1"/></div>
-                                                    <div class="o_planner_label">OFs creadas</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_active_requests" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-success"
-                                                            string="Ver →" invisible="request_active == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_info h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
-                                                    <div class="o_planner_number text-info"><field name="request_calculated" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Calculadas</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_calculated_requests" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-info"
-                                                            string="Ver →" invisible="request_calculated == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_warning h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
-                                                    <div class="o_planner_number text-warning"><field name="request_reschedule_needed" nolabel="1"/></div>
-                                                    <div class="o_planner_label">Con reprogramación</div>
-                                                </div>
-                                                <div class="card-footer p-0">
-                                                    <button name="action_view_requests_reschedule" type="object"
-                                                            class="btn btn-sm btn-link w-100 py-1 text-warning"
-                                                            string="Ver →" invisible="request_reschedule_needed == 0"/>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-6">
-                                            <div class="card o_planner_card o_planner_card_danger h-100">
-                                                <div class="card-body text-center py-3">
-                                                    <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block"/>
-                                                    <div class="o_planner_number text-danger"><field name="req_mos_delayed" nolabel="1"/></div>
-                                                    <div class="o_planner_label">OFs atrasadas</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Derecha: lista inline -->
-                                <div class="col-12 col-lg-8">
-                                    <div invisible="not active_request_ids">
-                                        <field name="active_request_ids" nolabel="1" readonly="1">
-                                            <list create="0" delete="0" edit="0"
-                                                  decoration-success="state == 'confirmed'"
-                                                  decoration-warning="state == 'calculated'">
-                                                <field name="name"       string="Referencia"       readonly="1"/>
-                                                <field name="start_from" string="Disponible desde" readonly="1"/>
-                                                <field name="state"      string="Estado"           readonly="1"
-                                                       widget="badge"
-                                                       decoration-warning="state == 'calculated'"
-                                                       decoration-success="state == 'confirmed'"/>
-                                            </list>
-                                        </field>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
 
                     </div>
                 </sheet>
             </form>
         </field>
     </record>
+
+    <menuitem id="mrp_planner_menu_root"
+              name="Planificador"
+              parent="mrp.menu_mrp_root"
+              sequence="12"
+              action="action_mrp_planner_dashboard_open"/>
 
     <menuitem id="mrp_planner_menu_dashboard"
               name="Panel"

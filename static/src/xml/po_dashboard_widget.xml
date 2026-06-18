@@ -4,7 +4,7 @@
     <t t-name="odoo_mrp_reschedule.PoDashboardWidget">
         <div class="o_po_dashboard_widget">
 
-            <!-- Pestañas -->
+            <!-- Pestañas de tipo -->
             <ul class="nav nav-pills mb-3">
                 <li class="nav-item">
                     <button t-att-class="'nav-link' + (state.tab === 'all' ? ' active' : '')"
@@ -26,15 +26,8 @@
                 </li>
             </ul>
 
-            <!-- Spinner -->
-            <div t-if="state.loading"
-                 class="d-flex align-items-center justify-content-center py-5 text-muted">
-                <i class="fa fa-spinner fa-spin fa-lg me-2"/>
-                <span class="small">Cargando…</span>
-            </div>
-
-            <!-- Contenido -->
-            <div t-else="" class="row g-3 align-items-start">
+            <!-- Contenido — dimming durante carga en lugar de spinner full -->
+            <div t-att-class="'row g-3 align-items-start' + (state.loading ? ' opacity-50 pe-none' : '')">
 
                 <!-- Izquierda: tarjetas KPI -->
                 <div class="col-12 col-lg-4">
@@ -109,10 +102,10 @@
                     </div>
                 </div>
 
-                <!-- Derecha: listas -->
+                <!-- Derecha: pestañas de lista -->
                 <div class="col-12 col-lg-8">
 
-                    <!-- Vacío total -->
+                    <!-- Sin datos -->
                     <div t-if="isEmpty"
                          class="d-flex align-items-center justify-content-center py-5 text-muted">
                         <div class="text-center small">
@@ -121,93 +114,90 @@
                         </div>
                     </div>
 
-                    <!-- Cotizaciones -->
-                    <div t-if="state.rfqs.length > 0">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-info fw-semibold small">
-                                <i class="fa fa-file-text-o me-1"/>Solicitudes de cotización
-                            </span>
-                            <button class="btn btn-sm btn-link text-info p-0"
-                                    t-on-click="onClickRfqs">Ver todas →</button>
-                        </div>
-                        <table class="table table-sm table-hover small mb-3">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th>Referencia</th><th>Proveedor</th>
-                                    <th>Entrega estimada</th><th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="state.rfqs" t-as="po" t-key="po.id">
-                                    <tr style="cursor:pointer" t-on-click="() => this.openPo(po.id)">
-                                        <td class="fw-semibold" t-esc="po.name"/>
-                                        <td t-esc="po.partner"/>
-                                        <td t-esc="po.date_planned"/>
-                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
-                                    </tr>
-                                </t>
-                            </tbody>
-                        </table>
-                    </div>
+                    <div t-else="">
+                        <!-- Pestañas de lista -->
+                        <ul class="nav nav-tabs mb-0">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'overdue' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('overdue')">
+                                    <i class="fa fa-exclamation-triangle text-danger me-1"/>
+                                    Vencidas
+                                    <span t-if="state.kpis.overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="state.kpis.overdue"/>
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'rfqs' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('rfqs')">
+                                    <i class="fa fa-file-text-o text-info me-1"/>
+                                    Cotizaciones
+                                    <span t-if="state.kpis.rfq > 0"
+                                          class="badge rounded-pill bg-info ms-1"
+                                          t-esc="state.kpis.rfq"/>
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'approve' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('approve')">
+                                    <i class="fa fa-clock-o text-warning me-1"/>
+                                    Por aprobar
+                                    <span t-if="state.kpis.to_approve > 0"
+                                          class="badge rounded-pill bg-warning text-dark ms-1"
+                                          t-esc="state.kpis.to_approve"/>
+                                </button>
+                            </li>
+                        </ul>
 
-                    <!-- Por aprobar -->
-                    <div t-if="state.to_approve.length > 0">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-warning fw-semibold small">
-                                <i class="fa fa-clock-o me-1"/>Por aprobar
-                            </span>
-                            <button class="btn btn-sm btn-link text-warning p-0"
-                                    t-on-click="onClickToApprove">Ver todas →</button>
-                        </div>
-                        <table class="table table-sm table-hover small mb-3">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th>Referencia</th><th>Proveedor</th>
-                                    <th>Entrega estimada</th><th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="state.to_approve" t-as="po" t-key="po.id">
-                                    <tr class="table-warning" style="cursor:pointer"
-                                        t-on-click="() => this.openPo(po.id)">
-                                        <td class="fw-semibold" t-esc="po.name"/>
-                                        <td t-esc="po.partner"/>
-                                        <td t-esc="po.date_planned"/>
-                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
-                                    </tr>
-                                </t>
-                            </tbody>
-                        </table>
-                    </div>
+                        <!-- Contenido de lista con scroll -->
+                        <div style="max-height:215px; overflow-y:auto;"
+                             class="border border-top-0 rounded-bottom p-2">
 
-                    <!-- OCs vencidas -->
-                    <div t-if="state.overdue.length > 0">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-danger fw-semibold small">
-                                <i class="fa fa-exclamation-triangle me-1"/>OCs vencidas
-                            </span>
-                            <button class="btn btn-sm btn-link text-danger p-0"
-                                    t-on-click="onClickOverdue">Ver todas →</button>
-                        </div>
-                        <table class="table table-sm table-hover small mb-0">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th>Referencia</th><th>Proveedor</th>
-                                    <th>Entrega prevista</th><th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="state.overdue" t-as="po" t-key="po.id">
-                                    <tr class="table-danger" style="cursor:pointer"
-                                        t-on-click="() => this.openPo(po.id)">
-                                        <td class="fw-semibold" t-esc="po.name"/>
-                                        <td t-esc="po.partner"/>
-                                        <td t-esc="po.date_planned"/>
-                                        <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                            <div t-if="activeList.length === 0"
+                                 class="text-center text-muted small py-3">
+                                Sin registros en esta categoría.
+                            </div>
+
+                            <table t-else="" class="table table-sm table-hover small mb-0">
+                                <thead class="sticky-top bg-white">
+                                    <tr class="text-muted">
+                                        <th>Referencia</th>
+                                        <th>Proveedor</th>
+                                        <th t-att-title="state.listTab === 'overdue' ? 'Entrega prevista' : 'Entrega estimada'">
+                                            <t t-if="state.listTab === 'overdue'">Vencida el</t>
+                                            <t t-else="">Entrega estimada</t>
+                                        </th>
+                                        <th class="text-end">Total</th>
                                     </tr>
-                                </t>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="activeList" t-as="po" t-key="po.id">
+                                        <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
+                                            style="cursor:pointer"
+                                            t-on-click="() => this.openPo(po.id)">
+                                            <td class="fw-semibold" t-esc="po.name"/>
+                                            <td t-esc="po.partner"/>
+                                            <td t-esc="po.date_planned"/>
+                                            <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+
+                        </div>
+
+                        <!-- Ver todas -->
+                        <div class="text-end mt-1">
+                            <button t-if="state.listTab === 'overdue'"
+                                    class="btn btn-sm btn-link text-danger p-0 small"
+                                    t-on-click="onClickOverdue">Ver todas las vencidas →</button>
+                            <button t-if="state.listTab === 'rfqs'"
+                                    class="btn btn-sm btn-link text-info p-0 small"
+                                    t-on-click="onClickRfqs">Ver todas las cotizaciones →</button>
+                            <button t-if="state.listTab === 'approve'"
+                                    class="btn btn-sm btn-link text-warning p-0 small"
+                                    t-on-click="onClickToApprove">Ver todas por aprobar →</button>
+                        </div>
                     </div>
 
                 </div>

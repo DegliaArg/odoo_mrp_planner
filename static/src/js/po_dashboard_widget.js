@@ -80,6 +80,7 @@ class PoDashboardWidget extends Component {
             name,
             res_model: "purchase.order",
             view_mode: "list,form",
+            views:     [[false, "list"], [false, "form"]],
             domain:    [...baseDomain, ...this._scDomain()],
             target:    "current",
         });

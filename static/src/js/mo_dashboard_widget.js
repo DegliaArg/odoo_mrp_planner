@@ -96,6 +96,7 @@ class MoDashboardWidget extends Component {
         this.action.doAction({
             type: "ir.actions.act_window", name,
             res_model: "mrp.production", view_mode: "list,form",
+            views: [[false, "list"], [false, "form"]],
             domain, target: "current",
         });
     }
@@ -127,6 +128,7 @@ class MoDashboardWidget extends Component {
         this.action.doAction({
             type: "ir.actions.act_window", name,
             res_model: "mrp.production.request", view_mode: "list,form",
+            views: [[false, "list"], [false, "form"]],
             domain, target: "current",
         });
     }

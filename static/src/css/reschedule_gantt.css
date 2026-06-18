@@ -83,11 +83,5 @@
 .o_view_controller:has(.o_planner_dashboard) .o_pager { display: none !important; }
 .o_view_controller:has(.o_planner_dashboard) .o_breadcrumb .o_back_button ~ .active { display: none; }
 
-/* Altura fija en desktop para que KPIs y tabla midan exactamente lo mismo */
-@media (min-width: 992px) {
-    .o_mo_dashboard_widget .o_kpi_row { height: 230px; }
-    .o_po_dashboard_widget .o_kpi_row { height: 350px; }
-}
-
 /* Alineación vertical en títulos de sección (badge + botón link) */
 .o_planner_section_title { display: flex; align-items: center; }

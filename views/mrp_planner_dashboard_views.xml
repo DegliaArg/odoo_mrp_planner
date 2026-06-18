@@ -182,7 +182,7 @@
     <!-- Mover "Información general" (mrp_workorder) dentro de Órdenes de trabajo -->
     <record id="mrp_workorder.menu_mrp_dashboard" model="ir.ui.menu">
         <field name="parent_id" ref="mrp_workorder.mrp_workorder_menu_planning"/>
-        <field name="sequence">1</field>
+        <field name="sequence">0</field>
     </record>
 
 </odoo>

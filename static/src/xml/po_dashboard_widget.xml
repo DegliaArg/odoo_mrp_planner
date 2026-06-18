@@ -121,7 +121,7 @@
                 </div>
 
                 <!-- Derecha: pestañas de lista -->
-                <div class="col-12 col-lg-8 d-flex flex-column">
+                <div class="col-12 col-lg-8">
 
                     <!-- Sin datos -->
                     <div t-if="isEmpty"
@@ -132,7 +132,7 @@
                         </div>
                     </div>
 
-                    <div t-else="" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+                    <div t-else="">
                         <!-- Pestañas de lista -->
                         <ul class="nav nav-tabs mb-0">
                             <li class="nav-item">
@@ -168,7 +168,7 @@
                         </ul>
 
                         <!-- Contenido de lista con scroll -->
-                        <div style="flex:1; overflow-y:auto; min-height:0;"
+                        <div style="max-height:300px; overflow-y:auto;"
                              class="border border-top-0 rounded-bottom p-2">
 
                             <div t-if="activeList.length === 0"

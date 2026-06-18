@@ -4,6 +4,10 @@ import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
+function toDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const EMPTY_KPIS = { rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0 };
 
 class PoDashboardWidget extends Component {
@@ -13,9 +17,15 @@ class PoDashboardWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
 
+        const now          = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
         this.state = useState({
             tab:        "all",      // "all" | "purchase" | "subcontract"
             listTab:    "overdue",  // "rfqs" | "approve" | "overdue"
+            dateFrom:   toDateStr(firstOfMonth),
+            dateTo:     toDateStr(lastOfMonth),
             loading:    true,
             kpis:       { ...EMPTY_KPIS },
             rfqs:       [],
@@ -32,7 +42,7 @@ class PoDashboardWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_po_dashboard_data",
-                [this.state.tab],
+                [this.state.tab, this.state.dateFrom, this.state.dateTo],
             );
             this.state.kpis       = d.kpis;
             this.state.rfqs       = d.rfqs;
@@ -48,8 +58,11 @@ class PoDashboardWidget extends Component {
     setTab(tab) {
         if (this.state.tab === tab) return;
         this.state.tab = tab;
-        this._load();   // dimming keeps previous content visible during load
+        this._load();
     }
+
+    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
+    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
 
     setListTab(tab) {
         this.state.listTab = tab;

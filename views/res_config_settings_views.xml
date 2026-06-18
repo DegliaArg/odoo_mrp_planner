@@ -6,6 +6,8 @@
         <record id="mrp_reschedule_config_singleton" model="mrp.reschedule.config">
             <field name="wc_fallback">ldm</field>
             <field name="priority">chronological</field>
+            <field name="cron_interval_number">30</field>
+            <field name="cron_interval_type">minutes</field>
         </record>
     </data>
 
@@ -14,7 +16,7 @@
         <field name="name">mrp.reschedule.config.form</field>
         <field name="model">mrp.reschedule.config</field>
         <field name="arch" type="xml">
-            <form string="Configuración del planificador">
+            <form string="Configuración del planificador" create="false" delete="false">
                 <sheet>
                     <h2>Planificador de producción</h2>
                     <group string="Centros de trabajo">
@@ -23,19 +25,23 @@
                     <group string="Prioridad de reprogramación">
                         <field name="priority" widget="radio"/>
                     </group>
+                    <group string="Actualización de alertas">
+                        <label for="cron_interval_number" string="Ejecutar cron cada"/>
+                        <div class="o_row">
+                            <field name="cron_interval_number" class="o_field_small"/>
+                            <field name="cron_interval_type" class="ms-2"/>
+                        </div>
+                    </group>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <record id="action_mrp_reschedule_config" model="ir.actions.act_window">
-        <field name="name">Configuración</field>
-        <field name="res_model">mrp.reschedule.config</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="mrp_reschedule_config_form_view"/>
-        <field name="res_id" ref="mrp_reschedule_config_singleton"/>
-        <field name="target">inline</field>
-        <field name="context">{'create': False, 'delete': False}</field>
+    <record id="action_mrp_reschedule_config" model="ir.actions.server">
+        <field name="name">Configuración del planificador</field>
+        <field name="model_id" ref="model_mrp_reschedule_config"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
     </record>
 
     <menuitem id="mrp_reschedule_menu_config"

@@ -619,8 +619,8 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OCs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_po_dashboard_data(self, filter_type='all'):
-        """Datos de OCs filtrados por tipo: all / purchase / subcontract."""
+    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None):
+        """Datos de OCs filtrados por tipo y rango de fecha de entrega."""
         PO  = self.env['purchase.order']
         now = fields.Datetime.now()
 
@@ -630,9 +630,15 @@ class MrpPlannerDashboard(models.TransientModel):
         elif filter_type == 'subcontract':
             sc_domain = [('subcontract_production_ids', '!=', False)]
 
+        date_domain = []
+        if date_from:
+            date_domain.append(('date_planned', '>=', date_from + ' 00:00:00'))
+        if date_to:
+            date_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
+
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain
         approve_dom  = [('state', '=', 'to approve')] + sc_domain
-        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain
+        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_domain
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)

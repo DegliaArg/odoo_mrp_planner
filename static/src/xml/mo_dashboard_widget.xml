@@ -123,10 +123,10 @@
                                 Sin órdenes en el período.
                             </div>
                         </div>
-                        <div t-else="" style="max-height:250px; overflow-y:auto;"
+                        <div t-else="" style="max-height:215px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
-                                <thead class="sticky-top bg-white">
+                                <thead style="position:sticky;top:0;background:white;z-index:2;">
                                     <tr class="text-muted">
                                         <th>Referencia</th>
                                         <th>Producto</th>
@@ -219,7 +219,7 @@
                         <div t-else="" style="max-height:250px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
-                                <thead class="sticky-top bg-white">
+                                <thead style="position:sticky;top:0;background:white;z-index:2;">
                                     <tr class="text-muted">
                                         <th>Referencia</th>
                                         <th>Disponible desde</th>
@@ -307,7 +307,7 @@
                         <div t-else="" style="max-height:250px; overflow-y:auto;"
                              class="border rounded p-2">
                             <table class="table table-sm table-hover small mb-0">
-                                <thead class="sticky-top bg-white">
+                                <thead style="position:sticky;top:0;background:white;z-index:2;">
                                     <tr class="text-muted">
                                         <th>Producto</th>
                                         <th class="text-end">Programado</th>

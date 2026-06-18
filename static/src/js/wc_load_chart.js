@@ -158,7 +158,7 @@ class WcLoadChartWidget extends Component {
                             label: (ctx) => {
                                 const v = ctx.raw;
                                 if (v === 0) return null;
-                                return `  ${ctx.dataset.label}: ${v}h`;
+                                return `  ${ctx.dataset.label}: ${typeof v === 'number' ? v.toFixed(2) : v}h`;
                             },
                             footer: (items) => {
                                 const i     = items[0].dataIndex;

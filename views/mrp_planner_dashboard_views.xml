@@ -174,15 +174,10 @@
         </field>
     </record>
 
-    <menuitem id="mrp_planner_menu_root"
-              name="Planificador"
-              parent="mrp.menu_mrp_root"
-              sequence="12"
-              action="action_mrp_planner_dashboard_open"/>
-
-    <menuitem id="mrp_planner_menu_dashboard"
+    <!-- Panel como primer ítem del módulo Manufactura -->
+    <menuitem id="mrp_planner_panel_top"
               name="Panel"
-              parent="mrp_planner_menu_root"
+              parent="mrp.menu_mrp_root"
               sequence="1"
               action="action_mrp_planner_dashboard_open"/>
 

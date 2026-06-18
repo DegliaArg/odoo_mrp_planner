@@ -157,11 +157,19 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _find_impact_mos(self, product_id, available_qty):
         """Retorna MOs confirmadas/en progreso que consumen product_id y
-        cuya demanda acumulada supera el stock disponible (orden cronológico)."""
+        cuya demanda acumulada supera el stock disponible (orden cronológico).
+        Usa _mo_impact_cache si está disponible para evitar búsquedas repetidas."""
+        cache = getattr(self, '_mo_impact_cache', None)
+        if cache is not None and product_id in cache:
+            return cache[product_id]
+
         mos = self.env['mrp.production'].search([
             ('state', 'in', ('confirmed', 'progress')),
             ('move_raw_ids.product_id', '=', product_id),
         ] + no_subcontract_domain(self.env)).sorted(lambda m: m.date_start or datetime(9999, 12, 31))
+
+        # Prefetch all raw moves in one query
+        mos.mapped('move_raw_ids')
 
         impacted   = self.env['mrp.production']
         cumulative = 0.0
@@ -177,6 +185,9 @@ class MrpRescheduleAlert(models.Model):
             cumulative += required
             if cumulative > available_qty:
                 impacted |= mo
+
+        if cache is not None:
+            cache[product_id] = impacted
         return impacted
 
     # ── Cron ─────────────────────────────────────────────────────────────────
@@ -185,18 +196,22 @@ class MrpRescheduleAlert(models.Model):
     def _cron_check_delays(self):
         """Ejecutado cada 30 minutos. Detecta desvíos y crea/actualiza alertas."""
         now = datetime.utcnow()
-        steps = [
-            (self._check_delayed_mos,     (now,)),
-            (self._check_delayed_pos,     (now,)),
-            (self._check_delayed_receipts,(now,)),
-            (self._check_qty_mismatches,  (now,)),
-            (self._auto_resolve_stale,    ()),
-        ]
-        for fn, args in steps:
-            try:
-                fn(*args)
-            except Exception as e:
-                _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
+        self._mo_impact_cache = {}
+        try:
+            steps = [
+                (self._check_delayed_mos,     (now,)),
+                (self._check_delayed_pos,     (now,)),
+                (self._check_delayed_receipts,(now,)),
+                (self._check_qty_mismatches,  (now,)),
+                (self._auto_resolve_stale,    ()),
+            ]
+            for fn, args in steps:
+                try:
+                    fn(*args)
+                except Exception as e:
+                    _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
+        finally:
+            self._mo_impact_cache = {}
 
     @api.model
     def _check_delayed_mos(self, now):
@@ -205,11 +220,29 @@ class MrpRescheduleAlert(models.Model):
             ('date_finished', '<', now),
             ('date_finished', '!=', False),
         ] + no_subcontract_domain(self.env))
+
+        # Preload all open mo_delayed alerts indexed by production_id
+        by_mo = {
+            a.production_id.id: a
+            for a in self.search([('alert_type', '=', 'mo_delayed'), ('resolved', '=', False)])
+        }
+
+        to_create = []
         for mo in mos:
             days = max(0, (now - mo.date_finished).days)
             severity = 'critical' if days >= 3 else 'warning'
             msg = _('Fin planificado: %s') % mo.date_finished.strftime('%d/%m/%Y %H:%M')
-            self._upsert_alert('mo_delayed', severity, days, msg, production_id=mo.id)
+            write_vals = {'days_late': days, 'severity': severity, 'message': msg}
+            if mo.id in by_mo:
+                by_mo[mo.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type':    'mo_delayed',
+                    'production_id': mo.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
 
     @api.model
     def _check_delayed_pos(self, now):
@@ -217,18 +250,50 @@ class MrpRescheduleAlert(models.Model):
             ('state', '=', 'purchase'),
             ('date_planned', '<', now),
         ])
+
+        # Preload all open po_delayed alerts indexed by purchase_id
+        by_po = {
+            a.purchase_id.id: a
+            for a in self.search([('alert_type', '=', 'po_delayed'), ('resolved', '=', False)])
+        }
+
+        # Batch-read qty_available for ALL products across ALL POs in one shot
+        all_product_ids = set()
+        for po in pos:
+            all_product_ids.update(po.order_line.mapped('product_id').ids)
+        if all_product_ids:
+            products = self.env['product.product'].browse(list(all_product_ids))
+            qty_by_product = {p.id: p.qty_available for p in products}
+        else:
+            qty_by_product = {}
+
+        to_create = []
         for po in pos:
             days = max(0, (now - po.date_planned).days)
             severity = 'critical' if days >= 5 else 'warning'
             msg = _('Entrega planificada: %s') % po.date_planned.strftime('%d/%m/%Y')
-            # Calcular OFs afectadas
+
             product_ids = po.order_line.mapped('product_id').ids
             impacted = self.env['mrp.production']
             for pid in product_ids:
-                product = self.env['product.product'].browse(pid)
-                impacted |= self._find_impact_mos(pid, product.qty_available)
-            self._upsert_alert('po_delayed', severity, days, msg,
-                               purchase_id=po.id, impact_mo_ids=impacted.ids)
+                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0))
+
+            write_vals = {
+                'days_late': days,
+                'severity':  severity,
+                'message':   msg,
+                'impact_mo_ids': [(6, 0, impacted.ids)],
+            }
+            if po.id in by_po:
+                by_po[po.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type': 'po_delayed',
+                    'purchase_id': po.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
 
     @api.model
     def _check_delayed_receipts(self, now):
@@ -237,17 +302,50 @@ class MrpRescheduleAlert(models.Model):
             ('picking_type_code', '=', 'incoming'),
             ('scheduled_date', '<', now),
         ])
+
+        # Preload all open receipt_delayed alerts indexed by picking_id
+        by_picking = {
+            a.picking_id.id: a
+            for a in self.search([('alert_type', '=', 'receipt_delayed'), ('resolved', '=', False)])
+        }
+
+        # Batch-read qty_available for ALL products across ALL pickings in one shot
+        all_product_ids = set()
+        for picking in pickings:
+            all_product_ids.update(picking.move_ids.mapped('product_id').ids)
+        if all_product_ids:
+            products = self.env['product.product'].browse(list(all_product_ids))
+            qty_by_product = {p.id: p.qty_available for p in products}
+        else:
+            qty_by_product = {}
+
+        to_create = []
         for picking in pickings:
             days = max(0, (now - picking.scheduled_date).days)
             severity = 'critical' if days >= 3 else 'warning'
             msg = _('Fecha prevista: %s') % picking.scheduled_date.strftime('%d/%m/%Y')
+
             product_ids = picking.move_ids.mapped('product_id').ids
             impacted = self.env['mrp.production']
             for pid in product_ids:
-                product = self.env['product.product'].browse(pid)
-                impacted |= self._find_impact_mos(pid, product.qty_available)
-            self._upsert_alert('receipt_delayed', severity, days, msg,
-                               picking_id=picking.id, impact_mo_ids=impacted.ids)
+                impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0))
+
+            write_vals = {
+                'days_late': days,
+                'severity':  severity,
+                'message':   msg,
+                'impact_mo_ids': [(6, 0, impacted.ids)],
+            }
+            if picking.id in by_picking:
+                by_picking[picking.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type': 'receipt_delayed',
+                    'picking_id': picking.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
 
     @api.model
     def _check_qty_mismatches(self, now):
@@ -259,6 +357,17 @@ class MrpRescheduleAlert(models.Model):
             ('date_finished', '>=', since),
             ('date_finished', '!=', False),
         ] + no_subcontract_domain(self.env))
+
+        # Preload all open qty_mismatch alerts indexed by production_id
+        by_mo = {
+            a.production_id.id: a
+            for a in self.search([('alert_type', '=', 'qty_mismatch'), ('resolved', '=', False)])
+        }
+
+        # Prefetch all finished moves in one query
+        done_mos.mapped('move_finished_ids')
+
+        to_create = []
         for mo in done_mos:
             planned_qty = mo.product_qty
             if not planned_qty:
@@ -283,43 +392,25 @@ class MrpRescheduleAlert(models.Model):
             msg = _('Planificado: %g | Real: %g (%.0f%%)') % (
                 planned_qty, actual_qty, (actual_qty / planned_qty) * 100
             )
-            self._upsert_alert(
-                'qty_mismatch', severity, 0, msg,
-                production_id=mo.id,
-                product_id=mo.product_id.id,
-                expected_qty=planned_qty,
-                actual_qty=actual_qty,
-                impact_mo_ids=impacted.ids,
-            )
-
-    @api.model
-    def _upsert_alert(self, alert_type, severity, days_late, message, **record_fields):
-        """Crea la alerta si no existe; actualiza days_late y severity si ya existe."""
-        impact_mo_ids = record_fields.pop('impact_mo_ids', [])
-
-        domain = [('alert_type', '=', alert_type), ('resolved', '=', False)]
-        for fname, fval in record_fields.items():
-            if fval:
-                domain.append((fname, '=', fval))
-
-        existing = self.search(domain, limit=1)
-        write_vals = {'days_late': days_late, 'severity': severity, 'message': message}
-        if impact_mo_ids:
-            write_vals['impact_mo_ids'] = [(4, mid) for mid in impact_mo_ids]
-
-        if existing:
-            existing.write(write_vals)
-        else:
-            create_vals = {
-                'alert_type': alert_type,
-                'days_late':  days_late,
-                'severity':   severity,
-                'message':    message,
+            write_vals = {
+                'days_late':    0,
+                'severity':     severity,
+                'message':      msg,
+                'expected_qty': planned_qty,
+                'actual_qty':   actual_qty,
+                'impact_mo_ids': [(6, 0, impacted.ids)],
             }
-            create_vals.update(record_fields)
-            if impact_mo_ids:
-                create_vals['impact_mo_ids'] = [(4, mid) for mid in impact_mo_ids]
-            self.create(create_vals)
+            if mo.id in by_mo:
+                by_mo[mo.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type':    'qty_mismatch',
+                    'production_id': mo.id,
+                    'product_id':    mo.product_id.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
 
     @api.model
     def _resolve_for(self, alert_types, **record_fields):

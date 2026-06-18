@@ -4,6 +4,24 @@
     <t t-name="odoo_mrp_reschedule.PoDashboardWidget">
         <div class="o_po_dashboard_widget">
 
+            <!-- Filtros de fecha -->
+            <div class="row g-2 mb-3">
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Desde</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                </div>
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Hasta</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                </div>
+            </div>
+
             <!-- Pestañas de tipo -->
             <ul class="nav nav-pills mb-3">
                 <li class="nav-item">
@@ -150,7 +168,7 @@
                         </ul>
 
                         <!-- Contenido de lista con scroll -->
-                        <div style="max-height:215px; overflow-y:auto;"
+                        <div style="max-height:300px; overflow-y:auto;"
                              class="border border-top-0 rounded-bottom p-2">
 
                             <div t-if="activeList.length === 0"

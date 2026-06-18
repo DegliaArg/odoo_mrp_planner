@@ -45,10 +45,10 @@
             </ul>
 
             <!-- Contenido — dimming durante carga en lugar de spinner full -->
-            <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
+            <div t-ref="kpiRow" t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
 
                 <!-- Izquierda: tarjetas KPI -->
-                <div class="col-12 col-lg-4">
+                <div class="col-12 col-lg-4 o_kpi_height_src">
                     <div class="row g-2 h-100">
 
                         <div class="col-6">
@@ -169,7 +169,7 @@
 
                         <!-- Contenido de lista con scroll -->
                         <div style="height:350px; overflow-y:auto;"
-                             class="border border-top-0 rounded-bottom p-2">
+                             class="border border-top-0 rounded-bottom p-2 o_table_scroll">
 
                             <div t-if="activeList.length === 0"
                                  class="text-center text-muted small py-3">
@@ -177,7 +177,7 @@
                             </div>
 
                             <table t-else="" class="table table-sm table-hover small mb-0">
-                                <thead style="position:sticky;top:0;background:var(--bs-body-bg,#fff);z-index:2;">
+                                <thead class="o_sticky_th">
                                     <tr class="text-muted">
                                         <th>Referencia</th>
                                         <th>Proveedor</th>

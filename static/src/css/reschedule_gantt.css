@@ -85,3 +85,13 @@
 
 /* Alineación vertical en títulos de sección (badge + botón link) */
 .o_planner_section_title { display: flex; align-items: center; }
+
+/* Sticky th en widgets — más compatible que sticky en thead */
+.o_mo_dashboard_widget .o_sticky_th th,
+.o_po_dashboard_widget .o_sticky_th th {
+    position: sticky;
+    top: 0;
+    background: var(--bs-body-bg, #fff);
+    z-index: 2;
+    box-shadow: 0 1px 0 #dee2e6;
+}

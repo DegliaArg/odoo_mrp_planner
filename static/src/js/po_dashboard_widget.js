@@ -11,7 +11,7 @@ function toDateStr(d) {
 const EMPTY_KPIS = {
     rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
     receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
-    resupply_total: 0, resupply_overdue: 0,
+    resupply_total: 0, resupply_overdue: 0, services_total: 0,
 };
 
 class PoDashboardWidget extends Component {
@@ -34,12 +34,14 @@ class PoDashboardWidget extends Component {
             sortField:  null,
             sortDir:    "asc",
             kpis:       { ...EMPTY_KPIS },
-            rfqs:       [],
-            to_approve: [],
-            overdue:    [],
-            receipts:   [],
-            deliveries: [],
-            resupply:   [],
+            rfqs:             [],
+            to_approve:       [],
+            overdue:          [],
+            receipts:         [],
+            deliveries:       [],
+            resupply:         [],
+            services:         [],
+            show_services_tab: false,
         });
 
         this._kpiRowRef = useRef("kpiRow");
@@ -69,9 +71,11 @@ class PoDashboardWidget extends Component {
             this.state.rfqs       = d.rfqs;
             this.state.to_approve = d.to_approve;
             this.state.overdue    = d.overdue;
-            this.state.receipts   = d.receipts   || [];
-            this.state.deliveries = d.deliveries || [];
-            this.state.resupply   = d.resupply   || [];
+            this.state.receipts          = d.receipts   || [];
+            this.state.deliveries        = d.deliveries || [];
+            this.state.resupply          = d.resupply   || [];
+            this.state.services          = d.services   || [];
+            this.state.show_services_tab = d.show_services_tab || false;
         } catch (e) {
             console.error("[PoDashboardWidget]", e);
         } finally {
@@ -176,7 +180,8 @@ class PoDashboardWidget extends Component {
     get isEmpty() {
         const s = this.state;
         return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0
-            && s.receipts.length === 0 && s.deliveries.length === 0 && s.resupply.length === 0;
+            && s.receipts.length === 0 && s.deliveries.length === 0 && s.resupply.length === 0
+            && s.services.length === 0;
     }
 
     get activeList() {
@@ -186,6 +191,7 @@ class PoDashboardWidget extends Component {
             case "receipts":   return this.state.receipts;
             case "deliveries": return this.state.deliveries;
             case "resupply":   return this.state.resupply;
+            case "services":   return this.state.services;
             default:           return this.state.overdue;
         }
     }

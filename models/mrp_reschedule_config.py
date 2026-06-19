@@ -29,6 +29,11 @@ class MrpRescheduleConfig(models.Model):
     alert_receipt_critical_days = fields.Integer(string='Días críticos recepción', default=3)
     qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)', default=5.0)
 
+    show_po_services_tab = fields.Boolean(
+        string='Mostrar pestaña de servicios en OCs',
+        default=False,
+    )
+
     @api.depends()
     def _compute_name(self):
         for rec in self:

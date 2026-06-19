@@ -196,6 +196,16 @@
                                           t-esc="fmt(state.kpis.resupply_overdue)"/>
                                 </button>
                             </li>
+                            <li t-if="state.show_services_tab" class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'services' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('services')">
+                                    <i class="fa fa-briefcase text-info me-1"/>
+                                    Servicios
+                                    <span t-if="state.kpis.services_total > 0"
+                                          class="badge rounded-pill bg-info ms-1"
+                                          t-esc="fmt(state.kpis.services_total)"/>
+                                </button>
+                            </li>
                         </ul>
 
                         <!-- Contenido de lista con scroll (split table) -->
@@ -289,6 +299,44 @@
                                                         <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
                                                         <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
                                                     </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Servicios -->
+                            <t t-elif="state.listTab === 'services'">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                                    <colgroup>
+                                        <col style="width:20%"/><col style="width:38%"/>
+                                        <col style="width:24%"/><col style="width:18%"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('date_planned')">Entrega estimada <i t-att-class="sortIcon('date_planned')"/></th>
+                                            <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('amount_total')">Total <i t-att-class="sortIcon('amount_total')"/></th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                        <colgroup>
+                                            <col style="width:20%"/><col style="width:38%"/>
+                                            <col style="width:24%"/><col style="width:18%"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="svc" t-key="svc.id">
+                                                <tr style="cursor:pointer"
+                                                    t-att-data-po-id="svc.id"
+                                                    t-on-click="openPoFromRow">
+                                                    <td class="fw-semibold" t-esc="svc.name"/>
+                                                    <td t-esc="svc.partner"/>
+                                                    <td t-esc="svc.date_planned"/>
+                                                    <td class="text-end" t-esc="fmtAmt(svc.amount_total)"/>
                                                 </tr>
                                             </t>
                                         </tbody>

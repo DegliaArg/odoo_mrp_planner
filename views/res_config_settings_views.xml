@@ -45,6 +45,10 @@
                         <field name="qty_tolerance_pct"
                                help="Diferencia porcentual máxima entre cantidad planificada y producida que se tolera sin disparar una alerta de 'cantidad diferente'. Ej.: con 5%, producir 96 de 100 no alerta; producir 90 de 100 sí alerta."/>
                     </group>
+                    <group string="Widget de órdenes de compra">
+                        <field name="show_po_services_tab"
+                               help="Cuando está activo, las OCs cuyos productos son todos de tipo 'Servicio' se separan en una pestaña propia dentro del widget de OCs. Si está inactivo, los servicios se muestran junto al resto de las OCs."/>
+                    </group>
                 </sheet>
             </form>
         </field>

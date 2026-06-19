@@ -677,6 +677,28 @@ class MrpPlannerDashboard(models.TransientModel):
 
         rfqs_list       = PO.search(rfq_dom,     order='date_planned asc', limit=100)
         to_approve_list = PO.search(approve_dom, order='date_planned asc', limit=100)
+
+        # ── Separar servicios ────────────────────────────────────────────────
+        show_svc = bool(cfg and cfg.show_po_services_tab)
+
+        def _is_svc(po):
+            lines = po.order_line.filtered(lambda l: l.product_id)
+            return bool(lines) and all(l.product_id.type == 'service' for l in lines)
+
+        if show_svc:
+            rfqs_svc        = rfqs_list.filtered(_is_svc)
+            rfqs_list       = rfqs_list - rfqs_svc
+            approve_svc     = to_approve_list.filtered(_is_svc)
+            to_approve_list = to_approve_list - approve_svc
+            approved_svc    = approved.filtered(_is_svc)
+            approved        = approved - approved_svc
+            overdue         = overdue - approved_svc
+            pending         = pending - approved_svc
+            services_rs     = (rfqs_svc | approve_svc | approved_svc).sorted('date_planned')[:100]
+            services_list   = [_po_dict(p) for p in services_rs]
+        else:
+            services_list   = []
+
         overdue_list    = overdue.sorted('date_planned')[:100]
 
         # ── Recepciones (incoming pickings linked to POs) ────────────────────
@@ -806,13 +828,16 @@ class MrpPlannerDashboard(models.TransientModel):
                 'deliveries_overdue': len(overdue_deliveries),
                 'resupply_total':    len(resupply_list),
                 'resupply_overdue':  len(overdue_resupply),
+                'services_total':    len(services_list),
             },
+            'show_services_tab': show_svc,
             'rfqs':       [_po_dict(p) for p in rfqs_list],
             'to_approve': [_po_dict(p) for p in to_approve_list],
             'overdue':    [_po_dict(p) for p in overdue_list],
             'receipts':   [_pick_dict(p) for p in receipts],
             'deliveries': [_pick_dict(p) for p in deliveries],
             'resupply':   resupply_list,
+            'services':   services_list,
         }
 
     # ── Widget OFs filtrable ─────────────────────────────────────────────────

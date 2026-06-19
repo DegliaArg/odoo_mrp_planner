@@ -633,7 +633,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
         _PICK_FIELD = {
             'name': 'name', 'partner': 'partner_id',
-            'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date', 'days': 'scheduled_date',
+            'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date',
         }
         po_f       = _PO_FIELD.get(sort_field, 'date_planned')
         pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
@@ -762,73 +762,6 @@ class MrpPlannerDashboard(models.TransientModel):
 
         overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
-        # ── Reabastecimiento subcontratista ──────────────────────────────────
-        def _avail(pick):
-            if pick.state == 'assigned':
-                return 'available'
-            for move in pick.move_ids:
-                if move.state in ('partially_available', 'assigned'):
-                    return 'partial'
-            return 'none'
-
-        def _resupply_dict(p):
-            try:
-                mos = p.move_ids.mapped('raw_material_production_id').filtered(lambda m: m.id)
-                product_name = ', '.join(sorted({
-                    m.product_id.display_name for m in mos if m.product_id
-                })) or p.name
-            except Exception:
-                product_name = p.name
-            delta = int((now - p.scheduled_date).days) if p.scheduled_date else None
-            return {
-                'id':             p.id,
-                'name':           p.name,
-                'product':        product_name,
-                'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
-                'availability':   _avail(p),
-                'days':           delta,
-                'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
-            }
-
-        try:
-            resupply_types = self.env['stock.picking.type'].search(
-                [('subcontracting_resupply', '=', True)], limit=50
-            )
-        except Exception:
-            resupply_types = self.env['stock.picking.type'].browse([])
-
-        try:
-            if resupply_types:
-                resupply_dom = [
-                    ('state', 'not in', ['done', 'cancel']),
-                    ('picking_type_id', 'in', resupply_types.ids),
-                ] + sched_domain
-                resupply_picks = Picking.search(resupply_dom, order=pick_order)
-            else:
-                sc_all = PO.search([
-                    ('state', 'in', ['purchase', 'done']),
-                    ('subcontract_production_ids', '!=', False),
-                ])
-                sc_mos_all = sc_all.mapped('subcontract_production_ids').filtered(
-                    lambda m: m.state not in ('done', 'cancel')
-                )
-                all_picks = sc_mos_all.mapped('move_raw_ids.picking_id').filtered(
-                    lambda p: p.state not in ('done', 'cancel')
-                )
-                if date_from or date_to:
-                    df2 = datetime.strptime(date_from, '%Y-%m-%d') if date_from else None
-                    dt2 = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_to else None
-                    all_picks = all_picks.filtered(
-                        lambda p: (not df2 or (p.scheduled_date and p.scheduled_date >= df2))
-                        and (not dt2 or (p.scheduled_date and p.scheduled_date <= dt2))
-                    )
-                resupply_picks = all_picks.sorted(pick_f, reverse=_rev)
-        except Exception:
-            resupply_picks = Picking.browse([])
-
-        resupply_list   = [_resupply_dict(p) for p in resupply_picks]
-        overdue_resupply = [r for r in resupply_list if r['overdue']]
-
         return {
             'kpis': {
                 'rfq':              len(rfqs_list),
@@ -843,8 +776,6 @@ class MrpPlannerDashboard(models.TransientModel):
                 'receipts_overdue':  len(overdue_receipts),
                 'deliveries_total':  len(deliveries),
                 'deliveries_overdue': len(overdue_deliveries),
-                'resupply_total':    len(resupply_list),
-                'resupply_overdue':  len(overdue_resupply),
                 'services_total':    len(services_list),
             },
             'show_services_tab': show_svc,
@@ -855,7 +786,6 @@ class MrpPlannerDashboard(models.TransientModel):
             'pending_pos': [_po_dict(p) for p in pending_list],
             'receipts':   [_pick_dict(p) for p in receipts],
             'deliveries': [_pick_dict(p) for p in deliveries],
-            'resupply':   resupply_list,
             'services':   services_list,
         }
 

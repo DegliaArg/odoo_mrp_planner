@@ -11,7 +11,7 @@ function toDateStr(d) {
 const EMPTY_KPIS = {
     rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
     receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
-    resupply_total: 0, resupply_overdue: 0, services_total: 0,
+    services_total: 0,
 };
 
 class PoDashboardWidget extends Component {
@@ -28,7 +28,7 @@ class PoDashboardWidget extends Component {
         this.state = useState({
             tab:       "all",
             ocFilter:  "overdue",  // "all" | "pending" | "overdue" | "rfqs" | "approve"
-            listTab:   null,       // null = OC mode | "receipts" | "deliveries" | "resupply" | "services"
+            listTab:   null,       // null = OC mode | "receipts" | "deliveries" | "services"
             dateFrom:  toDateStr(firstOfMonth),
             dateTo:    toDateStr(lastOfMonth),
             loading:   true,
@@ -42,7 +42,6 @@ class PoDashboardWidget extends Component {
             pending_pos:      [],
             receipts:         [],
             deliveries:       [],
-            resupply:         [],
             services:         [],
             show_services_tab: false,
         });
@@ -79,7 +78,6 @@ class PoDashboardWidget extends Component {
             this.state.pending_pos     = d.pending_pos || [];
             this.state.receipts        = d.receipts   || [];
             this.state.deliveries      = d.deliveries || [];
-            this.state.resupply        = d.resupply   || [];
             this.state.services        = d.services   || [];
             this.state.show_services_tab = d.show_services_tab || false;
         } catch (e) {
@@ -196,8 +194,7 @@ class PoDashboardWidget extends Component {
         return !s.loading
             && s.rfqs.length === 0 && s.to_approve.length === 0
             && s.overdue.length === 0 && s.all_pos.length === 0 && s.pending_pos.length === 0
-            && s.receipts.length === 0 && s.deliveries.length === 0
-            && s.resupply.length === 0 && s.services.length === 0;
+            && s.receipts.length === 0 && s.deliveries.length === 0 && s.services.length === 0;
     }
 
     get activeList() {
@@ -205,7 +202,6 @@ class PoDashboardWidget extends Component {
             switch (this.state.listTab) {
                 case "receipts":   return this.state.receipts;
                 case "deliveries": return this.state.deliveries;
-                case "resupply":   return this.state.resupply;
                 case "services":   return this.state.services;
             }
         }
@@ -216,25 +212,6 @@ class PoDashboardWidget extends Component {
             case "approve": return this.state.to_approve;
             default:        return this.state.overdue;
         }
-    }
-
-    availLabel(a) {
-        return { available: 'Disponible', partial: 'Parcial', none: 'No disponible' }[a] || a;
-    }
-    availClass(a) {
-        return { available: 'badge bg-success', partial: 'badge bg-warning text-dark', none: 'badge bg-danger' }[a] || 'badge bg-secondary';
-    }
-    daysLabel(d) {
-        if (d === null || d === undefined) return '—';
-        if (d === 0) return 'Hoy';
-        if (d > 0) return `${d}d atraso`;
-        return `${Math.abs(d)}d adelanto`;
-    }
-    daysClass(d) {
-        if (d === null || d === undefined) return 'text-muted small';
-        if (d > 0) return 'text-danger fw-semibold small';
-        if (d < 0) return 'text-success fw-semibold small';
-        return 'text-info fw-semibold small';
     }
 
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
@@ -258,7 +235,7 @@ class PoDashboardWidget extends Component {
     }
 
     // Campos computados en el dict que el backend no puede ordenar en DB
-    static _CLIENT_SORT = new Set(["product", "availability", "partner"]);
+    static _CLIENT_SORT = new Set(["partner"]);
 
     _sortList(list) {
         const { sortField, sortDir } = this.state;

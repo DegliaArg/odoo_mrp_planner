@@ -619,7 +619,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OCs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc'):
+    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc', page=1, page_size=50):
         """Datos de OCs filtrados por tipo y rango de fecha de entrega."""
         PO      = self.env['purchase.order']
         Picking = self.env['stock.picking']
@@ -639,6 +639,7 @@ class MrpPlannerDashboard(models.TransientModel):
         pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
         po_order   = f'{po_f} {_sd}'
         pick_order = f'{pick_f} {_sd}'
+        offset     = (max(1, page) - 1) * page_size
 
         sc_domain = []
         if filter_type == 'purchase':
@@ -710,13 +711,18 @@ class MrpPlannerDashboard(models.TransientModel):
             overdue         = overdue - approved_svc
             pending         = pending - approved_svc
             services_rs     = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
-            services_list   = [_po_dict(p) for p in services_rs]
         else:
-            services_list   = []
+            services_rs     = self.env['purchase.order']
 
         overdue_list  = overdue.sorted(po_f,  reverse=_rev)
         all_pos_list  = approved.sorted(po_f, reverse=_rev)
         pending_list  = pending.sorted(po_f,  reverse=_rev)
+
+        rfqs_pg       = rfqs_list[offset:offset + page_size]
+        to_approve_pg = to_approve_list[offset:offset + page_size]
+        overdue_pg    = overdue_list[offset:offset + page_size]
+        all_pos_pg    = all_pos_list[offset:offset + page_size]
+        pending_pg    = pending_list[offset:offset + page_size]
 
         # ── Recepciones (incoming pickings linked to POs) ────────────────────
         receipt_sc = []
@@ -731,6 +737,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('purchase_id', '!=', False),
         ] + receipt_sc + sched_domain, order=pick_order)
 
+        receipts_pg      = receipts[offset:offset + page_size]
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         # ── Entregas (component pickings for subcontract MOs) ────────────────
@@ -760,6 +767,8 @@ class MrpPlannerDashboard(models.TransientModel):
         except Exception:
             deliveries = Picking
 
+        deliveries_pg      = deliveries[offset:offset + page_size]
+        services_pg        = services_rs[offset:offset + page_size]
         overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         return {
@@ -776,17 +785,17 @@ class MrpPlannerDashboard(models.TransientModel):
                 'receipts_overdue':  len(overdue_receipts),
                 'deliveries_total':  len(deliveries),
                 'deliveries_overdue': len(overdue_deliveries),
-                'services_total':    len(services_list),
+                'services_total':    len(services_rs),
             },
             'show_services_tab': show_svc,
-            'rfqs':        [_po_dict(p) for p in rfqs_list],
-            'to_approve':  [_po_dict(p) for p in to_approve_list],
-            'overdue':     [_po_dict(p) for p in overdue_list],
-            'all_pos':     [_po_dict(p) for p in all_pos_list],
-            'pending_pos': [_po_dict(p) for p in pending_list],
-            'receipts':   [_pick_dict(p) for p in receipts],
-            'deliveries': [_pick_dict(p) for p in deliveries],
-            'services':   services_list,
+            'rfqs':        [_po_dict(p) for p in rfqs_pg],
+            'to_approve':  [_po_dict(p) for p in to_approve_pg],
+            'overdue':     [_po_dict(p) for p in overdue_pg],
+            'all_pos':     [_po_dict(p) for p in all_pos_pg],
+            'pending_pos': [_po_dict(p) for p in pending_pg],
+            'receipts':    [_pick_dict(p) for p in receipts_pg],
+            'deliveries':  [_pick_dict(p) for p in deliveries_pg],
+            'services':    [_po_dict(p) for p in services_pg],
         }
 
     # ── Widget OFs filtrable ─────────────────────────────────────────────────
@@ -838,7 +847,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc'):
+    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50):
         """KPIs + lista de OFs activas en el rango, filtradas por sector."""
         first_day = datetime.strptime(date_from, '%Y-%m-%d')
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
@@ -874,10 +883,13 @@ class MrpPlannerDashboard(models.TransientModel):
                 )
             )
 
+        offset   = (max(1, page) - 1) * page_size
+        mos_page = mos[offset:offset + page_size]
+
         now = fields.Datetime.now()
 
         # Batch-compute pending outgoing deliveries per product (ítem 7)
-        product_ids = list({mo.product_id.id for mo in mos if mo.product_id})
+        product_ids = list({mo.product_id.id for mo in mos_page if mo.product_id})
         if product_ids:
             out_moves = self.env['stock.move'].search([
                 ('product_id', 'in', product_ids),
@@ -911,11 +923,11 @@ class MrpPlannerDashboard(models.TransientModel):
                 'delayed':     len(mos.filtered(lambda m: m.date_finished and m.date_finished < now)),
                 'reschedule':  len(mos.filtered(lambda m: m.x_reschedule_needed)),
             },
-            'mos': [_mo_dict(m) for m in mos],
+            'mos': [_mo_dict(m) for m in mos_page],
         }
 
     @api.model
-    def get_request_widget_data(self, sort_field=None, sort_dir='asc'):
+    def get_request_widget_data(self, sort_field=None, sort_dir='asc', page=1, page_size=50):
         """KPIs + lista de programaciones activas."""
         Req = self.env['mrp.production.request']
         now = fields.Datetime.now()
@@ -928,6 +940,9 @@ class MrpPlannerDashboard(models.TransientModel):
         calculated = Req.search([('state', '=', 'calculated')])
         all_active = (confirmed | calculated).sorted(req_f, reverse=(_sd == 'desc'))
         all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
+
+        offset          = (max(1, page) - 1) * page_size
+        all_active_page = all_active[offset:offset + page_size]
 
         def _req_dict(r):
             mos = r.item_ids.mapped('production_id').filtered(lambda m: m.id)
@@ -946,6 +961,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         return {
             'kpis': {
+                'total':       len(all_active),
                 'active':      len(confirmed),
                 'calculated':  len(calculated),
                 'reschedule':  len(confirmed.filtered(
@@ -959,7 +975,7 @@ class MrpPlannerDashboard(models.TransientModel):
                     and m.date_finished and m.date_finished < now
                 )),
             },
-            'requests': [_req_dict(r) for r in all_active],
+            'requests': [_req_dict(r) for r in all_active_page],
         }
 
     @api.model

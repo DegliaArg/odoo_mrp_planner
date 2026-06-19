@@ -34,6 +34,8 @@ class PoDashboardWidget extends Component {
             loading:   true,
             sortField: null,
             sortDir:   "asc",
+            page:      1,
+            pageSize:  50,
             kpis:      { ...EMPTY_KPIS },
             rfqs:             [],
             to_approve:       [],
@@ -68,7 +70,8 @@ class PoDashboardWidget extends Component {
                 "mrp.planner.dashboard",
                 "get_po_dashboard_data",
                 [this.state.tab, this.state.dateFrom, this.state.dateTo,
-                 this.state.sortField || null, this.state.sortDir],
+                 this.state.sortField || null, this.state.sortDir,
+                 this.state.page, this.state.pageSize],
             );
             this.state.kpis            = d.kpis;
             this.state.rfqs            = d.rfqs;
@@ -93,23 +96,29 @@ class PoDashboardWidget extends Component {
         this.state.listTab   = null;
         this.state.sortField = null;
         this.state.sortDir   = "asc";
+        this.state.page      = 1;
         this._load();
     }
 
-    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
-    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
+    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._load(); }
+    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._load(); }
 
     onOcFilterChange(ev) {
         this.state.ocFilter  = ev.target.value;
         this.state.listTab   = null;
         this.state.sortField = null;
         this.state.sortDir   = "asc";
+        this.state.page      = 1;
+        this._load();
     }
 
     setListTab(tab) {
+        if (this.state.listTab === tab) return;
         this.state.listTab   = tab;
         this.state.sortField = null;
         this.state.sortDir   = "asc";
+        this.state.page      = 1;
+        this._load();
     }
 
     _scDomain() {
@@ -214,6 +223,27 @@ class PoDashboardWidget extends Component {
         }
     }
 
+    get activeCount() {
+        const s = this.state;
+        if (s.listTab === 'receipts')   return s.kpis.receipts_total;
+        if (s.listTab === 'deliveries') return s.kpis.deliveries_total;
+        if (s.listTab === 'services')   return s.kpis.services_total;
+        switch (s.ocFilter) {
+            case 'all':     return s.kpis.total;
+            case 'pending': return s.kpis.pending;
+            case 'rfqs':    return s.kpis.rfq;
+            case 'approve': return s.kpis.to_approve;
+            default:        return s.kpis.overdue;
+        }
+    }
+
+    get totalPages()  { return Math.max(1, Math.ceil(this.activeCount / this.state.pageSize)); }
+    get hasNextPage() { return this.state.page < this.totalPages; }
+    get hasPrevPage() { return this.state.page > 1; }
+
+    nextPage() { if (this.hasNextPage) { this.state.page++; this._load(); } }
+    prevPage() { if (this.hasPrevPage) { this.state.page--; this._load(); } }
+
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
@@ -226,6 +256,7 @@ class PoDashboardWidget extends Component {
             this.state.sortField = field;
             this.state.sortDir = "asc";
         }
+        this.state.page = 1;
         this._load();
     }
 

@@ -116,17 +116,17 @@
 
                     <!-- Lista de OFs -->
                     <div class="col-12 col-lg-8">
-                        <div class="d-flex flex-column o_table_scroll" style="height:230px;">
                         <div t-if="state.mos.length === 0"
-                             class="d-flex align-items-center justify-content-center border rounded flex-grow-1">
+                             class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                             style="height:230px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                                 Sin órdenes en el período.
                             </div>
                         </div>
                         <div t-else=""
-                             class="border rounded d-flex flex-column"
-                             style="overflow:hidden; flex:1; min-height:0;">
+                             class="border rounded d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:230px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:18%"/><col style="width:32%"/>
@@ -171,11 +171,22 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                        <div class="text-end mt-1" style="flex-shrink:0;">
-                            <button class="btn btn-sm btn-link text-secondary p-0 small"
-                                    t-on-click="onClickTotal">Ver todas →</button>
-                        </div>
+                            <!-- Paginación -->
+                            <div t-if="totalPages > 1"
+                                 class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                                 style="flex-shrink:0;">
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasPrevPage"
+                                        t-on-click="prevPage">
+                                    <i class="fa fa-chevron-left"/>
+                                </button>
+                                <small class="text-muted">Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/> &amp;nbsp;·&amp;nbsp; <t t-esc="fmt(activeCount)"/> registros</small>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasNextPage"
+                                        t-on-click="nextPage">
+                                    <i class="fa fa-chevron-right"/>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -236,17 +247,17 @@
 
                     <!-- Lista de programaciones -->
                     <div class="col-12 col-lg-8">
-                        <div class="d-flex flex-column o_table_scroll" style="height:230px;">
                         <div t-if="state.requests.length === 0"
-                             class="d-flex align-items-center justify-content-center border rounded flex-grow-1">
+                             class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                             style="height:230px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-calendar-check-o fa-2x mb-2 d-block text-muted"/>
                                 Sin programaciones activas.
                             </div>
                         </div>
                         <div t-else=""
-                             class="border rounded d-flex flex-column"
-                             style="overflow:hidden; flex:1; min-height:0;">
+                             class="border rounded d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:230px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
@@ -279,11 +290,22 @@
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                        <div class="text-end mt-1" style="flex-shrink:0;">
-                            <button class="btn btn-sm btn-link text-secondary p-0 small"
-                                    t-on-click="onClickAllRequests">Ver todas →</button>
-                        </div>
+                            <!-- Paginación -->
+                            <div t-if="totalPages > 1"
+                                 class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                                 style="flex-shrink:0;">
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasPrevPage"
+                                        t-on-click="prevPage">
+                                    <i class="fa fa-chevron-left"/>
+                                </button>
+                                <small class="text-muted">Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/> &amp;nbsp;·&amp;nbsp; <t t-esc="fmt(activeCount)"/> registros</small>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasNextPage"
+                                        t-on-click="nextPage">
+                                    <i class="fa fa-chevron-right"/>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -393,6 +415,16 @@
 
                 </t>
 
+            </div>
+
+            <!-- Ver todas (fuera del kpiRow para no afectar la alineación) -->
+            <div class="text-end mt-1">
+                <button t-if="state.tab === 'ofs'"
+                        class="btn btn-sm btn-link text-secondary p-0 small"
+                        t-on-click="onClickTotal">Ver todas →</button>
+                <button t-elif="state.tab === 'requests'"
+                        class="btn btn-sm btn-link text-secondary p-0 small"
+                        t-on-click="onClickAllRequests">Ver todas →</button>
             </div>
         </div>
     </t>

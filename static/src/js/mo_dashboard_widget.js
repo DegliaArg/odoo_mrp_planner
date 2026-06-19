@@ -28,6 +28,8 @@ class MoDashboardWidget extends Component {
             loading:     true,
             sortField:   null,
             sortDir:     "asc",
+            page:        1,
+            pageSize:    50,
             // OFs
             ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0 },
             mos:         [],
@@ -71,6 +73,8 @@ class MoDashboardWidget extends Component {
                     this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
                     this.state.sortField || null,
                     this.state.sortDir,
+                    this.state.page,
+                    this.state.pageSize,
                 ]);
                 this.state.ofs_kpis = d.kpis;
                 this.state.mos      = d.mos;
@@ -78,6 +82,8 @@ class MoDashboardWidget extends Component {
                 const d = await this.orm.call("mrp.planner.dashboard", "get_request_widget_data", [
                     this.state.sortField || null,
                     this.state.sortDir,
+                    this.state.page,
+                    this.state.pageSize,
                 ]);
                 this.state.req_kpis  = d.kpis;
                 this.state.requests  = d.requests;
@@ -102,12 +108,13 @@ class MoDashboardWidget extends Component {
         this.state.tab = tab;
         this.state.sortField = null;
         this.state.sortDir = "asc";
+        this.state.page = 1;
         this._loadData();
     }
 
-    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._loadData(); }
-    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._loadData(); }
-    onTagChange(ev)      { this.state.selectedTag = ev.target.value; this._loadData(); }
+    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._loadData(); }
+    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._loadData(); }
+    onTagChange(ev)      { this.state.selectedTag = ev.target.value; this.state.page = 1; this._loadData(); }
 
     get showFilters() { return this.state.tab !== "requests"; }
 
@@ -220,6 +227,19 @@ class MoDashboardWidget extends Component {
         return "text-danger fw-semibold";
     }
 
+    get activeCount() {
+        if (this.state.tab === 'ofs')      return this.state.ofs_kpis.total || 0;
+        if (this.state.tab === 'requests') return this.state.req_kpis.total || 0;
+        return this.state.comparison.length;
+    }
+
+    get totalPages()  { return Math.max(1, Math.ceil(this.activeCount / this.state.pageSize)); }
+    get hasNextPage() { return this.state.page < this.totalPages; }
+    get hasPrevPage() { return this.state.page > 1; }
+
+    nextPage() { if (this.hasNextPage) { this.state.page++; this._loadData(); } }
+    prevPage() { if (this.hasPrevPage) { this.state.page--; this._loadData(); } }
+
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
@@ -232,6 +252,7 @@ class MoDashboardWidget extends Component {
             this.state.sortField = field;
             this.state.sortDir = "asc";
         }
+        this.state.page = 1;
         this._loadData();
     }
 

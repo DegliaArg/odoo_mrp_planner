@@ -28,6 +28,7 @@ class WcLoadChartWidget extends Component {
             dateTo:   toDateStr(lastOfMonth),
             loading: false,
             empty: false,
+            kpis: { disponible: 0, planificado: 0, carga_pct: 0, ejecutado: 0, pendiente: 0, tiempo_libre: 0 },
         });
 
         onMounted(async () => {
@@ -65,6 +66,7 @@ class WcLoadChartWidget extends Component {
                 ],
             );
             this.state.empty = !chartData.labels.length;
+            if (chartData.totals) this.state.kpis = chartData.totals;
         } catch (e) {
             console.error("[WcLoadChart] Error al obtener datos:", e);
             this.state.empty = true;
@@ -205,6 +207,14 @@ class WcLoadChartWidget extends Component {
     onTagChange(ev) {
         this.state.selectedTag = ev.target.value;
         this._loadChart();
+    }
+
+    fmtH(n) { return (n || 0).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'h'; }
+
+    cargaClass(pct) {
+        if (pct >= 90) return "text-danger fw-bold";
+        if (pct >= 70) return "text-warning fw-bold";
+        return "text-success fw-bold";
     }
 }
 

@@ -608,12 +608,27 @@ class MrpPlannerDashboard(models.TransientModel):
             pendiente_list.append(round(pendiente, 1))
             tiempo_muerto_list.append(round(tiempo_muerto, 1))
 
+        tot_avail = sum(avail_list)
+        tot_ejec  = sum(ejecutado_list)
+        tot_pend  = sum(pendiente_list)
+        tot_plan  = tot_ejec + tot_pend
+        tot_libre = sum(tiempo_muerto_list)
+        carga_pct = round(tot_plan / tot_avail * 100, 1) if tot_avail > 0 else 0.0
+
         return {
             'labels':          labels,
             'available_hours': avail_list,
             'ejecutado':       ejecutado_list,
             'pendiente':       pendiente_list,
             'tiempo_muerto':   tiempo_muerto_list,
+            'totals': {
+                'disponible':  round(tot_avail, 1),
+                'planificado': round(tot_plan,  1),
+                'carga_pct':   carga_pct,
+                'ejecutado':   round(tot_ejec,  1),
+                'pendiente':   round(tot_pend,  1),
+                'tiempo_libre': round(tot_libre, 1),
+            },
         }
 
     # ── Widget OCs con pestañas ──────────────────────────────────────────────

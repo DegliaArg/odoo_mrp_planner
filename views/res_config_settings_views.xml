@@ -20,23 +20,30 @@
                 <sheet>
                     <h2>Planificador de producción</h2>
                     <group string="Centros de trabajo">
-                        <field name="wc_fallback" widget="radio"/>
+                        <field name="wc_fallback" widget="radio"
+                               help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados en su ficha. 'LDM' usa las operaciones definidas en la Lista de Materiales como fallback; 'Sin WC' deja la OF sin asignar."/>
                     </group>
                     <group string="Prioridad de reprogramación">
-                        <field name="priority" widget="radio"/>
+                        <field name="priority" widget="radio"
+                               help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. 'Cronológico' respeta la fecha de inicio; 'SPT' prioriza las OFs más cortas para maximizar throughput; 'Manual' permite arrastrar el orden en el wizard."/>
                     </group>
                     <group string="Actualización de alertas">
-                        <label for="cron_interval_number" string="Ejecutar cron cada"/>
+                        <label for="cron_interval_number" string="Ejecutar cron cada"
+                               help="Frecuencia con la que el sistema revisa automáticamente OFs atrasadas, OCs vencidas y recepciones pendientes para crear o actualizar las alertas del dashboard."/>
                         <div class="o_row">
                             <field name="cron_interval_number" class="o_field_small"/>
                             <field name="cron_interval_type" class="ms-2"/>
                         </div>
                     </group>
                     <group string="Umbrales de alertas">
-                        <field name="alert_mo_critical_days"/>
-                        <field name="alert_po_critical_days"/>
-                        <field name="alert_receipt_critical_days"/>
-                        <field name="qty_tolerance_pct"/>
+                        <field name="alert_mo_critical_days"
+                               help="Días de retraso a partir de los cuales una OF atrasada pasa de alerta amarilla (aviso) a alerta roja (crítica). Por defecto 3 días."/>
+                        <field name="alert_po_critical_days"
+                               help="Días de retraso a partir de los cuales una OC vencida pasa de alerta amarilla a roja. Las OCs suelen tener plazos más largos, por eso el umbral por defecto es 5 días."/>
+                        <field name="alert_receipt_critical_days"
+                               help="Días de retraso a partir de los cuales una recepción de stock atrasada pasa de alerta amarilla a roja. Por defecto 3 días."/>
+                        <field name="qty_tolerance_pct"
+                               help="Diferencia porcentual máxima entre cantidad planificada y producida que se tolera sin disparar una alerta de 'cantidad diferente'. Ej.: con 5%, producir 96 de 100 no alerta; producir 90 de 100 sí alerta."/>
                     </group>
                 </sheet>
             </form>

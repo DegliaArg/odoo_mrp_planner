@@ -56,7 +56,7 @@
             </ul>
 
             <!-- Contenido — dimming durante carga en lugar de spinner full -->
-            <div t-ref="kpiRow" t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
+            <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
 
                 <!-- Izquierda: tarjetas KPI -->
                 <div class="col-12 col-lg-4 o_kpi_height_src">
@@ -132,19 +132,19 @@
                 </div>
 
                 <!-- Derecha: pestañas de lista -->
-                <div class="col-12 col-lg-8">
+                <div class="col-12 col-lg-8 d-flex flex-column">
 
                     <!-- Sin datos -->
                     <div t-if="isEmpty"
-                         class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
-                         style="height:350px;">
+                         class="d-flex align-items-center justify-content-center border rounded"
+                         style="flex:1; min-height:0;">
                         <div class="text-center small text-muted">
                             <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                             Sin órdenes pendientes.
                         </div>
                     </div>
 
-                    <div t-else="" class="d-flex flex-column o_table_scroll" style="height:350px;">
+                    <div t-else="" class="d-flex flex-column" style="flex:1; min-height:0;">
                         <!-- Pestañas de lista (movimientos de stock) -->
                         <ul class="nav nav-tabs mb-0 flex-wrap" style="flex-shrink:0;">
                             <li class="nav-item">
@@ -333,8 +333,7 @@
                                 </button>
                                 <small class="text-muted">
                                     Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
-                                    &amp;nbsp;·&amp;nbsp;
-                                    <t t-esc="fmt(activeCount)"/> registros
+                                    · <t t-esc="fmt(activeCount)"/> registros
                                 </small>
                                 <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                                         t-att-disabled="!hasNextPage"

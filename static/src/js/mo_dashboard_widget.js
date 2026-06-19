@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
+import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -40,18 +40,6 @@ class MoDashboardWidget extends Component {
             cmp_kpis:    { planned: 0, produced: 0, pct: 0, ofs_done: 0 },
             comparison:  [],
         });
-
-        this._kpiRowRef = useRef("kpiRow");
-        const syncH = () => {
-            const row = this._kpiRowRef.el;
-            if (!row) return;
-            const srcRow = row.querySelector(".o_kpi_height_src > .row");
-            if (!srcRow) return;
-            const h = srcRow.offsetHeight;
-            row.querySelectorAll(".o_table_scroll").forEach(el => { el.style.height = h + "px"; });
-        };
-        onMounted(syncH);
-        onPatched(syncH);
 
         onMounted(async () => {
             await this._loadTags();

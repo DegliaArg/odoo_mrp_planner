@@ -30,6 +30,8 @@ class PoDashboardWidget extends Component {
             dateFrom:   toDateStr(firstOfMonth),
             dateTo:     toDateStr(lastOfMonth),
             loading:    true,
+            sortField:  null,
+            sortDir:    "asc",
             kpis:       { ...EMPTY_KPIS },
             rfqs:       [],
             to_approve: [],
@@ -77,6 +79,8 @@ class PoDashboardWidget extends Component {
     setTab(tab) {
         if (this.state.tab === tab) return;
         this.state.tab = tab;
+        this.state.sortField = null;
+        this.state.sortDir = "asc";
         this._load();
     }
 
@@ -85,6 +89,8 @@ class PoDashboardWidget extends Component {
 
     setListTab(tab) {
         this.state.listTab = tab;
+        this.state.sortField = null;
+        this.state.sortDir = "asc";
     }
 
     _scDomain() {
@@ -170,6 +176,43 @@ class PoDashboardWidget extends Component {
 
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
+
+    // ── Ordenamiento ─────────────────────────────────────────────────────────
+
+    sortBy(field) {
+        if (this.state.sortField === field) {
+            this.state.sortDir = this.state.sortDir === "asc" ? "desc" : "asc";
+        } else {
+            this.state.sortField = field;
+            this.state.sortDir = "asc";
+        }
+    }
+
+    sortIcon(field) {
+        if (this.state.sortField !== field) return "fa fa-sort text-muted ms-1 small";
+        return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
+    }
+
+    _sortList(list) {
+        const { sortField, sortDir } = this.state;
+        if (!sortField) return list;
+        const dateRe = /^\d{2}\/\d{2}\/\d{4}$/;
+        return [...list].sort((a, b) => {
+            let va = a[sortField] ?? "";
+            let vb = b[sortField] ?? "";
+            if (typeof va === "number" && typeof vb === "number") {
+                return sortDir === "asc" ? va - vb : vb - va;
+            }
+            if (dateRe.test(va) && dateRe.test(vb)) {
+                va = va.split("/").reverse().join("");
+                vb = vb.split("/").reverse().join("");
+            }
+            const cmp = String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
+            return sortDir === "asc" ? cmp : -cmp;
+        });
+    }
+
+    get sortedList() { return this._sortList(this.activeList); }
 }
 
 registry.category("view_widgets").add("po_dashboard_widget", {

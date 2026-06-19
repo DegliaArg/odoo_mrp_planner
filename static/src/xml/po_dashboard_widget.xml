@@ -205,14 +205,15 @@
                                         <col style="width:24%"/><col style="width:18%"/>
                                     </colgroup>
                                     <thead>
-                                        <tr class="text-muted">
-                                            <th>Referencia</th>
-                                            <th>Proveedor</th>
-                                            <th>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('date_planned')">
                                                 <t t-if="state.listTab === 'overdue'">Vencida el</t>
                                                 <t t-else="">Entrega estimada</t>
+                                                <i t-att-class="sortIcon('date_planned')"/>
                                             </th>
-                                            <th class="text-end">Total</th>
+                                            <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('amount_total')">Total <i t-att-class="sortIcon('amount_total')"/></th>
                                         </tr>
                                     </thead>
                                 </table>
@@ -223,7 +224,7 @@
                                             <col style="width:24%"/><col style="width:18%"/>
                                         </colgroup>
                                         <tbody>
-                                            <t t-foreach="activeList" t-as="po" t-key="po.id">
+                                            <t t-foreach="sortedList" t-as="po" t-key="po.id">
                                                 <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
                                                     style="cursor:pointer"
                                                     t-on-click="() => this.openPo(po.id)">
@@ -246,14 +247,15 @@
                                         <col style="width:25%"/><col style="width:10%"/>
                                     </colgroup>
                                     <thead>
-                                        <tr class="text-muted">
-                                            <th>Referencia</th>
-                                            <th>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">
                                                 <t t-if="state.listTab === 'receipts'">Proveedor</t>
                                                 <t t-else="">Subcontratista</t>
+                                                <i t-att-class="sortIcon('partner')"/>
                                             </th>
-                                            <th>Fecha prevista</th>
-                                            <th class="text-center">Estado</th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
+                                            <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('overdue')">Estado <i t-att-class="sortIcon('overdue')"/></th>
                                         </tr>
                                     </thead>
                                 </table>
@@ -264,7 +266,7 @@
                                             <col style="width:25%"/><col style="width:10%"/>
                                         </colgroup>
                                         <tbody>
-                                            <t t-foreach="activeList" t-as="pick" t-key="pick.id">
+                                            <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
                                                 <tr t-att-class="pick.overdue ? 'table-danger' : ''"
                                                     style="cursor:pointer"
                                                     t-on-click="() => this.openPicking(pick.id)">

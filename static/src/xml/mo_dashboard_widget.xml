@@ -133,12 +133,12 @@
                                     <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
                                 </colgroup>
                                 <thead>
-                                    <tr class="text-muted">
-                                        <th>Referencia</th>
-                                        <th>Producto</th>
-                                        <th>Fin planificado</th>
-                                        <th>Estado</th>
-                                        <th class="text-end" title="Entregas pendientes del producto">Entregas</th>
+                                    <tr class="text-muted o_sortable_header">
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('date_finished')">Fin planificado <i t-att-class="sortIcon('date_finished')"/></th>
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
+                                        <th class="text-end" style="cursor:pointer" title="Entregas pendientes del producto" t-on-click="() => this.sortBy('pending_delivery')">Entregas <i t-att-class="sortIcon('pending_delivery')"/></th>
                                     </tr>
                                 </thead>
                             </table>
@@ -149,7 +149,7 @@
                                         <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
                                     </colgroup>
                                     <tbody>
-                                        <t t-foreach="state.mos" t-as="mo" t-key="mo.id">
+                                        <t t-foreach="sortedMos" t-as="mo" t-key="mo.id">
                                             <tr style="cursor:pointer" t-on-click="() => this.openMo(mo.id)"
                                                 t-att-class="mo.delayed ? 'table-danger' : ''">
                                                 <td class="fw-semibold" t-esc="mo.name"/>
@@ -250,10 +250,10 @@
                                     <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
                                 </colgroup>
                                 <thead>
-                                    <tr class="text-muted">
-                                        <th>Referencia</th>
-                                        <th>Disponible desde</th>
-                                        <th>Estado</th>
+                                    <tr class="text-muted o_sortable_header">
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('start_from')">Disponible desde <i t-att-class="sortIcon('start_from')"/></th>
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
                                     </tr>
                                 </thead>
                             </table>
@@ -263,7 +263,7 @@
                                         <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
                                     </colgroup>
                                     <tbody>
-                                        <t t-foreach="state.requests" t-as="req" t-key="req.id">
+                                        <t t-foreach="sortedRequests" t-as="req" t-key="req.id">
                                             <tr style="cursor:pointer" t-on-click="() => this.openRequest(req.id)">
                                                 <td class="fw-semibold" t-esc="req.name"/>
                                                 <td t-esc="req.start_from"/>
@@ -355,11 +355,11 @@
                                     <col style="width:18%"/><col style="width:18%"/>
                                 </colgroup>
                                 <thead>
-                                    <tr class="text-muted">
-                                        <th>Producto</th>
-                                        <th class="text-end">Programado</th>
-                                        <th class="text-end">Producido</th>
-                                        <th class="text-end">%</th>
+                                    <tr class="text-muted o_sortable_header">
+                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
+                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('planned_qty')">Programado <i t-att-class="sortIcon('planned_qty')"/></th>
+                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('produced_qty')">Producido <i t-att-class="sortIcon('produced_qty')"/></th>
+                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('pct')">% <i t-att-class="sortIcon('pct')"/></th>
                                     </tr>
                                 </thead>
                             </table>
@@ -370,7 +370,7 @@
                                         <col style="width:18%"/><col style="width:18%"/>
                                     </colgroup>
                                     <tbody>
-                                        <t t-foreach="state.comparison" t-as="item" t-key="item.product_id">
+                                        <t t-foreach="sortedComparison" t-as="item" t-key="item.product_id">
                                             <tr>
                                                 <td t-esc="item.product"/>
                                                 <td class="text-end" t-esc="fmt(item.planned_qty)"/>

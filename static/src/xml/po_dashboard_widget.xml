@@ -4,7 +4,7 @@
     <t t-name="odoo_mrp_reschedule.PoDashboardWidget">
         <div class="o_po_dashboard_widget">
 
-            <!-- Filtros de fecha -->
+            <!-- Filtros de fecha y estado OC -->
             <div class="row g-2 mb-3">
                 <div class="col-auto">
                     <label class="col-form-label col-form-label-sm me-1">Desde</label>
@@ -19,6 +19,17 @@
                            style="width:auto"
                            t-att-value="state.dateTo"
                            t-on-change="onDateToChange"/>
+                </div>
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Estado OC</label>
+                    <select class="form-select form-select-sm d-inline-block" style="width:auto"
+                            t-on-change="onOcFilterChange">
+                        <option value="overdue" t-att-selected="state.ocFilter === 'overdue'">Vencidas</option>
+                        <option value="all"     t-att-selected="state.ocFilter === 'all'">Todas</option>
+                        <option value="pending" t-att-selected="state.ocFilter === 'pending'">A tiempo</option>
+                        <option value="rfqs"    t-att-selected="state.ocFilter === 'rfqs'">Cotizaciones</option>
+                        <option value="approve" t-att-selected="state.ocFilter === 'approve'">Por aprobar</option>
+                    </select>
                 </div>
             </div>
 
@@ -134,36 +145,13 @@
                     </div>
 
                     <div t-else="">
-                        <!-- Pestañas de lista -->
+                        <!-- Pestañas de lista (movimientos de stock) -->
                         <ul class="nav nav-tabs mb-0 flex-wrap">
                             <li class="nav-item">
-                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'overdue' ? ' active' : '')"
-                                        t-on-click="() => this.setListTab('overdue')">
-                                    <i class="fa fa-exclamation-triangle text-danger me-1"/>
-                                    Vencidas
-                                    <span t-if="state.kpis.overdue > 0"
-                                          class="badge rounded-pill bg-danger ms-1"
-                                          t-esc="fmt(state.kpis.overdue)"/>
-                                </button>
-                            </li>
-                            <li class="nav-item">
-                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'rfqs' ? ' active' : '')"
-                                        t-on-click="() => this.setListTab('rfqs')">
-                                    <i class="fa fa-file-text-o text-info me-1"/>
-                                    Cotizaciones
-                                    <span t-if="state.kpis.rfq > 0"
-                                          class="badge rounded-pill bg-info ms-1"
-                                          t-esc="fmt(state.kpis.rfq)"/>
-                                </button>
-                            </li>
-                            <li class="nav-item">
-                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'approve' ? ' active' : '')"
-                                        t-on-click="() => this.setListTab('approve')">
-                                    <i class="fa fa-clock-o text-warning me-1"/>
-                                    Por aprobar
-                                    <span t-if="state.kpis.to_approve > 0"
-                                          class="badge rounded-pill bg-warning text-dark ms-1"
-                                          t-esc="fmt(state.kpis.to_approve)"/>
+                                <button t-att-class="'nav-link py-1 px-3 small' + (!state.listTab ? ' active' : '')"
+                                        t-on-click="() => this.setListTab(null)">
+                                    <i class="fa fa-shopping-cart text-primary me-1"/>
+                                    OCs
                                 </button>
                             </li>
                             <li class="nav-item">
@@ -217,8 +205,8 @@
                                 <div class="text-center text-muted small">Sin registros en esta categoría.</div>
                             </div>
 
-                            <!-- OCs (overdue / rfqs / approve) -->
-                            <t t-elif="state.listTab === 'overdue' || state.listTab === 'rfqs' || state.listTab === 'approve'">
+                            <!-- OCs — controladas por el dropdown Estado OC -->
+                            <t t-elif="!state.listTab">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
                                         <col style="width:20%"/><col style="width:38%"/>
@@ -229,7 +217,7 @@
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('date_planned')">
-                                                <t t-if="state.listTab === 'overdue'">Vencida el</t>
+                                                <t t-if="state.ocFilter === 'overdue'">Vencida el</t>
                                                 <t t-else="">Entrega estimada</t>
                                                 <i t-att-class="sortIcon('date_planned')"/>
                                             </th>
@@ -245,7 +233,7 @@
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="po" t-key="po.id">
-                                                <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
+                                                <tr t-att-class="state.ocFilter === 'overdue' ? 'table-danger' : (state.ocFilter === 'approve' ? 'table-warning' : '')"
                                                     style="cursor:pointer"
                                                     t-att-data-po-id="po.id"
                                                     t-on-click="openPoFromRow">
@@ -395,15 +383,21 @@
 
                         <!-- Ver todas -->
                         <div class="text-end mt-1">
-                            <button t-if="state.listTab === 'overdue'"
+                            <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'overdue'"
                                     class="btn btn-sm btn-link text-danger p-0 small"
                                     t-on-click="onClickOverdue">Ver todas las vencidas →</button>
-                            <button t-if="state.listTab === 'rfqs'"
+                            <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'rfqs'"
                                     class="btn btn-sm btn-link text-info p-0 small"
                                     t-on-click="onClickRfqs">Ver todas las cotizaciones →</button>
-                            <button t-if="state.listTab === 'approve'"
+                            <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'approve'"
                                     class="btn btn-sm btn-link text-warning p-0 small"
                                     t-on-click="onClickToApprove">Ver todas por aprobar →</button>
+                            <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'all'"
+                                    class="btn btn-sm btn-link text-secondary p-0 small"
+                                    t-on-click="onClickAll">Ver todas las aprobadas →</button>
+                            <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'pending'"
+                                    class="btn btn-sm btn-link text-success p-0 small"
+                                    t-on-click="onClickPending">Ver todas a tiempo →</button>
                         </div>
                     </div>
 

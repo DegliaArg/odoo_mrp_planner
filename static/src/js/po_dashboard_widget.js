@@ -26,17 +26,20 @@ class PoDashboardWidget extends Component {
         const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         this.state = useState({
-            tab:        "all",      // "all" | "purchase" | "subcontract"
-            listTab:    "overdue",  // "rfqs" | "approve" | "overdue" | "receipts" | "deliveries"
-            dateFrom:   toDateStr(firstOfMonth),
-            dateTo:     toDateStr(lastOfMonth),
-            loading:    true,
-            sortField:  null,
-            sortDir:    "asc",
-            kpis:       { ...EMPTY_KPIS },
+            tab:       "all",
+            ocFilter:  "overdue",  // "all" | "pending" | "overdue" | "rfqs" | "approve"
+            listTab:   null,       // null = OC mode | "receipts" | "deliveries" | "resupply" | "services"
+            dateFrom:  toDateStr(firstOfMonth),
+            dateTo:    toDateStr(lastOfMonth),
+            loading:   true,
+            sortField: null,
+            sortDir:   "asc",
+            kpis:      { ...EMPTY_KPIS },
             rfqs:             [],
             to_approve:       [],
             overdue:          [],
+            all_pos:          [],
+            pending_pos:      [],
             receipts:         [],
             deliveries:       [],
             resupply:         [],
@@ -67,14 +70,16 @@ class PoDashboardWidget extends Component {
                 "get_po_dashboard_data",
                 [this.state.tab, this.state.dateFrom, this.state.dateTo],
             );
-            this.state.kpis       = d.kpis;
-            this.state.rfqs       = d.rfqs;
-            this.state.to_approve = d.to_approve;
-            this.state.overdue    = d.overdue;
-            this.state.receipts          = d.receipts   || [];
-            this.state.deliveries        = d.deliveries || [];
-            this.state.resupply          = d.resupply   || [];
-            this.state.services          = d.services   || [];
+            this.state.kpis            = d.kpis;
+            this.state.rfqs            = d.rfqs;
+            this.state.to_approve      = d.to_approve;
+            this.state.overdue         = d.overdue;
+            this.state.all_pos         = d.all_pos    || [];
+            this.state.pending_pos     = d.pending_pos || [];
+            this.state.receipts        = d.receipts   || [];
+            this.state.deliveries      = d.deliveries || [];
+            this.state.resupply        = d.resupply   || [];
+            this.state.services        = d.services   || [];
             this.state.show_services_tab = d.show_services_tab || false;
         } catch (e) {
             console.error("[PoDashboardWidget]", e);
@@ -85,19 +90,27 @@ class PoDashboardWidget extends Component {
 
     setTab(tab) {
         if (this.state.tab === tab) return;
-        this.state.tab = tab;
+        this.state.tab       = tab;
+        this.state.listTab   = null;
         this.state.sortField = null;
-        this.state.sortDir = "asc";
+        this.state.sortDir   = "asc";
         this._load();
     }
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
 
-    setListTab(tab) {
-        this.state.listTab = tab;
+    onOcFilterChange(ev) {
+        this.state.ocFilter  = ev.target.value;
+        this.state.listTab   = null;
         this.state.sortField = null;
-        this.state.sortDir = "asc";
+        this.state.sortDir   = "asc";
+    }
+
+    setListTab(tab) {
+        this.state.listTab   = tab;
+        this.state.sortField = null;
+        this.state.sortDir   = "asc";
     }
 
     _scDomain() {
@@ -179,20 +192,28 @@ class PoDashboardWidget extends Component {
 
     get isEmpty() {
         const s = this.state;
-        return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0
-            && s.receipts.length === 0 && s.deliveries.length === 0 && s.resupply.length === 0
-            && s.services.length === 0;
+        return !s.loading
+            && s.rfqs.length === 0 && s.to_approve.length === 0
+            && s.overdue.length === 0 && s.all_pos.length === 0 && s.pending_pos.length === 0
+            && s.receipts.length === 0 && s.deliveries.length === 0
+            && s.resupply.length === 0 && s.services.length === 0;
     }
 
     get activeList() {
-        switch (this.state.listTab) {
-            case "rfqs":       return this.state.rfqs;
-            case "approve":    return this.state.to_approve;
-            case "receipts":   return this.state.receipts;
-            case "deliveries": return this.state.deliveries;
-            case "resupply":   return this.state.resupply;
-            case "services":   return this.state.services;
-            default:           return this.state.overdue;
+        if (this.state.listTab) {
+            switch (this.state.listTab) {
+                case "receipts":   return this.state.receipts;
+                case "deliveries": return this.state.deliveries;
+                case "resupply":   return this.state.resupply;
+                case "services":   return this.state.services;
+            }
+        }
+        switch (this.state.ocFilter) {
+            case "all":     return this.state.all_pos;
+            case "pending": return this.state.pending_pos;
+            case "rfqs":    return this.state.rfqs;
+            case "approve": return this.state.to_approve;
+            default:        return this.state.overdue;
         }
     }
 

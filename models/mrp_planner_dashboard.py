@@ -699,7 +699,9 @@ class MrpPlannerDashboard(models.TransientModel):
         else:
             services_list   = []
 
-        overdue_list    = overdue.sorted('date_planned')[:100]
+        overdue_list   = overdue.sorted('date_planned')[:100]
+        all_pos_list   = approved.sorted('date_planned')[:100]
+        pending_list   = pending.sorted('date_planned')[:100]
 
         # ── Recepciones (incoming pickings linked to POs) ────────────────────
         receipt_sc = []
@@ -831,9 +833,11 @@ class MrpPlannerDashboard(models.TransientModel):
                 'services_total':    len(services_list),
             },
             'show_services_tab': show_svc,
-            'rfqs':       [_po_dict(p) for p in rfqs_list],
-            'to_approve': [_po_dict(p) for p in to_approve_list],
-            'overdue':    [_po_dict(p) for p in overdue_list],
+            'rfqs':        [_po_dict(p) for p in rfqs_list],
+            'to_approve':  [_po_dict(p) for p in to_approve_list],
+            'overdue':     [_po_dict(p) for p in overdue_list],
+            'all_pos':     [_po_dict(p) for p in all_pos_list],
+            'pending_pos': [_po_dict(p) for p in pending_list],
             'receipts':   [_pick_dict(p) for p in receipts],
             'deliveries': [_pick_dict(p) for p in deliveries],
             'resupply':   resupply_list,

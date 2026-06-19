@@ -1,4 +1,5 @@
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class MrpProductWorkcenter(models.Model):
@@ -29,6 +30,20 @@ class MrpProductWorkcenter(models.Model):
             if siblings:
                 siblings.write({'is_preferred': False})
         return res
+
+    @api.constrains('is_preferred')
+    def _check_single_preferred(self):
+        for rec in self.filtered('is_preferred'):
+            count = self.env['mrp.product.workcenter'].search_count([
+                ('product_tmpl_id', '=', rec.product_tmpl_id.id),
+                ('is_preferred', '=', True),
+                ('id', '!=', rec.id),
+            ])
+            if count:
+                raise ValidationError(
+                    'Solo puede haber un centro de trabajo preferido por producto. '
+                    'Desmarcá el anterior antes de elegir uno nuevo.'
+                )
 
 
 class ProductTemplate(models.Model):

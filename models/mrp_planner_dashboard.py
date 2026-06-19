@@ -695,23 +695,30 @@ class MrpPlannerDashboard(models.TransientModel):
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         # ── Entregas (component pickings for subcontract MOs) ────────────────
-        sc_prods = self.env['mrp.production'].search([
-            ('subcontract_po_id', '!=', False),
-            ('state', 'not in', ['done', 'cancel']),
-        ])
-        if sc_prods:
-            deliveries = sc_prods.mapped('move_raw_ids.picking_id').filtered(
-                lambda p: p.picking_type_id.code == 'outgoing' and p.state not in ('done', 'cancel')
-            )
-            if sched_domain:
-                df = datetime.strptime(date_from, '%Y-%m-%d') if date_from else None
-                dt = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_to else None
-                deliveries = deliveries.filtered(
-                    lambda p: (not df or (p.scheduled_date and p.scheduled_date >= df))
-                    and (not dt or (p.scheduled_date and p.scheduled_date <= dt))
+        try:
+            sc_pos = self.env['purchase.order'].search([
+                ('state', 'in', ['purchase', 'done']),
+                ('subcontract_production_ids', '!=', False),
+            ])
+            if sc_pos:
+                sc_prods = sc_pos.mapped('subcontract_production_ids').filtered(
+                    lambda m: m.state not in ('done', 'cancel')
                 )
-            deliveries = deliveries.sorted('scheduled_date')[:100]
-        else:
+                deliveries = sc_prods.mapped('move_raw_ids.picking_id').filtered(
+                    lambda p: p.picking_type_id and p.picking_type_id.code == 'outgoing'
+                    and p.state not in ('done', 'cancel')
+                )
+                if date_from or date_to:
+                    df = datetime.strptime(date_from, '%Y-%m-%d') if date_from else None
+                    dt = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_to else None
+                    deliveries = deliveries.filtered(
+                        lambda p: (not df or (p.scheduled_date and p.scheduled_date >= df))
+                        and (not dt or (p.scheduled_date and p.scheduled_date <= dt))
+                    )
+                deliveries = deliveries.sorted('scheduled_date')[:100]
+            else:
+                deliveries = Picking
+        except Exception:
             deliveries = Picking
 
         overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)

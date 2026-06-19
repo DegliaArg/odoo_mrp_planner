@@ -68,7 +68,8 @@ class PoDashboardWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_po_dashboard_data",
-                [this.state.tab, this.state.dateFrom, this.state.dateTo],
+                [this.state.tab, this.state.dateFrom, this.state.dateTo,
+                 this.state.sortField || null, this.state.sortDir],
             );
             this.state.kpis            = d.kpis;
             this.state.rfqs            = d.rfqs;
@@ -248,6 +249,7 @@ class PoDashboardWidget extends Component {
             this.state.sortField = field;
             this.state.sortDir = "asc";
         }
+        this._load();
     }
 
     sortIcon(field) {
@@ -255,20 +257,15 @@ class PoDashboardWidget extends Component {
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
+    // Campos computados en el dict que el backend no puede ordenar en DB
+    static _CLIENT_SORT = new Set(["product", "availability", "partner"]);
+
     _sortList(list) {
         const { sortField, sortDir } = this.state;
-        if (!sortField) return list;
-        const dateRe = /^\d{2}\/\d{2}\/\d{4}$/;
+        if (!sortField || !PoDashboardWidget._CLIENT_SORT.has(sortField)) return list;
         return [...list].sort((a, b) => {
             let va = a[sortField] ?? "";
             let vb = b[sortField] ?? "";
-            if (typeof va === "number" && typeof vb === "number") {
-                return sortDir === "asc" ? va - vb : vb - va;
-            }
-            if (dateRe.test(va) && dateRe.test(vb)) {
-                va = va.split("/").reverse().join("");
-                vb = vb.split("/").reverse().join("");
-            }
             const cmp = String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
             return sortDir === "asc" ? cmp : -cmp;
         });

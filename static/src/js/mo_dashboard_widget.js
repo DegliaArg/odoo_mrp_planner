@@ -69,11 +69,16 @@ class MoDashboardWidget extends Component {
                     this.state.dateFrom,
                     this.state.dateTo,
                     this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                    this.state.sortField || null,
+                    this.state.sortDir,
                 ]);
                 this.state.ofs_kpis = d.kpis;
                 this.state.mos      = d.mos;
             } else if (this.state.tab === "requests") {
-                const d = await this.orm.call("mrp.planner.dashboard", "get_request_widget_data", []);
+                const d = await this.orm.call("mrp.planner.dashboard", "get_request_widget_data", [
+                    this.state.sortField || null,
+                    this.state.sortDir,
+                ]);
                 this.state.req_kpis  = d.kpis;
                 this.state.requests  = d.requests;
             } else {
@@ -227,6 +232,7 @@ class MoDashboardWidget extends Component {
             this.state.sortField = field;
             this.state.sortDir = "asc";
         }
+        this._loadData();
     }
 
     sortIcon(field) {
@@ -234,9 +240,14 @@ class MoDashboardWidget extends Component {
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
-    _sortList(list) {
+    // Campos computados en el dict que el backend no puede ordenar en DB
+    static _CLIENT_SORT_MO  = new Set(["pending_delivery", "partner"]);
+    static _CLIENT_SORT_REQ = new Set(["mos_total", "mos_done", "mos_delayed", "partner"]);
+
+    _sortList(list, clientFields) {
         const { sortField, sortDir } = this.state;
         if (!sortField) return list;
+        if (clientFields && !clientFields.has(sortField)) return list;
         const dateRe = /^\d{2}\/\d{2}\/\d{4}$/;
         return [...list].sort((a, b) => {
             let va = a[sortField] ?? "";
@@ -253,9 +264,9 @@ class MoDashboardWidget extends Component {
         });
     }
 
-    get sortedMos()        { return this._sortList(this.state.mos); }
-    get sortedRequests()   { return this._sortList(this.state.requests); }
-    get sortedComparison() { return this._sortList(this.state.comparison); }
+    get sortedMos()        { return this._sortList(this.state.mos,        MoDashboardWidget._CLIENT_SORT_MO); }
+    get sortedRequests()   { return this._sortList(this.state.requests,    MoDashboardWidget._CLIENT_SORT_REQ); }
+    get sortedComparison() { return this._sortList(this.state.comparison,  null); }  // client-side always (aggregated)
 }
 
 registry.category("view_widgets").add("mo_dashboard_widget", {

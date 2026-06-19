@@ -619,11 +619,26 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OCs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None):
+    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc'):
         """Datos de OCs filtrados por tipo y rango de fecha de entrega."""
         PO      = self.env['purchase.order']
         Picking = self.env['stock.picking']
         now     = fields.Datetime.now()
+
+        _sd = 'desc' if sort_dir == 'desc' else 'asc'
+        _rev = (_sd == 'desc')
+        _PO_FIELD = {
+            'name': 'name', 'partner': 'partner_id',
+            'date_planned': 'date_planned', 'amount_total': 'amount_total',
+        }
+        _PICK_FIELD = {
+            'name': 'name', 'partner': 'partner_id',
+            'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date', 'days': 'scheduled_date',
+        }
+        po_f       = _PO_FIELD.get(sort_field, 'date_planned')
+        pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
+        po_order   = f'{po_f} {_sd}'
+        pick_order = f'{pick_f} {_sd}'
 
         sc_domain = []
         if filter_type == 'purchase':
@@ -675,8 +690,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
             }
 
-        rfqs_list       = PO.search(rfq_dom,     order='date_planned asc', limit=100)
-        to_approve_list = PO.search(approve_dom, order='date_planned asc', limit=100)
+        rfqs_list       = PO.search(rfq_dom,     order=po_order)
+        to_approve_list = PO.search(approve_dom, order=po_order)
 
         # ── Separar servicios ────────────────────────────────────────────────
         show_svc = bool(cfg and cfg.show_po_services_tab)
@@ -694,14 +709,14 @@ class MrpPlannerDashboard(models.TransientModel):
             approved        = approved - approved_svc
             overdue         = overdue - approved_svc
             pending         = pending - approved_svc
-            services_rs     = (rfqs_svc | approve_svc | approved_svc).sorted('date_planned')[:100]
+            services_rs     = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
             services_list   = [_po_dict(p) for p in services_rs]
         else:
             services_list   = []
 
-        overdue_list   = overdue.sorted('date_planned')[:100]
-        all_pos_list   = approved.sorted('date_planned')[:100]
-        pending_list   = pending.sorted('date_planned')[:100]
+        overdue_list  = overdue.sorted(po_f,  reverse=_rev)
+        all_pos_list  = approved.sorted(po_f, reverse=_rev)
+        pending_list  = pending.sorted(po_f,  reverse=_rev)
 
         # ── Recepciones (incoming pickings linked to POs) ────────────────────
         receipt_sc = []
@@ -714,7 +729,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
-        ] + receipt_sc + sched_domain, order='scheduled_date asc', limit=100)
+        ] + receipt_sc + sched_domain, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
@@ -739,7 +754,7 @@ class MrpPlannerDashboard(models.TransientModel):
                         lambda p: (not df or (p.scheduled_date and p.scheduled_date >= df))
                         and (not dt or (p.scheduled_date and p.scheduled_date <= dt))
                     )
-                deliveries = deliveries.sorted('scheduled_date')[:100]
+                deliveries = deliveries.sorted(pick_f, reverse=_rev)
             else:
                 deliveries = Picking
         except Exception:
@@ -788,7 +803,7 @@ class MrpPlannerDashboard(models.TransientModel):
                     ('state', 'not in', ['done', 'cancel']),
                     ('picking_type_id', 'in', resupply_types.ids),
                 ] + sched_domain
-                resupply_picks = Picking.search(resupply_dom, order='scheduled_date asc', limit=100)
+                resupply_picks = Picking.search(resupply_dom, order=pick_order)
             else:
                 sc_all = PO.search([
                     ('state', 'in', ['purchase', 'done']),
@@ -807,7 +822,7 @@ class MrpPlannerDashboard(models.TransientModel):
                         lambda p: (not df2 or (p.scheduled_date and p.scheduled_date >= df2))
                         and (not dt2 or (p.scheduled_date and p.scheduled_date <= dt2))
                     )
-                resupply_picks = all_picks.sorted('scheduled_date')[:100]
+                resupply_picks = all_picks.sorted(pick_f, reverse=_rev)
         except Exception:
             resupply_picks = Picking.browse([])
 
@@ -863,7 +878,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
-        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=100)
+        mos = self.env['mrp.production'].search(domain, order='date_finished asc')
 
         if tag_id:
             tag_id = int(tag_id)
@@ -893,10 +908,19 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_mo_widget_data(self, date_from, date_to, tag_id=None):
+    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc'):
         """KPIs + lista de OFs activas en el rango, filtradas por sector."""
         first_day = datetime.strptime(date_from, '%Y-%m-%d')
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+
+        _sd = 'desc' if sort_dir == 'desc' else 'asc'
+        _MO_FIELD = {
+            'name': 'name', 'product': 'product_id', 'qty': 'product_qty',
+            'date_finished': 'date_finished', 'state': 'state',
+            'delayed': 'date_finished', 'reschedule': 'x_reschedule_needed',
+        }
+        mo_f     = _MO_FIELD.get(sort_field, 'date_finished')
+        mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
         domain = [
@@ -909,7 +933,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
         ] + no_sc
 
-        mos = self.env['mrp.production'].search(domain, order='date_finished asc', limit=100)
+        mos = self.env['mrp.production'].search(domain, order=mo_order)
 
         if tag_id:
             tag_id = int(tag_id)
@@ -961,14 +985,18 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def get_request_widget_data(self):
+    def get_request_widget_data(self, sort_field=None, sort_dir='asc'):
         """KPIs + lista de programaciones activas."""
         Req = self.env['mrp.production.request']
         now = fields.Datetime.now()
 
+        _sd = 'desc' if sort_dir == 'desc' else 'asc'
+        _REQ_FIELD = {'name': 'name', 'start_from': 'start_from', 'state': 'state'}
+        req_f = _REQ_FIELD.get(sort_field, 'id')
+
         confirmed  = Req.search([('state', '=', 'confirmed')])
         calculated = Req.search([('state', '=', 'calculated')])
-        all_active = (confirmed | calculated).sorted('id', reverse=True)
+        all_active = (confirmed | calculated).sorted(req_f, reverse=(_sd == 'desc'))
         all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
 
         def _req_dict(r):
@@ -1001,7 +1029,7 @@ class MrpPlannerDashboard(models.TransientModel):
                     and m.date_finished and m.date_finished < now
                 )),
             },
-            'requests': [_req_dict(r) for r in all_active[:6]],
+            'requests': [_req_dict(r) for r in all_active],
         }
 
     @api.model

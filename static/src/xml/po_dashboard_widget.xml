@@ -144,9 +144,9 @@
                         </div>
                     </div>
 
-                    <div t-else="">
+                    <div t-else="" class="d-flex flex-column o_table_scroll" style="height:350px;">
                         <!-- Pestañas de lista (movimientos de stock) -->
-                        <ul class="nav nav-tabs mb-0 flex-wrap">
+                        <ul class="nav nav-tabs mb-0 flex-wrap" style="flex-shrink:0;">
                             <li class="nav-item">
                                 <button t-att-class="'nav-link py-1 px-3 small' + (!state.listTab ? ' active' : '')"
                                         t-on-click="() => this.setListTab(null)">
@@ -187,8 +187,8 @@
                         </ul>
 
                         <!-- Contenido de lista con scroll (split table) -->
-                        <div class="border border-top-0 rounded-bottom d-flex flex-column o_table_scroll"
-                             style="overflow:hidden; height:350px;">
+                        <div class="border border-top-0 rounded-bottom d-flex flex-column"
+                             style="overflow:hidden; flex:1; min-height:0;">
 
                             <div t-if="activeList.length === 0"
                                  class="d-flex align-items-center justify-content-center flex-grow-1">
@@ -325,7 +325,7 @@
                         </div>
 
                         <!-- Ver todas -->
-                        <div class="text-end mt-1">
+                        <div class="text-end mt-1" style="flex-shrink:0;">
                             <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'overdue'"
                                     class="btn btn-sm btn-link text-danger p-0 small"
                                     t-on-click="onClickOverdue">Ver todas las vencidas →</button>

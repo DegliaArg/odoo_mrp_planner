@@ -48,7 +48,10 @@ class PoDashboardWidget extends Component {
             show_services_tab: false,
         });
 
-        onMounted(() => this._load());
+        onMounted(async () => {
+            await this._load();
+            requestAnimationFrame(() => this._syncH());
+        });
     }
 
     async _load() {
@@ -85,7 +88,16 @@ class PoDashboardWidget extends Component {
         this.state.sortField = null;
         this.state.sortDir   = "asc";
         this.state.page      = 1;
-        this._load();
+        this._load().then(() => requestAnimationFrame(() => this._syncH()));
+    }
+
+    _syncH() {
+        const kpiEl = this.el?.querySelector('.o_kpi_height_src');
+        const tableEl = this.el?.querySelector('.o_table_scroll');
+        if (!kpiEl || !tableEl) return;
+        tableEl.style.height = '0';
+        const h = kpiEl.offsetHeight;
+        tableEl.style.height = Math.max(h, 150) + 'px';
     }
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._load(); }

@@ -44,6 +44,7 @@ class MoDashboardWidget extends Component {
         onMounted(async () => {
             await this._loadTags();
             await this._loadData();
+            requestAnimationFrame(() => this._syncH());
         });
     }
 
@@ -97,7 +98,16 @@ class MoDashboardWidget extends Component {
         this.state.sortField = null;
         this.state.sortDir = "asc";
         this.state.page = 1;
-        this._loadData();
+        this._loadData().then(() => requestAnimationFrame(() => this._syncH()));
+    }
+
+    _syncH() {
+        const kpiEl = this.el?.querySelector('.o_kpi_height_src');
+        const tableEl = this.el?.querySelector('.o_table_scroll');
+        if (!kpiEl || !tableEl) return;
+        tableEl.style.height = '0';
+        const h = kpiEl.offsetHeight;
+        tableEl.style.height = Math.max(h, 150) + 'px';
     }
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._loadData(); }

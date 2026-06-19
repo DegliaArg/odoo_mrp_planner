@@ -115,18 +115,18 @@
                     </div>
 
                     <!-- Lista de OFs -->
-                    <div class="col-12 col-lg-8 d-flex flex-column">
+                    <div class="col-12 col-lg-8">
                         <div t-if="state.mos.length === 0"
-                             class="d-flex align-items-center justify-content-center border rounded"
-                             style="flex:1; min-height:0;">
+                             class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                             style="height:260px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                                 Sin órdenes en el período.
                             </div>
                         </div>
                         <div t-else=""
-                             class="border rounded d-flex flex-column"
-                             style="overflow:hidden; flex:1; min-height:0;">
+                             class="border rounded d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:18%"/><col style="width:32%"/>
@@ -246,18 +246,18 @@
                     </div>
 
                     <!-- Lista de programaciones -->
-                    <div class="col-12 col-lg-8 d-flex flex-column">
+                    <div class="col-12 col-lg-8">
                         <div t-if="state.requests.length === 0"
-                             class="d-flex align-items-center justify-content-center border rounded"
-                             style="flex:1; min-height:0;">
+                             class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                             style="height:260px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-calendar-check-o fa-2x mb-2 d-block text-muted"/>
                                 Sin programaciones activas.
                             </div>
                         </div>
                         <div t-else=""
-                             class="border rounded d-flex flex-column"
-                             style="overflow:hidden; flex:1; min-height:0;">
+                             class="border rounded d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
@@ -363,18 +363,18 @@
                     </div>
 
                     <!-- Tabla comparativa -->
-                    <div class="col-12 col-lg-8 d-flex flex-column">
+                    <div class="col-12 col-lg-8">
                         <div t-if="state.comparison.length === 0"
-                             class="d-flex align-items-center justify-content-center border rounded"
-                             style="flex:1; min-height:0;">
+                             class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                             style="height:260px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-bar-chart fa-2x mb-2 d-block text-muted"/>
                                 Sin datos en el período.
                             </div>
                         </div>
                         <div t-else=""
-                             class="border rounded d-flex flex-column"
-                             style="overflow:hidden; flex:1; min-height:0;">
+                             class="border rounded d-flex flex-column o_table_scroll"
+                             style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:46%"/><col style="width:18%"/>

@@ -25,7 +25,7 @@
                         <option value="">Todos los sectores</option>
                         <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
                             <option t-att-value="tag.id"
-                                    t-att-selected="state.selectedTag == String(tag.id)"
+                                    t-att-selected="state.selectedTag == tag.id"
                                     t-esc="tag.name"/>
                         </t>
                     </select>
@@ -37,7 +37,7 @@
                         <option value="">Todas</option>
                         <t t-foreach="state.machines" t-as="machine" t-key="machine.id">
                             <option t-att-value="machine.id"
-                                    t-att-selected="state.selectedMachine == String(machine.id)"
+                                    t-att-selected="state.selectedMachine == machine.id"
                                     t-esc="machine.name"/>
                         </t>
                     </select>

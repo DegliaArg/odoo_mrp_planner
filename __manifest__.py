@@ -36,6 +36,7 @@ Características:
     'assets': {
         'web.assets_backend': [
             'odoo_mrp_reschedule/static/src/css/reschedule_gantt.css',
+            'odoo_mrp_reschedule/static/src/css/dashboard_kpi_tooltip.css',
             'odoo_mrp_reschedule/static/src/js/wc_load_chart.js',
             'odoo_mrp_reschedule/static/src/xml/wc_load_chart.xml',
             'odoo_mrp_reschedule/static/src/js/mo_list_widget.js',

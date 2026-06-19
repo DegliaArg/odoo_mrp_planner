@@ -38,7 +38,8 @@
                     <div class="row g-2">
 
                         <div class="col-6">
-                            <div class="card o_planner_card h-100">
+                            <div class="card o_planner_card h-100"
+                                 t-att-data-kpi-tip="'Horas de capacidad del calendario\nen el período, ajustadas por la\neficiencia de cada centro de trabajo.\nFórmula: Σ horas_calendario × eficiencia_CT'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
                                     <div class="o_planner_number text-secondary" t-esc="fmtH(state.kpis.disponible)"/>
@@ -48,7 +49,8 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_info h-100">
+                            <div class="card o_planner_card o_planner_card_info h-100"
+                                 t-att-data-kpi-tip="'Horas con operaciones asignadas\nen el período, independientemente\nde si ya se ejecutaron o no.\nFórmula: Ejecutado + Pendiente'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-calendar-check-o fa-lg text-info mb-2 d-block"/>
                                     <div class="o_planner_number text-info" t-esc="fmtH(state.kpis.planificado)"/>
@@ -58,7 +60,8 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card h-100">
+                            <div class="card o_planner_card h-100"
+                                 t-att-data-kpi-tip="'Porcentaje de capacidad total\nutilizada o asignada en el período.\nVerde &lt;70%  Amarillo 70-89%  Rojo &gt;=90%\nFórmula: Planificado ÷ Disponible × 100'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-tachometer fa-lg mb-2 d-block"
                                        t-att-class="cargaClass(state.kpis.carga_pct)"/>
@@ -71,7 +74,8 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_success h-100">
+                            <div class="card o_planner_card o_planner_card_success h-100"
+                                 t-att-data-kpi-tip="'Horas de operaciones ya finalizadas\nen el período seleccionado.\nFórmula: Σ horas reales de\noperaciones completadas (done)'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                     <div class="o_planner_number text-success" t-esc="fmtH(state.kpis.ejecutado)"/>
@@ -81,7 +85,8 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_warning h-100">
+                            <div class="card o_planner_card o_planner_card_warning h-100"
+                                 t-att-data-kpi-tip="'Horas de operaciones en curso\no programadas aún no completadas.\nFórmula: Σ horas esperadas de\noperaciones activas en el período'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
                                     <div class="o_planner_number text-warning" t-esc="fmtH(state.kpis.pendiente)"/>
@@ -91,7 +96,8 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_danger h-100">
+                            <div class="card o_planner_card o_planner_card_danger h-100"
+                                 t-att-data-kpi-tip="'Capacidad disponible sin ninguna\noperación asignada en el período.\nFórmula:\nDisponible − Ejecutado − Pendiente'">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-ban fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmtH(state.kpis.tiempo_libre)"/>

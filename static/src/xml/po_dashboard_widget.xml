@@ -49,14 +49,14 @@
 
                 <!-- Izquierda: tarjetas KPI -->
                 <div class="col-12 col-lg-4 o_kpi_height_src">
-                    <div class="row g-2 h-100">
+                    <div class="row g-2">
 
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_info h-100"
                                  style="cursor:pointer" t-on-click="onClickRfqs">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
-                                    <div class="o_planner_number text-info" t-esc="state.kpis.rfq"/>
+                                    <div class="o_planner_number text-info" t-esc="fmt(state.kpis.rfq)"/>
                                     <div class="o_planner_label">Cotizaciones</div>
                                 </div>
                             </div>
@@ -67,7 +67,7 @@
                                  style="cursor:pointer" t-on-click="onClickToApprove">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
-                                    <div class="o_planner_number text-warning" t-esc="state.kpis.to_approve"/>
+                                    <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.to_approve)"/>
                                     <div class="o_planner_label">Por aprobar</div>
                                 </div>
                             </div>
@@ -78,7 +78,7 @@
                                  style="cursor:pointer" t-on-click="onClickAll">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
-                                    <div class="o_planner_number" t-esc="state.kpis.total"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.total)"/>
                                     <div class="o_planner_label">Aprobadas</div>
                                 </div>
                             </div>
@@ -89,7 +89,7 @@
                                  style="cursor:pointer" t-on-click="onClickPending">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
-                                    <div class="o_planner_number text-success" t-esc="state.kpis.pending"/>
+                                    <div class="o_planner_number text-success" t-esc="fmt(state.kpis.pending)"/>
                                     <div class="o_planner_label">A tiempo</div>
                                 </div>
                             </div>
@@ -100,7 +100,7 @@
                                  style="cursor:pointer" t-on-click="onClickOverdue">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
-                                    <div class="o_planner_number text-danger" t-esc="state.kpis.overdue"/>
+                                    <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue)"/>
                                     <div class="o_planner_label">Vencidas</div>
                                 </div>
                             </div>
@@ -111,7 +111,7 @@
                                  style="cursor:pointer" t-on-click="onClickOverdue">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
-                                    <div class="o_planner_number text-danger" t-esc="state.kpis.overdue_critical"/>
+                                    <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue_critical)"/>
                                     <div class="o_planner_label">Críticas (+5 días)</div>
                                 </div>
                             </div>
@@ -135,7 +135,7 @@
 
                     <div t-else="">
                         <!-- Pestañas de lista -->
-                        <ul class="nav nav-tabs mb-0">
+                        <ul class="nav nav-tabs mb-0 flex-wrap">
                             <li class="nav-item">
                                 <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'overdue' ? ' active' : '')"
                                         t-on-click="() => this.setListTab('overdue')">
@@ -143,7 +143,7 @@
                                     Vencidas
                                     <span t-if="state.kpis.overdue > 0"
                                           class="badge rounded-pill bg-danger ms-1"
-                                          t-esc="state.kpis.overdue"/>
+                                          t-esc="fmt(state.kpis.overdue)"/>
                                 </button>
                             </li>
                             <li class="nav-item">
@@ -153,7 +153,7 @@
                                     Cotizaciones
                                     <span t-if="state.kpis.rfq > 0"
                                           class="badge rounded-pill bg-info ms-1"
-                                          t-esc="state.kpis.rfq"/>
+                                          t-esc="fmt(state.kpis.rfq)"/>
                                 </button>
                             </li>
                             <li class="nav-item">
@@ -163,7 +163,27 @@
                                     Por aprobar
                                     <span t-if="state.kpis.to_approve > 0"
                                           class="badge rounded-pill bg-warning text-dark ms-1"
-                                          t-esc="state.kpis.to_approve"/>
+                                          t-esc="fmt(state.kpis.to_approve)"/>
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'receipts' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('receipts')">
+                                    <i class="fa fa-arrow-down text-primary me-1"/>
+                                    Recepciones
+                                    <span t-if="state.kpis.receipts_overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="fmt(state.kpis.receipts_overdue)"/>
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'deliveries' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('deliveries')">
+                                    <i class="fa fa-arrow-up text-secondary me-1"/>
+                                    Entregas
+                                    <span t-if="state.kpis.deliveries_overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="fmt(state.kpis.deliveries_overdue)"/>
                                 </button>
                             </li>
                         </ul>
@@ -177,7 +197,8 @@
                                 <div class="text-center text-muted small">Sin registros en esta categoría.</div>
                             </div>
 
-                            <t t-else="">
+                            <!-- OCs (overdue / rfqs / approve) -->
+                            <t t-elif="state.listTab === 'overdue' || state.listTab === 'rfqs' || state.listTab === 'approve'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
                                         <col style="width:20%"/><col style="width:38%"/>
@@ -187,7 +208,7 @@
                                         <tr class="text-muted">
                                             <th>Referencia</th>
                                             <th>Proveedor</th>
-                                            <th t-att-title="state.listTab === 'overdue' ? 'Entrega prevista' : 'Entrega estimada'">
+                                            <th>
                                                 <t t-if="state.listTab === 'overdue'">Vencida el</t>
                                                 <t t-else="">Entrega estimada</t>
                                             </th>
@@ -209,7 +230,51 @@
                                                     <td class="fw-semibold" t-esc="po.name"/>
                                                     <td t-esc="po.partner"/>
                                                     <td t-esc="po.date_planned"/>
-                                                    <td class="text-end" t-esc="po.amount_total.toFixed(2)"/>
+                                                    <td class="text-end" t-esc="fmtAmt(po.amount_total)"/>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Recepciones / Entregas (stock.picking) -->
+                            <t t-else="">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                                    <colgroup>
+                                        <col style="width:22%"/><col style="width:43%"/>
+                                        <col style="width:25%"/><col style="width:10%"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted">
+                                            <th>Referencia</th>
+                                            <th>
+                                                <t t-if="state.listTab === 'receipts'">Proveedor</t>
+                                                <t t-else="">Subcontratista</t>
+                                            </th>
+                                            <th>Fecha prevista</th>
+                                            <th class="text-center">Estado</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                        <colgroup>
+                                            <col style="width:22%"/><col style="width:43%"/>
+                                            <col style="width:25%"/><col style="width:10%"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="activeList" t-as="pick" t-key="pick.id">
+                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                    style="cursor:pointer"
+                                                    t-on-click="() => this.openPicking(pick.id)">
+                                                    <td class="fw-semibold" t-esc="pick.name"/>
+                                                    <td t-esc="pick.partner"/>
+                                                    <td t-esc="pick.scheduled_date"/>
+                                                    <td class="text-center">
+                                                        <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
+                                                        <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                    </td>
                                                 </tr>
                                             </t>
                                         </tbody>

@@ -32,6 +32,12 @@
                             <field name="cron_interval_type" class="ms-2"/>
                         </div>
                     </group>
+                    <group string="Umbrales de alertas">
+                        <field name="alert_mo_critical_days"/>
+                        <field name="alert_po_critical_days"/>
+                        <field name="alert_receipt_critical_days"/>
+                        <field name="qty_tolerance_pct"/>
+                    </group>
                 </sheet>
             </form>
         </field>

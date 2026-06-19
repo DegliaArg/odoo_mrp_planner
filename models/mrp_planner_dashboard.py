@@ -621,8 +621,9 @@ class MrpPlannerDashboard(models.TransientModel):
     @api.model
     def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None):
         """Datos de OCs filtrados por tipo y rango de fecha de entrega."""
-        PO  = self.env['purchase.order']
-        now = fields.Datetime.now()
+        PO      = self.env['purchase.order']
+        Picking = self.env['stock.picking']
+        now     = fields.Datetime.now()
 
         sc_domain = []
         if filter_type == 'purchase':
@@ -636,6 +637,12 @@ class MrpPlannerDashboard(models.TransientModel):
         if date_to:
             date_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
 
+        sched_domain = []
+        if date_from:
+            sched_domain.append(('scheduled_date', '>=', date_from + ' 00:00:00'))
+        if date_to:
+            sched_domain.append(('scheduled_date', '<=', date_to + ' 23:59:59'))
+
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
         approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
         approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_domain
@@ -643,6 +650,10 @@ class MrpPlannerDashboard(models.TransientModel):
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
         pending  = approved.filtered(lambda p: not p.date_planned or p.date_planned >= now)
+
+        # Leer umbral crítico OC desde config
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        po_crit_days = cfg.alert_po_critical_days if cfg else 5
 
         def _po_dict(po):
             return {
@@ -654,9 +665,56 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_subcontract': bool(po.subcontract_production_ids),
             }
 
+        def _pick_dict(p):
+            return {
+                'id':             p.id,
+                'name':           p.name,
+                'partner':        p.partner_id.display_name if p.partner_id else '',
+                'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
+                'state':          p.state,
+                'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
+            }
+
         rfqs_list       = PO.search(rfq_dom,     order='date_planned asc', limit=100)
         to_approve_list = PO.search(approve_dom, order='date_planned asc', limit=100)
         overdue_list    = overdue.sorted('date_planned')[:100]
+
+        # ── Recepciones (incoming pickings linked to POs) ────────────────────
+        receipt_sc = []
+        if filter_type == 'purchase':
+            receipt_sc = [('purchase_id.subcontract_production_ids', '=', False)]
+        elif filter_type == 'subcontract':
+            receipt_sc = [('purchase_id.subcontract_production_ids', '!=', False)]
+
+        receipts = Picking.search([
+            ('state', 'not in', ['done', 'cancel']),
+            ('picking_type_code', '=', 'incoming'),
+            ('purchase_id', '!=', False),
+        ] + receipt_sc + sched_domain, order='scheduled_date asc', limit=100)
+
+        overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
+
+        # ── Entregas (component pickings for subcontract MOs) ────────────────
+        sc_prods = self.env['mrp.production'].search([
+            ('subcontract_po_id', '!=', False),
+            ('state', 'not in', ['done', 'cancel']),
+        ])
+        if sc_prods:
+            deliveries = sc_prods.mapped('move_raw_ids.picking_id').filtered(
+                lambda p: p.picking_type_id.code == 'outgoing' and p.state not in ('done', 'cancel')
+            )
+            if sched_domain:
+                df = datetime.strptime(date_from, '%Y-%m-%d') if date_from else None
+                dt = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_to else None
+                deliveries = deliveries.filtered(
+                    lambda p: (not df or (p.scheduled_date and p.scheduled_date >= df))
+                    and (not dt or (p.scheduled_date and p.scheduled_date <= dt))
+                )
+            deliveries = deliveries.sorted('scheduled_date')[:100]
+        else:
+            deliveries = Picking
+
+        overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         return {
             'kpis': {
@@ -666,12 +724,18 @@ class MrpPlannerDashboard(models.TransientModel):
                 'pending':          len(pending),
                 'overdue':          len(overdue),
                 'overdue_critical': len(overdue.filtered(
-                    lambda p: (now - p.date_planned).days >= 5
+                    lambda p: (now - p.date_planned).days >= po_crit_days
                 )),
+                'receipts_total':    len(receipts),
+                'receipts_overdue':  len(overdue_receipts),
+                'deliveries_total':  len(deliveries),
+                'deliveries_overdue': len(overdue_deliveries),
             },
             'rfqs':       [_po_dict(p) for p in rfqs_list],
             'to_approve': [_po_dict(p) for p in to_approve_list],
             'overdue':    [_po_dict(p) for p in overdue_list],
+            'receipts':   [_pick_dict(p) for p in receipts],
+            'deliveries': [_pick_dict(p) for p in deliveries],
         }
 
     # ── Widget OFs filtrable ─────────────────────────────────────────────────
@@ -752,16 +816,32 @@ class MrpPlannerDashboard(models.TransientModel):
 
         now = fields.Datetime.now()
 
+        # Batch-compute pending outgoing deliveries per product (ítem 7)
+        product_ids = list({mo.product_id.id for mo in mos if mo.product_id})
+        if product_ids:
+            out_moves = self.env['stock.move'].search([
+                ('product_id', 'in', product_ids),
+                ('state', 'not in', ('done', 'cancel')),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ])
+            pending_out = {}
+            for m in out_moves:
+                pid = m.product_id.id
+                pending_out[pid] = pending_out.get(pid, 0.0) + m.product_uom_qty
+        else:
+            pending_out = {}
+
         def _mo_dict(mo):
             return {
-                'id':            mo.id,
-                'name':          mo.name,
-                'product':       mo.product_id.display_name if mo.product_id else '',
-                'qty':           mo.product_qty,
-                'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
-                'state':         mo.state,
-                'delayed':       bool(mo.date_finished and mo.date_finished < now),
-                'reschedule':    bool(mo.x_reschedule_needed),
+                'id':               mo.id,
+                'name':             mo.name,
+                'product':          mo.product_id.display_name if mo.product_id else '',
+                'qty':              mo.product_qty,
+                'date_finished':    mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
+                'state':            mo.state,
+                'delayed':          bool(mo.date_finished and mo.date_finished < now),
+                'reschedule':       bool(mo.x_reschedule_needed),
+                'pending_delivery': round(pending_out.get(mo.product_id.id, 0.0), 2),
             }
 
         return {

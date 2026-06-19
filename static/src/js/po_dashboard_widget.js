@@ -8,7 +8,10 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const EMPTY_KPIS = { rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0 };
+const EMPTY_KPIS = {
+    rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
+    receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
+};
 
 class PoDashboardWidget extends Component {
     static template = "odoo_mrp_reschedule.PoDashboardWidget";
@@ -23,7 +26,7 @@ class PoDashboardWidget extends Component {
 
         this.state = useState({
             tab:        "all",      // "all" | "purchase" | "subcontract"
-            listTab:    "overdue",  // "rfqs" | "approve" | "overdue"
+            listTab:    "overdue",  // "rfqs" | "approve" | "overdue" | "receipts" | "deliveries"
             dateFrom:   toDateStr(firstOfMonth),
             dateTo:     toDateStr(lastOfMonth),
             loading:    true,
@@ -31,15 +34,17 @@ class PoDashboardWidget extends Component {
             rfqs:       [],
             to_approve: [],
             overdue:    [],
+            receipts:   [],
+            deliveries: [],
         });
 
         this._kpiRowRef = useRef("kpiRow");
         const syncH = () => {
             const row = this._kpiRowRef.el;
             if (!row) return;
-            const src = row.querySelector(".o_kpi_height_src");
-            if (!src) return;
-            const h = src.offsetHeight;
+            const srcRow = row.querySelector(".o_kpi_height_src > .row");
+            if (!srcRow) return;
+            const h = srcRow.offsetHeight;
             row.querySelectorAll(".o_table_scroll").forEach(el => { el.style.height = h + "px"; });
         };
         onMounted(syncH);
@@ -60,6 +65,8 @@ class PoDashboardWidget extends Component {
             this.state.rfqs       = d.rfqs;
             this.state.to_approve = d.to_approve;
             this.state.overdue    = d.overdue;
+            this.state.receipts   = d.receipts   || [];
+            this.state.deliveries = d.deliveries || [];
         } catch (e) {
             console.error("[PoDashboardWidget]", e);
         } finally {
@@ -134,18 +141,35 @@ class PoDashboardWidget extends Component {
         });
     }
 
+    openPicking(id) {
+        this.action.doAction({
+            type:      "ir.actions.act_window",
+            res_model: "stock.picking",
+            res_id:    id,
+            view_mode: "form",
+            views:     [[false, "form"]],
+            target:    "current",
+        });
+    }
+
     get isEmpty() {
         const s = this.state;
-        return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0;
+        return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0
+            && s.receipts.length === 0 && s.deliveries.length === 0;
     }
 
     get activeList() {
         switch (this.state.listTab) {
-            case "rfqs":    return this.state.rfqs;
-            case "approve": return this.state.to_approve;
-            default:        return this.state.overdue;
+            case "rfqs":       return this.state.rfqs;
+            case "approve":    return this.state.to_approve;
+            case "receipts":   return this.state.receipts;
+            case "deliveries": return this.state.deliveries;
+            default:           return this.state.overdue;
         }
     }
+
+    fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
+    fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 }
 
 registry.category("view_widgets").add("po_dashboard_widget", {

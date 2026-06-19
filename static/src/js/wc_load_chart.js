@@ -135,8 +135,8 @@ class WcLoadChartWidget extends Component {
                     {
                         label: "Tiempo libre",
                         data: tiempoLibre,
-                        backgroundColor: "rgba(220,220,220,0.30)",
-                        borderColor: "rgba(170,170,170,0.45)",
+                        backgroundColor: "rgba(255,153,153,0.50)",
+                        borderColor: "rgba(220,80,80,0.70)",
                         borderWidth: 1,
                         stack: "real",
                     },

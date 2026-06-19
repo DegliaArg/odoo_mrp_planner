@@ -65,14 +65,14 @@
 
                     <!-- KPIs -->
                     <div class="col-12 col-lg-4 o_kpi_height_src">
-                        <div class="row g-2 h-100">
+                        <div class="row g-2">
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickTotal">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
-                                        <div class="o_planner_number" t-esc="state.ofs_kpis.total"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.total)"/>
                                         <div class="o_planner_label">Activas</div>
                                     </div>
                                 </div>
@@ -83,7 +83,7 @@
                                      style="cursor:pointer" t-on-click="onClickInProgress">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="state.ofs_kpis.in_progress"/>
+                                        <div class="o_planner_number text-info" t-esc="fmt(state.ofs_kpis.in_progress)"/>
                                         <div class="o_planner_label">En progreso</div>
                                     </div>
                                 </div>
@@ -94,7 +94,7 @@
                                      style="cursor:pointer" t-on-click="onClickDelayed">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
-                                        <div class="o_planner_number text-danger" t-esc="state.ofs_kpis.delayed"/>
+                                        <div class="o_planner_number text-danger" t-esc="fmt(state.ofs_kpis.delayed)"/>
                                         <div class="o_planner_label">Atrasadas</div>
                                     </div>
                                 </div>
@@ -105,7 +105,7 @@
                                      style="cursor:pointer" t-on-click="onClickReschedule">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
-                                        <div class="o_planner_number text-warning" t-esc="state.ofs_kpis.reschedule"/>
+                                        <div class="o_planner_number text-warning" t-esc="fmt(state.ofs_kpis.reschedule)"/>
                                         <div class="o_planner_label">Para reprogramar</div>
                                     </div>
                                 </div>
@@ -129,8 +129,8 @@
                              style="overflow:hidden; height:230px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
-                                    <col style="width:20%"/><col style="width:40%"/>
-                                    <col style="width:22%"/><col style="width:18%"/>
+                                    <col style="width:18%"/><col style="width:32%"/>
+                                    <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted">
@@ -138,14 +138,15 @@
                                         <th>Producto</th>
                                         <th>Fin planificado</th>
                                         <th>Estado</th>
+                                        <th class="text-end" title="Entregas pendientes del producto">Entregas</th>
                                     </tr>
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                 <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                     <colgroup>
-                                        <col style="width:20%"/><col style="width:40%"/>
-                                        <col style="width:22%"/><col style="width:18%"/>
+                                        <col style="width:18%"/><col style="width:32%"/>
+                                        <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="state.mos" t-as="mo" t-key="mo.id">
@@ -157,6 +158,12 @@
                                                 <td>
                                                     <span t-att-class="stateClass(mo.state)"
                                                           t-esc="stateLabel(mo.state)"/>
+                                                </td>
+                                                <td class="text-end">
+                                                    <span t-if="mo.pending_delivery > 0"
+                                                          class="text-warning fw-semibold"
+                                                          t-esc="fmt(mo.pending_delivery)"/>
+                                                    <span t-else="" class="text-muted">—</span>
                                                 </td>
                                             </tr>
                                         </t>
@@ -177,14 +184,14 @@
 
                     <!-- KPIs -->
                     <div class="col-12 col-lg-4 o_kpi_height_src">
-                        <div class="row g-2 h-100">
+                        <div class="row g-2">
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickReqActive">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number text-success" t-esc="state.req_kpis.active"/>
+                                        <div class="o_planner_number text-success" t-esc="fmt(state.req_kpis.active)"/>
                                         <div class="o_planner_label">OFs creadas</div>
                                     </div>
                                 </div>
@@ -195,7 +202,7 @@
                                      style="cursor:pointer" t-on-click="onClickReqCalc">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="state.req_kpis.calculated"/>
+                                        <div class="o_planner_number text-info" t-esc="fmt(state.req_kpis.calculated)"/>
                                         <div class="o_planner_label">Calculadas</div>
                                     </div>
                                 </div>
@@ -206,7 +213,7 @@
                                      style="cursor:pointer" t-on-click="onClickReqReschedule">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
-                                        <div class="o_planner_number text-warning" t-esc="state.req_kpis.reschedule"/>
+                                        <div class="o_planner_number text-warning" t-esc="fmt(state.req_kpis.reschedule)"/>
                                         <div class="o_planner_label">Con reprogramación</div>
                                     </div>
                                 </div>
@@ -216,7 +223,7 @@
                                 <div class="card o_planner_card o_planner_card_danger h-100">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block"/>
-                                        <div class="o_planner_number text-danger" t-esc="state.req_kpis.mos_delayed"/>
+                                        <div class="o_planner_number text-danger" t-esc="fmt(state.req_kpis.mos_delayed)"/>
                                         <div class="o_planner_label">OFs atrasadas</div>
                                     </div>
                                 </div>
@@ -283,13 +290,13 @@
 
                     <!-- KPIs -->
                     <div class="col-12 col-lg-4 o_kpi_height_src">
-                        <div class="row g-2 h-100">
+                        <div class="row g-2">
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
-                                        <div class="o_planner_number" t-esc="state.cmp_kpis.planned"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.planned)"/>
                                         <div class="o_planner_label">Programado</div>
                                     </div>
                                 </div>
@@ -299,7 +306,7 @@
                                 <div class="card o_planner_card o_planner_card_success h-100">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number text-success" t-esc="state.cmp_kpis.produced"/>
+                                        <div class="o_planner_number text-success" t-esc="fmt(state.cmp_kpis.produced)"/>
                                         <div class="o_planner_label">Producido</div>
                                     </div>
                                 </div>
@@ -320,7 +327,7 @@
                                 <div class="card o_planner_card o_planner_card_info h-100">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-flag-checkered fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="state.cmp_kpis.ofs_done"/>
+                                        <div class="o_planner_number text-info" t-esc="fmt(state.cmp_kpis.ofs_done)"/>
                                         <div class="o_planner_label">OFs completadas</div>
                                     </div>
                                 </div>
@@ -366,8 +373,8 @@
                                         <t t-foreach="state.comparison" t-as="item" t-key="item.product_id">
                                             <tr>
                                                 <td t-esc="item.product"/>
-                                                <td class="text-end" t-esc="item.planned_qty"/>
-                                                <td class="text-end" t-esc="item.produced_qty"/>
+                                                <td class="text-end" t-esc="fmt(item.planned_qty)"/>
+                                                <td class="text-end" t-esc="fmt(item.produced_qty)"/>
                                                 <td class="text-end">
                                                     <span t-att-class="pctClass(item.pct)"
                                                           t-esc="item.pct + '%'"/>

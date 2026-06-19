@@ -18,6 +18,18 @@ class MrpProductWorkcenter(models.Model):
     exclusion_reason = fields.Char(string='Motivo de exclusión')
     sequence      = fields.Integer(default=10)
 
+    def write(self, vals):
+        res = super().write(vals)
+        if vals.get('is_preferred'):
+            siblings = self.env['mrp.product.workcenter'].search([
+                ('product_tmpl_id', 'in', self.mapped('product_tmpl_id').ids),
+                ('id', 'not in', self.ids),
+                ('is_preferred', '=', True),
+            ])
+            if siblings:
+                siblings.write({'is_preferred': False})
+        return res
+
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'

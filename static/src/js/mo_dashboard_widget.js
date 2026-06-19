@@ -41,9 +41,9 @@ class MoDashboardWidget extends Component {
         const syncH = () => {
             const row = this._kpiRowRef.el;
             if (!row) return;
-            const src = row.querySelector(".o_kpi_height_src");
-            if (!src) return;
-            const h = src.offsetHeight;
+            const srcRow = row.querySelector(".o_kpi_height_src > .row");
+            if (!srcRow) return;
+            const h = srcRow.offsetHeight;
             row.querySelectorAll(".o_table_scroll").forEach(el => { el.style.height = h + "px"; });
         };
         onMounted(syncH);
@@ -190,6 +190,9 @@ class MoDashboardWidget extends Component {
         if (pct >= 50) return "text-warning fw-semibold";
         return "text-danger fw-semibold";
     }
+
+    fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
+    fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 }
 
 registry.category("view_widgets").add("mo_dashboard_widget", {

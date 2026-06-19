@@ -6,7 +6,7 @@ from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcont
 
 _logger = logging.getLogger(__name__)
 
-QTY_TOLERANCE = 0.05  # 5% de diferencia para disparar alerta
+QTY_TOLERANCE = 0.05  # fallback; sobreescrito por mrp.reschedule.config
 
 
 class MrpRescheduleAlert(models.Model):
@@ -208,8 +208,13 @@ class MrpRescheduleAlert(models.Model):
             except Exception as e:
                 _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
 
+    def _get_config(self):
+        return self.env['mrp.reschedule.config'].search([], limit=1)
+
     @api.model
     def _check_delayed_mos(self, now):
+        cfg = self._get_config()
+        crit_days = cfg.alert_mo_critical_days if cfg else 3
         mos = self.env['mrp.production'].search([
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
             ('date_finished', '<', now),
@@ -225,7 +230,7 @@ class MrpRescheduleAlert(models.Model):
         to_create = []
         for mo in mos:
             days = max(0, (now - mo.date_finished).days)
-            severity = 'critical' if days >= 3 else 'warning'
+            severity = 'critical' if days >= crit_days else 'warning'
             msg = _('Fin planificado: %s') % mo.date_finished.strftime('%d/%m/%Y %H:%M')
             write_vals = {'days_late': days, 'severity': severity, 'message': msg}
             if mo.id in by_mo:
@@ -241,6 +246,8 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_delayed_pos(self, now, impact_cache=None):
+        cfg = self._get_config()
+        crit_days = cfg.alert_po_critical_days if cfg else 5
         pos = self.env['purchase.order'].search([
             ('state', '=', 'purchase'),
             ('date_planned', '<', now),
@@ -265,7 +272,7 @@ class MrpRescheduleAlert(models.Model):
         to_create = []
         for po in pos:
             days = max(0, (now - po.date_planned).days)
-            severity = 'critical' if days >= 5 else 'warning'
+            severity = 'critical' if days >= crit_days else 'warning'
             msg = _('Entrega planificada: %s') % po.date_planned.strftime('%d/%m/%Y')
 
             product_ids = po.order_line.mapped('product_id').ids
@@ -292,6 +299,8 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_delayed_receipts(self, now, impact_cache=None):
+        cfg = self._get_config()
+        crit_days = cfg.alert_receipt_critical_days if cfg else 3
         pickings = self.env['stock.picking'].search([
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
@@ -317,7 +326,7 @@ class MrpRescheduleAlert(models.Model):
         to_create = []
         for picking in pickings:
             days = max(0, (now - picking.scheduled_date).days)
-            severity = 'critical' if days >= 3 else 'warning'
+            severity = 'critical' if days >= crit_days else 'warning'
             msg = _('Fecha prevista: %s') % picking.scheduled_date.strftime('%d/%m/%Y')
 
             product_ids = picking.move_ids.mapped('product_id').ids
@@ -346,6 +355,8 @@ class MrpRescheduleAlert(models.Model):
     def _check_qty_mismatches(self, now, impact_cache=None):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
         from datetime import timedelta
+        cfg = self._get_config()
+        qty_tol = (cfg.qty_tolerance_pct / 100.0) if cfg else QTY_TOLERANCE
         since = now - timedelta(hours=1)  # Solo las del último ciclo de cron
         done_mos = self.env['mrp.production'].search([
             ('state', '=', 'done'),
@@ -378,7 +389,7 @@ class MrpRescheduleAlert(models.Model):
             if actual_qty == 0:
                 actual_qty = planned_qty  # sin datos, no alertar
             delta = abs(actual_qty - planned_qty) / planned_qty
-            if delta <= QTY_TOLERANCE:
+            if delta <= qty_tol:
                 continue
             # Calcular OFs afectadas por el delta de producción
             avail = mo.product_id.qty_available

@@ -24,6 +24,11 @@ class MrpRescheduleConfig(models.Model):
         ('hours', 'Horas'),
     ], string='Unidad', default='minutes')
 
+    alert_mo_critical_days      = fields.Integer(string='Días críticos OF',       default=3)
+    alert_po_critical_days      = fields.Integer(string='Días críticos OC',       default=5)
+    alert_receipt_critical_days = fields.Integer(string='Días críticos recepción', default=3)
+    qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)', default=5.0)
+
     @api.depends()
     def _compute_name(self):
         for rec in self:

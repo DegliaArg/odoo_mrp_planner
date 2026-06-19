@@ -186,6 +186,16 @@
                                           t-esc="fmt(state.kpis.deliveries_overdue)"/>
                                 </button>
                             </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'resupply' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('resupply')">
+                                    <i class="fa fa-refresh text-warning me-1"/>
+                                    Reabastecimiento
+                                    <span t-if="state.kpis.resupply_overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="fmt(state.kpis.resupply_overdue)"/>
+                                </button>
+                            </li>
                         </ul>
 
                         <!-- Contenido de lista con scroll (split table) -->
@@ -241,7 +251,7 @@
                             </t>
 
                             <!-- Recepciones / Entregas (stock.picking) -->
-                            <t t-else="">
+                            <t t-elif="state.listTab === 'receipts' || state.listTab === 'deliveries'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
                                         <col style="width:22%"/><col style="width:43%"/>
@@ -278,6 +288,53 @@
                                                     <td class="text-center">
                                                         <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
                                                         <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Reabastecimiento subcontratista -->
+                            <t t-else="">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                                    <colgroup>
+                                        <col style="width:30%"/><col style="width:20%"/>
+                                        <col style="width:20%"/><col style="width:18%"/><col style="width:12%"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('availability')">Disponibilidad <i t-att-class="sortIcon('availability')"/></th>
+                                            <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('days')">Días <i t-att-class="sortIcon('days')"/></th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                        <colgroup>
+                                            <col style="width:30%"/><col style="width:20%"/>
+                                            <col style="width:20%"/><col style="width:18%"/><col style="width:12%"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="rs" t-key="rs.id">
+                                                <tr t-att-class="rs.overdue ? 'table-danger' : ''"
+                                                    style="cursor:pointer"
+                                                    t-att-data-pick-id="rs.id"
+                                                    t-on-click="openPickingFromRow">
+                                                    <td t-esc="rs.product"/>
+                                                    <td class="fw-semibold" t-esc="rs.name"/>
+                                                    <td t-esc="rs.scheduled_date"/>
+                                                    <td>
+                                                        <span t-att-class="availClass(rs.availability)"
+                                                              t-esc="availLabel(rs.availability)"/>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <span t-att-class="daysClass(rs.days)"
+                                                              t-esc="daysLabel(rs.days)"/>
                                                     </td>
                                                 </tr>
                                             </t>

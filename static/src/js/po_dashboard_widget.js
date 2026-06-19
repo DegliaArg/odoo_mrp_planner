@@ -11,6 +11,7 @@ function toDateStr(d) {
 const EMPTY_KPIS = {
     rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
     receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
+    resupply_total: 0, resupply_overdue: 0,
 };
 
 class PoDashboardWidget extends Component {
@@ -38,6 +39,7 @@ class PoDashboardWidget extends Component {
             overdue:    [],
             receipts:   [],
             deliveries: [],
+            resupply:   [],
         });
 
         this._kpiRowRef = useRef("kpiRow");
@@ -69,6 +71,7 @@ class PoDashboardWidget extends Component {
             this.state.overdue    = d.overdue;
             this.state.receipts   = d.receipts   || [];
             this.state.deliveries = d.deliveries || [];
+            this.state.resupply   = d.resupply   || [];
         } catch (e) {
             console.error("[PoDashboardWidget]", e);
         } finally {
@@ -173,7 +176,7 @@ class PoDashboardWidget extends Component {
     get isEmpty() {
         const s = this.state;
         return !s.loading && s.rfqs.length === 0 && s.to_approve.length === 0 && s.overdue.length === 0
-            && s.receipts.length === 0 && s.deliveries.length === 0;
+            && s.receipts.length === 0 && s.deliveries.length === 0 && s.resupply.length === 0;
     }
 
     get activeList() {
@@ -182,8 +185,28 @@ class PoDashboardWidget extends Component {
             case "approve":    return this.state.to_approve;
             case "receipts":   return this.state.receipts;
             case "deliveries": return this.state.deliveries;
+            case "resupply":   return this.state.resupply;
             default:           return this.state.overdue;
         }
+    }
+
+    availLabel(a) {
+        return { available: 'Disponible', partial: 'Parcial', none: 'No disponible' }[a] || a;
+    }
+    availClass(a) {
+        return { available: 'badge bg-success', partial: 'badge bg-warning text-dark', none: 'badge bg-danger' }[a] || 'badge bg-secondary';
+    }
+    daysLabel(d) {
+        if (d === null || d === undefined) return '—';
+        if (d === 0) return 'Hoy';
+        if (d > 0) return `${d}d atraso`;
+        return `${Math.abs(d)}d adelanto`;
+    }
+    daysClass(d) {
+        if (d === null || d === undefined) return 'text-muted small';
+        if (d > 0) return 'text-danger fw-semibold small';
+        if (d < 0) return 'text-success fw-semibold small';
+        return 'text-info fw-semibold small';
     }
 
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }

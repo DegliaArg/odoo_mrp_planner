@@ -511,7 +511,16 @@ class MrpPlannerDashboard(models.TransientModel):
         return result
 
     @api.model
-    def get_wc_chart_data(self, date_from, date_to, tag_id=None):
+    def get_wc_machines(self, tag_id=None):
+        """Centros de trabajo activos, opcionalmente filtrados por tag."""
+        domain = [('active', '=', True)]
+        if tag_id:
+            domain.append(('tag_ids', 'in', int(tag_id)))
+        wcs = self.env['mrp.workcenter'].search(domain, order='name')
+        return [{'id': wc.id, 'name': wc.name} for wc in wcs]
+
+    @api.model
+    def get_wc_chart_data(self, date_from, date_to, tag_id=None, workcenter_id=None):
         """Devuelve datos de carga por WC para el rango indicado.
 
         Bar 1 — Disponible: horas del calendario en el rango (referencia).
@@ -529,9 +538,11 @@ class MrpPlannerDashboard(models.TransientModel):
         domain = [('active', '=', True)]
         if tag_id:
             domain.append(('tag_ids', 'in', int(tag_id)))
+        if workcenter_id:
+            domain.append(('id', '=', int(workcenter_id)))
         workcenters = self.env['mrp.workcenter'].search(domain)
 
-        labels, avail_list = [], []
+        labels, wc_ids, avail_list = [], [], []
         ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
 
         def _avail_hours(calendar, dt_start, dt_end, efficiency):
@@ -603,6 +614,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 continue
 
             labels.append(wc.name)
+            wc_ids.append(wc.id)
             avail_list.append(round(avail, 1))
             ejecutado_list.append(round(ejecutado, 1))
             pendiente_list.append(round(pendiente, 1))
@@ -617,6 +629,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         return {
             'labels':          labels,
+            'wc_ids':          wc_ids,
             'available_hours': avail_list,
             'ejecutado':       ejecutado_list,
             'pendiente':       pendiente_list,

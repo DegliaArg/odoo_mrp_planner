@@ -947,6 +947,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 continue
             if pid not in product_data:
                 product_data[pid] = {
+                    'product_id':   pid,
                     'product':      mo.product_id.display_name,
                     'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
                     'planned_qty':  0.0,
@@ -967,12 +968,13 @@ class MrpPlannerDashboard(models.TransientModel):
         total_produced = sum(x['produced_qty'] for x in items)
         pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
 
+        filtered_done = all_mos.filtered(lambda m: m.state == 'done')
         return {
             'kpis': {
                 'planned':  round(total_planned,  2),
                 'produced': round(total_produced, 2),
                 'pct':      pct,
-                'ofs_done': len(done_mos),
+                'ofs_done': len(filtered_done),
             },
             'items': items[:20],
         }

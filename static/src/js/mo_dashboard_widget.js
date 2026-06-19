@@ -140,9 +140,19 @@ class MoDashboardWidget extends Component {
 
     openMo(id) {
         this.action.doAction({
-            type: "ir.actions.act_window", res_model: "mrp.production",
-            res_id: id, view_mode: "form", views: [[false, "form"]], target: "current",
+            type: "ir.actions.act_window",
+            res_model: "mrp.production",
+            res_id: parseInt(id),
+            view_mode: "list,form",
+            views: [[false, "list"], [false, "form"]],
+            domain: [["id", "=", parseInt(id)]],
+            target: "current",
         });
+    }
+
+    openMoFromRow(ev) {
+        const id = ev.currentTarget.closest("tr").dataset.moId;
+        if (id) this.openMo(id);
     }
 
     // ── Navegación Programaciones ────────────────────────────────────────────
@@ -163,9 +173,19 @@ class MoDashboardWidget extends Component {
 
     openRequest(id) {
         this.action.doAction({
-            type: "ir.actions.act_window", res_model: "mrp.production.request",
-            res_id: id, view_mode: "form", views: [[false, "form"]], target: "current",
+            type: "ir.actions.act_window",
+            res_model: "mrp.production.request",
+            res_id: parseInt(id),
+            view_mode: "list,form",
+            views: [[false, "list"], [false, "form"]],
+            domain: [["id", "=", parseInt(id)]],
+            target: "current",
         });
+    }
+
+    openRequestFromRow(ev) {
+        const id = ev.currentTarget.closest("tr").dataset.reqId;
+        if (id) this.openRequest(id);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

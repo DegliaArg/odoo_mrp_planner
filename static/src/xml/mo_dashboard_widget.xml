@@ -150,7 +150,8 @@
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="sortedMos" t-as="mo" t-key="mo.id">
-                                            <tr style="cursor:pointer" t-on-click="() => this.openMo(mo.id)"
+                                            <tr style="cursor:pointer" t-on-click="openMoFromRow"
+                                                t-att-data-mo-id="mo.id"
                                                 t-att-class="mo.delayed ? 'table-danger' : ''">
                                                 <td class="fw-semibold" t-esc="mo.name"/>
                                                 <td t-esc="mo.product"/>
@@ -264,7 +265,8 @@
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="sortedRequests" t-as="req" t-key="req.id">
-                                            <tr style="cursor:pointer" t-on-click="() => this.openRequest(req.id)">
+                                            <tr style="cursor:pointer" t-on-click="openRequestFromRow"
+                                                t-att-data-req-id="req.id">
                                                 <td class="fw-semibold" t-esc="req.name"/>
                                                 <td t-esc="req.start_from"/>
                                                 <td>

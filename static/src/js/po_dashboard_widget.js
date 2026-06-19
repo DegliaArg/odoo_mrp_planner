@@ -140,22 +140,34 @@ class PoDashboardWidget extends Component {
         this.action.doAction({
             type:      "ir.actions.act_window",
             res_model: "purchase.order",
-            res_id:    id,
-            view_mode: "form",
-            views:     [[false, "form"]],
+            res_id:    parseInt(id),
+            view_mode: "list,form",
+            views:     [[false, "list"], [false, "form"]],
+            domain:    [["id", "=", parseInt(id)]],
             target:    "current",
         });
+    }
+
+    openPoFromRow(ev) {
+        const id = ev.currentTarget.closest("tr").dataset.poId;
+        if (id) this.openPo(id);
     }
 
     openPicking(id) {
         this.action.doAction({
             type:      "ir.actions.act_window",
             res_model: "stock.picking",
-            res_id:    id,
-            view_mode: "form",
-            views:     [[false, "form"]],
+            res_id:    parseInt(id),
+            view_mode: "list,form",
+            views:     [[false, "list"], [false, "form"]],
+            domain:    [["id", "=", parseInt(id)]],
             target:    "current",
         });
+    }
+
+    openPickingFromRow(ev) {
+        const id = ev.currentTarget.closest("tr").dataset.pickId;
+        if (id) this.openPicking(id);
     }
 
     get isEmpty() {

@@ -227,7 +227,8 @@
                                             <t t-foreach="sortedList" t-as="po" t-key="po.id">
                                                 <tr t-att-class="state.listTab === 'overdue' ? 'table-danger' : (state.listTab === 'approve' ? 'table-warning' : '')"
                                                     style="cursor:pointer"
-                                                    t-on-click="() => this.openPo(po.id)">
+                                                    t-att-data-po-id="po.id"
+                                                    t-on-click="openPoFromRow">
                                                     <td class="fw-semibold" t-esc="po.name"/>
                                                     <td t-esc="po.partner"/>
                                                     <td t-esc="po.date_planned"/>
@@ -269,7 +270,8 @@
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
                                                 <tr t-att-class="pick.overdue ? 'table-danger' : ''"
                                                     style="cursor:pointer"
-                                                    t-on-click="() => this.openPicking(pick.id)">
+                                                    t-att-data-pick-id="pick.id"
+                                                    t-on-click="openPickingFromRow">
                                                     <td class="fw-semibold" t-esc="pick.name"/>
                                                     <td t-esc="pick.partner"/>
                                                     <td t-esc="pick.scheduled_date"/>

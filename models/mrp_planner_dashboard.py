@@ -876,12 +876,21 @@ class MrpPlannerDashboard(models.TransientModel):
 
         if tag_id:
             tag_id = int(tag_id)
-            mos = mos.filtered(
-                lambda m: any(
-                    tag_id in w.workcenter_id.tag_ids.ids
-                    for w in m.workorder_ids if w.workcenter_id
-                )
+            tag_filter = lambda m: any(
+                tag_id in w.workcenter_id.tag_ids.ids
+                for w in m.workorder_ids if w.workcenter_id
             )
+            mos = mos.filtered(tag_filter)
+
+        # OFs finalizadas en el mismo rango de fechas
+        done_domain = [
+            ('state', '=', 'done'),
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '<=', fields.Datetime.to_string(last_day)),
+        ] + no_sc
+        done_mos = self.env['mrp.production'].search(done_domain)
+        if tag_id:
+            done_mos = done_mos.filtered(tag_filter)
 
         offset   = (max(1, page) - 1) * page_size
         mos_page = mos[offset:offset + page_size]
@@ -922,6 +931,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'in_progress': len(mos.filtered(lambda m: m.state in ('progress', 'to_close'))),
                 'delayed':     len(mos.filtered(lambda m: m.date_finished and m.date_finished < now)),
                 'reschedule':  len(mos.filtered(lambda m: m.x_reschedule_needed)),
+                'done':        len(done_mos),
+                'partial':     len(mos.filtered(lambda m: m.state == 'to_close')),
             },
             'mos': [_mo_dict(m) for m in mos_page],
         }

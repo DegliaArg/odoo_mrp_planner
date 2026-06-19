@@ -111,6 +111,28 @@
                                 </div>
                             </div>
 
+                            <div class="col-6">
+                                <div class="card o_planner_card o_planner_card_success h-100"
+                                     style="cursor:pointer" t-on-click="onClickDone">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
+                                        <div class="o_planner_number text-success" t-esc="fmt(state.ofs_kpis.done)"/>
+                                        <div class="o_planner_label">Finalizadas</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card h-100"
+                                     style="cursor:pointer" t-on-click="onClickPartial">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
+                                        <div class="o_planner_number text-secondary" t-esc="fmt(state.ofs_kpis.partial)"/>
+                                        <div class="o_planner_label">Por cerrar</div>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -118,7 +140,7 @@
                     <div class="col-12 col-lg-8">
                         <div t-if="state.mos.length === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
-                             style="height:260px;">
+                             style="height:330px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                                 Sin órdenes en el período.
@@ -126,7 +148,7 @@
                         </div>
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
-                             style="overflow:hidden; height:260px;">
+                             style="overflow:hidden; height:330px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col style="width:18%"/><col style="width:32%"/>

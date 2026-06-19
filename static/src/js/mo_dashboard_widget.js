@@ -31,7 +31,7 @@ class MoDashboardWidget extends Component {
             page:        1,
             pageSize:    50,
             // OFs
-            ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0 },
+            ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0, done: 0, partial: 0 },
             mos:         [],
             // Programaciones
             req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0 },
@@ -146,6 +146,16 @@ class MoDashboardWidget extends Component {
         this._navigate("Para reprogramar", [
             ["state", "not in", ["done", "cancel"]], ["x_reschedule_needed", "=", true], ...this._dateDomain(),
         ]);
+    }
+    onClickDone() {
+        this._navigate("OFs finalizadas", [
+            ["state", "=", "done"],
+            ["date_finished", ">=", this.state.dateFrom + " 00:00:00"],
+            ["date_finished", "<=", this.state.dateTo   + " 23:59:59"],
+        ]);
+    }
+    onClickPartial() {
+        this._navigate("Por cerrar", [["state", "=", "to_close"]]);
     }
 
     openMo(id) {

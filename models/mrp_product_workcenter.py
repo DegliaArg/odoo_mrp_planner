@@ -20,8 +20,9 @@ class MrpProductWorkcenter(models.Model):
     sequence      = fields.Integer(default=10)
 
     def write(self, vals):
-        res = super().write(vals)
         if vals.get('is_preferred'):
+            # Deseleccionar hermanos ANTES de guardar self, para que
+            # el constrains no encuentre conflicto
             siblings = self.env['mrp.product.workcenter'].search([
                 ('product_tmpl_id', 'in', self.mapped('product_tmpl_id').ids),
                 ('id', 'not in', self.ids),
@@ -29,7 +30,7 @@ class MrpProductWorkcenter(models.Model):
             ])
             if siblings:
                 siblings.write({'is_preferred': False})
-        return res
+        return super().write(vals)
 
     @api.constrains('is_preferred')
     def _check_single_preferred(self):
@@ -41,8 +42,7 @@ class MrpProductWorkcenter(models.Model):
             ])
             if count:
                 raise ValidationError(
-                    'Solo puede haber un centro de trabajo preferido por producto. '
-                    'Desmarcá el anterior antes de elegir uno nuevo.'
+                    'Solo puede haber un centro de trabajo preferido por producto.'
                 )
 
 

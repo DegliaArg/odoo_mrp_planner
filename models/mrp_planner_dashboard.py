@@ -778,12 +778,23 @@ class MrpPlannerDashboard(models.TransientModel):
         receipts_pg      = receipts[offset:offset + page_size]
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
-        # ── Entregas (pickings with subcontracting source purchase) ─────────
+        # ── Entregas (component pickings for subcontract MOs) ────────────────
         try:
-            deliveries = Picking.search([
-                ('state', 'not in', ['done', 'cancel']),
-                ('subcontracting_source_purchase_ids', '!=', False),
-            ] + sched_domain, order=pick_order)
+            sc_pos = PO.search([
+                ('state', 'in', ['purchase', 'done']),
+                ('subcontract_production_ids', '!=', False),
+            ])
+            sc_mo_ids = sc_pos.mapped('subcontract_production_ids').filtered(
+                lambda m: m.state not in ('done', 'cancel')
+            ).ids if sc_pos else []
+            if sc_mo_ids:
+                deliveries = Picking.search([
+                    ('state', 'not in', ['done', 'cancel']),
+                    ('picking_type_id.code', '=', 'outgoing'),
+                    ('move_ids.raw_material_production_id', 'in', sc_mo_ids),
+                ] + sched_domain, order=pick_order)
+            else:
+                deliveries = Picking
         except Exception:
             deliveries = Picking
 

@@ -662,6 +662,7 @@ class MrpPlannerDashboard(models.TransientModel):
         _PICK_FIELD = {
             'name': 'name', 'partner': 'partner_id',
             'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date',
+            'availability': 'reservation_status',
         }
         po_f       = _PO_FIELD.get(sort_field, 'date_planned')
         pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
@@ -709,6 +710,13 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_subcontract': bool(po.subcontract_production_ids),
             }
 
+        _AVAIL_LABEL = {
+            'assigned':           'Disponible',
+            'partially_available': 'Parcialmente',
+            'confirmed':          'No disponible',
+            'waiting':            'No disponible',
+        }
+
         def _pick_dict(p):
             return {
                 'id':             p.id,
@@ -717,6 +725,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
+                'availability':   p.reservation_status,
+                'availability_label': _AVAIL_LABEL.get(p.reservation_status, '—'),
             }
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)
@@ -768,30 +778,12 @@ class MrpPlannerDashboard(models.TransientModel):
         receipts_pg      = receipts[offset:offset + page_size]
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
-        # ── Entregas (component pickings for subcontract MOs) ────────────────
+        # ── Entregas (pickings with subcontracting source purchase) ─────────
         try:
-            sc_pos = self.env['purchase.order'].search([
-                ('state', 'in', ['purchase', 'done']),
-                ('subcontract_production_ids', '!=', False),
-            ])
-            if sc_pos:
-                sc_prods = sc_pos.mapped('subcontract_production_ids').filtered(
-                    lambda m: m.state not in ('done', 'cancel')
-                )
-                deliveries = sc_prods.mapped('move_raw_ids.picking_id').filtered(
-                    lambda p: p.picking_type_id and p.picking_type_id.code == 'outgoing'
-                    and p.state not in ('done', 'cancel')
-                )
-                if date_from or date_to:
-                    df = datetime.strptime(date_from, '%Y-%m-%d') if date_from else None
-                    dt = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_to else None
-                    deliveries = deliveries.filtered(
-                        lambda p: (not df or (p.scheduled_date and p.scheduled_date >= df))
-                        and (not dt or (p.scheduled_date and p.scheduled_date <= dt))
-                    )
-                deliveries = deliveries.sorted(pick_f, reverse=_rev)
-            else:
-                deliveries = Picking
+            deliveries = Picking.search([
+                ('state', 'not in', ['done', 'cancel']),
+                ('subcontracting_source_purchase_ids', '!=', False),
+            ] + sched_domain, order=pick_order)
         except Exception:
             deliveries = Picking
 

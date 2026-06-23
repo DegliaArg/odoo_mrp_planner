@@ -266,7 +266,7 @@ class PoDashboardWidget extends Component {
     }
 
     // Campos computados en el dict que el backend no puede ordenar en DB
-    static _CLIENT_SORT = new Set(["partner"]);
+    static _CLIENT_SORT = new Set(["partner", "availability"]);
 
     _sortList(list) {
         const { sortField, sortDir } = this.state;

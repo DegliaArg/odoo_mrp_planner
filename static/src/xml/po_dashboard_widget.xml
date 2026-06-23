@@ -244,8 +244,8 @@
                                 </div>
                             </t>
 
-                            <!-- Recepciones / Entregas (stock.picking) -->
-                            <t t-elif="state.listTab === 'receipts' || state.listTab === 'deliveries'">
+                            <!-- Recepciones (stock.picking incoming) -->
+                            <t t-elif="state.listTab === 'receipts'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
                                         <col style="width:22%"/><col style="width:43%"/>
@@ -254,11 +254,7 @@
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">
-                                                <t t-if="state.listTab === 'receipts'">Proveedor</t>
-                                                <t t-else="">Subcontratista</t>
-                                                <i t-att-class="sortIcon('partner')"/>
-                                            </th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
                                             <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('overdue')">Estado <i t-att-class="sortIcon('overdue')"/></th>
                                         </tr>
@@ -282,6 +278,58 @@
                                                     <td class="text-center">
                                                         <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
                                                         <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Entregas (subcontracting_source_purchase_ids != False) -->
+                            <t t-elif="state.listTab === 'deliveries'">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                                    <colgroup>
+                                        <col style="width:18%"/><col style="width:32%"/>
+                                        <col style="width:20%"/><col style="width:10%"/><col style="width:20%"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
+                                            <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
+                                            <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('overdue')">Estado <i t-att-class="sortIcon('overdue')"/></th>
+                                            <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('availability')">Disponibilidad <i t-att-class="sortIcon('availability')"/></th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                        <colgroup>
+                                            <col style="width:18%"/><col style="width:32%"/>
+                                            <col style="width:20%"/><col style="width:10%"/><col style="width:20%"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
+                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                    style="cursor:pointer"
+                                                    t-att-data-pick-id="pick.id"
+                                                    t-on-click="openPickingFromRow">
+                                                    <td class="fw-semibold" t-esc="pick.name"/>
+                                                    <td t-esc="pick.partner"/>
+                                                    <td t-esc="pick.scheduled_date"/>
+                                                    <td class="text-center">
+                                                        <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
+                                                        <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span t-if="pick.availability === 'assigned'"
+                                                              class="badge text-bg-success">Disponible</span>
+                                                        <span t-elif="pick.availability === 'partially_available'"
+                                                              class="badge text-bg-warning">Parcialmente</span>
+                                                        <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'"
+                                                              class="badge text-bg-danger">No disponible</span>
+                                                        <span t-else="" class="text-muted">—</span>
                                                     </td>
                                                 </tr>
                                             </t>

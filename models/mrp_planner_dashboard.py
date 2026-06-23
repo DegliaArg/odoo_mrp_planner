@@ -662,7 +662,7 @@ class MrpPlannerDashboard(models.TransientModel):
         _PICK_FIELD = {
             'name': 'name', 'partner': 'partner_id',
             'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date',
-            'availability': 'reservation_status',
+            'availability': 'state',
         }
         po_f       = _PO_FIELD.get(sort_field, 'date_planned')
         pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
@@ -725,8 +725,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
-                'availability':   p.reservation_status,
-                'availability_label': _AVAIL_LABEL.get(p.reservation_status, '—'),
+                'availability':   p.state,
+                'availability_label': _AVAIL_LABEL.get(p.state, '—'),
             }
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)

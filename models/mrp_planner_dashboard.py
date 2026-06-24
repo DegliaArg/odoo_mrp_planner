@@ -1161,11 +1161,12 @@ class MrpPlannerDashboard(models.TransientModel):
     def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=50):
         """Productos con sale_ok=True, su stock en la ubicación configurada y el mínimo
         del punto de reorden con ruta Fabricación."""
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        location = cfg.stock_location_id if cfg else None
-
         _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
-        if not location:
+        loc_param = self.env['ir.config_parameter'].sudo().get_param(
+            'mrp_reschedule.stock_location_id')
+        loc_id = int(loc_param) if loc_param else False
+        location = self.env['stock.location'].browse(loc_id) if loc_id else None
+        if not location or not location.exists():
             return {'error': 'no_location', 'kpis': _empty_kpis,
                     'products': [], 'location_name': '', 'total_filtered': 0}
 

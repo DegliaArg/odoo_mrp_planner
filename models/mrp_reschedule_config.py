@@ -38,8 +38,28 @@ class MrpRescheduleConfig(models.Model):
         'stock.location',
         string='Ubicación de stock (quiebres)',
         domain=[('usage', '=', 'internal')],
+        compute='_compute_stock_location_id',
+        inverse='_set_stock_location_id',
+        store=False,
         help='Ubicación interna desde la cual se lee el stock actual en el widget de quiebres de stock.',
     )
+
+    @api.depends()
+    def _compute_stock_location_id(self):
+        param = self.env['ir.config_parameter'].sudo().get_param(
+            'mrp_reschedule.stock_location_id')
+        loc_id = int(param) if param else False
+        location = self.env['stock.location'].browse(loc_id) if loc_id else \
+            self.env['stock.location']
+        for rec in self:
+            rec.stock_location_id = location if loc_id and location.exists() else False
+
+    def _set_stock_location_id(self):
+        for rec in self:
+            self.env['ir.config_parameter'].sudo().set_param(
+                'mrp_reschedule.stock_location_id',
+                str(rec.stock_location_id.id) if rec.stock_location_id else '',
+            )
 
     @api.depends()
     def _compute_name(self):

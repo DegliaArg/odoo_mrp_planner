@@ -286,15 +286,17 @@
                                 </div>
                             </t>
 
-                            <!-- Entregas (subcontracting_source_purchase_ids != False) -->
+                            <!-- Entregas (component deliveries to subcontractors) -->
                             <t t-elif="state.listTab === 'deliveries'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:18%"/><col style="width:32%"/>
-                                        <col style="width:20%"/><col style="width:10%"/><col style="width:20%"/>
+                                        <col style="width:4%"/>
+                                        <col style="width:16%"/><col style="width:28%"/>
+                                        <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
+                                            <th/>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
@@ -306,32 +308,80 @@
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:18%"/><col style="width:32%"/>
-                                            <col style="width:20%"/><col style="width:10%"/><col style="width:20%"/>
+                                            <col style="width:4%"/>
+                                            <col style="width:16%"/><col style="width:28%"/>
+                                            <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
+                                                <!-- Fila principal -->
                                                 <tr t-att-class="pick.overdue ? 'table-danger' : ''"
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
+                                                    <td class="text-center ps-1 pe-0"
+                                                        t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                        style="cursor:default;"
+                                                        title="Ver / ocultar líneas">
+                                                        <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
+                                                    </td>
                                                     <td class="fw-semibold" t-esc="pick.name"/>
                                                     <td t-esc="pick.partner"/>
                                                     <td t-esc="pick.scheduled_date"/>
                                                     <td class="text-center">
-                                                        <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
-                                                        <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                        <i t-if="pick.overdue"
+                                                           class="fa fa-exclamation-triangle text-danger"
+                                                           title="Entrega vencida: la fecha programada ya pasó"/>
+                                                        <i t-else=""
+                                                           class="fa fa-clock-o text-muted"
+                                                           title="Entrega pendiente: dentro de plazo"/>
                                                     </td>
                                                     <td class="text-center">
                                                         <span t-if="pick.availability === 'assigned'"
-                                                              class="badge text-bg-success">Disponible</span>
+                                                              class="badge text-bg-success"
+                                                              title="Stock totalmente reservado y listo para despachar">Disponible</span>
                                                         <span t-elif="pick.availability === 'partially_available'"
-                                                              class="badge text-bg-warning">Parcialmente</span>
+                                                              class="badge text-bg-warning"
+                                                              title="Stock parcialmente reservado. Algunos productos faltan">Parcialmente</span>
                                                         <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'"
-                                                              class="badge text-bg-danger">No disponible</span>
+                                                              class="badge text-bg-danger"
+                                                              title="Sin stock reservado. Ejecutar Comprobar disponibilidad en Odoo">No disponible</span>
                                                         <span t-else="" class="text-muted">—</span>
                                                     </td>
                                                 </tr>
+                                                <!-- Filas de líneas (expandibles) -->
+                                                <t t-if="state.expandedIds[pick.id]">
+                                                    <t t-if="pick.lines.length === 0">
+                                                        <tr class="table-light">
+                                                            <td colspan="6" class="text-muted fst-italic small ps-4">Sin líneas de movimiento.</td>
+                                                        </tr>
+                                                    </t>
+                                                    <t t-foreach="pick.lines" t-as="line" t-key="line_index">
+                                                        <tr class="table-light" style="cursor:default;">
+                                                            <td/>
+                                                            <td colspan="2" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td class="small text-muted">
+                                                                <t t-esc="fmt(line.demand)"/>
+                                                                <span class="ms-1 text-secondary" t-esc="line.uom"/>
+                                                            </td>
+                                                            <td/>
+                                                            <td class="text-center small">
+                                                                <t t-if="line.reserved >= line.demand - 0.001">
+                                                                    <span class="badge text-bg-success" title="Totalmente reservado">OK</span>
+                                                                </t>
+                                                                <t t-elif="line.reserved > 0.001">
+                                                                    <span class="badge text-bg-warning"
+                                                                          t-att-title="`Reservado: ${fmt(line.reserved)} / ${fmt(line.demand)} ${line.uom}`">
+                                                                        <t t-esc="fmt(line.reserved)"/> / <t t-esc="fmt(line.demand)"/>
+                                                                    </span>
+                                                                </t>
+                                                                <t t-else="">
+                                                                    <span class="badge text-bg-danger" title="Sin stock reservado">Sin stock</span>
+                                                                </t>
+                                                            </td>
+                                                        </tr>
+                                                    </t>
+                                                </t>
                                             </t>
                                         </tbody>
                                     </table>

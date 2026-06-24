@@ -710,24 +710,52 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_subcontract': bool(po.subcontract_production_ids),
             }
 
+        def _pick_avail(p):
+            """En Odoo 16+, 'partially_available' fue eliminado como estado.
+            Los pickings parcialmente reservados quedan en 'assigned'.
+            Detectamos la diferencia comparando reserved_availability vs demanda."""
+            if p.state == 'assigned':
+                is_partial = any(
+                    (getattr(m, 'reserved_availability', 0) or 0) < m.product_uom_qty - 0.001
+                    for m in p.move_ids if m.state not in ('done', 'cancel')
+                )
+                return 'partially_available' if is_partial else 'assigned'
+            if p.state == 'confirmed':
+                has_any = any(
+                    (getattr(m, 'reserved_availability', 0) or 0) > 0.001
+                    for m in p.move_ids if m.state not in ('done', 'cancel')
+                )
+                return 'partially_available' if has_any else 'confirmed'
+            return p.state
+
         _AVAIL_LABEL = {
-            'assigned':           'Disponible',
+            'assigned':            'Disponible',
             'partially_available': 'Parcialmente',
-            'confirmed':          'No disponible',
-            'waiting':            'No disponible',
+            'confirmed':           'No disponible',
+            'waiting':             'No disponible',
         }
 
-        def _pick_dict(p):
-            return {
+        def _pick_dict(p, include_lines=False):
+            avail = _pick_avail(p)
+            result = {
                 'id':             p.id,
                 'name':           p.name,
                 'partner':        p.partner_id.display_name if p.partner_id else '',
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
-                'availability':   p.state,
-                'availability_label': _AVAIL_LABEL.get(p.state, '—'),
+                'availability':   avail,
+                'availability_label': _AVAIL_LABEL.get(avail, '—'),
+                'lines':          [],
             }
+            if include_lines:
+                result['lines'] = [{
+                    'product':  m.product_id.display_name,
+                    'demand':   m.product_uom_qty,
+                    'reserved': getattr(m, 'reserved_availability', 0) or 0,
+                    'uom':      m.product_uom.name if m.product_uom else '',
+                } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
+            return result
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)
         to_approve_list = PO.search(approve_dom, order=po_order)
@@ -756,6 +784,17 @@ class MrpPlannerDashboard(models.TransientModel):
         all_pos_list  = approved.sorted(po_f, reverse=_rev)
         pending_list  = pending.sorted(po_f,  reverse=_rev)
 
+        # Sort por nombre de partner (no por ID): hacerlo en Python para que
+        # sea correcto en todas las páginas, no solo la primera.
+        if sort_field == 'partner':
+            _pk = lambda r: (r.partner_id.display_name or '').lower()
+            rfqs_list       = rfqs_list.sorted(_pk,       reverse=_rev)
+            to_approve_list = to_approve_list.sorted(_pk, reverse=_rev)
+            overdue_list    = overdue_list.sorted(_pk,    reverse=_rev)
+            all_pos_list    = all_pos_list.sorted(_pk,    reverse=_rev)
+            pending_list    = pending_list.sorted(_pk,    reverse=_rev)
+            services_rs     = services_rs.sorted(_pk,     reverse=_rev)
+
         rfqs_pg       = rfqs_list[offset:offset + page_size]
         to_approve_pg = to_approve_list[offset:offset + page_size]
         overdue_pg    = overdue_list[offset:offset + page_size]
@@ -775,7 +814,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ('purchase_id', '!=', False),
         ] + receipt_sc + sched_domain, order=pick_order)
 
-        receipts_pg      = receipts[offset:offset + page_size]
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         # ── Entregas (component deliveries to subcontractors) ───────────────
@@ -786,6 +824,21 @@ class MrpPlannerDashboard(models.TransientModel):
             ('location_dest_id.is_subcontracting_location', '=', True),
         ] + sched_domain, order=pick_order)
 
+        # Sort por partner/availability en pickings (Python, para que sea cross-página)
+        if sort_field == 'partner':
+            _ppk = lambda p: (p.partner_id.display_name or '').lower()
+            receipts   = receipts.sorted(_ppk,   reverse=_rev)
+            deliveries = deliveries.sorted(_ppk, reverse=_rev)
+        elif sort_field == 'availability':
+            _AO = {'assigned': 0, 'partially_available': 1, 'confirmed': 2, 'waiting': 3}
+            _ak = lambda p: _AO.get(_pick_avail(p), 99)
+            receipts   = receipts.sorted(_ak,   reverse=_rev)
+            deliveries = deliveries.sorted(_ak, reverse=_rev)
+
+        # Prefetch moves para evitar N+1 en _pick_dict
+        (receipts | deliveries).mapped('move_ids')
+
+        receipts_pg        = receipts[offset:offset + page_size]
         deliveries_pg      = deliveries[offset:offset + page_size]
         services_pg        = services_rs[offset:offset + page_size]
         overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
@@ -812,8 +865,8 @@ class MrpPlannerDashboard(models.TransientModel):
             'overdue':     [_po_dict(p) for p in overdue_pg],
             'all_pos':     [_po_dict(p) for p in all_pos_pg],
             'pending_pos': [_po_dict(p) for p in pending_pg],
-            'receipts':    [_pick_dict(p) for p in receipts_pg],
-            'deliveries':  [_pick_dict(p) for p in deliveries_pg],
+            'receipts':    [_pick_dict(p)        for p in receipts_pg],
+            'deliveries':  [_pick_dict(p, True)  for p in deliveries_pg],
             'services':    [_po_dict(p) for p in services_pg],
         }
 

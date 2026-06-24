@@ -46,6 +46,7 @@ class PoDashboardWidget extends Component {
             deliveries:       [],
             services:         [],
             show_services_tab: false,
+            expandedIds: {},
         });
 
         onMounted(async () => {
@@ -265,21 +266,16 @@ class PoDashboardWidget extends Component {
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
-    // Campos computados en el dict que el backend no puede ordenar en DB
-    static _CLIENT_SORT = new Set(["partner", "availability"]);
+    // El sort es siempre server-side (partner y availability se ordenan en Python antes de paginar)
+    get sortedList() { return this.activeList; }
 
-    _sortList(list) {
-        const { sortField, sortDir } = this.state;
-        if (!sortField || !PoDashboardWidget._CLIENT_SORT.has(sortField)) return list;
-        return [...list].sort((a, b) => {
-            let va = a[sortField] ?? "";
-            let vb = b[sortField] ?? "";
-            const cmp = String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
-            return sortDir === "asc" ? cmp : -cmp;
-        });
+    toggleExpand(id) {
+        if (this.state.expandedIds[id]) {
+            delete this.state.expandedIds[id];
+        } else {
+            this.state.expandedIds = { ...this.state.expandedIds, [id]: true };
+        }
     }
-
-    get sortedList() { return this._sortList(this.activeList); }
 }
 
 registry.category("view_widgets").add("po_dashboard_widget", {

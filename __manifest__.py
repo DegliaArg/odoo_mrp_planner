@@ -45,6 +45,8 @@ Características:
             'odoo_mrp_reschedule/static/src/xml/po_dashboard_widget.xml',
             'odoo_mrp_reschedule/static/src/js/mo_dashboard_widget.js',
             'odoo_mrp_reschedule/static/src/xml/mo_dashboard_widget.xml',
+            'odoo_mrp_reschedule/static/src/js/stock_break_widget.js',
+            'odoo_mrp_reschedule/static/src/xml/stock_break_widget.xml',
         ],
     },
     'installable': True,

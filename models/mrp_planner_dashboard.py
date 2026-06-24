@@ -1155,6 +1155,115 @@ class MrpPlannerDashboard(models.TransientModel):
     def action_open_requests_dashboard(self):
         return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')
 
+    # ── Widget quiebres de stock ─────────────────────────────────────────────
+
+    @api.model
+    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=50):
+        """Productos con sale_ok=True, su stock en la ubicación configurada y el mínimo
+        del punto de reorden con ruta Fabricación."""
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        location = cfg.stock_location_id if cfg else None
+
+        _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
+        if not location:
+            return {'error': 'no_location', 'kpis': _empty_kpis,
+                    'products': [], 'location_name': '', 'total_filtered': 0}
+
+        # Ruta fabricación: primero por xmlid, fallback por nombre
+        mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
+        if not mfg_route:
+            mfg_route = self.env['stock.route'].search(
+                [('name', 'ilike', 'manufactur')], limit=1)
+
+        # Productos vendibles activos
+        products = self.env['product.product'].search([
+            ('sale_ok', '=', True), ('active', '=', True),
+        ])
+        if not products:
+            return {'error': None, 'kpis': _empty_kpis,
+                    'products': [], 'location_name': location.complete_name, 'total_filtered': 0}
+
+        product_ids = products.ids
+
+        # Puntos de reorden con ruta fabricación → min_qty por producto
+        op_domain = [('product_id', 'in', product_ids)]
+        if mfg_route:
+            op_domain.append(('route_id', '=', mfg_route.id))
+        orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
+        min_qty_map = {}
+        for op in orderpoints:
+            pid = op.product_id.id
+            if pid not in min_qty_map or op.product_min_qty > min_qty_map[pid]:
+                min_qty_map[pid] = op.product_min_qty
+
+        # Stock en ubicación (batch via read_group)
+        quant_groups = self.env['stock.quant'].read_group(
+            [('product_id', 'in', product_ids),
+             ('location_id', 'child_of', location.id)],
+            ['product_id', 'quantity:sum'],
+            ['product_id'],
+        )
+        qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
+
+        # Construir filas
+        rows = []
+        for p in products:
+            qty     = round(qty_map.get(p.id, 0.0), 3)
+            min_qty = min_qty_map.get(p.id)
+            has_min = min_qty is not None
+            rows.append({
+                'id':       p.id,
+                'name':     p.display_name,
+                'qty':      qty,
+                'min_qty':  min_qty if has_min else None,
+                'has_min':  has_min,
+                'is_broken': has_min and qty < (min_qty - 0.001),
+            })
+
+        # KPIs sobre el conjunto completo
+        kpis = {
+            'total':  len(rows),
+            'broken': sum(1 for r in rows if r['is_broken']),
+            'ok':     sum(1 for r in rows if r['has_min'] and not r['is_broken']),
+            'no_min': sum(1 for r in rows if not r['has_min']),
+        }
+
+        # Filtro
+        if filter_type == 'broken':
+            rows = [r for r in rows if r['is_broken']]
+        elif filter_type == 'ok':
+            rows = [r for r in rows if r['has_min'] and not r['is_broken']]
+        elif filter_type == 'no_min':
+            rows = [r for r in rows if not r['has_min']]
+
+        # Sort
+        _rev = (sort_dir == 'desc')
+        if sort_field == 'name':
+            rows.sort(key=lambda r: (r['name'] or '').lower(), reverse=_rev)
+        elif sort_field == 'qty':
+            rows.sort(key=lambda r: r['qty'], reverse=_rev)
+        elif sort_field == 'min_qty':
+            rows.sort(key=lambda r: (r['min_qty'] if r['min_qty'] is not None else -1), reverse=_rev)
+        elif sort_field == 'status':
+            rows.sort(key=lambda r: (0 if r['is_broken'] else 1 if not r['has_min'] else 2), reverse=_rev)
+        else:
+            # Default: quiebres primero, luego OK, luego sin mínimo; dentro de cada grupo por nombre
+            rows.sort(key=lambda r: (
+                0 if r['is_broken'] else 1 if not r['has_min'] else 2,
+                (r['name'] or '').lower(),
+            ))
+
+        total_filtered = len(rows)
+        offset = (max(1, page) - 1) * page_size
+
+        return {
+            'error':          None,
+            'kpis':           kpis,
+            'products':       rows[offset:offset + page_size],
+            'location_name':  location.complete_name,
+            'total_filtered': total_filtered,
+        }
+
 
 class MrpPlannerWcLoad(models.TransientModel):
     _name = 'mrp.planner.wc.load'

@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_reschedule.StockBreakWidget">
+        <div class="o_stock_break_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
+
+            <!-- Sin ubicación configurada -->
+            <div t-if="state.error === 'no_location'" class="alert alert-warning d-flex align-items-center gap-2 py-2">
+                <i class="fa fa-map-marker fa-lg"/>
+                <span>No hay ubicación de stock configurada para este widget.</span>
+                <button class="btn btn-sm btn-warning ms-auto" t-on-click="openConfig">
+                    Configurar →
+                </button>
+            </div>
+
+            <t t-else="">
+
+                <!-- Ubicación activa -->
+                <div class="text-muted small mb-2">
+                    <i class="fa fa-map-marker me-1"/>
+                    <t t-esc="state.locationName || '—'"/>
+                </div>
+
+                <!-- KPI cards -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100" style="cursor:pointer"
+                             t-on-click="() => this.setFilter('all')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="state.kpis.total"/></div>
+                                <div class="o_planner_label">Vendibles</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card o_planner_card_danger h-100" style="cursor:pointer"
+                             t-on-click="() => this.setFilter('broken')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
+                                <div class="o_planner_number text-danger"><t t-esc="state.kpis.broken"/></div>
+                                <div class="o_planner_label">Quiebres</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card o_planner_card_success h-100" style="cursor:pointer"
+                             t-on-click="() => this.setFilter('ok')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
+                                <div class="o_planner_number text-success"><t t-esc="state.kpis.ok"/></div>
+                                <div class="o_planner_label">Stock OK</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100" style="cursor:pointer"
+                             t-on-click="() => this.setFilter('no_min')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-minus-circle fa-lg text-muted mb-2 d-block"/>
+                                <div class="o_planner_number text-muted"><t t-esc="state.kpis.no_min"/></div>
+                                <div class="o_planner_label">Sin mínimo</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros activos -->
+                <div class="btn-group btn-group-sm mb-3">
+                    <button t-att-class="'btn btn-outline-secondary' + (state.filterType === 'all'    ? ' active' : '')"
+                            t-on-click="() => this.setFilter('all')">Todos</button>
+                    <button t-att-class="'btn btn-outline-danger'    + (state.filterType === 'broken' ? ' active' : '')"
+                            t-on-click="() => this.setFilter('broken')">
+                        <i class="fa fa-exclamation-triangle me-1"/>Quiebres
+                    </button>
+                    <button t-att-class="'btn btn-outline-success'   + (state.filterType === 'ok'     ? ' active' : '')"
+                            t-on-click="() => this.setFilter('ok')">OK</button>
+                    <button t-att-class="'btn btn-outline-secondary' + (state.filterType === 'no_min' ? ' active' : '')"
+                            t-on-click="() => this.setFilter('no_min')">Sin mínimo</button>
+                </div>
+
+                <!-- Tabla -->
+                <div t-if="state.products.length === 0"
+                     class="text-center text-muted py-4 border rounded">
+                    <i class="fa fa-check-circle fa-2x text-success mb-2 d-block"/>
+                    No hay productos en esta categoría.
+                </div>
+
+                <t t-else="">
+                    <div class="border rounded" style="overflow:hidden;">
+                        <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                            <colgroup>
+                                <col style="width:46%"/>
+                                <col style="width:18%"/>
+                                <col style="width:18%"/>
+                                <col style="width:18%"/>
+                            </colgroup>
+                            <thead class="table-light">
+                                <tr class="text-muted">
+                                    <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">
+                                        Producto <i t-att-class="sortIcon('name')"/>
+                                    </th>
+                                    <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('qty')">
+                                        Stock actual <i t-att-class="sortIcon('qty')"/>
+                                    </th>
+                                    <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('min_qty')">
+                                        Mínimo <i t-att-class="sortIcon('min_qty')"/>
+                                    </th>
+                                    <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('status')">
+                                        Estado <i t-att-class="sortIcon('status')"/>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.products" t-as="prod" t-key="prod.id">
+                                    <tr t-att-class="prod.is_broken ? 'table-danger' : ''"
+                                        style="cursor:pointer"
+                                        t-att-data-product-id="prod.id"
+                                        t-on-click="openProductFromRow">
+                                        <td class="fw-semibold text-truncate" t-esc="prod.name"/>
+                                        <td class="text-end" t-esc="fmt(prod.qty)"/>
+                                        <td class="text-end">
+                                            <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
+                                            <span t-else="" class="text-muted">—</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span t-if="prod.is_broken"
+                                                  class="badge text-bg-danger"
+                                                  t-att-title="`Stock ${fmt(prod.qty)} &lt; mínimo ${fmt(prod.min_qty)}`">
+                                                Quiebre
+                                            </span>
+                                            <span t-elif="prod.has_min"
+                                                  class="badge text-bg-success"
+                                                  title="Stock sobre el mínimo configurado">
+                                                OK
+                                            </span>
+                                            <span t-else=""
+                                                  class="text-muted fst-italic small"
+                                                  title="Sin punto de reorden con ruta Fabricación">
+                                                Sin mínimo
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <div t-if="totalPages > 1"
+                         class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                            <i class="fa fa-chevron-left"/>
+                        </button>
+                        <small class="text-muted">
+                            Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                            · <t t-esc="state.totalFiltered"/> registros
+                        </small>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                            <i class="fa fa-chevron-right"/>
+                        </button>
+                    </div>
+                </t>
+
+            </t>
+        </div>
+    </t>
+
+</templates>

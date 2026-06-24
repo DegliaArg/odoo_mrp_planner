@@ -34,6 +34,13 @@ class MrpRescheduleConfig(models.Model):
         default=False,
     )
 
+    stock_location_id = fields.Many2one(
+        'stock.location',
+        string='Ubicación de stock (quiebres)',
+        domain=[('usage', '=', 'internal')],
+        help='Ubicación interna desde la cual se lee el stock actual en el widget de quiebres de stock.',
+    )
+
     @api.depends()
     def _compute_name(self):
         for rec in self:

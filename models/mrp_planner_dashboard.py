@@ -779,12 +779,13 @@ class MrpPlannerDashboard(models.TransientModel):
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         # ── Entregas (component deliveries to subcontractors) ───────────────
-        # Las entregas de componentes a subcontratistas tienen purchase_id seteado
-        # y picking_type_code = 'outgoing' (simétrico a recepciones que son 'incoming')
+        # Las entregas van hacia la ubicación del subcontratista
+        # (is_subcontracting_location=True). No se filtra por picking_type_code
+        # porque en esta instancia es 'internal', no 'outgoing'.
         deliveries = Picking.search([
             ('state', 'not in', ['done', 'cancel']),
             ('purchase_id', '!=', False),
-            ('picking_type_code', '=', 'outgoing'),
+            ('location_dest_id.is_subcontracting_location', '=', True),
         ] + sched_domain, order=pick_order)
 
         deliveries_pg      = deliveries[offset:offset + page_size]

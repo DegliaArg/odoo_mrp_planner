@@ -784,19 +784,21 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('state', 'in', ['purchase', 'done']),
                 ('subcontract_production_ids', '!=', False),
             ])
-            sc_mo_ids = sc_pos.mapped('subcontract_production_ids').filtered(
+            sc_mos = sc_pos.mapped('subcontract_production_ids').filtered(
                 lambda m: m.state not in ('done', 'cancel')
-            ).ids if sc_pos else []
-            if sc_mo_ids:
-                deliveries = Picking.search([
-                    ('state', 'not in', ['done', 'cancel']),
-                    ('picking_type_id.code', '=', 'outgoing'),
-                    ('move_ids.raw_material_production_id', 'in', sc_mo_ids),
-                ] + sched_domain, order=pick_order)
+            ) if sc_pos else self.env['mrp.production']
+            if sc_mos:
+                delivery_pick_ids = sc_mos.mapped('move_raw_ids.picking_id').filtered(
+                    lambda p: p.state not in ('done', 'cancel')
+                ).ids
+                deliveries = Picking.search(
+                    [('id', 'in', delivery_pick_ids)] + sched_domain,
+                    order=pick_order,
+                ) if delivery_pick_ids else Picking.browse()
             else:
-                deliveries = Picking
+                deliveries = Picking.browse()
         except Exception:
-            deliveries = Picking
+            deliveries = Picking.browse()
 
         deliveries_pg      = deliveries[offset:offset + page_size]
         services_pg        = services_rs[offset:offset + page_size]

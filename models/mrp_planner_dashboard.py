@@ -710,19 +710,28 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_subcontract': bool(po.subcontract_production_ids),
             }
 
+        def _move_qty(m):
+            """En Odoo 18, 'quantity' es el campo unificado (antes quantity_done
+            en move_lines). Para pickings de subcontratación, reserved_availability=0
+            pero quantity=demanda. Usamos el máximo de ambos para cubrir ambos casos."""
+            return max(
+                getattr(m, 'quantity', 0) or 0,
+                getattr(m, 'reserved_availability', 0) or 0,
+            )
+
         def _pick_avail(p):
             """En Odoo 16+, 'partially_available' fue eliminado como estado.
             Los pickings parcialmente reservados quedan en 'assigned'.
-            Detectamos la diferencia comparando reserved_availability vs demanda."""
+            Detectamos la diferencia comparando qty disponible vs demanda."""
             if p.state == 'assigned':
                 is_partial = any(
-                    (getattr(m, 'reserved_availability', 0) or 0) < m.product_uom_qty - 0.001
+                    _move_qty(m) < m.product_uom_qty - 0.001
                     for m in p.move_ids if m.state not in ('done', 'cancel')
                 )
                 return 'partially_available' if is_partial else 'assigned'
             if p.state == 'confirmed':
                 has_any = any(
-                    (getattr(m, 'reserved_availability', 0) or 0) > 0.001
+                    _move_qty(m) > 0.001
                     for m in p.move_ids if m.state not in ('done', 'cancel')
                 )
                 return 'partially_available' if has_any else 'confirmed'
@@ -752,7 +761,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 result['lines'] = [{
                     'product':  m.product_id.display_name,
                     'demand':   m.product_uom_qty,
-                    'reserved': getattr(m, 'reserved_availability', 0) or 0,
+                    'reserved': _move_qty(m),
                     'uom':      m.product_uom.name if m.product_uom else '',
                 } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
             return result

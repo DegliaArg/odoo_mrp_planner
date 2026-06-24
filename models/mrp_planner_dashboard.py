@@ -779,31 +779,13 @@ class MrpPlannerDashboard(models.TransientModel):
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
         # ── Entregas (component deliveries to subcontractors) ───────────────
-        # Odoo marca estas operaciones con picking_type.subcontracting_resupply=True
-        try:
-            deliveries = Picking.search([
-                ('state', 'not in', ['done', 'cancel']),
-                ('picking_type_id.subcontracting_resupply', '=', True),
-            ] + sched_domain, order=pick_order)
-        except Exception:
-            # Fallback: navegar via MOs de subcontratación
-            try:
-                sc_pos = PO.search([
-                    ('state', 'in', ['purchase', 'done']),
-                    ('subcontract_production_ids', '!=', False),
-                ])
-                sc_mos = sc_pos.mapped('subcontract_production_ids').filtered(
-                    lambda m: m.state not in ('done', 'cancel')
-                ) if sc_pos else self.env['mrp.production']
-                delivery_pick_ids = sc_mos.mapped('move_raw_ids.picking_id').filtered(
-                    lambda p: p.state not in ('done', 'cancel')
-                ).ids if sc_mos else []
-                deliveries = Picking.search(
-                    [('id', 'in', delivery_pick_ids)] + sched_domain,
-                    order=pick_order,
-                ) if delivery_pick_ids else Picking.browse()
-            except Exception:
-                deliveries = Picking.browse()
+        # Las entregas de componentes a subcontratistas tienen purchase_id seteado
+        # y picking_type_code = 'outgoing' (simétrico a recepciones que son 'incoming')
+        deliveries = Picking.search([
+            ('state', 'not in', ['done', 'cancel']),
+            ('purchase_id', '!=', False),
+            ('picking_type_code', '=', 'outgoing'),
+        ] + sched_domain, order=pick_order)
 
         deliveries_pg      = deliveries[offset:offset + page_size]
         services_pg        = services_rs[offset:offset + page_size]

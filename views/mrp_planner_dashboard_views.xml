@@ -24,18 +24,31 @@
                             <div class="col-auto d-flex gap-2">
                                 <button name="action_new_request" type="object"
                                         string="+ Nueva programación"
-                                        class="btn btn-primary btn-sm"/>
+                                        class="btn btn-primary btn-sm"
+                                        invisible="not can_schedule"/>
                                 <button name="action_new_plan" type="object"
                                         string="+ Reprogramar OF"
-                                        class="btn btn-outline-secondary btn-sm"/>
+                                        class="btn btn-outline-secondary btn-sm"
+                                        invisible="not can_reschedule"/>
                                 <button name="action_refresh" type="object"
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
                             </div>
+                            <!-- Campos de permisos (ocultos, solo para invisible logic) -->
+                            <field name="can_see_alerts"       invisible="1"/>
+                            <field name="can_see_mo"           invisible="1"/>
+                            <field name="can_see_wc"           invisible="1"/>
+                            <field name="can_see_po"           invisible="1"/>
+                            <field name="can_see_stock_breaks" invisible="1"/>
+                            <field name="can_schedule"         invisible="1"/>
+                            <field name="can_reschedule"       invisible="1"/>
+                            <!-- Campos de alertas por vencer (para invisible logic en KPIs) -->
+                            <field name="alert_mo_upcoming"    invisible="1"/>
+                            <field name="alert_po_upcoming"    invisible="1"/>
                         </div>
 
                         <!-- ── ALERTAS — resumen por tipo (full-width) ──────── -->
-                        <div class="o_planner_section mb-4">
+                        <div class="o_planner_section mb-4" invisible="not can_see_alerts">
                             <div class="o_planner_section_title mb-3 gap-2">
                                 <i class="fa fa-bell me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Alertas pendientes</span>
@@ -93,6 +106,20 @@
                                 <div class="col-6 col-md-4 col-lg-2">
                                     <div class="card o_planner_card h-100">
                                         <div class="card-body text-center py-3">
+                                            <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
+                                            <div class="o_planner_number text-warning"><field name="alert_mo_upcoming" nolabel="1"/></div>
+                                            <div class="o_planner_label">OFs por vencer</div>
+                                        </div>
+                                        <div class="card-footer p-0">
+                                            <button name="action_view_mo_upcoming_alerts" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                                    string="Ver →" invisible="alert_mo_upcoming == 0"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="card o_planner_card h-100">
+                                        <div class="card-body text-center py-3">
                                             <i class="fa fa-shopping-cart fa-lg text-secondary mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_po_delayed" nolabel="1"/></div>
                                             <div class="o_planner_label">OCs vencidas</div>
@@ -101,6 +128,20 @@
                                             <button name="action_view_po_delayed_alerts" type="object"
                                                     class="btn btn-sm btn-link w-100 py-1 text-secondary"
                                                     string="Ver →" invisible="alert_po_delayed == 0"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-4 col-lg-2">
+                                    <div class="card o_planner_card h-100">
+                                        <div class="card-body text-center py-3">
+                                            <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
+                                            <div class="o_planner_number text-warning"><field name="alert_po_upcoming" nolabel="1"/></div>
+                                            <div class="o_planner_label">OCs por vencer</div>
+                                        </div>
+                                        <div class="card-footer p-0">
+                                            <button name="action_view_po_upcoming_alerts" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                                    string="Ver →" invisible="alert_po_upcoming == 0"/>
                                         </div>
                                     </div>
                                 </div>
@@ -136,7 +177,7 @@
                         </div>
 
                         <!-- ── ÓRDENES DE FABRICACIÓN — widget con pestañas ── -->
-                        <div class="o_planner_section mb-4">
+                        <div class="o_planner_section mb-4" invisible="not can_see_mo">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-industry me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de fabricación</span>
@@ -145,7 +186,7 @@
                         </div>
 
                         <!-- ── CARGA DE CENTROS DE TRABAJO — gráfico ────────── -->
-                        <div class="o_planner_section mb-4">
+                        <div class="o_planner_section mb-4" invisible="not can_see_wc">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-bar-chart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Carga de centros de trabajo</span>
@@ -157,7 +198,7 @@
                         </div>
 
                         <!-- ── ÓRDENES DE COMPRA — widget con pestañas ────── -->
-                        <div class="o_planner_section mb-4">
+                        <div class="o_planner_section mb-4" invisible="not can_see_po">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-shopping-cart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de compra</span>
@@ -166,7 +207,7 @@
                         </div>
 
                         <!-- ── QUIEBRES DE STOCK ──────────────────────────── -->
-                        <div class="o_planner_section mb-4">
+                        <div class="o_planner_section mb-4" invisible="not can_see_stock_breaks">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-exclamation-triangle me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Quiebres de stock</span>

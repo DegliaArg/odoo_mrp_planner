@@ -11,7 +11,7 @@ function toDateStr(d) {
 const EMPTY_KPIS = {
     rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
     receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
-    services_total: 0,
+    services_total: 0, po_critical_days: 5,
 };
 
 class PoDashboardWidget extends Component {

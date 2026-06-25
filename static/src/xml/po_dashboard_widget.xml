@@ -129,7 +129,7 @@
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue_critical)"/>
-                                    <div class="o_planner_label">Críticas (+5 días)</div>
+                                    <div class="o_planner_label">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
                                 </div>
                             </div>
                         </div>
@@ -248,11 +248,13 @@
                             <t t-elif="state.listTab === 'receipts'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:22%"/><col style="width:43%"/>
-                                        <col style="width:25%"/><col style="width:10%"/>
+                                        <col style="width:4%"/>
+                                        <col style="width:18%"/><col style="width:36%"/>
+                                        <col style="width:22%"/><col style="width:20%"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
+                                            <th/>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
                                             <th style="cursor:pointer" t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
@@ -263,23 +265,67 @@
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:22%"/><col style="width:43%"/>
-                                            <col style="width:25%"/><col style="width:10%"/>
+                                            <col style="width:4%"/>
+                                            <col style="width:18%"/><col style="width:36%"/>
+                                            <col style="width:22%"/><col style="width:20%"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
+                                                <!-- Fila principal -->
                                                 <tr t-att-class="pick.overdue ? 'table-danger' : ''"
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
+                                                    <td class="text-center ps-1 pe-0"
+                                                        t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                        style="cursor:default;"
+                                                        title="Ver / ocultar líneas">
+                                                        <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
+                                                    </td>
                                                     <td class="fw-semibold" t-esc="pick.name"/>
                                                     <td t-esc="pick.partner"/>
                                                     <td t-esc="pick.scheduled_date"/>
                                                     <td class="text-center">
-                                                        <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Vencida"/>
-                                                        <i t-else="" class="fa fa-clock-o text-muted" title="Pendiente"/>
+                                                        <i t-if="pick.overdue"
+                                                           class="fa fa-exclamation-triangle text-danger"
+                                                           title="Recepción vencida: la fecha programada ya pasó"/>
+                                                        <i t-else=""
+                                                           class="fa fa-clock-o text-muted"
+                                                           title="Recepción pendiente: dentro de plazo"/>
                                                     </td>
                                                 </tr>
+                                                <!-- Filas de líneas (expandibles) -->
+                                                <t t-if="state.expandedIds[pick.id]">
+                                                    <t t-if="pick.lines.length === 0">
+                                                        <tr class="table-light">
+                                                            <td colspan="5" class="text-muted fst-italic small ps-4">Sin líneas pendientes.</td>
+                                                        </tr>
+                                                    </t>
+                                                    <t t-foreach="pick.lines" t-as="line" t-key="line_index">
+                                                        <tr class="table-light" style="cursor:default;">
+                                                            <td/>
+                                                            <td colspan="2" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td class="small text-muted">
+                                                                <t t-esc="fmt(line.demand)"/>
+                                                                <span class="ms-1 text-secondary" t-esc="line.uom"/>
+                                                            </td>
+                                                            <td class="text-center small">
+                                                                <t t-if="line.reserved >= line.demand - 0.001">
+                                                                    <span class="badge text-bg-success" title="Completamente recibido">Recibido</span>
+                                                                </t>
+                                                                <t t-elif="line.reserved > 0.001">
+                                                                    <span class="badge text-bg-warning"
+                                                                          t-att-title="`Recibido: ${fmt(line.reserved)} / ${fmt(line.demand)} ${line.uom}`">
+                                                                        <t t-esc="fmt(line.reserved)"/> / <t t-esc="fmt(line.demand)"/>
+                                                                    </span>
+                                                                </t>
+                                                                <t t-else="">
+                                                                    <span class="badge text-bg-secondary" title="Sin recepciones parciales aún">Pendiente</span>
+                                                                </t>
+                                                            </td>
+                                                        </tr>
+                                                    </t>
+                                                </t>
                                             </t>
                                         </tbody>
                                     </table>

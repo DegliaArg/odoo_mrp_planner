@@ -38,8 +38,12 @@
                     <group string="Umbrales de alertas">
                         <field name="alert_mo_critical_days"
                                help="Días de retraso a partir de los cuales una OF atrasada pasa de alerta amarilla (aviso) a alerta roja (crítica). Por defecto 3 días."/>
+                        <field name="alert_mo_warning_days"
+                               help="Días antes del vencimiento en que se genera una alerta 'por vencer' para las OFs. Ej.: con 7, una OF que vence en 5 días ya aparece como por vencer."/>
                         <field name="alert_po_critical_days"
                                help="Días de retraso a partir de los cuales una OC vencida pasa de alerta amarilla a roja. Las OCs suelen tener plazos más largos, por eso el umbral por defecto es 5 días."/>
+                        <field name="alert_po_warning_days"
+                               help="Días antes del vencimiento en que se genera una alerta 'por vencer' para las OCs. Ej.: con 10, una OC que vence en 8 días ya aparece como por vencer."/>
                         <field name="alert_receipt_critical_days"
                                help="Días de retraso a partir de los cuales una recepción de stock atrasada pasa de alerta amarilla a roja. Por defecto 3 días."/>
                         <field name="qty_tolerance_pct"
@@ -53,6 +57,29 @@
                         <field name="stock_location_id"
                                help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
                     </group>
+
+                    <notebook>
+                        <page string="Permisos por usuario" name="user_permissions">
+                            <p class="text-muted small mb-3">
+                                Definí qué secciones puede ver cada usuario y si puede crear programaciones o reprogramaciones.
+                                Si un usuario no aparece en la lista, tiene acceso completo por defecto.
+                                Los depósitos visibles limitan los datos que ve el usuario en todo el módulo.
+                            </p>
+                            <field name="user_permission_ids">
+                                <list editable="bottom" string="Permisos">
+                                    <field name="user_id"/>
+                                    <field name="show_alerts"       widget="boolean_toggle" string="Alertas"/>
+                                    <field name="show_mo"           widget="boolean_toggle" string="OFs"/>
+                                    <field name="show_wc"           widget="boolean_toggle" string="CTs"/>
+                                    <field name="show_po"           widget="boolean_toggle" string="OCs"/>
+                                    <field name="show_stock_breaks" widget="boolean_toggle" string="Quiebres"/>
+                                    <field name="can_schedule"      widget="boolean_toggle" string="Programar"/>
+                                    <field name="can_reschedule"    widget="boolean_toggle" string="Reprogramar"/>
+                                    <field name="warehouse_ids"     widget="many2many_tags" string="Depósitos"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

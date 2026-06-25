@@ -22,11 +22,23 @@ class MrpPlannerDashboard(models.TransientModel):
     alert_critical        = fields.Integer(compute='_compute_alert_stats')
     alert_warning         = fields.Integer(compute='_compute_alert_stats')
     alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats')
+    alert_mo_upcoming     = fields.Integer(compute='_compute_alert_stats')
     alert_po_delayed      = fields.Integer(compute='_compute_alert_stats')
+    alert_po_upcoming     = fields.Integer(compute='_compute_alert_stats')
     alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats')
     alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats')
     alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats')
     alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats')
+
+    # ── Permisos de usuario ──────────────────────────────────────────────────
+
+    can_see_alerts       = fields.Boolean(compute='_compute_user_permissions')
+    can_see_mo           = fields.Boolean(compute='_compute_user_permissions')
+    can_see_wc           = fields.Boolean(compute='_compute_user_permissions')
+    can_see_po           = fields.Boolean(compute='_compute_user_permissions')
+    can_see_stock_breaks = fields.Boolean(compute='_compute_user_permissions')
+    can_schedule         = fields.Boolean(compute='_compute_user_permissions')
+    can_reschedule       = fields.Boolean(compute='_compute_user_permissions')
 
     # ── Alertas — lista inline ───────────────────────────────────────────────
 
@@ -110,11 +122,35 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.alert_critical        = Alert.search_count(base + [('severity', '=', 'critical')])
             rec.alert_warning         = Alert.search_count(base + [('severity', '=', 'warning')])
             rec.alert_mo_delayed      = Alert.search_count(base + [('alert_type', '=', 'mo_delayed')])
+            rec.alert_mo_upcoming     = Alert.search_count(base + [('alert_type', '=', 'mo_upcoming')])
             rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
+            rec.alert_po_upcoming     = Alert.search_count(base + [('alert_type', '=', 'po_upcoming')])
             rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
             rec.alert_receipt_delayed = Alert.search_count(base + [('alert_type', '=', 'receipt_delayed')])
             rec.alert_qty_mismatch    = Alert.search_count(base + [('alert_type', '=', 'qty_mismatch')])
             rec.alert_mo_cancelled    = Alert.search_count(base + [('alert_type', '=', 'mo_cancelled')])
+
+    @api.depends()
+    def _compute_user_permissions(self):
+        perm = self.env['mrp.reschedule.user.permission'].search(
+            [('user_id', '=', self.env.uid)], limit=1)
+        for rec in self:
+            if perm:
+                rec.can_see_alerts       = perm.show_alerts
+                rec.can_see_mo           = perm.show_mo
+                rec.can_see_wc           = perm.show_wc
+                rec.can_see_po           = perm.show_po
+                rec.can_see_stock_breaks = perm.show_stock_breaks
+                rec.can_schedule         = perm.can_schedule
+                rec.can_reschedule       = perm.can_reschedule
+            else:
+                rec.can_see_alerts       = True
+                rec.can_see_mo           = True
+                rec.can_see_wc           = True
+                rec.can_see_po           = True
+                rec.can_see_stock_breaks = True
+                rec.can_schedule         = True
+                rec.can_reschedule       = True
 
     @api.depends()
     def _compute_inline_alerts(self):
@@ -171,8 +207,10 @@ class MrpPlannerDashboard(models.TransientModel):
                 lambda p: not p.date_planned or p.date_planned >= now
             ))
             rec.po_overdue          = len(overdue)
+            cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+            crit_days = cfg.alert_po_critical_days if cfg else 5
             rec.po_overdue_critical = len(overdue.filtered(
-                lambda p: (now - p.date_planned).days >= 5
+                lambda p: (now - p.date_planned).days >= crit_days
             ))
 
     @api.depends()
@@ -333,6 +371,12 @@ class MrpPlannerDashboard(models.TransientModel):
 
     def action_view_mo_cancelled_alerts(self):
         return self._open_alerts([('alert_type', '=', 'mo_cancelled')])
+
+    def action_view_mo_upcoming_alerts(self):
+        return self._open_alerts([('alert_type', '=', 'mo_upcoming')])
+
+    def action_view_po_upcoming_alerts(self):
+        return self._open_alerts([('alert_type', '=', 'po_upcoming')])
 
     # ── Navegación — OFs ─────────────────────────────────────────────────────
 
@@ -746,6 +790,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         def _pick_dict(p, include_lines=False):
             avail = _pick_avail(p)
+            is_incoming = p.picking_type_code == 'incoming'
             result = {
                 'id':             p.id,
                 'name':           p.name,
@@ -756,12 +801,14 @@ class MrpPlannerDashboard(models.TransientModel):
                 'availability':   avail,
                 'availability_label': _AVAIL_LABEL.get(avail, '—'),
                 'lines':          [],
+                'is_incoming':    is_incoming,
             }
             if include_lines:
                 result['lines'] = [{
                     'product':  m.product_id.display_name,
                     'demand':   m.product_uom_qty,
-                    'reserved': _move_qty(m),
+                    'reserved': (getattr(m, 'quantity_done', None) or getattr(m, 'quantity', 0) or 0)
+                                if is_incoming else _move_qty(m),
                     'uom':      m.product_uom.name if m.product_uom else '',
                 } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
             return result
@@ -867,6 +914,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'deliveries_total':  len(deliveries),
                 'deliveries_overdue': len(overdue_deliveries),
                 'services_total':    len(services_rs),
+                'po_critical_days':  po_crit_days,
             },
             'show_services_tab': show_svc,
             'rfqs':        [_po_dict(p) for p in rfqs_pg],
@@ -874,7 +922,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'overdue':     [_po_dict(p) for p in overdue_pg],
             'all_pos':     [_po_dict(p) for p in all_pos_pg],
             'pending_pos': [_po_dict(p) for p in pending_pg],
-            'receipts':    [_pick_dict(p)        for p in receipts_pg],
+            'receipts':    [_pick_dict(p, True)  for p in receipts_pg],
             'deliveries':  [_pick_dict(p, True)  for p in deliveries_pg],
             'services':    [_po_dict(p) for p in services_pg],
         }

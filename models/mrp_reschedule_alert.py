@@ -18,7 +18,9 @@ class MrpRescheduleAlert(models.Model):
 
     alert_type = fields.Selection([
         ('mo_delayed',      'OF atrasada'),
+        ('mo_upcoming',     'OF por vencer'),
         ('po_delayed',      'OC vencida'),
+        ('po_upcoming',     'OC por vencer'),
         ('po_cancelled',    'OC cancelada'),
         ('receipt_delayed', 'Recepción atrasada'),
         ('qty_mismatch',    'Cantidad diferente'),
@@ -197,7 +199,9 @@ class MrpRescheduleAlert(models.Model):
         impact_cache = {}
         steps = [
             (self._check_delayed_mos,     (now,)),
+            (self._check_upcoming_mos,    (now,)),
             (self._check_delayed_pos,     (now, impact_cache)),
+            (self._check_upcoming_pos,    (now,)),
             (self._check_delayed_receipts,(now, impact_cache)),
             (self._check_qty_mismatches,  (now, impact_cache)),
             (self._auto_resolve_stale,    ()),
@@ -238,6 +242,41 @@ class MrpRescheduleAlert(models.Model):
             else:
                 to_create.append({
                     'alert_type':    'mo_delayed',
+                    'production_id': mo.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
+
+    @api.model
+    def _check_upcoming_mos(self, now):
+        from datetime import timedelta
+        cfg = self._get_config()
+        warn_days = cfg.alert_mo_warning_days if cfg else 7
+        future_limit = now + timedelta(days=warn_days)
+
+        mos = self.env['mrp.production'].search([
+            ('state', 'in', ['confirmed', 'progress', 'to_close']),
+            ('date_finished', '>=', now),
+            ('date_finished', '<=', future_limit),
+            ('date_finished', '!=', False),
+        ] + no_subcontract_domain(self.env))
+
+        by_mo = {
+            a.production_id.id: a
+            for a in self.search([('alert_type', '=', 'mo_upcoming'), ('resolved', '=', False)])
+        }
+
+        to_create = []
+        for mo in mos:
+            days_until = max(0, (mo.date_finished - now).days)
+            msg = _('Vence el: %s (en %d días)') % (mo.date_finished.strftime('%d/%m/%Y'), days_until)
+            write_vals = {'days_late': days_until, 'severity': 'warning', 'message': msg}
+            if mo.id in by_mo:
+                by_mo[mo.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type':    'mo_upcoming',
                     'production_id': mo.id,
                     **write_vals,
                 })
@@ -291,6 +330,41 @@ class MrpRescheduleAlert(models.Model):
             else:
                 to_create.append({
                     'alert_type': 'po_delayed',
+                    'purchase_id': po.id,
+                    **write_vals,
+                })
+        if to_create:
+            self.create(to_create)
+
+    @api.model
+    def _check_upcoming_pos(self, now):
+        from datetime import timedelta
+        cfg = self._get_config()
+        warn_days = cfg.alert_po_warning_days if cfg else 10
+        future_limit = now + timedelta(days=warn_days)
+
+        pos = self.env['purchase.order'].search([
+            ('state', '=', 'purchase'),
+            ('receipt_status', '!=', 'full'),
+            ('date_planned', '>=', now),
+            ('date_planned', '<=', future_limit),
+        ])
+
+        by_po = {
+            a.purchase_id.id: a
+            for a in self.search([('alert_type', '=', 'po_upcoming'), ('resolved', '=', False)])
+        }
+
+        to_create = []
+        for po in pos:
+            days_until = max(0, (po.date_planned - now).days)
+            msg = _('Entrega prevista: %s (en %d días)') % (po.date_planned.strftime('%d/%m/%Y'), days_until)
+            write_vals = {'days_late': days_until, 'severity': 'warning', 'message': msg}
+            if po.id in by_po:
+                by_po[po.id].write(write_vals)
+            else:
+                to_create.append({
+                    'alert_type':  'po_upcoming',
                     'purchase_id': po.id,
                     **write_vals,
                 })
@@ -456,6 +530,28 @@ class MrpRescheduleAlert(models.Model):
         ])
         if stale_mo_on_time:
             stale_mo_on_time.write({'resolved': True, 'resolve_date': now})
+
+        # mo_upcoming: se resuelve cuando la OF ya venció (pasa a mo_delayed) o termina/cancela
+        stale_upcoming_mo = self.search([
+            ('alert_type', '=', 'mo_upcoming'),
+            ('resolved', '=', False),
+            '|',
+            ('production_id.date_finished', '<', now),
+            ('production_id.state', 'in', ('done', 'cancel')),
+        ])
+        if stale_upcoming_mo:
+            stale_upcoming_mo.write({'resolved': True, 'resolve_date': now})
+
+        # po_upcoming: se resuelve cuando la OC ya venció (pasa a po_delayed) o se cancela/completa
+        stale_upcoming_po = self.search([
+            ('alert_type', '=', 'po_upcoming'),
+            ('resolved', '=', False),
+            '|',
+            ('purchase_id.date_planned', '<', now),
+            ('purchase_id.state', 'in', ('done', 'cancel')),
+        ])
+        if stale_upcoming_po:
+            stale_upcoming_po.write({'resolved': True, 'resolve_date': now})
 
         stale_po = self.search([
             ('alert_type', 'in', ('po_delayed', 'po_cancelled')),

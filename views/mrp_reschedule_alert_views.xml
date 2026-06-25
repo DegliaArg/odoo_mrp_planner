@@ -41,7 +41,9 @@
                 <filter string="Avisos"         name="warning"    domain="[('severity','=','warning')]"/>
                 <separator/>
                 <filter string="OFs atrasadas"    name="mo_delayed"      domain="[('alert_type','=','mo_delayed')]"/>
+                <filter string="OFs por vencer"   name="mo_upcoming"     domain="[('alert_type','=','mo_upcoming')]"/>
                 <filter string="OCs vencidas"     name="po_delayed"      domain="[('alert_type','=','po_delayed')]"/>
+                <filter string="OCs por vencer"   name="po_upcoming"     domain="[('alert_type','=','po_upcoming')]"/>
                 <filter string="OCs canceladas"   name="po_cancelled"    domain="[('alert_type','=','po_cancelled')]"/>
                 <filter string="Recepciones"      name="receipt_delayed" domain="[('alert_type','=','receipt_delayed')]"/>
                 <filter string="Qty diferente"    name="qty_mismatch"    domain="[('alert_type','=','qty_mismatch')]"/>
@@ -130,6 +132,7 @@
                        decoration-warning="severity == 'warning'"/>
                 <field name="alert_type" widget="badge"
                        decoration-info="alert_type in ('mo_delayed','po_delayed','receipt_delayed')"
+                       decoration-success="alert_type in ('mo_upcoming','po_upcoming')"
                        decoration-danger="alert_type in ('mo_cancelled','po_cancelled')"
                        decoration-warning="alert_type == 'qty_mismatch'"/>
                 <field name="days_late" string="Atraso (días)"

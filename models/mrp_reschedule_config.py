@@ -24,10 +24,18 @@ class MrpRescheduleConfig(models.Model):
         ('hours', 'Horas'),
     ], string='Unidad', default='minutes')
 
-    alert_mo_critical_days      = fields.Integer(string='Días críticos OF',       default=3)
-    alert_po_critical_days      = fields.Integer(string='Días críticos OC',       default=5)
-    alert_receipt_critical_days = fields.Integer(string='Días críticos recepción', default=3)
-    qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)', default=5.0)
+    alert_mo_critical_days      = fields.Integer(string='Días críticos OF',             default=3)
+    alert_po_critical_days      = fields.Integer(string='Días críticos OC',             default=5)
+    alert_receipt_critical_days = fields.Integer(string='Días críticos recepción',      default=3)
+    alert_mo_warning_days       = fields.Integer(string='Días por vencer OF',           default=7)
+    alert_po_warning_days       = fields.Integer(string='Días por vencer OC',           default=10)
+    qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)',      default=5.0)
+
+    user_permission_ids = fields.One2many(
+        'mrp.reschedule.user.permission',
+        'config_id',
+        string='Permisos por usuario',
+    )
 
     show_po_services_tab = fields.Boolean(
         string='Mostrar pestaña de servicios en OCs',

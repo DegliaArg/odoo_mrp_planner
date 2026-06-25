@@ -184,11 +184,10 @@
         </field>
     </record>
 
-    <!-- ── "Planificación de la producción" dentro del menú Planeación ── -->
+    <!-- ── Menú raíz independiente en la barra de navegación superior ── -->
     <menuitem id="mrp_planner_menu_root"
-              name="Planificación de la producción"
-              parent="mrp.mrp_planning_menu_root"
-              sequence="50"/>
+              name="Planificador"
+              sequence="65"/>
 
     <menuitem id="mrp_planner_menu_alerts"
               name="Alertas"

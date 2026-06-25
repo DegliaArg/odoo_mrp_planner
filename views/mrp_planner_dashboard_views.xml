@@ -212,7 +212,8 @@
     <!-- Menú raíz Planificador -->
     <menuitem id="mrp_planner_menu_root"
               name="Planificador"
-              sequence="65"/>
+              sequence="65"
+              web_icon="odoo_mrp_planner,static/description/icon.png"/>
 
     <!-- Sub-menú Producción -->
     <menuitem id="mrp_produccion_menu"

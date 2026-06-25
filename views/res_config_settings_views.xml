@@ -23,6 +23,10 @@
 
                         <!-- ── General ──────────────────────────────────────── -->
                         <page string="General" name="general">
+                            <group string="Quiebres de stock">
+                                <field name="stock_location_id"
+                                       help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
+                            </group>
                             <group string="Centros de trabajo">
                                 <field name="wc_fallback" widget="radio"
                                        help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados en su ficha. 'LDM' usa las operaciones definidas en la Lista de Materiales como fallback; 'Sin WC' deja la OF sin asignar."/>
@@ -74,10 +78,6 @@
                             <group string="Órdenes de compra">
                                 <field name="show_po_services_tab"
                                        help="Cuando está activo, las OCs cuyos productos son todos de tipo 'Servicio' se separan en una pestaña propia dentro del widget de OCs. Si está inactivo, los servicios se muestran junto al resto de las OCs."/>
-                            </group>
-                            <group string="Quiebres de stock">
-                                <field name="stock_location_id"
-                                       help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
                             </group>
                             <group string="Forecast">
                                 <field name="forecast_default_months"

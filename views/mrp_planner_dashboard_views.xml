@@ -40,10 +40,8 @@
                             <field name="can_see_wc"           invisible="1"/>
                             <field name="can_see_po"           invisible="1"/>
                             <field name="can_see_stock_breaks" invisible="1"/>
-                            <field name="can_see_forecast"     invisible="1"/>
                             <field name="can_schedule"         invisible="1"/>
                             <field name="can_reschedule"       invisible="1"/>
-                            <field name="can_edit_forecast"    invisible="1"/>
                             <!-- Campos de alertas por vencer (para invisible logic en KPIs) -->
                             <field name="alert_mo_upcoming"    invisible="1"/>
                             <field name="alert_po_upcoming"    invisible="1"/>
@@ -217,14 +215,6 @@
                             <widget name="stock_break_widget"/>
                         </div>
 
-                        <!-- ── FORECAST ────────────────────────────────────── -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_forecast">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-line-chart me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Forecast de producción</span>
-                            </div>
-                            <widget name="forecast_widget"/>
-                        </div>
 
                     </div>
                 </sheet>

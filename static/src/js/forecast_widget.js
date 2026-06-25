@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -32,16 +32,25 @@ class ForecastWidget extends Component {
 
         const now = todayYM();
         this.state = useState({
-            loading:      true,
-            periodFrom:   now,
-            periodTo:     addMonths(now, 2),
-            warehouseIds: [],
-            warehouses:   [],
-            data:         null,
-            canEdit:      true,
+            loading:         true,
+            periodFrom:      now,
+            periodTo:        addMonths(now, 2),
+            warehouseIds:    [],
+            warehouses:      [],
+            whDropdownOpen:  false,
+            data:            null,
+            canEdit:         true,
         });
 
-        onMounted(() => this._init());
+        this._closeWhDropdown = () => { this.state.whDropdownOpen = false; };
+
+        onMounted(() => {
+            this._init();
+            document.addEventListener('click', this._closeWhDropdown);
+        });
+        onWillUnmount(() => {
+            document.removeEventListener('click', this._closeWhDropdown);
+        });
     }
 
     async _init() {
@@ -88,10 +97,35 @@ class ForecastWidget extends Component {
         this._load();
     }
 
-    onWarehouseChange(ev) {
-        const selected = [...ev.target.selectedOptions].map(o => parseInt(o.value)).filter(Boolean);
-        this.state.warehouseIds = selected;
+    toggleWhDropdown(ev) {
+        ev.stopPropagation();
+        this.state.whDropdownOpen = !this.state.whDropdownOpen;
+    }
+
+    toggleWarehouse(ev) {
+        const id = parseInt(ev.target.dataset.whId);
+        const ids = this.state.warehouseIds;
+        if (ids.includes(id)) {
+            this.state.warehouseIds = ids.filter(i => i !== id);
+        } else {
+            this.state.warehouseIds = [...ids, id];
+        }
         this._load();
+    }
+
+    clearWhFilter() {
+        this.state.warehouseIds = [];
+        this._load();
+    }
+
+    get selectedWhLabel() {
+        const ids = this.state.warehouseIds;
+        if (!ids.length) return 'Todos los depósitos';
+        if (ids.length === 1) {
+            const wh = this.state.warehouses.find(w => w.id === ids[0]);
+            return wh ? wh.name : '1 seleccionado';
+        }
+        return `${ids.length} depósitos`;
     }
 
     get monthLabels() {

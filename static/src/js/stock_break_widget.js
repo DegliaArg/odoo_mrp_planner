@@ -157,14 +157,10 @@ class StockBreakWidget extends Component {
         });
     }
 
-    openConfig() {
-        this.action.doAction({
-            type:      "ir.actions.act_window",
-            res_model: "mrp.reschedule.config",
-            view_mode: "form",
-            views:     [[false, "form"]],
-            target:    "current",
-        });
+    async openConfig() {
+        // Usa action_open del modelo para obtener el res_id del singleton correcto
+        const action = await this.orm.call("mrp.reschedule.config", "action_open", []);
+        await this.action.doAction(action);
     }
 }
 

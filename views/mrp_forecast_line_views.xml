@@ -69,9 +69,9 @@
         </field>
     </record>
 
-    <!-- ── Acción principal ──────────────────────────────────────────────── -->
+    <!-- ── Acción principal (líneas) ─────────────────────────────────────── -->
     <record id="action_mrp_forecast_line" model="ir.actions.act_window">
-        <field name="name">Forecast de producción</field>
+        <field name="name">Forecast de Ventas</field>
         <field name="res_model">mrp.forecast.line</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_next_3m': 1}</field>
@@ -85,10 +85,50 @@
         </field>
     </record>
 
-    <!-- ── Menú ──────────────────────────────────────────────────────────── -->
-    <menuitem id="mrp_planner_forecast_menu"
-              name="Forecast"
-              parent="mrp_planner_menu_root"
+    <!-- ── Vista del panel de Ventas (solo forecast) ─────────────────────── -->
+    <record id="mrp_ventas_dashboard_form" model="ir.ui.view">
+        <field name="name">mrp.ventas.dashboard.form</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Forecast de Ventas" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">Forecast de Ventas</h4>
+                            </div>
+                        </div>
+                        <field name="can_edit_forecast" invisible="1"/>
+                        <widget name="forecast_widget"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción de servidor para abrir el panel de Ventas ──────────────── -->
+    <record id="action_mrp_ventas_dashboard_open" model="ir.actions.server">
+        <field name="name">Panel de Ventas</field>
+        <field name="model_id" ref="model_mrp_planner_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_ventas()</field>
+    </record>
+
+    <!-- ── Menú raíz Ventas ───────────────────────────────────────────────── -->
+    <menuitem id="mrp_ventas_menu_root"
+              name="Ventas"
+              sequence="64"/>
+
+    <!-- ── Sub-menús bajo Ventas ─────────────────────────────────────────── -->
+    <menuitem id="mrp_ventas_panel_menu"
+              name="Panel"
+              parent="mrp_ventas_menu_root"
+              sequence="1"
+              action="action_mrp_ventas_dashboard_open"/>
+
+    <menuitem id="mrp_ventas_forecast_lineas_menu"
+              name="Líneas de Forecast"
+              parent="mrp_ventas_menu_root"
               sequence="5"
               action="action_mrp_forecast_line"/>
 

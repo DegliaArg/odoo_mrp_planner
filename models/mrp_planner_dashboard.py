@@ -281,6 +281,20 @@ class MrpPlannerDashboard(models.TransientModel):
             'flags': {'withControlPanel': False},
         }
 
+    @api.model
+    def action_open_ventas(self):
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Forecast de Ventas'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_ventas_dashboard_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
     def action_refresh(self):
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()

@@ -124,8 +124,8 @@
                 </div>
 
                 <!-- Gráfico -->
-                <div class="col-12 col-lg-8">
-                    <div class="position-relative" style="height:320px;">
+                <div class="col-12 col-lg-8 d-flex flex-column">
+                    <div class="position-relative" style="flex:1; min-height:0;">
                         <canvas t-ref="chartCanvas"/>
 
                         <div t-if="state.loading"

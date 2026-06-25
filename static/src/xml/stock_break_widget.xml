@@ -84,20 +84,38 @@
                             <option value="no_min" t-att-selected="state.filterType === 'no_min'">Sin mínimo</option>
                         </select>
                     </div>
-                    <div t-if="state.locations.length" class="d-flex align-items-start gap-1">
-                        <span class="input-group-text input-group-sm"><i class="fa fa-map-marker"/></span>
-                        <div>
-                            <select class="form-select form-select-sm" multiple="multiple"
-                                    style="min-width:200px; height:72px;"
-                                    t-on-change="onLocationChange">
+                    <div t-if="state.locations.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
+                        <label class="form-label mb-0 small text-muted">Ubicación</label>
+                        <div class="position-relative">
+                            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                    style="min-width:160px;"
+                                    t-on-click="toggleLocDropdown">
+                                <span class="text-truncate" style="max-width:130px;"><t t-esc="selectedLocLabel"/></span>
+                                <i t-att-class="'fa ms-auto ' + (state.locDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                            </button>
+                            <div t-if="state.locDropdownOpen"
+                                 class="dropdown-menu show shadow p-2"
+                                 style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="loc_filter_all"
+                                           t-att-checked="!state.locationIds.length"
+                                           t-on-change="clearLocFilter"/>
+                                    <label class="form-check-label fw-semibold small" for="loc_filter_all">Todas</label>
+                                </div>
+                                <div class="dropdown-divider my-1"/>
                                 <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
-                                    <option t-att-value="loc.id"
-                                            t-att-selected="state.locationIds.includes(loc.id)">
-                                        <t t-esc="loc.name"/>
-                                    </option>
+                                    <div class="form-check mb-1">
+                                        <input type="checkbox" class="form-check-input"
+                                               t-att-id="'loc_filter_' + loc.id"
+                                               t-att-data-loc-id="loc.id"
+                                               t-att-checked="state.locationIds.includes(loc.id)"
+                                               t-on-change="toggleLocation"/>
+                                        <label class="form-check-label small" t-att-for="'loc_filter_' + loc.id">
+                                            <t t-esc="loc.name"/>
+                                        </label>
+                                    </div>
                                 </t>
-                            </select>
-                            <div class="text-muted" style="font-size:10px;">Ctrl+clic para seleccionar varias</div>
+                            </div>
                         </div>
                     </div>
                 </div>

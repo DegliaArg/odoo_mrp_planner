@@ -28,26 +28,33 @@ class StockBreakWidget extends Component {
         this.action = useService("action");
 
         this.state = useState({
-            loading:       true,
-            error:         null,
-            filterType:    "all",
-            sortField:     null,
-            sortDir:       "asc",
-            page:          1,
-            pageSize:      20,
-            search:        "",
-            locationIds:   [],
-            locations:     [],
-            kpis:          { total: 0, broken: 0, ok: 0, no_min: 0 },
-            products:      [],
-            locationName:  "",
-            totalFiltered: 0,
+            loading:          true,
+            error:            null,
+            filterType:       "all",
+            sortField:        null,
+            sortDir:          "asc",
+            page:             1,
+            pageSize:         20,
+            search:           "",
+            locationIds:      [],
+            locations:        [],
+            locDropdownOpen:  false,
+            kpis:             { total: 0, broken: 0, ok: 0, no_min: 0 },
+            products:         [],
+            locationName:     "",
+            totalFiltered:    0,
         });
         this._searchTimer = null;
+        this._closeLocDropdown = () => { this.state.locDropdownOpen = false; };
 
-        onMounted(() => this._init());
-        // FIX [FASE-3]: limpiar timer al desmontar para evitar RPC sobre componente destruido
-        onWillUnmount(() => clearTimeout(this._searchTimer));
+        onMounted(() => {
+            this._init();
+            document.addEventListener('click', this._closeLocDropdown);
+        });
+        onWillUnmount(() => {
+            clearTimeout(this._searchTimer);
+            document.removeEventListener('click', this._closeLocDropdown);
+        });
     }
 
     /** @returns {Promise<void>} Carga ubicaciones y datos iniciales en paralelo */
@@ -86,11 +93,33 @@ class StockBreakWidget extends Component {
         }
     }
 
-    onLocationChange(ev) {
-        const selected = [...ev.target.selectedOptions].map(o => parseInt(o.value)).filter(Boolean);
-        this.state.locationIds = selected;
+    toggleLocDropdown(ev) {
+        ev.stopPropagation();
+        this.state.locDropdownOpen = !this.state.locDropdownOpen;
+    }
+
+    toggleLocation(ev) {
+        const id = parseInt(ev.target.dataset.locId);
+        const ids = this.state.locationIds;
+        this.state.locationIds = ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id];
         this.state.page = 1;
         this._load();
+    }
+
+    clearLocFilter() {
+        this.state.locationIds = [];
+        this.state.page = 1;
+        this._load();
+    }
+
+    get selectedLocLabel() {
+        const ids = this.state.locationIds;
+        if (!ids.length) return 'Todas las ubicaciones';
+        if (ids.length === 1) {
+            const loc = this.state.locations.find(l => l.id === ids[0]);
+            return loc ? loc.name : 'Todas las ubicaciones';
+        }
+        return `${ids.length} ubicaciones`;
     }
 
     onSearchInput(ev) {

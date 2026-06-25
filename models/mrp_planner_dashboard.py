@@ -798,6 +798,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
+                'days_late':      max(0, (now - p.scheduled_date).days) if p.scheduled_date and p.scheduled_date < now else 0,
                 'availability':   avail,
                 'availability_label': _AVAIL_LABEL.get(avail, '—'),
                 'lines':          [],

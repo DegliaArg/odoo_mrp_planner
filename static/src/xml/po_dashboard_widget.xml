@@ -286,12 +286,15 @@
                                                     <td t-esc="pick.partner"/>
                                                     <td t-esc="pick.scheduled_date"/>
                                                     <td class="text-center">
-                                                        <i t-if="pick.overdue"
-                                                           class="fa fa-exclamation-triangle text-danger"
-                                                           title="Recepción vencida: la fecha programada ya pasó"/>
-                                                        <i t-else=""
-                                                           class="fa fa-clock-o text-muted"
-                                                           title="Recepción pendiente: dentro de plazo"/>
+                                                        <t t-if="pick.overdue">
+                                                            <span class="badge text-bg-danger"
+                                                                  t-att-title="`Vencida hace ${pick.days_late} días`">
+                                                                +<t t-esc="pick.days_late"/>d
+                                                            </span>
+                                                        </t>
+                                                        <t t-else="">
+                                                            <i class="fa fa-clock-o text-muted" title="Pendiente: dentro de plazo"/>
+                                                        </t>
                                                     </td>
                                                 </tr>
                                                 <!-- Filas de líneas (expandibles) -->

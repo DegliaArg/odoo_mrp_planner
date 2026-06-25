@@ -1158,17 +1158,34 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 
     @api.model
-    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search=''):
+    def get_internal_locations(self):
+        """Devuelve todas las ubicaciones internas activas para el selector del widget."""
+        locations = self.env['stock.location'].search(
+            [('usage', '=', 'internal'), ('active', '=', True)],
+            order='complete_name',
+        )
+        return [{'id': l.id, 'name': l.complete_name} for l in locations]
+
+    @api.model
+    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search='', location_id=None):
         """Productos con sale_ok=True, su stock en la ubicación configurada y el mínimo
         del punto de reorden con ruta Fabricación."""
         _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
-        loc_param = self.env['ir.config_parameter'].sudo().get_param(
-            'mrp_reschedule.stock_location_id')
-        loc_id = int(loc_param) if loc_param else False
-        location = self.env['stock.location'].browse(loc_id) if loc_id else None
-        if not location or not location.exists():
+        # location_id override desde el selector; si no, usa el configurado
+        if location_id:
+            location = self.env['stock.location'].browse(location_id)
+            if not location.exists():
+                location = None
+        else:
+            loc_param = self.env['ir.config_parameter'].sudo().get_param(
+                'mrp_reschedule.stock_location_id')
+            loc_id = int(loc_param) if loc_param else False
+            location = self.env['stock.location'].browse(loc_id) if loc_id else None
+            if not location or not location.exists():
+                location = None
+        if not location:
             return {'error': 'no_location', 'kpis': _empty_kpis,
-                    'products': [], 'location_name': '', 'total_filtered': 0}
+                    'products': [], 'location_name': '', 'location_id': False, 'total_filtered': 0}
 
         # Ruta fabricación: primero por xmlid, fallback por nombre
         mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
@@ -1263,6 +1280,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'kpis':           kpis,
             'products':       rows[offset:offset + page_size],
             'location_name':  location.complete_name,
+            'location_id':    location.id,
             'total_filtered': total_filtered,
         }
 

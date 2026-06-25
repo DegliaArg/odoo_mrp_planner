@@ -65,8 +65,8 @@
                     </div>
                 </div>
 
-                <!-- Buscador -->
-                <div class="d-flex align-items-center gap-2 mb-3">
+                <!-- Buscador + selector de depósito -->
+                <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
                     <div class="input-group input-group-sm" style="max-width:260px;">
                         <span class="input-group-text"><i class="fa fa-search"/></span>
                         <input type="text"
@@ -74,6 +74,18 @@
                                placeholder="Buscar producto…"
                                t-att-value="state.search"
                                t-on-input="onSearchInput"/>
+                    </div>
+                    <div t-if="state.locations.length" class="input-group input-group-sm" style="max-width:280px;">
+                        <span class="input-group-text"><i class="fa fa-map-marker"/></span>
+                        <select class="form-select form-select-sm"
+                                t-on-change="onLocationChange">
+                            <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
+                                <option t-att-value="loc.id"
+                                        t-att-selected="loc.id === state.locationId">
+                                    <t t-esc="loc.name"/>
+                                </option>
+                            </t>
+                        </select>
                     </div>
                 </div>
 

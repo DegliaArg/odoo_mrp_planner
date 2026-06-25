@@ -170,14 +170,9 @@ class ForecastWidget extends Component {
     }
 
     async openImport() {
-        await this.action.doAction({
-            type:      "ir.actions.act_window",
-            res_model: "mrp.forecast.import.wizard",
-            view_mode: "form",
-            views:     [[false, "form"]],
-            target:    "new",
+        await this.action.doAction('base_import.action_base_import', {
+            additionalContext: { model: 'mrp.forecast.line' },
         });
-        this._load();
     }
 
     openForecastList() {

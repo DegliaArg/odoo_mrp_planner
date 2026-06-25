@@ -127,4 +127,10 @@
               sequence="1"
               action="action_mrp_ventas_dashboard_open"/>
 
+    <menuitem id="mrp_ventas_forecast_lineas_menu"
+              name="Líneas de Forecast"
+              parent="mrp_ventas_menu_root"
+              sequence="5"
+              action="action_mrp_forecast_line"/>
+
 </odoo>

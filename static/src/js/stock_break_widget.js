@@ -18,12 +18,14 @@ class StockBreakWidget extends Component {
             sortField:     null,
             sortDir:       "asc",
             page:          1,
-            pageSize:      50,
+            pageSize:      20,
+            search:        "",
             kpis:          { total: 0, broken: 0, ok: 0, no_min: 0 },
             products:      [],
             locationName:  "",
             totalFiltered: 0,
         });
+        this._searchTimer = null;
 
         onMounted(() => this._load());
     }
@@ -35,7 +37,8 @@ class StockBreakWidget extends Component {
                 "mrp.planner.dashboard",
                 "get_stock_break_data",
                 [this.state.filterType, this.state.sortField || null,
-                 this.state.sortDir, this.state.page, this.state.pageSize],
+                 this.state.sortDir, this.state.page, this.state.pageSize,
+                 this.state.search],
             );
             if (d.error === "no_location") {
                 this.state.error = "no_location";
@@ -51,6 +54,16 @@ class StockBreakWidget extends Component {
         } finally {
             this.state.loading = false;
         }
+    }
+
+    onSearchInput(ev) {
+        const val = ev.target.value;
+        this.state.search = val;
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => {
+            this.state.page = 1;
+            this._load();
+        }, 300);
     }
 
     setFilter(f) {

@@ -65,6 +65,18 @@
                     </div>
                 </div>
 
+                <!-- Buscador -->
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div class="input-group input-group-sm" style="max-width:260px;">
+                        <span class="input-group-text"><i class="fa fa-search"/></span>
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Buscar producto…"
+                               t-att-value="state.search"
+                               t-on-input="onSearchInput"/>
+                    </div>
+                </div>
+
                 <!-- Filtros activos -->
                 <div class="btn-group btn-group-sm mb-3">
                     <button t-att-class="'btn btn-outline-secondary' + (state.filterType === 'all'    ? ' active' : '')"

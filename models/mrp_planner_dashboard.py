@@ -1158,7 +1158,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 
     @api.model
-    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=50):
+    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search=''):
         """Productos con sale_ok=True, su stock en la ubicación configurada y el mínimo
         del punto de reorden con ruta Fabricación."""
         _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
@@ -1177,9 +1177,10 @@ class MrpPlannerDashboard(models.TransientModel):
                 [('name', 'ilike', 'manufactur')], limit=1)
 
         # Productos vendibles activos
-        products = self.env['product.product'].search([
-            ('sale_ok', '=', True), ('active', '=', True),
-        ])
+        product_domain = [('sale_ok', '=', True), ('active', '=', True)]
+        if search:
+            product_domain.append(('name', 'ilike', search))
+        products = self.env['product.product'].search(product_domain)
         if not products:
             return {'error': None, 'kpis': _empty_kpis,
                     'products': [], 'location_name': location.complete_name, 'total_filtered': 0}

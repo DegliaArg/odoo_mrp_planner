@@ -15,6 +15,7 @@ class WcLoadChartWidget extends Component {
     setup() {
         this.orm = useService("orm");
         this.canvasRef = useRef("chartCanvas");
+        this._root     = useRef("wcRoot");
         this.chart = null;
         this._chartData = null;
 
@@ -38,6 +39,7 @@ class WcLoadChartWidget extends Component {
             await loadBundle("web.chartjs_lib");
             await this._loadTags();    // sets default Vulcanizado + loads machines
             await this._loadChart();
+            requestAnimationFrame(() => this._syncH());
         });
 
         onWillUnmount(() => {
@@ -92,6 +94,19 @@ class WcLoadChartWidget extends Component {
             this.chart.destroy();
             this.chart = null;
         }
+        requestAnimationFrame(() => this._syncH());
+    }
+
+    _syncH() {
+        const root = this._root.el;
+        if (!root) return;
+        const kpiEl   = root.querySelector('.o_kpi_height_src');
+        const chartEl = root.querySelector('.o_table_scroll');
+        if (!kpiEl || !chartEl) return;
+        chartEl.style.height = '0';
+        const h = kpiEl.offsetHeight;
+        chartEl.style.height = Math.max(h, 150) + 'px';
+        if (this.chart) this.chart.resize();
     }
 
     // ── Eventos de filtros ───────────────────────────────────────────────────

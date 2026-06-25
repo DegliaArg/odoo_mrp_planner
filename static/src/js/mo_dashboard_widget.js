@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -14,6 +14,7 @@ class MoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
+        this._root  = useRef("moRoot");
 
         const now          = new Date();
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -102,8 +103,10 @@ class MoDashboardWidget extends Component {
     }
 
     _syncH() {
-        const kpiEl = this.el?.querySelector('.o_kpi_height_src');
-        const tableEl = this.el?.querySelector('.o_table_scroll');
+        const root = this._root.el;
+        if (!root) return;
+        const kpiEl   = root.querySelector('.o_kpi_height_src');
+        const tableEl = root.querySelector('.o_table_scroll');
         if (!kpiEl || !tableEl) return;
         tableEl.style.height = '0';
         const h = kpiEl.offsetHeight;

@@ -20,4 +20,6 @@ class SheetSelectorWidget extends Component {
     }
 }
 
-registry.category("view_widgets").add("sheet_selector", SheetSelectorWidget);
+registry.category("view_widgets").add("sheet_selector", {
+    component: SheetSelectorWidget,
+});

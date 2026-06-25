@@ -46,9 +46,10 @@ class StockPicking(models.Model):
         product_ids = picking.move_ids.mapped('product_id').ids
         if not product_ids:
             return
+        # FIX [FASE-3]: limit=50 dejaba OFs sin marcar; aumentado a 200 para reducir pérdidas
         mos = self.env['mrp.production'].search([
             ('state', 'in', ('confirmed', 'progress')),
             ('move_raw_ids.product_id', 'in', product_ids),
-        ], limit=50)
+        ], limit=200)
         if mos:
             mos.write({'x_reschedule_needed': True})

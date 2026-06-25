@@ -32,8 +32,12 @@ class MrpScheduleMixin(models.AbstractModel):
         Retorna (start, end) como datetimes UTC naive."""
         if hasattr(after_dt, 'tzinfo') and after_dt.tzinfo:
             after_dt = after_dt.astimezone(pytz.utc).replace(tzinfo=None)
-        if not calendar or not duration_hours:
+        if not calendar:
+            # Sin calendario definido: fallback lineal (8h si no hay duración)
             return (after_dt, after_dt + timedelta(hours=duration_hours or 8.0))
+        if not duration_hours:
+            # FIX [FASE-3]: duración 0 devolvía 8h incorrectamente
+            return (after_dt, after_dt)
 
         tz = pytz.timezone(calendar.tz or 'UTC')
         remaining = float(duration_hours)

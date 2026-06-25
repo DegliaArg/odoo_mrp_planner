@@ -163,13 +163,13 @@ class MoDashboardWidget extends Component {
     }
 
     openMo(id) {
+        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "mrp.production",
             res_id: parseInt(id),
-            view_mode: "list,form",
-            views: [[false, "list"], [false, "form"]],
-            domain: [["id", "=", parseInt(id)]],
+            view_mode: "form",
+            views: [[false, "form"]],
             target: "current",
         });
     }
@@ -196,13 +196,13 @@ class MoDashboardWidget extends Component {
     }
 
     openRequest(id) {
+        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "mrp.production.request",
             res_id: parseInt(id),
-            view_mode: "list,form",
-            views: [[false, "list"], [false, "form"]],
-            domain: [["id", "=", parseInt(id)]],
+            view_mode: "form",
+            views: [[false, "form"]],
             target: "current",
         });
     }

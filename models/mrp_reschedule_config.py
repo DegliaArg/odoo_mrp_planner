@@ -1,4 +1,5 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 
 class MrpRescheduleConfig(models.Model):
@@ -74,7 +75,11 @@ class MrpRescheduleConfig(models.Model):
     def _compute_stock_location_id(self):
         param = self.env['ir.config_parameter'].sudo().get_param(
             'mrp_reschedule.stock_location_id')
-        loc_id = int(param) if param else False
+        # FIX [FASE-3]: int() puede lanzar ValueError si el parámetro fue editado manualmente
+        try:
+            loc_id = int(param) if param else False
+        except (ValueError, TypeError):
+            loc_id = False
         location = self.env['stock.location'].browse(loc_id) if loc_id else \
             self.env['stock.location']
         for rec in self:
@@ -112,6 +117,12 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # FIX [FASE-2]: prevenir múltiples singletons — solo puede existir un registro
+        if self.search_count([]) > 0:
+            raise UserError(_(
+                'Solo puede existir una configuración del planificador. '
+                'Editá el registro existente en lugar de crear uno nuevo.'
+            ))
         records = super().create(vals_list)
         sp = self.env['ir.config_parameter'].sudo()
         for rec in records:

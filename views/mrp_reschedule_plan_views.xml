@@ -152,16 +152,13 @@
                               decoration-danger="warning_type == 'confirmed_po'"
                               decoration-success="warning_type == 'child_adjusted'">
 
+                            <!-- FIX [FASE-6]: reschedule_sequence solo puede aparecer una vez; el widget handle ya gestiona el orden -->
                             <field name="reschedule_sequence"
                                    widget="handle"
                                    readonly="level != 0 or record_type != 'mrp' or is_anchor"/>
                             <field name="type_label"
                                    string="Tipo"
                                    readonly="1"/>
-                            <field name="reschedule_sequence"
-                                   string="Orden"
-                                   readonly="level != 0 or record_type != 'mrp' or is_anchor"
-                                   optional="show"/>
                             <field name="apply"
                                    string="Aplicar"
                                    readonly="is_anchor and not forced_start_date"/>

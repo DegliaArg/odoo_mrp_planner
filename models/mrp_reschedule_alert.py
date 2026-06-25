@@ -77,8 +77,9 @@ class MrpRescheduleAlert(models.Model):
             alert.name = f'{label} — {ref}{suffix}' if ref else f'{label}{suffix}'
 
     def _compute_impact_mo_count(self):
+        # Usar .ids evita cargar los campos de los registros relacionados
         for alert in self:
-            alert.impact_mo_count = len(alert.impact_mo_ids)
+            alert.impact_mo_count = len(alert.impact_mo_ids.ids)
 
     # ── Acciones ─────────────────────────────────────────────────────────────
 
@@ -150,7 +151,13 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def action_run_cron_manual(self):
-        """Botón manual: ejecuta el chequeo de alertas ahora."""
+        """Botón manual: ejecuta el chequeo de alertas ahora (solo para responsables)."""
+        # FIX [FASE-2]: sin este guard cualquier usuario puede disparar búsquedas masivas
+        if not self.env.user.has_group('mrp.group_mrp_manager'):
+            from odoo.exceptions import UserError
+            raise UserError(_(
+                'Solo los responsables de fabricación pueden ejecutar el chequeo de alertas manualmente.'
+            ))
         self._cron_check_delays()
         return self.env.ref('odoo_mrp_planner.action_mrp_reschedule_alert').read()[0]
 

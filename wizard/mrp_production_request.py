@@ -176,7 +176,10 @@ class MrpProductionRequest(models.Model):
         string='Tipo de operación',
         domain=[('code', '=', 'mrp_operation')],
         required=True,
-        default=lambda self: self.env['stock.picking.type'].browse(518),
+        # FIX [FASE-3]: el ID 518 era específico de la instancia de desarrollo; buscar por código
+        default=lambda self: self.env['stock.picking.type'].search(
+            [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
+        ),
     )
     workorder_count = fields.Integer(compute='_compute_workorder_count', string='OTs')
     wc_load_ids     = fields.One2many('mrp.production.request.wc', 'request_id', string='Carga WC')

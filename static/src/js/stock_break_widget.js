@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -30,6 +30,8 @@ class StockBreakWidget extends Component {
         this._searchTimer = null;
 
         onMounted(() => this._init());
+        // FIX [FASE-3]: limpiar timer al desmontar para evitar RPC sobre componente destruido
+        onWillUnmount(() => clearTimeout(this._searchTimer));
     }
 
     async _init() {

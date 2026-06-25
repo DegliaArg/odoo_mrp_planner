@@ -1,4 +1,3 @@
-import calendar as _cal
 import logging
 from datetime import datetime
 

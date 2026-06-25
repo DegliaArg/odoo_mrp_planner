@@ -132,9 +132,11 @@ class WcLoadChartWidget extends Component {
         if (!canvas || !window.Chart) return;
         if (this.chart) this.chart.destroy();
 
-        const planificado   = data.ejecutado.map((e, i) => e + data.pendiente[i]);
-        const tiempoLibre   = data.tiempo_muerto;
-        const noplanificado = data.tiempo_muerto;
+        // planificado = ejecutado + pendiente (total planificado para el stack "plan")
+        const planificado = data.ejecutado.map((e, i) => e + data.pendiente[i]);
+        // tiempo_muerto se usa en ambos stacks: como "No planificado" en plan y "Tiempo libre" en real
+        // Ambos representan la misma capacidad no ocupada — es intencional, no un bug
+        const tiempoMuerto = data.tiempo_muerto;
 
         this.chart = new window.Chart(canvas, {
             type: "bar",
@@ -150,7 +152,7 @@ class WcLoadChartWidget extends Component {
                     },
                     {
                         label: "No planificado",
-                        data: noplanificado,
+                        data: tiempoMuerto,
                         backgroundColor: "rgba(200,200,200,0.35)",
                         borderColor: "rgba(160,160,160,0.50)",
                         borderWidth: 1, stack: "plan",
@@ -171,7 +173,7 @@ class WcLoadChartWidget extends Component {
                     },
                     {
                         label: "Tiempo libre",
-                        data: tiempoLibre,
+                        data: tiempoMuerto,
                         backgroundColor: "rgba(255,153,153,0.50)",
                         borderColor: "rgba(220,80,80,0.70)",
                         borderWidth: 1, stack: "real",

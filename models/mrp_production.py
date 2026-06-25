@@ -169,12 +169,13 @@ class MrpProduction(models.Model):
         wc_ids = mo.workorder_ids.mapped('workcenter_id').ids
         if not wc_ids:
             return
+        # limit=50 por performance; OFs adicionales se detectarán en el próximo write o al cron
         subsequent = self.env['mrp.production'].search([
             ('id', '!=', mo.id),
             ('state', 'not in', ['done', 'cancel']),
             ('date_start', '>=', mo.date_start),
             ('workorder_ids.workcenter_id', 'in', wc_ids),
-        ] + no_subcontract_domain(self.env), limit=20)
+        ] + no_subcontract_domain(self.env), limit=50)
         if subsequent:
             subsequent.write({'x_reschedule_needed': True})
 
@@ -223,11 +224,15 @@ class MrpProduction(models.Model):
     )
 
     def _compute_alert_count(self):
+        # FIX [FASE-4]: read_group en lugar de N search_count individuales
+        data = self.env['mrp.reschedule.alert'].read_group(
+            [('production_id', 'in', self.ids), ('resolved', '=', False)],
+            ['production_id'],
+            ['production_id'],
+        )
+        counts = {d['production_id'][0]: d['production_id_count'] for d in data}
         for mo in self:
-            mo.alert_count = self.env['mrp.reschedule.alert'].search_count([
-                ('production_id', '=', mo.id),
-                ('resolved', '=', False),
-            ])
+            mo.alert_count = counts.get(mo.id, 0)
 
     def action_view_alerts(self):
         self.ensure_one()

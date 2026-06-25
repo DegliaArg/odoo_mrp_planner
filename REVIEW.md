@@ -2,7 +2,7 @@
 
 ## Resumen ejecutivo
 
-Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades de seguridad críticas** (acceso ORM bypasseable al sistema de permisos y a la configuración global), **1 bug crítico de instalación** (ID de base de datos hardcodeado), **1 bug de lógica** en el mixin de scheduling y múltiples issues de performance y estructura. Se corrigieron directamente 15 problemas de severidad media-alta. Quedan 8 decisiones pendientes de equipo documentadas al final.
+Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades de seguridad críticas** (acceso ORM bypasseable al sistema de permisos y a la configuración global), **1 bug crítico de instalación** (ID de base de datos hardcodeado), **1 bug de lógica** en el mixin de scheduling y múltiples issues de performance y estructura. Se corrigieron directamente **27 problemas** en dos iteraciones (v1: 15 correcciones directas, v2: 8 decisiones de equipo implementadas). Todo resuelto.
 
 ---
 

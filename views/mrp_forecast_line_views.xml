@@ -114,22 +114,17 @@
         <field name="code">action = model.action_open_ventas()</field>
     </record>
 
-    <!-- ── Menú raíz Ventas ───────────────────────────────────────────────── -->
+    <!-- ── Menú Ventas (dentro de Planificador) ─────────────────────────── -->
     <menuitem id="mrp_ventas_menu_root"
               name="Ventas"
-              sequence="64"/>
+              parent="mrp_planner_menu_root"
+              sequence="2"/>
 
     <!-- ── Sub-menús bajo Ventas ─────────────────────────────────────────── -->
     <menuitem id="mrp_ventas_panel_menu"
-              name="Panel"
+              name="Forecast"
               parent="mrp_ventas_menu_root"
               sequence="1"
               action="action_mrp_ventas_dashboard_open"/>
-
-    <menuitem id="mrp_ventas_forecast_lineas_menu"
-              name="Líneas de Forecast"
-              parent="mrp_ventas_menu_root"
-              sequence="5"
-              action="action_mrp_forecast_line"/>
 
 </odoo>

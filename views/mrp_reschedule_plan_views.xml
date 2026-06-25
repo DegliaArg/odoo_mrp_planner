@@ -358,8 +358,8 @@
     <!-- ── Menús bajo "Planificador" (root definido en mrp_reschedule_alert_views.xml) ── -->
     <menuitem id="mrp_reschedule_menu_plans"
               name="Reprogramación"
-              parent="mrp_planner_menu_root"
-              sequence="15"
+              parent="mrp_produccion_menu"
+              sequence="20"
               action="action_mrp_reschedule_plan"/>
 
 </odoo>

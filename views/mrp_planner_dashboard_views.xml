@@ -209,10 +209,15 @@
         </field>
     </record>
 
-    <!-- Panel como primer ítem del módulo Planificador -->
+    <!-- Sub-menú Producción -->
+    <menuitem id="mrp_produccion_menu"
+              name="Producción"
+              parent="mrp_planner_menu_root"
+              sequence="1"/>
+
     <menuitem id="mrp_planner_panel_top"
               name="Panel"
-              parent="mrp_planner_menu_root"
+              parent="mrp_produccion_menu"
               sequence="1"
               action="action_mrp_planner_dashboard_open"/>
 

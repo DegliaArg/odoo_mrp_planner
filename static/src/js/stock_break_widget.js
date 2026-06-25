@@ -1,11 +1,27 @@
 /** @odoo-module **/
 
+/**
+ * @description Widget de roturas de stock por ubicación/almacén.
+ *   Filtra por tipo (all/broken/ok/no_min), búsqueda por nombre con debounce 300ms,
+ *   y por una o varias ubicaciones internas.
+ * @fires RPC mrp.planner.dashboard.get_internal_locations — ubicaciones internas disponibles
+ * @fires RPC mrp.planner.dashboard.get_stock_break_data — productos con rotura/sin mínimo
+ *   Params: (filterType, sortField, sortDir, page, pageSize, search, locationIds)
+ *   @returns {{ kpis: {total,broken,ok,no_min}, products: ProductRow[],
+ *              location_name: string, total_filtered: number }}
+ * @listens onMounted — carga ubicaciones y datos iniciales
+ * @listens onWillUnmount — cancela timer de debounce de búsqueda
+ */
+
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 class StockBreakWidget extends Component {
     static template = "odoo_mrp_planner.StockBreakWidget";
+    static props = {
+        record: { type: Object },
+    };
 
     setup() {
         this.orm    = useService("orm");
@@ -34,6 +50,7 @@ class StockBreakWidget extends Component {
         onWillUnmount(() => clearTimeout(this._searchTimer));
     }
 
+    /** @returns {Promise<void>} Carga ubicaciones y datos iniciales en paralelo */
     async _init() {
         const [locs] = await Promise.all([
             this.orm.call("mrp.planner.dashboard", "get_internal_locations", []),
@@ -42,6 +59,7 @@ class StockBreakWidget extends Component {
         this.state.locations = locs;
     }
 
+    /** @returns {Promise<void>} Carga datos de roturas de stock y actualiza state */
     async _load() {
         this.state.loading = true;
         try {

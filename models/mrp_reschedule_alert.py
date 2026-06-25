@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
@@ -12,7 +12,7 @@ QTY_TOLERANCE = 0.05  # fallback; sobreescrito por mrp.reschedule.config
 class MrpRescheduleAlert(models.Model):
     _name = 'mrp.reschedule.alert'
     _description = 'Alerta de planificación de producción'
-    _order = 'resolved asc, severity desc, days_late desc, id desc'
+    _order = 'resolved asc, severity desc, id desc'
 
     name = fields.Char(compute='_compute_name', store=True)
 
@@ -51,7 +51,7 @@ class MrpRescheduleAlert(models.Model):
     )
     impact_mo_count = fields.Integer(compute='_compute_impact_mo_count', string='OFs afectadas')
 
-    days_late = fields.Integer(string='Días de atraso')
+    days_late = fields.Integer(string='Días de atraso', compute='_compute_days_late', store=False)
     message   = fields.Char(string='Detalle')
 
     resolved     = fields.Boolean(string='Resuelta', default=False)
@@ -62,7 +62,7 @@ class MrpRescheduleAlert(models.Model):
 
     # ── Computed ─────────────────────────────────────────────────────────────
 
-    @api.depends('alert_type', 'production_id', 'purchase_id', 'picking_id', 'days_late')
+    @api.depends('alert_type', 'production_id', 'purchase_id', 'picking_id')
     def _compute_name(self):
         type_labels = dict(self._fields['alert_type'].selection)
         for alert in self:
@@ -72,9 +72,29 @@ class MrpRescheduleAlert(models.Model):
                 or (alert.picking_id.name  if alert.picking_id  else None)
                 or ''
             )
-            label  = type_labels.get(alert.alert_type, alert.alert_type)
-            suffix = f' ({alert.days_late}d)' if alert.days_late else ''
-            alert.name = f'{label} — {ref}{suffix}' if ref else f'{label}{suffix}'
+            label = type_labels.get(alert.alert_type, alert.alert_type)
+            alert.name = f'{label} — {ref}' if ref else label
+
+    @api.depends()
+    def _compute_days_late(self):
+        """Calcula días de atraso en tiempo real desde la fecha del registro fuente."""
+        now = datetime.utcnow()
+        for alert in self:
+            ref_date = None
+            atype = alert.alert_type
+            if atype in ('mo_delayed', 'mo_upcoming', 'qty_mismatch', 'mo_cancelled'):
+                if alert.production_id and alert.production_id.date_finished:
+                    ref_date = alert.production_id.date_finished
+            elif atype in ('po_delayed', 'po_upcoming', 'po_cancelled'):
+                if alert.purchase_id and alert.purchase_id.date_planned:
+                    ref_date = alert.purchase_id.date_planned
+            elif atype == 'receipt_delayed':
+                if alert.picking_id and alert.picking_id.scheduled_date:
+                    ref_date = alert.picking_id.scheduled_date
+            if ref_date:
+                alert.days_late = max(0, (now - ref_date).days)
+            else:
+                alert.days_late = 0
 
     def _compute_impact_mo_count(self):
         # Usar .ids evita cargar los campos de los registros relacionados
@@ -257,7 +277,6 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_upcoming_mos(self, now):
-        from datetime import timedelta
         cfg = self._get_config()
         warn_days = cfg.alert_mo_warning_days if cfg else 7
         future_limit = now + timedelta(days=warn_days)
@@ -345,7 +364,6 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_upcoming_pos(self, now):
-        from datetime import timedelta
         cfg = self._get_config()
         warn_days = cfg.alert_po_warning_days if cfg else 10
         future_limit = now + timedelta(days=warn_days)
@@ -435,10 +453,17 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_qty_mismatches(self, now, impact_cache=None):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
-        from datetime import timedelta
         cfg = self._get_config()
         qty_tol = (cfg.qty_tolerance_pct / 100.0) if cfg else QTY_TOLERANCE
-        since = now - timedelta(hours=1)  # Solo las del último ciclo de cron
+        # Dynamic window from config, matching cron interval + 10% margin
+        if cfg:
+            interval_number = cfg.cron_interval_number or 1
+            interval_type = cfg.cron_interval_type or 'hours'
+            type_to_hours = {'minutes': 1/60, 'hours': 1, 'days': 24}
+            hours = interval_number * type_to_hours.get(interval_type, 1) * 1.1
+        else:
+            hours = 2.0
+        since = now - timedelta(hours=max(hours, 0.5))
         done_mos = self.env['mrp.production'].search([
             ('state', '=', 'done'),
             ('date_finished', '>=', since),

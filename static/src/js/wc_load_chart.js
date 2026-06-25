@@ -1,5 +1,21 @@
 /** @odoo-module **/
 
+/**
+ * @description Widget de carga de centros de trabajo con gráfico de barras apiladas (chart.js).
+ *   Muestra capacidad disponible vs planificado vs ejecutado por WC o sector.
+ *   Clic en barra filtra al WC específico.
+ * @fires RPC mrp.planner.dashboard.get_wc_tags — lista de sectores/categorías
+ * @fires RPC mrp.planner.dashboard.get_wc_machines — WCs dentro de un sector
+ *   Params: (tagId: number|null)
+ * @fires RPC mrp.planner.dashboard.get_wc_chart_data — datos del gráfico
+ *   Params: (dateFrom, dateTo, tagId, wcId)
+ *   @returns {{ labels: string[], ejecutado: number[], pendiente: number[],
+ *              tiempo_muerto: number[], available_hours: number[], wc_ids: number[],
+ *              totals: {disponible,planificado,carga_pct,ejecutado,pendiente,tiempo_libre} }}
+ * @listens onMounted — carga chart.js, tags y gráfico inicial
+ * @listens onWillUnmount — destruye instancia de chart.js
+ */
+
 import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -11,6 +27,9 @@ function toDateStr(d) {
 
 class WcLoadChartWidget extends Component {
     static template = "odoo_mrp_planner.WcLoadChartWidget";
+    static props = {
+        record: { type: Object },
+    };
 
     setup() {
         this.orm = useService("orm");
@@ -49,6 +68,7 @@ class WcLoadChartWidget extends Component {
 
     // ── Carga inicial ────────────────────────────────────────────────────────
 
+    /** @returns {Promise<void>} Carga las etiquetas/sectores y selecciona el default */
     async _loadTags() {
         const tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
         this.state.tags = tags;
@@ -58,6 +78,7 @@ class WcLoadChartWidget extends Component {
         await this._loadMachines();
     }
 
+    /** @returns {Promise<void>} Carga los WCs del sector seleccionado */
     async _loadMachines() {
         const tagId = this.state.selectedTag ? parseInt(this.state.selectedTag) : null;
         this.state.machines = await this.orm.call(
@@ -66,6 +87,7 @@ class WcLoadChartWidget extends Component {
         this.state.selectedMachine = "";
     }
 
+    /** @returns {Promise<void>} Carga datos del gráfico y re-renderiza chart.js */
     async _loadChart() {
         if (!this.state.dateFrom || !this.state.dateTo) return;
         this.state.loading = true;
@@ -97,6 +119,7 @@ class WcLoadChartWidget extends Component {
         requestAnimationFrame(() => this._syncH());
     }
 
+    /** Iguala la altura del panel de gráfico a la del panel de KPIs */
     _syncH() {
         const root = this._root.el;
         if (!root) return;

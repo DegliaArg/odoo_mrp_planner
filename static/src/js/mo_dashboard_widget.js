@@ -1,5 +1,20 @@
 /** @odoo-module **/
 
+/**
+ * @description Widget de órdenes de fabricación para el dashboard del planificador.
+ *   Muestra KPIs de OFs, solicitudes de programación y comparativo producción vs plan.
+ *   Paginado y ordenamiento server-side para OFs y solicitudes; client-side para comparativo.
+ * @fires RPC mrp.planner.dashboard.get_mo_widget_data — KPIs + lista de OFs paginada
+ *   @returns {{ kpis: {total,in_progress,delayed,reschedule,done,partial}, mos: MoRow[] }}
+ * @fires RPC mrp.planner.dashboard.get_request_widget_data — solicitudes de programación
+ *   @returns {{ kpis: {active,calculated,reschedule,mos_delayed}, requests: ReqRow[] }}
+ * @fires RPC mrp.planner.dashboard.get_comparison_data — comparativo plan vs producido
+ *   @returns {{ kpis: {planned,produced,pct,ofs_done}, items: CmpRow[] }}
+ * @fires RPC mrp.planner.dashboard.get_wc_tags — lista de sectores/categorías de WC
+ * @listens onMounted — carga tags y datos iniciales
+ * @listens onPatched — resincroniza altura de paneles
+ */
+
 import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -10,6 +25,9 @@ function toDateStr(d) {
 
 class MoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.MoDashboardWidget";
+    static props = {
+        record: { type: Object },
+    };
 
     setup() {
         this.orm    = useService("orm");
@@ -50,10 +68,12 @@ class MoDashboardWidget extends Component {
         onPatched(() => requestAnimationFrame(() => this._syncH()));
     }
 
+    /** @returns {Promise<void>} Carga las etiquetas/sectores de centros de trabajo */
     async _loadTags() {
         this.state.tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
     }
 
+    /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */
     async _loadData() {
         this.state.loading = true;
         try {
@@ -103,6 +123,7 @@ class MoDashboardWidget extends Component {
         this._loadData().then(() => requestAnimationFrame(() => this._syncH()));
     }
 
+    /** Iguala la altura del panel de tabla a la del panel de KPIs */
     _syncH() {
         const root = this._root.el;
         if (!root) return;
@@ -162,6 +183,7 @@ class MoDashboardWidget extends Component {
         this._navigate("Por cerrar", [["state", "=", "to_close"]]);
     }
 
+    /** @param {number|string} id — ID de la OF a abrir */
     openMo(id) {
         // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
@@ -195,6 +217,7 @@ class MoDashboardWidget extends Component {
         });
     }
 
+    /** @param {number|string} id — ID de la solicitud de programación a abrir */
     openRequest(id) {
         // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({

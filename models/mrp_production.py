@@ -187,16 +187,36 @@ class MrpProduction(models.Model):
     )
 
     def _compute_reschedule_plan_count(self):
+        # PERF: optimización vs versión anterior que hacía N búsquedas por OF
+        mo_ids = self.ids
+        if not mo_ids:
+            for mo in self:
+                mo.reschedule_plan_count = 0
+            return
+
+        # Plans donde la OF es el pivot
+        pivot_map = {}
+        pivot_data = self.env['mrp.reschedule.plan'].search_read(
+            [('production_id', 'in', mo_ids)],
+            ['production_id', 'id'],
+        )
+        for d in pivot_data:
+            mo_id = d['production_id'][0]
+            pivot_map.setdefault(mo_id, set()).add(d['id'])
+
+        # Plans donde la OF aparece como línea
+        line_data = self.env['mrp.reschedule.plan.line'].search_read(
+            [('production_id', 'in', mo_ids)],
+            ['production_id', 'plan_id'],
+        )
+        line_map = {}
+        for d in line_data:
+            mo_id = d['production_id'][0]
+            line_map.setdefault(mo_id, set()).add(d['plan_id'][0])
+
         for mo in self:
-            pivot_ids = self.env['mrp.reschedule.plan'].search([
-                ('production_id', '=', mo.id),
-                ('state', '!=', 'cancelled'),
-            ]).ids
-            line_ids = self.env['mrp.reschedule.plan.line'].search([
-                ('production_id', '=', mo.id),
-                ('plan_id.state', '!=', 'cancelled'),
-            ]).mapped('plan_id').ids
-            mo.reschedule_plan_count = len(set(pivot_ids + line_ids))
+            all_ids = pivot_map.get(mo.id, set()) | line_map.get(mo.id, set())
+            mo.reschedule_plan_count = len(all_ids)
 
     def action_view_reschedule_plans(self):
         self.ensure_one()

@@ -202,10 +202,10 @@
                                                 <div class="o_planner_number text-danger">
                                                     <field name="po_overdue_critical" nolabel="1"/>
                                                 </div>
-                                                <div class="o_planner_label">Críticas (+5 días)</div>
+                                                <div class="o_planner_label">Críticas (+N días)</div>
                                             </div>
                                             <div class="card-footer p-0">
-                                                <button name="action_view_overdue_pos" type="object"
+                                                <button name="action_view_critical_pos" type="object"
                                                         class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
                                             </div>
                                         </div>

@@ -56,6 +56,14 @@ class MrpRescheduleConfig(models.Model):
     forecast_mo_state_to_close  = fields.Boolean(string='Por cerrar',        default=True)
     forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False)
 
+    include_wc_heuristic = fields.Boolean(
+        string='Heurística por centro de trabajo',
+        default=False,
+        help='Cuando está activo, la reprogramación en cascada incluye como dependientes '
+             'las OFs que comparten centros de trabajo con el pivot y comienzan después. '
+             'Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs.',
+    )
+
     show_po_services_tab = fields.Boolean(
         string='Mostrar pestaña de servicios en OCs',
         default=False,

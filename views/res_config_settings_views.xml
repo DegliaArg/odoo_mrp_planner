@@ -31,6 +31,10 @@
                                 <field name="priority" widget="radio"
                                        help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. 'Cronológico' respeta la fecha de inicio; 'SPT' prioriza las OFs más cortas para maximizar throughput; 'Manual' permite arrastrar el orden en el wizard."/>
                             </group>
+                            <group string="Reprogramación en cascada">
+                                <field name="include_wc_heuristic" widget="boolean_toggle"
+                                       help="Activa el tercer nivel de la heurística de dependentes: incluye OFs que comparten centros de trabajo con el pivot y comienzan después. Desactivado por defecto para evitar reprogramaciones masivas no deseadas."/>
+                            </group>
                             <group string="Actualización automática">
                                 <label for="cron_interval_number" string="Ejecutar cron cada"
                                        help="Frecuencia con la que el sistema revisa automáticamente OFs atrasadas, OCs vencidas y recepciones pendientes para crear o actualizar las alertas del dashboard."/>

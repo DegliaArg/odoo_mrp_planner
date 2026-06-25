@@ -206,6 +206,25 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             'target': 'current',
         }
 
+    def action_view_critical_pos(self):
+        now = fields.Datetime.now()
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        po_crit_days = cfg.alert_po_critical_days if cfg else 5
+        from datetime import timedelta
+        crit_threshold = now - timedelta(days=po_crit_days)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('OCs críticas'),
+            'res_model': 'purchase.order',
+            'view_mode': 'list,form',
+            'domain': [
+                ('state', '=', 'purchase'),
+                ('date_planned', '<', crit_threshold),
+                ('receipt_status', '!=', 'full'),
+            ],
+            'target': 'current',
+        }
+
     # ── Navegación — Programaciones ───────────────────────────────────────────
 
     def action_view_all_requests(self):

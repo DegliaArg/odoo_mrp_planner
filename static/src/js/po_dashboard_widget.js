@@ -1,5 +1,17 @@
 /** @odoo-module **/
 
+/**
+ * @description Widget de órdenes de compra, recepciones y entregas para el dashboard.
+ *   Soporta filtrado por tab (all/purchase/subcontract), fecha, tipo de OC y subtab.
+ *   Paginado y ordenamiento server-side.
+ * @fires RPC mrp.planner.dashboard.get_po_dashboard_data — datos de OCs y movimientos
+ *   Params: (tab, dateFrom, dateTo, sortField, sortDir, page, pageSize)
+ *   @returns {{ kpis: KpiPo, rfqs: PoRow[], to_approve: PoRow[], overdue: PoRow[],
+ *              all_pos: PoRow[], pending_pos: PoRow[], receipts: PickRow[],
+ *              deliveries: PickRow[], services: ServiceRow[], show_services_tab: boolean }}
+ * @listens onMounted — carga datos y sincroniza altura
+ */
+
 import { Component, useState, onMounted, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -16,6 +28,9 @@ const EMPTY_KPIS = {
 
 class PoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.PoDashboardWidget";
+    static props = {
+        record: { type: Object },
+    };
 
     setup() {
         this.orm    = useService("orm");
@@ -56,6 +71,7 @@ class PoDashboardWidget extends Component {
         });
     }
 
+    /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */
     async _load() {
         this.state.loading = true;
         try {
@@ -93,6 +109,7 @@ class PoDashboardWidget extends Component {
         this._load().then(() => requestAnimationFrame(() => this._syncH()));
     }
 
+    /** Iguala la altura del panel de tabla a la del panel de KPIs */
     _syncH() {
         const root = this._root.el;
         if (!root) return;
@@ -168,6 +185,7 @@ class PoDashboardWidget extends Component {
         ]);
     }
 
+    /** @param {number|string} id — ID de la OC a abrir */
     openPo(id) {
         // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
@@ -185,6 +203,7 @@ class PoDashboardWidget extends Component {
         if (id) this.openPo(id);
     }
 
+    /** @param {number|string} id — ID del picking/recepción a abrir */
     openPicking(id) {
         // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({

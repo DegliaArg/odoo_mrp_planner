@@ -1,5 +1,6 @@
 import logging
 import pytz
+from collections import deque
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
@@ -8,6 +9,8 @@ from odoo.exceptions import UserError
 from .mrp_schedule_mixin import INDENT_MAP
 
 _logger = logging.getLogger(__name__)
+
+MAX_DEPTH = 30
 
 
 def _get_old_code(mo):
@@ -294,18 +297,53 @@ class MrpReschedulePlan(models.Model):
 
     def _get_subsequent_mos(self):
         pivot = self.production_id
-        if not pivot.date_start:
+        if not pivot:
             return self.env['mrp.production']
-        wc_ids = pivot.workorder_ids.mapped('workcenter_id').ids
-        if not wc_ids:
-            return self.env['mrp.production']
-        return self.env['mrp.production'].search([
-            ('id', '!=', pivot.id),
-            ('state', '=', 'confirmed'),
-            ('date_start', '!=', False),
-            ('date_start', '>=', pivot.date_start),
-            ('workorder_ids.workcenter_id', 'in', wc_ids),
-        ], order='date_start, id')
+
+        result = self.env['mrp.production']
+
+        # Level 1: OFs with x_parent_mo_id pointing to pivot
+        level1 = self.env['mrp.production'].search([
+            ('x_parent_mo_id', '=', pivot.id),
+            ('state', 'not in', ['done', 'cancel']),
+        ])
+        result |= level1
+
+        # Level 2: OFs that consume pivot's product as a raw component
+        if pivot.product_id:
+            if pivot.date_start:
+                level2 = self.env['mrp.production'].search([
+                    ('id', '!=', pivot.id),
+                    ('state', 'not in', ['done', 'cancel']),
+                    ('move_raw_ids.product_id', '=', pivot.product_id.id),
+                    ('date_start', '!=', False),
+                    ('date_start', '>=', pivot.date_start),
+                ])
+            else:
+                level2 = self.env['mrp.production'].search([
+                    ('id', '!=', pivot.id),
+                    ('state', 'not in', ['done', 'cancel']),
+                    ('move_raw_ids.product_id', '=', pivot.product_id.id),
+                ])
+            result |= level2
+
+        # Level 3: WC-shared (only if config.include_wc_heuristic = True)
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        if cfg and cfg.include_wc_heuristic:
+            wc_ids = pivot.workorder_ids.mapped('workcenter_id').ids
+            if wc_ids and pivot.date_start:
+                level3 = self.env['mrp.production'].search([
+                    ('id', '!=', pivot.id),
+                    ('state', 'not in', ['done', 'cancel']),
+                    ('date_start', '!=', False),
+                    ('date_start', '>=', pivot.date_start),
+                    ('workorder_ids.workcenter_id', 'in', wc_ids),
+                ])
+                result |= level3
+
+        # Filter out the pivot itself and return sorted
+        result = result.filtered(lambda m: m.id != pivot.id)
+        return result.sorted(key=lambda m: (m.date_start or fields.Datetime.now(), m.id))
 
     def _get_all_active_mos(self):
         """Modo global: solo MOs confirmadas (pendientes de iniciar) con fecha de inicio."""
@@ -505,10 +543,51 @@ class MrpReschedulePlan(models.Model):
 
         mos_sorted = self._sort_mos_by_priority(subsequent_mos, sequence_overrides)
 
-        def add_mo(mo, level, parent_label, parent_delta=None):
-            nonlocal seq
+        root_label = pivot.name if pivot else ''
+        truncated_mo_ids = []
+
+        # Iterative replacement of recursive add_mo using a deque
+        # queue items: (mo, level, parent_label, parent_delta)
+        queue = deque()
+
+        # Agregar el pivot primero (como anchor) y luego sus hijas en cascada
+        if not is_global and pivot:
+            queue.append((pivot, 0, '', None))
+
+        for mo in mos_sorted:
+            if mo.id not in visited_mo_ids:
+                queue.append((mo, 0, root_label, None))
+
+        while queue:
+            mo, level, parent_label, parent_delta = queue.popleft()
+
             if mo.id in visited_mo_ids:
-                return
+                continue
+
+            if level > MAX_DEPTH:
+                truncated_mo_ids.append(mo.id)
+                lines_vals.append({
+                    'plan_id':             self.id,
+                    'sequence':            seq,
+                    'reschedule_sequence': seq,
+                    'record_type':         'mrp',
+                    'production_id':       mo.id,
+                    'level':               level,
+                    'parent_label':        parent_label,
+                    'duration_hours':      0.0,
+                    'is_anchor':           False,
+                    'forced_start_date':   False,
+                    'current_date_start':  mo.date_start,
+                    'current_date_finish': mo.date_finished,
+                    'new_date_start':      False,
+                    'new_date_finish':     False,
+                    'warning_type':        False,
+                    'warning_message':     _('Profundidad máxima alcanzada — revisar manualmente'),
+                    'apply':               False,
+                })
+                seq += 10
+                continue
+
             visited_mo_ids.add(mo.id)
 
             is_anchor    = anchor_overrides.get(mo.id, mo.state in ('done', 'progress', 'to_close'))
@@ -609,17 +688,16 @@ class MrpReschedulePlan(models.Model):
                 })
                 seq += 10
 
+            # Add children to queue instead of recursive call
             for child in self._get_child_mos(mo):
-                add_mo(child, level + 1, mo.name, parent_delta=mo_delta)
+                if child.id not in visited_mo_ids:
+                    queue.append((child, level + 1, mo.name, mo_delta))
 
-        root_label = pivot.name if pivot else ''
-
-        # Agregar el pivot primero (como anchor) y luego sus hijas en cascada
-        if not is_global and pivot:
-            add_mo(pivot, 0, '')
-
-        for mo in mos_sorted:
-            add_mo(mo, 0, root_label)
+        if truncated_mo_ids:
+            _logger.warning(
+                'mrp.reschedule.plan %s: MAX_DEPTH=%s alcanzado. IDs truncados: %s',
+                self.id, MAX_DEPTH, truncated_mo_ids,
+            )
 
         if lines_vals:
             self.env['mrp.reschedule.plan.line'].create(lines_vals)

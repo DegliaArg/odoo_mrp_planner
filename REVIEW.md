@@ -43,14 +43,14 @@ Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades d
 | # | Archivo | Descripción | Estado |
 |---|---------|-------------|--------|
 | 19 | `mrp_reschedule_alert.py` | `_compute_impact_mo_count` usaba `len(record)` cargando el recordset completo; `len(.ids)` carga solo IDs | **Corregido** |
-| 20 | Todos los widgets JS | Sin JSDoc, sin `static props`, sin documentación del contrato de RPCs ni de la estructura de datos esperada | Pendiente (ver decisiones) |
-| 21 | `mrp_reschedule_alert.py` | `days_late` es campo estático: entre corridas del cron el valor mostrado al usuario puede estar desactualizado | Requiere decisión (ver abajo) |
-| 22 | `mrp_reschedule_alert.py` | `_check_qty_mismatches()` ventana temporal de 1 hora hardcodeada; si el cron corre cada 2h, pierde OFs terminadas entre ciclos | Requiere decisión (ver abajo) |
-| 23 | `mrp_reschedule_plan.py` | `_get_subsequent_mos()` heurística por WC compartido incluye OFs no relacionadas con la cadena del pivot | Requiere decisión (ver abajo) |
-| 24 | `mrp_reschedule_plan.py` | `add_mo()` sin límite de profundidad recursiva: árboles de más de ~100 niveles de sub-ÓFs pueden provocar `RecursionError` | Requiere decisión (ver abajo) |
-| 25 | `mrp_planner_detail_dashboard_views.xml` | Dos botones con `name="action_view_overdue_pos"`: la tarjeta "Críticas" debería llamar a una acción con filtro diferente al de "Vencidas" | Requiere decisión (ver abajo) |
-| 26 | `mrp_reschedule_plan_views.xml` | `domain` en `production_id` solo muestra `state='confirmed'`, excluyendo OFs `in_progress` candidatas válidas | Requiere decisión (ver abajo) |
-| 27 | `mrp_production.py` | `_compute_reschedule_plan_count()` hace 2 búsquedas por OF (N+1 en lista), optimizable con 2 `read_group` | Requiere decisión (ver abajo) |
+| 20 | Todos los widgets JS | Sin JSDoc, sin `static props`, sin documentación del contrato de RPCs ni de la estructura de datos esperada | **Corregido** — JSDoc + `static props` añadidos a los 4 widgets |
+| 21 | `mrp_reschedule_alert.py` | `days_late` es campo estático: entre corridas del cron el valor mostrado al usuario puede estar desactualizado | **Corregido** — convertido a `compute='_compute_days_late', store=False`; se recalcula al leer |
+| 22 | `mrp_reschedule_alert.py` | `_check_qty_mismatches()` ventana temporal de 1 hora hardcodeada; si el cron corre cada 2h, pierde OFs terminadas entre ciclos | **Corregido** — ventana dinámica: `cron_interval_number * factor * 1.1`, mínimo 30 min |
+| 23 | `mrp_reschedule_plan.py` | `_get_subsequent_mos()` heurística por WC compartido incluye OFs no relacionadas con la cadena del pivot | **Corregido** — heurística de 3 niveles: (1) x_parent_mo_id, (2) OFs que consumen el producto del pivot, (3) WC compartido solo si `include_wc_heuristic=True` en config |
+| 24 | `mrp_reschedule_plan.py` | `add_mo()` sin límite de profundidad recursiva: árboles de más de ~100 niveles de sub-ÓFs pueden provocar `RecursionError` | **Corregido** — convertido a iterativo con `deque`; `MAX_DEPTH=30` con warning y línea truncada |
+| 25 | `mrp_planner_detail_dashboard_views.xml` | Dos botones con `name="action_view_overdue_pos"`: la tarjeta "Críticas" debería llamar a una acción con filtro diferente al de "Vencidas" | **Corregido** — nueva acción `action_view_critical_pos` con filtro de días desde config |
+| 26 | `mrp_reschedule_plan_views.xml` | `domain` en `production_id` solo muestra `state='confirmed'`, excluyendo OFs `in_progress` candidatas válidas | **Corregido** — `[('state', 'in', ['confirmed', 'progress', 'to_close'])]` |
+| 27 | `mrp_production.py` | `_compute_reschedule_plan_count()` hace 2 búsquedas por OF (N+1 en lista), optimizable con 2 `read_group` | **Corregido** — 2 `search_read` batch (pivot_map + line_map), luego unión de sets por OF |
 
 ---
 
@@ -76,20 +76,22 @@ Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades d
 
 ---
 
-## Decisiones pendientes para el equipo
+## Decisiones resueltas (v2)
 
-1. **`days_late` como campo computado vs estático** (`mrp_reschedule_alert.py:54`): el campo `days_late` no se recalcula entre corridas del cron; el dashboard puede mostrar "3 días de atraso" cuando ya pasaron 10. Convertirlo a compute tiene costo de performance (recalculo al leer la lista de alertas). ¿Vale la precisión?
+Todas las decisiones pendientes han sido implementadas:
 
-2. **Ventana temporal en `_check_qty_mismatches()`** (`mrp_reschedule_alert.py:434`): la ventana de 1 hora es fija e independiente del `cron_interval_number` configurado. Si el cron corre cada 2h, OFs terminadas entre ciclos no generan alerta de cantidad. Solución: leer `cron_interval_number + cron_interval_type` del config para calcular la ventana dinámicamente.
+1. **`days_late` como campo computado** — Corregido. `store=False`, `compute='_compute_days_late'`. El `_order` ya no lo incluye (Odoo no permite ORDER BY sobre campos no almacenados).
 
-3. **Heurística de "dependientes" en `_get_subsequent_mos()`** (`mrp_reschedule_plan.py:295`): la búsqueda incluye toda OF que comparte WC con el pivot y empieza después, independientemente de si hay relación real. Esto puede generar reprogramaciones masivas no deseadas en producción con alta carga. Requiere definir qué constituye una "dependencia real" (¿solo `x_parent_mo_id`? ¿por componentes compartidos?).
+2. **Ventana temporal dinámica en `_check_qty_mismatches()`** — Corregido. La ventana se calcula como `cron_interval_number * type_factor * 1.1` con mínimo 30 min.
 
-4. **Límite de profundidad en `add_mo()`** (`mrp_reschedule_plan.py:508`): árboles de sub-ÓFs de 100+ niveles pueden provocar `RecursionError`. Solución: convertir la recursión a iterativo con una pila explícita o añadir un `MAX_DEPTH = 50` con warning al usuario si se corta.
+3. **Heurística de 3 niveles en `_get_subsequent_mos()`** — Corregido. Nivel 1: `x_parent_mo_id`; Nivel 2: OFs que consumen el producto del pivot; Nivel 3: WC compartido (opcional vía `include_wc_heuristic` en config).
 
-5. **Dos botones `action_view_overdue_pos` en detail dashboard** (`mrp_planner_detail_dashboard_views.xml:207`): las tarjetas "Vencidas" y "Críticas (+N días)" abren la misma acción. ¿Se quiere una acción específica para "críticas" con filtro de días, o es intencional?
+4. **Iterativo con `MAX_DEPTH=30` en `_build_lines()`** — Corregido. La recursión fue convertida a un loop con `deque`. Las OFs que superan la profundidad máxima reciben una línea con `warning_message` y `apply=False`.
 
-6. **`domain` en `production_id` solo muestra `confirmed`** (`mrp_reschedule_plan_views.xml:128`): el selector de ÓF pivot en el wizard de reprogramación excluye OFs en estado `progress` y `to_close`. ¿Es intencional? Generalmente las OFs en progreso también pueden necesitar reprogramación.
+5. **Botón "Críticas" con acción propia** — Corregido. Nueva acción `action_view_critical_pos` que filtra por `date_planned < now - po_crit_days días`.
 
-7. **`_compute_reschedule_plan_count()` N+1** (`mrp_production.py:188`): hace 2 búsquedas SQL por OF en lista. La optimización requiere 2 `read_group` + lógica de unión de sets, es un cambio de mayor complejidad. Anotar como deuda técnica.
+6. **Domain `production_id` expandido** — Corregido. `[('state', 'in', ['confirmed', 'progress', 'to_close'])]`.
 
-8. **Documentación de contratos de widgets OWL**: ningún widget tiene JSDoc, `static props`, ni documentación de la estructura JSON que devuelven los métodos Python. No es bloqueante pero dificulta el mantenimiento. Se recomienda añadir en el próximo ciclo de desarrollo.
+7. **`_compute_reschedule_plan_count()` N+1 resuelto** — Corregido. Dos `search_read` batch + unión de sets por OF.
+
+8. **JSDoc + `static props` en widgets OWL** — Corregido. Los 4 widgets tienen bloque JSDoc de módulo, `static props`, y comentarios en métodos clave.

@@ -75,6 +75,26 @@
                                 <field name="stock_location_id"
                                        help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
                             </group>
+                            <group string="Forecast">
+                                <field name="forecast_default_months"
+                                       help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
+                                <field name="forecast_warning_pct"
+                                       help="Cobertura por debajo de este % se muestra en amarillo (aviso). Ej: 70 = menos del 70% de la demanda cubierta por ÓFs."/>
+                                <field name="forecast_critical_pct"
+                                       help="Cobertura por debajo de este % se muestra en rojo (crítico). Ej: 50 = menos del 50% cubierto."/>
+                            </group>
+                            <group string="Estados de ÓF a incluir en el forecast">
+                                <p class="text-muted small">
+                                    Seleccioná qué estados de Órdenes de Fabricación se consideran
+                                    como "producción planificada" al comparar contra el forecast.
+                                    Se toma la fecha de finalización de la ÓF para asignarla al mes.
+                                </p>
+                                <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
+                                <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
+                                <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
+                                <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
+                                <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
+                            </group>
                         </page>
 
                         <!-- ── Permisos ──────────────────────────────────────── -->
@@ -92,8 +112,10 @@
                                     <field name="show_wc"           widget="boolean_toggle" string="CTs"/>
                                     <field name="show_po"           widget="boolean_toggle" string="OCs"/>
                                     <field name="show_stock_breaks" widget="boolean_toggle" string="Quiebres"/>
+                                    <field name="show_forecast"     widget="boolean_toggle" string="Forecast"/>
                                     <field name="can_schedule"      widget="boolean_toggle" string="Programar"/>
                                     <field name="can_reschedule"    widget="boolean_toggle" string="Reprogramar"/>
+                                    <field name="can_edit_forecast" widget="boolean_toggle" string="Edit. Forecast"/>
                                     <field name="warehouse_ids"     widget="many2many_tags" string="Depósitos"/>
                                 </list>
                             </field>

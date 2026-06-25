@@ -37,8 +37,10 @@ class MrpPlannerDashboard(models.TransientModel):
     can_see_wc           = fields.Boolean(compute='_compute_user_permissions')
     can_see_po           = fields.Boolean(compute='_compute_user_permissions')
     can_see_stock_breaks = fields.Boolean(compute='_compute_user_permissions')
+    can_see_forecast     = fields.Boolean(compute='_compute_user_permissions')
     can_schedule         = fields.Boolean(compute='_compute_user_permissions')
     can_reschedule       = fields.Boolean(compute='_compute_user_permissions')
+    can_edit_forecast    = fields.Boolean(compute='_compute_user_permissions')
 
     # ── Alertas — lista inline ───────────────────────────────────────────────
 
@@ -141,16 +143,20 @@ class MrpPlannerDashboard(models.TransientModel):
                 rec.can_see_wc           = perm.show_wc
                 rec.can_see_po           = perm.show_po
                 rec.can_see_stock_breaks = perm.show_stock_breaks
+                rec.can_see_forecast     = perm.show_forecast
                 rec.can_schedule         = perm.can_schedule
                 rec.can_reschedule       = perm.can_reschedule
+                rec.can_edit_forecast    = perm.can_edit_forecast
             else:
                 rec.can_see_alerts       = True
                 rec.can_see_mo           = True
                 rec.can_see_wc           = True
                 rec.can_see_po           = True
                 rec.can_see_stock_breaks = True
+                rec.can_see_forecast     = True
                 rec.can_schedule         = True
                 rec.can_reschedule       = True
+                rec.can_edit_forecast    = True
 
     @api.depends()
     def _compute_inline_alerts(self):
@@ -1215,26 +1221,304 @@ class MrpPlannerDashboard(models.TransientModel):
         )
         return [{'id': l.id, 'name': l.complete_name} for l in locations]
 
+    # ── Forecast ─────────────────────────────────────────────────────────────
+
     @api.model
-    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search='', location_id=None):
-        """Productos con sale_ok=True, su stock en la ubicación configurada y el mínimo
-        del punto de reorden con ruta Fabricación."""
+    def get_warehouses_for_forecast(self):
+        whs = self.env['stock.warehouse'].search([], order='name')
+        return [{'id': w.id, 'name': w.name} for w in whs]
+
+    @api.model
+    def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):
+        """Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado."""
+        from datetime import date as _date
+        import calendar as _calendar
+
+        warehouse_ids = warehouse_ids or []
+
+        def _parse_ym(ym):
+            y, m = ym.split('-')
+            return _date(int(y), int(m), 1)
+
+        def _months_between(d_from, d_to):
+            months = []
+            d = _date(d_from.year, d_from.month, 1)
+            while d <= _date(d_to.year, d_to.month, 1):
+                months.append(f"{d.year}-{d.month:02d}")
+                if d.month == 12:
+                    d = _date(d.year + 1, 1, 1)
+                else:
+                    d = _date(d.year, d.month + 1, 1)
+            return months
+
+        try:
+            d_from = _parse_ym(period_from)
+            d_to   = _parse_ym(period_to)
+        except Exception:
+            return {'kpis': {}, 'months': [], 'month_totals': [], 'rows': [],
+                    'warning_pct': 70, 'critical_pct': 50}
+
+        months = _months_between(d_from, d_to)
+
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        warning_pct  = cfg.forecast_warning_pct  if cfg else 70
+        critical_pct = cfg.forecast_critical_pct if cfg else 50
+
+        # Estados de OF configurados
+        mo_states = []
+        if cfg:
+            if cfg.forecast_mo_state_draft:     mo_states.append('draft')
+            if cfg.forecast_mo_state_confirmed: mo_states.append('confirmed')
+            if cfg.forecast_mo_state_progress:  mo_states.append('progress')
+            if cfg.forecast_mo_state_to_close:  mo_states.append('to_close')
+            if cfg.forecast_mo_state_done:      mo_states.append('done')
+        if not mo_states:
+            mo_states = ['confirmed', 'progress', 'to_close']
+
+        # Último día del rango
+        last_day_of_to = _date(d_to.year, d_to.month,
+                               _calendar.monthrange(d_to.year, d_to.month)[1])
+
+        # ── Forecast lines ────────────────────────────────────────────────────
+        fc_domain = [
+            ('period', '>=', d_from),
+            ('period', '<=', _date(d_to.year, d_to.month, 1)),
+            ('company_id', '=', self.env.company.id),
+        ]
+        if warehouse_ids:
+            fc_domain.append(('warehouse_id', 'in', warehouse_ids))
+
+        fc_lines = self.env['mrp.forecast.line'].search(fc_domain)
+
+        # Estructura: {product_id: {month_str: forecast_qty}}
+        fc_data = {}
+        for line in fc_lines:
+            pid = line.product_id.id
+            ym  = f"{line.period.year}-{line.period.month:02d}"
+            if pid not in fc_data:
+                fc_data[pid] = {'product': line.product_id.display_name}
+            fc_data[pid][ym] = fc_data[pid].get(ym, 0.0) + line.forecast_qty
+
+        # ── ÓFs planificadas ──────────────────────────────────────────────────
+        mo_domain = [
+            ('state', 'in', mo_states),
+            ('date_finished', '>=', fields.Datetime.to_string(
+                datetime.combine(d_from, datetime.min.time())
+            )),
+            ('date_finished', '<=', fields.Datetime.to_string(
+                datetime.combine(last_day_of_to, datetime.max.time())
+            )),
+        ]
+        mos = self.env['mrp.production'].search(mo_domain)
+
+        # Estructura: {product_id: {month_str: qty}}
+        mo_data = {}
+        for mo in mos:
+            if not mo.product_id or not mo.date_finished:
+                continue
+            pid = mo.product_id.id
+            df  = mo.date_finished
+            ym  = f"{df.year}-{df.month:02d}"
+            if ym not in months:
+                continue
+            if pid not in mo_data:
+                mo_data[pid] = {}
+            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + mo.product_qty
+
+        # ── Construir filas ────────────────────────────────────────────────────
+        rows = []
+        all_product_ids = set(fc_data.keys())
+
+        for pid in all_product_ids:
+            pname   = fc_data[pid]['product']
+            cells   = []
+            tot_fc  = 0.0
+            tot_mos = 0.0
+
+            for ym in months:
+                fc_qty  = fc_data[pid].get(ym, 0.0)
+                mo_qty  = mo_data.get(pid, {}).get(ym, 0.0)
+                pct     = round(mo_qty / fc_qty * 100, 1) if fc_qty > 0 else 0.0
+                cells.append({
+                    'month':    ym,
+                    'forecast': round(fc_qty, 2),
+                    'mos':      round(mo_qty, 2),
+                    'pct':      pct,
+                })
+                tot_fc  += fc_qty
+                tot_mos += mo_qty
+
+            tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
+            rows.append({
+                'product_id':    pid,
+                'product':       pname,
+                'cells':         cells,
+                'total_forecast': round(tot_fc, 2),
+                'total_mos':     round(tot_mos, 2),
+                'total_pct':     tot_pct,
+            })
+
+        rows.sort(key=lambda r: r['product'].lower())
+
+        # ── Totales por mes ────────────────────────────────────────────────────
+        month_totals = []
+        for ym in months:
+            mfc = sum(r['cells'][months.index(ym)]['forecast'] for r in rows)
+            mmo = sum(r['cells'][months.index(ym)]['mos']      for r in rows)
+            month_totals.append({'month': ym, 'forecast': round(mfc, 2), 'mos': round(mmo, 2)})
+
+        # ── KPIs globales ──────────────────────────────────────────────────────
+        total_fc  = sum(r['total_forecast'] for r in rows)
+        total_mos = sum(r['total_mos']      for r in rows)
+        coverage  = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
+        at_risk   = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
+
+        return {
+            'kpis': {
+                'total_forecast':  round(total_fc, 2),
+                'total_mos':       round(total_mos, 2),
+                'gap':             round(total_mos - total_fc, 2),
+                'coverage_pct':    coverage,
+                'at_risk':         at_risk,
+                'total_products':  len(rows),
+            },
+            'months':       months,
+            'month_totals': month_totals,
+            'rows':         rows,
+            'warning_pct':  warning_pct,
+            'critical_pct': critical_pct,
+        }
+
+    @api.model
+    def get_forecast_export(self, period_from, period_to, warehouse_ids=None):
+        """Genera un Excel con el forecast y las ÓFs planificadas y retorna la URL de descarga."""
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            return {'error': 'openpyxl no disponible'}
+        import io, base64
+
+        data = self.get_forecast_dashboard_data(period_from, period_to, warehouse_ids)
+        months = data['months']
+        rows   = data['rows']
+
+        MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        def _label(ym):
+            y, m = ym.split('-')
+            return f"{MONTHS_ES[int(m)-1]} {y}"
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Forecast'
+
+        hdr_fill = PatternFill('solid', fgColor='1F497D')
+        hdr_font = Font(bold=True, color='FFFFFF')
+        ok_fill   = PatternFill('solid', fgColor='C6EFCE')
+        warn_fill = PatternFill('solid', fgColor='FFEB9C')
+        crit_fill = PatternFill('solid', fgColor='FFC7CE')
+
+        warning_pct  = data['warning_pct']
+
+        # Fila 1: encabezados de meses (agrupados de a 2)
+        col = 2
+        ws.cell(1, 1, 'Artículo').font = hdr_font
+        ws.cell(1, 1).fill = hdr_fill
+        for ym in months:
+            c1 = ws.cell(1, col, _label(ym))
+            c1.font = hdr_font
+            c1.fill = hdr_fill
+            c1.alignment = Alignment(horizontal='center')
+            ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 1)
+            col += 2
+        ws.cell(1, col, 'Total Forecast').font = hdr_font
+        ws.cell(1, col).fill = hdr_fill
+        ws.cell(1, col + 1, 'Total OFs').font = hdr_font
+        ws.cell(1, col + 1).fill = hdr_fill
+
+        # Fila 2: sub-encabezados Forecast / OFs
+        ws.cell(2, 1, 'Artículo').font = Font(bold=True)
+        col = 2
+        for _ in months:
+            ws.cell(2, col, 'Forecast').font = Font(bold=True)
+            ws.cell(2, col + 1, 'OFs').font = Font(bold=True)
+            col += 2
+        ws.cell(2, col, 'Forecast').font = Font(bold=True)
+        ws.cell(2, col + 1, 'OFs').font = Font(bold=True)
+
+        # Datos
+        for r, row in enumerate(rows, start=3):
+            ws.cell(r, 1, row['product'])
+            col = 2
+            for ci, ym in enumerate(months):
+                cell = row['cells'][ci]
+                fc_cell = ws.cell(r, col, cell['forecast'])
+                mo_cell = ws.cell(r, col + 1, cell['mos'])
+                if cell['forecast'] > 0:
+                    fill = ok_fill if cell['pct'] >= 100 else (warn_fill if cell['pct'] >= warning_pct else crit_fill)
+                    fc_cell.fill = fill
+                    mo_cell.fill = fill
+                col += 2
+            ws.cell(r, col, row['total_forecast'])
+            ws.cell(r, col + 1, row['total_mos'])
+
+        # Fila de totales
+        trow = len(rows) + 3
+        ws.cell(trow, 1, 'TOTAL').font = Font(bold=True)
+        col = 2
+        for mt in data['month_totals']:
+            ws.cell(trow, col, mt['forecast']).font = Font(bold=True)
+            ws.cell(trow, col + 1, mt['mos']).font = Font(bold=True)
+            col += 2
+        ws.cell(trow, col, data['kpis']['total_forecast']).font = Font(bold=True)
+        ws.cell(trow, col + 1, data['kpis']['total_mos']).font = Font(bold=True)
+
+        ws.column_dimensions['A'].width = 30
+        for i in range(2, col + 2):
+            ws.column_dimensions[ws.cell(1, i).column_letter].width = 12
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        content = base64.b64encode(buf.getvalue()).decode()
+
+        attachment = self.env['ir.attachment'].create({
+            'name': f'forecast_{period_from}_{period_to}.xlsx',
+            'type': 'binary',
+            'datas': content,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {'url': f'/web/content/{attachment.id}?download=true'}
+
+    # ── Widget quiebres de stock ─────────────────────────────────────────────
+
+    @api.model
+    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search='', location_ids=None):
+        """Productos con sale_ok=True, su stock en la/las ubicación/es indicadas y el mínimo
+        del punto de reorden con ruta Fabricación. location_ids puede ser una lista de IDs
+        o None/[] para usar la ubicación configurada por defecto."""
         _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
-        # location_id override desde el selector; si no, usa el configurado
-        if location_id:
-            location = self.env['stock.location'].browse(location_id)
-            if not location.exists():
-                location = None
+
+        # Normalizar location_ids a lista de enteros
+        if location_ids and isinstance(location_ids, int):
+            location_ids = [location_ids]
+        elif not location_ids:
+            location_ids = []
+
+        if location_ids:
+            locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
         else:
             loc_param = self.env['ir.config_parameter'].sudo().get_param(
                 'mrp_reschedule.stock_location_id')
             loc_id = int(loc_param) if loc_param else False
-            location = self.env['stock.location'].browse(loc_id) if loc_id else None
-            if not location or not location.exists():
-                location = None
-        if not location:
+            loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
+            locations = loc if loc_id and loc.exists() else self.env['stock.location']
+
+        if not locations:
             return {'error': 'no_location', 'kpis': _empty_kpis,
-                    'products': [], 'location_name': '', 'location_id': False, 'total_filtered': 0}
+                    'products': [], 'location_name': '', 'location_ids': [],
+                    'location_id': False, 'total_filtered': 0}
+
+        location_name = ' + '.join(locations.mapped('complete_name'))
 
         # Ruta fabricación: primero por xmlid, fallback por nombre
         mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
@@ -1249,7 +1533,7 @@ class MrpPlannerDashboard(models.TransientModel):
         products = self.env['product.product'].search(product_domain)
         if not products:
             return {'error': None, 'kpis': _empty_kpis,
-                    'products': [], 'location_name': location.complete_name, 'total_filtered': 0}
+                    'products': [], 'location_name': location_name, 'total_filtered': 0}
 
         product_ids = products.ids
 
@@ -1264,10 +1548,10 @@ class MrpPlannerDashboard(models.TransientModel):
             if pid not in min_qty_map or op.product_min_qty > min_qty_map[pid]:
                 min_qty_map[pid] = op.product_min_qty
 
-        # Stock en ubicación (batch via read_group)
+        # Stock en ubicaciones seleccionadas (batch via read_group)
         quant_groups = self.env['stock.quant'].read_group(
             [('product_id', 'in', product_ids),
-             ('location_id', 'child_of', location.id)],
+             ('location_id', 'child_of', locations.ids)],
             ['product_id', 'quantity:sum'],
             ['product_id'],
         )
@@ -1328,8 +1612,9 @@ class MrpPlannerDashboard(models.TransientModel):
             'error':          None,
             'kpis':           kpis,
             'products':       rows[offset:offset + page_size],
-            'location_name':  location.complete_name,
-            'location_id':    location.id,
+            'location_name':  location_name,
+            'location_ids':   locations.ids,
+            'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
         }
 

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="mrp_forecast_import_wizard_form" model="ir.ui.view">
+        <field name="name">mrp.forecast.import.wizard.form</field>
+        <field name="model">mrp.forecast.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Importar forecast desde Excel">
+                <sheet>
+                    <div class="oe_title mb-3">
+                        <h3>Importar forecast</h3>
+                        <p class="text-muted small">
+                            El archivo debe tener 4 columnas: <strong>Artículo</strong> (referencia interna o nombre),
+                            <strong>Período</strong> (YYYY-MM), <strong>Cantidad</strong> y
+                            <strong>Depósito</strong> (opcional).<br/>
+                            Los registros existentes para los mismos artículo/período/depósito serán reemplazados.
+                        </p>
+                    </div>
+
+                    <group invisible="state == 'done'">
+                        <field name="company_id"/>
+                        <field name="file_data" filename="file_name" widget="binary" string="Archivo Excel (.xlsx)"/>
+                        <field name="file_name" invisible="1"/>
+                    </group>
+
+                    <div class="alert alert-success mt-3" invisible="state != 'done' or not result_message or 'Error' in (result_message or '')">
+                        <i class="fa fa-check-circle me-2"/>
+                        <field name="result_message" widget="text" readonly="1" nolabel="1"/>
+                    </div>
+                    <div class="alert alert-warning mt-3" invisible="state != 'done' or not result_message or 'Error' not in (result_message or '')">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        <field name="result_message" widget="text" readonly="1" nolabel="1"/>
+                    </div>
+
+                    <field name="state" invisible="1"/>
+                </sheet>
+                <footer>
+                    <button string="Descargar plantilla"
+                            name="action_download_template"
+                            type="object"
+                            class="btn btn-outline-secondary me-auto"/>
+                    <button string="Importar"
+                            name="action_import"
+                            type="object"
+                            class="btn btn-primary"
+                            invisible="state == 'done'"/>
+                    <button string="Cerrar"
+                            class="btn btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mrp_forecast_import" model="ir.actions.act_window">
+        <field name="name">Importar forecast</field>
+        <field name="res_model">mrp.forecast.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="mrp_forecast_import_wizard_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

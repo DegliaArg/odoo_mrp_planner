@@ -42,7 +42,9 @@ Panel en tiempo real
         'views/mrp_production_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',
         'views/purchase_order_views.xml',
+        'views/mrp_forecast_line_views.xml',
         'wizard/mrp_production_request_views.xml',
+        'wizard/mrp_forecast_import_wizard_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -58,6 +60,8 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/xml/mo_dashboard_widget.xml',
             'odoo_mrp_planner/static/src/js/stock_break_widget.js',
             'odoo_mrp_planner/static/src/xml/stock_break_widget.xml',
+            'odoo_mrp_planner/static/src/js/forecast_widget.js',
+            'odoo_mrp_planner/static/src/xml/forecast_widget.xml',
         ],
     },
     'installable': True,

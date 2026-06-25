@@ -15,7 +15,7 @@
 
             <t t-else="">
 
-                <!-- Ubicación activa -->
+                <!-- Ubicación(es) activa(s) -->
                 <div class="text-muted small mb-2">
                     <i class="fa fa-map-marker me-1"/>
                     <t t-esc="state.locationName || '—'"/>
@@ -84,16 +84,21 @@
                             <option value="no_min" t-att-selected="state.filterType === 'no_min'">Sin mínimo</option>
                         </select>
                     </div>
-                    <div t-if="state.locations.length" class="input-group input-group-sm" style="max-width:260px;">
-                        <span class="input-group-text"><i class="fa fa-map-marker"/></span>
-                        <select class="form-select form-select-sm" t-on-change="onLocationChange">
-                            <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
-                                <option t-att-value="loc.id"
-                                        t-att-selected="loc.id === state.locationId">
-                                    <t t-esc="loc.name"/>
-                                </option>
-                            </t>
-                        </select>
+                    <div t-if="state.locations.length" class="d-flex align-items-start gap-1">
+                        <span class="input-group-text input-group-sm"><i class="fa fa-map-marker"/></span>
+                        <div>
+                            <select class="form-select form-select-sm" multiple="multiple"
+                                    style="min-width:200px; height:72px;"
+                                    t-on-change="onLocationChange">
+                                <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
+                                    <option t-att-value="loc.id"
+                                            t-att-selected="state.locationIds.includes(loc.id)">
+                                        <t t-esc="loc.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                            <div class="text-muted" style="font-size:10px;">Ctrl+clic para seleccionar varias</div>
+                        </div>
                     </div>
                 </div>
 

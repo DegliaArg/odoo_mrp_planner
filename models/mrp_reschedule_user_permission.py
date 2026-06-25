@@ -32,6 +32,9 @@ class MrpRescheduleUserPermission(models.Model):
     can_schedule      = fields.Boolean(string='Puede programar',          default=True)
     can_reschedule    = fields.Boolean(string='Puede reprogramar',        default=True)
 
+    show_forecast      = fields.Boolean(string='Forecast',                 default=True)
+    can_edit_forecast  = fields.Boolean(string='Puede editar forecast',    default=True)
+
     # ── Filtro por depósito ──────────────────────────────────────────────────
 
     warehouse_ids = fields.Many2many(

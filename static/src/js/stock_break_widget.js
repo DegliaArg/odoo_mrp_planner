@@ -20,7 +20,7 @@ class StockBreakWidget extends Component {
             page:          1,
             pageSize:      20,
             search:        "",
-            locationId:    null,
+            locationIds:   [],
             locations:     [],
             kpis:          { total: 0, broken: 0, ok: 0, no_min: 0 },
             products:      [],
@@ -38,10 +38,6 @@ class StockBreakWidget extends Component {
             this._load(),
         ]);
         this.state.locations = locs;
-        // Si no hay override manual, usar la ubicación que devolvió el backend
-        if (!this.state.locationId && locs.length) {
-            // locationId ya fue seteado en _load() desde d.location_id
-        }
     }
 
     async _load() {
@@ -52,7 +48,7 @@ class StockBreakWidget extends Component {
                 "get_stock_break_data",
                 [this.state.filterType, this.state.sortField || null,
                  this.state.sortDir, this.state.page, this.state.pageSize,
-                 this.state.search, this.state.locationId || null],
+                 this.state.search, this.state.locationIds.length ? this.state.locationIds : null],
             );
             if (d.error === "no_location") {
                 this.state.error = "no_location";
@@ -62,9 +58,6 @@ class StockBreakWidget extends Component {
                 this.state.products      = d.products;
                 this.state.locationName  = d.location_name;
                 this.state.totalFiltered = d.total_filtered;
-                if (!this.state.locationId && d.location_id) {
-                    this.state.locationId = d.location_id;
-                }
             }
         } catch (e) {
             console.error("[StockBreakWidget]", e);
@@ -74,8 +67,8 @@ class StockBreakWidget extends Component {
     }
 
     onLocationChange(ev) {
-        const id = parseInt(ev.target.value);
-        this.state.locationId = id || null;
+        const selected = [...ev.target.selectedOptions].map(o => parseInt(o.value)).filter(Boolean);
+        this.state.locationIds = selected;
         this.state.page = 1;
         this._load();
     }

@@ -37,6 +37,24 @@ class MrpRescheduleConfig(models.Model):
         string='Permisos por usuario',
     )
 
+    # ── Forecast ─────────────────────────────────────────────────────────────
+
+    forecast_default_months = fields.Integer(
+        string='Meses por defecto en forecast', default=3)
+    forecast_warning_pct = fields.Integer(
+        string='Cobertura mínima (aviso %)', default=70,
+        help='Por debajo de este % la celda se muestra en amarillo.')
+    forecast_critical_pct = fields.Integer(
+        string='Cobertura mínima (crítico %)', default=50,
+        help='Por debajo de este % la celda se muestra en rojo.')
+
+    # Estados de OF a incluir en la comparativa forecast
+    forecast_mo_state_draft     = fields.Boolean(string='Borrador',          default=False)
+    forecast_mo_state_confirmed = fields.Boolean(string='Confirmada',        default=True)
+    forecast_mo_state_progress  = fields.Boolean(string='En progreso',       default=True)
+    forecast_mo_state_to_close  = fields.Boolean(string='Por cerrar',        default=True)
+    forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False)
+
     show_po_services_tab = fields.Boolean(
         string='Mostrar pestaña de servicios en OCs',
         default=False,

@@ -32,3 +32,31 @@
     opacity: 1;
     transition-delay: 2s;
 }
+
+/* ── Forecast widget — semáforo de celdas ─────────────────────────────────── */
+
+.o_forecast_widget .forecast-ok {
+    background-color: #c6efce !important;
+    color: #276221;
+}
+
+.o_forecast_widget .forecast-warning {
+    background-color: #ffeb9c !important;
+    color: #7d6608;
+}
+
+.o_forecast_widget .forecast-critical {
+    background-color: #ffc7ce !important;
+    color: #9c0006;
+}
+
+.o_forecast_widget .badge.forecast-ok      { background-color: #c6efce; }
+.o_forecast_widget .badge.forecast-warning { background-color: #ffeb9c; }
+.o_forecast_widget .badge.forecast-critical{ background-color: #ffc7ce; }
+
+.o_forecast_widget thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8f9fa;
+}

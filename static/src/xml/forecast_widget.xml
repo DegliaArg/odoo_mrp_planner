@@ -58,6 +58,13 @@
                         </div>
                     </div>
                 </div>
+                <div class="input-group input-group-sm" style="max-width:220px;">
+                    <span class="input-group-text"><i class="fa fa-search"/></span>
+                    <input type="text" class="form-control"
+                           placeholder="Buscar artículo…"
+                           t-model="state.productSearch"
+                           autocomplete="off"/>
+                </div>
                 <div class="ms-auto d-flex gap-2">
                     <button class="btn btn-sm btn-outline-secondary" t-on-click="openForecastList">
                         <i class="fa fa-list me-1"/> Ver líneas
@@ -145,20 +152,25 @@
                 </div>
 
                 <!-- Sin datos de forecast -->
-                <div t-if="state.data.rows.length === 0"
+                <div t-if="filteredRows.length === 0"
                      class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-inbox fa-2x mb-2 d-block"/>
-                    No hay líneas de forecast para el período seleccionado.
-                    <div class="mt-2">
-                        <button t-if="state.canEdit" class="btn btn-sm btn-primary"
-                                t-on-click="openImport">
-                            Importar Excel
-                        </button>
-                    </div>
+                    <t t-if="state.productSearch">
+                        No hay artículos que coincidan con "<t t-esc="state.productSearch"/>".
+                    </t>
+                    <t t-else="">
+                        No hay líneas de forecast para el período seleccionado.
+                        <div class="mt-2">
+                            <button t-if="state.canEdit" class="btn btn-sm btn-primary"
+                                    t-on-click="openImport">
+                                Importar Excel
+                            </button>
+                        </div>
+                    </t>
                 </div>
 
                 <!-- Tabla pivotada -->
-                <t t-if="state.data.rows.length > 0">
+                <t t-if="filteredRows.length > 0">
                     <div class="border rounded" style="overflow:auto; max-height:520px;">
                         <table class="table table-sm table-bordered small mb-0" style="min-width:600px;">
                             <thead class="table-light sticky-top">
@@ -181,7 +193,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <t t-foreach="state.data.rows" t-as="row" t-key="row.product_id">
+                                <t t-foreach="filteredRows" t-as="row" t-key="row.product_id">
                                     <tr>
                                         <td class="fw-semibold text-truncate" style="max-width:180px;"
                                             t-att-title="row.product">

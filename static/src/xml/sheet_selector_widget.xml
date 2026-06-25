@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="odoo_mrp_planner.SheetSelectorField">
+        <select class="o_input"
+                t-att-disabled="props.readonly"
+                t-on-change="onChange">
+            <t t-foreach="sheets" t-as="sheet" t-key="sheet">
+                <option t-att-value="sheet"
+                        t-att-selected="sheet === props.record.data[props.name]"
+                        t-esc="sheet"/>
+            </t>
+        </select>
+    </t>
+</templates>

@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 from datetime import date
 
 from odoo import models, fields, api, _
@@ -15,10 +16,9 @@ class MrpForecastImportWizard(models.TransientModel):
 
     file_data = fields.Binary(string='Archivo Excel', required=True, attachment=False)
     file_name = fields.Char(string='Nombre del archivo')
-    sheet_name = fields.Char(string='Hoja a importar',
-                             help='Nombre exacto de la hoja del Excel. '
-                                  'Usá el botón "Detectar hojas" para ver las disponibles.')
-    sheet_names_hint = fields.Char(string='Hojas disponibles', readonly=True)
+    sheet_name = fields.Char(string='Hoja a importar')
+    sheet_names_hint = fields.Char(string='Hojas disponibles', readonly=True,
+                                   help='JSON con la lista de hojas del Excel subido.')
     company_id = fields.Many2one(
         'res.company',
         string='Empresa',
@@ -32,6 +32,27 @@ class MrpForecastImportWizard(models.TransientModel):
         ('upload', 'Cargar archivo'),
         ('done', 'Resultado'),
     ], default='upload')
+
+    @api.onchange('file_data')
+    def _onchange_file_data(self):
+        if not self.file_data:
+            self.sheet_names_hint = False
+            self.sheet_name = False
+            return
+        try:
+            import openpyxl
+        except ImportError:
+            return
+        try:
+            raw = base64.b64decode(self.file_data)
+            wb = openpyxl.load_workbook(filename=io.BytesIO(raw), read_only=True, data_only=True)
+            sheets = wb.sheetnames
+            wb.close()
+            self.sheet_names_hint = json.dumps(sheets)
+            if not self.sheet_name or self.sheet_name not in sheets:
+                self.sheet_name = sheets[0] if sheets else False
+        except Exception:
+            self.sheet_names_hint = False
 
     def action_import(self):
         self.ensure_one()
@@ -144,28 +165,6 @@ class MrpForecastImportWizard(models.TransientModel):
             msg_parts.append(f'\n{len(errors)} advertencia(s):\n' + '\n'.join(errors))
         self.result_message = '\n'.join(msg_parts)
         self.state = 'done'
-        return self._reopen()
-
-    def action_detect_sheets(self):
-        self.ensure_one()
-        if not self.file_data:
-            raise UserError('Primero seleccioná un archivo Excel.')
-        try:
-            import openpyxl
-        except ImportError:
-            raise UserError('openpyxl no está disponible. Contacte al administrador.')
-        raw = base64.b64decode(self.file_data)
-        try:
-            wb = openpyxl.load_workbook(filename=io.BytesIO(raw), read_only=True, data_only=True)
-            sheets = wb.sheetnames
-            wb.close()
-        except Exception as e:
-            raise UserError(f'No se pudo leer el archivo: {e}')
-        self.sheet_names_hint = ', '.join(sheets)
-        if len(sheets) == 1:
-            self.sheet_name = sheets[0]
-        elif not self.sheet_name:
-            self.sheet_name = sheets[0]
         return self._reopen()
 
     def _reopen(self):

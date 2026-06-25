@@ -21,21 +21,10 @@
                         <field name="company_id"/>
                         <field name="file_data" filename="file_name" widget="binary" string="Archivo Excel (.xlsx)"/>
                         <field name="file_name" invisible="1"/>
-                    </group>
-                    <group invisible="state == 'done'" string="Hoja a importar">
-                        <field name="sheet_names_hint" readonly="1" string="Hojas disponibles"
-                               invisible="not sheet_names_hint"
-                               help="Hojas detectadas en el archivo subido."/>
-                        <field name="sheet_name" string="Hoja seleccionada"
-                               placeholder="Ej: Forecast, Hoja1, Sheet2…"
-                               help="Nombre exacto de la hoja. Si está vacío se usa la primera hoja activa."/>
-                        <div class="col-12">
-                            <button string="Detectar hojas"
-                                    name="action_detect_sheets"
-                                    type="object"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    invisible="not file_data"/>
-                        </div>
+                        <field name="sheet_names_hint" invisible="1"/>
+                        <field name="sheet_name" widget="sheet_selector"
+                               string="Hoja a importar"
+                               invisible="not sheet_names_hint"/>
                     </group>
 
                     <div class="alert alert-success mt-3" invisible="state != 'done' or not result_message or 'Error' in (result_message or '')">

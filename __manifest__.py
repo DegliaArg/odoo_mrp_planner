@@ -60,6 +60,8 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/xml/stock_break_widget.xml',
             'odoo_mrp_planner/static/src/js/forecast_widget.js',
             'odoo_mrp_planner/static/src/xml/forecast_widget.xml',
+            'odoo_mrp_planner/static/src/js/sheet_selector_widget.js',
+            'odoo_mrp_planner/static/src/xml/sheet_selector_widget.xml',
         ],
     },
     'installable': True,

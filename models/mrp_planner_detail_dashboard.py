@@ -172,17 +172,6 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             'target': 'current',
         }
 
-    def action_view_wc_load(self):
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Carga de centros de trabajo'),
-            'res_model': 'mrp.workorder',
-            'view_mode': 'list,form',
-            'domain': [('state', 'not in', ('done', 'cancel'))],
-            'context': {'group_by': ['workcenter_id']},
-            'target': 'current',
-        }
-
     # ── Navegación — OCs ──────────────────────────────────────────────────────
 
     def action_view_all_pos(self):

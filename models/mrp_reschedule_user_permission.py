@@ -29,7 +29,6 @@ class MrpRescheduleUserPermission(models.Model):
 
     show_alerts       = fields.Boolean(string='Alertas',                  default=True)
     show_mo           = fields.Boolean(string='Órdenes de fabricación',   default=True)
-    show_wc           = fields.Boolean(string='Centros de trabajo',       default=True)
     show_po           = fields.Boolean(string='Órdenes de compra',        default=True)
     show_stock_breaks = fields.Boolean(string='Quiebres de stock',        default=True)
 

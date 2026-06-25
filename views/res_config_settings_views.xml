@@ -113,7 +113,6 @@
                                     <field name="user_id"/>
                                     <field name="show_alerts"       widget="boolean_toggle" string="Alertas"/>
                                     <field name="show_mo"           widget="boolean_toggle" string="OFs"/>
-                                    <field name="show_wc"           widget="boolean_toggle" string="CTs"/>
                                     <field name="show_po"           widget="boolean_toggle" string="OCs"/>
                                     <field name="show_stock_breaks" widget="boolean_toggle" string="Quiebres"/>
                                     <field name="show_forecast"     widget="boolean_toggle" string="Forecast"/>

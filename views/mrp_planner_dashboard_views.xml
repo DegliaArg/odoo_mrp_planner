@@ -37,7 +37,6 @@
                             <!-- Campos de permisos (ocultos, solo para invisible logic) -->
                             <field name="can_see_alerts"       invisible="1"/>
                             <field name="can_see_mo"           invisible="1"/>
-                            <field name="can_see_wc"           invisible="1"/>
                             <field name="can_see_po"           invisible="1"/>
                             <field name="can_see_stock_breaks" invisible="1"/>
                             <field name="can_schedule"         invisible="1"/>
@@ -183,18 +182,6 @@
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de fabricación</span>
                             </div>
                             <widget name="mo_dashboard_widget"/>
-                        </div>
-
-                        <!-- ── CARGA DE CENTROS DE TRABAJO — gráfico ────────── -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_wc">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-bar-chart me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Carga de centros de trabajo</span>
-                                <button name="action_view_wc_load" type="object"
-                                        string="Ver órdenes →"
-                                        class="btn btn-sm btn-link text-muted ms-2"/>
-                            </div>
-                            <widget name="wc_load_chart"/>
                         </div>
 
                         <!-- ── ÓRDENES DE COMPRA — widget con pestañas ────── -->

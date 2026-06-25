@@ -90,6 +90,14 @@ class StockBreakWidget extends Component {
         }, 300);
     }
 
+    onFilterChange(ev) {
+        const f = ev.target.value;
+        if (this.state.filterType === f) return;
+        this.state.filterType = f;
+        this.state.page = 1;
+        this._load();
+    }
+
     setFilter(f) {
         if (this.state.filterType === f) return;
         this.state.filterType = f;

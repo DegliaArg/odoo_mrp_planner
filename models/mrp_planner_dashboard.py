@@ -1196,7 +1196,7 @@ class MrpPlannerDashboard(models.TransientModel):
         # Productos vendibles activos
         product_domain = [('sale_ok', '=', True), ('active', '=', True)]
         if search:
-            product_domain.append(('name', 'ilike', search))
+            product_domain += ['|', ('name', 'ilike', search), ('default_code', 'ilike', search)]
         products = self.env['product.product'].search(product_domain)
         if not products:
             return {'error': None, 'kpis': _empty_kpis,

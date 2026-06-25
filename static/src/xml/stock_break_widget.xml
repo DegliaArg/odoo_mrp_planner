@@ -65,20 +65,28 @@
                     </div>
                 </div>
 
-                <!-- Buscador + selector de depósito -->
+                <!-- Buscador + filtro + selector de depósito -->
                 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-                    <div class="input-group input-group-sm" style="max-width:260px;">
+                    <div class="input-group input-group-sm" style="max-width:240px;">
                         <span class="input-group-text"><i class="fa fa-search"/></span>
                         <input type="text"
                                class="form-control"
-                               placeholder="Buscar producto…"
+                               placeholder="Buscar producto o código…"
                                t-att-value="state.search"
                                t-on-input="onSearchInput"/>
                     </div>
-                    <div t-if="state.locations.length" class="input-group input-group-sm" style="max-width:280px;">
+                    <div class="input-group input-group-sm" style="max-width:180px;">
+                        <span class="input-group-text"><i class="fa fa-filter"/></span>
+                        <select class="form-select form-select-sm" t-on-change="onFilterChange">
+                            <option value="all"    t-att-selected="state.filterType === 'all'">Todos</option>
+                            <option value="broken" t-att-selected="state.filterType === 'broken'">Quiebres</option>
+                            <option value="ok"     t-att-selected="state.filterType === 'ok'">De acuerdo</option>
+                            <option value="no_min" t-att-selected="state.filterType === 'no_min'">Sin mínimo</option>
+                        </select>
+                    </div>
+                    <div t-if="state.locations.length" class="input-group input-group-sm" style="max-width:260px;">
                         <span class="input-group-text"><i class="fa fa-map-marker"/></span>
-                        <select class="form-select form-select-sm"
-                                t-on-change="onLocationChange">
+                        <select class="form-select form-select-sm" t-on-change="onLocationChange">
                             <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
                                 <option t-att-value="loc.id"
                                         t-att-selected="loc.id === state.locationId">
@@ -87,20 +95,6 @@
                             </t>
                         </select>
                     </div>
-                </div>
-
-                <!-- Filtros activos -->
-                <div class="btn-group btn-group-sm mb-3">
-                    <button t-att-class="'btn btn-outline-secondary' + (state.filterType === 'all'    ? ' active' : '')"
-                            t-on-click="() => this.setFilter('all')">Todos</button>
-                    <button t-att-class="'btn btn-outline-danger'    + (state.filterType === 'broken' ? ' active' : '')"
-                            t-on-click="() => this.setFilter('broken')">
-                        <i class="fa fa-exclamation-triangle me-1"/>Quiebres
-                    </button>
-                    <button t-att-class="'btn btn-outline-success'   + (state.filterType === 'ok'     ? ' active' : '')"
-                            t-on-click="() => this.setFilter('ok')">OK</button>
-                    <button t-att-class="'btn btn-outline-secondary' + (state.filterType === 'no_min' ? ' active' : '')"
-                            t-on-click="() => this.setFilter('no_min')">Sin mínimo</button>
                 </div>
 
                 <!-- Tabla -->

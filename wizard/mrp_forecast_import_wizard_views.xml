@@ -22,10 +22,13 @@
                         <field name="file_data" filename="file_name" widget="binary" string="Archivo Excel (.xlsx)"/>
                         <field name="file_name" invisible="1"/>
                         <field name="sheet_names_hint" invisible="1"/>
-                        <field name="sheet_name" widget="sheet_selector"
-                               string="Hoja a importar"
-                               invisible="not sheet_names_hint"/>
+                        <field name="sheet_name" invisible="1"/>
                     </group>
+                    <div class="d-flex align-items-center gap-2 mb-3"
+                         invisible="state == 'done' or not sheet_names_hint">
+                        <span class="fw-semibold">Hoja a importar:</span>
+                        <widget name="sheet_selector"/>
+                    </div>
 
                     <div class="alert alert-success mt-3" invisible="state != 'done' or not result_message or 'Error' in (result_message or '')">
                         <i class="fa fa-check-circle me-2"/>

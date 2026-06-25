@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import INDENT_MAP
+from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import INDENT_MAP
 
 _logger = logging.getLogger(__name__)
 

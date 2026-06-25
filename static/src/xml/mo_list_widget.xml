@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_reschedule.MoListWidget">
+    <t t-name="odoo_mrp_planner.MoListWidget">
         <div class="o_mo_list_widget p-2">
 
             <!-- Filtros -->

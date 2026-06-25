@@ -1,5 +1,5 @@
 from odoo import models, fields, api, _
-from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
+from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 
 class MrpPlannerDetailDashboard(models.TransientModel):

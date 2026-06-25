@@ -15,7 +15,7 @@ const EMPTY_KPIS = {
 };
 
 class PoDashboardWidget extends Component {
-    static template = "odoo_mrp_reschedule.PoDashboardWidget";
+    static template = "odoo_mrp_planner.PoDashboardWidget";
 
     setup() {
         this.orm    = useService("orm");

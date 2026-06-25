@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_reschedule.PoDashboardWidget">
+    <t t-name="odoo_mrp_planner.PoDashboardWidget">
         <div class="o_po_dashboard_widget" t-ref="poRoot">
 
             <!-- Filtros de fecha y estado OC -->

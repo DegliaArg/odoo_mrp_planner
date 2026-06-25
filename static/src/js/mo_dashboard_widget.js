@@ -9,7 +9,7 @@ function toDateStr(d) {
 }
 
 class MoDashboardWidget extends Component {
-    static template = "odoo_mrp_reschedule.MoDashboardWidget";
+    static template = "odoo_mrp_planner.MoDashboardWidget";
 
     setup() {
         this.orm    = useService("orm");

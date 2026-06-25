@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_reschedule.StockBreakWidget">
+    <t t-name="odoo_mrp_planner.StockBreakWidget">
         <div class="o_stock_break_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
             <!-- Sin ubicación configurada -->

@@ -1,19 +1,30 @@
 {
     'name': 'Planificador de producción',
     'version': '18.0.38.0.0',
-    'summary': 'Planificación y reprogramación inteligente de órdenes de fabricación',
+    'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
-Planificador de producción para Odoo 18 con programación desde demanda,
-reprogramación en cascada y sistema de alertas proactivo.
+Panel de control centralizado para la gestión operativa de producción en Odoo 18.
 
-Características:
-- Nueva programación desde demanda: expansión de BOM, rutas, lead times y stock.
-- Reprogramación en cascada multi-WC con algoritmo calendario-aware.
-- Sistema de alertas: OF atrasadas, OCs vencidas, recepciones demoradas.
-- Detección automática de desvíos con cron diario.
-- Triggers en OCs y recepciones para marcar MOs afectadas.
+Planificación desde demanda
+- Expansión automática de BOM con rutas, lead times y stock disponible.
+- Detección de faltantes y reabastecimiento automático (min/max).
+- Creación de OFs desde una solicitud de programación.
+
+Reprogramación en cascada
+- Recalcula fechas de OFs encadenadas respetando el calendario laboral.
+- Soporte multi-WC con prioridad configurable: cronológico, SPT o manual.
 - Planes persistentes con historial, Gantt y auditoría completa.
-- Prioridad configurable: cronológico / más cortas primero / manual.
+
+Alertas proactivas
+- Detección automática de OFs atrasadas, OFs por vencer, OCs vencidas,
+  OCs por vencer, recepciones demoradas y desvíos de cantidad.
+- Severidad configurable: avisos y críticas con umbrales independientes.
+- Resolución reactiva al cerrar OFs, OCs o recepciones.
+
+Panel en tiempo real
+- KPIs de OFs, OCs, centros de trabajo y quiebres de stock.
+- Widgets interactivos con filtros, paginación y drill-down.
+- Permisos por usuario: secciones visibles y acciones habilitadas.
     """,
     'author': 'Deglia',
     'website': 'https://www.deglia.xyz',
@@ -35,21 +46,21 @@ Características:
     ],
     'assets': {
         'web.assets_backend': [
-            'odoo_mrp_reschedule/static/src/css/reschedule_gantt.css',
-            'odoo_mrp_reschedule/static/src/css/dashboard_kpi_tooltip.css',
-            'odoo_mrp_reschedule/static/src/js/wc_load_chart.js',
-            'odoo_mrp_reschedule/static/src/xml/wc_load_chart.xml',
-            'odoo_mrp_reschedule/static/src/js/mo_list_widget.js',
-            'odoo_mrp_reschedule/static/src/xml/mo_list_widget.xml',
-            'odoo_mrp_reschedule/static/src/js/po_dashboard_widget.js',
-            'odoo_mrp_reschedule/static/src/xml/po_dashboard_widget.xml',
-            'odoo_mrp_reschedule/static/src/js/mo_dashboard_widget.js',
-            'odoo_mrp_reschedule/static/src/xml/mo_dashboard_widget.xml',
-            'odoo_mrp_reschedule/static/src/js/stock_break_widget.js',
-            'odoo_mrp_reschedule/static/src/xml/stock_break_widget.xml',
+            'odoo_mrp_planner/static/src/css/reschedule_gantt.css',
+            'odoo_mrp_planner/static/src/css/dashboard_kpi_tooltip.css',
+            'odoo_mrp_planner/static/src/js/wc_load_chart.js',
+            'odoo_mrp_planner/static/src/xml/wc_load_chart.xml',
+            'odoo_mrp_planner/static/src/js/mo_list_widget.js',
+            'odoo_mrp_planner/static/src/xml/mo_list_widget.xml',
+            'odoo_mrp_planner/static/src/js/po_dashboard_widget.js',
+            'odoo_mrp_planner/static/src/xml/po_dashboard_widget.xml',
+            'odoo_mrp_planner/static/src/js/mo_dashboard_widget.js',
+            'odoo_mrp_planner/static/src/xml/mo_dashboard_widget.xml',
+            'odoo_mrp_planner/static/src/js/stock_break_widget.js',
+            'odoo_mrp_planner/static/src/xml/stock_break_widget.xml',
         ],
     },
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': False,
 }

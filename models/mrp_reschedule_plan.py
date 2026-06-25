@@ -265,7 +265,7 @@ class MrpReschedulePlan(models.Model):
         if not self.line_ids:
             raise UserError(_('Primero calcule los cambios propuestos.'))
         gantt_view = self.env.ref(
-            'odoo_mrp_reschedule.mrp_reschedule_plan_line_gantt_current',
+            'odoo_mrp_planner.mrp_reschedule_plan_line_gantt_current',
             raise_if_not_found=False,
         )
         return {

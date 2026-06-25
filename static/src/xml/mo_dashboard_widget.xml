@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_reschedule.MoDashboardWidget">
+    <t t-name="odoo_mrp_planner.MoDashboardWidget">
         <div class="o_mo_dashboard_widget" t-ref="moRoot">
 
             <!-- Pestañas principales -->

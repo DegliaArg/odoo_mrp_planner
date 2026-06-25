@@ -5,7 +5,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 class StockBreakWidget extends Component {
-    static template = "odoo_mrp_reschedule.StockBreakWidget";
+    static template = "odoo_mrp_planner.StockBreakWidget";
 
     setup() {
         this.orm    = useService("orm");

@@ -82,7 +82,7 @@ class MrpRescheduleConfig(models.Model):
         if 'priority' in vals:
             sp.set_param('mrp_reschedule.priority', vals['priority'])
         if 'cron_interval_number' in vals or 'cron_interval_type' in vals:
-            cron = self.env.ref('odoo_mrp_reschedule.ir_cron_check_delays', raise_if_not_found=False)
+            cron = self.env.ref('odoo_mrp_planner.ir_cron_check_delays', raise_if_not_found=False)
             if cron:
                 cron_vals = {}
                 if 'cron_interval_number' in vals:
@@ -99,7 +99,7 @@ class MrpRescheduleConfig(models.Model):
         for rec in records:
             sp.set_param('mrp_reschedule.wc_fallback', rec.wc_fallback)
             sp.set_param('mrp_reschedule.priority', rec.priority)
-            cron = self.env.ref('odoo_mrp_reschedule.ir_cron_check_delays', raise_if_not_found=False)
+            cron = self.env.ref('odoo_mrp_planner.ir_cron_check_delays', raise_if_not_found=False)
             if cron:
                 cron.sudo().write({
                     'interval_number': rec.cron_interval_number,
@@ -115,7 +115,7 @@ class MrpRescheduleConfig(models.Model):
             'name': 'Configuración del planificador',
             'res_model': self._name,
             'view_mode': 'form',
-            'view_id': self.env.ref('odoo_mrp_reschedule.mrp_reschedule_config_form_view').id,
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_reschedule_config_form_view').id,
             'res_id': config.id if config else False,
             'target': 'current',
             'flags': {'no_pager': True},

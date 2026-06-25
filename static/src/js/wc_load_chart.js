@@ -10,7 +10,7 @@ function toDateStr(d) {
 }
 
 class WcLoadChartWidget extends Component {
-    static template = "odoo_mrp_reschedule.WcLoadChartWidget";
+    static template = "odoo_mrp_planner.WcLoadChartWidget";
 
     setup() {
         this.orm = useService("orm");

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 from odoo import models, fields, api, _
-from odoo.addons.odoo_mrp_reschedule.models.mrp_schedule_mixin import no_subcontract_domain
+from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
 
@@ -152,7 +152,7 @@ class MrpRescheduleAlert(models.Model):
     def action_run_cron_manual(self):
         """Botón manual: ejecuta el chequeo de alertas ahora."""
         self._cron_check_delays()
-        return self.env.ref('odoo_mrp_reschedule.action_mrp_reschedule_alert').read()[0]
+        return self.env.ref('odoo_mrp_planner.action_mrp_reschedule_alert').read()[0]
 
     # ── Helpers — impacto ────────────────────────────────────────────────────
 

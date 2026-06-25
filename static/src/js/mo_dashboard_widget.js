@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -47,6 +47,7 @@ class MoDashboardWidget extends Component {
             await this._loadData();
             requestAnimationFrame(() => this._syncH());
         });
+        onPatched(() => requestAnimationFrame(() => this._syncH()));
     }
 
     async _loadTags() {

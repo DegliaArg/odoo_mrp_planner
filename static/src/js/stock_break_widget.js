@@ -158,9 +158,7 @@ class StockBreakWidget extends Component {
     }
 
     async openConfig() {
-        // Usa action_open del modelo para obtener el res_id del singleton correcto
-        const action = await this.orm.call("mrp.reschedule.config", "action_open", []);
-        await this.action.doAction(action);
+        await this.action.doAction('odoo_mrp_planner.action_mrp_reschedule_config');
     }
 }
 

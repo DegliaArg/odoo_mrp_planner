@@ -38,11 +38,12 @@ class ForecastWidget extends Component {
             warehouseIds:    [],
             warehouses:      [],
             whDropdownOpen:  false,
+            whSearch:        "",
             data:            null,
             canEdit:         true,
         });
 
-        this._closeWhDropdown = () => { this.state.whDropdownOpen = false; };
+        this._closeWhDropdown = () => { this.state.whDropdownOpen = false; this.state.whSearch = ""; };
 
         onMounted(() => {
             this._init();
@@ -100,6 +101,13 @@ class ForecastWidget extends Component {
     toggleWhDropdown(ev) {
         ev.stopPropagation();
         this.state.whDropdownOpen = !this.state.whDropdownOpen;
+        if (this.state.whDropdownOpen) this.state.whSearch = "";
+    }
+
+    get filteredWarehouses() {
+        const q = this.state.whSearch.toLowerCase();
+        if (!q) return this.state.warehouses;
+        return this.state.warehouses.filter(w => w.name.toLowerCase().includes(q));
     }
 
     toggleWarehouse(ev) {

@@ -96,6 +96,10 @@
                             <div t-if="state.locDropdownOpen"
                                  class="dropdown-menu show shadow p-2"
                                  style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                                <input type="text" class="form-control form-control-sm mb-2"
+                                       placeholder="Buscar ubicación…"
+                                       t-model="state.locSearch"
+                                       autocomplete="off"/>
                                 <div class="form-check mb-1">
                                     <input type="checkbox" class="form-check-input" id="loc_filter_all"
                                            t-att-checked="!state.locationIds.length"
@@ -103,7 +107,7 @@
                                     <label class="form-check-label fw-semibold small" for="loc_filter_all">Todas</label>
                                 </div>
                                 <div class="dropdown-divider my-1"/>
-                                <t t-foreach="state.locations" t-as="loc" t-key="loc.id">
+                                <t t-foreach="filteredLocations" t-as="loc" t-key="loc.id">
                                     <div class="form-check mb-1">
                                         <input type="checkbox" class="form-check-input"
                                                t-att-id="'loc_filter_' + loc.id"

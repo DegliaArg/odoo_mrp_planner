@@ -39,13 +39,14 @@ class StockBreakWidget extends Component {
             locationIds:      [],
             locations:        [],
             locDropdownOpen:  false,
+            locSearch:        "",
             kpis:             { total: 0, broken: 0, ok: 0, no_min: 0 },
             products:         [],
             locationName:     "",
             totalFiltered:    0,
         });
         this._searchTimer = null;
-        this._closeLocDropdown = () => { this.state.locDropdownOpen = false; };
+        this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
 
         onMounted(() => {
             this._init();
@@ -96,6 +97,13 @@ class StockBreakWidget extends Component {
     toggleLocDropdown(ev) {
         ev.stopPropagation();
         this.state.locDropdownOpen = !this.state.locDropdownOpen;
+        if (this.state.locDropdownOpen) this.state.locSearch = "";
+    }
+
+    get filteredLocations() {
+        const q = this.state.locSearch.toLowerCase();
+        if (!q) return this.state.locations;
+        return this.state.locations.filter(l => l.name.toLowerCase().includes(q));
     }
 
     toggleLocation(ev) {

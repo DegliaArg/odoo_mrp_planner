@@ -35,9 +35,9 @@ Panel en tiempo real
     'data': [
         'security/ir.model.access.csv',
         'views/product_template_views.xml',
+        'views/mrp_planner_dashboard_views.xml',
         'views/mrp_reschedule_alert_views.xml',
         'views/res_config_settings_views.xml',
-        'views/mrp_planner_dashboard_views.xml',
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',

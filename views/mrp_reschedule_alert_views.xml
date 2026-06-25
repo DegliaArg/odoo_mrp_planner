@@ -187,11 +187,6 @@
         </field>
     </record>
 
-    <!-- ── Menú raíz independiente en la barra de navegación superior ── -->
-    <menuitem id="mrp_planner_menu_root"
-              name="Planificador"
-              sequence="65"/>
-
     <menuitem id="mrp_planner_menu_alerts"
               name="Alertas"
               parent="mrp_produccion_menu"

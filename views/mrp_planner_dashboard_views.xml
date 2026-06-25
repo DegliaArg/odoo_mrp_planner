@@ -209,6 +209,11 @@
         </field>
     </record>
 
+    <!-- Menú raíz Planificador -->
+    <menuitem id="mrp_planner_menu_root"
+              name="Planificador"
+              sequence="65"/>
+
     <!-- Sub-menú Producción -->
     <menuitem id="mrp_produccion_menu"
               name="Producción"

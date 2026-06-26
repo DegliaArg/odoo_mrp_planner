@@ -1271,8 +1271,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ('period', '<=', _date(d_to.year, d_to.month, 1)),
             ('company_id', '=', self.env.company.id),
         ]
-        if warehouse_ids:
-            fc_domain.append(('warehouse_id', 'in', warehouse_ids))
 
         fc_lines = self.env['mrp.forecast.line'].search(fc_domain)
 
@@ -1394,6 +1392,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 tmpl_info[t.id] = {
                     'sale_category': t.x_sale_category or '',
                     'product_categ': t.categ_id.display_name if t.categ_id else '',
+                    'product_types': ', '.join(t.x_product_type_ids.mapped('name')),
                 }
         else:
             tmpl_info = {}
@@ -1494,6 +1493,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_forecast_acc': tot_acc,
                 'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
                 'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
+                'product_types':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_types', ''),
                 '_mape_acc_sum':      _mape_acc_sum,
                 '_mape_acc_count':    _mape_acc_count,
                 '_wape_abs_err':      _wape_abs_err,
@@ -1847,6 +1847,22 @@ class MrpPlannerDashboard(models.TransientModel):
             mo_count_map = {}
         for r in page_rows:
             r['mo_count'] = mo_count_map.get(r['id'], 0)
+
+        # Tipos de producto para esta página (batch)
+        if page_pids:
+            page_pids_set = set(page_pids)
+            page_prods = products.filtered(lambda p: p.id in page_pids_set)
+            tmpl_type_map = {
+                t.id: ', '.join(t.x_product_type_ids.mapped('name'))
+                for t in page_prods.mapped('product_tmpl_id')
+            }
+            prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in page_prods}
+        else:
+            tmpl_type_map = {}
+            prod_to_tmpl = {}
+        for r in page_rows:
+            tmpl_id = prod_to_tmpl.get(r['id'])
+            r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
         return {
             'error':          None,

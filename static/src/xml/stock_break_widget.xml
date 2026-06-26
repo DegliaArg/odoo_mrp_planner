@@ -140,16 +140,20 @@
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
                                 <col style="width:32px"/>
-                                <col style="width:44%"/>
-                                <col style="width:17%"/>
-                                <col style="width:17%"/>
-                                <col style="width:17%"/>
+                                <col style="width:32%"/>
+                                <col style="width:19%"/>
+                                <col style="width:14%"/>
+                                <col style="width:14%"/>
+                                <col style="width:14%"/>
                             </colgroup>
                             <thead class="table-light">
                                 <tr class="text-muted">
                                     <th title="Expandir para ver OFs activas"/>
                                     <th style="cursor:pointer" title="Nombre o código del producto. Clic en la fila para abrir la ficha. Clic en el encabezado para ordenar." t-on-click="() => this.sortBy('name')">
                                         Producto <i t-att-class="sortIcon('name')"/>
+                                    </th>
+                                    <th title="Tipos de producto asignados en la ficha del artículo (x_product_type_ids).">
+                                        Tipo
                                     </th>
                                     <th class="text-end" style="cursor:pointer" title="Cantidad disponible en la/s ubicación/es seleccionadas (stock.quant.quantity). Clic para ordenar." t-on-click="() => this.sortBy('qty')">
                                         Stock actual <i t-att-class="sortIcon('qty')"/>
@@ -178,6 +182,11 @@
                                             </button>
                                         </td>
                                         <td class="fw-semibold text-truncate" t-esc="prod.name"/>
+                                        <td class="text-truncate text-muted small"
+                                            style="max-width:0;"
+                                            t-att-title="prod.product_types || ''">
+                                            <t t-esc="prod.product_types || '—'"/>
+                                        </td>
                                         <td class="text-end" t-esc="fmt(prod.qty)"/>
                                         <td class="text-end">
                                             <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
@@ -203,7 +212,7 @@
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
                                     <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
-                                        <td colspan="5" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        <td colspan="6" class="p-0" style="background:#f8f9fa; border-top:none;">
                                             <div class="px-3 py-2">
 
                                                 <div t-if="state.mosLoading[prod.id]"

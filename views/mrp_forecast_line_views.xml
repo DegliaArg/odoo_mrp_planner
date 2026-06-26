@@ -12,7 +12,6 @@
                 <field name="product_id" domain="[('sale_ok', '=', True)]"/>
                 <field name="forecast_qty" string="Cantidad forecast"/>
                 <field name="uom_id" string="Unidad" readonly="1"/>
-                <field name="warehouse_id" optional="show"/>
                 <field name="company_id" optional="hide"/>
             </list>
         </field>
@@ -34,7 +33,6 @@
                         <group>
                             <field name="period"/>
                             <field name="period_display" readonly="1"/>
-                            <field name="warehouse_id"/>
                             <field name="company_id"/>
                         </group>
                     </group>
@@ -51,7 +49,6 @@
             <search string="Forecast">
                 <field name="product_id"/>
                 <field name="period"/>
-                <field name="warehouse_id"/>
                 <separator/>
                 <filter string="Este mes" name="this_month"
                         domain="[('period', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
@@ -62,7 +59,6 @@
                 <group expand="0" string="Agrupar por">
                     <filter string="Artículo"   name="by_product"   context="{'group_by': 'product_id'}"/>
                     <filter string="Período"    name="by_period"    context="{'group_by': 'period:month'}"/>
-                    <filter string="Depósito"   name="by_warehouse" context="{'group_by': 'warehouse_id'}"/>
                     <filter string="Empresa"    name="by_company"   context="{'group_by': 'company_id'}"/>
                 </group>
             </search>

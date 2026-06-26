@@ -32,10 +32,6 @@ class MrpForecastLine(models.Model):
         compute='_compute_period_display',
         store=False,
     )
-    warehouse_id = fields.Many2one(
-        'stock.warehouse',
-        string='Depósito',
-    )
     company_id = fields.Many2one(
         'res.company',
         string='Empresa',

@@ -240,6 +240,12 @@
                             <label class="form-check-label small" for="col_prod_cat">Familia de producto</label>
                         </div>
                         <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_prod_types"
+                                   t-att-checked="state.visibleCols.productTypes"
+                                   t-on-change="() => this.toggleCol('productTypes')"/>
+                            <label class="form-check-label small" for="col_prod_types">Tipo de producto</label>
+                        </div>
+                        <div class="form-check mb-1">
                             <input type="checkbox" class="form-check-input" id="col_stock"
                                    t-att-checked="state.visibleCols.stock"
                                    t-on-change="() => this.toggleCol('stock')"/>
@@ -372,6 +378,14 @@
                                         Familia <i t-att-class="sortIcon('product_categ')"/>
                                     </th>
 
+                                    <th t-if="state.visibleCols.productTypes" rowspan="2"
+                                        class="text-start align-middle"
+                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        title="Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar."
+                                        t-on-click="() => this.setSort('product_types')">
+                                        Tipo <i t-att-class="sortIcon('product_types')"/>
+                                    </th>
+
                                     <th t-if="state.visibleCols.stock" rowspan="2"
                                         class="text-end align-middle"
                                         style="min-width:70px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
@@ -502,6 +516,15 @@
                                                 t-att-title="row.product_categ || ''">
                                                 <span class="text-truncate d-inline-block" style="max-width:115px;">
                                                     <t t-esc="row.product_categ || '—'"/>
+                                                </span>
+                                            </td>
+
+                                            <!-- Tipo de producto -->
+                                            <td t-if="state.visibleCols.productTypes"
+                                                class="text-start text-muted" style="padding:3px 6px; max-width:120px;"
+                                                t-att-title="row.product_types || ''">
+                                                <span class="text-truncate d-inline-block" style="max-width:115px;">
+                                                    <t t-esc="row.product_types || '—'"/>
                                                 </span>
                                             </td>
 
@@ -683,6 +706,7 @@
                                     <td style="padding:3px 8px;">Total</td>
                                     <td t-if="state.visibleCols.saleCategory" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.productCateg" style="padding:3px 6px;"/>
+                                    <td t-if="state.visibleCols.productTypes" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.stock" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.rotation" style="padding:3px 6px;"/>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">

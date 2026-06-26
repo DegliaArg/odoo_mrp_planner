@@ -12,6 +12,11 @@
                         <field name="x_sale_category"
                                string="Categoría"
                                help="Clasificación A–E de rotación (A = alta rotación, E = baja). Se puede asignar automáticamente desde Configuración del planificador."/>
+                        <field name="x_product_type_ids"
+                               string="Tipo de producto"
+                               widget="many2many_tags"
+                               options="{'color_field': 'color', 'no_quick_create': false}"
+                               help="Etiquetas de clasificación libre (ej. Materia prima, Producto terminado). Se pueden crear valores directamente desde aquí."/>
                     </group>
                     <group string="Centros de trabajo">
                         <field name="x_centros_compatibles" nolabel="1">

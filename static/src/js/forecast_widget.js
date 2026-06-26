@@ -59,6 +59,7 @@ class ForecastWidget extends Component {
                 total:         true,
                 saleCategory:  false,
                 productCateg:  false,
+                productTypes:  false,
             },
             sortCol:          'product',
             sortDir:          'asc',
@@ -242,6 +243,7 @@ class ForecastWidget extends Component {
         let cols = 1;
         if (this.state.visibleCols.saleCategory)  cols++;
         if (this.state.visibleCols.productCateg)  cols++;
+        if (this.state.visibleCols.productTypes)  cols++;
         if (this.state.visibleCols.stock)         cols++;
         if (this.state.visibleCols.rotation)      cols++;
         cols += n * this.monthColspan;

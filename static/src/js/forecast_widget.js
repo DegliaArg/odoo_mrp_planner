@@ -46,15 +46,17 @@ class ForecastWidget extends Component {
             productSearch:    "",
             colsDropdownOpen: false,
             visibleCols: {
-                forecast:     true,
-                mos:          true,
-                delivered:    true,
-                stock:        true,
-                rotation:     true,
-                total:        true,
+                forecast:  true,
+                mos:       true,
+                delivered: true,
+                stock:     true,
+                rotation:  true,
+                total:     true,
             },
-            data:             null,
-            canEdit:          true,
+            page:     1,
+            pageSize: 20,
+            data:     null,
+            canEdit:  true,
         });
 
         this._closeAll = () => {
@@ -86,6 +88,7 @@ class ForecastWidget extends Component {
 
     async _load() {
         this.state.loading = true;
+        this.state.page    = 1;
         try {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
@@ -100,7 +103,6 @@ class ForecastWidget extends Component {
         }
     }
 
-    // type="date" needs YYYY-MM-DD; state stores YYYY-MM
     get periodFromDate() { return `${this.state.periodFrom}-01`; }
     get periodToDate() {
         const last = ymLastDay(this.state.periodTo);
@@ -125,6 +127,11 @@ class ForecastWidget extends Component {
         this._load();
     }
 
+    onProductSearchInput(ev) {
+        this.state.productSearch = ev.target.value;
+        this.state.page = 1;
+    }
+
     toggleWhDropdown(ev) {
         ev.stopPropagation();
         const opening = !this.state.whDropdownOpen;
@@ -144,7 +151,8 @@ class ForecastWidget extends Component {
         this.state.visibleCols[colKey] = !this.state.visibleCols[colKey];
     }
 
-    // Number of columns that repeat per month
+    // ── Columnas ─────────────────────────────────────────────────────────────
+
     get monthColspan() {
         let n = 0;
         if (this.state.visibleCols.forecast)  n++;
@@ -153,7 +161,6 @@ class ForecastWidget extends Component {
         return n || 1;
     }
 
-    // Total section: same as month + optional forecast-accuracy column
     get showForecastAcc() {
         return this.state.visibleCols.total &&
                this.state.visibleCols.forecast &&
@@ -167,16 +174,32 @@ class ForecastWidget extends Component {
     get showTotal() {
         return this.state.visibleCols.total &&
                (this.state.visibleCols.forecast ||
-                this.state.visibleCols.mos ||
+                this.state.visibleCols.mos      ||
                 this.state.visibleCols.delivered);
     }
 
-    get filteredRows() {
+    // ── Filtrado + paginación ─────────────────────────────────────────────────
+
+    get filteredRowsAll() {
         if (!this.state.data || !this.state.data.rows) return [];
         const q = this.state.productSearch.toLowerCase();
         if (!q) return this.state.data.rows;
         return this.state.data.rows.filter(r => r.product.toLowerCase().includes(q));
     }
+
+    get filteredRows() {
+        const all   = this.filteredRowsAll;
+        const start = (this.state.page - 1) * this.state.pageSize;
+        return all.slice(start, start + this.state.pageSize);
+    }
+
+    get totalPages()  { return Math.max(1, Math.ceil(this.filteredRowsAll.length / this.state.pageSize)); }
+    get hasNextPage() { return this.state.page < this.totalPages; }
+    get hasPrevPage() { return this.state.page > 1; }
+    nextPage() { if (this.hasNextPage) this.state.page++; }
+    prevPage() { if (this.hasPrevPage) this.state.page--; }
+
+    // ── Depósito ──────────────────────────────────────────────────────────────
 
     get filteredWarehouses() {
         const q = this.state.whSearch.toLowerCase();
@@ -205,6 +228,8 @@ class ForecastWidget extends Component {
         }
         return `${ids.length} depósitos`;
     }
+
+    // ── Formateo / clases ─────────────────────────────────────────────────────
 
     get monthLabels() {
         if (!this.state.data) return [];
@@ -252,6 +277,36 @@ class ForecastWidget extends Component {
         return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
     }
 
+    // Tooltip dinámico para la celda de OFs
+    moTooltip(cell) {
+        if (!cell || cell.forecast === 0) return '';
+        return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(cell.pct)}`;
+    }
+
+    // Tooltip dinámico para la celda de Entregado
+    svcTooltip(cell) {
+        if (cell.service_rate === null || cell.service_rate === undefined)
+            return 'Sin pedidos de venta confirmados en el período';
+        return `Tasa de servicio = ${this.fmt(cell.delivered)} entregado ÷ ${this.fmt(cell.so_demand)} pedidos × 100 = ${this.fmtPct(cell.service_rate)}`;
+    }
+
+    // Tooltip dinámico para la celda de rotación
+    rotTooltip(row) {
+        const n = this.state.data ? this.state.data.months.length : 1;
+        if (!row.total_delivered) return 'Sin entregas en el período — rotación no calculable';
+        const unit  = this.state.data && this.state.data.rotation_unit;
+        const label = unit === 'months' ? 'meses' : 'días';
+        const val   = this.fmtRotation(row);
+        return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val} ${label}`;
+    }
+
+    // Tooltip para precisión forecast por artículo
+    accTooltip(row) {
+        if (row.total_forecast_acc === null || row.total_forecast_acc === undefined)
+            return 'Sin datos suficientes para calcular precisión';
+        return `Precisión forecast = ${this.fmt(row.total_delivered)} entregado ÷ ${this.fmt(row.total_forecast)} forecast × 100 = ${this.fmtPct(row.total_forecast_acc)}`;
+    }
+
     fmt(n) {
         if (n === null || n === undefined) return '—';
         return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n);
@@ -261,6 +316,8 @@ class ForecastWidget extends Component {
         if (n === null || n === undefined) return '—';
         return `${Math.round(n)}%`;
     }
+
+    // ── Acciones ──────────────────────────────────────────────────────────────
 
     async openImport() {
         await this.action.doAction('odoo_mrp_planner.action_mrp_forecast_line');

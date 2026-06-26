@@ -4,7 +4,7 @@
     <t t-name="odoo_mrp_planner.ForecastWidget">
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
-            <!-- KPI cards (first) -->
+            <!-- KPI cards -->
             <div t-if="!state.data" class="text-center text-muted py-3">
                 <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
                 Cargando…
@@ -12,7 +12,6 @@
 
             <t t-if="state.data">
                 <div class="row g-2 mb-3">
-                    <!-- Forecast -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3">
@@ -22,7 +21,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- OFs -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3">
@@ -32,7 +30,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Entregado -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3">
@@ -42,7 +39,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Brecha -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div t-att-class="'card o_planner_card h-100' + (state.data.kpis.gap >= 0 ? '' : ' o_planner_card_danger')">
                             <div class="card-body text-center py-3">
@@ -54,10 +50,10 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Tasa de servicio -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div t-att-class="'card o_planner_card h-100' + (state.data.kpis.overall_service_rate === null ? '' : state.data.kpis.overall_service_rate >= 95 ? ' o_planner_card_success' : state.data.kpis.overall_service_rate >= 80 ? '' : ' o_planner_card_danger')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-3"
+                                 title="Tasa de servicio = Total entregado ÷ Total pedidos de venta confirmados × 100">
                                 <i class="fa fa-handshake-o fa-lg mb-2 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.overall_service_rate)">
                                     <t t-esc="fmtPct(state.data.kpis.overall_service_rate)"/>
@@ -66,10 +62,10 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Precisión forecast -->
                     <div class="col-6 col-md-4 col-xl-2">
                         <div t-att-class="'card o_planner_card h-100' + (state.data.kpis.overall_forecast_acc === null ? '' : state.data.kpis.overall_forecast_acc >= 90 ? ' o_planner_card_success' : state.data.kpis.overall_forecast_acc >= 70 ? '' : ' o_planner_card_danger')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-3"
+                                 title="Precisión forecast = Total entregado ÷ Total forecast × 100. Mide qué tan acertada fue la planificación respecto a lo realmente despachado.">
                                 <i class="fa fa-bullseye fa-lg mb-2 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + accClass(state.data.kpis.overall_forecast_acc)">
                                     <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
@@ -144,7 +140,8 @@
                     <span class="input-group-text"><i class="fa fa-search"/></span>
                     <input type="text" class="form-control"
                            placeholder="Buscar artículo…"
-                           t-model="state.productSearch"
+                           t-att-value="state.productSearch"
+                           t-on-input="onProductSearchInput"
                            autocomplete="off"/>
                 </div>
 
@@ -220,7 +217,7 @@
             <!-- Tabla -->
             <t t-if="state.data">
 
-                <div t-if="filteredRows.length === 0"
+                <div t-if="filteredRowsAll.length === 0"
                      class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-inbox fa-2x mb-2 d-block"/>
                     <t t-if="state.productSearch">
@@ -236,26 +233,31 @@
                     </t>
                 </div>
 
-                <t t-if="filteredRows.length > 0">
+                <t t-if="filteredRowsAll.length > 0">
                     <div class="border rounded" style="overflow:auto; max-height:min(72vh, 800px);">
                         <table class="table table-sm table-bordered mb-0"
                                style="min-width:600px; font-size:12px;">
                             <thead style="position:sticky; top:0; z-index:5;">
 
-                                <!-- Fila 1: cabeceras de artículo / meses / total -->
+                                <!-- Fila 1: artículo / stock / rot / meses / total -->
                                 <tr>
                                     <th rowspan="2" class="align-middle"
                                         style="min-width:170px; padding:4px 8px; background:#f8f9fa;">Artículo</th>
 
-                                    <!-- Stock (columna fija por artículo) -->
-                                    <th t-if="state.visibleCols.stock" rowspan="2" class="text-end align-middle"
-                                        style="min-width:70px; padding:4px 6px; background:#f8f9fa;">Stock</th>
+                                    <th t-if="state.visibleCols.stock" rowspan="2"
+                                        class="text-end align-middle"
+                                        style="min-width:70px; padding:4px 6px; background:#f8f9fa; cursor:help;"
+                                        title="Stock disponible en ubicaciones internas al momento de la consulta (snapshot de stock.quant).">
+                                        Stock
+                                    </th>
 
-                                    <!-- Rotación (columna fija por artículo) -->
-                                    <th t-if="state.visibleCols.rotation" rowspan="2" class="text-end align-middle"
-                                        style="min-width:65px; padding:4px 6px; background:#f8f9fa;">Rotación</th>
+                                    <th t-if="state.visibleCols.rotation" rowspan="2"
+                                        class="text-end align-middle"
+                                        style="min-width:65px; padding:4px 6px; background:#f8f9fa; cursor:help;"
+                                        title="Rotación = Stock actual ÷ (Total entregado ÷ N meses del período). En días se multiplica ×30. Indica cuántos días/meses de stock te quedan al ritmo de despacho actual.">
+                                        Rotación
+                                    </th>
 
-                                    <!-- Cabeceras de mes -->
                                     <t t-foreach="state.data.months" t-as="m" t-key="m">
                                         <th t-att-colspan="monthColspan"
                                             class="text-center text-nowrap"
@@ -264,39 +266,59 @@
                                         </th>
                                     </t>
 
-                                    <!-- Cabecera totales -->
                                     <th t-if="showTotal"
                                         t-att-colspan="totalColspan"
                                         class="text-center fw-bold"
                                         style="padding:4px 8px; background:#f8f9fa;">Total</th>
                                 </tr>
 
-                                <!-- Fila 2: sub-cabeceras por mes y total -->
+                                <!-- Fila 2: sub-cabeceras con tooltips de fórmula -->
                                 <tr>
                                     <t t-foreach="state.data.months" t-as="m" t-key="'h_' + m">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted"
-                                            style="min-width:65px; padding:3px 5px; background:#f8f9fa;">Forecast</th>
+                                            style="min-width:65px; padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Forecast: cantidad planificada cargada en las líneas de forecast para este mes.">
+                                            Forecast
+                                        </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted"
-                                            style="min-width:75px; padding:3px 5px; background:#f8f9fa;">OFs</th>
+                                            style="min-width:75px; padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="OFs planificadas con fecha de finalización en el mes (estados configurados en Configuración → Panel). El % es cobertura = OFs ÷ Forecast × 100.">
+                                            OFs
+                                        </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted"
-                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa;">Entregado</th>
+                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Unidades entregadas a clientes (movimientos de salida confirmados en el período). El % es tasa de servicio = Entregado ÷ Pedidos de venta confirmados del mes × 100.">
+                                            Entregado
+                                        </th>
                                     </t>
                                     <t t-if="showTotal">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa;">Forecast</th>
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Total forecast del período seleccionado.">
+                                            Forecast
+                                        </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa;">OFs</th>
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Total OFs del período. El % es cobertura total = Total OFs ÷ Total forecast × 100.">
+                                            OFs
+                                        </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa;">Entregado</th>
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Total entregado del período. El % es tasa de servicio total = Total entregado ÷ Total pedidos confirmados × 100.">
+                                            Entregado
+                                        </th>
                                         <th t-if="showForecastAcc"
                                             class="text-end text-muted fw-bold"
-                                            style="min-width:60px; padding:3px 5px; background:#f8f9fa;">Prec.%</th>
+                                            style="min-width:60px; padding:3px 5px; background:#f8f9fa; cursor:help;"
+                                            title="Precisión forecast = Total entregado ÷ Total forecast × 100. Mide el desvío entre lo planificado y lo realmente despachado en el período.">
+                                            Prec.%
+                                        </th>
                                     </t>
                                 </tr>
                             </thead>
@@ -304,45 +326,46 @@
                             <tbody>
                                 <t t-foreach="filteredRows" t-as="row" t-key="row.product_id">
                                     <tr>
-                                        <!-- Artículo -->
                                         <td class="fw-semibold text-truncate"
                                             style="max-width:170px; padding:3px 8px;"
                                             t-att-title="row.product">
                                             <t t-esc="row.product"/>
                                         </td>
 
-                                        <!-- Stock actual -->
+                                        <!-- Stock -->
                                         <td t-if="state.visibleCols.stock"
-                                            class="text-end" style="padding:3px 6px;">
+                                            class="text-end" style="padding:3px 6px;"
+                                            title="Stock disponible en ubicaciones internas (snapshot actual).">
                                             <t t-esc="fmt(row.stock_qty)"/>
                                         </td>
 
                                         <!-- Rotación -->
                                         <td t-if="state.visibleCols.rotation"
                                             t-att-class="'text-end ' + rotClass(row)"
-                                            style="padding:3px 6px;">
+                                            style="padding:3px 6px;"
+                                            t-att-title="rotTooltip(row)">
                                             <t t-esc="fmtRotation(row)"/>
                                         </td>
 
                                         <!-- Celdas por mes -->
                                         <t t-foreach="row.cells" t-as="cell" t-key="cell.month">
 
-                                            <!-- Forecast -->
                                             <td t-if="state.visibleCols.forecast"
                                                 class="text-end"
                                                 style="padding:3px 5px;"
-                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''">
+                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                title="Cantidad planificada en el forecast para este mes.">
                                                 <t t-if="cell.forecast > 0">
                                                     <t t-esc="fmt(cell.forecast)"/>
                                                 </t>
                                                 <span t-else="" class="text-muted">—</span>
                                             </td>
 
-                                            <!-- OFs + cobertura% -->
                                             <td t-if="state.visibleCols.mos"
                                                 class="text-end"
                                                 style="padding:3px 5px;"
-                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''">
+                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                t-att-title="moTooltip(cell)">
                                                 <t t-if="cell.forecast > 0">
                                                     <t t-esc="fmt(cell.mos)"/>
                                                     <span t-att-class="'ms-1 ' + (cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
@@ -353,10 +376,10 @@
                                                 <span t-else="" class="text-muted">—</span>
                                             </td>
 
-                                            <!-- Entregado + servicio% -->
                                             <td t-if="state.visibleCols.delivered"
                                                 class="text-end"
-                                                style="padding:3px 5px;">
+                                                style="padding:3px 5px;"
+                                                t-att-title="svcTooltip(cell)">
                                                 <t t-if="cell.delivered > 0 or cell.so_demand > 0">
                                                     <t t-esc="fmt(cell.delivered)"/>
                                                     <span t-if="cell.service_rate !== null"
@@ -374,12 +397,14 @@
                                         <t t-if="showTotal">
                                             <td t-if="state.visibleCols.forecast"
                                                 class="text-end fw-semibold"
-                                                style="padding:3px 5px;">
+                                                style="padding:3px 5px;"
+                                                title="Total forecast del período para este artículo.">
                                                 <t t-esc="fmt(row.total_forecast)"/>
                                             </td>
                                             <td t-if="state.visibleCols.mos"
                                                 t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})"
-                                                style="padding:3px 5px;">
+                                                style="padding:3px 5px;"
+                                                t-att-title="'Cobertura total = ' + fmt(row.total_mos) + ' OFs ÷ ' + fmt(row.total_forecast) + ' forecast × 100 = ' + fmtPct(row.total_pct)">
                                                 <t t-esc="fmt(row.total_mos)"/>
                                                 <span t-att-class="'ms-1 ' + (cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-ok' ? 'text-success' : cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
                                                       style="font-size:10px;">
@@ -388,7 +413,8 @@
                                             </td>
                                             <td t-if="state.visibleCols.delivered"
                                                 class="text-end fw-semibold"
-                                                style="padding:3px 5px;">
+                                                style="padding:3px 5px;"
+                                                t-att-title="'Tasa de servicio total = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
                                                 <t t-esc="fmt(row.total_delivered)"/>
                                                 <span t-if="row.total_service_rate !== null"
                                                       t-att-class="'ms-1 ' + svcClass(row.total_service_rate)"
@@ -396,10 +422,10 @@
                                                     <t t-esc="fmtPct(row.total_service_rate)"/>
                                                 </span>
                                             </td>
-                                            <!-- Precisión forecast por artículo -->
                                             <td t-if="showForecastAcc"
                                                 t-att-class="'text-end fw-semibold ' + accClass(row.total_forecast_acc)"
-                                                style="padding:3px 5px;">
+                                                style="padding:3px 5px;"
+                                                t-att-title="accTooltip(row)">
                                                 <t t-esc="fmtPct(row.total_forecast_acc)"/>
                                             </td>
                                         </t>
@@ -430,26 +456,47 @@
                                     </t>
                                     <t t-if="showTotal">
                                         <td t-if="state.visibleCols.forecast"
-                                            class="text-end" style="padding:3px 5px;">
+                                            class="text-end" style="padding:3px 5px;"
+                                            title="Total forecast de todos los artículos en el período.">
                                             <t t-esc="fmt(state.data.kpis.total_forecast)"/>
                                         </td>
                                         <td t-if="state.visibleCols.mos"
-                                            class="text-end" style="padding:3px 5px;">
+                                            class="text-end" style="padding:3px 5px;"
+                                            title="Total OFs planificadas en el período.">
                                             <t t-esc="fmt(state.data.kpis.total_mos)"/>
                                         </td>
                                         <td t-if="state.visibleCols.delivered"
-                                            class="text-end" style="padding:3px 5px;">
+                                            class="text-end" style="padding:3px 5px;"
+                                            title="Total unidades entregadas en el período.">
                                             <t t-esc="fmt(state.data.kpis.total_delivered)"/>
                                         </td>
                                         <td t-if="showForecastAcc"
                                             t-att-class="'text-end ' + accClass(state.data.kpis.overall_forecast_acc)"
-                                            style="padding:3px 5px;">
+                                            style="padding:3px 5px;"
+                                            t-att-title="'Precisión forecast global = ' + fmt(state.data.kpis.total_delivered) + ' entregado ÷ ' + fmt(state.data.kpis.total_forecast) + ' forecast × 100 = ' + fmtPct(state.data.kpis.overall_forecast_acc)">
                                             <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
                                         </td>
                                     </t>
                                 </tr>
                             </tfoot>
                         </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <div t-if="totalPages > 1"
+                         class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                            <i class="fa fa-chevron-left"/>
+                        </button>
+                        <small class="text-muted">
+                            Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                            · <t t-esc="filteredRowsAll.length"/> artículos
+                        </small>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                            <i class="fa fa-chevron-right"/>
+                        </button>
                     </div>
 
                     <!-- Leyenda -->
@@ -459,9 +506,9 @@
                         <span class="badge forecast-warning text-dark">≥ <t t-esc="state.data.warning_pct"/>%</span>
                         <span class="badge forecast-critical text-white">&lt; <t t-esc="state.data.warning_pct"/>%</span>
                         <span class="ms-3 text-muted small">Serv. / Prec.:</span>
-                        <span class="text-success small">≥ 95%</span>
+                        <span class="text-success small">≥ 95% / ≥ 90%</span>
                         <span class="text-warning small">≥ 80% / ≥ 70%</span>
-                        <span class="text-danger small">menor</span>
+                        <span class="text-danger small">por debajo</span>
                     </div>
                 </t>
 

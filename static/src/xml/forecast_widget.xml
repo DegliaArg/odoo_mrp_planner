@@ -145,6 +145,70 @@
                            autocomplete="off"/>
                 </div>
 
+                <!-- Filtros dropdown -->
+                <div class="position-relative" t-on-click.stop="">
+                    <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (state.activeFilter ? 'btn-primary' : 'btn-outline-secondary')"
+                            t-on-click="toggleFilterDropdown">
+                        <i class="fa fa-filter"/>
+                        <span>Filtros</span>
+                        <i t-att-class="'fa ' + (state.filterDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.filterDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:210px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <div class="form-check mb-1">
+                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_all"
+                                   t-att-checked="!state.activeFilter"
+                                   t-on-change="() => this.setFilter(null)"/>
+                            <label class="form-check-label small" for="fw_f_all">Todos los artículos</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_with_mos"
+                                   t-att-checked="state.activeFilter === 'with_mos'"
+                                   t-on-change="() => this.setFilter('with_mos')"/>
+                            <label class="form-check-label small" for="fw_f_with_mos">Con OFs planificadas</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_no_mos"
+                                   t-att-checked="state.activeFilter === 'no_mos'"
+                                   t-on-change="() => this.setFilter('no_mos')"/>
+                            <label class="form-check-label small" for="fw_f_no_mos">Sin OFs planificadas</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_gap"
+                                   t-att-checked="state.activeFilter === 'gap'"
+                                   t-on-change="() => this.setFilter('gap')"/>
+                            <label class="form-check-label small" for="fw_f_gap">Con brecha (OFs &lt; forecast)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agrupar dropdown -->
+                <div class="position-relative" t-on-click.stop="">
+                    <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (state.groupBy ? 'btn-primary' : 'btn-outline-secondary')"
+                            t-on-click="toggleGroupDropdown">
+                        <i class="fa fa-object-group"/>
+                        <span>Agrupar</span>
+                        <i t-att-class="'fa ' + (state.groupDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.groupDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <div class="form-check mb-1">
+                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_none"
+                                   t-att-checked="!state.groupBy"
+                                   t-on-change="() => this.setGroupBy(null)"/>
+                            <label class="form-check-label small" for="fw_g_none">Sin agrupación</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_cat"
+                                   t-att-checked="state.groupBy === 'sale_category'"
+                                   t-on-change="() => this.setGroupBy('sale_category')"/>
+                            <label class="form-check-label small" for="fw_g_cat">Categoría de venta</label>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Columnas dropdown -->
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
@@ -156,6 +220,26 @@
                     <div t-if="state.colsDropdownOpen"
                          class="dropdown-menu show shadow p-2"
                          style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <p class="small text-muted mb-1 px-1">Por artículo</p>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_sale_cat"
+                                   t-att-checked="state.visibleCols.saleCategory"
+                                   t-on-change="() => this.toggleCol('saleCategory')"/>
+                            <label class="form-check-label small" for="col_sale_cat">Categoría de venta</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_stock"
+                                   t-att-checked="state.visibleCols.stock"
+                                   t-on-change="() => this.toggleCol('stock')"/>
+                            <label class="form-check-label small" for="col_stock">Stock actual</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_rotation"
+                                   t-att-checked="state.visibleCols.rotation"
+                                   t-on-change="() => this.toggleCol('rotation')"/>
+                            <label class="form-check-label small" for="col_rotation">Rotación</label>
+                        </div>
+                        <div class="dropdown-divider my-1"/>
                         <p class="small text-muted mb-1 px-1">Por mes</p>
                         <div class="form-check mb-1">
                             <input type="checkbox" class="form-check-input" id="col_forecast"
@@ -174,20 +258,6 @@
                                    t-att-checked="state.visibleCols.delivered"
                                    t-on-change="() => this.toggleCol('delivered')"/>
                             <label class="form-check-label small" for="col_delivered">Entregado + serv.%</label>
-                        </div>
-                        <div class="dropdown-divider my-1"/>
-                        <p class="small text-muted mb-1 px-1">Por artículo</p>
-                        <div class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input" id="col_stock"
-                                   t-att-checked="state.visibleCols.stock"
-                                   t-on-change="() => this.toggleCol('stock')"/>
-                            <label class="form-check-label small" for="col_stock">Stock actual</label>
-                        </div>
-                        <div class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input" id="col_rotation"
-                                   t-att-checked="state.visibleCols.rotation"
-                                   t-on-change="() => this.toggleCol('rotation')"/>
-                            <label class="form-check-label small" for="col_rotation">Rotación</label>
                         </div>
                         <div class="dropdown-divider my-1"/>
                         <div class="form-check">
@@ -239,13 +309,21 @@
                                style="min-width:600px; font-size:12px;">
                             <thead>
 
-                                <!-- Fila 1 — position:sticky en cada th (no en thead) para funcionar con overflow:auto -->
+                                <!-- Fila 1 -->
                                 <tr>
                                     <th rowspan="2" class="align-middle"
                                         style="min-width:170px; padding:4px 8px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
                                         title="Ordenar por nombre de artículo"
                                         t-on-click="() => this.setSort('product')">
                                         Artículo <i t-att-class="sortIcon('product')"/>
+                                    </th>
+
+                                    <th t-if="state.visibleCols.saleCategory" rowspan="2"
+                                        class="text-center align-middle"
+                                        style="min-width:45px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        title="Categoría de venta (A=alta rotación, E=baja). Clic para ordenar."
+                                        t-on-click="() => this.setSort('sale_category')">
+                                        Cat. <i t-att-class="sortIcon('sale_category')"/>
                                     </th>
 
                                     <th t-if="state.visibleCols.stock" rowspan="2"
@@ -334,193 +412,227 @@
                             </thead>
 
                             <tbody>
-                                <t t-foreach="filteredRows" t-as="row" t-key="row.product_id">
+                                <t t-foreach="tableItems" t-as="item" t-key="'i_' + item_index">
+
+                                    <!-- Encabezado de grupo -->
+                                    <t t-if="item._type === 'group_header'">
+                                        <tr style="background:#e9ecef;">
+                                            <td t-att-colspan="tableColspan"
+                                                class="py-1 px-3 fw-bold small">
+                                                <span t-att-class="saleCatBadge(item.key)"
+                                                      style="font-size:11px; padding:2px 8px; margin-right:8px;">
+                                                    <t t-esc="item.label"/>
+                                                </span>
+                                                <span class="text-muted fw-normal">
+                                                    <t t-esc="item.count"/> artículos
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </t>
 
                                     <!-- Fila de datos -->
-                                    <tr>
-                                        <!-- Artículo: botón expand + nombre cliqueable -->
-                                        <td style="padding:3px 6px; white-space:nowrap;">
-                                            <button class="btn btn-link btn-sm p-0 me-1 text-muted"
-                                                    style="line-height:1; vertical-align:middle;"
-                                                    t-att-title="state.expandedProducts[row.product_id] ? 'Cerrar OFs' : 'Ver OFs del artículo'"
-                                                    t-on-click="() => this.toggleAccordion(row)">
-                                                <i t-att-class="'fa ' + (state.expandedProducts[row.product_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                                            </button>
-                                            <a href="#"
-                                               class="fw-semibold text-truncate d-inline-block"
-                                               style="max-width:145px; vertical-align:middle; color:inherit; text-decoration:none;"
-                                               t-att-title="row.product"
-                                               t-on-click.prevent="() => this.openProduct(row)">
-                                                <t t-esc="row.product"/>
-                                            </a>
-                                        </td>
+                                    <t t-elif="item._type === 'row'">
+                                        <t t-set="row" t-value="item"/>
 
-                                        <!-- Stock -->
-                                        <td t-if="state.visibleCols.stock"
-                                            class="text-end" style="padding:3px 6px;"
-                                            title="Stock disponible en ubicaciones internas.">
-                                            <t t-esc="fmt(row.stock_qty)"/>
-                                        </td>
-
-                                        <!-- Rotación -->
-                                        <td t-if="state.visibleCols.rotation"
-                                            t-att-class="'text-end ' + rotClass(row)"
-                                            style="padding:3px 6px;"
-                                            t-att-title="rotTooltip(row)">
-                                            <t t-esc="fmtRotation(row)"/>
-                                        </td>
-
-                                        <!-- Celdas por mes -->
-                                        <t t-foreach="row.cells" t-as="cell" t-key="cell.month">
-
-                                            <td t-if="state.visibleCols.forecast"
-                                                class="text-end"
-                                                style="padding:3px 5px;"
-                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
-                                                title="Cantidad planificada en el forecast para este mes.">
-                                                <t t-if="cell.forecast > 0">
-                                                    <t t-esc="fmt(cell.forecast)"/>
-                                                </t>
-                                                <span t-else="" class="text-muted">—</span>
+                                        <tr>
+                                            <!-- Artículo: botón expand + nombre cliqueable -->
+                                            <td style="padding:3px 6px; white-space:nowrap;">
+                                                <button class="btn btn-link btn-sm p-0 me-1"
+                                                        t-att-class="row.total_mos ? 'text-muted' : 'text-muted opacity-25'"
+                                                        t-att-disabled="!row.total_mos || undefined"
+                                                        style="line-height:1; vertical-align:middle;"
+                                                        t-att-title="row.total_mos ? (state.expandedProducts[row.product_id] ? 'Cerrar OFs' : 'Ver OFs del artículo') : 'Sin OFs en el período'"
+                                                        t-on-click="() => this.toggleAccordion(row)">
+                                                    <i t-att-class="'fa ' + (state.expandedProducts[row.product_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                                </button>
+                                                <a href="#"
+                                                   class="fw-semibold text-truncate d-inline-block"
+                                                   style="max-width:145px; vertical-align:middle; color:inherit; text-decoration:none;"
+                                                   t-att-title="row.product"
+                                                   t-on-click.prevent="() => this.openProduct(row)">
+                                                    <t t-esc="row.product"/>
+                                                </a>
                                             </td>
 
-                                            <td t-if="state.visibleCols.mos"
-                                                class="text-end"
-                                                style="padding:3px 5px;"
-                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
-                                                t-att-title="moTooltip(cell)">
-                                                <t t-if="cell.forecast > 0">
-                                                    <t t-esc="fmt(cell.mos)"/>
-                                                    <span t-att-class="'ms-1 ' + (cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
-                                                          style="font-size:10px;">
-                                                        <t t-esc="fmtPct(cell.pct)"/>
-                                                    </span>
-                                                </t>
-                                                <span t-else="" class="text-muted">—</span>
-                                            </td>
-
-                                            <td t-if="state.visibleCols.delivered"
-                                                class="text-end"
-                                                style="padding:3px 5px;"
-                                                t-att-title="svcTooltip(cell)">
-                                                <t t-if="cell.delivered > 0 or cell.so_demand > 0">
-                                                    <t t-esc="fmt(cell.delivered)"/>
-                                                    <span t-if="cell.service_rate !== null"
-                                                          t-att-class="'ms-1 ' + svcClass(cell.service_rate)"
-                                                          style="font-size:10px;">
-                                                        <t t-esc="fmtPct(cell.service_rate)"/>
-                                                    </span>
-                                                </t>
-                                                <span t-else="" class="text-muted">—</span>
-                                            </td>
-
-                                        </t>
-
-                                        <!-- Totales por artículo -->
-                                        <t t-if="showTotal">
-                                            <td t-if="state.visibleCols.forecast"
-                                                class="text-end fw-semibold"
-                                                style="padding:3px 5px;"
-                                                title="Total forecast del período para este artículo.">
-                                                <t t-esc="fmt(row.total_forecast)"/>
-                                            </td>
-                                            <td t-if="state.visibleCols.mos"
-                                                t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})"
-                                                style="padding:3px 5px;"
-                                                t-att-title="'Cobertura total = ' + fmt(row.total_mos) + ' OFs ÷ ' + fmt(row.total_forecast) + ' forecast × 100 = ' + fmtPct(row.total_pct)">
-                                                <t t-esc="fmt(row.total_mos)"/>
-                                                <span t-att-class="'ms-1 ' + (cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-ok' ? 'text-success' : cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
-                                                      style="font-size:10px;">
-                                                    <t t-esc="fmtPct(row.total_pct)"/>
+                                            <!-- Categoría de venta -->
+                                            <td t-if="state.visibleCols.saleCategory"
+                                                class="text-center" style="padding:3px 6px;">
+                                                <span t-if="row.sale_category"
+                                                      t-att-class="saleCatBadge(row.sale_category)"
+                                                      style="font-size:10px; padding:2px 6px;">
+                                                    <t t-esc="row.sale_category"/>
                                                 </span>
+                                                <span t-else="" class="text-muted">—</span>
                                             </td>
-                                            <td t-if="state.visibleCols.delivered"
-                                                class="text-end fw-semibold"
-                                                style="padding:3px 5px;"
-                                                t-att-title="'Tasa de servicio total = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
-                                                <t t-esc="fmt(row.total_delivered)"/>
-                                                <span t-if="row.total_service_rate !== null"
-                                                      t-att-class="'ms-1 ' + svcClass(row.total_service_rate)"
-                                                      style="font-size:10px;">
-                                                    <t t-esc="fmtPct(row.total_service_rate)"/>
-                                                </span>
+
+                                            <!-- Stock -->
+                                            <td t-if="state.visibleCols.stock"
+                                                class="text-end" style="padding:3px 6px;"
+                                                title="Stock disponible en ubicaciones internas.">
+                                                <t t-esc="fmt(row.stock_qty)"/>
                                             </td>
-                                            <td t-if="showForecastAcc"
-                                                t-att-class="'text-end fw-semibold ' + accClass(row.total_forecast_acc)"
-                                                style="padding:3px 5px;"
-                                                t-att-title="accTooltip(row)">
-                                                <t t-esc="fmtPct(row.total_forecast_acc)"/>
+
+                                            <!-- Rotación -->
+                                            <td t-if="state.visibleCols.rotation"
+                                                t-att-class="'text-end ' + rotClass(row)"
+                                                style="padding:3px 6px;"
+                                                t-att-title="rotTooltip(row)">
+                                                <t t-esc="fmtRotation(row)"/>
                                             </td>
-                                        </t>
 
-                                    </tr>
+                                            <!-- Celdas por mes -->
+                                            <t t-foreach="row.cells" t-as="cell" t-key="cell.month">
 
-                                    <!-- Acordeón de OFs -->
-                                    <tr t-if="state.expandedProducts[row.product_id]">
-                                        <td t-att-colspan="tableColspan"
-                                            class="p-0" style="background:#f8f9fa; border-top:none;">
-                                            <div class="px-3 py-2">
+                                                <td t-if="state.visibleCols.forecast"
+                                                    class="text-end"
+                                                    style="padding:3px 5px;"
+                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                    title="Cantidad planificada en el forecast para este mes.">
+                                                    <t t-if="cell.forecast > 0">
+                                                        <t t-esc="fmt(cell.forecast)"/>
+                                                    </t>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
 
-                                                <div t-if="state.mosLoading[row.product_id]"
-                                                     class="text-center text-muted py-2 small">
-                                                    <i class="fa fa-spinner fa-spin me-1"/> Cargando OFs…
-                                                </div>
+                                                <td t-if="state.visibleCols.mos"
+                                                    class="text-end"
+                                                    style="padding:3px 5px;"
+                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                    t-att-title="moTooltip(cell)">
+                                                    <t t-if="cell.forecast > 0">
+                                                        <t t-esc="fmt(cell.mos)"/>
+                                                        <span t-att-class="'ms-1 ' + (cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                              style="font-size:10px;">
+                                                            <t t-esc="fmtPct(cell.pct)"/>
+                                                        </span>
+                                                    </t>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
 
-                                                <div t-elif="!state.mosByProduct[row.product_id] or !state.mosByProduct[row.product_id].length"
-                                                     class="text-muted small py-1">
-                                                    <i class="fa fa-info-circle me-1"/>
-                                                    No hay órdenes de fabricación en el período.
-                                                </div>
+                                                <td t-if="state.visibleCols.delivered"
+                                                    class="text-end"
+                                                    style="padding:3px 5px;"
+                                                    t-att-title="svcTooltip(cell)">
+                                                    <t t-if="cell.delivered > 0 or cell.so_demand > 0">
+                                                        <t t-esc="fmt(cell.delivered)"/>
+                                                        <span t-if="cell.service_rate !== null"
+                                                              t-att-class="'ms-1 ' + svcClass(cell.service_rate)"
+                                                              style="font-size:10px;">
+                                                            <t t-esc="fmtPct(cell.service_rate)"/>
+                                                        </span>
+                                                    </t>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
 
-                                                <table t-else=""
-                                                       class="table table-sm table-hover mb-0"
-                                                       style="font-size:11px; background:white;">
-                                                    <thead>
-                                                        <tr class="text-muted">
-                                                            <th style="padding:3px 8px;">Referencia</th>
-                                                            <th style="padding:3px 8px;">Estado</th>
-                                                            <th class="text-end" style="padding:3px 8px;">Planificado</th>
-                                                            <th class="text-end" style="padding:3px 8px;">Producido</th>
-                                                            <th style="padding:3px 8px;">Inicio</th>
-                                                            <th style="padding:3px 8px;">Fin</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <t t-foreach="state.mosByProduct[row.product_id]" t-as="mo" t-key="mo.id">
-                                                            <tr style="cursor:pointer;"
-                                                                t-on-click="() => this.openMo(mo.id)"
-                                                                title="Abrir orden de fabricación">
-                                                                <td style="padding:3px 8px;" class="text-primary fw-semibold">
-                                                                    <i class="fa fa-external-link me-1" style="font-size:10px;"/>
-                                                                    <t t-esc="mo.name"/>
-                                                                </td>
-                                                                <td style="padding:3px 8px;">
-                                                                    <span t-att-class="moStateBadge(mo.state)"
-                                                                          style="font-size:10px; padding:2px 5px;">
-                                                                        <t t-esc="mo.state_label"/>
-                                                                    </span>
-                                                                </td>
-                                                                <td class="text-end" style="padding:3px 8px;">
-                                                                    <t t-esc="fmt(mo.product_qty)"/>
-                                                                    <span class="text-muted ms-1"><t t-esc="mo.uom"/></span>
-                                                                </td>
-                                                                <td class="text-end" style="padding:3px 8px;">
-                                                                    <t t-esc="fmt(mo.qty_produced)"/>
-                                                                </td>
-                                                                <td style="padding:3px 8px;" class="text-muted">
-                                                                    <t t-esc="fmtDate(mo.date_start)"/>
-                                                                </td>
-                                                                <td style="padding:3px 8px;" class="text-muted">
-                                                                    <t t-esc="fmtDate(mo.date_finished)"/>
-                                                                </td>
+                                            </t>
+
+                                            <!-- Totales por artículo -->
+                                            <t t-if="showTotal">
+                                                <td t-if="state.visibleCols.forecast"
+                                                    class="text-end fw-semibold"
+                                                    style="padding:3px 5px;"
+                                                    title="Total forecast del período para este artículo.">
+                                                    <t t-esc="fmt(row.total_forecast)"/>
+                                                </td>
+                                                <td t-if="state.visibleCols.mos"
+                                                    t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})"
+                                                    style="padding:3px 5px;"
+                                                    t-att-title="'Cobertura total = ' + fmt(row.total_mos) + ' OFs ÷ ' + fmt(row.total_forecast) + ' forecast × 100 = ' + fmtPct(row.total_pct)">
+                                                    <t t-esc="fmt(row.total_mos)"/>
+                                                    <span t-att-class="'ms-1 ' + (cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-ok' ? 'text-success' : cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                          style="font-size:10px;">
+                                                        <t t-esc="fmtPct(row.total_pct)"/>
+                                                    </span>
+                                                </td>
+                                                <td t-if="state.visibleCols.delivered"
+                                                    class="text-end fw-semibold"
+                                                    style="padding:3px 5px;"
+                                                    t-att-title="'Tasa de servicio total = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
+                                                    <t t-esc="fmt(row.total_delivered)"/>
+                                                    <span t-if="row.total_service_rate !== null"
+                                                          t-att-class="'ms-1 ' + svcClass(row.total_service_rate)"
+                                                          style="font-size:10px;">
+                                                        <t t-esc="fmtPct(row.total_service_rate)"/>
+                                                    </span>
+                                                </td>
+                                                <td t-if="showForecastAcc"
+                                                    t-att-class="'text-end fw-semibold ' + accClass(row.total_forecast_acc)"
+                                                    style="padding:3px 5px;"
+                                                    t-att-title="accTooltip(row)">
+                                                    <t t-esc="fmtPct(row.total_forecast_acc)"/>
+                                                </td>
+                                            </t>
+
+                                        </tr>
+
+                                        <!-- Acordeón de OFs -->
+                                        <tr t-if="state.expandedProducts[row.product_id]">
+                                            <td t-att-colspan="tableColspan"
+                                                class="p-0" style="background:#f8f9fa; border-top:none;">
+                                                <div class="px-3 py-2">
+
+                                                    <div t-if="state.mosLoading[row.product_id]"
+                                                         class="text-center text-muted py-2 small">
+                                                        <i class="fa fa-spinner fa-spin me-1"/> Cargando OFs…
+                                                    </div>
+
+                                                    <div t-elif="!state.mosByProduct[row.product_id] or !state.mosByProduct[row.product_id].length"
+                                                         class="text-muted small py-1">
+                                                        <i class="fa fa-info-circle me-1"/>
+                                                        No hay órdenes de fabricación en el período.
+                                                    </div>
+
+                                                    <table t-else=""
+                                                           class="table table-sm table-hover mb-0"
+                                                           style="font-size:11px; background:white;">
+                                                        <thead>
+                                                            <tr class="text-muted">
+                                                                <th style="padding:3px 8px;">Referencia</th>
+                                                                <th style="padding:3px 8px;">Estado</th>
+                                                                <th class="text-end" style="padding:3px 8px;">Planificado</th>
+                                                                <th class="text-end" style="padding:3px 8px;">Producido</th>
+                                                                <th style="padding:3px 8px;">Inicio</th>
+                                                                <th style="padding:3px 8px;">Fin</th>
                                                             </tr>
-                                                        </t>
-                                                    </tbody>
-                                                </table>
+                                                        </thead>
+                                                        <tbody>
+                                                            <t t-foreach="state.mosByProduct[row.product_id]" t-as="mo" t-key="mo.id">
+                                                                <tr style="cursor:pointer;"
+                                                                    t-on-click="() => this.openMo(mo.id)"
+                                                                    title="Abrir orden de fabricación">
+                                                                    <td style="padding:3px 8px;" class="text-primary fw-semibold">
+                                                                        <i class="fa fa-external-link me-1" style="font-size:10px;"/>
+                                                                        <t t-esc="mo.name"/>
+                                                                    </td>
+                                                                    <td style="padding:3px 8px;">
+                                                                        <span t-att-class="moStateBadge(mo.state)"
+                                                                              style="font-size:10px; padding:2px 5px;">
+                                                                            <t t-esc="mo.state_label"/>
+                                                                        </span>
+                                                                    </td>
+                                                                    <td class="text-end" style="padding:3px 8px;">
+                                                                        <t t-esc="fmt(mo.product_qty)"/>
+                                                                        <span class="text-muted ms-1"><t t-esc="mo.uom"/></span>
+                                                                    </td>
+                                                                    <td class="text-end" style="padding:3px 8px;">
+                                                                        <t t-esc="fmt(mo.qty_produced)"/>
+                                                                    </td>
+                                                                    <td style="padding:3px 8px;" class="text-muted">
+                                                                        <t t-esc="fmtDate(mo.date_start)"/>
+                                                                    </td>
+                                                                    <td style="padding:3px 8px;" class="text-muted">
+                                                                        <t t-esc="fmtDate(mo.date_finished)"/>
+                                                                    </td>
+                                                                </tr>
+                                                            </t>
+                                                        </tbody>
+                                                    </table>
 
-                                            </div>
-                                        </td>
-                                    </tr>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                    </t>
 
                                 </t>
                             </tbody>
@@ -529,6 +641,7 @@
                             <tfoot class="fw-bold" style="background:#f8f9fa;">
                                 <tr>
                                     <td style="padding:3px 8px;">Total</td>
+                                    <td t-if="state.visibleCols.saleCategory" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.stock" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.rotation" style="padding:3px 6px;"/>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">
@@ -570,8 +683,8 @@
                         </table>
                     </div>
 
-                    <!-- Paginación -->
-                    <div t-if="totalPages > 1"
+                    <!-- Paginación (oculta cuando hay agrupación activa) -->
+                    <div t-if="!state.groupBy and totalPages > 1"
                          class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                                 t-att-disabled="!hasPrevPage" t-on-click="prevPage">
@@ -587,17 +700,6 @@
                         </button>
                     </div>
 
-                    <!-- Leyenda -->
-                    <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
-                        <small class="text-muted">Cobertura OF:</small>
-                        <span class="badge forecast-ok text-dark">≥ 100%</span>
-                        <span class="badge forecast-warning text-dark">≥ <t t-esc="state.data.warning_pct"/>%</span>
-                        <span class="badge forecast-critical text-white">&lt; <t t-esc="state.data.warning_pct"/>%</span>
-                        <span class="ms-3 text-muted small">Serv. / Prec.:</span>
-                        <span class="text-success small">≥ 95% / ≥ 90%</span>
-                        <span class="text-warning small">≥ 80% / ≥ 70%</span>
-                        <span class="text-danger small">por debajo</span>
-                    </div>
                 </t>
 
             </t>

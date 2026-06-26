@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -57,6 +59,28 @@ class MrpRescheduleConfig(models.Model):
        help='Determina si la rotación de inventario en el widget de forecast se muestra en días o en meses.'
     )
 
+    # ── Categoría de venta ────────────────────────────────────────────────────
+    sale_cat_mode = fields.Selection([
+        ('manual',    'Manual (desde la ficha del artículo)'),
+        ('automatic', 'Automática por rotación de inventario'),
+    ], string='Modo de asignación', default='manual',
+       help='Manual: cada artículo se categoriza desde su ficha. '
+            'Automático: el sistema calcula la rotación de los últimos 3 meses '
+            'y asigna A–E según los umbrales definidos abajo.')
+
+    sale_cat_a_days = fields.Integer(
+        string='A — rotación máx. (días)', default=30,
+        help='Artículos con rotación ≤ este valor reciben categoría A (alta rotación).')
+    sale_cat_b_days = fields.Integer(
+        string='B — rotación máx. (días)', default=60,
+        help='Artículos con rotación entre A y este valor reciben categoría B.')
+    sale_cat_c_days = fields.Integer(
+        string='C — rotación máx. (días)', default=90,
+        help='Artículos con rotación entre B y este valor reciben categoría C.')
+    sale_cat_d_days = fields.Integer(
+        string='D — rotación máx. (días)', default=180,
+        help='Artículos con rotación entre C y este valor reciben D. Por encima → E.')
+
     include_wc_heuristic = fields.Boolean(
         string='Heurística por centro de trabajo',
         default=False,
@@ -105,6 +129,65 @@ class MrpRescheduleConfig(models.Model):
     def _compute_name(self):
         for rec in self:
             rec.name = 'Configuración del planificador'
+
+    def action_auto_assign_sale_categories(self):
+        config = self.search([], limit=1)
+        if not config:
+            return
+        a_d = config.sale_cat_a_days
+        b_d = config.sale_cat_b_days
+        c_d = config.sale_cat_c_days
+        d_d = config.sale_cat_d_days
+
+        end   = date.today()
+        start = end - timedelta(days=90)
+
+        moves = self.env['stock.move.line'].search([
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_code', '=', 'outgoing'),
+            ('date', '>=', fields.Datetime.to_datetime(str(start))),
+            ('date', '<=', fields.Datetime.to_datetime(str(end))),
+            ('product_id', '!=', False),
+        ])
+        del_by_tmpl = {}
+        for ml in moves:
+            tid = ml.product_id.product_tmpl_id.id
+            del_by_tmpl[tid] = del_by_tmpl.get(tid, 0.0) + ml.qty_done
+
+        quants = self.env['stock.quant'].read_group(
+            [('location_id.usage', '=', 'internal'), ('product_id', '!=', False)],
+            ['product_id', 'quantity:sum'],
+            ['product_id'],
+        )
+        stock_by_pid = {g['product_id'][0]: g['quantity'] for g in quants}
+
+        templates = self.env['product.template'].search([('sale_ok', '=', True)])
+        updated = 0
+        for tmpl in templates:
+            stock     = sum(stock_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
+            delivered = del_by_tmpl.get(tmpl.id, 0.0)
+            avg_monthly = delivered / 3.0
+            if avg_monthly <= 0:
+                cat = 'E'
+            else:
+                rot = round(stock / avg_monthly * 30)
+                if   rot <= a_d: cat = 'A'
+                elif rot <= b_d: cat = 'B'
+                elif rot <= c_d: cat = 'C'
+                elif rot <= d_d: cat = 'D'
+                else:            cat = 'E'
+            tmpl.x_sale_category = cat
+            updated += 1
+
+        return {
+            'type':   'ir.actions.client',
+            'tag':    'display_notification',
+            'params': {
+                'title':   'Categorías asignadas',
+                'message': f'{updated} artículos actualizados.',
+                'type':    'success',
+            },
+        }
 
     def write(self, vals):
         res = super().write(vals)

@@ -36,27 +36,32 @@ class ForecastWidget extends Component {
 
         const now = todayYM();
         this.state = useState({
-            loading:          true,
-            periodFrom:       now,
-            periodTo:         addMonths(now, 2),
-            warehouseIds:     [],
-            warehouses:       [],
-            whDropdownOpen:   false,
-            whSearch:         "",
-            productSearch:    "",
-            colsDropdownOpen: false,
+            loading:            true,
+            periodFrom:         now,
+            periodTo:           addMonths(now, 2),
+            warehouseIds:       [],
+            warehouses:         [],
+            whDropdownOpen:     false,
+            whSearch:           "",
+            productSearch:      "",
+            colsDropdownOpen:   false,
+            filterDropdownOpen: false,
+            groupDropdownOpen:  false,
+            activeFilter:       null,
+            groupBy:            null,
             visibleCols: {
-                forecast:  true,
-                mos:       true,
-                delivered: true,
-                stock:     true,
-                rotation:  true,
-                total:     true,
+                forecast:     true,
+                mos:          true,
+                delivered:    true,
+                stock:        true,
+                rotation:     true,
+                total:        true,
+                saleCategory: false,
             },
             sortCol:          'product',
             sortDir:          'asc',
             page:             1,
-            pageSize:         20,
+            pageSize:         50,
             data:             null,
             canEdit:          true,
             expandedProducts: {},
@@ -65,9 +70,11 @@ class ForecastWidget extends Component {
         });
 
         this._closeAll = () => {
-            this.state.whDropdownOpen   = false;
-            this.state.whSearch         = "";
-            this.state.colsDropdownOpen = false;
+            this.state.whDropdownOpen     = false;
+            this.state.whSearch           = "";
+            this.state.colsDropdownOpen   = false;
+            this.state.filterDropdownOpen = false;
+            this.state.groupDropdownOpen  = false;
         };
 
         onMounted(() => {
@@ -142,20 +149,52 @@ class ForecastWidget extends Component {
     toggleWhDropdown(ev) {
         ev.stopPropagation();
         const opening = !this.state.whDropdownOpen;
-        this.state.whDropdownOpen   = opening;
-        this.state.colsDropdownOpen = false;
+        this.state.whDropdownOpen     = opening;
+        this.state.colsDropdownOpen   = false;
+        this.state.filterDropdownOpen = false;
+        this.state.groupDropdownOpen  = false;
         if (opening) this.state.whSearch = "";
     }
 
     toggleColsDropdown(ev) {
         ev.stopPropagation();
-        this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
-        this.state.whDropdownOpen   = false;
-        this.state.whSearch         = "";
+        this.state.colsDropdownOpen   = !this.state.colsDropdownOpen;
+        this.state.whDropdownOpen     = false;
+        this.state.whSearch           = "";
+        this.state.filterDropdownOpen = false;
+        this.state.groupDropdownOpen  = false;
+    }
+
+    toggleFilterDropdown(ev) {
+        ev.stopPropagation();
+        this.state.filterDropdownOpen = !this.state.filterDropdownOpen;
+        this.state.colsDropdownOpen   = false;
+        this.state.whDropdownOpen     = false;
+        this.state.whSearch           = "";
+        this.state.groupDropdownOpen  = false;
+    }
+
+    toggleGroupDropdown(ev) {
+        ev.stopPropagation();
+        this.state.groupDropdownOpen  = !this.state.groupDropdownOpen;
+        this.state.colsDropdownOpen   = false;
+        this.state.whDropdownOpen     = false;
+        this.state.whSearch           = "";
+        this.state.filterDropdownOpen = false;
     }
 
     toggleCol(colKey) {
         this.state.visibleCols[colKey] = !this.state.visibleCols[colKey];
+    }
+
+    setFilter(key) {
+        this.state.activeFilter = key;
+        this.state.page = 1;
+    }
+
+    setGroupBy(key) {
+        this.state.groupBy = key;
+        this.state.page = 1;
     }
 
     // ── Columnas ─────────────────────────────────────────────────────────────
@@ -188,8 +227,9 @@ class ForecastWidget extends Component {
     get tableColspan() {
         const n = this.state.data ? this.state.data.months.length : 0;
         let cols = 1;
-        if (this.state.visibleCols.stock)    cols++;
-        if (this.state.visibleCols.rotation) cols++;
+        if (this.state.visibleCols.saleCategory) cols++;
+        if (this.state.visibleCols.stock)        cols++;
+        if (this.state.visibleCols.rotation)     cols++;
         cols += n * this.monthColspan;
         if (this.showTotal) cols += this.totalColspan;
         return cols;
@@ -220,8 +260,11 @@ class ForecastWidget extends Component {
         const dir  = this.state.sortDir === 'asc' ? 1 : -1;
         rows.sort((a, b) => {
             let va = a[col], vb = b[col];
-            if (typeof va === 'string')
+            if (typeof va === 'string') {
+                if (!va && vb) return dir;   // empty strings at end in both directions
+                if (va && !vb) return -dir;
                 return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
+            }
             va = va ?? -Infinity;
             vb = vb ?? -Infinity;
             return dir * (va - vb);
@@ -233,9 +276,14 @@ class ForecastWidget extends Component {
 
     get filteredRowsAll() {
         if (!this.state.data || !this.state.data.rows) return [];
+        let rows = this.state.data.rows;
         const q = this.state.productSearch.toLowerCase();
-        if (!q) return this.state.data.rows;
-        return this.state.data.rows.filter(r => r.product.toLowerCase().includes(q));
+        if (q) rows = rows.filter(r => r.product.toLowerCase().includes(q));
+        const f = this.state.activeFilter;
+        if (f === 'with_mos') rows = rows.filter(r => r.total_mos > 0);
+        if (f === 'no_mos')   rows = rows.filter(r => r.total_mos === 0);
+        if (f === 'gap')      rows = rows.filter(r => r.total_forecast > 0 && r.total_mos < r.total_forecast);
+        return rows;
     }
 
     get filteredRows() {
@@ -249,6 +297,46 @@ class ForecastWidget extends Component {
     get hasPrevPage() { return this.state.page > 1; }
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
+
+    // ── Agrupación ────────────────────────────────────────────────────────────
+
+    get groupedRows() {
+        const gb = this.state.groupBy;
+        if (!gb) return null;
+        const rows = this.sortedRows;
+        const groups = new Map();
+        for (const row of rows) {
+            const key = row[gb] || '';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(row);
+        }
+        const CAT_ORDER = ['A', 'B', 'C', 'D', 'E', ''];
+        const sorted = [...groups.entries()].sort((a, b) => {
+            const ia = CAT_ORDER.indexOf(a[0]);
+            const ib = CAT_ORDER.indexOf(b[0]);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
+        return sorted.map(([key, rows]) => ({
+            key,
+            label: key || 'Sin categoría',
+            rows,
+        }));
+    }
+
+    // tableItems: flat list for tbody — includes group headers when groupBy is active
+    get tableItems() {
+        const gb = this.state.groupBy;
+        if (!gb) {
+            return this.filteredRows.map(r => ({ ...r, _type: 'row' }));
+        }
+        const groups = this.groupedRows || [];
+        const items = [];
+        for (const g of groups) {
+            items.push({ _type: 'group_header', key: g.key, label: g.label, count: g.rows.length });
+            for (const row of g.rows) items.push({ ...row, _type: 'row' });
+        }
+        return items;
+    }
 
     // ── Depósito ──────────────────────────────────────────────────────────────
 
@@ -305,6 +393,7 @@ class ForecastWidget extends Component {
     // ── Acordeón de OFs ───────────────────────────────────────────────────────
 
     async toggleAccordion(row) {
+        if (!row.total_mos) return;
         const pid = row.product_id;
         const wasOpen = !!this.state.expandedProducts[pid];
         this.state.expandedProducts[pid] = !wasOpen;
@@ -336,6 +425,17 @@ class ForecastWidget extends Component {
             cancel:    'bg-light text-muted',
         };
         return `badge ${map[state] || 'bg-secondary'}`;
+    }
+
+    saleCatBadge(cat) {
+        const map = {
+            A: 'bg-success text-white',
+            B: 'bg-info text-dark',
+            C: 'bg-warning text-dark',
+            D: 'bg-secondary text-white',
+            E: 'bg-light text-muted border',
+        };
+        return `badge ${map[cat] || 'bg-light text-muted'}`;
     }
 
     // ── Formateo / clases ─────────────────────────────────────────────────────

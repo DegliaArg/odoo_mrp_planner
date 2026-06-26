@@ -104,6 +104,35 @@
                         </page>
 
 
+                        <!-- ── Categoría de venta ────────────────────────── -->
+                        <page string="Categoría de venta" name="sale_category">
+                            <group>
+                                <field name="sale_cat_mode" widget="radio"/>
+                            </group>
+                            <group string="Umbrales de rotación (días)"
+                                   invisible="sale_cat_mode != 'automatic'">
+                                <p class="text-muted small" colspan="2">
+                                    Rotación = stock actual ÷ (entregas en los últimos 3 meses ÷ 3).
+                                    Los umbrales definen el máximo de días para cada categoría.
+                                    Artículos por encima del umbral D reciben categoría E.
+                                </p>
+                                <field name="sale_cat_a_days"/>
+                                <field name="sale_cat_b_days"/>
+                                <field name="sale_cat_c_days"/>
+                                <field name="sale_cat_d_days"/>
+                            </group>
+                            <div invisible="sale_cat_mode != 'automatic'" class="mt-3">
+                                <button name="action_auto_assign_sale_categories"
+                                        type="object"
+                                        string="Asignar categorías ahora"
+                                        class="btn btn-primary"/>
+                                <p class="text-muted small mt-2">
+                                    Calcula la rotación de los últimos 3 meses para todos los artículos
+                                    vendibles y asigna la categoría A–E automáticamente.
+                                </p>
+                            </div>
+                        </page>
+
                     </notebook>
                 </sheet>
             </form>

@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- Categoría de venta — solo artículos vendibles -->
+    <record id="product_template_form_sale_category" model="ir.ui.view">
+        <field name="name">product.template.form.sale.category</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='categ_id']" position="after">
+                <field name="x_sale_category"
+                       invisible="not sale_ok"
+                       string="Categoría de venta"
+                       help="Clasificación A–E de rotación (A = alta rotación, E = baja). Se puede asignar automáticamente desde Configuración del planificador."/>
+            </xpath>
+        </field>
+    </record>
+
     <record id="product_template_form_mrp_workcenters" model="ir.ui.view">
         <field name="name">product.template.form.mrp.workcenters</field>
         <field name="model">product.template</field>

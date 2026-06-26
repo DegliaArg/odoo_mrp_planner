@@ -1268,6 +1268,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # ── Construir filas ────────────────────────────────────────────────────
         rows = []
+        # Categorías de venta por product.template
+        tmpl_ids = [fc_data[pid].get('product_tmpl_id') for pid in all_product_ids
+                    if fc_data[pid].get('product_tmpl_id')]
+        if tmpl_ids:
+            tmpl_cat = {t.id: t.x_sale_category or ''
+                        for t in self.env['product.template'].browse(tmpl_ids)}
+        else:
+            tmpl_cat = {}
+
         for pid in all_product_ids:
             pname    = fc_data[pid]['product']
             pid_del  = del_data.get(pid, {})
@@ -1329,6 +1338,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_so_demand':    round(tot_so,  2),
                 'total_service_rate': tot_svc,
                 'total_forecast_acc': tot_acc,
+                'sale_category':      tmpl_cat.get(fc_data[pid].get('product_tmpl_id'), ''),
             })
 
         rows.sort(key=lambda r: r['product'].lower())

@@ -7,7 +7,6 @@ import { useService } from "@web/core/utils/hooks";
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 function monthLabel(ym) {
-    // ym = "2025-07"
     const [y, m] = ym.split('-');
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
 }
@@ -23,6 +22,11 @@ function addMonths(ym, n) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function ymLastDay(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m, 0).getDate();
+}
+
 class ForecastWidget extends Component {
     static template = "odoo_mrp_planner.ForecastWidget";
 
@@ -32,26 +36,32 @@ class ForecastWidget extends Component {
 
         const now = todayYM();
         this.state = useState({
-            loading:         true,
-            periodFrom:      now,
-            periodTo:        addMonths(now, 2),
-            warehouseIds:    [],
-            warehouses:      [],
-            whDropdownOpen:  false,
-            whSearch:        "",
-            productSearch:   "",
-            data:            null,
-            canEdit:         true,
+            loading:          true,
+            periodFrom:       now,
+            periodTo:         addMonths(now, 2),
+            warehouseIds:     [],
+            warehouses:       [],
+            whDropdownOpen:   false,
+            whSearch:         "",
+            productSearch:    "",
+            colsDropdownOpen: false,
+            visibleCols:      { forecast: true, mos: true, total: true },
+            data:             null,
+            canEdit:          true,
         });
 
-        this._closeWhDropdown = () => { this.state.whDropdownOpen = false; this.state.whSearch = ""; };
+        this._closeAll = () => {
+            this.state.whDropdownOpen   = false;
+            this.state.whSearch         = "";
+            this.state.colsDropdownOpen = false;
+        };
 
         onMounted(() => {
             this._init();
-            document.addEventListener('click', this._closeWhDropdown);
+            document.addEventListener('click', this._closeAll);
         });
         onWillUnmount(() => {
-            document.removeEventListener('click', this._closeWhDropdown);
+            document.removeEventListener('click', this._closeAll);
         });
     }
 
@@ -83,26 +93,60 @@ class ForecastWidget extends Component {
         }
     }
 
+    // type="date" needs YYYY-MM-DD; state stores YYYY-MM
+    get periodFromDate() { return `${this.state.periodFrom}-01`; }
+    get periodToDate() {
+        const last = ymLastDay(this.state.periodTo);
+        return `${this.state.periodTo}-${String(last).padStart(2, '0')}`;
+    }
+
     onPeriodFromChange(ev) {
-        this.state.periodFrom = ev.target.value;
-        if (this.state.periodFrom > this.state.periodTo) {
+        const val = ev.target.value; // YYYY-MM-DD
+        if (!val) return;
+        this.state.periodFrom = val.substring(0, 7); // YYYY-MM
+        if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
-        }
         this._load();
     }
 
     onPeriodToChange(ev) {
-        this.state.periodTo = ev.target.value;
-        if (this.state.periodTo < this.state.periodFrom) {
+        const val = ev.target.value; // YYYY-MM-DD
+        if (!val) return;
+        this.state.periodTo = val.substring(0, 7); // YYYY-MM
+        if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
-        }
         this._load();
     }
 
     toggleWhDropdown(ev) {
         ev.stopPropagation();
-        this.state.whDropdownOpen = !this.state.whDropdownOpen;
-        if (this.state.whDropdownOpen) this.state.whSearch = "";
+        const opening = !this.state.whDropdownOpen;
+        this.state.whDropdownOpen   = opening;
+        this.state.colsDropdownOpen = false;
+        if (opening) this.state.whSearch = "";
+    }
+
+    toggleColsDropdown(ev) {
+        ev.stopPropagation();
+        this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
+        this.state.whDropdownOpen   = false;
+        this.state.whSearch         = "";
+    }
+
+    toggleCol(colKey) {
+        this.state.visibleCols[colKey] = !this.state.visibleCols[colKey];
+    }
+
+    get monthColspan() {
+        let n = 0;
+        if (this.state.visibleCols.forecast) n++;
+        if (this.state.visibleCols.mos) n++;
+        return n || 1;
+    }
+
+    get showTotal() {
+        return this.state.visibleCols.total &&
+               (this.state.visibleCols.forecast || this.state.visibleCols.mos);
     }
 
     get filteredRows() {
@@ -121,11 +165,7 @@ class ForecastWidget extends Component {
     toggleWarehouse(ev) {
         const id = parseInt(ev.target.dataset.whId);
         const ids = this.state.warehouseIds;
-        if (ids.includes(id)) {
-            this.state.warehouseIds = ids.filter(i => i !== id);
-        } else {
-            this.state.warehouseIds = [...ids, id];
-        }
+        this.state.warehouseIds = ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id];
         this._load();
     }
 
@@ -151,11 +191,10 @@ class ForecastWidget extends Component {
 
     cellClass(cell) {
         if (!cell || cell.forecast === 0) return '';
-        const pct = cell.pct;
         const d = this.state.data;
         if (!d) return '';
-        if (pct >= 100) return 'forecast-ok';
-        if (pct >= d.warning_pct) return 'forecast-warning';
+        if (cell.pct >= 100) return 'forecast-ok';
+        if (cell.pct >= d.warning_pct) return 'forecast-warning';
         return 'forecast-critical';
     }
 
@@ -170,9 +209,8 @@ class ForecastWidget extends Component {
     }
 
     async openImport() {
-        await this.action.doAction('base_import.action_base_import', {
-            additionalContext: { model: 'mrp.forecast.line' },
-        });
+        // Navigate to the forecast lines list where Odoo's native import button is available
+        await this.action.doAction('odoo_mrp_planner.action_mrp_forecast_line');
     }
 
     openForecastList() {
@@ -192,9 +230,7 @@ class ForecastWidget extends Component {
                 "get_forecast_export",
                 [this.state.periodFrom, this.state.periodTo, this.state.warehouseIds],
             );
-            if (res && res.url) {
-                window.open(res.url, '_blank');
-            }
+            if (res && res.url) window.open(res.url, '_blank');
         } catch (e) {
             console.error("[ForecastWidget] export error", e);
         }

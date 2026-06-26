@@ -31,7 +31,7 @@ Panel en tiempo real
     'license': 'OPL-1',
     'currency': 'USD',
     'category': 'Manufacturing',
-    'depends': ['mrp', 'mrp_workorder', 'purchase', 'stock', 'mail', 'base_import'],
+    'depends': ['mrp', 'mrp_workorder', 'purchase', 'stock', 'mail'],
     'data': [
         'security/ir.model.access.csv',
         'views/product_template_views.xml',

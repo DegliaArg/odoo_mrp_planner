@@ -4,91 +4,14 @@
     <t t-name="odoo_mrp_planner.ForecastWidget">
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
-            <!-- Filtros superiores -->
-            <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-                <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="month" class="form-control form-control-sm"
-                           style="max-width:150px;"
-                           t-att-value="state.periodFrom"
-                           t-on-change="onPeriodFromChange"/>
-                </div>
-                <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="month" class="form-control form-control-sm"
-                           style="max-width:150px;"
-                           t-att-value="state.periodTo"
-                           t-on-change="onPeriodToChange"/>
-                </div>
-                <div t-if="state.warehouses.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
-                    <label class="form-label mb-0 small text-muted">Depósito</label>
-                    <div class="position-relative">
-                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                                style="min-width:160px;"
-                                t-on-click="toggleWhDropdown">
-                            <span class="text-truncate" style="max-width:130px;"><t t-esc="selectedWhLabel"/></span>
-                            <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                        </button>
-                        <div t-if="state.whDropdownOpen"
-                             class="dropdown-menu show shadow p-2"
-                             style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                            <input type="text" class="form-control form-control-sm mb-2"
-                                   placeholder="Buscar depósito…"
-                                   t-model="state.whSearch"
-                                   autocomplete="off"/>
-                            <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input" id="wh_filter_all"
-                                       t-att-checked="!state.warehouseIds.length"
-                                       t-on-change="clearWhFilter"/>
-                                <label class="form-check-label fw-semibold small" for="wh_filter_all">Todos</label>
-                            </div>
-                            <div class="dropdown-divider my-1"/>
-                            <t t-foreach="filteredWarehouses" t-as="wh" t-key="wh.id">
-                                <div class="form-check mb-1">
-                                    <input type="checkbox" class="form-check-input"
-                                           t-att-id="'wh_filter_' + wh.id"
-                                           t-att-data-wh-id="wh.id"
-                                           t-att-checked="state.warehouseIds.includes(wh.id)"
-                                           t-on-change="toggleWarehouse"/>
-                                    <label class="form-check-label small" t-att-for="'wh_filter_' + wh.id">
-                                        <t t-esc="wh.name"/>
-                                    </label>
-                                </div>
-                            </t>
-                        </div>
-                    </div>
-                </div>
-                <div class="input-group input-group-sm" style="max-width:220px;">
-                    <span class="input-group-text"><i class="fa fa-search"/></span>
-                    <input type="text" class="form-control"
-                           placeholder="Buscar artículo…"
-                           t-model="state.productSearch"
-                           autocomplete="off"/>
-                </div>
-                <div class="ms-auto d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" t-on-click="openForecastList">
-                        <i class="fa fa-list me-1"/> Ver líneas
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" t-on-click="downloadExport">
-                        <i class="fa fa-download me-1"/> Exportar
-                    </button>
-                    <button t-if="state.canEdit"
-                            class="btn btn-sm btn-primary" t-on-click="openImport">
-                        <i class="fa fa-upload me-1"/> Importar
-                    </button>
-                </div>
-            </div>
-
-            <!-- Sin datos -->
-            <div t-if="!state.data" class="text-center text-muted py-5">
+            <!-- KPI cards (first); spinner while loading for the first time -->
+            <div t-if="!state.data" class="text-center text-muted py-3">
                 <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
                 Cargando…
             </div>
 
             <t t-if="state.data">
-
-                <!-- KPI cards -->
-                <div class="row g-2 mb-4">
+                <div class="row g-2 mb-3">
                     <div class="col-6 col-md-4 col-xl-2">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3">
@@ -150,8 +73,126 @@
                         </div>
                     </div>
                 </div>
+            </t>
 
-                <!-- Sin datos de forecast -->
+            <!-- Filtros + acciones (below KPIs) -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+                <!-- Rango de fechas -->
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:150px;"
+                           t-att-value="periodFromDate"
+                           t-on-change="onPeriodFromChange"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Hasta</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:150px;"
+                           t-att-value="periodToDate"
+                           t-on-change="onPeriodToChange"/>
+                </div>
+
+                <!-- Depósito dropdown -->
+                <div t-if="state.warehouses.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Depósito</label>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="min-width:140px;"
+                                t-on-click="toggleWhDropdown">
+                            <span class="text-truncate" style="max-width:110px;"><t t-esc="selectedWhLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.whDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <input type="text" class="form-control form-control-sm mb-2"
+                                   placeholder="Buscar depósito…"
+                                   t-model="state.whSearch"
+                                   autocomplete="off"/>
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="wh_filter_all"
+                                       t-att-checked="!state.warehouseIds.length"
+                                       t-on-change="clearWhFilter"/>
+                                <label class="form-check-label fw-semibold small" for="wh_filter_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="filteredWarehouses" t-as="wh" t-key="wh.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'wh_filter_' + wh.id"
+                                           t-att-data-wh-id="wh.id"
+                                           t-att-checked="state.warehouseIds.includes(wh.id)"
+                                           t-on-change="toggleWarehouse"/>
+                                    <label class="form-check-label small" t-att-for="'wh_filter_' + wh.id">
+                                        <t t-esc="wh.name"/>
+                                    </label>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buscar artículo -->
+                <div class="input-group input-group-sm" style="max-width:200px;">
+                    <span class="input-group-text"><i class="fa fa-search"/></span>
+                    <input type="text" class="form-control"
+                           placeholder="Buscar artículo…"
+                           t-model="state.productSearch"
+                           autocomplete="off"/>
+                </div>
+
+                <!-- Columnas dropdown -->
+                <div class="position-relative" t-on-click.stop="">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns"/>
+                        <span>Columnas</span>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:180px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_forecast"
+                                   t-att-checked="state.visibleCols.forecast"
+                                   t-on-change="() => this.toggleCol('forecast')"/>
+                            <label class="form-check-label small" for="col_forecast">Forecast</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_mos"
+                                   t-att-checked="state.visibleCols.mos"
+                                   t-on-change="() => this.toggleCol('mos')"/>
+                            <label class="form-check-label small" for="col_mos">Órdenes de fabricación</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="col_total"
+                                   t-att-checked="state.visibleCols.total"
+                                   t-on-change="() => this.toggleCol('total')"/>
+                            <label class="form-check-label small" for="col_total">Total</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones -->
+                <div class="ms-auto d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="openForecastList">
+                        <i class="fa fa-list me-1"/> Ver líneas
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="downloadExport">
+                        <i class="fa fa-download me-1"/> Exportar
+                    </button>
+                    <button t-if="state.canEdit"
+                            class="btn btn-sm btn-primary" t-on-click="openImport">
+                        <i class="fa fa-upload me-1"/> Importar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla (sólo con datos) -->
+            <t t-if="state.data">
+
                 <div t-if="filteredRows.length === 0"
                      class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-inbox fa-2x mb-2 d-block"/>
@@ -169,74 +210,121 @@
                     </t>
                 </div>
 
-                <!-- Tabla pivotada -->
                 <t t-if="filteredRows.length > 0">
-                    <div class="border rounded" style="overflow:auto; max-height:520px;">
-                        <table class="table table-sm table-bordered small mb-0" style="min-width:600px;">
-                            <thead class="table-light sticky-top">
+                    <div class="border rounded" style="overflow:auto; max-height:min(72vh, 800px);">
+                        <table class="table table-sm table-bordered mb-0"
+                               style="min-width:600px; font-size:12px;">
+                            <thead style="position:sticky; top:0; z-index:5;">
                                 <tr>
-                                    <th rowspan="2" class="align-middle" style="min-width:180px;">Artículo</th>
+                                    <th rowspan="2" class="align-middle"
+                                        style="min-width:180px; padding:4px 8px; background:#f8f9fa;">Artículo</th>
                                     <t t-foreach="state.data.months" t-as="m" t-key="m">
-                                        <th colspan="2" class="text-center text-nowrap">
+                                        <th t-att-colspan="monthColspan"
+                                            class="text-center text-nowrap"
+                                            style="padding:4px 8px; background:#f8f9fa;">
                                             <t t-esc="monthLabels[m_index]"/>
                                         </th>
                                     </t>
-                                    <th colspan="2" class="text-center text-nowrap fw-bold">Total</th>
+                                    <th t-if="showTotal"
+                                        t-att-colspan="monthColspan"
+                                        class="text-center text-nowrap fw-bold"
+                                        style="padding:4px 8px; background:#f8f9fa;">Total</th>
                                 </tr>
                                 <tr>
                                     <t t-foreach="state.data.months" t-as="m" t-key="'h_' + m">
-                                        <th class="text-end text-muted small" style="min-width:70px;">Forecast</th>
-                                        <th class="text-end text-muted small" style="min-width:70px;">OFs</th>
+                                        <th t-if="state.visibleCols.forecast"
+                                            class="text-end text-muted"
+                                            style="min-width:70px; padding:3px 6px; background:#f8f9fa;">Forecast</th>
+                                        <th t-if="state.visibleCols.mos"
+                                            class="text-end text-muted"
+                                            style="min-width:80px; padding:3px 6px; background:#f8f9fa;">OFs</th>
                                     </t>
-                                    <th class="text-end text-muted small fw-bold">Forecast</th>
-                                    <th class="text-end text-muted small fw-bold">OFs</th>
+                                    <t t-if="showTotal">
+                                        <th t-if="state.visibleCols.forecast"
+                                            class="text-end text-muted fw-bold"
+                                            style="padding:3px 6px; background:#f8f9fa;">Forecast</th>
+                                        <th t-if="state.visibleCols.mos"
+                                            class="text-end text-muted fw-bold"
+                                            style="padding:3px 6px; background:#f8f9fa;">OFs</th>
+                                    </t>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="filteredRows" t-as="row" t-key="row.product_id">
                                     <tr>
-                                        <td class="fw-semibold text-truncate" style="max-width:180px;"
+                                        <td class="fw-semibold text-truncate"
+                                            style="max-width:180px; padding:3px 8px;"
                                             t-att-title="row.product">
                                             <t t-esc="row.product"/>
                                         </td>
                                         <t t-foreach="row.cells" t-as="cell" t-key="cell.month">
-                                            <td class="text-end" t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : 'text-muted'">
+                                            <td t-if="state.visibleCols.forecast"
+                                                class="text-end"
+                                                style="padding:3px 6px;"
+                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''">
                                                 <t t-if="cell.forecast > 0">
-                                                    <span><t t-esc="fmt(cell.forecast)"/></span>
+                                                    <t t-esc="fmt(cell.forecast)"/>
                                                 </t>
                                                 <span t-else="" class="text-muted">—</span>
                                             </td>
-                                            <td class="text-end" t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : 'text-muted'">
+                                            <td t-if="state.visibleCols.mos"
+                                                class="text-end"
+                                                style="padding:3px 6px;"
+                                                t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''">
                                                 <t t-if="cell.forecast > 0">
-                                                    <span><t t-esc="fmt(cell.mos)"/></span>
-                                                    <br/>
-                                                    <small t-att-class="cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger'">
+                                                    <t t-esc="fmt(cell.mos)"/>
+                                                    <span t-att-class="'ms-1 ' + (cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                          style="font-size:10px;">
                                                         <t t-esc="fmtPct(cell.pct)"/>
-                                                    </small>
+                                                    </span>
                                                 </t>
                                                 <span t-else="" class="text-muted">—</span>
                                             </td>
                                         </t>
                                         <!-- Totales por artículo -->
-                                        <td class="text-end fw-semibold"><t t-esc="fmt(row.total_forecast)"/></td>
-                                        <td t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})">
-                                            <t t-esc="fmt(row.total_mos)"/>
-                                            <br/>
-                                            <small><t t-esc="fmtPct(row.total_pct)"/></small>
-                                        </td>
+                                        <t t-if="showTotal">
+                                            <td t-if="state.visibleCols.forecast"
+                                                class="text-end fw-semibold"
+                                                style="padding:3px 6px;">
+                                                <t t-esc="fmt(row.total_forecast)"/>
+                                            </td>
+                                            <td t-if="state.visibleCols.mos"
+                                                t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})"
+                                                style="padding:3px 6px;">
+                                                <t t-esc="fmt(row.total_mos)"/>
+                                                <span t-att-class="'ms-1 ' + (cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-ok' ? 'text-success' : cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                      style="font-size:10px;">
+                                                    <t t-esc="fmtPct(row.total_pct)"/>
+                                                </span>
+                                            </td>
+                                        </t>
                                     </tr>
                                 </t>
                             </tbody>
-                            <!-- Fila totales globales -->
-                            <tfoot class="table-light fw-bold">
+                            <!-- Totales globales -->
+                            <tfoot class="fw-bold" style="background:#f8f9fa;">
                                 <tr>
-                                    <td>Total</td>
+                                    <td style="padding:3px 8px;">Total</td>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">
-                                        <td class="text-end"><t t-esc="fmt(mt.forecast)"/></td>
-                                        <td class="text-end"><t t-esc="fmt(mt.mos)"/></td>
+                                        <td t-if="state.visibleCols.forecast"
+                                            class="text-end" style="padding:3px 6px;">
+                                            <t t-esc="fmt(mt.forecast)"/>
+                                        </td>
+                                        <td t-if="state.visibleCols.mos"
+                                            class="text-end" style="padding:3px 6px;">
+                                            <t t-esc="fmt(mt.mos)"/>
+                                        </td>
                                     </t>
-                                    <td class="text-end"><t t-esc="fmt(state.data.kpis.total_forecast)"/></td>
-                                    <td class="text-end"><t t-esc="fmt(state.data.kpis.total_mos)"/></td>
+                                    <t t-if="showTotal">
+                                        <td t-if="state.visibleCols.forecast"
+                                            class="text-end" style="padding:3px 6px;">
+                                            <t t-esc="fmt(state.data.kpis.total_forecast)"/>
+                                        </td>
+                                        <td t-if="state.visibleCols.mos"
+                                            class="text-end" style="padding:3px 6px;">
+                                            <t t-esc="fmt(state.data.kpis.total_mos)"/>
+                                        </td>
+                                    </t>
                                 </tr>
                             </tfoot>
                         </table>

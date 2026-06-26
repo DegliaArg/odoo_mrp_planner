@@ -38,7 +38,7 @@
                     <div class="row g-2 h-100 align-content-start">
 
                         <div class="col-6">
-                            <div class="card o_planner_card h-100">
+                            <div class="card o_planner_card h-100" title="Horas calendario disponibles de los CTs en el período, según el horario de trabajo configurado en cada recurso.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
                                     <div class="o_planner_number text-secondary" t-esc="fmtH(state.kpis.disponible)"/>
@@ -48,7 +48,7 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_info h-100">
+                            <div class="card o_planner_card o_planner_card_info h-100" title="Horas asignadas en órdenes de trabajo confirmadas o en progreso para el período seleccionado.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-calendar-check-o fa-lg text-info mb-2 d-block"/>
                                     <div class="o_planner_number text-info" t-esc="fmtH(state.kpis.planificado)"/>
@@ -58,7 +58,7 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card h-100">
+                            <div class="card o_planner_card h-100" title="Carga = Horas planificadas ÷ Horas disponibles × 100. Verde &lt; 80% | Amarillo 80-100% | Rojo &gt; 100%.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-tachometer fa-lg mb-2 d-block"
                                        t-att-class="cargaClass(state.kpis.carga_pct)"/>
@@ -71,7 +71,7 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_success h-100">
+                            <div class="card o_planner_card o_planner_card_success h-100" title="Horas efectivamente trabajadas y registradas en órdenes de trabajo completadas del período.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                     <div class="o_planner_number text-success" t-esc="fmtH(state.kpis.ejecutado)"/>
@@ -81,7 +81,7 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_warning h-100">
+                            <div class="card o_planner_card o_planner_card_warning h-100" title="Horas planificadas aún no ejecutadas = Planificado − Ejecutado. Trabajo restante en OTs abiertas.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
                                     <div class="o_planner_number text-warning" t-esc="fmtH(state.kpis.pendiente)"/>
@@ -91,7 +91,7 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_danger h-100">
+                            <div class="card o_planner_card o_planner_card_danger h-100" title="Horas disponibles no asignadas a ninguna OT = Disponible − Planificado. Capacidad ociosa del período.">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-ban fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmtH(state.kpis.tiempo_libre)"/>

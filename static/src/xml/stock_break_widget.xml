@@ -25,6 +25,7 @@
                 <div class="row g-2 mb-3">
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100" style="cursor:pointer"
+                             title="Total de productos activos con venta habilitada (sale_ok = Sí)."
                              t-on-click="() => this.setFilter('all')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
@@ -35,6 +36,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card o_planner_card_danger h-100" style="cursor:pointer"
+                             title="Productos con stock actual &lt; cantidad mínima del punto de reorden con ruta Fabricación."
                              t-on-click="() => this.setFilter('broken')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
@@ -45,6 +47,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card o_planner_card_success h-100" style="cursor:pointer"
+                             title="Productos con punto de reorden activo y stock actual ≥ cantidad mínima configurada."
                              t-on-click="() => this.setFilter('ok')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
@@ -55,6 +58,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100" style="cursor:pointer"
+                             title="Productos vendibles sin punto de reorden configurado con ruta Fabricación."
                              t-on-click="() => this.setFilter('no_min')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-minus-circle fa-lg text-muted mb-2 d-block"/>
@@ -143,17 +147,17 @@
                             </colgroup>
                             <thead class="table-light">
                                 <tr class="text-muted">
-                                    <th/>
-                                    <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">
+                                    <th title="Expandir para ver OFs activas"/>
+                                    <th style="cursor:pointer" title="Nombre o código del producto. Clic en la fila para abrir la ficha. Clic en el encabezado para ordenar." t-on-click="() => this.sortBy('name')">
                                         Producto <i t-att-class="sortIcon('name')"/>
                                     </th>
-                                    <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('qty')">
+                                    <th class="text-end" style="cursor:pointer" title="Cantidad disponible en la/s ubicación/es seleccionadas (stock.quant.quantity). Clic para ordenar." t-on-click="() => this.sortBy('qty')">
                                         Stock actual <i t-att-class="sortIcon('qty')"/>
                                     </th>
-                                    <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('min_qty')">
+                                    <th class="text-end" style="cursor:pointer" title="Cantidad mínima del punto de reorden con ruta Fabricación (orderpoint.product_min_qty). Clic para ordenar." t-on-click="() => this.sortBy('min_qty')">
                                         Mínimo <i t-att-class="sortIcon('min_qty')"/>
                                     </th>
-                                    <th class="text-center" style="cursor:pointer" t-on-click="() => this.sortBy('status')">
+                                    <th class="text-center" style="cursor:pointer" title="Quiebre: stock &lt; mínimo | OK: stock ≥ mínimo | Sin mínimo: sin punto de reorden configurado. Clic para ordenar." t-on-click="() => this.sortBy('status')">
                                         Estado <i t-att-class="sortIcon('status')"/>
                                     </th>
                                 </tr>

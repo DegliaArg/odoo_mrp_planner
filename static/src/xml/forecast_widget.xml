@@ -13,7 +13,7 @@
             <t t-if="state.data">
                 <div class="row g-2 mb-3">
                     <div class="col-6 col-md-4 col-xl-2">
-                        <div class="card o_planner_card h-100">
+                        <div class="card o_planner_card h-100" title="Total de unidades planificadas en líneas de forecast activas para el período seleccionado.">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-bar-chart fa-lg text-primary mb-2 d-block"/>
                                 <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_forecast)"/></div>
@@ -22,7 +22,7 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-4 col-xl-2">
-                        <div class="card o_planner_card h-100">
+                        <div class="card o_planner_card h-100" title="Total de unidades planificadas en OFs activas (confirmadas / en progreso / por cerrar) con fecha de fin en el período.">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-industry fa-lg text-secondary mb-2 d-block"/>
                                 <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_mos)"/></div>
@@ -31,7 +31,7 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-4 col-xl-2">
-                        <div class="card o_planner_card h-100">
+                        <div class="card o_planner_card h-100" title="Total de unidades entregadas a clientes en el período (albaranes de salida validados, stock.move.line.quantity).">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
                                 <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.total_delivered)"/></div>
@@ -40,7 +40,7 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-4 col-xl-2">
-                        <div t-att-class="'card o_planner_card h-100' + (state.data.kpis.gap >= 0 ? '' : ' o_planner_card_danger')">
+                        <div t-att-class="'card o_planner_card h-100' + (state.data.kpis.gap >= 0 ? '' : ' o_planner_card_danger')" title="Brecha = Total OFs planificadas − Total forecast. Positivo: producción cubre la demanda. Negativo: déficit.">
                             <div class="card-body text-center py-3">
                                 <i t-att-class="'fa fa-lg mb-2 d-block ' + (state.data.kpis.gap >= 0 ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-danger')"/>
                                 <div t-att-class="'o_planner_number ' + (state.data.kpis.gap >= 0 ? 'text-success' : 'text-danger')">

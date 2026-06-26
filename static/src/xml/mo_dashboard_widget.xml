@@ -70,7 +70,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickTotal"
-                                     t-att-data-kpi-tip="'OFs confirmadas o en progreso no\ncanceladas con fecha de fin en\nel período seleccionado.\nEstados: Confirmada · En progreso · Por cerrar'">
+                                     title="OFs confirmadas, en progreso o por cerrar, con fecha de fin en el período seleccionado. Estados: Confirmada · En progreso · Por cerrar">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.total)"/>
@@ -82,7 +82,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickInProgress"
-                                     t-att-data-kpi-tip="'OFs cuya producción ya fue\niniciada formalmente en el sistema.\nEstados: En progreso · Por cerrar'">
+                                     title="OFs cuya producción ya fue iniciada formalmente en el sistema. Estados: En progreso · Por cerrar">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.ofs_kpis.in_progress)"/>
@@ -94,7 +94,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_danger h-100"
                                      style="cursor:pointer" t-on-click="onClickDelayed"
-                                     t-att-data-kpi-tip="'OFs activas cuya fecha de fin\nplanificada ya superó la fecha actual.\nCondición: fecha_fin &lt; hoy\nY estado distinto de completada'">
+                                     title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. Condición: fecha_fin &lt; hoy y estado activo">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
                                         <div class="o_planner_number text-danger" t-esc="fmt(state.ofs_kpis.delayed)"/>
@@ -106,7 +106,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReschedule"
-                                     t-att-data-kpi-tip="'OFs marcadas manualmente como\nnecesitan reprogramación.\nCampo: Requiere reprogramación = Sí'">
+                                     title="OFs con 'Requiere reprogramación' activado. Se marcan automáticamente por alertas o manualmente.">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.ofs_kpis.reschedule)"/>
@@ -118,7 +118,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickDone"
-                                     t-att-data-kpi-tip="'OFs cerradas formalmente\ndurante el período seleccionado.\nEstado: Completada\nFecha fin dentro del rango'">
+                                     title="OFs cerradas formalmente durante el período. Estado: Completada. Fecha fin dentro del rango.">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.ofs_kpis.done)"/>
@@ -130,7 +130,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickPartial"
-                                     t-att-data-kpi-tip="'OFs con producción terminada\npendientes de cierre formal.\nEstado: Por cerrar (to_close)\nProducción completa, sin registrar'">
+                                     title="OFs con producción completa pendientes de cierre formal en Odoo. Estado: Por cerrar (to_close)">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number text-secondary" t-esc="fmt(state.ofs_kpis.partial)"/>
@@ -162,10 +162,10 @@
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('date_finished')">Fin planificado <i t-att-class="sortIcon('date_finished')"/></th>
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
+                                        <th style="cursor:pointer" title="Número de la orden de fabricación. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                        <th style="cursor:pointer" title="Producto a fabricar en esta OF. Clic para ordenar." t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
+                                        <th style="cursor:pointer" title="Fecha de finalización planificada (date_finished). Clic para ordenar." t-on-click="() => this.sortBy('date_finished')">Fin planificado <i t-att-class="sortIcon('date_finished')"/></th>
+                                        <th style="cursor:pointer" title="Estado actual de la OF: Confirmada / En progreso / Por cerrar / Completada. Clic para ordenar." t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
                                         <th class="text-end" style="cursor:pointer" title="Entregas pendientes del producto" t-on-click="() => this.sortBy('pending_delivery')">Entregas <i t-att-class="sortIcon('pending_delivery')"/></th>
                                     </tr>
                                 </thead>
@@ -230,7 +230,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickReqActive"
-                                     t-att-data-kpi-tip="'Programaciones activas con OFs\nconfirmadas generadas.\nEstado de la programación: Confirmada'">
+                                     title="Solicitudes de programación confirmadas con OFs generadas. Estado de la solicitud: Confirmada">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.req_kpis.active)"/>
@@ -242,7 +242,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickReqCalc"
-                                     t-att-data-kpi-tip="'Programaciones que pasaron por\nel proceso de cálculo de carga\ny capacidad de los centros de trabajo.\nEstado: Calculada'">
+                                     title="Solicitudes que pasaron por el cálculo de fechas y capacidad de centros de trabajo. Estado: Calculada">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.req_kpis.calculated)"/>
@@ -254,7 +254,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReqReschedule"
-                                     t-att-data-kpi-tip="'Programaciones que tienen al menos\nuna OF marcada como requiere\nreprogramación.\nCampo: x_reschedule_needed = Sí'">
+                                     title="Solicitudes con al menos una OF marcada como 'requiere reprogramación' (x_reschedule_needed = Sí)">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.req_kpis.reschedule)"/>
@@ -265,7 +265,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_danger h-100"
-                                     t-att-data-kpi-tip="'Total de OFs atrasadas asociadas\na las programaciones activas.\nCondición: fecha_fin &lt; hoy\nY estado activo'">
+                                     title="Total de OFs atrasadas asociadas a las solicitudes activas. Condición: fecha_fin &lt; hoy y estado activo">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block"/>
                                         <div class="o_planner_number text-danger" t-esc="fmt(state.req_kpis.mos_delayed)"/>
@@ -296,9 +296,9 @@
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('start_from')">Disponible desde <i t-att-class="sortIcon('start_from')"/></th>
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
+                                        <th style="cursor:pointer" title="Identificador de la solicitud de programación. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
+                                        <th style="cursor:pointer" title="Fecha más temprana desde la que el material está disponible para producción. Clic para ordenar." t-on-click="() => this.sortBy('start_from')">Disponible desde <i t-att-class="sortIcon('start_from')"/></th>
+                                        <th style="cursor:pointer" title="Estado de la solicitud: Borrador / Calculada / Confirmada. Clic para ordenar." t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
                                     </tr>
                                 </thead>
                             </table>
@@ -352,7 +352,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
-                                     t-att-data-kpi-tip="'Total de unidades planificadas\nen las OFs del período seleccionado.\nFuente: product_qty de OFs\nen el rango de fechas'">
+                                     title="Total de unidades planificadas en OFs del período. Fuente: product_qty de las OFs en el rango de fechas">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.planned)"/>
@@ -363,7 +363,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
-                                     t-att-data-kpi-tip="'Total de unidades efectivamente\nproducidas y registradas\nen las OFs completadas del período.\nFuente: qty_produced de OFs done'">
+                                     title="Total de unidades producidas y registradas. Fuente: qty_produced de las OFs con estado Completada (done)">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.cmp_kpis.produced)"/>
@@ -374,7 +374,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
-                                     t-att-data-kpi-tip="'Porcentaje de producción ejecutada\nsobre la producción planificada.\nVerde &gt;=90%  Amarillo &gt;=50%  Rojo &lt;50%\nFórmula: Producido ÷ Programado × 100'">
+                                     title="Fórmula: Producido ÷ Programado × 100. Verde ≥ 90% | Amarillo ≥ 50% | Rojo &lt; 50%">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-pie-chart fa-lg text-secondary mb-2 d-block"/>
                                         <div t-att-class="'o_planner_number ' + pctClass(state.cmp_kpis.pct)"
@@ -386,7 +386,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
-                                     t-att-data-kpi-tip="'Cantidad de OFs formalmente\nfinalizadas dentro del período\nseleccionado.\nEstado: Completada (done)'">
+                                     title="OFs formalmente finalizadas dentro del período seleccionado. Estado: Completada (done)">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-flag-checkered fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.cmp_kpis.ofs_done)"/>
@@ -418,10 +418,10 @@
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
-                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('planned_qty')">Programado <i t-att-class="sortIcon('planned_qty')"/></th>
-                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('produced_qty')">Producido <i t-att-class="sortIcon('produced_qty')"/></th>
-                                        <th class="text-end" style="cursor:pointer" t-on-click="() => this.sortBy('pct')">% <i t-att-class="sortIcon('pct')"/></th>
+                                        <th style="cursor:pointer" title="Nombre del producto fabricado. Clic para ordenar." t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
+                                        <th class="text-end" style="cursor:pointer" title="Total de unidades planificadas en OFs del período (product_qty). Clic para ordenar." t-on-click="() => this.sortBy('planned_qty')">Programado <i t-att-class="sortIcon('planned_qty')"/></th>
+                                        <th class="text-end" style="cursor:pointer" title="Total de unidades producidas y registradas (qty_produced de OFs done). Clic para ordenar." t-on-click="() => this.sortBy('produced_qty')">Producido <i t-att-class="sortIcon('produced_qty')"/></th>
+                                        <th class="text-end" style="cursor:pointer" title="Cumplimiento = Producido ÷ Programado × 100. Clic para ordenar." t-on-click="() => this.sortBy('pct')">% <i t-att-class="sortIcon('pct')"/></th>
                                     </tr>
                                 </thead>
                             </table>

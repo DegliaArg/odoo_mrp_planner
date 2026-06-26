@@ -111,11 +111,11 @@
                             </group>
                             <group string="Umbrales de rotación (días)"
                                    invisible="sale_cat_mode != 'automatic'">
-                                <p class="text-muted small" colspan="2">
+                                <div class="text-muted small mb-2">
                                     Rotación = stock actual ÷ (entregas en los últimos 3 meses ÷ 3).
                                     Los umbrales definen el máximo de días para cada categoría.
                                     Artículos por encima del umbral D reciben categoría E.
-                                </p>
+                                </div>
                                 <field name="sale_cat_a_days"/>
                                 <field name="sale_cat_b_days"/>
                                 <field name="sale_cat_c_days"/>

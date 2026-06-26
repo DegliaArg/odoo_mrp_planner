@@ -21,6 +21,7 @@ class StockBreakWidget extends Component {
     static template = "odoo_mrp_planner.StockBreakWidget";
     static props = {
         record: { type: Object },
+        "*": true,
     };
 
     setup() {

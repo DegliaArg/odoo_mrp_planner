@@ -27,6 +27,7 @@ class MoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.MoDashboardWidget";
     static props = {
         record: { type: Object },
+        "*": true,
     };
 
     setup() {

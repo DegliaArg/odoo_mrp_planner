@@ -30,6 +30,7 @@ class PoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.PoDashboardWidget";
     static props = {
         record: { type: Object },
+        "*": true,
     };
 
     setup() {

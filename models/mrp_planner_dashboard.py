@@ -1066,7 +1066,11 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_warehouses_for_forecast(self):
-        whs = self.env['stock.warehouse'].search([], order='name')
+        user = self.env.user
+        if user.mrp_planner_all_warehouses or not user.mrp_planner_warehouse_ids:
+            whs = self.env['stock.warehouse'].search([], order='name')
+        else:
+            whs = user.mrp_planner_warehouse_ids.sorted('name')
         return [{'id': w.id, 'name': w.name} for w in whs]
 
     @api.model

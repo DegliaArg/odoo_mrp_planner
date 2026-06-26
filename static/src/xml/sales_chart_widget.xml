@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.SalesChartWidget">
+        <div class="o_sales_chart_widget">
+
+            <!-- Controles -->
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+
+                <!-- Período -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[['1m','1 mes'],['3m','3 meses'],['6m','6 meses'],['12m','12 meses']]"
+                       t-as="p" t-key="p[0]">
+                        <button t-att-class="'btn ' + (state.period === p[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                t-on-click="() => this.setPeriod(p[0])">
+                            <t t-esc="p[1]"/>
+                        </button>
+                    </t>
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <!-- Métrica -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button t-att-class="'btn ' + (state.metric === 'qty' ? 'btn-info' : 'btn-outline-secondary')"
+                                t-on-click="() => this.setMetric('qty')">Unidades</button>
+                        <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-info' : 'btn-outline-secondary')"
+                                t-on-click="() => this.setMetric('amount')">Importe</button>
+                    </div>
+                    <!-- Top N -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                            <button t-att-class="'btn ' + (state.topN === n ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    t-on-click="() => this.setTopN(n)">
+                                Top <t t-esc="n"/>
+                            </button>
+                        </t>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cargando -->
+            <div t-if="state.loading" class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+
+            <!-- Sin datos -->
+            <div t-elif="!state.rows.length" class="text-center text-muted py-5">
+                <i class="fa fa-bar-chart fa-3x mb-3 d-block opacity-50"/>
+                <span>No hay ventas registradas en el período seleccionado.</span>
+            </div>
+
+            <!-- Gráfico -->
+            <div t-else="" t-att-style="'position:relative; height:' + chartHeightPx + 'px;'">
+                <canvas t-ref="salesCanvas" style="width:100%;"/>
+            </div>
+
+            <!-- Leyenda de categorías -->
+            <div t-if="!state.loading and state.rows.length"
+                 class="d-flex flex-wrap gap-3 mt-3 small text-muted align-items-center">
+                <span class="fw-semibold">Categoría:</span>
+                <span>
+                    <span class="badge" style="background:rgba(25,135,84,0.8);">A</span>
+                    Alta rotación
+                </span>
+                <span>
+                    <span class="badge" style="background:rgba(13,110,253,0.8);">B</span>
+                </span>
+                <span>
+                    <span class="badge" style="background:rgba(255,193,7,0.85);color:#212529;">C</span>
+                </span>
+                <span>
+                    <span class="badge" style="background:rgba(108,117,125,0.8);">D</span>
+                </span>
+                <span>
+                    <span class="badge" style="background:rgba(200,210,220,0.9);color:#212529;">E</span>
+                    Baja rotación
+                </span>
+                <span>
+                    <span class="badge bg-secondary">—</span>
+                    Sin categoría
+                </span>
+            </div>
+
+        </div>
+    </t>
+
+</templates>

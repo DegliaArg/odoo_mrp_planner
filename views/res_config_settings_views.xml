@@ -109,11 +109,13 @@
                             <group>
                                 <field name="sale_cat_mode" widget="radio"/>
                             </group>
+
+                            <!-- Umbrales por rotación -->
                             <group string="Umbrales de rotación (días)"
                                    invisible="sale_cat_mode != 'automatic'">
                                 <div class="text-muted small mb-2">
-                                    Rotación = stock actual ÷ (entregas en los últimos 3 meses ÷ 3).
-                                    Los umbrales definen el máximo de días para cada categoría.
+                                    Rotación = stock actual ÷ (entregas últimos 3 meses ÷ 3).
+                                    Cada umbral define el máximo de días de cobertura para la categoría.
                                     Artículos por encima del umbral D reciben categoría E.
                                 </div>
                                 <field name="sale_cat_a_days"/>
@@ -121,15 +123,31 @@
                                 <field name="sale_cat_c_days"/>
                                 <field name="sale_cat_d_days"/>
                             </group>
-                            <div invisible="sale_cat_mode != 'automatic'" class="mt-3">
+
+                            <!-- Umbrales por demanda -->
+                            <group string="Umbrales de demanda (unidades/mes)"
+                                   invisible="sale_cat_mode != 'demand'">
+                                <div class="text-muted small mb-2">
+                                    Demanda = promedio de unidades vendidas por mes (últimos 3 meses).
+                                    Cada umbral define el mínimo de unidades para la categoría.
+                                    Artículos por debajo del umbral D reciben categoría E.
+                                </div>
+                                <field name="sale_cat_demand_a_qty"/>
+                                <field name="sale_cat_demand_b_qty"/>
+                                <field name="sale_cat_demand_c_qty"/>
+                                <field name="sale_cat_demand_d_qty"/>
+                            </group>
+
+                            <!-- Botón asignar (visible para ambos modos automáticos) -->
+                            <div invisible="sale_cat_mode == 'manual'" class="mt-3">
                                 <button name="action_auto_assign_sale_categories"
                                         type="object"
                                         string="Asignar categorías ahora"
                                         class="btn btn-primary"/>
-                                <p class="text-muted small mt-2">
-                                    Calcula la rotación de los últimos 3 meses para todos los artículos
+                                <div class="text-muted small mt-2">
+                                    Analiza los últimos 3 meses de entregas para todos los artículos
                                     vendibles y asigna la categoría A–E automáticamente.
-                                </p>
+                                </div>
                             </div>
                         </page>
 

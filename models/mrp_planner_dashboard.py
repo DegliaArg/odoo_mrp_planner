@@ -1665,3 +1665,48 @@ class MrpPlannerDashboard(models.TransientModel):
             'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
         }
+
+    @api.model
+    def get_sales_chart_data(self, date_from, date_to, top_n=20):
+        domain = [
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_code', '=', 'outgoing'),
+            ('date', '>=', date_from + ' 00:00:00'),
+            ('date', '<=', date_to + ' 23:59:59'),
+            ('product_id', '!=', False),
+        ]
+        groups = self.env['stock.move.line'].read_group(
+            domain,
+            ['product_id', 'qty_done:sum'],
+            ['product_id'],
+        )
+        # Aggregate by product template
+        tmpl_qty = {}
+        for g in groups:
+            if not g['product_id']:
+                continue
+            pp = self.env['product.product'].browse(g['product_id'][0])
+            tid = pp.product_tmpl_id.id
+            tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['qty_done'] or 0.0)
+
+        if not tmpl_qty:
+            return []
+
+        sorted_ids = sorted(tmpl_qty, key=lambda k: tmpl_qty[k], reverse=True)[:int(top_n)]
+        templates  = self.env['product.template'].browse(sorted_ids)
+        tmpl_by_id = {t.id: t for t in templates}
+
+        result = []
+        for tid in sorted_ids:
+            t = tmpl_by_id.get(tid)
+            if not t:
+                continue
+            qty = round(tmpl_qty[tid], 2)
+            result.append({
+                'tmpl_id':       tid,
+                'name':          t.name,
+                'sale_category': t.x_sale_category or '',
+                'qty':           qty,
+                'amount':        round(qty * (t.list_price or 0.0), 2),
+            })
+        return result

@@ -85,21 +85,42 @@
         </field>
     </record>
 
-    <!-- ── Vista del panel de Ventas (solo forecast) ─────────────────────── -->
+    <!-- ── Vista del panel de Ventas ────────────────────────────────────── -->
     <record id="mrp_ventas_dashboard_form" model="ir.ui.view">
         <field name="name">mrp.ventas.dashboard.form</field>
         <field name="model">mrp.planner.dashboard</field>
         <field name="arch" type="xml">
-            <form string="Forecast de Ventas" create="false" edit="false" delete="false">
+            <form string="Panel de Ventas" create="false" edit="false" delete="false">
                 <sheet>
                     <div class="o_planner_dashboard container-fluid p-4">
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Forecast de Ventas</h4>
+                                <h4 class="mb-0 fw-bold">Panel de Ventas</h4>
                             </div>
                         </div>
-                        <field name="can_edit_forecast" invisible="1"/>
-                        <widget name="forecast_widget"/>
+
+                        <!-- Gráfico de productos más vendidos -->
+                        <div class="card o_planner_card mb-4">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fa fa-bar-chart me-2 text-primary"/>
+                                <span class="fw-semibold">Productos más vendidos</span>
+                            </div>
+                            <div class="card-body">
+                                <widget name="sales_chart_widget"/>
+                            </div>
+                        </div>
+
+                        <!-- Forecast -->
+                        <div class="card o_planner_card">
+                            <div class="card-header d-flex align-items-center">
+                                <i class="fa fa-table me-2 text-primary"/>
+                                <span class="fw-semibold">Forecast</span>
+                            </div>
+                            <div class="card-body p-0">
+                                <field name="can_edit_forecast" invisible="1"/>
+                                <widget name="forecast_widget"/>
+                            </div>
+                        </div>
                     </div>
                 </sheet>
             </form>

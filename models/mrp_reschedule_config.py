@@ -63,11 +63,13 @@ class MrpRescheduleConfig(models.Model):
     sale_cat_mode = fields.Selection([
         ('manual',    'Manual (desde la ficha del artículo)'),
         ('automatic', 'Automática por rotación de inventario'),
+        ('demand',    'Automática por demanda (volumen de ventas)'),
     ], string='Modo de asignación', default='manual',
        help='Manual: cada artículo se categoriza desde su ficha. '
-            'Automático: el sistema calcula la rotación de los últimos 3 meses '
-            'y asigna A–E según los umbrales definidos abajo.')
+            'Rotación: calcula stock ÷ ventas y asigna A–E por días de cobertura. '
+            'Demanda: asigna A–E por unidades vendidas promedio por mes.')
 
+    # ── Umbrales por rotación (modo automatic) ────────────────────────────────
     sale_cat_a_days = fields.Integer(
         string='A — rotación máx. (días)', default=30,
         help='Artículos con rotación ≤ este valor reciben categoría A (alta rotación).')
@@ -80,6 +82,20 @@ class MrpRescheduleConfig(models.Model):
     sale_cat_d_days = fields.Integer(
         string='D — rotación máx. (días)', default=180,
         help='Artículos con rotación entre C y este valor reciben D. Por encima → E.')
+
+    # ── Umbrales por demanda (modo demand) ────────────────────────────────────
+    sale_cat_demand_a_qty = fields.Integer(
+        string='A — demanda mín. (u./mes)', default=100,
+        help='Artículos con promedio mensual ≥ este valor reciben categoría A.')
+    sale_cat_demand_b_qty = fields.Integer(
+        string='B — demanda mín. (u./mes)', default=50,
+        help='Artículos con promedio mensual ≥ este valor (y < A) reciben categoría B.')
+    sale_cat_demand_c_qty = fields.Integer(
+        string='C — demanda mín. (u./mes)', default=20,
+        help='Artículos con promedio mensual ≥ este valor (y < B) reciben categoría C.')
+    sale_cat_demand_d_qty = fields.Integer(
+        string='D — demanda mín. (u./mes)', default=5,
+        help='Artículos con promedio mensual ≥ este valor (y < C) reciben D. Por debajo → E.')
 
     include_wc_heuristic = fields.Boolean(
         string='Heurística por centro de trabajo',
@@ -134,10 +150,6 @@ class MrpRescheduleConfig(models.Model):
         config = self.search([], limit=1)
         if not config:
             return
-        a_d = config.sale_cat_a_days
-        b_d = config.sale_cat_b_days
-        c_d = config.sale_cat_c_days
-        d_d = config.sale_cat_d_days
 
         end   = date.today()
         start = end - timedelta(days=90)
@@ -154,30 +166,48 @@ class MrpRescheduleConfig(models.Model):
             tid = ml.product_id.product_tmpl_id.id
             del_by_tmpl[tid] = del_by_tmpl.get(tid, 0.0) + ml.qty_done
 
-        quants = self.env['stock.quant'].read_group(
-            [('location_id.usage', '=', 'internal'), ('product_id', '!=', False)],
-            ['product_id', 'quantity:sum'],
-            ['product_id'],
-        )
-        stock_by_pid = {g['product_id'][0]: g['quantity'] for g in quants}
-
         templates = self.env['product.template'].search([('sale_ok', '=', True)])
         updated = 0
-        for tmpl in templates:
-            stock     = sum(stock_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
-            delivered = del_by_tmpl.get(tmpl.id, 0.0)
-            avg_monthly = delivered / 3.0
-            if avg_monthly <= 0:
-                cat = 'E'
-            else:
-                rot = round(stock / avg_monthly * 30)
-                if   rot <= a_d: cat = 'A'
-                elif rot <= b_d: cat = 'B'
-                elif rot <= c_d: cat = 'C'
-                elif rot <= d_d: cat = 'D'
-                else:            cat = 'E'
-            tmpl.x_sale_category = cat
-            updated += 1
+
+        if config.sale_cat_mode == 'demand':
+            a_q = config.sale_cat_demand_a_qty
+            b_q = config.sale_cat_demand_b_qty
+            c_q = config.sale_cat_demand_c_qty
+            d_q = config.sale_cat_demand_d_qty
+            for tmpl in templates:
+                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / 3.0
+                if   avg_monthly >= a_q: cat = 'A'
+                elif avg_monthly >= b_q: cat = 'B'
+                elif avg_monthly >= c_q: cat = 'C'
+                elif avg_monthly >= d_q: cat = 'D'
+                else:                    cat = 'E'
+                tmpl.x_sale_category = cat
+                updated += 1
+        else:
+            a_d = config.sale_cat_a_days
+            b_d = config.sale_cat_b_days
+            c_d = config.sale_cat_c_days
+            d_d = config.sale_cat_d_days
+            quants = self.env['stock.quant'].read_group(
+                [('location_id.usage', '=', 'internal'), ('product_id', '!=', False)],
+                ['product_id', 'quantity:sum'],
+                ['product_id'],
+            )
+            stock_by_pid = {g['product_id'][0]: g['quantity'] for g in quants}
+            for tmpl in templates:
+                stock       = sum(stock_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
+                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / 3.0
+                if avg_monthly <= 0:
+                    cat = 'E'
+                else:
+                    rot = round(stock / avg_monthly * 30)
+                    if   rot <= a_d: cat = 'A'
+                    elif rot <= b_d: cat = 'B'
+                    elif rot <= c_d: cat = 'C'
+                    elif rot <= d_d: cat = 'D'
+                    else:            cat = 'E'
+                tmpl.x_sale_category = cat
+                updated += 1
 
         return {
             'type':   'ir.actions.client',

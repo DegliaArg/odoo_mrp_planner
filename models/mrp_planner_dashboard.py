@@ -1087,8 +1087,9 @@ class MrpPlannerDashboard(models.TransientModel):
         months = _months_between(d_from, d_to)
 
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        warning_pct  = cfg.forecast_warning_pct  if cfg else 70
-        critical_pct = cfg.forecast_critical_pct if cfg else 50
+        warning_pct    = cfg.forecast_warning_pct    if cfg else 70
+        critical_pct   = cfg.forecast_critical_pct   if cfg else 50
+        rotation_unit  = (cfg.forecast_rotation_unit if cfg else None) or 'days'
 
         # Estados de OF configurados
         mo_states = []
@@ -1151,68 +1152,190 @@ class MrpPlannerDashboard(models.TransientModel):
                 mo_data[pid] = {}
             mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + mo.product_qty
 
+        # ── Ids de productos con forecast ──────────────────────────────────────
+        all_product_ids      = set(fc_data.keys())
+        all_product_ids_list = list(all_product_ids)
+        n_months             = len(months) or 1
+
+        # ── Movimientos de salida completados (entregado) ──────────────────────
+        del_line_domain = [
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ('date', '>=', fields.Datetime.to_string(
+                datetime.combine(d_from, datetime.min.time()))),
+            ('date', '<=', fields.Datetime.to_string(
+                datetime.combine(last_day_of_to, datetime.max.time()))),
+            ('product_id', 'in', all_product_ids_list),
+            ('company_id', '=', self.env.company.id),
+        ]
+        if warehouse_ids:
+            del_line_domain.append(
+                ('picking_id.picking_type_id.warehouse_id', 'in', warehouse_ids))
+
+        del_data = {}   # {product_id: {ym: qty}}
+        for ml in self.env['stock.move.line'].search(del_line_domain):
+            pid = ml.product_id.id
+            dt  = ml.date
+            if not dt:
+                continue
+            ym = f"{dt.year}-{dt.month:02d}"
+            if ym not in months:
+                continue
+            del_data.setdefault(pid, {})
+            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + ml.quantity
+
+        # ── Demanda real: pedidos de venta confirmados ─────────────────────────
+        so_data = {}    # {product_id: {ym: qty}}
+        try:
+            so_domain = [
+                ('order_id.state', 'in', ('sale', 'done')),
+                ('order_id.date_order', '>=', fields.Datetime.to_string(
+                    datetime.combine(d_from, datetime.min.time()))),
+                ('order_id.date_order', '<=', fields.Datetime.to_string(
+                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('product_id', 'in', all_product_ids_list),
+                ('company_id', '=', self.env.company.id),
+            ]
+            if warehouse_ids:
+                so_domain.append(('order_id.warehouse_id', 'in', warehouse_ids))
+            for line in self.env['sale.order.line'].search(so_domain):
+                pid = line.product_id.id
+                if not line.order_id.date_order:
+                    continue
+                dt  = line.order_id.date_order
+                ym  = f"{dt.year}-{dt.month:02d}"
+                if ym not in months:
+                    continue
+                so_data.setdefault(pid, {})
+                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + line.product_uom_qty
+        except Exception:
+            pass    # módulo sale no disponible
+
+        # ── Stock actual (snapshot) ───────────────────────────────────────────
+        stock_data = {}   # {product_id: qty}
+        quant_domain = [
+            ('location_id.usage', '=', 'internal'),
+            ('product_id', 'in', all_product_ids_list),
+            ('company_id', '=', self.env.company.id),
+        ]
+        if warehouse_ids:
+            wh_recs  = self.env['stock.warehouse'].browse(warehouse_ids)
+            loc_ids  = wh_recs.mapped('lot_stock_id').ids
+            if loc_ids:
+                quant_domain.append(('location_id', 'in', loc_ids))
+        for q in self.env['stock.quant'].search(quant_domain):
+            pid = q.product_id.id
+            stock_data[pid] = stock_data.get(pid, 0.0) + q.quantity
+
         # ── Construir filas ────────────────────────────────────────────────────
         rows = []
-        all_product_ids = set(fc_data.keys())
-
         for pid in all_product_ids:
-            pname   = fc_data[pid]['product']
-            cells   = []
-            tot_fc  = 0.0
-            tot_mos = 0.0
+            pname    = fc_data[pid]['product']
+            pid_del  = del_data.get(pid, {})
+            pid_so   = so_data.get(pid, {})
+            stock_qty = round(stock_data.get(pid, 0.0), 2)
+            cells    = []
+            tot_fc   = 0.0
+            tot_mos  = 0.0
+            tot_del  = 0.0
+            tot_so   = 0.0
 
             for ym in months:
                 fc_qty  = fc_data[pid].get(ym, 0.0)
                 mo_qty  = mo_data.get(pid, {}).get(ym, 0.0)
-                pct     = round(mo_qty / fc_qty * 100, 1) if fc_qty > 0 else 0.0
+                del_qty = pid_del.get(ym, 0.0)
+                so_qty  = pid_so.get(ym, 0.0)
+                pct       = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
+                svc_rate  = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
+                fc_acc    = round(del_qty / fc_qty * 100, 1) if fc_qty > 0 else None
                 cells.append({
-                    'month':    ym,
-                    'forecast': round(fc_qty, 2),
-                    'mos':      round(mo_qty, 2),
-                    'pct':      pct,
+                    'month':        ym,
+                    'forecast':     round(fc_qty,  2),
+                    'mos':          round(mo_qty,  2),
+                    'pct':          pct,
+                    'delivered':    round(del_qty, 2),
+                    'so_demand':    round(so_qty,  2),
+                    'service_rate': svc_rate,
+                    'forecast_acc': fc_acc,
                 })
                 tot_fc  += fc_qty
                 tot_mos += mo_qty
+                tot_del += del_qty
+                tot_so  += so_qty
 
-            tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
+            tot_pct  = round(tot_mos / tot_fc  * 100, 1) if tot_fc  > 0 else 0.0
+            tot_svc  = round(tot_del / tot_so  * 100, 1) if tot_so  > 0 else None
+            tot_acc  = round(tot_del / tot_fc  * 100, 1) if tot_fc  > 0 else None
+
+            avg_monthly_del = tot_del / n_months
+            if avg_monthly_del > 0:
+                rot_months = round(stock_qty / avg_monthly_del, 1)
+                rot_days   = int(round(stock_qty / avg_monthly_del * 30))
+            else:
+                rot_months = None
+                rot_days   = None
+
             rows.append({
-                'product_id':    pid,
-                'product':       pname,
-                'cells':         cells,
-                'total_forecast': round(tot_fc, 2),
-                'total_mos':     round(tot_mos, 2),
-                'total_pct':     tot_pct,
+                'product_id':         pid,
+                'product':            pname,
+                'cells':              cells,
+                'stock_qty':          stock_qty,
+                'rotation_days':      rot_days,
+                'rotation_months':    rot_months,
+                'total_forecast':     round(tot_fc,  2),
+                'total_mos':          round(tot_mos, 2),
+                'total_pct':          tot_pct,
+                'total_delivered':    round(tot_del, 2),
+                'total_so_demand':    round(tot_so,  2),
+                'total_service_rate': tot_svc,
+                'total_forecast_acc': tot_acc,
             })
 
         rows.sort(key=lambda r: r['product'].lower())
 
         # ── Totales por mes ────────────────────────────────────────────────────
         month_totals = []
-        for ym in months:
-            mfc = sum(r['cells'][months.index(ym)]['forecast'] for r in rows)
-            mmo = sum(r['cells'][months.index(ym)]['mos']      for r in rows)
-            month_totals.append({'month': ym, 'forecast': round(mfc, 2), 'mos': round(mmo, 2)})
+        for i, ym in enumerate(months):
+            mfc = sum(r['cells'][i]['forecast']  for r in rows)
+            mmo = sum(r['cells'][i]['mos']       for r in rows)
+            mdl = sum(r['cells'][i]['delivered'] for r in rows)
+            mso = sum(r['cells'][i]['so_demand'] for r in rows)
+            month_totals.append({
+                'month':     ym,
+                'forecast':  round(mfc, 2),
+                'mos':       round(mmo, 2),
+                'delivered': round(mdl, 2),
+                'so_demand': round(mso, 2),
+            })
 
         # ── KPIs globales ──────────────────────────────────────────────────────
-        total_fc  = sum(r['total_forecast'] for r in rows)
-        total_mos = sum(r['total_mos']      for r in rows)
-        coverage  = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
-        at_risk   = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
+        total_fc   = sum(r['total_forecast']  for r in rows)
+        total_mos  = sum(r['total_mos']       for r in rows)
+        total_del  = sum(r['total_delivered'] for r in rows)
+        total_so   = sum(r['total_so_demand'] for r in rows)
+        coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
+        at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
+        ovr_svc    = round(total_del / total_so * 100, 1) if total_so > 0 else None
+        ovr_acc    = round(total_del / total_fc * 100, 1) if total_fc > 0 else None
 
         return {
             'kpis': {
-                'total_forecast':  round(total_fc, 2),
-                'total_mos':       round(total_mos, 2),
-                'gap':             round(total_mos - total_fc, 2),
-                'coverage_pct':    coverage,
-                'at_risk':         at_risk,
-                'total_products':  len(rows),
+                'total_forecast':       round(total_fc,  2),
+                'total_mos':            round(total_mos, 2),
+                'gap':                  round(total_mos - total_fc, 2),
+                'coverage_pct':         coverage,
+                'at_risk':              at_risk,
+                'total_products':       len(rows),
+                'total_delivered':      round(total_del, 2),
+                'overall_service_rate': ovr_svc,
+                'overall_forecast_acc': ovr_acc,
             },
-            'months':       months,
-            'month_totals': month_totals,
-            'rows':         rows,
-            'warning_pct':  warning_pct,
-            'critical_pct': critical_pct,
+            'months':        months,
+            'month_totals':  month_totals,
+            'rows':          rows,
+            'warning_pct':   warning_pct,
+            'critical_pct':  critical_pct,
+            'rotation_unit': rotation_unit,
         }
 
     @api.model

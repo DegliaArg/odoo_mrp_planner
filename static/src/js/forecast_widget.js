@@ -45,7 +45,14 @@ class ForecastWidget extends Component {
             whSearch:         "",
             productSearch:    "",
             colsDropdownOpen: false,
-            visibleCols:      { forecast: true, mos: true, total: true },
+            visibleCols: {
+                forecast:     true,
+                mos:          true,
+                delivered:    true,
+                stock:        true,
+                rotation:     true,
+                total:        true,
+            },
             data:             null,
             canEdit:          true,
         });
@@ -101,18 +108,18 @@ class ForecastWidget extends Component {
     }
 
     onPeriodFromChange(ev) {
-        const val = ev.target.value; // YYYY-MM-DD
+        const val = ev.target.value;
         if (!val) return;
-        this.state.periodFrom = val.substring(0, 7); // YYYY-MM
+        this.state.periodFrom = val.substring(0, 7);
         if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
         this._load();
     }
 
     onPeriodToChange(ev) {
-        const val = ev.target.value; // YYYY-MM-DD
+        const val = ev.target.value;
         if (!val) return;
-        this.state.periodTo = val.substring(0, 7); // YYYY-MM
+        this.state.periodTo = val.substring(0, 7);
         if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
         this._load();
@@ -137,16 +144,31 @@ class ForecastWidget extends Component {
         this.state.visibleCols[colKey] = !this.state.visibleCols[colKey];
     }
 
+    // Number of columns that repeat per month
     get monthColspan() {
         let n = 0;
-        if (this.state.visibleCols.forecast) n++;
-        if (this.state.visibleCols.mos) n++;
+        if (this.state.visibleCols.forecast)  n++;
+        if (this.state.visibleCols.mos)       n++;
+        if (this.state.visibleCols.delivered) n++;
         return n || 1;
+    }
+
+    // Total section: same as month + optional forecast-accuracy column
+    get showForecastAcc() {
+        return this.state.visibleCols.total &&
+               this.state.visibleCols.forecast &&
+               this.state.visibleCols.delivered;
+    }
+
+    get totalColspan() {
+        return this.monthColspan + (this.showForecastAcc ? 1 : 0);
     }
 
     get showTotal() {
         return this.state.visibleCols.total &&
-               (this.state.visibleCols.forecast || this.state.visibleCols.mos);
+               (this.state.visibleCols.forecast ||
+                this.state.visibleCols.mos ||
+                this.state.visibleCols.delivered);
     }
 
     get filteredRows() {
@@ -198,6 +220,38 @@ class ForecastWidget extends Component {
         return 'forecast-critical';
     }
 
+    svcClass(rate) {
+        if (rate === null || rate === undefined) return 'text-muted';
+        if (rate >= 95) return 'text-success';
+        if (rate >= 80) return 'text-warning';
+        return 'text-danger';
+    }
+
+    accClass(acc) {
+        if (acc === null || acc === undefined) return 'text-muted';
+        if (acc >= 90) return 'text-success';
+        if (acc >= 70) return 'text-warning';
+        return 'text-danger';
+    }
+
+    fmtRotation(row) {
+        const unit = this.state.data && this.state.data.rotation_unit;
+        if (unit === 'months') {
+            const v = row.rotation_months;
+            return v !== null && v !== undefined ? `${v} m` : '—';
+        }
+        const v = row.rotation_days;
+        return v !== null && v !== undefined ? `${v} d` : '—';
+    }
+
+    rotClass(row) {
+        const unit = this.state.data && this.state.data.rotation_unit;
+        const v = unit === 'months' ? row.rotation_months : row.rotation_days;
+        if (v === null || v === undefined) return 'text-muted';
+        const threshold = unit === 'months' ? 3 : 90;
+        return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
+    }
+
     fmt(n) {
         if (n === null || n === undefined) return '—';
         return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n);
@@ -209,7 +263,6 @@ class ForecastWidget extends Component {
     }
 
     async openImport() {
-        // Navigate to the forecast lines list where Odoo's native import button is available
         await this.action.doAction('odoo_mrp_planner.action_mrp_forecast_line');
     }
 

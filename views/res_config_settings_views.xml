@@ -86,6 +86,8 @@
                                        help="Cobertura por debajo de este % se muestra en amarillo (aviso). Ej: 70 = menos del 70% de la demanda cubierta por ÓFs."/>
                                 <field name="forecast_critical_pct"
                                        help="Cobertura por debajo de este % se muestra en rojo (crítico). Ej: 50 = menos del 50% cubierto."/>
+                                <field name="forecast_rotation_unit" widget="radio"
+                                       help="Unidad en que se muestra la rotación de inventario por artículo: en días (stock / ventas_diarias) o en meses (stock / ventas_mensuales). La rotación se calcula a partir de los movimientos de entrega completados en el período seleccionado."/>
                             </group>
                             <group string="Estados de ÓF a incluir en el forecast">
                                 <p class="text-muted small">

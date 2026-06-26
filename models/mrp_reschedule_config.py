@@ -56,6 +56,13 @@ class MrpRescheduleConfig(models.Model):
     forecast_mo_state_to_close  = fields.Boolean(string='Por cerrar',        default=True)
     forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False)
 
+    forecast_rotation_unit = fields.Selection([
+        ('days',   'Días'),
+        ('months', 'Meses'),
+    ], string='Unidad de rotación de inventario', default='days',
+       help='Determina si la rotación de inventario en el widget de forecast se muestra en días o en meses.'
+    )
+
     include_wc_heuristic = fields.Boolean(
         string='Heurística por centro de trabajo',
         default=False,

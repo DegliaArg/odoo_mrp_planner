@@ -65,12 +65,12 @@
                     <div class="col-6 col-md-4 col-xl-2">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3"
-                                 title="Precisión forecast = Total entregado ÷ Total forecast × 100">
+                                 t-att-title="accGlobalTooltip()">
                                 <i class="fa fa-bullseye fa-lg mb-2 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + accClass(state.data.kpis.overall_forecast_acc)">
                                     <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
                                 </div>
-                                <div class="o_planner_label">Precisión forecast</div>
+                                <div t-att-class="'o_planner_label'" t-esc="state.data.acc_formula === 'wmape' ? 'WMAPE' : state.data.acc_formula === 'bias' ? 'Sesgo forecast' : 'Precisión forecast'"/>
                             </div>
                         </div>
                     </div>
@@ -403,9 +403,10 @@
                                         <th t-if="showForecastAcc"
                                             class="text-end text-muted fw-bold"
                                             style="min-width:60px; padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3; cursor:pointer; user-select:none;"
-                                            title="Precisión forecast = Entregado ÷ Forecast × 100. Clic para ordenar."
+                                            t-att-title="state.data.acc_formula === 'wmape' ? 'WMAPE: 100 − (Σ|Entregado−Forecast| ÷ ΣForecast × 100). Rango 0-100%. Clic para ordenar.' : state.data.acc_formula === 'bias' ? 'Sesgo: (Entregado−Forecast) ÷ Forecast × 100. Verde ±10% | Amarillo ±20% | Rojo >±20%. Clic para ordenar.' : 'Precisión simple: Entregado ÷ Forecast × 100. Puede superar 100%. Verde ≥90% | Amarillo ≥70% | Rojo <70%. Clic para ordenar.'"
                                             t-on-click="() => this.setSort('total_forecast_acc')">
-                                            Prec.% <i t-att-class="sortIcon('total_forecast_acc')"/>
+                                            <t t-esc="state.data.acc_formula === 'bias' ? 'Sesgo%' : 'Prec.%'"/>
+                                            <i t-att-class="sortIcon('total_forecast_acc')"/>
                                         </th>
                                     </t>
                                 </tr>
@@ -674,7 +675,7 @@
                                         <td t-if="showForecastAcc"
                                             t-att-class="'text-end ' + accClass(state.data.kpis.overall_forecast_acc)"
                                             style="padding:3px 5px;"
-                                            t-att-title="'Precisión global = ' + fmt(state.data.kpis.total_delivered) + ' entregado ÷ ' + fmt(state.data.kpis.total_forecast) + ' forecast × 100 = ' + fmtPct(state.data.kpis.overall_forecast_acc)">
+                                            t-att-title="accGlobalTooltip()">
                                             <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
                                         </td>
                                     </t>

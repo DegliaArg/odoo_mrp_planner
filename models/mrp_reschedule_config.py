@@ -59,6 +59,16 @@ class MrpRescheduleConfig(models.Model):
        help='Determina si la rotación de inventario en el widget de forecast se muestra en días o en meses.'
     )
 
+    forecast_acc_formula = fields.Selection([
+        ('simple', 'Simple — Entregado ÷ Forecast × 100'),
+        ('wmape',  'WMAPE — 100 − (Σ|error| ÷ Σforecast × 100)'),
+        ('bias',   'Sesgo — (Entregado − Forecast) ÷ Forecast × 100'),
+    ], string='Fórmula de precisión forecast', default='simple',
+       help='Simple: porcentaje de la demanda forecast cubierto por entregas reales. Puede superar el 100%.\n'
+            'WMAPE: precisión ponderada por error absoluto, acotada entre 0 y 100%. Estándar supply chain.\n'
+            'Sesgo: indica si se sobreestima (+) o subestima (−) la demanda. Complementario a Simple o WMAPE.'
+    )
+
     # ── Categoría de venta ────────────────────────────────────────────────────
     sale_cat_mode = fields.Selection([
         ('manual',    'Manual (desde la ficha del artículo)'),

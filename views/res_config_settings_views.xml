@@ -88,6 +88,8 @@
                                        help="Cobertura por debajo de este % se muestra en rojo (crítico). Ej: 50 = menos del 50% cubierto."/>
                                 <field name="forecast_rotation_unit" widget="radio"
                                        help="Unidad en que se muestra la rotación de inventario por artículo: en días (stock / ventas_diarias) o en meses (stock / ventas_mensuales). La rotación se calcula a partir de los movimientos de entrega completados en el período seleccionado."/>
+                                <field name="forecast_acc_formula" widget="radio"
+                                       help="Simple: entregado ÷ forecast × 100, puede superar 100% si hay sobreentrega. WMAPE: 100 − (Σ|error| ÷ Σforecast × 100), acotado 0-100%, estándar supply chain. Sesgo: (entregado − forecast) ÷ forecast × 100, positivo = sobreentrega, negativo = déficit."/>
                             </group>
                             <group string="Estados de ÓF a incluir en el forecast">
                                 <p class="text-muted small">

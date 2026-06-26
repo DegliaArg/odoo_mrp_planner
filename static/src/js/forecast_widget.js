@@ -463,6 +463,13 @@ class ForecastWidget extends Component {
 
     accClass(acc) {
         if (acc === null || acc === undefined) return 'text-muted';
+        const formula = this.state.data && this.state.data.acc_formula;
+        if (formula === 'bias') {
+            const abs = Math.abs(acc);
+            if (abs <= 10) return 'text-success';
+            if (abs <= 20) return 'text-warning';
+            return 'text-danger';
+        }
         if (acc >= 90) return 'text-success';
         if (acc >= 70) return 'text-warning';
         return 'text-danger';
@@ -505,10 +512,30 @@ class ForecastWidget extends Component {
         return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val}`;
     }
 
+    accGlobalTooltip() {
+        const d = this.state.data;
+        if (!d) return '';
+        const formula = d.acc_formula;
+        const del = this.fmt(d.kpis.total_delivered), fc = this.fmt(d.kpis.total_forecast);
+        const val = this.fmtPct(d.kpis.overall_forecast_acc);
+        if (formula === 'wmape')
+            return `WMAPE global = 100 − (Σ|errores| ÷ ${fc} forecast × 100) = ${val}`;
+        if (formula === 'bias')
+            return `Sesgo global = (${del} − ${fc}) ÷ ${fc} × 100 = ${val}`;
+        return `Precisión global = ${del} entregado ÷ ${fc} forecast × 100 = ${val}`;
+    }
+
     accTooltip(row) {
         if (row.total_forecast_acc === null || row.total_forecast_acc === undefined)
             return 'Sin datos suficientes para calcular precisión';
-        return `Precisión forecast = ${this.fmt(row.total_delivered)} entregado ÷ ${this.fmt(row.total_forecast)} forecast × 100 = ${this.fmtPct(row.total_forecast_acc)}`;
+        const formula = this.state.data && this.state.data.acc_formula;
+        const del = this.fmt(row.total_delivered), fc = this.fmt(row.total_forecast);
+        const val = this.fmtPct(row.total_forecast_acc);
+        if (formula === 'wmape')
+            return `WMAPE = 100 − (|${del} − ${fc}| ÷ ${fc} × 100) = ${val} (precisión por error absoluto, 0-100%)`;
+        if (formula === 'bias')
+            return `Sesgo = (${del} − ${fc}) ÷ ${fc} × 100 = ${val} (+ sobreentrega · − déficit)`;
+        return `Precisión simple = ${del} entregado ÷ ${fc} forecast × 100 = ${val}`;
     }
 
     fmt(n) {

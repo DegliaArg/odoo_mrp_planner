@@ -218,6 +218,8 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Formateo / clases ─────────────────────────────────────────────────────
 
+    _cfg() { return (this.state.data && this.state.data.config) || {}; }
+
     fmtMoney(n) {
         if (n === null || n === undefined) return '—';
         return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n);
@@ -230,30 +232,42 @@ class SupplierAnalysisWidget extends Component {
 
     onTimeCls(v) {
         if (v === null || v === undefined) return 'text-muted';
-        if (v >= 90) return 'text-success fw-semibold';
-        if (v >= 70) return 'text-warning fw-semibold';
+        const cfg = this._cfg();
+        const green = cfg.sup_on_time_green ?? 90;
+        const yellow = cfg.sup_on_time_yellow ?? 70;
+        if (v >= green) return 'text-success fw-semibold';
+        if (v >= yellow) return 'text-warning fw-semibold';
         return 'text-danger fw-semibold';
     }
 
     delayCls(v) {
         if (v === null || v === undefined) return 'text-muted';
-        if (v <= 1) return 'text-success';
-        if (v <= 3) return 'text-warning';
+        const cfg = this._cfg();
+        const green = cfg.sup_delay_green ?? 1;
+        const yellow = cfg.sup_delay_yellow ?? 3;
+        if (v <= green) return 'text-success';
+        if (v <= yellow) return 'text-warning';
         return 'text-danger';
     }
 
     completeCls(v) {
         if (v === null || v === undefined) return 'text-muted';
-        if (v >= 95) return 'text-success';
-        if (v >= 80) return 'text-warning';
+        const cfg = this._cfg();
+        const green = cfg.sup_complete_green ?? 95;
+        const yellow = cfg.sup_complete_yellow ?? 80;
+        if (v >= green) return 'text-success';
+        if (v >= yellow) return 'text-warning';
         return 'text-danger';
     }
 
     priceVarCls(v) {
         if (v === null || v === undefined) return 'text-muted';
+        const cfg = this._cfg();
+        const green = cfg.sup_price_var_green ?? 3;
+        const yellow = cfg.sup_price_var_yellow ?? 10;
         const abs = Math.abs(v);
-        if (abs <= 3)  return 'text-success';
-        if (abs <= 10) return 'text-warning';
+        if (abs <= green) return 'text-success';
+        if (abs <= yellow) return 'text-warning';
         return 'text-danger';
     }
 

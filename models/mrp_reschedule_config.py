@@ -150,6 +150,25 @@ class MrpRescheduleConfig(models.Model):
         default=False,
     )
 
+    # ── Umbrales análisis de proveedores ──────────────────────────────────────
+    sup_on_time_green_pct   = fields.Integer(string='% A tiempo — verde (≥)',       default=90)
+    sup_on_time_yellow_pct  = fields.Integer(string='% A tiempo — amarillo (≥)',    default=70)
+    sup_delay_green_days    = fields.Integer(string='Retraso — verde (≤ días)',      default=1)
+    sup_delay_yellow_days   = fields.Integer(string='Retraso — amarillo (≤ días)',  default=3)
+    sup_complete_green_pct  = fields.Integer(string='% Completas — verde (≥)',      default=95)
+    sup_complete_yellow_pct = fields.Integer(string='% Completas — amarillo (≥)',   default=80)
+    sup_price_var_green_pct  = fields.Float( string='Var. precio — verde (|%| ≤)',  default=3.0)
+    sup_price_var_yellow_pct = fields.Float( string='Var. precio — amarillo (|%| ≤)', default=10.0)
+
+    # ── Auto-actualización categoría de venta ─────────────────────────────────
+    sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False)
+    sale_cat_cron_number = fields.Integer(string='Cada', default=1)
+    sale_cat_cron_type   = fields.Selection([
+        ('days',   'Días'),
+        ('weeks',  'Semanas'),
+        ('months', 'Meses'),
+    ], string='Unidad', default='weeks')
+
     stock_location_id = fields.Many2one(
         'stock.location',
         string='Ubicación de stock (quiebres)',
@@ -291,6 +310,13 @@ class MrpRescheduleConfig(models.Model):
             },
         }
 
+    @api.model
+    def _cron_auto_assign_sale_categories(self):
+        config = self.search([], limit=1)
+        if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
+            return
+        config.action_auto_assign_sale_categories()
+
     def action_open_user_warehouses(self):
         return {
             'type':      'ir.actions.act_window',
@@ -318,6 +344,17 @@ class MrpRescheduleConfig(models.Model):
                 if 'cron_interval_type' in vals:
                     cron_vals['interval_type'] = vals['cron_interval_type']
                 cron.sudo().write(cron_vals)
+        if 'sale_cat_auto_cron' in vals or 'sale_cat_cron_number' in vals or 'sale_cat_cron_type' in vals:
+            cat_cron = self.env.ref('odoo_mrp_planner.ir_cron_auto_assign_sale_categories', raise_if_not_found=False)
+            if cat_cron:
+                cat_cron_vals = {}
+                if 'sale_cat_auto_cron' in vals:
+                    cat_cron_vals['active'] = vals['sale_cat_auto_cron']
+                if 'sale_cat_cron_number' in vals:
+                    cat_cron_vals['interval_number'] = vals['sale_cat_cron_number']
+                if 'sale_cat_cron_type' in vals:
+                    cat_cron_vals['interval_type'] = vals['sale_cat_cron_type']
+                cat_cron.sudo().write(cat_cron_vals)
         return res
 
     @api.model_create_multi

@@ -2166,7 +2166,19 @@ class MrpPlannerDashboard(models.TransientModel):
             'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
         }
 
-        return {'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices}
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        sup_config = {
+            'sup_on_time_green':   cfg.sup_on_time_green_pct   if cfg else 90,
+            'sup_on_time_yellow':  cfg.sup_on_time_yellow_pct  if cfg else 70,
+            'sup_delay_green':     cfg.sup_delay_green_days    if cfg else 1,
+            'sup_delay_yellow':    cfg.sup_delay_yellow_days   if cfg else 3,
+            'sup_complete_green':  cfg.sup_complete_green_pct  if cfg else 95,
+            'sup_complete_yellow': cfg.sup_complete_yellow_pct if cfg else 80,
+            'sup_price_var_green':  cfg.sup_price_var_green_pct  if cfg else 3.0,
+            'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
+        }
+
+        return {'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices, 'config': sup_config}
 
     @api.model
     def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to):

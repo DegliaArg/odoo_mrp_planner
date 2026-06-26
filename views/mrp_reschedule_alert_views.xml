@@ -12,6 +12,17 @@
             <field name="interval_type">minutes</field>
             <field name="active">True</field>
         </record>
+
+        <!-- Cron para actualización automática de categorías de venta (inactivo por defecto) -->
+        <record id="ir_cron_auto_assign_sale_categories" model="ir.cron">
+            <field name="name">Planificador: actualizar categorías de venta</field>
+            <field name="model_id" ref="model_mrp_reschedule_config"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_auto_assign_sale_categories()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="active">False</field>
+        </record>
     </data>
 
     <!-- Acción servidor: Actualizar alertas (visible en menú Acción de la lista) -->

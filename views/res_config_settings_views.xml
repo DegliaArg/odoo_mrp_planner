@@ -21,36 +21,32 @@
                     <h2>Planificador de producción</h2>
                     <notebook>
 
-                        <!-- ── General ──────────────────────────────────────── -->
-                        <page string="General" name="general">
-                            <group string="Quiebres de stock">
-                                <field name="stock_location_id"
-                                       help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
-                            </group>
+                        <!-- ── Reprogramación ───────────────────────────────── -->
+                        <page string="Reprogramación" name="rescheduling">
                             <group string="Centros de trabajo">
                                 <field name="wc_fallback" widget="radio"
                                        help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados en su ficha. 'LDM' usa las operaciones definidas en la Lista de Materiales como fallback; 'Sin WC' deja la OF sin asignar."/>
                             </group>
-                            <group string="Prioridad de reprogramación">
+                            <group string="Prioridad">
                                 <field name="priority" widget="radio"
                                        help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. 'Cronológico' respeta la fecha de inicio; 'SPT' prioriza las OFs más cortas para maximizar throughput; 'Manual' permite arrastrar el orden en el wizard."/>
                             </group>
-                            <group string="Reprogramación en cascada">
+                            <group string="Cascada">
                                 <field name="include_wc_heuristic" widget="boolean_toggle"
                                        help="Activa el tercer nivel de la heurística de dependentes: incluye OFs que comparten centros de trabajo con el pivot y comienzan después. Desactivado por defecto para evitar reprogramaciones masivas no deseadas."/>
                             </group>
-                            <group string="Actualización automática">
-                                <label for="cron_interval_number" string="Ejecutar cron cada"
+                        </page>
+
+                        <!-- ── Alertas ───────────────────────────────────────── -->
+                        <page string="Alertas" name="alerts">
+                            <group string="Detección automática">
+                                <label for="cron_interval_number" string="Revisar alertas cada"
                                        help="Frecuencia con la que el sistema revisa automáticamente OFs atrasadas, OCs vencidas y recepciones pendientes para crear o actualizar las alertas del dashboard."/>
                                 <div class="o_row">
                                     <field name="cron_interval_number" class="o_field_small"/>
                                     <field name="cron_interval_type" class="ms-2"/>
                                 </div>
                             </group>
-                        </page>
-
-                        <!-- ── Alertas ───────────────────────────────────────── -->
-                        <page string="Alertas" name="alerts">
                             <group string="Órdenes de fabricación">
                                 <field name="alert_mo_critical_days"
                                        help="Días de retraso a partir de los cuales una OF atrasada pasa de alerta amarilla (aviso) a alerta roja (crítica). Por defecto 3 días."/>
@@ -73,25 +69,35 @@
                             </group>
                         </page>
 
-                        <!-- ── Panel ─────────────────────────────────────────── -->
-                        <page string="Panel" name="panel">
+                        <!-- ── Dashboard ─────────────────────────────────────── -->
+                        <page string="Dashboard" name="dashboard">
+                            <group string="Quiebres de stock">
+                                <field name="stock_location_id"
+                                       help="Ubicación interna desde la cual se mide el stock actual en el widget de quiebres. Solo se listan ubicaciones de tipo 'Almacén (interno)'. El mínimo se toma del punto de reorden con ruta Fabricación."/>
+                            </group>
                             <group string="Órdenes de compra">
                                 <field name="show_po_services_tab"
                                        help="Cuando está activo, las OCs cuyos productos son todos de tipo 'Servicio' se separan en una pestaña propia dentro del widget de OCs. Si está inactivo, los servicios se muestran junto al resto de las OCs."/>
                             </group>
-                            <group string="Forecast">
+                        </page>
+
+                        <!-- ── Forecast ───────────────────────────────────────── -->
+                        <page string="Forecast" name="forecast">
+                            <group string="Visualización">
                                 <field name="forecast_default_months"
                                        help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
-                                <field name="forecast_warning_pct"
-                                       help="Cobertura por debajo de este % se muestra en amarillo (aviso). Ej: 70 = menos del 70% de la demanda cubierta por ÓFs."/>
-                                <field name="forecast_critical_pct"
-                                       help="Cobertura por debajo de este % se muestra en rojo (crítico). Ej: 50 = menos del 50% cubierto."/>
                                 <field name="forecast_rotation_unit" widget="radio"
                                        help="Unidad en que se muestra la rotación de inventario por artículo: en días (stock / ventas_diarias) o en meses (stock / ventas_mensuales). La rotación se calcula a partir de los movimientos de entrega completados en el período seleccionado."/>
                                 <field name="forecast_acc_formula" widget="radio"
                                        help="Simple: entregado ÷ forecast × 100, puede superar 100% si hay sobreentrega. WMAPE: 100 − (Σ|error| ÷ Σforecast × 100), acotado 0-100%, estándar supply chain. Sesgo: (entregado − forecast) ÷ forecast × 100, positivo = sobreentrega, negativo = déficit."/>
                             </group>
-                            <group string="Estados de ÓF a incluir en el forecast">
+                            <group string="Cobertura">
+                                <field name="forecast_warning_pct"
+                                       help="Cobertura por debajo de este % se muestra en amarillo (aviso). Ej: 70 = menos del 70% de la demanda cubierta por ÓFs."/>
+                                <field name="forecast_critical_pct"
+                                       help="Cobertura por debajo de este % se muestra en rojo (crítico). Ej: 50 = menos del 50% cubierto."/>
+                            </group>
+                            <group string="Estados de ÓF a incluir">
                                 <p class="text-muted small">
                                     Seleccioná qué estados de Órdenes de Fabricación se consideran
                                     como "producción planificada" al comparar contra el forecast.
@@ -105,6 +111,37 @@
                             </group>
                         </page>
 
+                        <!-- ── Proveedores ────────────────────────────────────── -->
+                        <page string="Proveedores" name="suppliers">
+                            <div class="text-muted small mb-3">
+                                Umbrales de criticidad para las columnas de la tabla de análisis
+                                de proveedores. Verde = buen desempeño, Amarillo = aviso, Rojo = crítico.
+                            </div>
+                            <group string="% A tiempo">
+                                <field name="sup_on_time_green_pct"
+                                       help="A tiempo ≥ este % → verde. Por defecto 90%."/>
+                                <field name="sup_on_time_yellow_pct"
+                                       help="A tiempo ≥ este % (y menor que verde) → amarillo. Por defecto 70%."/>
+                            </group>
+                            <group string="Retraso promedio (días)">
+                                <field name="sup_delay_green_days"
+                                       help="Retraso ≤ este valor → verde. Por defecto 1 día."/>
+                                <field name="sup_delay_yellow_days"
+                                       help="Retraso ≤ este valor (y mayor que verde) → amarillo. Por defecto 3 días."/>
+                            </group>
+                            <group string="% Recepciones completas">
+                                <field name="sup_complete_green_pct"
+                                       help="Completas ≥ este % → verde. Por defecto 95%."/>
+                                <field name="sup_complete_yellow_pct"
+                                       help="Completas ≥ este % (y menor que verde) → amarillo. Por defecto 80%."/>
+                            </group>
+                            <group string="Variación de precio (valor absoluto %)">
+                                <field name="sup_price_var_green_pct"
+                                       help="|Variación| ≤ este % → verde. Por defecto 3%."/>
+                                <field name="sup_price_var_yellow_pct"
+                                       help="|Variación| ≤ este % (y mayor que verde) → amarillo. Por defecto 10%."/>
+                            </group>
+                        </page>
 
                         <!-- ── Categoría de venta ────────────────────────── -->
                         <page string="Categoría de venta" name="sale_category">
@@ -162,17 +199,31 @@
                                 <field name="sale_cat_share_d_pct"/>
                             </group>
 
-                            <!-- Botón asignar -->
+                            <!-- Botón asignar + auto-cron -->
                             <div invisible="sale_cat_mode == 'manual'" class="mt-3">
                                 <button name="action_auto_assign_sale_categories"
                                         type="object"
                                         string="Asignar categorías ahora"
                                         class="btn btn-primary"/>
-                                <div class="text-muted small mt-2">
+                                <div class="text-muted small mt-2 mb-4">
                                     Analiza el período configurado de entregas para todos los artículos
                                     vendibles y asigna la categoría A–E automáticamente.
                                 </div>
                             </div>
+
+                            <!-- Actualización periódica automática -->
+                            <group string="Actualización periódica"
+                                   invisible="sale_cat_mode == 'manual'">
+                                <field name="sale_cat_auto_cron" widget="boolean_toggle"
+                                       help="Cuando está activo, el sistema recalcula las categorías automáticamente según el intervalo configurado."/>
+                                <label for="sale_cat_cron_number" string="Frecuencia"
+                                       invisible="not sale_cat_auto_cron"
+                                       help="Con qué frecuencia se ejecuta la asignación automática de categorías."/>
+                                <div class="o_row" invisible="not sale_cat_auto_cron">
+                                    <field name="sale_cat_cron_number" class="o_field_small"/>
+                                    <field name="sale_cat_cron_type" class="ms-2"/>
+                                </div>
+                            </group>
                         </page>
 
                         <!-- ── Usuarios / Depósitos ──────────────────────── -->

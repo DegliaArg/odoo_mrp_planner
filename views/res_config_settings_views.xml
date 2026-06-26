@@ -110,11 +110,18 @@
                                 <field name="sale_cat_mode" widget="radio"/>
                             </group>
 
+                            <!-- Período de análisis (todos los modos automáticos) -->
+                            <group string="Período de análisis"
+                                   invisible="sale_cat_mode == 'manual'">
+                                <field name="sale_cat_lookback_months"
+                                       help="Meses de histórico de entregas a considerar para calcular demanda, rotación o participación."/>
+                            </group>
+
                             <!-- Umbrales por rotación -->
                             <group string="Umbrales de rotación (días)"
                                    invisible="sale_cat_mode != 'automatic'">
                                 <div class="text-muted small mb-2">
-                                    Rotación = stock actual ÷ (entregas últimos 3 meses ÷ 3).
+                                    Rotación = stock actual ÷ (entregas del período ÷ meses configurados).
                                     Cada umbral define el máximo de días de cobertura para la categoría.
                                     Artículos por encima del umbral D reciben categoría E.
                                 </div>
@@ -128,7 +135,7 @@
                             <group string="Umbrales de demanda (unidades/mes)"
                                    invisible="sale_cat_mode != 'demand'">
                                 <div class="text-muted small mb-2">
-                                    Demanda = promedio de unidades vendidas por mes (últimos 3 meses).
+                                    Demanda = promedio mensual de unidades entregadas en el período configurado.
                                     Cada umbral define el mínimo de unidades para la categoría.
                                     Artículos por debajo del umbral D reciben categoría E.
                                 </div>
@@ -138,14 +145,29 @@
                                 <field name="sale_cat_demand_d_qty"/>
                             </group>
 
-                            <!-- Botón asignar (visible para ambos modos automáticos) -->
+                            <!-- Umbrales por participación acumulada -->
+                            <group string="Participación acumulada (%)"
+                                   invisible="sale_cat_mode != 'share'">
+                                <div class="text-muted small mb-2">
+                                    Los artículos se ordenan de mayor a menor por la métrica elegida.
+                                    Los umbrales definen hasta qué porcentaje acumulado del total pertenece cada categoría.
+                                    El resto recibe categoría E.
+                                </div>
+                                <field name="sale_cat_share_metric" widget="radio"/>
+                                <field name="sale_cat_share_a_pct"/>
+                                <field name="sale_cat_share_b_pct"/>
+                                <field name="sale_cat_share_c_pct"/>
+                                <field name="sale_cat_share_d_pct"/>
+                            </group>
+
+                            <!-- Botón asignar -->
                             <div invisible="sale_cat_mode == 'manual'" class="mt-3">
                                 <button name="action_auto_assign_sale_categories"
                                         type="object"
                                         string="Asignar categorías ahora"
                                         class="btn btn-primary"/>
                                 <div class="text-muted small mt-2">
-                                    Analiza los últimos 3 meses de entregas para todos los artículos
+                                    Analiza el período configurado de entregas para todos los artículos
                                     vendibles y asigna la categoría A–E automáticamente.
                                 </div>
                             </div>

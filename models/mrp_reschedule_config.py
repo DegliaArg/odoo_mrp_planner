@@ -64,10 +64,17 @@ class MrpRescheduleConfig(models.Model):
         ('manual',    'Manual (desde la ficha del artículo)'),
         ('automatic', 'Automática por rotación de inventario'),
         ('demand',    'Automática por demanda (volumen de ventas)'),
+        ('share',     'Automática por participación acumulada (Pareto)'),
     ], string='Modo de asignación', default='manual',
        help='Manual: cada artículo se categoriza desde su ficha. '
             'Rotación: calcula stock ÷ ventas y asigna A–E por días de cobertura. '
-            'Demanda: asigna A–E por unidades vendidas promedio por mes.')
+            'Demanda: asigna A–E por unidades vendidas promedio por mes. '
+            'Participación: ordena por métrica y clasifica por % acumulado del total.')
+
+    sale_cat_lookback_months = fields.Integer(
+        string='Período de análisis (meses)', default=3,
+        help='Cantidad de meses hacia atrás que se analizan las entregas para calcular '
+             'la demanda, rotación o participación. Por defecto 3 meses.')
 
     # ── Umbrales por rotación (modo automatic) ────────────────────────────────
     sale_cat_a_days = fields.Integer(
@@ -96,6 +103,25 @@ class MrpRescheduleConfig(models.Model):
     sale_cat_demand_d_qty = fields.Integer(
         string='D — demanda mín. (u./mes)', default=5,
         help='Artículos con promedio mensual ≥ este valor (y < C) reciben D. Por debajo → E.')
+
+    # ── Umbrales por participación acumulada (modo share) ─────────────────────
+    sale_cat_share_metric = fields.Selection([
+        ('units',  'Unidades entregadas'),
+        ('pxq',    'Importe (precio de lista × cantidad)'),
+    ], string='Métrica de participación', default='units',
+       help='Valor por el que se ordena y pondera cada artículo al calcular la participación.')
+    sale_cat_share_a_pct = fields.Float(
+        string='A — hasta % acumulado', default=50.0,
+        help='Los artículos que juntos representan hasta este % del total reciben categoría A.')
+    sale_cat_share_b_pct = fields.Float(
+        string='B — hasta % acumulado', default=80.0,
+        help='Los artículos que llevan el acumulado de A hasta este % reciben categoría B.')
+    sale_cat_share_c_pct = fields.Float(
+        string='C — hasta % acumulado', default=95.0,
+        help='Los artículos que llevan el acumulado de B hasta este % reciben categoría C.')
+    sale_cat_share_d_pct = fields.Float(
+        string='D — hasta % acumulado', default=99.0,
+        help='Los artículos que llevan el acumulado de C hasta este % reciben D. El resto → E.')
 
     include_wc_heuristic = fields.Boolean(
         string='Heurística por centro de trabajo',
@@ -151,8 +177,9 @@ class MrpRescheduleConfig(models.Model):
         if not config:
             return
 
-        end   = date.today()
-        start = end - timedelta(days=90)
+        months = config.sale_cat_lookback_months or 3
+        end    = date.today()
+        start  = end - timedelta(days=months * 30)
 
         moves = self.env['stock.move.line'].search([
             ('state', '=', 'done'),
@@ -175,7 +202,7 @@ class MrpRescheduleConfig(models.Model):
             c_q = config.sale_cat_demand_c_qty
             d_q = config.sale_cat_demand_d_qty
             for tmpl in templates:
-                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / 3.0
+                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / months
                 if   avg_monthly >= a_q: cat = 'A'
                 elif avg_monthly >= b_q: cat = 'B'
                 elif avg_monthly >= c_q: cat = 'C'
@@ -183,7 +210,38 @@ class MrpRescheduleConfig(models.Model):
                 else:                    cat = 'E'
                 tmpl.x_sale_category = cat
                 updated += 1
-        else:
+
+        elif config.sale_cat_mode == 'share':
+            metric = config.sale_cat_share_metric or 'units'
+            a_pct  = (config.sale_cat_share_a_pct or 50.0) / 100.0
+            b_pct  = (config.sale_cat_share_b_pct or 80.0) / 100.0
+            c_pct  = (config.sale_cat_share_c_pct or 95.0) / 100.0
+            d_pct  = (config.sale_cat_share_d_pct or 99.0) / 100.0
+
+            tmpl_value = {}
+            for tmpl in templates:
+                qty = del_by_tmpl.get(tmpl.id, 0.0)
+                tmpl_value[tmpl.id] = qty * (tmpl.list_price or 0.0) if metric == 'pxq' else qty
+
+            total = sum(tmpl_value.values())
+            if total <= 0:
+                for tmpl in templates:
+                    tmpl.x_sale_category = 'E'
+                    updated += 1
+            else:
+                sorted_tmpls = sorted(templates, key=lambda t: tmpl_value.get(t.id, 0.0), reverse=True)
+                cumulative = 0.0
+                for tmpl in sorted_tmpls:
+                    cumulative += tmpl_value.get(tmpl.id, 0.0) / total
+                    if   cumulative <= a_pct: cat = 'A'
+                    elif cumulative <= b_pct: cat = 'B'
+                    elif cumulative <= c_pct: cat = 'C'
+                    elif cumulative <= d_pct: cat = 'D'
+                    else:                     cat = 'E'
+                    tmpl.x_sale_category = cat
+                    updated += 1
+
+        else:  # automatic (rotation)
             a_d = config.sale_cat_a_days
             b_d = config.sale_cat_b_days
             c_d = config.sale_cat_c_days
@@ -196,7 +254,7 @@ class MrpRescheduleConfig(models.Model):
             stock_by_pid = {g['product_id'][0]: g['quantity'] for g in quants}
             for tmpl in templates:
                 stock       = sum(stock_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
-                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / 3.0
+                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / months
                 if avg_monthly <= 0:
                     cat = 'E'
                 else:

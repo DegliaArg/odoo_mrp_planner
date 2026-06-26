@@ -200,11 +200,17 @@
                                    t-on-change="() => this.setGroupBy(null)"/>
                             <label class="form-check-label small" for="fw_g_none">Sin agrupación</label>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check mb-1">
                             <input type="radio" class="form-check-input" name="fw_group" id="fw_g_cat"
                                    t-att-checked="state.groupBy === 'sale_category'"
                                    t-on-change="() => this.setGroupBy('sale_category')"/>
                             <label class="form-check-label small" for="fw_g_cat">Categoría de venta</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_prod_cat"
+                                   t-att-checked="state.groupBy === 'product_categ'"
+                                   t-on-change="() => this.setGroupBy('product_categ')"/>
+                            <label class="form-check-label small" for="fw_g_prod_cat">Familia de producto</label>
                         </div>
                     </div>
                 </div>
@@ -226,6 +232,12 @@
                                    t-att-checked="state.visibleCols.saleCategory"
                                    t-on-change="() => this.toggleCol('saleCategory')"/>
                             <label class="form-check-label small" for="col_sale_cat">Categoría de venta</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="col_prod_cat"
+                                   t-att-checked="state.visibleCols.productCateg"
+                                   t-on-change="() => this.toggleCol('productCateg')"/>
+                            <label class="form-check-label small" for="col_prod_cat">Familia de producto</label>
                         </div>
                         <div class="form-check mb-1">
                             <input type="checkbox" class="form-check-input" id="col_stock"
@@ -303,6 +315,32 @@
                     </t>
                 </div>
 
+                <t t-if="filteredRowsAll.length > 0 or (state.groupBy and allGroupsForTabs and allGroupsForTabs.length)">
+
+                    <!-- Tabs de agrupación -->
+                    <t t-if="state.groupBy and allGroupsForTabs">
+                        <ul class="nav nav-tabs mb-0" style="border-bottom:none; flex-wrap:nowrap; overflow-x:auto;">
+                            <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                                <li class="nav-item">
+                                    <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
+                                            style="font-size:12px; white-space:nowrap;"
+                                            t-on-click="() => this.setGroup(g.key)">
+                                        <t t-if="state.groupBy === 'sale_category'">
+                                            <span t-att-class="saleCatBadge(g.key)"
+                                                  style="font-size:10px; padding:1px 6px; margin-right:4px;">
+                                                <t t-esc="g.label"/>
+                                            </span>
+                                        </t>
+                                        <t t-else="">
+                                            <t t-esc="g.label"/>
+                                        </t>
+                                        <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                    </button>
+                                </li>
+                            </t>
+                        </ul>
+                    </t>
+
                 <t t-if="filteredRowsAll.length > 0">
                     <div class="border rounded" style="overflow:auto; max-height:65vh;">
                         <table class="table table-sm table-bordered mb-0"
@@ -324,6 +362,14 @@
                                         title="Categoría de venta (A=alta rotación, E=baja). Clic para ordenar."
                                         t-on-click="() => this.setSort('sale_category')">
                                         Cat. <i t-att-class="sortIcon('sale_category')"/>
+                                    </th>
+
+                                    <th t-if="state.visibleCols.productCateg" rowspan="2"
+                                        class="text-start align-middle"
+                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        title="Familia de producto (product.template.categ_id). Clic para ordenar."
+                                        t-on-click="() => this.setSort('product_categ')">
+                                        Familia <i t-att-class="sortIcon('product_categ')"/>
                                     </th>
 
                                     <th t-if="state.visibleCols.stock" rowspan="2"
@@ -415,24 +461,8 @@
                             <tbody>
                                 <t t-foreach="tableItems" t-as="item" t-key="'i_' + item_index">
 
-                                    <!-- Encabezado de grupo -->
-                                    <t t-if="item._type === 'group_header'">
-                                        <tr style="background:#e9ecef;">
-                                            <td t-att-colspan="tableColspan"
-                                                class="py-1 px-3 fw-bold small">
-                                                <span t-att-class="saleCatBadge(item.key)"
-                                                      style="font-size:11px; padding:2px 8px; margin-right:8px;">
-                                                    <t t-esc="item.label"/>
-                                                </span>
-                                                <span class="text-muted fw-normal">
-                                                    <t t-esc="item.count"/> artículos
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    </t>
-
                                     <!-- Fila de datos -->
-                                    <t t-elif="item._type === 'row'">
+                                    <t t-if="item._type === 'row'">
                                         <t t-set="row" t-value="item"/>
 
                                         <tr>
@@ -464,6 +494,15 @@
                                                     <t t-esc="row.sale_category"/>
                                                 </span>
                                                 <span t-else="" class="text-muted">—</span>
+                                            </td>
+
+                                            <!-- Familia de producto -->
+                                            <td t-if="state.visibleCols.productCateg"
+                                                class="text-start" style="padding:3px 6px; max-width:120px;"
+                                                t-att-title="row.product_categ || ''">
+                                                <span class="text-truncate d-inline-block" style="max-width:115px;">
+                                                    <t t-esc="row.product_categ || '—'"/>
+                                                </span>
                                             </td>
 
                                             <!-- Stock -->
@@ -643,6 +682,7 @@
                                 <tr>
                                     <td style="padding:3px 8px;">Total</td>
                                     <td t-if="state.visibleCols.saleCategory" style="padding:3px 6px;"/>
+                                    <td t-if="state.visibleCols.productCateg" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.stock" style="padding:3px 6px;"/>
                                     <td t-if="state.visibleCols.rotation" style="padding:3px 6px;"/>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">
@@ -684,8 +724,8 @@
                         </table>
                     </div>
 
-                    <!-- Paginación (oculta cuando hay agrupación activa) -->
-                    <div t-if="!state.groupBy and totalPages > 1"
+                    <!-- Paginación -->
+                    <div t-if="totalPages > 1"
                          class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                                 t-att-disabled="!hasPrevPage" t-on-click="prevPage">
@@ -702,6 +742,8 @@
                     </div>
 
                 </t>
+
+                </t><!-- /filteredRowsAll or tabs -->
 
             </t>
         </div>

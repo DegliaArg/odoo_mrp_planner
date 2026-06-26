@@ -49,14 +49,16 @@ class ForecastWidget extends Component {
             groupDropdownOpen:  false,
             activeFilter:       null,
             groupBy:            null,
+            selectedGroup:      null,
             visibleCols: {
-                forecast:     true,
-                mos:          true,
-                delivered:    true,
-                stock:        true,
-                rotation:     true,
-                total:        true,
-                saleCategory: false,
+                forecast:      true,
+                mos:           true,
+                delivered:     true,
+                stock:         true,
+                rotation:      true,
+                total:         true,
+                saleCategory:  false,
+                productCateg:  false,
             },
             sortCol:          'product',
             sortDir:          'asc',
@@ -195,6 +197,17 @@ class ForecastWidget extends Component {
     setGroupBy(key) {
         this.state.groupBy = key;
         this.state.page = 1;
+        if (key) {
+            const groups = this.allGroupsForTabs;
+            this.state.selectedGroup = (groups && groups.length) ? groups[0].key : null;
+        } else {
+            this.state.selectedGroup = null;
+        }
+    }
+
+    setGroup(key) {
+        this.state.selectedGroup = key;
+        this.state.page = 1;
     }
 
     // ── Columnas ─────────────────────────────────────────────────────────────
@@ -227,9 +240,10 @@ class ForecastWidget extends Component {
     get tableColspan() {
         const n = this.state.data ? this.state.data.months.length : 0;
         let cols = 1;
-        if (this.state.visibleCols.saleCategory) cols++;
-        if (this.state.visibleCols.stock)        cols++;
-        if (this.state.visibleCols.rotation)     cols++;
+        if (this.state.visibleCols.saleCategory)  cols++;
+        if (this.state.visibleCols.productCateg)  cols++;
+        if (this.state.visibleCols.stock)         cols++;
+        if (this.state.visibleCols.rotation)      cols++;
         cols += n * this.monthColspan;
         if (this.showTotal) cols += this.totalColspan;
         return cols;
@@ -274,7 +288,7 @@ class ForecastWidget extends Component {
 
     // ── Filtrado + paginación ─────────────────────────────────────────────────
 
-    get filteredRowsAll() {
+    get baseFilteredRows() {
         if (!this.state.data || !this.state.data.rows) return [];
         let rows = this.state.data.rows;
         const q = this.state.productSearch.toLowerCase();
@@ -283,6 +297,15 @@ class ForecastWidget extends Component {
         if (f === 'with_mos') rows = rows.filter(r => r.total_mos > 0);
         if (f === 'no_mos')   rows = rows.filter(r => r.total_mos === 0);
         if (f === 'gap')      rows = rows.filter(r => r.total_forecast > 0 && r.total_mos < r.total_forecast);
+        return rows;
+    }
+
+    get filteredRowsAll() {
+        let rows = this.baseFilteredRows;
+        const gb = this.state.groupBy;
+        if (gb && this.state.selectedGroup !== null) {
+            rows = rows.filter(r => (r[gb] || '') === this.state.selectedGroup);
+        }
         return rows;
     }
 
@@ -298,44 +321,32 @@ class ForecastWidget extends Component {
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
-    // ── Agrupación ────────────────────────────────────────────────────────────
+    // ── Agrupación / tabs ─────────────────────────────────────────────────────
 
-    get groupedRows() {
+    get allGroupsForTabs() {
         const gb = this.state.groupBy;
         if (!gb) return null;
-        const rows = this.sortedRows;
-        const groups = new Map();
-        for (const row of rows) {
+        const counts = new Map();
+        for (const row of this.baseFilteredRows) {
             const key = row[gb] || '';
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(row);
+            counts.set(key, (counts.get(key) || 0) + 1);
         }
-        const CAT_ORDER = ['A', 'B', 'C', 'D', 'E', ''];
-        const sorted = [...groups.entries()].sort((a, b) => {
-            const ia = CAT_ORDER.indexOf(a[0]);
-            const ib = CAT_ORDER.indexOf(b[0]);
-            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-        });
-        return sorted.map(([key, rows]) => ({
-            key,
-            label: key || 'Sin categoría',
-            rows,
-        }));
+        let entries = [...counts.entries()];
+        if (gb === 'sale_category') {
+            const CAT_ORDER = ['A', 'B', 'C', 'D', 'E', ''];
+            entries.sort((a, b) => {
+                const ia = CAT_ORDER.indexOf(a[0]);
+                const ib = CAT_ORDER.indexOf(b[0]);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+        } else {
+            entries.sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
+        }
+        return entries.map(([key, count]) => ({ key, label: key || 'Sin categoría', count }));
     }
 
-    // tableItems: flat list for tbody — includes group headers when groupBy is active
     get tableItems() {
-        const gb = this.state.groupBy;
-        if (!gb) {
-            return this.filteredRows.map(r => ({ ...r, _type: 'row' }));
-        }
-        const groups = this.groupedRows || [];
-        const items = [];
-        for (const g of groups) {
-            items.push({ _type: 'group_header', key: g.key, label: g.label, count: g.rows.length });
-            for (const row of g.rows) items.push({ ...row, _type: 'row' });
-        }
-        return items;
+        return this.filteredRows.map(r => ({ ...r, _type: 'row' }));
     }
 
     // ── Depósito ──────────────────────────────────────────────────────────────

@@ -1389,10 +1389,14 @@ class MrpPlannerDashboard(models.TransientModel):
         tmpl_ids = [fc_data[pid].get('product_tmpl_id') for pid in all_product_ids
                     if fc_data[pid].get('product_tmpl_id')]
         if tmpl_ids:
-            tmpl_cat = {t.id: t.x_sale_category or ''
-                        for t in self.env['product.template'].browse(tmpl_ids)}
+            tmpl_info = {}
+            for t in self.env['product.template'].browse(tmpl_ids):
+                tmpl_info[t.id] = {
+                    'sale_category': t.x_sale_category or '',
+                    'product_categ': t.categ_id.display_name if t.categ_id else '',
+                }
         else:
-            tmpl_cat = {}
+            tmpl_info = {}
 
         for pid in all_product_ids:
             pname    = fc_data[pid]['product']
@@ -1488,7 +1492,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_so_demand':    round(tot_so,  2),
                 'total_service_rate': tot_svc,
                 'total_forecast_acc': tot_acc,
-                'sale_category':      tmpl_cat.get(fc_data[pid].get('product_tmpl_id'), ''),
+                'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
+                'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
                 '_mape_acc_sum':      _mape_acc_sum,
                 '_mape_acc_count':    _mape_acc_count,
                 '_wape_abs_err':      _wape_abs_err,

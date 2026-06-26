@@ -3,6 +3,20 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useColManager } from "./column_manager";
+
+const SUP_COLS = [
+    { key: 'partner_name',     label: 'Proveedor',     width: 160, sortKey: 'partner_name',     title: 'Nombre del proveedor.' },
+    { key: 'order_count',      label: 'OCs',           width: 55,  sortKey: 'order_count',      align: 'end', title: 'OCs confirmadas en el período.' },
+    { key: 'distinct_products',label: 'Artículos',     width: 65,  sortKey: 'distinct_products', align: 'end', title: 'Artículos distintos comprados.' },
+    { key: 'total_amount',     label: 'Monto',         width: 100, sortKey: 'total_amount',      align: 'end', title: 'Suma del monto total de OCs confirmadas.' },
+    { key: 'on_time_pct',      label: '% A tiempo',    width: 80,  sortKey: 'on_time_pct',       align: 'center', title: '% recepciones completadas en fecha.' },
+    { key: 'avg_delay_days',   label: 'Retraso (d)',   width: 80,  sortKey: 'avg_delay_days',    align: 'center', title: 'Promedio de días de retraso en recepciones tardías.' },
+    { key: 'complete_pct',     label: '% Completas',   width: 85,  sortKey: 'complete_pct',      align: 'center', title: '% recepciones completadas sin backorder.' },
+    { key: 'avg_lead_time',    label: 'Lead time (d)', width: 80,  sortKey: 'avg_lead_time',     align: 'center', title: 'Lead time real promedio: días entre aprobación y recepción.' },
+    { key: 'avg_price_var_pct',label: 'Var. precio',   width: 80,  sortKey: 'avg_price_var_pct', align: 'center', title: 'Variación promedio de precio OC vs costo estándar.' },
+    { key: 'pending_inv',      label: 'Fact. pend.',   width: 100, sortKey: 'pending_inv',       align: 'end', title: 'Facturas de proveedor pendientes de pago.' },
+];
 
 function firstOfYear() {
     return `${new Date().getFullYear()}-01`;
@@ -36,7 +50,14 @@ class SupplierAnalysisWidget extends Component {
             posBySupplier:      {},
         });
 
+        this.colsSup = useColManager('supplier_analysis', SUP_COLS);
+
         onMounted(() => this._load());
+    }
+
+    onHeaderClick(ev) {
+        const sortKey = ev.currentTarget.dataset.sortKey;
+        if (sortKey) this.setSort(sortKey);
     }
 
     async _load() {
@@ -145,7 +166,15 @@ class SupplierAnalysisWidget extends Component {
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
     get tableColspan() {
-        return 9 + (this.state.data && this.state.data.has_invoices ? 1 : 0);
+        return this.colsSup.visibleCols().filter(
+            c => c.key !== 'pending_inv' || (this.state.data && this.state.data.has_invoices)
+        ).length;
+    }
+
+    get supVisibleCols() {
+        return this.colsSup.visibleCols().filter(
+            c => c.key !== 'pending_inv' || (this.state.data && this.state.data.has_invoices)
+        );
     }
 
     // ── Acordeón de OCs ───────────────────────────────────────────────────────

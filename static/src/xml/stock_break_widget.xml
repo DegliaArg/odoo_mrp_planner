@@ -136,33 +136,32 @@
                 </div>
 
                 <t t-else="">
-                    <div class="border rounded" style="overflow:hidden;">
+                    <div class="border rounded" style="overflow:auto;">
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
-                                <col style="width:32px"/>
-                                <col style="width:32%"/>
-                                <col style="width:19%"/>
-                                <col style="width:14%"/>
-                                <col style="width:14%"/>
-                                <col style="width:14%"/>
+                                <col t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                     t-att-style="colsStock.colGroupStyle(col.key)"/>
                             </colgroup>
                             <thead class="table-light">
                                 <tr class="text-muted">
-                                    <th title="Expandir para ver OFs activas"/>
-                                    <th style="cursor:pointer" title="Nombre o código del producto. Clic en la fila para abrir la ficha. Clic en el encabezado para ordenar." t-on-click="() => this.sortBy('name')">
-                                        Producto <i t-att-class="sortIcon('name')"/>
-                                    </th>
-                                    <th title="Tipos de producto asignados en la ficha del artículo (x_product_type_ids).">
-                                        Tipo
-                                    </th>
-                                    <th class="text-end" style="cursor:pointer" title="Cantidad disponible en la/s ubicación/es seleccionadas (stock.quant.quantity). Clic para ordenar." t-on-click="() => this.sortBy('qty')">
-                                        Stock actual <i t-att-class="sortIcon('qty')"/>
-                                    </th>
-                                    <th class="text-end" style="cursor:pointer" title="Cantidad mínima del punto de reorden con ruta Fabricación (orderpoint.product_min_qty). Clic para ordenar." t-on-click="() => this.sortBy('min_qty')">
-                                        Mínimo <i t-att-class="sortIcon('min_qty')"/>
-                                    </th>
-                                    <th class="text-center" style="cursor:pointer" title="Quiebre: stock &lt; mínimo | OK: stock ≥ mínimo | Sin mínimo: sin punto de reorden configurado. Clic para ordenar." t-on-click="() => this.sortBy('status')">
-                                        Estado <i t-att-class="sortIcon('status')"/>
+                                    <th t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                        t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsStock.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                        style="position:relative; user-select:none;"
+                                        t-att-title="col.title || col.label"
+                                        t-att-data-col-key="col.key"
+                                        t-att-data-sort-key="col.sortKey || ''"
+                                        t-att-draggable="col.fixed ? 'false' : 'true'"
+                                        t-on-click="onHeaderClick"
+                                        t-on-dragstart="colsStock.onDragStart"
+                                        t-on-dragover="colsStock.onDragOver"
+                                        t-on-drop="colsStock.onDrop"
+                                        t-on-dragend="colsStock.onDragEnd">
+                                        <t t-esc="col.label"/>
+                                        <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                        <div t-if="!col.noResize" class="o_col_resize_handle"
+                                             t-att-data-col-key="col.key"
+                                             t-on-mousedown.stop="colsStock.onResizeStart"
+                                             t-on-click.stop="() => {}"/>
                                     </th>
                                 </tr>
                             </thead>
@@ -173,46 +172,53 @@
                                         style="cursor:pointer"
                                         t-att-data-product-id="prod.id"
                                         t-on-click="openProductFromRow">
-                                        <td class="text-center align-middle p-0" style="width:32px;">
-                                            <button t-if="prod.mo_count"
-                                                    class="btn btn-sm btn-link p-0 px-1 text-muted"
-                                                    t-att-title="state.expandedProducts[prod.id] ? 'Cerrar OFs' : 'Ver OFs activas'"
-                                                    t-on-click="(ev) => this.toggleAccordion(prod, ev)">
-                                                <i t-att-class="'fa fa-fw ' + (state.expandedProducts[prod.id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                                            </button>
-                                        </td>
-                                        <td class="fw-semibold text-truncate" t-esc="prod.name"/>
-                                        <td class="text-truncate text-muted small"
-                                            style="max-width:0;"
-                                            t-att-title="prod.product_types || ''">
-                                            <t t-esc="prod.product_types || '—'"/>
-                                        </td>
-                                        <td class="text-end" t-esc="fmt(prod.qty)"/>
-                                        <td class="text-end">
-                                            <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
-                                            <span t-else="" class="text-muted">—</span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span t-if="prod.is_broken"
-                                                  class="badge text-bg-danger"
-                                                  t-att-title="`Stock ${fmt(prod.qty)} &lt; mínimo ${fmt(prod.min_qty)}`">
-                                                Quiebre
-                                            </span>
-                                            <span t-elif="prod.has_min"
-                                                  class="badge text-bg-success"
-                                                  title="Stock sobre el mínimo configurado">
-                                                OK
-                                            </span>
-                                            <span t-else=""
-                                                  class="text-muted fst-italic small"
-                                                  title="Sin punto de reorden con ruta Fabricación">
-                                                Sin mínimo
-                                            </span>
+                                        <td t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                            t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center align-middle p-0' : '')">
+                                            <t t-if="col.key === '_expand'">
+                                                <button t-if="prod.mo_count"
+                                                        class="btn btn-sm btn-link p-0 px-1 text-muted"
+                                                        t-att-title="state.expandedProducts[prod.id] ? 'Cerrar OFs' : 'Ver OFs activas'"
+                                                        t-on-click.stop="(ev) => this.toggleAccordion(prod, ev)">
+                                                    <i t-att-class="'fa fa-fw ' + (state.expandedProducts[prod.id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                                </button>
+                                            </t>
+                                            <t t-elif="col.key === 'name'">
+                                                <span class="fw-semibold text-truncate d-block" t-esc="prod.name"/>
+                                            </t>
+                                            <t t-elif="col.key === 'product_types'">
+                                                <span class="text-truncate text-muted small d-block"
+                                                      t-att-title="prod.product_types || ''"
+                                                      t-esc="prod.product_types || '—'"/>
+                                            </t>
+                                            <t t-elif="col.key === 'qty'">
+                                                <t t-esc="fmt(prod.qty)"/>
+                                            </t>
+                                            <t t-elif="col.key === 'min_qty'">
+                                                <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
+                                                <span t-else="" class="text-muted">—</span>
+                                            </t>
+                                            <t t-elif="col.key === 'status'">
+                                                <span t-if="prod.is_broken"
+                                                      class="badge text-bg-danger"
+                                                      t-att-title="`Stock ${fmt(prod.qty)} menor que mínimo ${fmt(prod.min_qty)}`">
+                                                    Quiebre
+                                                </span>
+                                                <span t-elif="prod.has_min"
+                                                      class="badge text-bg-success"
+                                                      title="Stock sobre el mínimo configurado">
+                                                    OK
+                                                </span>
+                                                <span t-else=""
+                                                      class="text-muted fst-italic small"
+                                                      title="Sin punto de reorden con ruta Fabricación">
+                                                    Sin mínimo
+                                                </span>
+                                            </t>
                                         </td>
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
                                     <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
-                                        <td colspan="6" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        <td t-att-colspan="colsStock.visibleCols().length" class="p-0" style="background:#f8f9fa; border-top:none;">
                                             <div class="px-3 py-2">
 
                                                 <div t-if="state.mosLoading[prod.id]"

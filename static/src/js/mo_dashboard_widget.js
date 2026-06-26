@@ -18,6 +18,28 @@
 import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useColManager } from "./column_manager";
+
+const MO_OF_COLS = [
+    { key: 'name',             label: 'Referencia',    width: 130, sortKey: 'name',             title: 'Número de la orden de fabricación.' },
+    { key: 'product',          label: 'Producto',      width: 210, sortKey: 'product',           title: 'Producto a fabricar en esta OF.' },
+    { key: 'date_finished',    label: 'Fin planificado', width: 130, sortKey: 'date_finished',  title: 'Fecha de finalización planificada (date_finished).' },
+    { key: 'state',            label: 'Estado',        width: 105, sortKey: 'state',             title: 'Estado actual de la OF: Confirmada / En progreso / Por cerrar / Completada.' },
+    { key: 'pending_delivery', label: 'Entregas',      width: 85,  sortKey: 'pending_delivery',  align: 'end', title: 'Entregas pendientes del producto.' },
+];
+
+const MO_SCHED_COLS = [
+    { key: 'name',      label: 'Referencia',       width: 200, sortKey: 'name',       title: 'Identificador de la solicitud de programación.' },
+    { key: 'start_from',label: 'Disponible desde', width: 155, sortKey: 'start_from', title: 'Fecha más temprana desde la que el material está disponible.' },
+    { key: 'state',     label: 'Estado',           width: 100, sortKey: 'state',      title: 'Estado de la solicitud: Borrador / Calculada / Confirmada.' },
+];
+
+const MO_COMP_COLS = [
+    { key: 'product',      label: 'Producto',   width: 250, sortKey: 'product',      title: 'Nombre del producto fabricado.' },
+    { key: 'planned_qty',  label: 'Programado', width: 100, sortKey: 'planned_qty',  align: 'end', title: 'Total de unidades planificadas en OFs del período.' },
+    { key: 'produced_qty', label: 'Producido',  width: 100, sortKey: 'produced_qty', align: 'end', title: 'Total de unidades producidas y registradas.' },
+    { key: 'pct',          label: '%',          width: 80,  sortKey: 'pct',          align: 'end', title: 'Cumplimiento = Producido ÷ Programado × 100.' },
+];
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -33,7 +55,10 @@ class MoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
-        this._root  = useRef("moRoot");
+        this._root   = useRef("moRoot");
+        this.colsOf  = useColManager('mo_ofs',        MO_OF_COLS);
+        this.colsReq = useColManager('mo_requests',   MO_SCHED_COLS);
+        this.colsComp= useColManager('mo_comparison', MO_COMP_COLS);
 
         const now          = new Date();
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -280,6 +305,11 @@ class MoDashboardWidget extends Component {
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
     // ── Ordenamiento ─────────────────────────────────────────────────────────
+
+    onHeaderClick(ev) {
+        const sortKey = ev.currentTarget.dataset.sortKey;
+        if (sortKey) this.sortBy(sortKey);
+    }
 
     sortBy(field) {
         if (this.state.sortField === field) {

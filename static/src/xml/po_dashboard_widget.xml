@@ -205,27 +205,42 @@
                             <t t-elif="!state.listTab">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:20%"/><col style="width:38%"/>
-                                        <col style="width:24%"/><col style="width:18%"/>
+                                        <col t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsOc.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
-                                            <th style="cursor:pointer" title="Número de la orden de compra. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                            <th style="cursor:pointer" title="Proveedor de la orden de compra. Clic para ordenar." t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
-                                            <th style="cursor:pointer" title="Fecha de entrega planificada (date_planned). Clic para ordenar." t-on-click="() => this.sortBy('date_planned')">
-                                                <t t-if="state.ocFilter === 'overdue'">Vencida el</t>
-                                                <t t-else="">Entrega estimada</t>
-                                                <i t-att-class="sortIcon('date_planned')"/>
+                                            <th t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsOc.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsOc.onDragStart"
+                                                t-on-dragover="colsOc.onDragOver"
+                                                t-on-drop="colsOc.onDrop"
+                                                t-on-dragend="colsOc.onDragEnd">
+                                                <t t-if="col.key === 'date_planned'">
+                                                    <t t-if="state.ocFilter === 'overdue'">Vencida el</t>
+                                                    <t t-else=""><t t-esc="col.label"/></t>
+                                                </t>
+                                                <t t-else=""><t t-esc="col.label"/></t>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsOc.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
                                             </th>
-                                            <th class="text-end" style="cursor:pointer" title="Importe total de la OC en moneda de la empresa. Clic para ordenar." t-on-click="() => this.sortBy('amount_total')">Total <i t-att-class="sortIcon('amount_total')"/></th>
                                         </tr>
                                     </thead>
                                 </table>
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:20%"/><col style="width:38%"/>
-                                            <col style="width:24%"/><col style="width:18%"/>
+                                            <col t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsOc.colGroupStyle(col.key)"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="po" t-key="po.id">
@@ -233,10 +248,13 @@
                                                     style="cursor:pointer"
                                                     t-att-data-po-id="po.id"
                                                     t-on-click="openPoFromRow">
-                                                    <td class="fw-semibold" t-esc="po.name"/>
-                                                    <td t-esc="po.partner"/>
-                                                    <td t-esc="po.date_planned"/>
-                                                    <td class="text-end" t-esc="fmtAmt(po.amount_total)"/>
+                                                    <td t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                                        <t t-if="col.key === 'name'"><span class="fw-semibold" t-esc="po.name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="po.partner"/></t>
+                                                        <t t-elif="col.key === 'date_planned'"><t t-esc="po.date_planned"/></t>
+                                                        <t t-elif="col.key === 'amount_total'"><t t-esc="fmtAmt(po.amount_total)"/></t>
+                                                    </td>
                                                 </tr>
                                             </t>
                                         </tbody>
@@ -248,27 +266,38 @@
                             <t t-elif="state.listTab === 'receipts'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:4%"/>
-                                        <col style="width:16%"/><col style="width:28%"/>
-                                        <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
+                                        <col t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsReceipts.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
-                                            <th/>
-                                            <th style="cursor:pointer" title="Número del albarán. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                            <th style="cursor:pointer" title="Proveedor o subcontratista. Clic para ordenar." t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
-                                            <th style="cursor:pointer" title="Fecha programada del movimiento de stock (scheduled_date). Clic para ordenar." t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
-                                            <th class="text-center" style="cursor:pointer" title="+Nd = vencido hace N días. Reloj = dentro de plazo. Clic para ordenar." t-on-click="() => this.sortBy('overdue')">Estado <i t-att-class="sortIcon('overdue')"/></th>
-                                            <th class="text-center" style="cursor:pointer" title="Lista: cantidades completas listas para validar. Parcial: recepción iniciada. Sin iniciar: sin cantidades ingresadas. Clic para ordenar." t-on-click="() => this.sortBy('availability')">Disponibilidad <i t-att-class="sortIcon('availability')"/></th>
+                                            <th t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsReceipts.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsReceipts.onDragStart"
+                                                t-on-dragover="colsReceipts.onDragOver"
+                                                t-on-drop="colsReceipts.onDrop"
+                                                t-on-dragend="colsReceipts.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsReceipts.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
                                         </tr>
                                     </thead>
                                 </table>
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:4%"/>
-                                            <col style="width:16%"/><col style="width:28%"/>
-                                            <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
+                                            <col t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsReceipts.colGroupStyle(col.key)"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
@@ -277,44 +306,41 @@
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
-                                                    <td class="text-center ps-1 pe-0"
-                                                        t-on-click.stop="() => this.toggleExpand(pick.id)"
-                                                        style="cursor:default;"
-                                                        title="Ver / ocultar líneas">
-                                                        <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
-                                                    </td>
-                                                    <td class="fw-semibold" t-esc="pick.name"/>
-                                                    <td t-esc="pick.partner"/>
-                                                    <td t-esc="pick.scheduled_date"/>
-                                                    <td class="text-center">
-                                                        <t t-if="pick.overdue">
-                                                            <span class="badge text-bg-danger"
-                                                                  t-att-title="`Vencida hace ${pick.days_late} días`">
-                                                                +<t t-esc="pick.days_late"/>d
+                                                    <td t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
+                                                        <t t-if="col.key === '_expand'">
+                                                            <span t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                                  style="cursor:default;" title="Ver / ocultar líneas">
+                                                                <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
                                                             </span>
                                                         </t>
-                                                        <t t-else="">
-                                                            <i class="fa fa-clock-o text-muted" title="Recepción pendiente: dentro de plazo"/>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
+                                                        <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
+                                                        <t t-elif="col.key === 'overdue'">
+                                                            <t t-if="pick.overdue">
+                                                                <span class="badge text-bg-danger"
+                                                                      t-att-title="`Vencida hace ${pick.days_late} días`">
+                                                                    +<t t-esc="pick.days_late"/>d
+                                                                </span>
+                                                            </t>
+                                                            <t t-else="">
+                                                                <i class="fa fa-clock-o text-muted" title="Recepción pendiente: dentro de plazo"/>
+                                                            </t>
                                                         </t>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <span t-if="pick.availability === 'assigned'"
-                                                              class="badge text-bg-success"
-                                                              title="Cantidades completas, lista para validar">Lista</span>
-                                                        <span t-elif="pick.availability === 'partially_available'"
-                                                              class="badge text-bg-warning"
-                                                              title="Recepción parcial iniciada">Parcial</span>
-                                                        <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'"
-                                                              class="badge text-bg-secondary"
-                                                              title="Sin cantidades ingresadas aún">Sin iniciar</span>
-                                                        <span t-else="" class="text-muted">—</span>
+                                                        <t t-elif="col.key === 'availability'">
+                                                            <span t-if="pick.availability === 'assigned'" class="badge text-bg-success" title="Cantidades completas, lista para validar">Lista</span>
+                                                            <span t-elif="pick.availability === 'partially_available'" class="badge text-bg-warning" title="Recepción parcial iniciada">Parcial</span>
+                                                            <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'" class="badge text-bg-secondary" title="Sin cantidades ingresadas aún">Sin iniciar</span>
+                                                            <span t-else="" class="text-muted">—</span>
+                                                        </t>
                                                     </td>
                                                 </tr>
                                                 <!-- Filas de líneas (expandibles) -->
                                                 <t t-if="state.expandedIds[pick.id]">
                                                     <t t-if="pick.lines.length === 0">
                                                         <tr class="table-light">
-                                                            <td colspan="6" class="text-muted fst-italic small ps-4">Sin líneas pendientes.</td>
+                                                            <td t-att-colspan="colsReceipts.visibleCols().length" class="text-muted fst-italic small ps-4">Sin líneas pendientes.</td>
                                                         </tr>
                                                     </t>
                                                     <t t-foreach="pick.lines" t-as="line" t-key="line_index">
@@ -353,27 +379,38 @@
                             <t t-elif="state.listTab === 'deliveries'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:4%"/>
-                                        <col style="width:16%"/><col style="width:28%"/>
-                                        <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
+                                        <col t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsDeliveries.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
-                                            <th/>
-                                            <th style="cursor:pointer" title="Número del albarán. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                            <th style="cursor:pointer" title="Proveedor o subcontratista. Clic para ordenar." t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
-                                            <th style="cursor:pointer" title="Fecha programada del movimiento de stock (scheduled_date). Clic para ordenar." t-on-click="() => this.sortBy('scheduled_date')">Fecha prevista <i t-att-class="sortIcon('scheduled_date')"/></th>
-                                            <th class="text-center" style="cursor:pointer" title="+Nd = vencido hace N días. Reloj = dentro de plazo. Clic para ordenar." t-on-click="() => this.sortBy('overdue')">Estado <i t-att-class="sortIcon('overdue')"/></th>
-                                            <th class="text-center" style="cursor:pointer" title="Lista: cantidades completas listas para validar. Parcial: recepción iniciada. Sin iniciar: sin cantidades ingresadas. Clic para ordenar." t-on-click="() => this.sortBy('availability')">Disponibilidad <i t-att-class="sortIcon('availability')"/></th>
+                                            <th t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsDeliveries.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsDeliveries.onDragStart"
+                                                t-on-dragover="colsDeliveries.onDragOver"
+                                                t-on-drop="colsDeliveries.onDrop"
+                                                t-on-dragend="colsDeliveries.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsDeliveries.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
                                         </tr>
                                     </thead>
                                 </table>
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:4%"/>
-                                            <col style="width:16%"/><col style="width:28%"/>
-                                            <col style="width:18%"/><col style="width:9%"/><col style="width:25%"/>
+                                            <col t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsDeliveries.colGroupStyle(col.key)"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
@@ -382,41 +419,34 @@
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
-                                                    <td class="text-center ps-1 pe-0"
-                                                        t-on-click.stop="() => this.toggleExpand(pick.id)"
-                                                        style="cursor:default;"
-                                                        title="Ver / ocultar líneas">
-                                                        <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
-                                                    </td>
-                                                    <td class="fw-semibold" t-esc="pick.name"/>
-                                                    <td t-esc="pick.partner"/>
-                                                    <td t-esc="pick.scheduled_date"/>
-                                                    <td class="text-center">
-                                                        <i t-if="pick.overdue"
-                                                           class="fa fa-exclamation-triangle text-danger"
-                                                           title="Entrega vencida: la fecha programada ya pasó"/>
-                                                        <i t-else=""
-                                                           class="fa fa-clock-o text-muted"
-                                                           title="Entrega pendiente: dentro de plazo"/>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <span t-if="pick.availability === 'assigned'"
-                                                              class="badge text-bg-success"
-                                                              title="Stock totalmente reservado y listo para despachar">Disponible</span>
-                                                        <span t-elif="pick.availability === 'partially_available'"
-                                                              class="badge text-bg-warning"
-                                                              title="Stock parcialmente reservado. Algunos productos faltan">Parcialmente</span>
-                                                        <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'"
-                                                              class="badge text-bg-danger"
-                                                              title="Sin stock reservado. Ejecutar Comprobar disponibilidad en Odoo">No disponible</span>
-                                                        <span t-else="" class="text-muted">—</span>
+                                                    <td t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
+                                                        <t t-if="col.key === '_expand'">
+                                                            <span t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                                  style="cursor:default;" title="Ver / ocultar líneas">
+                                                                <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
+                                                            </span>
+                                                        </t>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
+                                                        <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
+                                                        <t t-elif="col.key === 'overdue'">
+                                                            <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Entrega vencida: la fecha programada ya pasó"/>
+                                                            <i t-else="" class="fa fa-clock-o text-muted" title="Entrega pendiente: dentro de plazo"/>
+                                                        </t>
+                                                        <t t-elif="col.key === 'availability'">
+                                                            <span t-if="pick.availability === 'assigned'" class="badge text-bg-success" title="Stock totalmente reservado y listo para despachar">Disponible</span>
+                                                            <span t-elif="pick.availability === 'partially_available'" class="badge text-bg-warning" title="Stock parcialmente reservado">Parcialmente</span>
+                                                            <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'" class="badge text-bg-danger" title="Sin stock reservado">No disponible</span>
+                                                            <span t-else="" class="text-muted">—</span>
+                                                        </t>
                                                     </td>
                                                 </tr>
                                                 <!-- Filas de líneas (expandibles) -->
                                                 <t t-if="state.expandedIds[pick.id]">
                                                     <t t-if="pick.lines.length === 0">
                                                         <tr class="table-light">
-                                                            <td colspan="6" class="text-muted fst-italic small ps-4">Sin líneas de movimiento.</td>
+                                                            <td t-att-colspan="colsDeliveries.visibleCols().length" class="text-muted fst-italic small ps-4">Sin líneas de movimiento.</td>
                                                         </tr>
                                                     </t>
                                                     <t t-foreach="pick.lines" t-as="line" t-key="line_index">
@@ -455,33 +485,51 @@
                             <t t-elif="state.listTab === 'services'">
                                 <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                     <colgroup>
-                                        <col style="width:20%"/><col style="width:38%"/>
-                                        <col style="width:24%"/><col style="width:18%"/>
+                                        <col t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsSvc.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <thead>
                                         <tr class="text-muted o_sortable_header">
-                                            <th style="cursor:pointer" title="Número de la OC de servicio. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                            <th style="cursor:pointer" title="Proveedor del servicio. Clic para ordenar." t-on-click="() => this.sortBy('partner')">Proveedor <i t-att-class="sortIcon('partner')"/></th>
-                                            <th style="cursor:pointer" title="Fecha de entrega estimada del servicio (date_planned). Clic para ordenar." t-on-click="() => this.sortBy('date_planned')">Entrega estimada <i t-att-class="sortIcon('date_planned')"/></th>
-                                            <th class="text-end" style="cursor:pointer" title="Importe total de la OC de servicio. Clic para ordenar." t-on-click="() => this.sortBy('amount_total')">Total <i t-att-class="sortIcon('amount_total')"/></th>
+                                            <th t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsSvc.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsSvc.onDragStart"
+                                                t-on-dragover="colsSvc.onDragOver"
+                                                t-on-drop="colsSvc.onDrop"
+                                                t-on-dragend="colsSvc.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsSvc.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
                                         </tr>
                                     </thead>
                                 </table>
                                 <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                     <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                         <colgroup>
-                                            <col style="width:20%"/><col style="width:38%"/>
-                                            <col style="width:24%"/><col style="width:18%"/>
+                                            <col t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsSvc.colGroupStyle(col.key)"/>
                                         </colgroup>
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="svc" t-key="svc.id">
                                                 <tr style="cursor:pointer"
                                                     t-att-data-po-id="svc.id"
                                                     t-on-click="openPoFromRow">
-                                                    <td class="fw-semibold" t-esc="svc.name"/>
-                                                    <td t-esc="svc.partner"/>
-                                                    <td t-esc="svc.date_planned"/>
-                                                    <td class="text-end" t-esc="fmtAmt(svc.amount_total)"/>
+                                                    <td t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                                        <t t-if="col.key === 'name'"><span class="fw-semibold" t-esc="svc.name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="svc.partner"/></t>
+                                                        <t t-elif="col.key === 'date_planned'"><t t-esc="svc.date_planned"/></t>
+                                                        <t t-elif="col.key === 'amount_total'"><t t-esc="fmtAmt(svc.amount_total)"/></t>
+                                                    </td>
                                                 </tr>
                                             </t>
                                         </tbody>

@@ -157,42 +157,58 @@
                              style="overflow:hidden; height:330px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
-                                    <col style="width:18%"/><col style="width:32%"/>
-                                    <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
+                                    <col t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
+                                         t-att-style="colsOf.colGroupStyle(col.key)"/>
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" title="Número de la orden de fabricación. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                        <th style="cursor:pointer" title="Producto a fabricar en esta OF. Clic para ordenar." t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
-                                        <th style="cursor:pointer" title="Fecha de finalización planificada (date_finished). Clic para ordenar." t-on-click="() => this.sortBy('date_finished')">Fin planificado <i t-att-class="sortIcon('date_finished')"/></th>
-                                        <th style="cursor:pointer" title="Estado actual de la OF: Confirmada / En progreso / Por cerrar / Completada. Clic para ordenar." t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
-                                        <th class="text-end" style="cursor:pointer" title="Entregas pendientes del producto" t-on-click="() => this.sortBy('pending_delivery')">Entregas <i t-att-class="sortIcon('pending_delivery')"/></th>
+                                        <th t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
+                                            t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsOf.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                            style="position:relative; user-select:none;"
+                                            t-att-title="col.title"
+                                            t-att-data-col-key="col.key"
+                                            t-att-data-sort-key="col.sortKey || ''"
+                                            t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-on-click="onHeaderClick"
+                                            t-on-dragstart="colsOf.onDragStart"
+                                            t-on-dragover="colsOf.onDragOver"
+                                            t-on-drop="colsOf.onDrop"
+                                            t-on-dragend="colsOf.onDragEnd">
+                                            <t t-esc="col.label"/>
+                                            <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                            <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                 t-att-data-col-key="col.key"
+                                                 t-on-mousedown.stop="colsOf.onResizeStart"
+                                                 t-on-click.stop="() => {}"/>
+                                        </th>
                                     </tr>
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                 <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                     <colgroup>
-                                        <col style="width:18%"/><col style="width:32%"/>
-                                        <col style="width:20%"/><col style="width:15%"/><col style="width:15%"/>
+                                        <col t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsOf.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="sortedMos" t-as="mo" t-key="mo.id">
                                             <tr style="cursor:pointer" t-on-click="openMoFromRow"
                                                 t-att-data-mo-id="mo.id"
                                                 t-att-class="mo.delayed ? 'table-danger' : ''">
-                                                <td class="fw-semibold" t-esc="mo.name"/>
-                                                <td t-esc="mo.product"/>
-                                                <td t-esc="mo.date_finished"/>
-                                                <td>
-                                                    <span t-att-class="stateClass(mo.state)"
-                                                          t-esc="stateLabel(mo.state)"/>
-                                                </td>
-                                                <td class="text-end">
-                                                    <span t-if="mo.pending_delivery > 0"
-                                                          class="text-warning fw-semibold"
-                                                          t-esc="fmt(mo.pending_delivery)"/>
-                                                    <span t-else="" class="text-muted">—</span>
+                                                <td t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
+                                                    t-att-class="col.align ? 'text-' + col.align : ''">
+                                                    <t t-if="col.key === 'name'">
+                                                        <span class="fw-semibold" t-esc="mo.name"/>
+                                                    </t>
+                                                    <t t-elif="col.key === 'product'"><t t-esc="mo.product"/></t>
+                                                    <t t-elif="col.key === 'date_finished'"><t t-esc="mo.date_finished"/></t>
+                                                    <t t-elif="col.key === 'state'">
+                                                        <span t-att-class="stateClass(mo.state)" t-esc="stateLabel(mo.state)"/>
+                                                    </t>
+                                                    <t t-elif="col.key === 'pending_delivery'">
+                                                        <span t-if="mo.pending_delivery > 0" class="text-warning fw-semibold" t-esc="fmt(mo.pending_delivery)"/>
+                                                        <span t-else="" class="text-muted">—</span>
+                                                    </t>
                                                 </td>
                                             </tr>
                                         </t>
@@ -292,30 +308,52 @@
                              style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
-                                    <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
+                                    <col t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
+                                         t-att-style="colsReq.colGroupStyle(col.key)"/>
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" title="Identificador de la solicitud de programación. Clic para ordenar." t-on-click="() => this.sortBy('name')">Referencia <i t-att-class="sortIcon('name')"/></th>
-                                        <th style="cursor:pointer" title="Fecha más temprana desde la que el material está disponible para producción. Clic para ordenar." t-on-click="() => this.sortBy('start_from')">Disponible desde <i t-att-class="sortIcon('start_from')"/></th>
-                                        <th style="cursor:pointer" title="Estado de la solicitud: Borrador / Calculada / Confirmada. Clic para ordenar." t-on-click="() => this.sortBy('state')">Estado <i t-att-class="sortIcon('state')"/></th>
+                                        <th t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
+                                            t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsReq.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                            style="position:relative; user-select:none;"
+                                            t-att-title="col.title"
+                                            t-att-data-col-key="col.key"
+                                            t-att-data-sort-key="col.sortKey || ''"
+                                            t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-on-click="onHeaderClick"
+                                            t-on-dragstart="colsReq.onDragStart"
+                                            t-on-dragover="colsReq.onDragOver"
+                                            t-on-drop="colsReq.onDrop"
+                                            t-on-dragend="colsReq.onDragEnd">
+                                            <t t-esc="col.label"/>
+                                            <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                            <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                 t-att-data-col-key="col.key"
+                                                 t-on-mousedown.stop="colsReq.onResizeStart"
+                                                 t-on-click.stop="() => {}"/>
+                                        </th>
                                     </tr>
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                 <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                     <colgroup>
-                                        <col style="width:45%"/><col style="width:35%"/><col style="width:20%"/>
+                                        <col t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsReq.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="sortedRequests" t-as="req" t-key="req.id">
                                             <tr style="cursor:pointer" t-on-click="openRequestFromRow"
                                                 t-att-data-req-id="req.id">
-                                                <td class="fw-semibold" t-esc="req.name"/>
-                                                <td t-esc="req.start_from"/>
-                                                <td>
-                                                    <span t-att-class="reqStateClass(req.state)"
-                                                          t-esc="reqStateLabel(req.state)"/>
+                                                <td t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
+                                                    t-att-class="col.align ? 'text-' + col.align : ''">
+                                                    <t t-if="col.key === 'name'">
+                                                        <span class="fw-semibold" t-esc="req.name"/>
+                                                    </t>
+                                                    <t t-elif="col.key === 'start_from'"><t t-esc="req.start_from"/></t>
+                                                    <t t-elif="col.key === 'state'">
+                                                        <span t-att-class="reqStateClass(req.state)" t-esc="reqStateLabel(req.state)"/>
+                                                    </t>
                                                 </td>
                                             </tr>
                                         </t>
@@ -413,33 +451,50 @@
                              style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
-                                    <col style="width:46%"/><col style="width:18%"/>
-                                    <col style="width:18%"/><col style="width:18%"/>
+                                    <col t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
+                                         t-att-style="colsComp.colGroupStyle(col.key)"/>
                                 </colgroup>
                                 <thead>
                                     <tr class="text-muted o_sortable_header">
-                                        <th style="cursor:pointer" title="Nombre del producto fabricado. Clic para ordenar." t-on-click="() => this.sortBy('product')">Producto <i t-att-class="sortIcon('product')"/></th>
-                                        <th class="text-end" style="cursor:pointer" title="Total de unidades planificadas en OFs del período (product_qty). Clic para ordenar." t-on-click="() => this.sortBy('planned_qty')">Programado <i t-att-class="sortIcon('planned_qty')"/></th>
-                                        <th class="text-end" style="cursor:pointer" title="Total de unidades producidas y registradas (qty_produced de OFs done). Clic para ordenar." t-on-click="() => this.sortBy('produced_qty')">Producido <i t-att-class="sortIcon('produced_qty')"/></th>
-                                        <th class="text-end" style="cursor:pointer" title="Cumplimiento = Producido ÷ Programado × 100. Clic para ordenar." t-on-click="() => this.sortBy('pct')">% <i t-att-class="sortIcon('pct')"/></th>
+                                        <th t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
+                                            t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsComp.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                            style="position:relative; user-select:none;"
+                                            t-att-title="col.title"
+                                            t-att-data-col-key="col.key"
+                                            t-att-data-sort-key="col.sortKey || ''"
+                                            t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-on-click="onHeaderClick"
+                                            t-on-dragstart="colsComp.onDragStart"
+                                            t-on-dragover="colsComp.onDragOver"
+                                            t-on-drop="colsComp.onDrop"
+                                            t-on-dragend="colsComp.onDragEnd">
+                                            <t t-esc="col.label"/>
+                                            <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                            <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                 t-att-data-col-key="col.key"
+                                                 t-on-mousedown.stop="colsComp.onResizeStart"
+                                                 t-on-click.stop="() => {}"/>
+                                        </th>
                                     </tr>
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
                                 <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                                     <colgroup>
-                                        <col style="width:46%"/><col style="width:18%"/>
-                                        <col style="width:18%"/><col style="width:18%"/>
+                                        <col t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsComp.colGroupStyle(col.key)"/>
                                     </colgroup>
                                     <tbody>
                                         <t t-foreach="sortedComparison" t-as="item" t-key="item.product_id">
                                             <tr>
-                                                <td t-esc="item.product"/>
-                                                <td class="text-end" t-esc="fmt(item.planned_qty)"/>
-                                                <td class="text-end" t-esc="fmt(item.produced_qty)"/>
-                                                <td class="text-end">
-                                                    <span t-att-class="pctClass(item.pct)"
-                                                          t-esc="item.pct + '%'"/>
+                                                <td t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
+                                                    t-att-class="col.align ? 'text-' + col.align : ''">
+                                                    <t t-if="col.key === 'product'"><t t-esc="item.product"/></t>
+                                                    <t t-elif="col.key === 'planned_qty'"><t t-esc="fmt(item.planned_qty)"/></t>
+                                                    <t t-elif="col.key === 'produced_qty'"><t t-esc="fmt(item.produced_qty)"/></t>
+                                                    <t t-elif="col.key === 'pct'">
+                                                        <span t-att-class="pctClass(item.pct)" t-esc="item.pct + '%'"/>
+                                                    </t>
                                                 </td>
                                             </tr>
                                         </t>

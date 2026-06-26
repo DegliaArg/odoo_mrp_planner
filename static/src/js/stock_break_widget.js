@@ -16,6 +16,16 @@
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useColManager } from "./column_manager";
+
+const STOCK_COLS = [
+    { key: '_expand',      label: '',          width: 32,  fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
+    { key: 'name',         label: 'Artículo',  width: 200, sortKey: 'name',     title: 'Nombre o código del producto.' },
+    { key: 'product_types',label: 'Tipo',      width: 130, title: 'Tipos de producto asignados en la ficha del artículo.' },
+    { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',    align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
+    { key: 'min_qty',      label: 'Mínimo',    width: 85,  sortKey: 'min_qty',  align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
+    { key: 'status',       label: 'Estado',    width: 100, sortKey: 'status',   align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
+];
 
 class StockBreakWidget extends Component {
     static template = "odoo_mrp_planner.StockBreakWidget";
@@ -49,6 +59,8 @@ class StockBreakWidget extends Component {
             mosByProduct:     {},
             mosLoading:       {},
         });
+        this.colsStock = useColManager('stock_break', STOCK_COLS);
+
         this._searchTimer = null;
         this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
 
@@ -60,6 +72,11 @@ class StockBreakWidget extends Component {
             clearTimeout(this._searchTimer);
             document.removeEventListener('click', this._closeLocDropdown);
         });
+    }
+
+    onHeaderClick(ev) {
+        const sortKey = ev.currentTarget.dataset.sortKey;
+        if (sortKey) this.sortBy(sortKey);
     }
 
     /** @returns {Promise<void>} Carga ubicaciones y datos iniciales en paralelo */

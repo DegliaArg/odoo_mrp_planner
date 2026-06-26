@@ -15,6 +15,30 @@
 import { Component, useState, onMounted, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useColManager } from "./column_manager";
+
+const PO_OC_COLS = [
+    { key: 'name',        label: 'Referencia',      width: 130, sortKey: 'name',        title: 'Número de la orden de compra.' },
+    { key: 'partner',     label: 'Proveedor',        width: 200, sortKey: 'partner',     title: 'Proveedor de la orden de compra.' },
+    { key: 'date_planned',label: 'Entrega estimada', width: 130, sortKey: 'date_planned',title: 'Fecha de entrega planificada (date_planned).' },
+    { key: 'amount_total',label: 'Total',            width: 100, sortKey: 'amount_total', align: 'end', title: 'Importe total de la OC en moneda de la empresa.' },
+];
+
+const PO_PICK_COLS = [
+    { key: '_expand',       label: '',               width: 32,  fixed: true, noResize: true },
+    { key: 'name',          label: 'Referencia',     width: 100, sortKey: 'name',          title: 'Número del albarán.' },
+    { key: 'partner',       label: 'Proveedor',      width: 175, sortKey: 'partner',       title: 'Proveedor o subcontratista.' },
+    { key: 'scheduled_date',label: 'Fecha prevista', width: 120, sortKey: 'scheduled_date',title: 'Fecha programada del movimiento de stock (scheduled_date).' },
+    { key: 'overdue',       label: 'Estado',         width: 80,  sortKey: 'overdue',       align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
+    { key: 'availability',  label: 'Disponibilidad', width: 120, sortKey: 'availability',  align: 'center', title: 'Lista / Parcial / Sin iniciar.' },
+];
+
+const PO_SVC_COLS = [
+    { key: 'name',        label: 'Referencia',      width: 130, sortKey: 'name',        title: 'Número de la OC de servicio.' },
+    { key: 'partner',     label: 'Proveedor',        width: 200, sortKey: 'partner',     title: 'Proveedor del servicio.' },
+    { key: 'date_planned',label: 'Entrega estimada', width: 130, sortKey: 'date_planned',title: 'Fecha de entrega estimada del servicio.' },
+    { key: 'amount_total',label: 'Total',            width: 100, sortKey: 'amount_total', align: 'end', title: 'Importe total de la OC de servicio.' },
+];
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -36,7 +60,11 @@ class PoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
-        this._root  = useRef("poRoot");
+        this._root        = useRef("poRoot");
+        this.colsOc       = useColManager('po_ocs',       PO_OC_COLS);
+        this.colsReceipts = useColManager('po_receipts',  PO_PICK_COLS);
+        this.colsDeliveries= useColManager('po_deliveries', PO_PICK_COLS);
+        this.colsSvc      = useColManager('po_services',  PO_SVC_COLS);
 
         const now          = new Date();
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -272,6 +300,11 @@ class PoDashboardWidget extends Component {
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
     // ── Ordenamiento ─────────────────────────────────────────────────────────
+
+    onHeaderClick(ev) {
+        const sortKey = ev.currentTarget.dataset.sortKey;
+        if (sortKey) this.sortBy(sortKey);
+    }
 
     sortBy(field) {
         if (this.state.sortField === field) {

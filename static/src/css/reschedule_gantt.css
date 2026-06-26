@@ -93,3 +93,32 @@
 /* Alineación vertical en títulos de sección (badge + botón link) */
 .o_planner_section_title { display: flex; align-items: center; }
 
+/* ── Column resize + reorder ──────────────────────────────────────────────── */
+
+/* Resize handle — pinned to right edge of each th */
+.o_col_resize_handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+    transition: background 0.1s;
+}
+
+.o_col_resize_handle:hover {
+    background: rgba(13, 110, 253, 0.35);
+}
+
+/* Drop-target highlight while dragging */
+th.o_col_drag_over {
+    box-shadow: inset 2px 0 0 #0d6efd;
+    background-color: rgba(13, 110, 253, 0.06) !important;
+}
+
+/* Drag cursor for reorderable headers */
+th[draggable="true"] { cursor: grab; }
+th[draggable="true"]:active { cursor: grabbing; }
+

@@ -125,59 +125,31 @@
 
                 <!-- Tabla -->
                 <div class="border rounded" style="overflow:auto;">
-                    <table class="table table-sm table-hover mb-0" style="font-size:12px; min-width:900px;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:12px; min-width:700px; table-layout:fixed;">
+                        <colgroup>
+                            <col t-foreach="supVisibleCols" t-as="col" t-key="col.key"
+                                 t-att-style="colsSup.colGroupStyle(col.key)"/>
+                        </colgroup>
                         <thead>
                             <tr class="table-light text-muted">
-                                <th style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Nombre del proveedor. Clic para ordenar."
-                                    t-on-click="() => this.setSort('partner_name')">
-                                    Proveedor <i t-att-class="sortIcon('partner_name')"/>
-                                </th>
-                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="OCs confirmadas en el período. Clic para ordenar."
-                                    t-on-click="() => this.setSort('order_count')">
-                                    OCs <i t-att-class="sortIcon('order_count')"/>
-                                </th>
-                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Artículos distintos comprados al proveedor. Clic para ordenar."
-                                    t-on-click="() => this.setSort('distinct_products')">
-                                    Artículos <i t-att-class="sortIcon('distinct_products')"/>
-                                </th>
-                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Suma del monto total de OCs confirmadas. Clic para ordenar."
-                                    t-on-click="() => this.setSort('total_amount')">
-                                    Monto <i t-att-class="sortIcon('total_amount')"/>
-                                </th>
-                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="% recepciones completadas en fecha. Verde 90%+ | Amarillo 70%+ | Rojo menos de 70%."
-                                    t-on-click="() => this.setSort('on_time_pct')">
-                                    % A tiempo <i t-att-class="sortIcon('on_time_pct')"/>
-                                </th>
-                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Promedio de días de retraso en recepciones tardías. Verde 1 d o menos | Amarillo 3 d o menos | Rojo más de 3 d."
-                                    t-on-click="() => this.setSort('avg_delay_days')">
-                                    Retraso (d) <i t-att-class="sortIcon('avg_delay_days')"/>
-                                </th>
-                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="% recepciones completadas sin backorder. Verde 95%+ | Amarillo 80%+ | Rojo menos de 80%."
-                                    t-on-click="() => this.setSort('complete_pct')">
-                                    % Completas <i t-att-class="sortIcon('complete_pct')"/>
-                                </th>
-                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Lead time real promedio: días entre aprobación de OC y recepción."
-                                    t-on-click="() => this.setSort('avg_lead_time')">
-                                    Lead time (d) <i t-att-class="sortIcon('avg_lead_time')"/>
-                                </th>
-                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Variación promedio de precio OC vs costo estándar. Verde menos de 3% | Amarillo menos de 10% | Rojo 10% o más."
-                                    t-on-click="() => this.setSort('avg_price_var_pct')">
-                                    Var. precio <i t-att-class="sortIcon('avg_price_var_pct')"/>
-                                </th>
-                                <th t-if="state.data.has_invoices"
-                                    class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
-                                    title="Monto total de facturas de proveedor pendientes de pago."
-                                    t-on-click="() => this.setSort('pending_inv')">
-                                    Fact. pendiente <i t-att-class="sortIcon('pending_inv')"/>
+                                <th t-foreach="supVisibleCols" t-as="col" t-key="col.key"
+                                    t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsSup.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                    style="padding:6px 8px; position:relative; user-select:none;"
+                                    t-att-title="col.title || col.label"
+                                    t-att-data-col-key="col.key"
+                                    t-att-data-sort-key="col.sortKey || ''"
+                                    t-att-draggable="col.fixed ? 'false' : 'true'"
+                                    t-on-click="onHeaderClick"
+                                    t-on-dragstart="colsSup.onDragStart"
+                                    t-on-dragover="colsSup.onDragOver"
+                                    t-on-drop="colsSup.onDrop"
+                                    t-on-dragend="colsSup.onDragEnd">
+                                    <t t-esc="col.label"/>
+                                    <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                    <div t-if="!col.noResize" class="o_col_resize_handle"
+                                         t-att-data-col-key="col.key"
+                                         t-on-mousedown.stop="colsSup.onResizeStart"
+                                         t-on-click.stop="() => {}"/>
                                 </th>
                             </tr>
                         </thead>
@@ -186,95 +158,90 @@
 
                                 <!-- Fila principal -->
                                 <tr>
-                                    <td style="padding:5px 8px;" class="fw-semibold">
-                                        <button class="btn btn-link btn-sm p-0 me-1 text-muted"
-                                                style="line-height:1; vertical-align:middle;"
-                                                t-att-title="state.expandedSuppliers[row.partner_id] ? 'Cerrar OCs' : 'Ver OCs del proveedor'"
-                                                t-on-click="() => this.toggleAccordion(row)">
-                                            <i t-att-class="'fa ' + (state.expandedSuppliers[row.partner_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                                        </button>
-                                        <a href="#"
-                                           class="text-truncate d-inline-block"
-                                           style="max-width:160px; vertical-align:middle; color:inherit; text-decoration:none;"
-                                           t-att-title="'Abrir ficha de ' + row.partner_name"
-                                           t-on-click="(ev) => this.openSupplier(ev, row)">
-                                            <t t-esc="row.partner_name"/>
-                                        </a>
-                                    </td>
-
-                                    <td class="text-end" style="padding:5px 8px;">
-                                        <a href="#" class="text-primary"
-                                           t-att-title="'Ver las ' + row.order_count + ' OCs de ' + row.partner_name"
-                                           t-on-click="(ev) => this.openPOs(ev, row)">
-                                            <t t-esc="row.order_count"/>
-                                        </a>
-                                    </td>
-
-                                    <td class="text-end text-muted" style="padding:5px 8px;">
-                                        <t t-esc="row.distinct_products"/>
-                                    </td>
-
-                                    <td class="text-end fw-semibold" style="padding:5px 8px;">
-                                        <t t-esc="fmtMoney(row.total_amount)"/>
-                                    </td>
-
-                                    <td class="text-center" style="padding:5px 8px;"
-                                        t-att-title="row.pick_count ? (row.on_time_pct + '% de ' + row.pick_count + ' recepciones a tiempo') : 'Sin recepciones'">
-                                        <span t-if="row.on_time_pct !== null"
-                                              t-att-class="onTimeCls(row.on_time_pct)">
-                                            <t t-esc="row.on_time_pct"/>%
-                                        </span>
-                                        <span t-else="" class="text-muted small">—</span>
-                                    </td>
-
-                                    <td class="text-center" style="padding:5px 8px;"
-                                        t-att-title="row.avg_delay_days !== null ? ('Retraso promedio: ' + row.avg_delay_days + ' d') : 'Sin recepciones tardías'">
-                                        <span t-if="row.avg_delay_days !== null"
-                                              t-att-class="delayCls(row.avg_delay_days)">
-                                            <t t-esc="row.avg_delay_days"/> d
-                                        </span>
-                                        <span t-else="" class="text-success small">0 d</span>
-                                    </td>
-
-                                    <td class="text-center" style="padding:5px 8px;"
-                                        t-att-title="row.pick_count ? (row.complete_pct + '% de ' + row.pick_count + ' recepciones sin backorder') : 'Sin recepciones'">
-                                        <span t-if="row.complete_pct !== null"
-                                              t-att-class="completeCls(row.complete_pct)">
-                                            <t t-esc="row.complete_pct"/>%
-                                        </span>
-                                        <span t-else="" class="text-muted small">—</span>
-                                    </td>
-
-                                    <td class="text-center text-muted" style="padding:5px 8px;"
-                                        t-att-title="row.avg_lead_time !== null ? ('Lead time promedio: ' + row.avg_lead_time + ' días') : 'Sin datos'">
-                                        <t t-if="row.avg_lead_time !== null">
-                                            <t t-esc="row.avg_lead_time"/> d
+                                    <td t-foreach="supVisibleCols" t-as="col" t-key="col.key"
+                                        style="padding:5px 8px;"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'partner_name'">
+                                            <button class="btn btn-link btn-sm p-0 me-1 text-muted"
+                                                    style="line-height:1; vertical-align:middle;"
+                                                    t-att-title="state.expandedSuppliers[row.partner_id] ? 'Cerrar OCs' : 'Ver OCs del proveedor'"
+                                                    t-on-click.stop="() => this.toggleAccordion(row)">
+                                                <i t-att-class="'fa ' + (state.expandedSuppliers[row.partner_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                            </button>
+                                            <a href="#"
+                                               class="text-truncate d-inline-block fw-semibold"
+                                               style="max-width:130px; vertical-align:middle; color:inherit; text-decoration:none;"
+                                               t-att-title="'Abrir ficha de ' + row.partner_name"
+                                               t-on-click.stop="(ev) => this.openSupplier(ev, row)">
+                                                <t t-esc="row.partner_name"/>
+                                            </a>
                                         </t>
-                                        <t t-else="">—</t>
-                                    </td>
-
-                                    <td class="text-center" style="padding:5px 8px;"
-                                        t-att-title="row.avg_price_var_pct !== null ? ('Var. precio vs costo estándar: ' + (row.avg_price_var_pct > 0 ? '+' : '') + row.avg_price_var_pct + '%') : 'Sin costo estándar configurado'">
-                                        <span t-if="row.avg_price_var_pct !== null"
-                                              t-att-class="priceVarCls(row.avg_price_var_pct)">
-                                            <t t-esc="fmtPct(row.avg_price_var_pct)"/>
-                                        </span>
-                                        <span t-else="" class="text-muted small">—</span>
-                                    </td>
-
-                                    <td t-if="state.data.has_invoices"
-                                        class="text-end" style="padding:5px 8px;"
-                                        t-att-title="row.pending_inv ? ('Facturas pendientes: ' + fmtMoney(row.pending_inv)) : 'Sin facturas pendientes'">
-                                        <span t-if="row.pending_inv" class="text-danger fw-semibold">
-                                            <t t-esc="fmtMoney(row.pending_inv)"/>
-                                        </span>
-                                        <span t-else="" class="text-success small">—</span>
+                                        <t t-elif="col.key === 'order_count'">
+                                            <a href="#" class="text-primary"
+                                               t-att-title="'Ver las ' + row.order_count + ' OCs de ' + row.partner_name"
+                                               t-on-click.stop="(ev) => this.openPOs(ev, row)">
+                                                <t t-esc="row.order_count"/>
+                                            </a>
+                                        </t>
+                                        <t t-elif="col.key === 'distinct_products'">
+                                            <span class="text-muted"><t t-esc="row.distinct_products"/></span>
+                                        </t>
+                                        <t t-elif="col.key === 'total_amount'">
+                                            <span class="fw-semibold"><t t-esc="fmtMoney(row.total_amount)"/></span>
+                                        </t>
+                                        <t t-elif="col.key === 'on_time_pct'">
+                                            <span t-if="row.on_time_pct !== null"
+                                                  t-att-class="onTimeCls(row.on_time_pct)"
+                                                  t-att-title="row.pick_count ? (row.on_time_pct + '% de ' + row.pick_count + ' recepciones a tiempo') : 'Sin recepciones'">
+                                                <t t-esc="row.on_time_pct"/>%
+                                            </span>
+                                            <span t-else="" class="text-muted small">—</span>
+                                        </t>
+                                        <t t-elif="col.key === 'avg_delay_days'">
+                                            <span t-if="row.avg_delay_days !== null"
+                                                  t-att-class="delayCls(row.avg_delay_days)"
+                                                  t-att-title="'Retraso promedio: ' + row.avg_delay_days + ' d'">
+                                                <t t-esc="row.avg_delay_days"/> d
+                                            </span>
+                                            <span t-else="" class="text-success small">0 d</span>
+                                        </t>
+                                        <t t-elif="col.key === 'complete_pct'">
+                                            <span t-if="row.complete_pct !== null"
+                                                  t-att-class="completeCls(row.complete_pct)"
+                                                  t-att-title="row.pick_count ? (row.complete_pct + '% de ' + row.pick_count + ' recepciones sin backorder') : 'Sin recepciones'">
+                                                <t t-esc="row.complete_pct"/>%
+                                            </span>
+                                            <span t-else="" class="text-muted small">—</span>
+                                        </t>
+                                        <t t-elif="col.key === 'avg_lead_time'">
+                                            <span class="text-muted"
+                                                  t-att-title="row.avg_lead_time !== null ? ('Lead time promedio: ' + row.avg_lead_time + ' días') : 'Sin datos'">
+                                                <t t-if="row.avg_lead_time !== null"><t t-esc="row.avg_lead_time"/> d</t>
+                                                <t t-else="">—</t>
+                                            </span>
+                                        </t>
+                                        <t t-elif="col.key === 'avg_price_var_pct'">
+                                            <span t-if="row.avg_price_var_pct !== null"
+                                                  t-att-class="priceVarCls(row.avg_price_var_pct)"
+                                                  t-att-title="'Var. precio: ' + (row.avg_price_var_pct > 0 ? '+' : '') + row.avg_price_var_pct + '%'">
+                                                <t t-esc="fmtPct(row.avg_price_var_pct)"/>
+                                            </span>
+                                            <span t-else="" class="text-muted small">—</span>
+                                        </t>
+                                        <t t-elif="col.key === 'pending_inv'">
+                                            <span t-if="row.pending_inv" class="text-danger fw-semibold"
+                                                  t-att-title="'Facturas pendientes: ' + fmtMoney(row.pending_inv)">
+                                                <t t-esc="fmtMoney(row.pending_inv)"/>
+                                            </span>
+                                            <span t-else="" class="text-success small">—</span>
+                                        </t>
                                     </td>
                                 </tr>
 
                                 <!-- Acordeón de OCs -->
                                 <tr t-if="state.expandedSuppliers[row.partner_id]">
                                     <td t-att-colspan="tableColspan"
+
                                         class="p-0" style="background:#f8f9fa; border-top:none;">
                                         <div class="px-4 py-2">
 

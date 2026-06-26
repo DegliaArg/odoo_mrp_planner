@@ -126,27 +126,24 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_user_permissions(self):
-        perm = self.env['mrp.reschedule.user.permission'].search(
-            [('user_id', '=', self.env.uid)], limit=1)
+        u = self.env.user
+        is_admin    = u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')
+        has_prod_r  = u.has_group('odoo_mrp_planner.group_prod_read')
+        has_prod    = u.has_group('odoo_mrp_planner.group_prod')
+        has_pur     = u.has_group('odoo_mrp_planner.group_purchase')
+        has_sales_r = u.has_group('odoo_mrp_planner.group_sales_read')
+        has_sales   = u.has_group('odoo_mrp_planner.group_sales')
+        # Si ningún grupo del módulo está asignado → acceso completo (compat.)
+        no_groups   = not any([is_admin, has_prod_r, has_prod, has_pur, has_sales_r, has_sales])
         for rec in self:
-            if perm:
-                rec.can_see_alerts       = perm.show_alerts
-                rec.can_see_mo           = perm.show_mo
-                rec.can_see_po           = perm.show_po
-                rec.can_see_stock_breaks = perm.show_stock_breaks
-                rec.can_see_forecast     = perm.show_forecast
-                rec.can_schedule         = perm.can_schedule
-                rec.can_reschedule       = perm.can_reschedule
-                rec.can_edit_forecast    = perm.can_edit_forecast
-            else:
-                rec.can_see_alerts       = True
-                rec.can_see_mo           = True
-                rec.can_see_po           = True
-                rec.can_see_stock_breaks = True
-                rec.can_see_forecast     = True
-                rec.can_schedule         = True
-                rec.can_reschedule       = True
-                rec.can_edit_forecast    = True
+            rec.can_see_alerts       = is_admin or has_prod_r or has_prod or has_pur or no_groups
+            rec.can_see_mo           = is_admin or has_prod_r or has_prod or no_groups
+            rec.can_see_po           = is_admin or has_pur or no_groups
+            rec.can_see_stock_breaks = is_admin or has_prod_r or has_prod or no_groups
+            rec.can_see_forecast     = is_admin or has_sales_r or has_sales or no_groups
+            rec.can_schedule         = is_admin or has_prod or no_groups
+            rec.can_reschedule       = is_admin or has_prod or no_groups
+            rec.can_edit_forecast    = is_admin or has_sales or no_groups
 
     @api.depends()
     def _compute_inline_alerts(self):
@@ -285,9 +282,27 @@ class MrpPlannerDashboard(models.TransientModel):
             'flags': {'withControlPanel': False},
         }
 
+    @api.model
+    def action_open_compras(self):
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Panel de Compras'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_compras_dashboard_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
     def action_refresh(self):
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()
+
+    def action_refresh_compras(self):
+        self.env['mrp.reschedule.alert']._cron_check_delays()
+        return self.env['mrp.planner.dashboard'].action_open_compras()
 
     # ── Accesos rápidos ──────────────────────────────────────────────────────
 
@@ -1053,6 +1068,33 @@ class MrpPlannerDashboard(models.TransientModel):
     def get_warehouses_for_forecast(self):
         whs = self.env['stock.warehouse'].search([], order='name')
         return [{'id': w.id, 'name': w.name} for w in whs]
+
+    @api.model
+    def get_wc_load_data(self):
+        """Carga de centros de trabajo: horas planificadas en OFs activas."""
+        domain = [
+            ('state', 'in', ['ready', 'progress', 'pending', 'confirmed']),
+            ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
+        ]
+        wc_map = {}
+        for wo in self.env['mrp.workorder'].search(domain):
+            wc = wo.workcenter_id
+            if not wc:
+                continue
+            hours = (wo.duration_expected or 0.0) / 60.0
+            if wc.id not in wc_map:
+                wc_map[wc.id] = {'id': wc.id, 'name': wc.name, 'hours': 0.0, 'count': 0}
+            wc_map[wc.id]['hours'] += hours
+            wc_map[wc.id]['count'] += 1
+
+        rows = sorted(wc_map.values(), key=lambda x: -x['hours'])[:10]
+        if not rows:
+            return []
+        max_h = rows[0]['hours'] or 1.0
+        for r in rows:
+            r['hours'] = round(r['hours'], 1)
+            r['bar_pct'] = min(100, round(r['hours'] / max_h * 100))
+        return rows
 
     @api.model
     def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):

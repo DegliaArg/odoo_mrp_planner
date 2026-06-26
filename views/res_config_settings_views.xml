@@ -103,28 +103,6 @@
                             </group>
                         </page>
 
-                        <!-- ── Permisos ──────────────────────────────────────── -->
-                        <page string="Permisos por usuario" name="user_permissions">
-                            <p class="text-muted small mb-3">
-                                Definí qué secciones puede ver cada usuario y si puede crear programaciones o reprogramaciones.
-                                Si un usuario no aparece en la lista, tiene acceso completo por defecto.
-                                Los depósitos visibles limitan los datos que ve el usuario en todo el módulo.
-                            </p>
-                            <field name="user_permission_ids">
-                                <list editable="bottom" string="Permisos">
-                                    <field name="user_id"/>
-                                    <field name="show_alerts"       widget="boolean_toggle" string="Alertas"/>
-                                    <field name="show_mo"           widget="boolean_toggle" string="OFs"/>
-                                    <field name="show_po"           widget="boolean_toggle" string="OCs"/>
-                                    <field name="show_stock_breaks" widget="boolean_toggle" string="Quiebres"/>
-                                    <field name="show_forecast"     widget="boolean_toggle" string="Forecast"/>
-                                    <field name="can_schedule"      widget="boolean_toggle" string="Programar"/>
-                                    <field name="can_reschedule"    widget="boolean_toggle" string="Reprogramar"/>
-                                    <field name="can_edit_forecast" widget="boolean_toggle" string="Edit. Forecast"/>
-                                    <field name="warehouse_ids"     widget="many2many_tags" string="Depósitos"/>
-                                </list>
-                            </field>
-                        </page>
 
                     </notebook>
                 </sheet>
@@ -146,7 +124,8 @@
               name="Configuración"
               parent="mrp_planner_menu_root"
               sequence="99"
-              action="action_mrp_reschedule_config"/>
+              action="action_mrp_reschedule_config"
+              groups="odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- Bloque en Ajustes → Fabricación (mantiene compatibilidad con el menú estándar) -->
     <record id="res_config_settings_view_mrp_reschedule" model="ir.ui.view">

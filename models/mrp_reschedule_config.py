@@ -32,12 +32,6 @@ class MrpRescheduleConfig(models.Model):
     alert_po_warning_days       = fields.Integer(string='Días por vencer OC',           default=10)
     qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)',      default=5.0)
 
-    user_permission_ids = fields.One2many(
-        'mrp.reschedule.user.permission',
-        'config_id',
-        string='Permisos por usuario',
-    )
-
     # ── Forecast ─────────────────────────────────────────────────────────────
 
     forecast_default_months = fields.Integer(

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.WcLoadChart">
+        <div class="o_wc_load_chart">
+
+            <!-- Spinner -->
+            <div t-if="state.loading" class="text-center text-muted py-3">
+                <i class="fa fa-spinner fa-spin fa-lg me-2"/>Cargando…
+            </div>
+
+            <!-- Sin datos -->
+            <div t-elif="!state.rows.length"
+                 class="text-center text-muted py-3 small">
+                <i class="fa fa-check-circle text-success fa-lg me-2"/>
+                No hay órdenes de trabajo activas en los centros de trabajo.
+            </div>
+
+            <!-- Barras de carga -->
+            <div t-else="" class="row g-2">
+                <t t-foreach="state.rows" t-as="row" t-key="row.id">
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100" style="cursor:pointer;"
+                             t-on-click="() => this.openWc(row.id)"
+                             t-att-title="'Ver centro de trabajo: ' + row.name">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-semibold small text-truncate" style="max-width:70%;">
+                                        <t t-esc="row.name"/>
+                                    </span>
+                                    <span class="small text-muted">
+                                        <t t-esc="fmtH(row.hours)"/>
+                                        <span class="text-muted ms-1">
+                                            (<t t-esc="row.count"/> OT)
+                                        </span>
+                                    </span>
+                                </div>
+                                <div class="progress" style="height:8px;">
+                                    <div t-att-class="'progress-bar ' + barClass(row.bar_pct)"
+                                         role="progressbar"
+                                         t-att-style="'width:' + row.bar_pct + '%'"
+                                         t-att-aria-valuenow="row.bar_pct"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </div>
+
+        </div>
+    </t>
+
+</templates>

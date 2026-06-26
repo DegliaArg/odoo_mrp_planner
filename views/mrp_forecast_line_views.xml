@@ -114,11 +114,12 @@
         <field name="code">action = model.action_open_ventas()</field>
     </record>
 
-    <!-- ── Menú Ventas (dentro de Planificador) ─────────────────────────── -->
+    <!-- ── Menú Ventas (dentro de Planificación) ────────────────────────── -->
     <menuitem id="mrp_ventas_menu_root"
               name="Ventas"
               parent="mrp_planner_menu_root"
-              sequence="2"/>
+              sequence="30"
+              groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- ── Sub-menús bajo Ventas ─────────────────────────────────────────── -->
     <menuitem id="mrp_ventas_panel_menu"

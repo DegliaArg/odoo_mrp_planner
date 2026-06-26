@@ -185,9 +185,16 @@ class MrpReschedulePlan(models.Model):
 
     def action_apply(self):
         self.ensure_one()
-        if not self.env.user.has_group('mrp.group_mrp_manager'):
+        u = self.env.user
+        can_apply = (
+            u.has_group('odoo_mrp_planner.group_prod') or
+            u.has_group('odoo_mrp_planner.group_admin') or
+            u.has_group('base.group_system')
+        )
+        if not can_apply:
             raise UserError(_(
-                'Solo los responsables de fabricación pueden aplicar un plan de reprogramación.'
+                'Solo los usuarios con permiso "Producción - Planificar" o "Administrador" '
+                'pueden aplicar un plan de reprogramación.'
             ))
         if self.state != 'calculated':
             raise UserError(_('El plan debe estar en estado Calculado para aplicar.'))

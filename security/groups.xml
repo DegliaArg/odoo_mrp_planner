@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Categoría del módulo en la ficha de usuario -->
+    <record id="module_category_mrp_planner" model="ir.module.category">
+        <field name="name">Planificador MRP</field>
+        <field name="sequence">100</field>
+        <field name="description">Permisos para el módulo Planificador de producción (Deglia).</field>
+    </record>
+
+    <!-- Producción – Lectura: ve panel de producción y alertas de OFs -->
+    <record id="group_prod_read" model="res.groups">
+        <field name="name">Producción - Lectura</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Producción – Planificar: puede crear solicitudes y aplicar reprogramaciones -->
+    <record id="group_prod" model="res.groups">
+        <field name="name">Producción - Planificar</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Compras: ve panel de compras y alertas de OCs/recepciones -->
+    <record id="group_purchase" model="res.groups">
+        <field name="name">Compras</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Ventas – Lectura: ve el forecast -->
+    <record id="group_sales_read" model="res.groups">
+        <field name="name">Ventas - Lectura</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Ventas – Administrador: puede editar e importar forecast -->
+    <record id="group_sales" model="res.groups">
+        <field name="name">Ventas - Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Administrador: accede a Configuración del módulo; tiene todos los permisos -->
+    <record id="group_admin" model="res.groups">
+        <field name="name">Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
+</odoo>

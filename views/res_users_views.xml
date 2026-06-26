@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Agrega sección "Planificador MRP" en la ficha de usuario -->
+    <record id="view_users_form_mrp_planner" model="ir.ui.view">
+        <field name="name">res.users.form.mrp.planner</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='access_rights']" position="after">
+                <page string="Planificador MRP" name="mrp_planner_access">
+                    <group string="Depósitos visibles"
+                           help="Depósitos que el usuario puede ver en el Planificador MRP. Dejar vacío para mostrar todos los depósitos.">
+                        <field name="mrp_planner_warehouse_ids"
+                               widget="many2many_tags"
+                               nolabel="1"
+                               placeholder="Todos los depósitos"/>
+                    </group>
+                    <group string="Ayuda">
+                        <div class="text-muted small">
+                            <p>
+                                Los permisos del Planificador MRP se asignan desde la pestaña
+                                <strong>Permisos de acceso</strong> en la sección
+                                <strong>Planificador MRP</strong>.
+                            </p>
+                            <p>
+                                Si un usuario no tiene ningún grupo del módulo asignado,
+                                tendrá acceso completo por compatibilidad.
+                            </p>
+                        </div>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

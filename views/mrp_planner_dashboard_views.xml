@@ -292,19 +292,31 @@
               sequence="65"
               web_icon="odoo_mrp_planner,static/description/icon.png"/>
 
-    <!-- Producción -->
+    <!-- Grupo Producción (contenedor) -->
     <menuitem id="mrp_produccion_menu"
               name="Producción"
               parent="mrp_planner_menu_root"
               sequence="10"
+              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
+
+    <menuitem id="mrp_produccion_panel_menu"
+              name="Panel de Producción"
+              parent="mrp_produccion_menu"
+              sequence="1"
               action="action_mrp_planner_dashboard_open"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
-    <!-- Compras -->
+    <!-- Grupo Compras (contenedor) -->
     <menuitem id="mrp_compras_menu"
               name="Compras"
               parent="mrp_planner_menu_root"
               sequence="20"
+              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
+
+    <menuitem id="mrp_compras_panel_menu"
+              name="Panel de Compras"
+              parent="mrp_compras_menu"
+              sequence="1"
               action="action_mrp_planner_compras_open"
               groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
 

@@ -187,10 +187,5 @@
         </field>
     </record>
 
-    <menuitem id="mrp_planner_menu_alerts"
-              name="Alertas"
-              parent="mrp_produccion_menu"
-              sequence="40"
-              action="action_mrp_reschedule_alert"/>
 
 </odoo>

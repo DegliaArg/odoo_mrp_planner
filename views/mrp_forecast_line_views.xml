@@ -114,22 +114,22 @@
         <field name="code">action = model.action_open_ventas()</field>
     </record>
 
-    <!-- ── Menú Ventas (dentro de Planificación) ────────────────────────── -->
+    <!-- ── Menú Ventas (raíz independiente) ─────────────────────────────── -->
     <menuitem id="mrp_ventas_menu_root"
               name="Ventas"
-              parent="mrp_planner_menu_root"
-              sequence="30"
+              sequence="66"
+              web_icon="odoo_mrp_planner,static/description/icon.png"
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- ── Sub-menús bajo Ventas ─────────────────────────────────────────── -->
     <menuitem id="mrp_ventas_panel_menu"
-              name="Forecast"
+              name="Panel de Ventas"
               parent="mrp_ventas_menu_root"
               sequence="1"
               action="action_mrp_ventas_dashboard_open"/>
 
     <menuitem id="mrp_ventas_forecast_lineas_menu"
-              name="Líneas de Forecast"
+              name="Forecast"
               parent="mrp_ventas_menu_root"
               sequence="5"
               action="action_mrp_forecast_line"/>

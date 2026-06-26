@@ -286,16 +286,23 @@
          MENÚ
     ════════════════════════════════════════════════════════════════════ -->
 
-    <!-- Raíz -->
+    <!-- ── App raíz ──────────────────────────────────────────────────────── -->
     <menuitem id="mrp_planner_menu_root"
               name="Planificación"
               sequence="65"
               web_icon="odoo_mrp_planner,static/description/icon.png"/>
 
-    <!-- Grupo Producción (contenedor) -->
+    <!-- ── Barra superior 1: Planificación ───────────────────────────────── -->
+    <menuitem id="mrp_planeacion_menu"
+              name="Planificación"
+              parent="mrp_planner_menu_root"
+              sequence="10"
+              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
+
+    <!-- Grupo Producción (contenedor bajo Planificación) -->
     <menuitem id="mrp_produccion_menu"
               name="Producción"
-              parent="mrp_planner_menu_root"
+              parent="mrp_planeacion_menu"
               sequence="10"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
@@ -306,10 +313,10 @@
               action="action_mrp_planner_dashboard_open"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
-    <!-- Grupo Compras (contenedor) -->
+    <!-- Grupo Compras (contenedor bajo Planificación) -->
     <menuitem id="mrp_compras_menu"
               name="Compras"
-              parent="mrp_planner_menu_root"
+              parent="mrp_planeacion_menu"
               sequence="20"
               groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
 

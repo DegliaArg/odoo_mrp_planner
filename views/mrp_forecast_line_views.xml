@@ -114,24 +114,25 @@
         <field name="code">action = model.action_open_ventas()</field>
     </record>
 
-    <!-- ── Menú Ventas (raíz independiente) ─────────────────────────────── -->
-    <menuitem id="mrp_ventas_menu_root"
+    <!-- ── Barra superior 2: Ventas (hijo del app root, NO app separada) ─── -->
+    <menuitem id="mrp_ventas_menu"
               name="Ventas"
-              sequence="66"
-              web_icon="odoo_mrp_planner,static/description/icon.png"
+              parent="mrp_planner_menu_root"
+              sequence="20"
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
-    <!-- ── Sub-menús bajo Ventas ─────────────────────────────────────────── -->
     <menuitem id="mrp_ventas_panel_menu"
               name="Panel de Ventas"
-              parent="mrp_ventas_menu_root"
+              parent="mrp_ventas_menu"
               sequence="1"
-              action="action_mrp_ventas_dashboard_open"/>
+              action="action_mrp_ventas_dashboard_open"
+              groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_ventas_forecast_lineas_menu"
               name="Forecast"
-              parent="mrp_ventas_menu_root"
+              parent="mrp_ventas_menu"
               sequence="5"
-              action="action_mrp_forecast_line"/>
+              action="action_mrp_forecast_line"
+              groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
 </odoo>

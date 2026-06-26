@@ -1123,7 +1123,10 @@ class MrpPlannerDashboard(models.TransientModel):
             pid = line.product_id.id
             ym  = f"{line.period.year}-{line.period.month:02d}"
             if pid not in fc_data:
-                fc_data[pid] = {'product': line.product_id.display_name}
+                fc_data[pid] = {
+                    'product':         line.product_id.display_name,
+                    'product_tmpl_id': line.product_id.product_tmpl_id.id,
+                }
             fc_data[pid][ym] = fc_data[pid].get(ym, 0.0) + line.forecast_qty
 
         # ── ÓFs planificadas ──────────────────────────────────────────────────
@@ -1168,10 +1171,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ('product_id', 'in', all_product_ids_list),
             ('company_id', '=', self.env.company.id),
         ]
-        if warehouse_ids:
-            del_line_domain.append(
-                ('picking_id.picking_type_id.warehouse_id', 'in', warehouse_ids))
-
         del_data = {}   # {product_id: {ym: qty}}
         for ml in self.env['stock.move.line'].search(del_line_domain):
             pid = ml.product_id.id
@@ -1196,8 +1195,6 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('product_id', 'in', all_product_ids_list),
                 ('company_id', '=', self.env.company.id),
             ]
-            if warehouse_ids:
-                so_domain.append(('order_id.warehouse_id', 'in', warehouse_ids))
             for line in self.env['sale.order.line'].search(so_domain):
                 pid = line.product_id.id
                 if not line.order_id.date_order:
@@ -1277,6 +1274,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
             rows.append({
                 'product_id':         pid,
+                'product_tmpl_id':    fc_data[pid].get('product_tmpl_id'),
                 'product':            pname,
                 'cells':              cells,
                 'stock_qty':          stock_qty,
@@ -1337,6 +1335,51 @@ class MrpPlannerDashboard(models.TransientModel):
             'critical_pct':  critical_pct,
             'rotation_unit': rotation_unit,
         }
+
+    @api.model
+    def get_product_mos_for_forecast(self, product_id, period_from, period_to, warehouse_ids=None):
+        """OFs de un producto para el acordeón del widget de forecast."""
+        from datetime import date as _date, datetime
+        import calendar as _cal
+
+        d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
+        d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
+        last_day = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
+
+        domain = [
+            ('product_id', '=', product_id),
+            ('state', 'not in', ['cancel']),
+            ('date_finished', '>=', fields.Datetime.to_string(
+                datetime.combine(d_from, datetime.min.time()))),
+            ('date_finished', '<=', fields.Datetime.to_string(
+                datetime.combine(last_day, datetime.max.time()))),
+        ]
+        if warehouse_ids:
+            wh_recs = self.env['stock.warehouse'].browse(warehouse_ids)
+            loc_ids = wh_recs.mapped('lot_stock_id').ids
+            if loc_ids:
+                domain.append(('location_dest_id', 'in', loc_ids))
+
+        mos = self.env['mrp.production'].search(domain, limit=100, order='date_finished asc')
+        state_labels = {
+            'draft':     'Borrador',
+            'confirmed': 'Confirmada',
+            'progress':  'En progreso',
+            'to_close':  'Por cerrar',
+            'done':      'Hecha',
+            'cancel':    'Cancelada',
+        }
+        return [{
+            'id':           mo.id,
+            'name':         mo.name,
+            'state':        mo.state,
+            'state_label':  state_labels.get(mo.state, mo.state),
+            'product_qty':  round(mo.product_qty, 2),
+            'qty_produced': round(mo.qty_produced, 2),
+            'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+            'date_start':   mo.date_start.strftime('%Y-%m-%d')    if mo.date_start    else None,
+            'date_finished': mo.date_finished.strftime('%Y-%m-%d') if mo.date_finished else None,
+        } for mo in mos]
 
     @api.model
     def get_forecast_export(self, period_from, period_to, warehouse_ids=None):

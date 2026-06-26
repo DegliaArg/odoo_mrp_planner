@@ -53,10 +53,15 @@ class ForecastWidget extends Component {
                 rotation:  true,
                 total:     true,
             },
-            page:     1,
-            pageSize: 20,
-            data:     null,
-            canEdit:  true,
+            sortCol:          'product',
+            sortDir:          'asc',
+            page:             1,
+            pageSize:         20,
+            data:             null,
+            canEdit:          true,
+            expandedProducts: {},
+            mosByProduct:     {},
+            mosLoading:       {},
         });
 
         this._closeAll = () => {
@@ -87,8 +92,10 @@ class ForecastWidget extends Component {
     }
 
     async _load() {
-        this.state.loading = true;
-        this.state.page    = 1;
+        this.state.loading      = true;
+        this.state.page         = 1;
+        this.state.mosByProduct = {};
+        this.state.expandedProducts = {};
         try {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
@@ -178,6 +185,50 @@ class ForecastWidget extends Component {
                 this.state.visibleCols.delivered);
     }
 
+    get tableColspan() {
+        const n = this.state.data ? this.state.data.months.length : 0;
+        let cols = 1;
+        if (this.state.visibleCols.stock)    cols++;
+        if (this.state.visibleCols.rotation) cols++;
+        cols += n * this.monthColspan;
+        if (this.showTotal) cols += this.totalColspan;
+        return cols;
+    }
+
+    // ── Sort ──────────────────────────────────────────────────────────────────
+
+    setSort(col) {
+        if (this.state.sortCol === col) {
+            this.state.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.state.sortCol = col;
+            this.state.sortDir = 'asc';
+        }
+        this.state.page = 1;
+    }
+
+    sortIcon(col) {
+        if (this.state.sortCol !== col) return 'fa fa-sort text-muted ms-1';
+        return this.state.sortDir === 'asc'
+            ? 'fa fa-sort-asc text-primary ms-1'
+            : 'fa fa-sort-desc text-primary ms-1';
+    }
+
+    get sortedRows() {
+        const rows = [...this.filteredRowsAll];
+        const col  = this.state.sortCol;
+        const dir  = this.state.sortDir === 'asc' ? 1 : -1;
+        rows.sort((a, b) => {
+            let va = a[col], vb = b[col];
+            if (typeof va === 'string')
+                return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
+            va = va ?? -Infinity;
+            vb = vb ?? -Infinity;
+            return dir * (va - vb);
+        });
+        return rows;
+    }
+
     // ── Filtrado + paginación ─────────────────────────────────────────────────
 
     get filteredRowsAll() {
@@ -188,7 +239,7 @@ class ForecastWidget extends Component {
     }
 
     get filteredRows() {
-        const all   = this.filteredRowsAll;
+        const all   = this.sortedRows;
         const start = (this.state.page - 1) * this.state.pageSize;
         return all.slice(start, start + this.state.pageSize);
     }
@@ -227,6 +278,64 @@ class ForecastWidget extends Component {
             return wh ? wh.name : '1 seleccionado';
         }
         return `${ids.length} depósitos`;
+    }
+
+    // ── Navegación ────────────────────────────────────────────────────────────
+
+    openProduct(row) {
+        this.action.doAction({
+            type:    'ir.actions.act_window',
+            res_model: 'product.template',
+            res_id:  row.product_tmpl_id,
+            views:   [[false, 'form']],
+            target:  'current',
+        });
+    }
+
+    openMo(moId) {
+        this.action.doAction({
+            type:    'ir.actions.act_window',
+            res_model: 'mrp.production',
+            res_id:  moId,
+            views:   [[false, 'form']],
+            target:  'current',
+        });
+    }
+
+    // ── Acordeón de OFs ───────────────────────────────────────────────────────
+
+    async toggleAccordion(row) {
+        const pid = row.product_id;
+        const wasOpen = !!this.state.expandedProducts[pid];
+        this.state.expandedProducts[pid] = !wasOpen;
+        if (!wasOpen && !this.state.mosByProduct[pid]) {
+            this.state.mosLoading[pid] = true;
+            try {
+                const mos = await this.orm.call(
+                    'mrp.planner.dashboard',
+                    'get_product_mos_for_forecast',
+                    [pid, this.state.periodFrom, this.state.periodTo, this.state.warehouseIds],
+                );
+                this.state.mosByProduct[pid] = mos;
+            } catch (e) {
+                console.error('[ForecastWidget] accordion error', e);
+                this.state.mosByProduct[pid] = [];
+            } finally {
+                this.state.mosLoading[pid] = false;
+            }
+        }
+    }
+
+    moStateBadge(state) {
+        const map = {
+            draft:     'bg-secondary',
+            confirmed: 'bg-info text-dark',
+            progress:  'bg-primary',
+            to_close:  'bg-warning text-dark',
+            done:      'bg-success',
+            cancel:    'bg-light text-muted',
+        };
+        return `badge ${map[state] || 'bg-secondary'}`;
     }
 
     // ── Formateo / clases ─────────────────────────────────────────────────────
@@ -277,30 +386,25 @@ class ForecastWidget extends Component {
         return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
     }
 
-    // Tooltip dinámico para la celda de OFs
     moTooltip(cell) {
         if (!cell || cell.forecast === 0) return '';
         return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(cell.pct)}`;
     }
 
-    // Tooltip dinámico para la celda de Entregado
     svcTooltip(cell) {
         if (cell.service_rate === null || cell.service_rate === undefined)
             return 'Sin pedidos de venta confirmados en el período';
         return `Tasa de servicio = ${this.fmt(cell.delivered)} entregado ÷ ${this.fmt(cell.so_demand)} pedidos × 100 = ${this.fmtPct(cell.service_rate)}`;
     }
 
-    // Tooltip dinámico para la celda de rotación
     rotTooltip(row) {
         const n = this.state.data ? this.state.data.months.length : 1;
         if (!row.total_delivered) return 'Sin entregas en el período — rotación no calculable';
         const unit  = this.state.data && this.state.data.rotation_unit;
-        const label = unit === 'months' ? 'meses' : 'días';
         const val   = this.fmtRotation(row);
-        return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val} ${label}`;
+        return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val}`;
     }
 
-    // Tooltip para precisión forecast por artículo
     accTooltip(row) {
         if (row.total_forecast_acc === null || row.total_forecast_acc === undefined)
             return 'Sin datos suficientes para calcular precisión';
@@ -315,6 +419,12 @@ class ForecastWidget extends Component {
     fmtPct(n) {
         if (n === null || n === undefined) return '—';
         return `${Math.round(n)}%`;
+    }
+
+    fmtDate(d) {
+        if (!d) return '—';
+        const [y, m, day] = d.split('-');
+        return `${day}/${m}/${y}`;
     }
 
     // ── Acciones ──────────────────────────────────────────────────────────────

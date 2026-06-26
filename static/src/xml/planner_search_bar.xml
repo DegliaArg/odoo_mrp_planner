@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.PlannerSearchBar">
+        <!-- Contenedor principal — stopPropagation evita que el click cierre el dropdown -->
+        <div class="o_planner_searchbar" t-on-click.stop="">
+
+            <!-- Barra de búsqueda (input + chips + toggle) -->
+            <div class="o_planner_searchbar_container"
+                 t-on-click="() => this.localState.open = true">
+
+                <!-- Chips de estado activo -->
+                <t t-foreach="activeChips" t-as="chip" t-key="chip.key">
+                    <span class="o_planner_search_facet">
+                        <span class="o_facet_prefix"><t t-esc="chip.prefix"/></span>
+                        <span class="mx-1 fw-semibold"><t t-esc="chip.label"/></span>
+                        <i class="o_facet_remove fa fa-times-circle small"
+                           t-on-click.stop="() => this.removeChip(chip)"/>
+                    </span>
+                </t>
+
+                <!-- Input de búsqueda -->
+                <input class="o_planner_search_input"
+                       type="text"
+                       t-att-placeholder="props.placeholder || 'Buscar...'"
+                       t-att-value="props.search || ''"
+                       t-on-input="onSearchInput"
+                       t-on-keydown="onKeydown"
+                       autocomplete="off"/>
+
+                <!-- Botón toggle del dropdown -->
+                <button class="o_planner_search_toggle" type="button" t-on-click.stop="toggleOpen">
+                    <i t-att-class="'fa ' + (localState.open ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                </button>
+            </div>
+
+            <!-- Panel desplegable -->
+            <div t-if="localState.open" class="o_planner_search_dropdown">
+
+                <!-- ── Filtros ──────────────────────────────────────────────── -->
+                <t t-if="props.filterDefs and props.filterDefs.length">
+                    <div class="o_planner_search_section_header">Filtros</div>
+                    <t t-foreach="props.filterDefs" t-as="f" t-key="f.key">
+                        <div t-att-class="'o_planner_search_item' + (props.activeFilter === f.key ? ' active' : '')"
+                             t-on-click.stop="() => this.toggleFilter(f.key)">
+                            <i t-att-class="'fa fa-fw ' + (props.activeFilter === f.key ? 'fa-check' : '')"/>
+                            <t t-if="f.icon"><i t-att-class="'fa fa-fw ' + f.icon + ' text-muted'"/></t>
+                            <span t-esc="f.label"/>
+                        </div>
+                    </t>
+                </t>
+
+                <!-- ── Agrupar por ──────────────────────────────────────────── -->
+                <t t-if="props.groupByDefs and props.groupByDefs.length">
+                    <div t-if="props.filterDefs and props.filterDefs.length" class="dropdown-divider my-1"/>
+                    <div class="o_planner_search_section_header">Agrupar por</div>
+                    <t t-foreach="props.groupByDefs" t-as="g" t-key="g.key">
+                        <div t-att-class="'o_planner_search_item' + (props.activeGroupBy === g.key ? ' active' : '')"
+                             t-on-click.stop="() => this.toggleGroupBy(g.key)">
+                            <i t-att-class="'fa fa-fw ' + (props.activeGroupBy === g.key ? 'fa-check' : '')"/>
+                            <span t-esc="g.label"/>
+                        </div>
+                    </t>
+                </t>
+
+                <!-- ── Favoritos ────────────────────────────────────────────── -->
+                <div class="dropdown-divider my-1"/>
+                <div class="o_planner_search_section_header">Favoritos</div>
+
+                <!-- Favoritos guardados -->
+                <t t-if="localState.favorites.length">
+                    <t t-foreach="localState.favorites" t-as="fav" t-key="fav.name">
+                        <div class="o_planner_search_fav_row">
+                            <i class="fa fa-star text-warning fa-fw"/>
+                            <span class="flex-grow-1 text-truncate o_planner_search_item px-0 py-0"
+                                  style="cursor:pointer"
+                                  t-on-click.stop="() => this.applyFavorite(fav)"
+                                  t-esc="fav.name"/>
+                            <i class="fa fa-trash text-muted small"
+                               style="cursor:pointer"
+                               t-on-click.stop="() => this.deleteFavorite(fav)"/>
+                        </div>
+                    </t>
+                </t>
+                <t t-else="">
+                    <div class="o_planner_search_item text-muted small pe-none">Sin favoritos guardados.</div>
+                </t>
+
+                <!-- Guardar búsqueda actual -->
+                <div class="o_planner_search_fav_add" t-on-click.stop="">
+                    <div class="d-flex gap-2">
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="Guardar búsqueda actual como..."
+                               t-att-value="localState.favoriteName"
+                               t-on-input="onFavInput"
+                               t-on-keydown="onFavKeydown"
+                               autocomplete="off"/>
+                        <button class="btn btn-sm btn-primary"
+                                type="button"
+                                t-att-disabled="!localState.favoriteName.trim()"
+                                t-on-click.stop="saveFavorite">
+                            <i class="fa fa-star"/>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

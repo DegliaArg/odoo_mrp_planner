@@ -71,23 +71,21 @@
 
                 <!-- Buscador + filtro + selector de depósito -->
                 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-                    <div class="input-group input-group-sm" style="max-width:240px;">
-                        <span class="input-group-text"><i class="fa fa-search"/></span>
-                        <input type="text"
-                               class="form-control"
-                               placeholder="Buscar producto o código…"
-                               t-att-value="state.search"
-                               t-on-input="onSearchInput"/>
-                    </div>
-                    <div class="input-group input-group-sm" style="max-width:180px;">
-                        <span class="input-group-text"><i class="fa fa-filter"/></span>
-                        <select class="form-select form-select-sm" t-on-change="onFilterChange">
-                            <option value="all"    t-att-selected="state.filterType === 'all'">Todos</option>
-                            <option value="broken" t-att-selected="state.filterType === 'broken'">Quiebres</option>
-                            <option value="ok"     t-att-selected="state.filterType === 'ok'">De acuerdo</option>
-                            <option value="no_min" t-att-selected="state.filterType === 'no_min'">Sin mínimo</option>
-                        </select>
-                    </div>
+                    <!-- Barra de búsqueda estilo Odoo -->
+                    <PlannerSearchBar
+                        widgetKey="'stock_break'"
+                        placeholder="'Buscar producto o código…'"
+                        t-props="{
+                            search:        state.search,
+                            activeFilter:  state.filterType !== 'all' ? state.filterType : null,
+                            filterDefs: [
+                                { key: 'broken', label: 'Quiebres',  icon: 'fa-exclamation-triangle' },
+                                { key: 'ok',     label: 'OK',        icon: 'fa-check-circle' },
+                                { key: 'no_min', label: 'Sin mínimo',icon: 'fa-minus-circle' }
+                            ],
+                            onSearch:       (t) => this.setSearch(t),
+                            onFilterChange: (k) => this.setFilterDirect(k)
+                        }"/>
                     <div t-if="state.locations.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
                         <label class="form-label mb-0 small text-muted">Ubicación</label>
                         <div class="position-relative">
@@ -283,7 +281,8 @@
 
                     <!-- Paginación -->
                     <div t-if="totalPages > 1"
-                         class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
+                         class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                         style="flex-shrink:0;">
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                                 t-att-disabled="!hasPrevPage" t-on-click="prevPage">
                             <i class="fa fa-chevron-left"/>

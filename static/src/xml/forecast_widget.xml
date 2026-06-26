@@ -135,85 +135,27 @@
                     </div>
                 </div>
 
-                <!-- Buscar artículo -->
-                <div class="input-group input-group-sm" style="max-width:200px;">
-                    <span class="input-group-text"><i class="fa fa-search"/></span>
-                    <input type="text" class="form-control"
-                           placeholder="Buscar artículo…"
-                           t-att-value="state.productSearch"
-                           t-on-input="onProductSearchInput"
-                           autocomplete="off"/>
-                </div>
-
-                <!-- Filtros dropdown -->
-                <div class="position-relative" t-on-click.stop="">
-                    <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (state.activeFilter ? 'btn-primary' : 'btn-outline-secondary')"
-                            t-on-click="toggleFilterDropdown">
-                        <i class="fa fa-filter"/>
-                        <span>Filtros</span>
-                        <i t-att-class="'fa ' + (state.filterDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                    </button>
-                    <div t-if="state.filterDropdownOpen"
-                         class="dropdown-menu show shadow p-2"
-                         style="min-width:210px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                        <div class="form-check mb-1">
-                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_all"
-                                   t-att-checked="!state.activeFilter"
-                                   t-on-change="() => this.setFilter(null)"/>
-                            <label class="form-check-label small" for="fw_f_all">Todos los artículos</label>
-                        </div>
-                        <div class="form-check mb-1">
-                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_with_mos"
-                                   t-att-checked="state.activeFilter === 'with_mos'"
-                                   t-on-change="() => this.setFilter('with_mos')"/>
-                            <label class="form-check-label small" for="fw_f_with_mos">Con OFs planificadas</label>
-                        </div>
-                        <div class="form-check mb-1">
-                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_no_mos"
-                                   t-att-checked="state.activeFilter === 'no_mos'"
-                                   t-on-change="() => this.setFilter('no_mos')"/>
-                            <label class="form-check-label small" for="fw_f_no_mos">Sin OFs planificadas</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="radio" class="form-check-input" name="fw_filter" id="fw_f_gap"
-                                   t-att-checked="state.activeFilter === 'gap'"
-                                   t-on-change="() => this.setFilter('gap')"/>
-                            <label class="form-check-label small" for="fw_f_gap">Con brecha (OFs &lt; forecast)</label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Agrupar dropdown -->
-                <div class="position-relative" t-on-click.stop="">
-                    <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (state.groupBy ? 'btn-primary' : 'btn-outline-secondary')"
-                            t-on-click="toggleGroupDropdown">
-                        <i class="fa fa-object-group"/>
-                        <span>Agrupar</span>
-                        <i t-att-class="'fa ' + (state.groupDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                    </button>
-                    <div t-if="state.groupDropdownOpen"
-                         class="dropdown-menu show shadow p-2"
-                         style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                        <div class="form-check mb-1">
-                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_none"
-                                   t-att-checked="!state.groupBy"
-                                   t-on-change="() => this.setGroupBy(null)"/>
-                            <label class="form-check-label small" for="fw_g_none">Sin agrupación</label>
-                        </div>
-                        <div class="form-check mb-1">
-                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_cat"
-                                   t-att-checked="state.groupBy === 'sale_category'"
-                                   t-on-change="() => this.setGroupBy('sale_category')"/>
-                            <label class="form-check-label small" for="fw_g_cat">Categoría de venta</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="radio" class="form-check-input" name="fw_group" id="fw_g_prod_cat"
-                                   t-att-checked="state.groupBy === 'product_categ'"
-                                   t-on-change="() => this.setGroupBy('product_categ')"/>
-                            <label class="form-check-label small" for="fw_g_prod_cat">Familia de producto</label>
-                        </div>
-                    </div>
-                </div>
+                <!-- Barra de búsqueda unificada (Odoo style) -->
+                <PlannerSearchBar
+                    widgetKey="'forecast'"
+                    placeholder="'Buscar artículo…'"
+                    t-props="{
+                        search:         state.productSearch,
+                        activeFilter:   state.activeFilter,
+                        activeGroupBy:  state.groupBy,
+                        filterDefs: [
+                            { key: 'with_mos', label: 'Con OFs planificadas' },
+                            { key: 'no_mos',   label: 'Sin OFs planificadas' },
+                            { key: 'gap',      label: 'Con brecha (OFs menor que forecast)' }
+                        ],
+                        groupByDefs: [
+                            { key: 'sale_category',  label: 'Categoría de venta' },
+                            { key: 'product_categ',  label: 'Familia de producto' }
+                        ],
+                        onSearch:        (t) => this.setSearch(t),
+                        onFilterChange:  (k) => this.setFilter(k),
+                        onGroupByChange: (k) => this.setGroupBy(k)
+                    }"/>
 
                 <!-- Columnas dropdown -->
                 <div class="position-relative" t-on-click.stop="">
@@ -750,7 +692,8 @@
 
                     <!-- Paginación -->
                     <div t-if="totalPages > 1"
-                         class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
+                         class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                         style="flex-shrink:0;">
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2"
                                 t-att-disabled="!hasPrevPage" t-on-click="prevPage">
                             <i class="fa fa-chevron-left"/>

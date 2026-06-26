@@ -53,6 +53,8 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/css/reschedule_gantt.css',
             'odoo_mrp_planner/static/src/css/dashboard_kpi_tooltip.css',
             'odoo_mrp_planner/static/src/js/column_manager.js',
+            'odoo_mrp_planner/static/src/js/planner_search_bar.js',
+            'odoo_mrp_planner/static/src/xml/planner_search_bar.xml',
 'odoo_mrp_planner/static/src/js/mo_list_widget.js',
             'odoo_mrp_planner/static/src/xml/mo_list_widget.xml',
             'odoo_mrp_planner/static/src/js/po_dashboard_widget.js',

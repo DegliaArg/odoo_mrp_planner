@@ -17,6 +17,7 @@ import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 const STOCK_COLS = [
     { key: '_expand',      label: '',          width: 32,  fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
@@ -29,6 +30,7 @@ const STOCK_COLS = [
 
 class StockBreakWidget extends Component {
     static template = "odoo_mrp_planner.StockBreakWidget";
+    static components = { PlannerSearchBar };
     static props = {
         record: { type: Object },
         "*": true,
@@ -159,6 +161,23 @@ class StockBreakWidget extends Component {
             this.state.page = 1;
             this._load();
         }, 300);
+    }
+
+    setSearch(text) {
+        this.state.search = text;
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => {
+            this.state.page = 1;
+            this._load();
+        }, 300);
+    }
+
+    setFilterDirect(key) {
+        const f = key || 'all';
+        if (this.state.filterType === f) return;
+        this.state.filterType = f;
+        this.state.page = 1;
+        this._load();
     }
 
     onFilterChange(ev) {

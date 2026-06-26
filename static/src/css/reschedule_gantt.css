@@ -93,6 +93,138 @@
 /* Alineación vertical en títulos de sección (badge + botón link) */
 .o_planner_section_title { display: flex; align-items: center; }
 
+/* ── PlannerSearchBar ────────────────────────────────────────────────────── */
+
+.o_planner_searchbar {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.o_planner_searchbar_container {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 30px;
+    padding: 2px 30px 2px 8px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: text;
+    position: relative;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.o_planner_searchbar_container:focus-within {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.15rem rgba(0, 123, 255, 0.2);
+}
+
+.o_planner_search_facet {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(13, 110, 253, 0.1);
+    border: 1px solid rgba(13, 110, 253, 0.25);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.8rem;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.o_planner_search_facet .o_facet_prefix {
+    color: #6c757d;
+    font-size: 0.75rem;
+}
+
+.o_planner_search_facet .o_facet_remove {
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.o_planner_search_facet .o_facet_remove:hover { color: #dc3545; }
+
+.o_planner_search_input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 80px;
+    font-size: 0.875rem;
+    background: transparent;
+    padding: 0;
+}
+
+.o_planner_search_toggle {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6c757d;
+    padding: 2px 5px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.o_planner_search_toggle:hover { color: #0d6efd; }
+
+.o_planner_search_dropdown {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    min-width: 280px;
+    z-index: 1055;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.o_planner_search_section_header {
+    padding: 8px 12px 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: 0.06em;
+}
+
+.o_planner_search_item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.1s;
+}
+
+.o_planner_search_item:hover { background: #f8f9fa; }
+
+.o_planner_search_item.active { color: #0d6efd; }
+
+.o_planner_search_fav_row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 0.875rem;
+}
+
+.o_planner_search_fav_add {
+    padding: 6px 12px 8px;
+    border-top: 1px solid #dee2e6;
+    margin-top: 2px;
+}
+
 /* ── Column resize + reorder ──────────────────────────────────────────────── */
 
 /* Resize handle — pinned to right edge of each th */

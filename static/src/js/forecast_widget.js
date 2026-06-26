@@ -3,6 +3,7 @@
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -29,6 +30,7 @@ function ymLastDay(ym) {
 
 class ForecastWidget extends Component {
     static template = "odoo_mrp_planner.ForecastWidget";
+    static components = { PlannerSearchBar };
 
     setup() {
         this.orm    = useService("orm");
@@ -146,6 +148,11 @@ class ForecastWidget extends Component {
 
     onProductSearchInput(ev) {
         this.state.productSearch = ev.target.value;
+        this.state.page = 1;
+    }
+
+    setSearch(text) {
+        this.state.productSearch = text;
         this.state.page = 1;
     }
 

@@ -166,7 +166,8 @@
                                         t-att-data-product-id="prod.id"
                                         t-on-click="openProductFromRow">
                                         <td class="text-center align-middle p-0" style="width:32px;">
-                                            <button class="btn btn-sm btn-link p-0 px-1 text-muted"
+                                            <button t-if="prod.mo_count"
+                                                    class="btn btn-sm btn-link p-0 px-1 text-muted"
                                                     t-att-title="state.expandedProducts[prod.id] ? 'Cerrar OFs' : 'Ver OFs activas'"
                                                     t-on-click="(ev) => this.toggleAccordion(prod, ev)">
                                                 <i t-att-class="'fa fa-fw ' + (state.expandedProducts[prod.id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
@@ -197,7 +198,7 @@
                                         </td>
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
-                                    <tr t-if="state.expandedProducts[prod.id]">
+                                    <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
                                         <td colspan="5" class="p-0" style="background:#f8f9fa; border-top:none;">
                                             <div class="px-3 py-2">
 

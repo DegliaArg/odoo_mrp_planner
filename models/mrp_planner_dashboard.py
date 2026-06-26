@@ -1767,11 +1767,27 @@ class MrpPlannerDashboard(models.TransientModel):
 
         total_filtered = len(rows)
         offset = (max(1, page) - 1) * page_size
+        page_rows = rows[offset:offset + page_size]
+
+        # Conteo de OFs activas para los productos de esta página
+        page_pids = [r['id'] for r in page_rows]
+        if page_pids:
+            mo_groups = self.env['mrp.production'].read_group(
+                [('product_id', 'in', page_pids),
+                 ('state', 'in', ['confirmed', 'progress', 'to_close'])],
+                ['product_id'],
+                ['product_id'],
+            )
+            mo_count_map = {g['product_id'][0]: g['product_id_count'] for g in mo_groups}
+        else:
+            mo_count_map = {}
+        for r in page_rows:
+            r['mo_count'] = mo_count_map.get(r['id'], 0)
 
         return {
             'error':          None,
             'kpis':           kpis,
-            'products':       rows[offset:offset + page_size],
+            'products':       page_rows,
             'location_name':  location_name,
             'location_ids':   locations.ids,
             'location_id':    locations[0].id if locations else False,

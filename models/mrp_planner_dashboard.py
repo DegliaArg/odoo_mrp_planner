@@ -1,4 +1,5 @@
 import logging
+import pytz
 from datetime import datetime
 
 from odoo import models, fields, api, _
@@ -538,6 +539,113 @@ class MrpPlannerDashboard(models.TransientModel):
             if Wc.search_count([('tag_ids', 'in', tag.id), ('active', '=', True)]):
                 result.append({'id': tag.id, 'name': tag.name})
         return result
+
+    @api.model
+    def get_wc_chart_data(self, date_from, date_to, tag_id=None):
+        """Carga de CTs: horas disponibles vs ejecutado/pendiente/libre por centro de trabajo."""
+        first_day = datetime.strptime(date_from, '%Y-%m-%d')
+        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+
+        domain = [('active', '=', True)]
+        if tag_id:
+            domain.append(('tag_ids', 'in', int(tag_id)))
+        workcenters = self.env['mrp.workcenter'].search(domain)
+
+        labels, avail_list = [], []
+        ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
+
+        def _avail_hours(calendar, dt_start, dt_end, efficiency):
+            try:
+                h = calendar.get_work_hours_count(
+                    dt_start.replace(tzinfo=pytz.UTC),
+                    dt_end.replace(tzinfo=pytz.UTC),
+                    compute_leaves=False,
+                )
+                return h * (efficiency or 100.0) / 100.0
+            except Exception as e:
+                _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
+                weekly = sum(
+                    a.hour_to - a.hour_from
+                    for a in calendar.attendance_ids
+                    if not a.date_from and not a.date_to
+                )
+                span = (dt_end - dt_start).days + 1
+                return weekly * (span / 7.0) * (efficiency or 100.0) / 100.0
+
+        def _overlap_hours(wo, range_start, range_end):
+            start = wo.date_start
+            end   = wo.date_finished
+            if not start:
+                return 0.0
+            ov_start = max(start, range_start)
+            ov_end   = min(end, range_end) if end else range_end
+            if ov_start >= ov_end:
+                return 0.0
+            if not end:
+                return (wo.duration_expected or 0.0) / 60.0
+            total_secs = (end - start).total_seconds()
+            if total_secs <= 0:
+                return (wo.duration_expected or 0.0) / 60.0
+            proportion = (ov_end - ov_start).total_seconds() / total_secs
+            return (wo.duration_expected or 0.0) / 60.0 * proportion
+
+        for wc in workcenters:
+            efficiency = wc.time_efficiency or 100.0
+            avail = 0.0
+            if wc.resource_calendar_id:
+                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
+
+            wos = self.env['mrp.workorder'].search([
+                ('workcenter_id', '=', wc.id),
+                ('state', 'not in', ('cancel',)),
+                ('date_start', '!=', False),
+                ('date_start', '<=', fields.Datetime.to_string(last_day)),
+                '|',
+                ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+                ('date_finished', '=', False),
+            ])
+
+            ejecutado = sum(
+                _overlap_hours(w, first_day, last_day)
+                for w in wos if w.state == 'done'
+            )
+            pendiente = sum(
+                _overlap_hours(w, first_day, last_day)
+                for w in wos if w.state not in ('done', 'cancel')
+            )
+            tiempo_muerto = max(0.0, avail - ejecutado - pendiente)
+
+            if avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
+                continue
+
+            labels.append(wc.name)
+            avail_list.append(round(avail, 1))
+            ejecutado_list.append(round(ejecutado, 1))
+            pendiente_list.append(round(pendiente, 1))
+            tiempo_muerto_list.append(round(tiempo_muerto, 1))
+
+        tot_avail = sum(avail_list)
+        tot_ejec  = sum(ejecutado_list)
+        tot_pend  = sum(pendiente_list)
+        tot_plan  = tot_ejec + tot_pend
+        tot_libre = sum(tiempo_muerto_list)
+        carga_pct = round(tot_plan / tot_avail * 100, 1) if tot_avail > 0 else 0.0
+
+        return {
+            'labels':          labels,
+            'available_hours': avail_list,
+            'ejecutado':       ejecutado_list,
+            'pendiente':       pendiente_list,
+            'tiempo_muerto':   tiempo_muerto_list,
+            'totals': {
+                'disponible':   round(tot_avail, 1),
+                'planificado':  round(tot_plan,  1),
+                'carga_pct':    carga_pct,
+                'ejecutado':    round(tot_ejec,  1),
+                'pendiente':    round(tot_pend,  1),
+                'tiempo_libre': round(tot_libre, 1),
+            },
+        }
 
     # ── Widget OCs con pestañas ──────────────────────────────────────────────
 
@@ -1681,7 +1789,7 @@ class MrpPlannerDashboard(models.TransientModel):
         ]
         groups = self.env['stock.move.line'].read_group(
             domain,
-            ['product_id', 'qty_done:sum'],
+            ['product_id', 'quantity:sum'],
             ['product_id'],
         )
         # Aggregate by product template
@@ -1691,7 +1799,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 continue
             pp = self.env['product.product'].browse(g['product_id'][0])
             tid = pp.product_tmpl_id.id
-            tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['qty_done'] or 0.0)
+            tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
 
         if not tmpl_qty:
             return []

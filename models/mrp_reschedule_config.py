@@ -164,7 +164,7 @@ class MrpRescheduleConfig(models.Model):
         del_by_tmpl = {}
         for ml in moves:
             tid = ml.product_id.product_tmpl_id.id
-            del_by_tmpl[tid] = del_by_tmpl.get(tid, 0.0) + ml.qty_done
+            del_by_tmpl[tid] = del_by_tmpl.get(tid, 0.0) + ml.quantity
 
         templates = self.env['product.template'].search([('sale_ok', '=', True)])
         updated = 0

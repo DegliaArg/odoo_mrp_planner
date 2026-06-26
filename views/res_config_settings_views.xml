@@ -151,6 +151,18 @@
                             </div>
                         </page>
 
+                        <!-- ── Usuarios / Depósitos ──────────────────────── -->
+                        <page string="Usuarios" name="users_tab">
+                            <div class="text-muted small mb-3">
+                                Configurá qué depósitos puede ver cada usuario en el Planificador MRP.
+                                Por defecto todos los usuarios ven todos los depósitos.
+                            </div>
+                            <button name="action_open_user_warehouses"
+                                    type="object"
+                                    string="Gestionar depósitos por usuario →"
+                                    class="btn btn-primary"/>
+                        </page>
+
                     </notebook>
                 </sheet>
             </form>

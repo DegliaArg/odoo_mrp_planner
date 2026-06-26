@@ -219,6 +219,17 @@ class MrpRescheduleConfig(models.Model):
             },
         }
 
+    def action_open_user_warehouses(self):
+        return {
+            'type':      'ir.actions.act_window',
+            'name':      'Depósitos por usuario',
+            'res_model': 'res.users',
+            'view_mode': 'list',
+            'view_id':   self.env.ref('odoo_mrp_planner.view_users_mrp_warehouse_list').id,
+            'domain':    [('share', '=', False), ('active', '=', True)],
+            'target':    'current',
+        }
+
     def write(self, vals):
         res = super().write(vals)
         sp = self.env['ir.config_parameter'].sudo()

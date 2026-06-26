@@ -133,17 +133,20 @@ class MrpPlannerDashboard(models.TransientModel):
         has_pur     = u.has_group('odoo_mrp_planner.group_purchase')
         has_sales_r = u.has_group('odoo_mrp_planner.group_sales_read')
         has_sales   = u.has_group('odoo_mrp_planner.group_sales')
-        # Si ningún grupo del módulo está asignado → acceso completo (compat.)
-        no_groups   = not any([is_admin, has_prod_r, has_prod, has_pur, has_sales_r, has_sales])
+        # Sin ningún grupo del módulo → mínimo = prod lectura (no schedule, no compras, no ventas)
+        no_groups = not any([is_admin, has_prod_r, has_prod, has_pur, has_sales_r, has_sales])
+        can_prod  = is_admin or has_prod_r or has_prod or no_groups
+        can_pur   = is_admin or has_pur
+        can_sales = is_admin or has_sales_r or has_sales
         for rec in self:
-            rec.can_see_alerts       = is_admin or has_prod_r or has_prod or has_pur or no_groups
-            rec.can_see_mo           = is_admin or has_prod_r or has_prod or no_groups
-            rec.can_see_po           = is_admin or has_pur or no_groups
-            rec.can_see_stock_breaks = is_admin or has_prod_r or has_prod or no_groups
-            rec.can_see_forecast     = is_admin or has_sales_r or has_sales or no_groups
-            rec.can_schedule         = is_admin or has_prod or no_groups
-            rec.can_reschedule       = is_admin or has_prod or no_groups
-            rec.can_edit_forecast    = is_admin or has_sales or no_groups
+            rec.can_see_alerts       = can_prod or can_pur
+            rec.can_see_mo           = can_prod
+            rec.can_see_po           = can_pur
+            rec.can_see_stock_breaks = can_prod
+            rec.can_see_forecast     = can_sales
+            rec.can_schedule         = is_admin or has_prod
+            rec.can_reschedule       = is_admin or has_prod
+            rec.can_edit_forecast    = is_admin or has_sales
 
     @api.depends()
     def _compute_inline_alerts(self):
@@ -264,6 +267,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_planner_dashboard_form').id,
             'target': 'main',
             'flags': {'withControlPanel': False},
         }

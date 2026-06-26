@@ -1,24 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Agrega depósitos visibles dentro de la pestaña "Permisos de acceso" -->
-    <record id="view_users_form_mrp_planner" model="ir.ui.view">
-        <field name="name">res.users.form.mrp.planner</field>
+    <!-- Lista editable de usuarios para gestión de depósitos desde el config del módulo -->
+    <record id="view_users_mrp_warehouse_list" model="ir.ui.view">
+        <field name="name">res.users.mrp.warehouse.list</field>
         <field name="model">res.users</field>
-        <field name="inherit_id" ref="base.view_users_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//page[@name='access_rights']" position="inside">
-                <group string="Planificador MRP — Depósitos visibles">
-                    <field name="mrp_planner_all_warehouses"
-                           widget="boolean_toggle"
-                           string="Todos los depósitos"/>
-                    <field name="mrp_planner_warehouse_ids"
-                           widget="many2many_tags"
-                           nolabel="1"
-                           invisible="mrp_planner_all_warehouses"
-                           placeholder="Seleccioná los depósitos permitidos…"/>
-                </group>
-            </xpath>
+            <list string="Depósitos por usuario" editable="top">
+                <field name="name"   string="Usuario" readonly="1"/>
+                <field name="login"  string="Login"   readonly="1"/>
+                <field name="mrp_planner_all_warehouses"
+                       widget="boolean_toggle"
+                       string="Todos los depósitos"/>
+                <field name="mrp_planner_warehouse_ids"
+                       widget="many2many_tags"
+                       string="Depósitos permitidos"
+                       invisible="mrp_planner_all_warehouses"
+                       options="{'no_create': True}"/>
+            </list>
         </field>
     </record>
 

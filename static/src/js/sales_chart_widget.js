@@ -100,7 +100,7 @@ class SalesChartWidget extends Component {
 
         const rows   = this.state.rows;
         const isQty  = this.state.metric === "qty";
-        const labels = rows.map(r => r.name);
+        const labels = rows.map(r => r.code || r.name);
         const data   = rows.map(r => isQty ? r.qty : r.amount);
         const colors = rows.map(r => CAT_COLORS[r.sale_category] ?? CAT_COLORS[""]);
 
@@ -125,7 +125,13 @@ class SalesChartWidget extends Component {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        callbacks: { label: ctx => fmt(ctx.raw) },
+                        callbacks: {
+                            title: items => {
+                                const r = rows[items[0].dataIndex];
+                                return r.code ? `${r.code} — ${r.name}` : r.name;
+                            },
+                            label: ctx => fmt(ctx.raw),
+                        },
                     },
                 },
                 scales: {

@@ -1834,6 +1834,7 @@ class MrpPlannerDashboard(models.TransientModel):
             result.append({
                 'tmpl_id':       tid,
                 'name':          t.name,
+                'code':          t.default_code or '',
                 'sale_category': t.x_sale_category or '',
                 'qty':           qty,
                 'amount':        round(qty * (t.list_price or 0.0), 2),

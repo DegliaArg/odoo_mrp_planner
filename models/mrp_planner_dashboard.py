@@ -1399,12 +1399,15 @@ class MrpPlannerDashboard(models.TransientModel):
             pid_del  = del_data.get(pid, {})
             pid_so   = so_data.get(pid, {})
             stock_qty = round(stock_data.get(pid, 0.0), 2)
-            cells             = []
-            tot_fc            = 0.0
-            tot_mos           = 0.0
-            tot_del           = 0.0
-            tot_so            = 0.0
-            tot_abs_err_wmape = 0.0  # Σ|error| para WMAPE por fila
+            cells            = []
+            tot_fc           = 0.0
+            tot_mos          = 0.0
+            tot_del          = 0.0
+            tot_so           = 0.0
+            _mape_acc_sum    = 0.0   # Σ precisión por período (MAPE)
+            _mape_acc_count  = 0     # períodos con del > 0 (MAPE)
+            _wape_abs_err    = 0.0   # Σ|error| ponderado por real (WAPE)
+            _wmape_abs_err   = 0.0   # Σ|error| ponderado por forecast (WMAPE)
 
             for ym in months:
                 fc_qty  = fc_data[pid].get(ym, 0.0)
@@ -1413,17 +1416,27 @@ class MrpPlannerDashboard(models.TransientModel):
                 so_qty  = pid_so.get(ym, 0.0)
                 pct      = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
                 svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
-                if fc_qty > 0:
-                    if acc_formula == 'wmape':
-                        abs_err = abs(del_qty - fc_qty)
-                        fc_acc  = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1)
-                        tot_abs_err_wmape += abs_err
-                    elif acc_formula == 'bias':
-                        fc_acc = round((del_qty - fc_qty) / fc_qty * 100, 1)
-                    else:  # simple
-                        fc_acc = round(del_qty / fc_qty * 100, 1)
-                else:
-                    fc_acc = None
+
+                abs_err = abs(del_qty - fc_qty)
+                if acc_formula in ('mape', 'wape'):
+                    if del_qty > 0:
+                        fc_acc = round(max(0.0, 100.0 - abs_err / del_qty * 100), 1)
+                        _mape_acc_sum   += fc_acc
+                        _mape_acc_count += 1
+                        _wape_abs_err   += abs_err
+                    else:
+                        fc_acc = None
+                elif acc_formula == 'wmape':
+                    if fc_qty > 0:
+                        fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1)
+                        _wmape_abs_err += abs_err
+                    else:
+                        fc_acc = None
+                elif acc_formula == 'bias':
+                    fc_acc = round((del_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
+                else:  # simple
+                    fc_acc = round(del_qty / fc_qty * 100, 1) if fc_qty > 0 else None
+
                 cells.append({
                     'month':        ym,
                     'forecast':     round(fc_qty,  2),
@@ -1441,15 +1454,16 @@ class MrpPlannerDashboard(models.TransientModel):
 
             tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
             tot_svc = round(tot_del / tot_so * 100, 1) if tot_so > 0 else None
-            if tot_fc > 0:
-                if acc_formula == 'wmape':
-                    tot_acc = round(max(0.0, 100.0 - tot_abs_err_wmape / tot_fc * 100), 1)
-                elif acc_formula == 'bias':
-                    tot_acc = round((tot_del - tot_fc) / tot_fc * 100, 1)
-                else:
-                    tot_acc = round(tot_del / tot_fc * 100, 1)
+            if acc_formula == 'mape':
+                tot_acc = round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None
+            elif acc_formula == 'wape':
+                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_del * 100), 1) if tot_del > 0 else None
+            elif acc_formula == 'wmape':
+                tot_acc = round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None
+            elif acc_formula == 'bias':
+                tot_acc = round((tot_del - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
             else:
-                tot_acc = None
+                tot_acc = round(tot_del / tot_fc * 100, 1) if tot_fc > 0 else None
 
             avg_monthly_del = tot_del / n_months
             if avg_monthly_del > 0:
@@ -1475,6 +1489,10 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_service_rate': tot_svc,
                 'total_forecast_acc': tot_acc,
                 'sale_category':      tmpl_cat.get(fc_data[pid].get('product_tmpl_id'), ''),
+                '_mape_acc_sum':      _mape_acc_sum,
+                '_mape_acc_count':    _mape_acc_count,
+                '_wape_abs_err':      _wape_abs_err,
+                '_wmape_abs_err':     _wmape_abs_err,
             })
 
         rows.sort(key=lambda r: r['product'].lower())
@@ -1502,20 +1520,27 @@ class MrpPlannerDashboard(models.TransientModel):
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
         ovr_svc = round(total_del / total_so * 100, 1) if total_so > 0 else None
-        if total_fc > 0:
-            if acc_formula == 'wmape':
-                total_abs_err = sum(
-                    abs(r['total_delivered'] - r['total_forecast'])
-                    for r in rows if r['total_forecast'] > 0
-                )
-                total_fc_wmape = sum(r['total_forecast'] for r in rows if r['total_forecast'] > 0)
-                ovr_acc = round(max(0.0, 100.0 - total_abs_err / total_fc_wmape * 100), 1) if total_fc_wmape > 0 else None
-            elif acc_formula == 'bias':
-                ovr_acc = round((total_del - total_fc) / total_fc * 100, 1)
-            else:
-                ovr_acc = round(total_del / total_fc * 100, 1)
+        if acc_formula == 'mape':
+            all_mape_sum   = sum(r['_mape_acc_sum']   for r in rows)
+            all_mape_count = sum(r['_mape_acc_count'] for r in rows)
+            ovr_acc = round(all_mape_sum / all_mape_count, 1) if all_mape_count > 0 else None
+        elif acc_formula == 'wape':
+            all_wape_err = sum(r['_wape_abs_err'] for r in rows)
+            ovr_acc = round(max(0.0, 100.0 - all_wape_err / total_del * 100), 1) if total_del > 0 else None
+        elif acc_formula == 'wmape':
+            all_wmape_err  = sum(r['_wmape_abs_err'] for r in rows)
+            total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
+            ovr_acc = round(max(0.0, 100.0 - all_wmape_err / total_fc_wmape * 100), 1) if total_fc_wmape > 0 else None
+        elif acc_formula == 'bias':
+            ovr_acc = round((total_del - total_fc) / total_fc * 100, 1) if total_fc > 0 else None
         else:
-            ovr_acc = None
+            ovr_acc = round(total_del / total_fc * 100, 1) if total_fc > 0 else None
+
+        # Limpiar campos internos antes de enviar al frontend
+        _internal = ('_mape_acc_sum', '_mape_acc_count', '_wape_abs_err', '_wmape_abs_err')
+        for r in rows:
+            for k in _internal:
+                r.pop(k, None)
 
         return {
             'kpis': {

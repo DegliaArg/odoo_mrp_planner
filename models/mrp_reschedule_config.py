@@ -61,12 +61,16 @@ class MrpRescheduleConfig(models.Model):
 
     forecast_acc_formula = fields.Selection([
         ('simple', 'Simple — Entregado ÷ Forecast × 100'),
-        ('wmape',  'WMAPE — 100 − (Σ|error| ÷ Σforecast × 100)'),
+        ('mape',   'MAPE — promedio de errores porcentuales por período'),
+        ('wape',   'WAPE — Σ|error| ÷ Σentregado (ponderado por volumen real)'),
+        ('wmape',  'WMAPE — Σ|error| ÷ Σforecast (ponderado por volumen planificado)'),
         ('bias',   'Sesgo — (Entregado − Forecast) ÷ Forecast × 100'),
     ], string='Fórmula de precisión forecast', default='simple',
-       help='Simple: porcentaje de la demanda forecast cubierto por entregas reales. Puede superar el 100%.\n'
-            'WMAPE: precisión ponderada por error absoluto, acotada entre 0 y 100%. Estándar supply chain.\n'
-            'Sesgo: indica si se sobreestima (+) o subestima (−) la demanda. Complementario a Simple o WMAPE.'
+       help='Simple: entregado ÷ forecast × 100, puede superar 100%.\n'
+            'MAPE: promedio aritmético de precisiones por período (100 − |error/real|×100); sensible a períodos de bajo volumen.\n'
+            'WAPE: 100 − Σ|error|/Σentregado×100; pondera por volumen real, robusto con ceros en forecast.\n'
+            'WMAPE: 100 − Σ|error|/Σforecast×100; pondera por volumen planificado, estándar supply chain.\n'
+            'Sesgo: (entregado − forecast)/forecast×100; positivo = sobreentrega, negativo = déficit.'
     )
 
     # ── Categoría de venta ────────────────────────────────────────────────────

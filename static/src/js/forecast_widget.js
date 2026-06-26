@@ -518,6 +518,10 @@ class ForecastWidget extends Component {
         const formula = d.acc_formula;
         const del = this.fmt(d.kpis.total_delivered), fc = this.fmt(d.kpis.total_forecast);
         const val = this.fmtPct(d.kpis.overall_forecast_acc);
+        if (formula === 'mape')
+            return `MAPE global = promedio de precisiones por artículo = ${val}`;
+        if (formula === 'wape')
+            return `WAPE global = 100 − (Σ|errores| ÷ ${del} entregado × 100) = ${val}`;
         if (formula === 'wmape')
             return `WMAPE global = 100 − (Σ|errores| ÷ ${fc} forecast × 100) = ${val}`;
         if (formula === 'bias')
@@ -531,6 +535,10 @@ class ForecastWidget extends Component {
         const formula = this.state.data && this.state.data.acc_formula;
         const del = this.fmt(row.total_delivered), fc = this.fmt(row.total_forecast);
         const val = this.fmtPct(row.total_forecast_acc);
+        if (formula === 'mape')
+            return `MAPE = promedio de precisiones por período (100 − |error/real|×100) = ${val}`;
+        if (formula === 'wape')
+            return `WAPE = 100 − (Σ|error| ÷ ${del} entregado × 100) = ${val} (ponderado por volumen real)`;
         if (formula === 'wmape')
             return `WMAPE = 100 − (|${del} − ${fc}| ÷ ${fc} × 100) = ${val} (precisión por error absoluto, 0-100%)`;
         if (formula === 'bias')

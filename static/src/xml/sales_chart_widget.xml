@@ -28,7 +28,7 @@
                         <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
                             <button t-att-class="'btn ' + (state.topN === n ? 'btn-secondary' : 'btn-outline-secondary')"
                                     t-on-click="() => this.setTopN(n)">
-                                Arriba <t t-esc="n"/>
+                                Top <t t-esc="n"/>
                             </button>
                         </t>
                     </div>

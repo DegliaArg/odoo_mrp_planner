@@ -1977,3 +1977,188 @@ class MrpPlannerDashboard(models.TransientModel):
             ]):
                 result.append({'id': c.id, 'name': c.complete_name})
         return sorted(result, key=lambda x: x['name'])
+
+    @api.model
+    def get_supplier_analysis_data(self, period_from, period_to, search=''):
+        """Análisis de proveedores: cumplimiento, lead time, precio y volumen."""
+        import calendar as _cal
+        from datetime import date as _date
+
+        try:
+            d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
+            d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
+            d_to = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
+        except Exception:
+            return {'rows': [], 'kpis': {}, 'has_invoices': False}
+
+        dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
+        dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
+
+        po_domain = [
+            ('state', 'in', ['purchase', 'done']),
+            ('date_approve', '>=', dt_from),
+            ('date_approve', '<=', dt_to),
+            ('company_id', '=', self.env.company.id),
+        ]
+        if search:
+            po_domain.append(('partner_id.name', 'ilike', search))
+
+        pos = self.env['purchase.order'].search(po_domain)
+        _empty_kpis = {
+            'supplier_count': 0, 'total_amount': 0, 'total_orders': 0,
+            'avg_on_time_pct': None, 'avg_lead_time_days': None, 'avg_price_var_pct': None,
+        }
+        if not pos:
+            return {'rows': [], 'kpis': _empty_kpis, 'has_invoices': False}
+
+        # Aggregación por proveedor
+        po_groups = self.env['purchase.order'].read_group(
+            po_domain, ['partner_id', 'amount_total:sum'], ['partner_id'],
+        )
+
+        partner_data = {}
+        for g in po_groups:
+            if not g['partner_id']:
+                continue
+            pid = g['partner_id'][0]
+            partner_data[pid] = {
+                'partner_id':   pid,
+                'partner_name': g['partner_id'][1],
+                'order_count':  g['partner_id_count'],
+                'total_amount': round(g['amount_total'] or 0.0, 2),
+                'products':     set(),
+                'pick_count':   0, 'on_time_count': 0,
+                'delay_sum':    0.0, 'delay_count': 0,
+                'complete_count': 0,
+                'lt_sum':       0.0, 'lt_count': 0,
+                'pvar_sum':     0.0, 'pvar_count': 0,
+                'pending_inv':  0.0,
+            }
+
+        # Mapa po_id → (partner_id, date_approve)
+        po_map = {po.id: (po.partner_id.id, po.date_approve) for po in pos}
+
+        # Líneas de OC: productos + variación de precio
+        po_line_data = self.env['purchase.order.line'].search_read(
+            [('order_id', 'in', pos.ids), ('product_id', '!=', False)],
+            ['order_id', 'product_id', 'price_unit'],
+        )
+        all_prod_ids = list({ln['product_id'][0] for ln in po_line_data if ln['product_id']})
+        if all_prod_ids:
+            std_map = {r['id']: r['standard_price']
+                       for r in self.env['product.product'].search_read(
+                           [('id', 'in', all_prod_ids)], ['id', 'standard_price'])}
+        else:
+            std_map = {}
+
+        for ln in po_line_data:
+            po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
+            prod_id  = ln['product_id'][0] if isinstance(ln['product_id'], (list, tuple)) else ln['product_id']
+            partner_id = po_map.get(po_id, (None,))[0]
+            if partner_id not in partner_data:
+                continue
+            pd = partner_data[partner_id]
+            pd['products'].add(prod_id)
+            std = std_map.get(prod_id, 0.0)
+            if std > 0 and ln['price_unit'] > 0:
+                pd['pvar_sum']   += (ln['price_unit'] - std) / std * 100
+                pd['pvar_count'] += 1
+
+        # Recepciones completadas vinculadas a las OCs
+        pickings = self.env['stock.picking'].search([
+            ('purchase_id', 'in', pos.ids),
+            ('state', '=', 'done'),
+            ('picking_type_code', '=', 'incoming'),
+        ])
+        # Recepciones que tuvieron backorder (parciales)
+        partial_ids = set(
+            self.env['stock.picking'].search(
+                [('backorder_id', 'in', pickings.ids)]
+            ).mapped('backorder_id').ids
+        )
+
+        for picking in pickings:
+            po_id = picking.purchase_id.id if picking.purchase_id else None
+            if not po_id or po_id not in po_map:
+                continue
+            partner_id, date_approve = po_map[po_id]
+            if partner_id not in partner_data:
+                continue
+            pd = partner_data[partner_id]
+            pd['pick_count'] += 1
+
+            sched = picking.scheduled_date
+            done  = picking.date_done
+            if sched and done:
+                delay = (done - sched).days
+                if delay <= 0:
+                    pd['on_time_count'] += 1
+                else:
+                    pd['delay_sum']   += delay
+                    pd['delay_count'] += 1
+
+            if picking.id not in partial_ids:
+                pd['complete_count'] += 1
+
+            if date_approve and done:
+                lt = (done - date_approve).days
+                if lt >= 0:
+                    pd['lt_sum']   += lt
+                    pd['lt_count'] += 1
+
+        # Facturas pendientes (módulo account — opcional)
+        has_invoices = False
+        try:
+            inv_groups = self.env['account.move'].read_group(
+                [('move_type', '=', 'in_invoice'),
+                 ('partner_id', 'in', list(partner_data.keys())),
+                 ('payment_state', 'not in', ['paid', 'reversed']),
+                 ('state', '=', 'posted'),
+                 ('company_id', '=', self.env.company.id)],
+                ['partner_id', 'amount_residual:sum'],
+                ['partner_id'],
+            )
+            for g in inv_groups:
+                if g['partner_id'] and g['partner_id'][0] in partner_data:
+                    partner_data[g['partner_id'][0]]['pending_inv'] = round(g['amount_residual'] or 0.0, 2)
+            has_invoices = True
+        except Exception:
+            pass
+
+        # Construir filas
+        rows = []
+        for pid, d in partner_data.items():
+            pc = d['pick_count']
+            rows.append({
+                'partner_id':        pid,
+                'partner_name':      d['partner_name'],
+                'order_count':       d['order_count'],
+                'total_amount':      d['total_amount'],
+                'distinct_products': len(d['products']),
+                'pick_count':        pc,
+                'on_time_pct':   round(d['on_time_count'] / pc * 100, 1) if pc > 0 else None,
+                'avg_delay_days': round(d['delay_sum'] / d['delay_count'], 1) if d['delay_count'] > 0 else None,
+                'complete_pct':  round(d['complete_count'] / pc * 100, 1) if pc > 0 else None,
+                'avg_lead_time': round(d['lt_sum'] / d['lt_count'], 1) if d['lt_count'] > 0 else None,
+                'avg_price_var_pct': round(d['pvar_sum'] / d['pvar_count'], 1) if d['pvar_count'] > 0 else None,
+                'pending_inv':   d['pending_inv'] if has_invoices else None,
+            })
+
+        rows.sort(key=lambda r: r['total_amount'], reverse=True)
+
+        def _wavg(rows, key):
+            vals = [r[key] for r in rows if r[key] is not None]
+            return round(sum(vals) / len(vals), 1) if vals else None
+
+        total_pickings = sum(r['pick_count'] for r in rows)
+        on_time_abs    = sum(d['on_time_count'] for d in partner_data.values())
+        kpis = {
+            'supplier_count':     len(rows),
+            'total_amount':       round(sum(r['total_amount'] for r in rows), 2),
+            'total_orders':       sum(r['order_count'] for r in rows),
+            'avg_on_time_pct':    round(on_time_abs / total_pickings * 100, 1) if total_pickings > 0 else None,
+            'avg_lead_time_days': _wavg(rows, 'avg_lead_time'),
+            'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
+        }
+
+        return {'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices}

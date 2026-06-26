@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.SupplierAnalysisWidget">
+        <div class="o_supplier_analysis_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
+
+            <!-- Filtros -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:150px;"
+                           t-att-value="periodFromDate"
+                           t-on-change="onPeriodFromChange"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Hasta</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:150px;"
+                           t-att-value="periodToDate"
+                           t-on-change="onPeriodToChange"/>
+                </div>
+                <div class="input-group input-group-sm" style="max-width:230px;">
+                    <span class="input-group-text"><i class="fa fa-search"/></span>
+                    <input type="text" class="form-control"
+                           placeholder="Buscar proveedor…"
+                           t-att-value="state.searchInput"
+                           t-on-input="onSearchInput"
+                           t-on-keydown="onSearchKeydown"
+                           autocomplete="off"/>
+                    <button class="btn btn-outline-secondary btn-sm" t-on-click="_applySearch">
+                        Ir
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sin datos -->
+            <div t-if="!state.loading and state.data and state.data.rows.length === 0"
+                 class="text-center text-muted py-4 border rounded">
+                <i class="fa fa-search fa-2x mb-2 d-block"/>
+                No hay proveedores con órdenes confirmadas en el período seleccionado.
+            </div>
+
+            <t t-if="state.data and state.data.rows.length > 0">
+
+                <!-- KPI cards -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="Cantidad de proveedores distintos con OCs confirmadas en el período.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-users fa-lg text-secondary mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="state.data.kpis.supplier_count"/></div>
+                                <div class="o_planner_label">Proveedores</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="Suma del monto total de todas las OCs confirmadas en el período (purchase.order.amount_total).">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-dollar fa-lg text-primary mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmtMoney(state.data.kpis.total_amount)"/></div>
+                                <div class="o_planner_label">Monto comprado</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="Cantidad de OCs confirmadas en el período.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-file-text fa-lg text-secondary mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="state.data.kpis.total_orders"/></div>
+                                <div class="o_planner_label">Órdenes</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="% de recepciones completadas antes o en la fecha planificada (date_done ≤ scheduled_date). Calculado sobre el total de recepciones con ambas fechas disponibles.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
+                                <div t-att-class="'o_planner_number ' + onTimeCls(state.data.kpis.avg_on_time_pct)">
+                                    <t t-if="state.data.kpis.avg_on_time_pct !== null">
+                                        <t t-esc="state.data.kpis.avg_on_time_pct"/>%
+                                    </t>
+                                    <t t-else="">—</t>
+                                </div>
+                                <div class="o_planner_label">A tiempo</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="Promedio ponderado del lead time real: días entre la aprobación de la OC (date_approve) y la validación de la recepción (date_done).">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
+                                <div class="o_planner_number">
+                                    <t t-if="state.data.kpis.avg_lead_time_days !== null">
+                                        <t t-esc="state.data.kpis.avg_lead_time_days"/> d
+                                    </t>
+                                    <t t-else="">—</t>
+                                </div>
+                                <div class="o_planner_label">Lead time</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="card o_planner_card h-100"
+                             title="Variación promedio de precio: (precio OC − costo estándar) ÷ costo estándar × 100. Positivo = pagado más que el costo estándar. Solo incluye líneas con costo estándar &gt; 0.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-tag fa-lg text-secondary mb-2 d-block"/>
+                                <div t-att-class="'o_planner_number ' + priceVarCls(state.data.kpis.avg_price_var_pct)">
+                                    <t t-if="state.data.kpis.avg_price_var_pct !== null">
+                                        <t t-esc="fmtPct(state.data.kpis.avg_price_var_pct)"/>
+                                    </t>
+                                    <t t-else="">—</t>
+                                </div>
+                                <div class="o_planner_label">Var. precio</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla -->
+                <div class="border rounded" style="overflow:auto;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:12px; min-width:900px;">
+                        <thead>
+                            <tr class="table-light text-muted">
+                                <th style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Nombre del proveedor. Clic para ordenar."
+                                    t-on-click="() => this.setSort('partner_name')">
+                                    Proveedor <i t-att-class="sortIcon('partner_name')"/>
+                                </th>
+                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="OCs confirmadas en el período. Clic para abrir en una nueva ventana."
+                                    t-on-click="() => this.setSort('order_count')">
+                                    OCs <i t-att-class="sortIcon('order_count')"/>
+                                </th>
+                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Artículos distintos comprados al proveedor en el período. Clic para ordenar."
+                                    t-on-click="() => this.setSort('distinct_products')">
+                                    Artículos <i t-att-class="sortIcon('distinct_products')"/>
+                                </th>
+                                <th class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Suma del monto total de OCs confirmadas (purchase.order.amount_total). Clic para ordenar."
+                                    t-on-click="() => this.setSort('total_amount')">
+                                    Monto <i t-att-class="sortIcon('total_amount')"/>
+                                </th>
+                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="% recepciones completadas en fecha (date_done ≤ scheduled_date). Verde ≥90% | Amarillo ≥70% | Rojo &lt;70%. Clic para ordenar."
+                                    t-on-click="() => this.setSort('on_time_pct')">
+                                    % A tiempo <i t-att-class="sortIcon('on_time_pct')"/>
+                                </th>
+                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Promedio de días de retraso en las recepciones tardías (solo incluye recepciones fuera de fecha). Verde ≤1 d | Amarillo ≤3 d | Rojo &gt;3 d. Clic para ordenar."
+                                    t-on-click="() => this.setSort('avg_delay_days')">
+                                    Retraso (d) <i t-att-class="sortIcon('avg_delay_days')"/>
+                                </th>
+                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="% de recepciones completadas sin backorder (entrega total). Verde ≥95% | Amarillo ≥80% | Rojo &lt;80%. Clic para ordenar."
+                                    t-on-click="() => this.setSort('complete_pct')">
+                                    % Completas <i t-att-class="sortIcon('complete_pct')"/>
+                                </th>
+                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Lead time real promedio: días entre fecha de aprobación de OC (date_approve) y validación de recepción (date_done). Clic para ordenar."
+                                    t-on-click="() => this.setSort('avg_lead_time')">
+                                    Lead time (d) <i t-att-class="sortIcon('avg_lead_time')"/>
+                                </th>
+                                <th class="text-center" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Variación promedio de precio OC vs costo estándar: (precio_OC − std_price) ÷ std_price × 100. Positivo = pagado más que referencia. Verde ≤±3% | Amarillo ≤±10% | Rojo &gt;±10%. Clic para ordenar."
+                                    t-on-click="() => this.setSort('avg_price_var_pct')">
+                                    Var. precio <i t-att-class="sortIcon('avg_price_var_pct')"/>
+                                </th>
+                                <th t-if="state.data.has_invoices"
+                                    class="text-end" style="padding:6px 8px; cursor:pointer; user-select:none;"
+                                    title="Monto total de facturas de proveedor aprobadas y pendientes de pago (account.move: in_invoice, state=posted, payment_state≠paid). Clic para ordenar."
+                                    t-on-click="() => this.setSort('pending_inv')">
+                                    Fact. pendiente <i t-att-class="sortIcon('pending_inv')"/>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="pagedRows" t-as="row" t-key="row.partner_id">
+                                <tr style="cursor:pointer;" t-on-click="() => this.openSupplier(row)">
+
+                                    <td style="padding:5px 8px;" class="fw-semibold">
+                                        <i class="fa fa-external-link me-1 text-muted" style="font-size:10px;"/>
+                                        <t t-esc="row.partner_name"/>
+                                    </td>
+
+                                    <td class="text-end" style="padding:5px 8px;">
+                                        <a href="#" class="text-primary"
+                                           t-att-title="'Ver las ' + row.order_count + ' OCs de ' + row.partner_name"
+                                           t-on-click.prevent="() => this.openPOs(row)">
+                                            <t t-esc="row.order_count"/>
+                                        </a>
+                                    </td>
+
+                                    <td class="text-end text-muted" style="padding:5px 8px;">
+                                        <t t-esc="row.distinct_products"/>
+                                    </td>
+
+                                    <td class="text-end fw-semibold" style="padding:5px 8px;">
+                                        <t t-esc="fmtMoney(row.total_amount)"/>
+                                    </td>
+
+                                    <!-- % A tiempo -->
+                                    <td class="text-center" style="padding:5px 8px;"
+                                        t-att-title="row.pick_count ? (row.on_time_pct + '% de ' + row.pick_count + ' recepciones completadas a tiempo') : 'Sin recepciones completadas en el período'">
+                                        <span t-if="row.on_time_pct !== null"
+                                              t-att-class="onTimeCls(row.on_time_pct)">
+                                            <t t-esc="row.on_time_pct"/>%
+                                        </span>
+                                        <span t-else="" class="text-muted small">—</span>
+                                    </td>
+
+                                    <!-- Retraso promedio -->
+                                    <td class="text-center" style="padding:5px 8px;"
+                                        t-att-title="row.avg_delay_days !== null ? ('Promedio de días de retraso en recepciones tardías: ' + row.avg_delay_days + ' d') : 'Sin recepciones tardías'">
+                                        <span t-if="row.avg_delay_days !== null"
+                                              t-att-class="delayCls(row.avg_delay_days)">
+                                            <t t-esc="row.avg_delay_days"/> d
+                                        </span>
+                                        <span t-else="" class="text-success small">0 d</span>
+                                    </td>
+
+                                    <!-- % Completas -->
+                                    <td class="text-center" style="padding:5px 8px;"
+                                        t-att-title="row.pick_count ? (row.complete_pct + '% de ' + row.pick_count + ' recepciones sin backorder') : 'Sin recepciones'">
+                                        <span t-if="row.complete_pct !== null"
+                                              t-att-class="completeCls(row.complete_pct)">
+                                            <t t-esc="row.complete_pct"/>%
+                                        </span>
+                                        <span t-else="" class="text-muted small">—</span>
+                                    </td>
+
+                                    <!-- Lead time -->
+                                    <td class="text-center text-muted" style="padding:5px 8px;"
+                                        t-att-title="row.avg_lead_time !== null ? ('Lead time real promedio: ' + row.avg_lead_time + ' días entre aprobación OC y recepción') : 'Sin recepciones con fecha de aprobación disponible'">
+                                        <t t-if="row.avg_lead_time !== null">
+                                            <t t-esc="row.avg_lead_time"/> d
+                                        </t>
+                                        <t t-else="">—</t>
+                                    </td>
+
+                                    <!-- Variación precio -->
+                                    <td class="text-center" style="padding:5px 8px;"
+                                        t-att-title="row.avg_price_var_pct !== null ? ('Var. precio promedio vs costo estándar: ' + (row.avg_price_var_pct > 0 ? '+' : '') + row.avg_price_var_pct + '%') : 'Sin líneas con costo estándar configurado'">
+                                        <span t-if="row.avg_price_var_pct !== null"
+                                              t-att-class="priceVarCls(row.avg_price_var_pct)">
+                                            <t t-esc="fmtPct(row.avg_price_var_pct)"/>
+                                        </span>
+                                        <span t-else="" class="text-muted small">—</span>
+                                    </td>
+
+                                    <!-- Facturas pendientes (opcional) -->
+                                    <td t-if="state.data.has_invoices"
+                                        class="text-end" style="padding:5px 8px;"
+                                        t-att-title="row.pending_inv ? ('Facturas de proveedor pendientes de pago: ' + fmtMoney(row.pending_inv)) : 'Sin facturas pendientes'">
+                                        <span t-if="row.pending_inv"
+                                              class="text-danger fw-semibold">
+                                            <t t-esc="fmtMoney(row.pending_inv)"/>
+                                        </span>
+                                        <span t-else="" class="text-success small">—</span>
+                                    </td>
+
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                <div t-if="totalPages > 1"
+                     class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <small class="text-muted">
+                        Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                        · <t t-esc="sortedRows.length"/> proveedores
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
+                </div>
+
+            </t>
+
+        </div>
+    </t>
+
+</templates>

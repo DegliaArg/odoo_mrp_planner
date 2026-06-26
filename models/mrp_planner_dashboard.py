@@ -1802,7 +1802,7 @@ class MrpPlannerDashboard(models.TransientModel):
         } for mo in mos]
 
     @api.model
-    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None):
+    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None, sort_by='qty'):
         domain = [
             ('state', '=', 'done'),
             ('picking_id.picking_type_code', '=', 'outgoing'),
@@ -1844,24 +1844,29 @@ class MrpPlannerDashboard(models.TransientModel):
             if not tmpl_qty:
                 return []
 
-        sorted_ids = sorted(tmpl_qty, key=lambda k: tmpl_qty[k], reverse=True)[:int(top_n)]
-        templates  = self.env['product.template'].browse(sorted_ids)
+        # Build result with amount before sorting, so top N can be by either metric
+        all_ids    = list(tmpl_qty.keys())
+        templates  = self.env['product.template'].browse(all_ids)
         tmpl_by_id = {t.id: t for t in templates}
 
-        result = []
-        for tid in sorted_ids:
+        rows = []
+        for tid in all_ids:
             t = tmpl_by_id.get(tid)
             if not t:
                 continue
-            qty = round(tmpl_qty[tid], 2)
-            result.append({
+            qty    = round(tmpl_qty[tid], 2)
+            amount = round(qty * (t.list_price or 0.0), 2)
+            rows.append({
                 'tmpl_id':       tid,
                 'name':          t.name,
                 'code':          t.default_code or '',
                 'sale_category': t.x_sale_category or '',
                 'qty':           qty,
-                'amount':        round(qty * (t.list_price or 0.0), 2),
+                'amount':        amount,
             })
+
+        sort_key = 'amount' if sort_by == 'amount' else 'qty'
+        result = sorted(rows, key=lambda r: r[sort_key], reverse=True)[:int(top_n)]
         return result
 
     @api.model

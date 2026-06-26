@@ -75,7 +75,7 @@ class SalesChartWidget extends Component {
             const rows = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_sales_chart_data",
-                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null],
+                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null, this.state.metric],
             );
             this.state.rows = rows || [];
         } catch (e) {
@@ -98,8 +98,8 @@ class SalesChartWidget extends Component {
 
         if (this._chart) { this._chart.destroy(); this._chart = null; }
 
-        const rows   = this.state.rows;
         const isQty  = this.state.metric === "qty";
+        const rows   = [...this.state.rows].sort((a, b) => isQty ? b.qty - a.qty : b.amount - a.amount);
         const labels = rows.map(r => r.code || r.name);
         const data   = rows.map(r => isQty ? r.qty : r.amount);
         const colors = rows.map(r => CAT_COLORS[r.sale_category] ?? CAT_COLORS[""]);
@@ -150,7 +150,7 @@ class SalesChartWidget extends Component {
     }
 
     setPeriod(p)   { if (this.state.period !== p)          { this.state.period = p;          this._load(); } }
-    setMetric(m)   { if (this.state.metric !== m)          { this.state.metric = m;          if (this._chart) this._drawChart(); } }
+    setMetric(m)   { if (this.state.metric !== m)          { this.state.metric = m;          this._load(); } }
     setTopN(n)     { if (this.state.topN !== n)            { this.state.topN = n;            this._load(); } }
     setSaleCat(c)  { if (this.state.saleCategory !== c)    { this.state.saleCategory = c;    this._load(); } }
     setProductCat(ev) {

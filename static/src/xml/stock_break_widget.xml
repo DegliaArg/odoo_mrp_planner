@@ -135,13 +135,15 @@
                     <div class="border rounded" style="overflow:hidden;">
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
-                                <col style="width:46%"/>
-                                <col style="width:18%"/>
-                                <col style="width:18%"/>
-                                <col style="width:18%"/>
+                                <col style="width:32px"/>
+                                <col style="width:44%"/>
+                                <col style="width:17%"/>
+                                <col style="width:17%"/>
+                                <col style="width:17%"/>
                             </colgroup>
                             <thead class="table-light">
                                 <tr class="text-muted">
+                                    <th/>
                                     <th style="cursor:pointer" t-on-click="() => this.sortBy('name')">
                                         Producto <i t-att-class="sortIcon('name')"/>
                                     </th>
@@ -158,10 +160,18 @@
                             </thead>
                             <tbody>
                                 <t t-foreach="state.products" t-as="prod" t-key="prod.id">
+                                    <!-- Fila principal -->
                                     <tr t-att-class="prod.is_broken ? 'table-danger' : ''"
                                         style="cursor:pointer"
                                         t-att-data-product-id="prod.id"
                                         t-on-click="openProductFromRow">
+                                        <td class="text-center align-middle p-0" style="width:32px;">
+                                            <button class="btn btn-sm btn-link p-0 px-1 text-muted"
+                                                    t-att-title="state.expandedProducts[prod.id] ? 'Cerrar OFs' : 'Ver OFs activas'"
+                                                    t-on-click="(ev) => this.toggleAccordion(prod, ev)">
+                                                <i t-att-class="'fa fa-fw ' + (state.expandedProducts[prod.id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                            </button>
+                                        </td>
                                         <td class="fw-semibold text-truncate" t-esc="prod.name"/>
                                         <td class="text-end" t-esc="fmt(prod.qty)"/>
                                         <td class="text-end">
@@ -184,6 +194,66 @@
                                                   title="Sin punto de reorden con ruta Fabricación">
                                                 Sin mínimo
                                             </span>
+                                        </td>
+                                    </tr>
+                                    <!-- Acordeón: OFs activas -->
+                                    <tr t-if="state.expandedProducts[prod.id]">
+                                        <td colspan="5" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                            <div class="px-3 py-2">
+
+                                                <div t-if="state.mosLoading[prod.id]"
+                                                     class="text-center text-muted py-2 small">
+                                                    <i class="fa fa-spinner fa-spin me-1"/> Cargando OFs…
+                                                </div>
+
+                                                <div t-elif="!state.mosByProduct[prod.id] or !state.mosByProduct[prod.id].length"
+                                                     class="text-muted small py-1">
+                                                    <i class="fa fa-info-circle me-1"/>
+                                                    No hay órdenes de fabricación activas para este producto.
+                                                </div>
+
+                                                <table t-else=""
+                                                       class="table table-sm table-hover mb-0"
+                                                       style="font-size:11px; background:white;">
+                                                    <thead>
+                                                        <tr class="text-muted">
+                                                            <th style="padding:3px 8px;">Referencia</th>
+                                                            <th style="padding:3px 8px;">Estado</th>
+                                                            <th class="text-end" style="padding:3px 8px;">Planificado</th>
+                                                            <th class="text-end" style="padding:3px 8px;">Producido</th>
+                                                            <th style="padding:3px 8px;">Fin planificado</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <t t-foreach="state.mosByProduct[prod.id]" t-as="mo" t-key="mo.id">
+                                                            <tr style="cursor:pointer;"
+                                                                t-on-click="() => this.openMo(mo.id)"
+                                                                title="Abrir orden de fabricación">
+                                                                <td style="padding:3px 8px;" class="text-primary fw-semibold">
+                                                                    <i class="fa fa-external-link me-1" style="font-size:10px;"/>
+                                                                    <t t-esc="mo.name"/>
+                                                                </td>
+                                                                <td style="padding:3px 8px;">
+                                                                    <span t-att-class="moStateBadge(mo.state)"
+                                                                          style="font-size:10px; padding:2px 5px;">
+                                                                        <t t-esc="mo.state_label"/>
+                                                                    </span>
+                                                                </td>
+                                                                <td class="text-end" style="padding:3px 8px;">
+                                                                    <t t-esc="fmt(mo.product_qty)"/>
+                                                                    <span class="text-muted ms-1"><t t-esc="mo.uom"/></span>
+                                                                </td>
+                                                                <td class="text-end" style="padding:3px 8px;">
+                                                                    <t t-esc="fmt(mo.qty_produced)"/>
+                                                                </td>
+                                                                <td style="padding:3px 8px;" class="text-muted">
+                                                                    <t t-esc="mo.date_finished"/>
+                                                                </td>
+                                                            </tr>
+                                                        </t>
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </td>
                                     </tr>
                                 </t>

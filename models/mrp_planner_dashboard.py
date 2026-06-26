@@ -1779,6 +1779,29 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
+    def get_product_mos_for_stock_break(self, product_id):
+        """OFs activas de un producto para el acordeón del widget de quiebres de stock."""
+        mos = self.env['mrp.production'].search([
+            ('product_id', '=', product_id),
+            ('state', 'in', ['confirmed', 'progress', 'to_close']),
+        ], limit=50, order='date_finished asc')
+        state_labels = {
+            'confirmed': 'Confirmada',
+            'progress':  'En progreso',
+            'to_close':  'Por cerrar',
+        }
+        return [{
+            'id':            mo.id,
+            'name':          mo.name,
+            'state':         mo.state,
+            'state_label':   state_labels.get(mo.state, mo.state),
+            'product_qty':   round(mo.product_qty, 2),
+            'qty_produced':  round(mo.qty_produced, 2),
+            'uom':           mo.product_uom_id.name if mo.product_uom_id else '',
+            'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '—',
+        } for mo in mos]
+
+    @api.model
     def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None):
         domain = [
             ('state', '=', 'done'),

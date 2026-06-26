@@ -45,6 +45,9 @@ class StockBreakWidget extends Component {
             products:         [],
             locationName:     "",
             totalFiltered:    0,
+            expandedProducts: {},
+            mosByProduct:     {},
+            mosLoading:       {},
         });
         this._searchTimer = null;
         this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
@@ -193,6 +196,48 @@ class StockBreakWidget extends Component {
             views:     [[false, "form"]],
             target:    "current",
         });
+    }
+
+    async toggleAccordion(prod, ev) {
+        ev.stopPropagation();
+        const pid = prod.id;
+        const wasOpen = !!this.state.expandedProducts[pid];
+        this.state.expandedProducts = { ...this.state.expandedProducts, [pid]: !wasOpen };
+        if (!wasOpen && !this.state.mosByProduct[pid]) {
+            this.state.mosLoading = { ...this.state.mosLoading, [pid]: true };
+            try {
+                const mos = await this.orm.call(
+                    'mrp.planner.dashboard',
+                    'get_product_mos_for_stock_break',
+                    [pid],
+                );
+                this.state.mosByProduct = { ...this.state.mosByProduct, [pid]: mos };
+            } catch (e) {
+                console.error('[StockBreakWidget] accordion error', e);
+                this.state.mosByProduct = { ...this.state.mosByProduct, [pid]: [] };
+            } finally {
+                this.state.mosLoading = { ...this.state.mosLoading, [pid]: false };
+            }
+        }
+    }
+
+    openMo(moId) {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            res_model: 'mrp.production',
+            res_id:    moId,
+            views:     [[false, 'form']],
+            target:    'current',
+        });
+    }
+
+    moStateBadge(state) {
+        const map = {
+            confirmed: 'bg-info text-dark',
+            progress:  'bg-primary',
+            to_close:  'bg-warning text-dark',
+        };
+        return `badge ${map[state] || 'bg-secondary'}`;
     }
 
     async openConfig() {

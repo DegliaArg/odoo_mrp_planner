@@ -1779,14 +1779,18 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def get_sales_chart_data(self, date_from, date_to, top_n=20):
+    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None):
         domain = [
             ('state', '=', 'done'),
             ('picking_id.picking_type_code', '=', 'outgoing'),
             ('date', '>=', date_from + ' 00:00:00'),
             ('date', '<=', date_to + ' 23:59:59'),
             ('product_id', '!=', False),
+            ('product_id.sale_ok', '=', True),
         ]
+        if product_categ_id:
+            domain.append(('product_id.categ_id', '=', int(product_categ_id)))
+
         groups = self.env['stock.move.line'].read_group(
             domain,
             ['product_id', 'quantity:sum'],
@@ -1803,6 +1807,19 @@ class MrpPlannerDashboard(models.TransientModel):
 
         if not tmpl_qty:
             return []
+
+        # Filter by sale_category before sorting
+        if sale_category is not None and sale_category != '':
+            tmpls_all = self.env['product.template'].browse(list(tmpl_qty.keys()))
+            tmpl_by_id = {t.id: t for t in tmpls_all}
+            if sale_category == '__none__':
+                tmpl_qty = {tid: q for tid, q in tmpl_qty.items()
+                            if not (tmpl_by_id.get(tid) and tmpl_by_id[tid].x_sale_category)}
+            else:
+                tmpl_qty = {tid: q for tid, q in tmpl_qty.items()
+                            if tmpl_by_id.get(tid) and tmpl_by_id[tid].x_sale_category == sale_category}
+            if not tmpl_qty:
+                return []
 
         sorted_ids = sorted(tmpl_qty, key=lambda k: tmpl_qty[k], reverse=True)[:int(top_n)]
         templates  = self.env['product.template'].browse(sorted_ids)
@@ -1822,3 +1839,16 @@ class MrpPlannerDashboard(models.TransientModel):
                 'amount':        round(qty * (t.list_price or 0.0), 2),
             })
         return result
+
+    @api.model
+    def get_product_categories_for_chart(self):
+        """Categorías de producto que tienen al menos un artículo vendible con entregas."""
+        cats = self.env['product.category'].search([])
+        result = []
+        for c in cats:
+            if self.env['product.template'].search_count([
+                ('categ_id', '=', c.id),
+                ('sale_ok', '=', True),
+            ]):
+                result.append({'id': c.id, 'name': c.complete_name})
+        return sorted(result, key=lambda x: x['name'])

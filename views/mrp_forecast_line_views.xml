@@ -93,34 +93,39 @@
             <form string="Panel de Ventas" create="false" edit="false" delete="false">
                 <sheet>
                     <div class="o_planner_dashboard container-fluid p-4">
+
+                        <!-- Encabezado -->
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
                                 <h4 class="mb-0 fw-bold">Panel de Ventas</h4>
                             </div>
+                            <div class="col-auto">
+                                <button name="action_refresh" type="object"
+                                        string="Actualizar"
+                                        class="btn btn-outline-primary btn-sm"/>
+                            </div>
+                            <field name="can_see_forecast"  invisible="1"/>
+                            <field name="can_edit_forecast" invisible="1"/>
                         </div>
 
-                        <!-- Gráfico de productos más vendidos -->
-                        <div class="card o_planner_card mb-4">
-                            <div class="card-header d-flex align-items-center">
-                                <i class="fa fa-bar-chart me-2 text-primary"/>
-                                <span class="fw-semibold">Productos más vendidos</span>
+                        <!-- PRODUCTOS MÁS VENDIDOS -->
+                        <div class="o_planner_section mb-4">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-bar-chart me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Productos más vendidos</span>
                             </div>
-                            <div class="card-body">
-                                <widget name="sales_chart_widget"/>
-                            </div>
+                            <widget name="sales_chart_widget"/>
                         </div>
 
-                        <!-- Forecast -->
-                        <div class="card o_planner_card">
-                            <div class="card-header d-flex align-items-center">
-                                <i class="fa fa-table me-2 text-primary"/>
-                                <span class="fw-semibold">Forecast</span>
+                        <!-- FORECAST -->
+                        <div class="o_planner_section mb-4">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-table me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Forecast</span>
                             </div>
-                            <div class="card-body p-0">
-                                <field name="can_edit_forecast" invisible="1"/>
-                                <widget name="forecast_widget"/>
-                            </div>
+                            <widget name="forecast_widget"/>
                         </div>
+
                     </div>
                 </sheet>
             </form>

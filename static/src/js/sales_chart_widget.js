@@ -30,14 +30,23 @@ class SalesChartWidget extends Component {
         this._chart   = null;
 
         this.state = useState({
-            loading: true,
-            period:  "3m",
-            metric:  "qty",
-            topN:    20,
-            rows:    [],
+            loading:         true,
+            period:          "3m",
+            metric:          "qty",
+            topN:            20,
+            saleCategory:    "",
+            productCategId:  "",
+            productCategs:   [],
+            rows:            [],
         });
 
-        onMounted(() => this._load());
+        onMounted(async () => {
+            const cats = await this.orm.call(
+                "mrp.planner.dashboard", "get_product_categories_for_chart", []
+            );
+            this.state.productCategs = cats || [];
+            await this._load();
+        });
 
         onPatched(() => {
             if (!this.state.loading && this.state.rows.length && this.chartRef.el) {
@@ -60,12 +69,13 @@ class SalesChartWidget extends Component {
 
     async _load() {
         this.state.loading = true;
+        if (this._chart) { this._chart.destroy(); this._chart = null; }
         try {
             const [df, dt] = this._dateRange();
             const rows = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_sales_chart_data",
-                [df, dt, this.state.topN],
+                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null],
             );
             this.state.rows = rows || [];
         } catch (e) {
@@ -106,12 +116,10 @@ class SalesChartWidget extends Component {
                     label: isQty ? "Unidades vendidas" : "Importe",
                     data,
                     backgroundColor: colors,
-                    borderRadius: 4,
-                    borderSkipped: false,
+                    borderRadius: 3,
                 }],
             },
             options: {
-                indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -122,11 +130,12 @@ class SalesChartWidget extends Component {
                 },
                 scales: {
                     x: {
-                        beginAtZero: true,
-                        grid: { color: "rgba(0,0,0,0.06)" },
-                        ticks: { font: { size: 11 } },
+                        grid: { display: false },
+                        ticks: { font: { size: 11 }, maxRotation: 45 },
                     },
                     y: {
+                        beginAtZero: true,
+                        grid: { color: "rgba(0,0,0,0.06)" },
                         ticks: { font: { size: 11 } },
                     },
                 },
@@ -134,13 +143,13 @@ class SalesChartWidget extends Component {
         });
     }
 
-    setPeriod(p) { if (this.state.period !== p) { this.state.period = p; this._load(); } }
-    setMetric(m) { if (this.state.metric !== m) this.state.metric = m; }
-    setTopN(n)   { if (this.state.topN   !== n) { this.state.topN   = n; this._load(); } }
-
-    get chartHeightPx() {
-        const n = this.state.rows.length;
-        return Math.min(Math.max(n * 34 + 60, 200), 700);
+    setPeriod(p)   { if (this.state.period !== p)          { this.state.period = p;          this._load(); } }
+    setMetric(m)   { if (this.state.metric !== m)          { this.state.metric = m;          if (this._chart) this._drawChart(); } }
+    setTopN(n)     { if (this.state.topN !== n)            { this.state.topN = n;            this._load(); } }
+    setSaleCat(c)  { if (this.state.saleCategory !== c)    { this.state.saleCategory = c;    this._load(); } }
+    setProductCat(ev) {
+        const v = ev.target.value;
+        if (this.state.productCategId !== v) { this.state.productCategId = v; this._load(); }
     }
 }
 

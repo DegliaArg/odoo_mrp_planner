@@ -263,7 +263,7 @@ class MrpRescheduleAlert(models.Model):
             days = max(0, (now - mo.date_finished).days)
             severity = 'critical' if days >= crit_days else 'warning'
             msg = _('Fin planificado: %s') % mo.date_finished.strftime('%d/%m/%Y %H:%M')
-            write_vals = {'days_late': days, 'severity': severity, 'message': msg}
+            write_vals = {'severity': severity, 'message': msg}
             if mo.id in by_mo:
                 by_mo[mo.id].write(write_vals)
             else:
@@ -297,7 +297,7 @@ class MrpRescheduleAlert(models.Model):
         for mo in mos:
             days_until = max(0, (mo.date_finished - now).days)
             msg = _('Vence el: %s (en %d días)') % (mo.date_finished.strftime('%d/%m/%Y'), days_until)
-            write_vals = {'days_late': days_until, 'severity': 'warning', 'message': msg}
+            write_vals = {'severity': 'warning', 'message': msg}
             if mo.id in by_mo:
                 by_mo[mo.id].write(write_vals)
             else:
@@ -346,7 +346,6 @@ class MrpRescheduleAlert(models.Model):
                 impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0), cache=impact_cache)
 
             write_vals = {
-                'days_late': days,
                 'severity':  severity,
                 'message':   msg,
                 'impact_mo_ids': [(6, 0, impacted.ids)],
@@ -384,7 +383,7 @@ class MrpRescheduleAlert(models.Model):
         for po in pos:
             days_until = max(0, (po.date_planned - now).days)
             msg = _('Entrega prevista: %s (en %d días)') % (po.date_planned.strftime('%d/%m/%Y'), days_until)
-            write_vals = {'days_late': days_until, 'severity': 'warning', 'message': msg}
+            write_vals = {'severity': 'warning', 'message': msg}
             if po.id in by_po:
                 by_po[po.id].write(write_vals)
             else:
@@ -434,7 +433,6 @@ class MrpRescheduleAlert(models.Model):
                 impacted |= self._find_impact_mos(pid, qty_by_product.get(pid, 0), cache=impact_cache)
 
             write_vals = {
-                'days_late': days,
                 'severity':  severity,
                 'message':   msg,
                 'impact_mo_ids': [(6, 0, impacted.ids)],
@@ -505,7 +503,6 @@ class MrpRescheduleAlert(models.Model):
                 planned_qty, actual_qty, (actual_qty / planned_qty) * 100
             )
             write_vals = {
-                'days_late':    0,
                 'severity':     severity,
                 'message':      msg,
                 'expected_qty': planned_qty,

@@ -154,7 +154,7 @@ class MrpPlannerDashboard(models.TransientModel):
         for rec in self:
             rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
                 [('resolved', '=', False), ('severity', '=', 'critical')],
-                order='days_late desc, id desc',
+                order='id desc',
                 limit=8,
             )
 

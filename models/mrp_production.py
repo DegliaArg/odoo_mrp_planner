@@ -162,7 +162,7 @@ class MrpProduction(models.Model):
     def _flag_subsequent_mos(self, mo):
         """
         Busca MOs subsecuentes en los mismos WC y activa x_reschedule_needed.
-        Solo busca las más próximas (limit=20) para no afectar el rendimiento.
+        Solo busca las más próximas (limit=50) para no afectar el rendimiento.
         """
         if not mo.date_start:
             return

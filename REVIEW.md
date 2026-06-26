@@ -2,7 +2,7 @@
 
 ## Resumen ejecutivo
 
-Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades de seguridad críticas** (acceso ORM bypasseable al sistema de permisos y a la configuración global), **1 bug crítico de instalación** (ID de base de datos hardcodeado), **1 bug de lógica** en el mixin de scheduling y múltiples issues de performance y estructura. Se corrigieron directamente **27 problemas** en dos iteraciones (v1: 15 correcciones directas, v2: 8 decisiones de equipo implementadas). Todo resuelto.
+Revisión completa del módulo en 3 iteraciones. v1+v2: 27 problemas corregidos (seguridad, performance, lógica, UX). v3 (2026-06-26): verificación de fixes aplicados; se encontraron **4 regresiones** introducidas al convertir `days_late` a campo compute (cron crashea, orden inválido en búsqueda, modelo sin acceso ORM, comentario desactualizado). Todos resueltos. Estado actual: **31 issues corregidos, 0 pendientes**.
 
 ---
 
@@ -15,6 +15,9 @@ Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades d
 | 3 | `wizard/mrp_production_request.py` | 179 | `picking_type_id` default `browse(518)`: ID de base de datos específico de la instancia de desarrollo. En cualquier otra instalación apunta a otro registro o inexistente | **Corregido** — reemplazado por `search([('code', '=', 'mrp_operation'), ('company_id', ...)], limit=1)` |
 | 4 | `models/mrp_reschedule_config.py` | 113 | Sin protección contra creación de múltiples singletons: dos configs coexistentes producen comportamiento no determinista (el cron puede usar umbrales distintos a los que muestra la UI) | **Corregido** — `create()` lanza `UserError` si ya existe un registro |
 | 5 | `models/mrp_reschedule_alert.py` | 152 | `action_run_cron_manual()` sin guard de grupo: cualquier usuario con acceso al modelo podía ejecutar búsquedas masivas sobre toda la instancia repetidamente | **Corregido** — requiere `mrp.group_mrp_manager` |
+| 6 (v3) | `models/mrp_reschedule_alert.py` | 266, 300, 349, 387, 437, 508 | **Regresión**: al convertir `days_late` a campo `compute` (store=False) en v2, los 6 métodos del cron siguieron pasando `'days_late': valor` en `write_vals`. Odoo lanza `ValueError: Unallowed field 'days_late'` al ejecutar el cron — todo el sistema de alertas se rompe silenciosamente. | **Corregido** — eliminado `'days_late'` de los 6 `write_vals` de los chequeos del cron |
+| 7 (v3) | `security/ir.model.access.csv` | — | **Regresión**: el fix de seguridad #2 declaró que `mrp.reschedule.user.permission` fue dividido, pero el modelo nunca fue agregado al CSV. La línea original (CRUD para `group_user`) había sido eliminada sin agregar las dos nuevas. El modelo era completamente inaccesible. | **Corregido** — agregadas las dos líneas (read para `group_user`, CRUD para `group_admin`) |
+| 8 (v3) | `models/mrp_planner_dashboard.py` | 157 | **Regresión**: `_compute_inline_alerts` usaba `order='days_late desc, id desc'`. Los campos no almacenados no se pueden usar en ORDER BY SQL — Odoo lanza error al calcular el campo del dashboard. | **Corregido** — reemplazado por `order='id desc'` |
 
 ---
 
@@ -51,6 +54,7 @@ Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades d
 | 25 | `mrp_planner_detail_dashboard_views.xml` | Dos botones con `name="action_view_overdue_pos"`: la tarjeta "Críticas" debería llamar a una acción con filtro diferente al de "Vencidas" | **Corregido** — nueva acción `action_view_critical_pos` con filtro de días desde config |
 | 26 | `mrp_reschedule_plan_views.xml` | `domain` en `production_id` solo muestra `state='confirmed'`, excluyendo OFs `in_progress` candidatas válidas | **Corregido** — `[('state', 'in', ['confirmed', 'progress', 'to_close'])]` |
 | 27 | `mrp_production.py` | `_compute_reschedule_plan_count()` hace 2 búsquedas por OF (N+1 en lista), optimizable con 2 `read_group` | **Corregido** — 2 `search_read` batch (pivot_map + line_map), luego unión de sets por OF |
+| 28 (v3) | `models/mrp_production.py` | 164 | Docstring de `_flag_subsequent_mos` decía "limit=20" cuando el código usa `limit=50` (ambigüedad entre lo documentado y el comportamiento real) | **Corregido** — actualizado a "limit=50" |
 
 ---
 
@@ -73,6 +77,15 @@ Revisión completa del módulo en 7 fases. Se encontraron **2 vulnerabilidades d
 | `static/src/js/stock_break_widget.js` | Import `onWillUnmount`, cleanup de timer al desmontar |
 | `static/src/js/mo_dashboard_widget.js` | `openMo`/`openRequest`: eliminado domain redundante, view_mode→form only |
 | `static/src/js/po_dashboard_widget.js` | `openPo`/`openPicking`: ídem |
+
+### Cambios v3 (2026-06-26) — regresiones por conversión de `days_late` a compute
+
+| Archivo | Descripción del cambio |
+|---------|----------------------|
+| `models/mrp_reschedule_alert.py` | Eliminado `'days_late'` de los `write_vals` de los 6 métodos de chequeo del cron (`_check_delayed_mos`, `_check_upcoming_mos`, `_check_delayed_pos`, `_check_upcoming_pos`, `_check_delayed_receipts`, `_check_qty_mismatches`). Escribir un campo compute sin inverse lanza `ValueError` en Odoo. |
+| `models/mrp_planner_dashboard.py` | Eliminado `days_late` del `order=` en `_compute_inline_alerts`. Los campos no almacenados no se pueden usar en ORDER BY SQL. Reemplazado por `order='id desc'`. |
+| `security/ir.model.access.csv` | Agregadas las dos líneas faltantes para `mrp.reschedule.user.permission` (read para `group_user`, CRUD para `group_admin`). El modelo existía pero era inaccesible. |
+| `models/mrp_production.py` | Corregido comentario desactualizado en `_flag_subsequent_mos` que decía "limit=20" cuando el código usa `limit=50`. |
 
 ---
 

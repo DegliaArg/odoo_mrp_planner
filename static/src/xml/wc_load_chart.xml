@@ -31,11 +31,11 @@
             </div>
 
             <!-- Layout: KPIs izquierda + gráfico derecha -->
-            <div class="row g-3">
+            <div class="row g-3 align-items-stretch">
 
                 <!-- KPI cards -->
                 <div class="col-12 col-lg-4">
-                    <div class="row g-2">
+                    <div class="row g-2 h-100 align-content-start">
 
                         <div class="col-6">
                             <div class="card o_planner_card h-100">
@@ -104,8 +104,8 @@
                 </div>
 
                 <!-- Gráfico -->
-                <div class="col-12 col-lg-8">
-                    <div class="position-relative" style="height:320px;">
+                <div class="col-12 col-lg-8 d-flex">
+                    <div class="position-relative w-100" style="min-height:200px;">
                         <canvas t-ref="chartCanvas"/>
 
                         <div t-if="state.loading"

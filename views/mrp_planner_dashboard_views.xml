@@ -142,15 +142,6 @@
                             <widget name="mo_dashboard_widget"/>
                         </div>
 
-                        <!-- QUIEBRES DE STOCK -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_stock_breaks">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-exclamation-triangle me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Quiebres de stock</span>
-                            </div>
-                            <widget name="stock_break_widget"/>
-                        </div>
-
                         <!-- CARGA DE CENTROS DE TRABAJO -->
                         <div class="o_planner_section mb-4" invisible="not can_see_mo">
                             <div class="o_planner_section_title mb-3">
@@ -158,6 +149,15 @@
                                 <span class="text-uppercase fw-bold text-muted small">Carga de centros de trabajo</span>
                             </div>
                             <widget name="wc_load_chart"/>
+                        </div>
+
+                        <!-- QUIEBRES DE STOCK -->
+                        <div class="o_planner_section mb-4" invisible="not can_see_stock_breaks">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-exclamation-triangle me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Quiebres de stock</span>
+                            </div>
+                            <widget name="stock_break_widget"/>
                         </div>
 
                     </div>

@@ -37,12 +37,19 @@
     border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* Número grande */
+/* Número grande — tamaño automático según ancho del card */
+.o_planner_card .card-body {
+    container-type: inline-size;
+}
+
 .o_planner_number {
-    font-size: 2rem;
+    font-size: clamp(0.85rem, 12cqi, 2rem);
     font-weight: 700;
     line-height: 1;
     margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .o_planner_number .o_field_widget,

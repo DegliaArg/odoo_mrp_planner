@@ -4,15 +4,13 @@ import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function firstOfYear() {
+    return `${new Date().getFullYear()}-01`;
+}
 
 function todayYM() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function firstOfYear() {
-    return `${new Date().getFullYear()}-01`;
 }
 
 class SupplierAnalysisWidget extends Component {
@@ -24,16 +22,18 @@ class SupplierAnalysisWidget extends Component {
         this.action = useService("action");
 
         this.state = useState({
-            loading:    true,
-            periodFrom: firstOfYear(),
-            periodTo:   todayYM(),
-            search:     '',
-            searchInput: '',
-            sortCol:    'total_amount',
-            sortDir:    'desc',
-            page:       1,
-            pageSize:   20,
-            data:       null,
+            loading:            true,
+            periodFrom:         firstOfYear(),
+            periodTo:           todayYM(),
+            search:             '',
+            sortCol:            'total_amount',
+            sortDir:            'desc',
+            page:               1,
+            pageSize:           20,
+            data:               null,
+            expandedSuppliers:  {},
+            posLoading:         {},
+            posBySupplier:      {},
         });
 
         onMounted(() => this._load());
@@ -41,11 +41,13 @@ class SupplierAnalysisWidget extends Component {
 
     async _load() {
         this.state.loading = true;
+        this.state.expandedSuppliers = {};
+        this.state.posBySupplier     = {};
         try {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_supplier_analysis_data",
-                [this.state.periodFrom, this.state.periodTo, this.state.search],
+                [this.state.periodFrom, this.state.periodTo, ''],
             );
             this.state.data = d;
             this.state.page = 1;
@@ -54,6 +56,15 @@ class SupplierAnalysisWidget extends Component {
         } finally {
             this.state.loading = false;
         }
+    }
+
+    // ── Filtros de período ─────────────────────────────────────────────────────
+
+    get periodFromDate() { return `${this.state.periodFrom}-01`; }
+    get periodToDate() {
+        const [y, m] = this.state.periodTo.split('-').map(Number);
+        const last = new Date(y, m, 0).getDate();
+        return `${this.state.periodTo}-${String(last).padStart(2, '0')}`;
     }
 
     onPeriodFromChange(ev) {
@@ -74,17 +85,11 @@ class SupplierAnalysisWidget extends Component {
         this._load();
     }
 
+    // ── Búsqueda reactiva (client-side) ───────────────────────────────────────
+
     onSearchInput(ev) {
-        this.state.searchInput = ev.target.value;
-    }
-
-    onSearchKeydown(ev) {
-        if (ev.key === 'Enter') this._applySearch();
-    }
-
-    _applySearch() {
-        this.state.search = this.state.searchInput;
-        this._load();
+        this.state.search = ev.target.value;
+        this.state.page   = 1;
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────
@@ -94,7 +99,7 @@ class SupplierAnalysisWidget extends Component {
             this.state.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
         } else {
             this.state.sortCol = col;
-            this.state.sortDir = col === 'total_amount' ? 'desc' : 'asc';
+            this.state.sortDir = col === 'partner_name' ? 'asc' : 'desc';
         }
         this.state.page = 1;
     }
@@ -108,9 +113,14 @@ class SupplierAnalysisWidget extends Component {
 
     get sortedRows() {
         if (!this.state.data) return [];
-        const rows = [...this.state.data.rows];
-        const col  = this.state.sortCol;
-        const dir  = this.state.sortDir === 'asc' ? 1 : -1;
+        let rows = [...this.state.data.rows];
+        // Filtro client-side
+        if (this.state.search) {
+            const q = this.state.search.toLowerCase();
+            rows = rows.filter(r => r.partner_name.toLowerCase().includes(q));
+        }
+        const col = this.state.sortCol;
+        const dir = this.state.sortDir === 'asc' ? 1 : -1;
         rows.sort((a, b) => {
             let va = a[col], vb = b[col];
             if (typeof va === 'string') return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
@@ -134,19 +144,50 @@ class SupplierAnalysisWidget extends Component {
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
+    get tableColspan() {
+        return 9 + (this.state.data && this.state.data.has_invoices ? 1 : 0);
+    }
+
+    // ── Acordeón de OCs ───────────────────────────────────────────────────────
+
+    async toggleAccordion(row) {
+        const pid = row.partner_id;
+        const wasOpen = !!this.state.expandedSuppliers[pid];
+        this.state.expandedSuppliers = { ...this.state.expandedSuppliers, [pid]: !wasOpen };
+        if (!wasOpen && !this.state.posBySupplier[pid]) {
+            this.state.posLoading = { ...this.state.posLoading, [pid]: true };
+            try {
+                const pos = await this.orm.call(
+                    'mrp.planner.dashboard',
+                    'get_supplier_pos_for_analysis',
+                    [pid, this.state.periodFrom, this.state.periodTo],
+                );
+                this.state.posBySupplier = { ...this.state.posBySupplier, [pid]: pos };
+            } catch(e) {
+                console.error('[SupplierAnalysis] accordion error', e);
+                this.state.posBySupplier = { ...this.state.posBySupplier, [pid]: [] };
+            } finally {
+                this.state.posLoading = { ...this.state.posLoading, [pid]: false };
+            }
+        }
+    }
+
+    receiptBadge(status) {
+        const map = {
+            full:    'badge bg-success',
+            partial: 'badge bg-warning text-dark',
+            pending: 'badge bg-secondary',
+            none:    'badge bg-light text-muted border',
+        };
+        return map[status] || 'badge bg-light';
+    }
+
+    receiptLabel(status) {
+        const map = { full: 'Completa', partial: 'Parcial', pending: 'Pendiente', none: 'Sin recepción' };
+        return map[status] || status;
+    }
+
     // ── Formateo / clases ─────────────────────────────────────────────────────
-
-    get periodFromDate() { return `${this.state.periodFrom}-01`; }
-    get periodToDate() {
-        const [y, m] = this.state.periodTo.split('-').map(Number);
-        const last = new Date(y, m, 0).getDate();
-        return `${this.state.periodTo}-${String(last).padStart(2, '0')}`;
-    }
-
-    fmt(n) {
-        if (n === null || n === undefined) return '—';
-        return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n);
-    }
 
     fmtMoney(n) {
         if (n === null || n === undefined) return '—';
@@ -189,7 +230,8 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Navegación ────────────────────────────────────────────────────────────
 
-    openSupplier(row) {
+    openSupplier(ev, row) {
+        ev.stopPropagation();
         this.action.doAction({
             type:      'ir.actions.act_window',
             res_model: 'res.partner',
@@ -199,7 +241,19 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
-    openPOs(row) {
+    openPO(ev, po) {
+        ev.stopPropagation();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            res_model: 'purchase.order',
+            res_id:    po.po_id,
+            views:     [[false, 'form']],
+            target:    'current',
+        });
+    }
+
+    openPOs(ev, row) {
+        ev.stopPropagation();
         this.action.doAction({
             type:      'ir.actions.act_window',
             res_model: 'purchase.order',

@@ -543,20 +543,18 @@ class ForecastWidget extends Component {
     }
 
     accTooltip(row) {
-        if (row.total_forecast_acc === null || row.total_forecast_acc === undefined)
-            return 'Sin datos suficientes para calcular precisión';
-        const formula = this.state.data && this.state.data.acc_formula;
-        const del = this.fmt(row.total_delivered), fc = this.fmt(row.total_forecast);
-        const val = this.fmtPct(row.total_forecast_acc);
-        if (formula === 'mape')
-            return `MAPE = promedio de precisiones por período (100 − |error/real|×100) = ${val}`;
-        if (formula === 'wape')
-            return `WAPE = 100 − (Σ|error| ÷ ${del} entregado × 100) = ${val} (ponderado por volumen real)`;
-        if (formula === 'wmape')
-            return `WMAPE = 100 − (|${del} − ${fc}| ÷ ${fc} × 100) = ${val} (precisión por error absoluto, 0-100%)`;
-        if (formula === 'bias')
-            return `Sesgo = (${del} − ${fc}) ÷ ${fc} × 100 = ${val} (+ sobreentrega · − déficit)`;
-        return `Precisión simple = ${del} entregado ÷ ${fc} forecast × 100 = ${val}`;
+        const a = row.acc_all;
+        if (!a) return 'Sin datos suficientes para calcular precisión';
+        const configured = (this.state.data && this.state.data.acc_formula) || 'simple';
+        const fv = v => v !== null && v !== undefined ? `${v}%` : '—';
+        const mark = key => key === configured ? ' ◀' : '';
+        return [
+            `Simple:  ${fv(a.simple)}${mark('simple')}`,
+            `MAPE:    ${fv(a.mape)}${mark('mape')}`,
+            `WAPE:    ${fv(a.wape)}${mark('wape')}`,
+            `WMAPE:   ${fv(a.wmape)}${mark('wmape')}`,
+            `Sesgo:   ${fv(a.bias)}${mark('bias')}`,
+        ].join('\n');
     }
 
     fmt(n) {

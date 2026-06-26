@@ -1421,20 +1421,18 @@ class MrpPlannerDashboard(models.TransientModel):
                 svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
 
                 abs_err = abs(del_qty - fc_qty)
+                # Acumular siempre todas las métricas (para tooltip multi-fórmula)
+                if del_qty > 0:
+                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / del_qty * 100)
+                    _mape_acc_count += 1
+                    _wape_abs_err   += abs_err
+                if fc_qty > 0:
+                    _wmape_abs_err  += abs_err
+                # Valor de celda solo para la fórmula configurada
                 if acc_formula in ('mape', 'wape'):
-                    if del_qty > 0:
-                        fc_acc = round(max(0.0, 100.0 - abs_err / del_qty * 100), 1)
-                        _mape_acc_sum   += fc_acc
-                        _mape_acc_count += 1
-                        _wape_abs_err   += abs_err
-                    else:
-                        fc_acc = None
+                    fc_acc = round(max(0.0, 100.0 - abs_err / del_qty * 100), 1) if del_qty > 0 else None
                 elif acc_formula == 'wmape':
-                    if fc_qty > 0:
-                        fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1)
-                        _wmape_abs_err += abs_err
-                    else:
-                        fc_acc = None
+                    fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1) if fc_qty > 0 else None
                 elif acc_formula == 'bias':
                     fc_acc = round((del_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
                 else:  # simple
@@ -1491,6 +1489,13 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_so_demand':    round(tot_so,  2),
                 'total_service_rate': tot_svc,
                 'total_forecast_acc': tot_acc,
+                'acc_all': {
+                    'simple': round(tot_del / tot_fc * 100, 1) if tot_fc > 0 else None,
+                    'mape':   round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None,
+                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_del * 100), 1) if tot_del > 0 else None,
+                    'wmape':  round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None,
+                    'bias':   round((tot_del - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
+                },
                 'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
                 'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
                 'product_types':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_types', ''),
@@ -2162,3 +2167,52 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
         return {'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices}
+
+    @api.model
+    def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to):
+        """OCs de un proveedor para el acordeón del widget de análisis de proveedores."""
+        import calendar as _cal
+        from datetime import date as _date
+        try:
+            d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
+            d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
+            d_to = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
+        except Exception:
+            return []
+
+        dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
+        dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
+
+        pos = self.env['purchase.order'].search([
+            ('partner_id', '=', partner_id),
+            ('state', 'in', ['purchase', 'done']),
+            ('date_approve', '>=', dt_from),
+            ('date_approve', '<=', dt_to),
+            ('company_id', '=', self.env.company.id),
+        ], order='date_approve desc')
+
+        rows = []
+        for po in pos:
+            pickings = po.picking_ids.filtered(
+                lambda p: p.state != 'cancel' and p.picking_type_code == 'incoming'
+            )
+            done_picks = pickings.filtered(lambda p: p.state == 'done')
+            if not pickings:
+                receipt_status = 'none'
+            elif len(done_picks) == len(pickings):
+                receipt_status = 'full'
+            elif done_picks:
+                receipt_status = 'partial'
+            else:
+                receipt_status = 'pending'
+
+            rows.append({
+                'po_id':          po.id,
+                'name':           po.name,
+                'date_approve':   po.date_approve.strftime('%d/%m/%Y') if po.date_approve else '',
+                'date_planned':   po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '',
+                'amount_total':   round(po.amount_total, 2),
+                'product_count':  len(po.order_line.mapped('product_id')),
+                'receipt_status': receipt_status,
+            })
+        return rows

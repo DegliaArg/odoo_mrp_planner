@@ -1,9 +1,9 @@
 # Planificador de producción
 
-**Odoo 18 Enterprise · Fabricación**  
+**Odoo 18 Enterprise · Fabricación · v18.0.42.0.0**  
 Desarrollado por [Deglia](https://deglia.xyz)
 
-Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
+Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
 
 ---
 
@@ -18,6 +18,9 @@ Panel de control centralizado para la gestión operativa de producción: program
   - [Carga de centros de trabajo](#carga-de-centros-de-trabajo)
   - [Órdenes de compra](#órdenes-de-compra)
   - [Quiebres de stock](#quiebres-de-stock)
+  - [Forecast](#forecast)
+  - [Análisis de proveedores](#análisis-de-proveedores)
+  - [Gráfico de ventas](#gráfico-de-ventas)
 - [Programación desde demanda](#programación-desde-demanda)
 - [Reprogramación en cascada](#reprogramación-en-cascada)
 - [Sistema de alertas](#sistema-de-alertas)
@@ -35,18 +38,21 @@ Panel de control centralizado para la gestión operativa de producción: program
 | **Alertas proactivas** | Detección automática de retrasos y vencimientos con severidad configurable |
 | **Programación desde demanda** | Expansión de BOM, evaluación de stock y generación de OFs con un clic |
 | **Reprogramación en cascada** | Recálculo de fechas respetando calendarios laborales y centros de trabajo |
+| **Forecast** | Comparativo mensual entre plan de ventas, producción, entregas y stock con semáforo de cobertura |
+| **Análisis de proveedores** | Scorecard de cumplimiento: % a tiempo, retraso promedio, lead time real y variación de precio |
+| **Categorización de ventas** | Clasificación A–E de artículos por rotación, demanda o participación acumulada (Pareto) |
 | **Permisos granulares** | Control por usuario de qué secciones ve y qué acciones puede ejecutar |
 
 ---
 
 ## Instalación
 
-1. Copiar la carpeta `odoo_mrp_reschedule/` al directorio de addons del proyecto.
+1. Copiar la carpeta `odoo_mrp_planner/` al directorio de addons del proyecto.
 2. En Odoo: **Ajustes → Activar modo desarrollador**.
 3. **Aplicaciones → Actualizar lista de aplicaciones**.
 4. Buscar **Planificador de producción** e instalar.
 
-**Requisitos:** Odoo 18 Enterprise con los módulos `mrp`, `mrp_workorder`, `purchase` y `stock` instalados.
+**Requisitos:** Odoo 18 Enterprise con los módulos `mrp`, `mrp_workorder`, `purchase`, `stock`, `mail` y `sale` instalados.
 
 ---
 
@@ -61,6 +67,9 @@ Acceder desde **Planificador → Configuración**.
 | Fallback de centro de trabajo | Qué hacer cuando una OF no tiene WC compatible: usar operaciones de la LdM o dejarla sin asignar |
 | Criterio de prioridad | Orden de reprogramación: cronológico, más cortas primero (SPT) o manual |
 | Frecuencia del cron | Cada cuántos minutos/horas se detectan alertas automáticamente |
+| Heurística por centro de trabajo | Si está activo, incluye en la reprogramación OFs que comparten WC con el pivot (puede generar reprogramaciones masivas) |
+| Pestaña de servicios en OCs | Separa OCs de tipo servicio en una pestaña propia dentro del widget |
+| Ubicación de stock (quiebres) | Almacén interno desde el cual se lee el stock actual para el análisis de quiebres |
 
 ### Pestaña Alertas
 
@@ -75,16 +84,45 @@ Configura umbrales independientes para cada tipo de documento:
 | Días críticos recepción | Días de retraso para que una recepción pase de aviso a crítica |
 | Tolerancia de cantidad | Diferencia porcentual máxima entre cantidad planificada y producida antes de alertar |
 
-### Pestaña Panel
+### Pestaña Forecast
 
 | Campo | Descripción |
 |---|---|
-| Pestaña de servicios en OCs | Separa OCs de tipo servicio en una pestaña propia dentro del widget |
-| Ubicación de stock (quiebres) | Almacén interno desde el cual se lee el stock actual para el análisis de quiebres |
+| Meses por defecto | Horizonte de meses que muestra el widget al abrirse |
+| Cobertura mínima (aviso %) | Por debajo de este % la celda de cobertura se muestra en amarillo |
+| Cobertura mínima (crítico %) | Por debajo de este % la celda de cobertura se muestra en rojo |
+| Estados de OF incluidos | Qué estados de OFs se suman como producción planificada (borrador, confirmada, en progreso, etc.) |
+| Unidad de rotación | Si el indicador de rotación de inventario se expresa en días o en meses |
+| Fórmula de precisión | Método para calcular el % de precisión del forecast: Simple, MAPE, WAPE, WMAPE o Sesgo |
+| Actualización automática | Si está activo, recalcula las categorías de venta automáticamente según el cron configurado |
+
+### Pestaña Categoría de venta
+
+Define cómo se clasifican los artículos en categorías A–E:
+
+| Modo | Criterio |
+|---|---|
+| Manual | El usuario asigna la categoría desde la ficha del artículo |
+| Automático por rotación | Días de stock ÷ promedio de ventas. Umbrales A/B/C/D configurables en días |
+| Automático por demanda | Unidades vendidas promedio por mes. Umbrales A/B/C/D configurables en qty |
+| Automático por participación | Ordena artículos por métrica (unidades o importe) y clasifica por % acumulado del total (Pareto A/B/C/D/E) |
 
 ### Pestaña Permisos por usuario
 
 Define qué secciones puede ver cada usuario y qué acciones puede ejecutar. Ver [Permisos por usuario](#permisos-por-usuario).
+
+### Pestaña Análisis de proveedores
+
+| Campo | Descripción |
+|---|---|
+| % A tiempo — verde | Umbral mínimo de recepciones a tiempo para mostrar el indicador en verde |
+| % A tiempo — amarillo | Umbral mínimo para mostrar el indicador en amarillo (por debajo → rojo) |
+| Retraso — verde | Retraso promedio máximo (días) para semáforo verde |
+| Retraso — amarillo | Retraso promedio máximo para semáforo amarillo |
+| % Completas — verde | Umbral de recepciones completas (sin backorder) para semáforo verde |
+| % Completas — amarillo | Umbral para semáforo amarillo |
+| Var. precio — verde | Variación de precio máxima (%) para semáforo verde |
+| Var. precio — amarillo | Variación de precio máxima para semáforo amarillo |
 
 ---
 
@@ -171,6 +209,60 @@ Tabla de productos con stock actual por debajo del mínimo configurado:
 | Stock actual | Unidades disponibles en la ubicación seleccionada |
 | Mínimo | Punto de reorden configurado (ruta Fabricación) |
 | Diferencia | Stock actual − mínimo (negativo = quiebre) |
+
+### Forecast
+
+Tabla mensual que compara plan de ventas, producción programada, entregas reales y stock disponible por producto.
+
+- **Filtros**: período desde/hasta, depósito, búsqueda por producto
+- **Columnas configurables**: forecast, OFs planificadas, entregado, stock, rotación, cobertura, precisión
+- **Agrupación**: por categoría de venta (A–E), por categoría de producto o sin agrupar
+- **Semáforo de cobertura**: verde / amarillo / rojo según los umbrales configurados
+- **Exportación**: descarga la tabla actual a Excel
+- **Edición de forecast**: los valores de forecast son editables directamente en la celda (requiere permiso)
+
+| Columna | Descripción |
+|---|---|
+| Forecast | Cantidad planificada de ventas para el mes |
+| OFs planificadas | Producción programada en OFs confirmadas/en progreso |
+| Entregado | Cantidad real despachada en movimientos de salida |
+| Stock | Stock disponible al cierre del período |
+| Rotación | Stock ÷ ventas promedio (en días o meses según config) |
+| Cobertura % | Entregado ÷ Forecast × 100 (o fórmula avanzada configurada) |
+| Precisión % | Exactitud del forecast respecto a lo entregado |
+
+### Análisis de proveedores
+
+Scorecard de rendimiento de proveedores con columnas redimensionables y reordenables.
+
+- **Filtros**: período desde/hasta, búsqueda por nombre de proveedor
+- **Ordenamiento**: por cualquier columna, ascendente/descendente
+- **Drill-down**: expandir un proveedor muestra sus OCs del período con estado de recepción
+
+| Columna | Descripción |
+|---|---|
+| Proveedor | Nombre del proveedor |
+| OCs | Cantidad de OCs confirmadas en el período |
+| Artículos | Productos distintos comprados |
+| Monto | Suma del importe total de OCs confirmadas |
+| % A tiempo | Porcentaje de recepciones completadas en la fecha acordada |
+| Retraso (d) | Promedio de días de retraso en recepciones tardías |
+| % Completas | Porcentaje de recepciones completadas sin backorder |
+| Lead time (d) | Lead time real promedio: días entre aprobación y recepción |
+| Var. precio | Variación promedio de precio OC vs. costo estándar del producto |
+| Fact. pend. | Total de facturas de proveedor pendientes de pago |
+
+Los indicadores de cumplimiento muestran semáforo verde / amarillo / rojo según los umbrales configurados en la pestaña Análisis de proveedores de Configuración.
+
+### Gráfico de ventas
+
+Gráfico de barras de ventas por producto con clasificación por categoría (A–E).
+
+- **Período**: últimos 30 días, 3 meses, 6 meses, 12 meses o año en curso
+- **Métrica**: unidades o importe
+- **Top N**: muestra los N productos más vendidos (configurable)
+- **Filtros**: por categoría de venta (A–E) y por categoría de producto
+- Las barras se colorean según la categoría de venta: A (verde), B (azul), C (amarillo), D (gris), E (gris claro)
 
 ---
 
@@ -260,11 +352,12 @@ En **Planificador → Configuración → Permisos por usuario** se define, para 
 |---|---|
 | Alertas | Ver la sección de alertas en el panel |
 | OFs | Ver el widget de órdenes de fabricación |
-| CTs | Ver el gráfico de carga de centros de trabajo |
 | OCs | Ver el widget de órdenes de compra |
 | Quiebres | Ver el widget de quiebres de stock |
+| Forecast | Ver el widget de forecast |
 | Programar | Crear nuevas solicitudes de programación |
 | Reprogramar | Crear planes de reprogramación |
+| Editar forecast | Modificar los valores de forecast directamente en la tabla |
 | Depósitos | Filtrar todos los datos a los depósitos asignados |
 
 Los usuarios sin registro en esta tabla tienen **acceso completo** a todas las secciones por defecto.
@@ -280,6 +373,7 @@ Los usuarios sin registro en esta tabla tienen **acceso completo** a todas las s
 | `purchase` | Órdenes de compra, recepciones, subcontratación |
 | `stock` | Ubicaciones, pickings, stock disponible |
 | `mail` | Chatter y notificaciones en planes y alertas |
+| `sale` | Pedidos de venta, análisis de forecast y categorización de artículos |
 
 ---
 

@@ -267,7 +267,7 @@
 
                     <!-- Tabs de agrupación -->
                     <t t-if="state.groupBy and allGroupsForTabs">
-                        <ul class="nav nav-tabs mb-0" style="border-bottom:none; flex-wrap:nowrap; overflow-x:auto;">
+                        <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
                             <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
                                 <li class="nav-item">
                                     <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
@@ -293,12 +293,12 @@
                     <div class="border rounded" style="overflow:auto; max-height:65vh;">
                         <table class="table table-sm table-bordered mb-0"
                                style="min-width:600px; font-size:12px;">
-                            <thead>
+                            <thead style="position:sticky; top:0; z-index:3;">
 
                                 <!-- Fila 1 -->
                                 <tr>
                                     <th rowspan="2" class="align-middle"
-                                        style="min-width:170px; padding:4px 8px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:170px; padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Ordenar por nombre de artículo"
                                         t-on-click="() => this.setSort('product')">
                                         Artículo <i t-att-class="sortIcon('product')"/>
@@ -306,7 +306,7 @@
 
                                     <th t-if="state.visibleCols.saleCategory" rowspan="2"
                                         class="text-center align-middle"
-                                        style="min-width:45px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:45px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Categoría de venta (A=alta rotación, E=baja). Clic para ordenar."
                                         t-on-click="() => this.setSort('sale_category')">
                                         Cat. <i t-att-class="sortIcon('sale_category')"/>
@@ -314,7 +314,7 @@
 
                                     <th t-if="state.visibleCols.productCateg" rowspan="2"
                                         class="text-start align-middle"
-                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Familia de producto (product.template.categ_id). Clic para ordenar."
                                         t-on-click="() => this.setSort('product_categ')">
                                         Familia <i t-att-class="sortIcon('product_categ')"/>
@@ -322,7 +322,7 @@
 
                                     <th t-if="state.visibleCols.productTypes" rowspan="2"
                                         class="text-start align-middle"
-                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar."
                                         t-on-click="() => this.setSort('product_types')">
                                         Tipo <i t-att-class="sortIcon('product_types')"/>
@@ -330,7 +330,7 @@
 
                                     <th t-if="state.visibleCols.stock" rowspan="2"
                                         class="text-end align-middle"
-                                        style="min-width:70px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:70px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Stock disponible en ubicaciones internas. Clic para ordenar."
                                         t-on-click="() => this.setSort('stock_qty')">
                                         Stock <i t-att-class="sortIcon('stock_qty')"/>
@@ -338,7 +338,7 @@
 
                                     <th t-if="state.visibleCols.rotation" rowspan="2"
                                         class="text-end align-middle"
-                                        style="min-width:65px; padding:4px 6px; background:#f8f9fa; position:sticky; top:0; z-index:3; cursor:pointer; user-select:none;"
+                                        style="min-width:65px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                         title="Rotación = Stock ÷ (Entregado ÷ N meses). Clic para ordenar."
                                         t-on-click="() => this.setSort('rotation_days')">
                                         Rot. <i t-att-class="sortIcon('rotation_days')"/>
@@ -347,7 +347,7 @@
                                     <t t-foreach="state.data.months" t-as="m" t-key="m">
                                         <th t-att-colspan="monthColspan"
                                             class="text-center text-nowrap"
-                                            style="padding:4px 8px; background:#f8f9fa; position:sticky; top:0; z-index:3;">
+                                            style="padding:4px 8px; background:#f8f9fa;">
                                             <t t-esc="monthLabels[m_index]"/>
                                         </th>
                                     </t>
@@ -355,27 +355,27 @@
                                     <th t-if="showTotal"
                                         t-att-colspan="totalColspan"
                                         class="text-center fw-bold"
-                                        style="padding:4px 8px; background:#f8f9fa; position:sticky; top:0; z-index:3;">Total</th>
+                                        style="padding:4px 8px; background:#f8f9fa;">Total</th>
                                 </tr>
 
-                                <!-- Fila 2 — top:30px = altura aproximada de la fila 1 -->
+                                <!-- Fila 2 -->
                                 <tr>
                                     <t t-foreach="state.data.months" t-as="m" t-key="'h_' + m">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted"
-                                            style="min-width:65px; padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3;"
+                                            style="min-width:65px; padding:3px 5px; background:#f8f9fa;"
                                             title="Cantidad planificada en el forecast.">
                                             Forecast
                                         </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted"
-                                            style="min-width:75px; padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3;"
+                                            style="min-width:75px; padding:3px 5px; background:#f8f9fa;"
                                             title="OFs con fecha de fin en el mes. % = cobertura.">
                                             OFs
                                         </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted"
-                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3;"
+                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
                                             title="Unidades entregadas. % = tasa de servicio.">
                                             Entregado
                                         </th>
@@ -383,28 +383,28 @@
                                     <t t-if="showTotal">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                             title="Total forecast del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_forecast')">
                                             Forecast <i t-att-class="sortIcon('total_forecast')"/>
                                         </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                             title="Total OFs del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_mos')">
                                             OFs <i t-att-class="sortIcon('total_mos')"/>
                                         </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                             title="Total entregado del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_delivered')">
                                             Entregado <i t-att-class="sortIcon('total_delivered')"/>
                                         </th>
                                         <th t-if="showForecastAcc"
                                             class="text-end text-muted fw-bold"
-                                            style="min-width:60px; padding:3px 5px; background:#f8f9fa; position:sticky; top:30px; z-index:3; cursor:pointer; user-select:none;"
+                                            style="min-width:60px; padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
                                             t-att-title="state.data.acc_formula === 'mape' ? 'MAPE: promedio de (100 − |error/real|×100) por período. Sensible a períodos de bajo volumen. Clic para ordenar.' : state.data.acc_formula === 'wape' ? 'WAPE: 100 − (Σ|error| ÷ Σentregado × 100). Ponderado por volumen real. Rango 0-100%. Clic para ordenar.' : state.data.acc_formula === 'wmape' ? 'WMAPE: 100 − (Σ|Entregado−Forecast| ÷ ΣForecast × 100). Rango 0-100%. Clic para ordenar.' : state.data.acc_formula === 'bias' ? 'Sesgo: (Entregado−Forecast) ÷ Forecast × 100. Verde ±10% | Amarillo ±20% | Rojo >±20%. Clic para ordenar.' : 'Precisión simple: Entregado ÷ Forecast × 100. Puede superar 100%. Verde ≥90% | Amarillo ≥70% | Rojo menos de 70%. Clic para ordenar.'"
                                             t-on-click="() => this.setSort('total_forecast_acc')">
                                             <t t-esc="state.data.acc_formula === 'mape' ? 'MAPE%' : state.data.acc_formula === 'wape' ? 'WAPE%' : state.data.acc_formula === 'wmape' ? 'WMAPE%' : state.data.acc_formula === 'bias' ? 'Sesgo%' : 'Prec.%'"/>

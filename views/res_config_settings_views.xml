@@ -23,179 +23,191 @@
 
                         <!-- ══ COMPRAS ══════════════════════════════════════════ -->
                         <page string="Compras" name="purchases">
+                            <group col="4">
+                                <!-- Columna izquierda: alertas -->
+                                <group colspan="2">
+                                    <group string="Alertas — Órdenes de compra">
+                                        <field name="alert_po_critical_days"
+                                               help="Días de retraso a partir de los cuales una OC vencida pasa de alerta amarilla a roja."/>
+                                        <field name="alert_po_warning_days"
+                                               help="Días antes del vencimiento en que se genera una alerta 'por vencer' para las OCs."/>
+                                    </group>
+                                    <group string="Alertas — Recepciones">
+                                        <field name="alert_receipt_critical_days"
+                                               help="Días de retraso a partir de los cuales una recepción atrasada pasa de alerta amarilla a roja."/>
+                                    </group>
+                                    <group string="Dashboard">
+                                        <field name="show_po_services_tab"
+                                               help="Cuando está activo, las OCs de servicios se muestran en una pestaña propia dentro del widget de OCs."/>
+                                    </group>
+                                </group>
 
-                            <group string="Alertas — Órdenes de compra">
-                                <field name="alert_po_critical_days"
-                                       help="Días de retraso a partir de los cuales una OC vencida pasa de alerta amarilla a roja."/>
-                                <field name="alert_po_warning_days"
-                                       help="Días antes del vencimiento en que se genera una alerta 'por vencer' para las OCs."/>
-                            </group>
-                            <group string="Alertas — Recepciones">
-                                <field name="alert_receipt_critical_days"
-                                       help="Días de retraso a partir de los cuales una recepción atrasada pasa de alerta amarilla a roja."/>
-                            </group>
-                            <group string="Dashboard">
-                                <field name="show_po_services_tab"
-                                       help="Cuando está activo, las OCs de servicios se muestran en una pestaña propia dentro del widget de OCs."/>
-                            </group>
-
-                            <!-- Umbrales de criticidad del análisis de proveedores -->
-                            <div class="text-muted small mb-2 mt-3">
-                                Umbrales de criticidad para la tabla de análisis de proveedores.
-                                Verde = buen desempeño, Amarillo = aviso, Rojo = crítico.
-                            </div>
-                            <group string="% A tiempo">
-                                <field name="sup_on_time_green_pct"  help="A tiempo ≥ este % → verde."/>
-                                <field name="sup_on_time_yellow_pct" help="A tiempo ≥ este % (y menor que verde) → amarillo."/>
-                            </group>
-                            <group string="Retraso promedio (días)">
-                                <field name="sup_delay_green_days"  help="Retraso ≤ este valor → verde."/>
-                                <field name="sup_delay_yellow_days" help="Retraso ≤ este valor (y mayor que verde) → amarillo."/>
-                            </group>
-                            <group string="% Recepciones completas">
-                                <field name="sup_complete_green_pct"  help="Completas ≥ este % → verde."/>
-                                <field name="sup_complete_yellow_pct" help="Completas ≥ este % (y menor que verde) → amarillo."/>
-                            </group>
-                            <group string="Variación de precio (|%|)">
-                                <field name="sup_price_var_green_pct"  help="|Variación| ≤ este % → verde."/>
-                                <field name="sup_price_var_yellow_pct" help="|Variación| ≤ este % (y mayor que verde) → amarillo."/>
+                                <!-- Columna derecha: umbrales análisis de proveedores -->
+                                <group colspan="2">
+                                    <group string="% A tiempo (proveedor)">
+                                        <field name="sup_on_time_green_pct"  help="A tiempo ≥ este % → verde."/>
+                                        <field name="sup_on_time_yellow_pct" help="A tiempo ≥ este % (y menor que verde) → amarillo."/>
+                                    </group>
+                                    <group string="Retraso promedio (días)">
+                                        <field name="sup_delay_green_days"  help="Retraso ≤ este valor → verde."/>
+                                        <field name="sup_delay_yellow_days" help="Retraso ≤ este valor (y mayor que verde) → amarillo."/>
+                                    </group>
+                                    <group string="% Recepciones completas">
+                                        <field name="sup_complete_green_pct"  help="Completas ≥ este % → verde."/>
+                                        <field name="sup_complete_yellow_pct" help="Completas ≥ este % (y menor que verde) → amarillo."/>
+                                    </group>
+                                    <group string="Variación de precio (|%|)">
+                                        <field name="sup_price_var_green_pct"  help="|Variación| ≤ este % → verde."/>
+                                        <field name="sup_price_var_yellow_pct" help="|Variación| ≤ este % (y mayor que verde) → amarillo."/>
+                                    </group>
+                                </group>
                             </group>
                         </page>
 
                         <!-- ══ VENTAS ════════════════════════════════════════════ -->
                         <page string="Ventas" name="sales">
+                            <group col="4">
+                                <!-- Columna izquierda: categoría de venta -->
+                                <group colspan="2">
+                                    <group string="Modo de asignación">
+                                        <field name="sale_cat_mode" widget="radio"/>
+                                    </group>
 
-                            <!-- ── Categoría de venta ──────────────────────── -->
-                            <group string="Modo de asignación">
-                                <field name="sale_cat_mode" widget="radio"/>
-                            </group>
+                                    <group string="Período de análisis"
+                                           invisible="sale_cat_mode == 'manual'">
+                                        <field name="sale_cat_lookback_months"
+                                               help="Meses de histórico de entregas a considerar para calcular demanda, rotación o participación."/>
+                                    </group>
 
-                            <group string="Período de análisis"
-                                   invisible="sale_cat_mode == 'manual'">
-                                <field name="sale_cat_lookback_months"
-                                       help="Meses de histórico de entregas a considerar para calcular demanda, rotación o participación."/>
-                            </group>
+                                    <group string="Umbrales de rotación (días)"
+                                           invisible="sale_cat_mode != 'automatic'">
+                                        <div class="text-muted small mb-2">
+                                            Rotación = stock actual ÷ (entregas ÷ meses). Umbral máximo de días de cobertura por categoría.
+                                        </div>
+                                        <field name="sale_cat_a_days"/>
+                                        <field name="sale_cat_b_days"/>
+                                        <field name="sale_cat_c_days"/>
+                                        <field name="sale_cat_d_days"/>
+                                    </group>
 
-                            <group string="Umbrales de rotación (días)"
-                                   invisible="sale_cat_mode != 'automatic'">
-                                <div class="text-muted small mb-2">
-                                    Rotación = stock actual ÷ (entregas ÷ meses). Umbral máximo de días de cobertura por categoría.
-                                </div>
-                                <field name="sale_cat_a_days"/>
-                                <field name="sale_cat_b_days"/>
-                                <field name="sale_cat_c_days"/>
-                                <field name="sale_cat_d_days"/>
-                            </group>
+                                    <group string="Umbrales de demanda (unidades/mes)"
+                                           invisible="sale_cat_mode != 'demand'">
+                                        <div class="text-muted small mb-2">
+                                            Demanda = promedio mensual de unidades entregadas. Umbral mínimo de unidades por categoría.
+                                        </div>
+                                        <field name="sale_cat_demand_a_qty"/>
+                                        <field name="sale_cat_demand_b_qty"/>
+                                        <field name="sale_cat_demand_c_qty"/>
+                                        <field name="sale_cat_demand_d_qty"/>
+                                    </group>
 
-                            <group string="Umbrales de demanda (unidades/mes)"
-                                   invisible="sale_cat_mode != 'demand'">
-                                <div class="text-muted small mb-2">
-                                    Demanda = promedio mensual de unidades entregadas. Umbral mínimo de unidades por categoría.
-                                </div>
-                                <field name="sale_cat_demand_a_qty"/>
-                                <field name="sale_cat_demand_b_qty"/>
-                                <field name="sale_cat_demand_c_qty"/>
-                                <field name="sale_cat_demand_d_qty"/>
-                            </group>
+                                    <group string="Participación acumulada (%)"
+                                           invisible="sale_cat_mode != 'share'">
+                                        <div class="text-muted small mb-2">
+                                            Artículos ordenados de mayor a menor por la métrica. Umbral de % acumulado por categoría.
+                                        </div>
+                                        <field name="sale_cat_share_metric" widget="radio"/>
+                                        <field name="sale_cat_share_a_pct"/>
+                                        <field name="sale_cat_share_b_pct"/>
+                                        <field name="sale_cat_share_c_pct"/>
+                                        <field name="sale_cat_share_d_pct"/>
+                                    </group>
 
-                            <group string="Participación acumulada (%)"
-                                   invisible="sale_cat_mode != 'share'">
-                                <div class="text-muted small mb-2">
-                                    Artículos ordenados de mayor a menor por la métrica. Umbral de % acumulado por categoría.
-                                </div>
-                                <field name="sale_cat_share_metric" widget="radio"/>
-                                <field name="sale_cat_share_a_pct"/>
-                                <field name="sale_cat_share_b_pct"/>
-                                <field name="sale_cat_share_c_pct"/>
-                                <field name="sale_cat_share_d_pct"/>
-                            </group>
+                                    <div invisible="sale_cat_mode == 'manual'" class="mt-2 mb-1">
+                                        <button name="action_auto_assign_sale_categories"
+                                                type="object"
+                                                string="Asignar categorías ahora"
+                                                class="btn btn-primary btn-sm"/>
+                                    </div>
 
-                            <div invisible="sale_cat_mode == 'manual'" class="mt-2 mb-1">
-                                <button name="action_auto_assign_sale_categories"
-                                        type="object"
-                                        string="Asignar categorías ahora"
-                                        class="btn btn-primary btn-sm"/>
-                            </div>
+                                    <group string="Actualización periódica"
+                                           invisible="sale_cat_mode == 'manual'">
+                                        <field name="sale_cat_auto_cron" widget="boolean_toggle"
+                                               help="Recalcula categorías automáticamente según el intervalo configurado."/>
+                                        <label for="sale_cat_cron_number" string="Frecuencia"
+                                               invisible="not sale_cat_auto_cron"/>
+                                        <div class="o_row" invisible="not sale_cat_auto_cron">
+                                            <field name="sale_cat_cron_number" class="o_field_small"/>
+                                            <field name="sale_cat_cron_type" class="ms-2"/>
+                                        </div>
+                                    </group>
+                                </group>
 
-                            <group string="Actualización periódica"
-                                   invisible="sale_cat_mode == 'manual'">
-                                <field name="sale_cat_auto_cron" widget="boolean_toggle"
-                                       help="Recalcula categorías automáticamente según el intervalo configurado."/>
-                                <label for="sale_cat_cron_number" string="Frecuencia"
-                                       invisible="not sale_cat_auto_cron"/>
-                                <div class="o_row" invisible="not sale_cat_auto_cron">
-                                    <field name="sale_cat_cron_number" class="o_field_small"/>
-                                    <field name="sale_cat_cron_type" class="ms-2"/>
-                                </div>
-                            </group>
-
-                            <!-- ── Forecast ──────────────────────────────────── -->
-                            <group string="Forecast — visualización">
-                                <field name="forecast_default_months"
-                                       help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
-                                <field name="forecast_rotation_unit" widget="radio"
-                                       help="Unidad en que se muestra la rotación de inventario: días o meses."/>
-                                <field name="forecast_acc_formula" widget="radio"
-                                       help="Fórmula de precisión forecast: Simple, WMAPE, Sesgo, etc."/>
-                            </group>
-                            <group string="Forecast — cobertura">
-                                <field name="forecast_warning_pct"
-                                       help="Cobertura por debajo de este % se muestra en amarillo (aviso)."/>
-                                <field name="forecast_critical_pct"
-                                       help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
+                                <!-- Columna derecha: forecast -->
+                                <group colspan="2">
+                                    <group string="Forecast — visualización">
+                                        <field name="forecast_default_months"
+                                               help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
+                                        <field name="forecast_rotation_unit" widget="radio"
+                                               help="Unidad en que se muestra la rotación de inventario: días o meses."/>
+                                        <field name="forecast_acc_formula" widget="radio"
+                                               help="Fórmula de precisión forecast: Simple, WMAPE, Sesgo, etc."/>
+                                    </group>
+                                    <group string="Forecast — cobertura">
+                                        <field name="forecast_warning_pct"
+                                               help="Cobertura por debajo de este % se muestra en amarillo (aviso)."/>
+                                        <field name="forecast_critical_pct"
+                                               help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
+                                    </group>
+                                </group>
                             </group>
                         </page>
 
                         <!-- ══ PRODUCCIÓN ════════════════════════════════════════ -->
                         <page string="Producción" name="production">
+                            <group col="4">
+                                <!-- Columna izquierda: scheduling y alertas -->
+                                <group colspan="2">
+                                    <group string="Reprogramación">
+                                        <field name="wc_fallback" widget="radio"
+                                               help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>
+                                    </group>
+                                    <group string="Prioridad">
+                                        <field name="priority" widget="radio"
+                                               help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo."/>
+                                    </group>
+                                    <group string="Cascada">
+                                        <field name="include_wc_heuristic" widget="boolean_toggle"
+                                               help="Incluye OFs que comparten centros de trabajo con el pivot como dependientes. Desactivado por defecto."/>
+                                    </group>
+                                    <group string="Detección de alertas">
+                                        <label for="cron_interval_number" string="Revisar alertas cada"
+                                               help="Frecuencia con la que el sistema detecta OFs atrasadas, OCs vencidas y recepciones pendientes."/>
+                                        <div class="o_row">
+                                            <field name="cron_interval_number" class="o_field_small"/>
+                                            <field name="cron_interval_type" class="ms-2"/>
+                                        </div>
+                                    </group>
+                                    <group string="Alertas — Órdenes de fabricación">
+                                        <field name="alert_mo_critical_days"
+                                               help="Días de retraso a partir de los cuales una OF pasa a alerta roja."/>
+                                        <field name="alert_mo_warning_days"
+                                               help="Días antes del vencimiento en que se genera la alerta 'por vencer' para las OFs."/>
+                                    </group>
+                                    <group string="Cantidades">
+                                        <field name="qty_tolerance_pct"
+                                               help="Diferencia porcentual máxima entre cantidad planificada y producida sin disparar alerta."/>
+                                    </group>
+                                </group>
 
-                            <group string="Reprogramación">
-                                <field name="wc_fallback" widget="radio"
-                                       help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>
-                            </group>
-                            <group string="Prioridad">
-                                <field name="priority" widget="radio"
-                                       help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo."/>
-                            </group>
-                            <group string="Cascada">
-                                <field name="include_wc_heuristic" widget="boolean_toggle"
-                                       help="Incluye OFs que comparten centros de trabajo con el pivot como dependientes. Desactivado por defecto."/>
-                            </group>
-
-                            <group string="Detección de alertas">
-                                <label for="cron_interval_number" string="Revisar alertas cada"
-                                       help="Frecuencia con la que el sistema detecta OFs atrasadas, OCs vencidas y recepciones pendientes."/>
-                                <div class="o_row">
-                                    <field name="cron_interval_number" class="o_field_small"/>
-                                    <field name="cron_interval_type" class="ms-2"/>
-                                </div>
-                            </group>
-                            <group string="Alertas — Órdenes de fabricación">
-                                <field name="alert_mo_critical_days"
-                                       help="Días de retraso a partir de los cuales una OF pasa a alerta roja."/>
-                                <field name="alert_mo_warning_days"
-                                       help="Días antes del vencimiento en que se genera la alerta 'por vencer' para las OFs."/>
-                            </group>
-                            <group string="Cantidades">
-                                <field name="qty_tolerance_pct"
-                                       help="Diferencia porcentual máxima entre cantidad planificada y producida sin disparar alerta."/>
-                            </group>
-
-                            <group string="Quiebres de stock">
-                                <field name="stock_location_id"
-                                       help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
-                            </group>
-
-                            <group string="Forecast — estados de ÓF">
-                                <p class="text-muted small">
-                                    Estados de Órdenes de Fabricación que se consideran como producción planificada
-                                    al comparar contra el forecast de ventas.
-                                </p>
-                                <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
-                                <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
-                                <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
-                                <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
-                                <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
+                                <!-- Columna derecha: stock y estados OF -->
+                                <group colspan="2">
+                                    <group string="Quiebres de stock">
+                                        <field name="stock_location_id"
+                                               help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
+                                    </group>
+                                    <group string="Forecast — estados de ÓF">
+                                        <p class="text-muted small">
+                                            Estados de Órdenes de Fabricación que se consideran como producción planificada
+                                            al comparar contra el forecast de ventas.
+                                        </p>
+                                        <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
+                                        <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
+                                        <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
+                                        <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
+                                        <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
+                                    </group>
+                                </group>
                             </group>
                         </page>
 

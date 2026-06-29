@@ -55,29 +55,6 @@
                         </t>
                     </select>
                 </div>
-                <div class="col-auto" t-if="state.tab === 'ofs'">
-                    <label class="col-form-label col-form-label-sm me-1">Estado</label>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de estados">
-                        <button type="button"
-                                title="Confirmada — OF planificada, sin iniciar producción"
-                                t-att-class="'btn ' + (isStateActive('confirmed') ? 'btn-info' : 'btn-outline-info')"
-                                t-on-click="() => onStateToggle('confirmed')">
-                            Confirmada
-                        </button>
-                        <button type="button"
-                                title="En progreso — producción formalmente iniciada en el sistema"
-                                t-att-class="'btn ' + (isStateActive('progress') ? 'btn-primary' : 'btn-outline-primary')"
-                                t-on-click="() => onStateToggle('progress')">
-                            En progreso
-                        </button>
-                        <button type="button"
-                                title="Por cerrar — producción completa pendiente de cierre formal"
-                                t-att-class="'btn ' + (isStateActive('to_close') ? 'btn-warning text-dark' : 'btn-outline-warning')"
-                                t-on-click="() => onStateToggle('to_close')">
-                            Por cerrar
-                        </button>
-                    </div>
-                </div>
             </div>
 
             <!-- Contenido con dimming durante carga -->

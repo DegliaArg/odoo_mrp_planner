@@ -57,7 +57,6 @@
                             <field name="can_see_stock_breaks" invisible="1"/>
                             <field name="can_schedule"         invisible="1"/>
                             <field name="can_reschedule"       invisible="1"/>
-                            <field name="alert_mo_upcoming"    invisible="1"/>
                         </div>
 
                         <!-- ALERTAS — solo OFs -->
@@ -73,68 +72,7 @@
                                     <field name="alert_critical" nolabel="1" readonly="1"/> críticas →
                                 </button>
                             </div>
-                            <div class="row g-2">
-                                <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100"
-                                         title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. El sistema genera esta alerta automáticamente cuando date_finished &lt; hoy. Indica retrasos que requieren acción inmediata.">
-                                        <div class="card-body text-center py-3">
-                                            <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
-                                            <div class="o_planner_number"><field name="alert_mo_delayed" nolabel="1"/></div>
-                                            <div class="o_planner_label">OFs atrasadas</div>
-                                        </div>
-                                        <div class="card-footer p-0">
-                                            <button name="action_view_mo_delayed_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
-                                                    string="Ver →" invisible="alert_mo_delayed == 0"/>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100"
-                                         title="OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado en los parámetros del planificador. Permite anticipar retrasos antes de que ocurran.">
-                                        <div class="card-body text-center py-3">
-                                            <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
-                                            <div class="o_planner_number text-warning"><field name="alert_mo_upcoming" nolabel="1"/></div>
-                                            <div class="o_planner_label">OFs por vencer</div>
-                                        </div>
-                                        <div class="card-footer p-0">
-                                            <button name="action_view_mo_upcoming_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-warning"
-                                                    string="Ver →" invisible="alert_mo_upcoming == 0"/>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100"
-                                         title="OFs completadas donde la cantidad producida difiere de la cantidad planificada más allá de la tolerancia configurada. Indica desvíos en la producción que pueden afectar inventario o entregas.">
-                                        <div class="card-body text-center py-3">
-                                            <i class="fa fa-balance-scale fa-lg text-secondary mb-2 d-block"/>
-                                            <div class="o_planner_number"><field name="alert_qty_mismatch" nolabel="1"/></div>
-                                            <div class="o_planner_label">Cant. diferentes</div>
-                                        </div>
-                                        <div class="card-footer p-0">
-                                            <button name="action_view_qty_mismatch_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
-                                                    string="Ver →" invisible="alert_qty_mismatch == 0"/>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100"
-                                         title="OFs que fueron canceladas mientras tenían materiales reservados u operaciones pendientes. Requieren revisión para liberar recursos, reasignar demanda o replanificar.">
-                                        <div class="card-body text-center py-3">
-                                            <i class="fa fa-ban fa-lg text-muted mb-2 d-block"/>
-                                            <div class="o_planner_number"><field name="alert_mo_cancelled" nolabel="1"/></div>
-                                            <div class="o_planner_label">OFs canceladas</div>
-                                        </div>
-                                        <div class="card-footer p-0">
-                                            <button name="action_view_mo_cancelled_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-muted"
-                                                    string="Ver →" invisible="alert_mo_cancelled == 0"/>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <widget name="alert_kpi_widget"/>
                         </div>
 
                         <!-- ÓRDENES DE FABRICACIÓN -->

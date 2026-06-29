@@ -112,18 +112,21 @@ class MrpPlannerDashboard(models.TransientModel):
     def _compute_alert_stats(self):
         Alert = self.env['mrp.reschedule.alert']
         base = [('resolved', '=', False)]
+        # Excluye alertas de OFs subcontratadas; para alertas sin production_id
+        # (OC, recepción) la primera condición del OR es True → incluidas correctamente
+        no_sc = ['|', ('production_id.bom_id', '=', False), ('production_id.bom_id.type', '!=', 'subcontract')]
         for rec in self:
-            rec.alert_total           = Alert.search_count(base)
-            rec.alert_critical        = Alert.search_count(base + [('severity', '=', 'critical')])
-            rec.alert_warning         = Alert.search_count(base + [('severity', '=', 'warning')])
-            rec.alert_mo_delayed      = Alert.search_count(base + [('alert_type', '=', 'mo_delayed')])
-            rec.alert_mo_upcoming     = Alert.search_count(base + [('alert_type', '=', 'mo_upcoming')])
+            rec.alert_total           = Alert.search_count(base + no_sc)
+            rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
+            rec.alert_warning         = Alert.search_count(base + no_sc + [('severity', '=', 'warning')])
+            rec.alert_mo_delayed      = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_delayed')])
+            rec.alert_mo_upcoming     = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_upcoming')])
             rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
             rec.alert_po_upcoming     = Alert.search_count(base + [('alert_type', '=', 'po_upcoming')])
             rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
             rec.alert_receipt_delayed = Alert.search_count(base + [('alert_type', '=', 'receipt_delayed')])
-            rec.alert_qty_mismatch    = Alert.search_count(base + [('alert_type', '=', 'qty_mismatch')])
-            rec.alert_mo_cancelled    = Alert.search_count(base + [('alert_type', '=', 'mo_cancelled')])
+            rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + [('alert_type', '=', 'qty_mismatch')])
+            rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_cancelled')])
 
     @api.depends()
     def _compute_user_permissions(self):
@@ -932,6 +935,27 @@ class MrpPlannerDashboard(models.TransientModel):
                 'reschedule':    bool(mo.x_reschedule_needed),
             })
         return result
+
+    # ── Widget Alertas ───────────────────────────────────────────────────────
+
+    @api.model
+    def get_alert_stats(self, states=None):
+        """Contadores de alertas de OFs filtrados por estado y sin subcontratadas."""
+        Alert = self.env['mrp.reschedule.alert']
+        base  = [('resolved', '=', False)]
+        no_sc = ['|', ('production_id.bom_id', '=', False), ('production_id.bom_id.type', '!=', 'subcontract')]
+        state_f = [('production_id.state', 'in', states)] if states else []
+
+        def cnt(alert_type):
+            return Alert.search_count(base + no_sc + state_f + [('alert_type', '=', alert_type)])
+
+        return {
+            'mo_delayed':   cnt('mo_delayed'),
+            'mo_upcoming':  cnt('mo_upcoming'),
+            'qty_mismatch': cnt('qty_mismatch'),
+            'mo_cancelled': cnt('mo_cancelled'),
+            'critical':     Alert.search_count(base + no_sc + state_f + [('severity', '=', 'critical')]),
+        }
 
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 

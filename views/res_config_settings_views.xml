@@ -154,16 +154,21 @@
 
                                 <group string="Reprogramación — Criterio de prioridad">
                                     <field name="priority" widget="radio" nolabel="1"
-                                           help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo."/>
+                                           help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. Cronológico: prioriza la OF con fecha de inicio más próxima. SPT (más cortas primero): minimiza el tiempo de espera promedio. Manual: el operador arrastra y ordena las OFs en el wizard de reprogramación."/>
                                 </group>
                                 <group string="Quiebres de stock y Forecast">
                                     <field name="stock_location_id"
                                            help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
-                                    <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
-                                    <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
-                                    <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
-                                    <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
-                                    <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
+                                    <field name="forecast_mo_state_draft"     widget="boolean_toggle"
+                                           help="Incluye las OFs en estado Borrador al calcular la cobertura de forecast (OFs planificadas ÷ Forecast)."/>
+                                    <field name="forecast_mo_state_confirmed" widget="boolean_toggle"
+                                           help="Incluye las OFs confirmadas al calcular la cobertura de forecast."/>
+                                    <field name="forecast_mo_state_progress"  widget="boolean_toggle"
+                                           help="Incluye las OFs en progreso al calcular la cobertura de forecast."/>
+                                    <field name="forecast_mo_state_to_close"  widget="boolean_toggle"
+                                           help="Incluye las OFs por cerrar al calcular la cobertura de forecast."/>
+                                    <field name="forecast_mo_state_done"      widget="boolean_toggle"
+                                           help="Incluye las OFs terminadas al calcular la cobertura de forecast."/>
                                 </group>
 
                                 <group string="Reprogramación — Opciones avanzadas">

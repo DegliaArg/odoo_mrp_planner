@@ -402,6 +402,7 @@ class MrpRescheduleAlert(models.Model):
         pickings = self.env['stock.picking'].search([
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
+            ('purchase_id', '!=', False),
             ('scheduled_date', '<', now),
         ])
 

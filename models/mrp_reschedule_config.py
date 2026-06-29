@@ -60,11 +60,11 @@ class MrpRescheduleConfig(models.Model):
     )
 
     forecast_acc_formula = fields.Selection([
-        ('simple', 'Simple — Entregado ÷ Forecast × 100'),
-        ('mape',   'MAPE — promedio de errores porcentuales por período'),
-        ('wape',   'WAPE — Σ|error| ÷ Σentregado (ponderado por volumen real)'),
-        ('wmape',  'WMAPE — Σ|error| ÷ Σforecast (ponderado por volumen planificado)'),
-        ('bias',   'Sesgo — (Entregado − Forecast) ÷ Forecast × 100'),
+        ('simple', 'Simple'),
+        ('mape',   'MAPE'),
+        ('wape',   'WAPE'),
+        ('wmape',  'WMAPE'),
+        ('bias',   'Sesgo'),
     ], string='Fórmula de precisión forecast', default='simple',
        help='Simple: entregado ÷ forecast × 100, puede superar 100%.\n'
             'MAPE: promedio aritmético de precisiones por período (100 − |error/real|×100); sensible a períodos de bajo volumen.\n'

@@ -684,9 +684,9 @@ class MrpPlannerDashboard(models.TransientModel):
 
         date_domain = []
         if date_from:
-            date_domain.append(('date_planned', '>=', date_from + ' 00:00:00'))
+            date_domain.append(('date_order', '>=', date_from + ' 00:00:00'))
         if date_to:
-            date_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
+            date_domain.append(('date_order', '<=', date_to + ' 23:59:59'))
 
         sched_domain = []
         if date_from:
@@ -1929,49 +1929,80 @@ class MrpPlannerDashboard(models.TransientModel):
         } for mo in mos]
 
     @api.model
-    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None, sort_by='qty'):
-        domain = [
-            ('state', '=', 'done'),
-            ('picking_id.picking_type_code', '=', 'outgoing'),
-            ('date', '>=', date_from + ' 00:00:00'),
-            ('date', '<=', date_to + ' 23:59:59'),
-            ('product_id', '!=', False),
-            ('product_id.sale_ok', '=', True),
-        ]
-        if product_categ_id:
-            domain.append(('product_id.categ_id', '=', int(product_categ_id)))
-
-        groups = self.env['stock.move.line'].read_group(
-            domain,
-            ['product_id', 'quantity:sum'],
-            ['product_id'],
-        )
-        # Aggregate by product template
+    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None, sort_by='qty', doc_type='sales'):
         tmpl_qty = {}
-        for g in groups:
-            if not g['product_id']:
-                continue
-            pp = self.env['product.product'].browse(g['product_id'][0])
-            tid = pp.product_tmpl_id.id
-            tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
+        tmpl_amount = {}
+
+        if doc_type in ('sales', 'rfq', 'all'):
+            so_states = []
+            if doc_type in ('sales', 'all'):
+                so_states += ['sale', 'done']
+            if doc_type in ('rfq', 'all'):
+                so_states += ['draft', 'sent']
+            sol_domain = [
+                ('order_id.state', 'in', so_states),
+                ('order_id.date_order', '>=', date_from + ' 00:00:00'),
+                ('order_id.date_order', '<=', date_to + ' 23:59:59'),
+                ('product_id', '!=', False),
+                ('product_id.sale_ok', '=', True),
+            ]
+            if product_categ_id:
+                sol_domain.append(('product_id.categ_id', '=', int(product_categ_id)))
+            try:
+                groups = self.env['sale.order.line'].read_group(
+                    sol_domain,
+                    ['product_id', 'product_uom_qty:sum', 'price_subtotal:sum'],
+                    ['product_id'],
+                )
+                for g in groups:
+                    if not g['product_id']:
+                        continue
+                    pp = self.env['product.product'].browse(g['product_id'][0])
+                    tid = pp.product_tmpl_id.id
+                    tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
+                    tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
+            except Exception:
+                return []
+        else:
+            domain = [
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_code', '=', 'outgoing'),
+                ('date', '>=', date_from + ' 00:00:00'),
+                ('date', '<=', date_to + ' 23:59:59'),
+                ('product_id', '!=', False),
+                ('product_id.sale_ok', '=', True),
+            ]
+            if product_categ_id:
+                domain.append(('product_id.categ_id', '=', int(product_categ_id)))
+            groups = self.env['stock.move.line'].read_group(
+                domain,
+                ['product_id', 'quantity:sum'],
+                ['product_id'],
+            )
+            for g in groups:
+                if not g['product_id']:
+                    continue
+                pp = self.env['product.product'].browse(g['product_id'][0])
+                tid = pp.product_tmpl_id.id
+                tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
 
         if not tmpl_qty:
             return []
 
-        # Filter by sale_category before sorting
         if sale_category is not None and sale_category != '':
             tmpls_all = self.env['product.template'].browse(list(tmpl_qty.keys()))
-            tmpl_by_id = {t.id: t for t in tmpls_all}
+            tmpl_by_id_f = {t.id: t for t in tmpls_all}
             if sale_category == '__none__':
-                tmpl_qty = {tid: q for tid, q in tmpl_qty.items()
-                            if not (tmpl_by_id.get(tid) and tmpl_by_id[tid].x_sale_category)}
+                keep = {tid for tid in tmpl_qty
+                        if not (tmpl_by_id_f.get(tid) and tmpl_by_id_f[tid].x_sale_category)}
             else:
-                tmpl_qty = {tid: q for tid, q in tmpl_qty.items()
-                            if tmpl_by_id.get(tid) and tmpl_by_id[tid].x_sale_category == sale_category}
+                keep = {tid for tid in tmpl_qty
+                        if tmpl_by_id_f.get(tid) and tmpl_by_id_f[tid].x_sale_category == sale_category}
+            tmpl_qty   = {tid: q for tid, q in tmpl_qty.items()   if tid in keep}
+            tmpl_amount = {tid: a for tid, a in tmpl_amount.items() if tid in keep}
             if not tmpl_qty:
                 return []
 
-        # Build result with amount before sorting, so top N can be by either metric
         all_ids    = list(tmpl_qty.keys())
         templates  = self.env['product.template'].browse(all_ids)
         tmpl_by_id = {t.id: t for t in templates}
@@ -1982,7 +2013,7 @@ class MrpPlannerDashboard(models.TransientModel):
             if not t:
                 continue
             qty    = round(tmpl_qty[tid], 2)
-            amount = round(qty * (t.list_price or 0.0), 2)
+            amount = round(tmpl_amount[tid], 2) if tid in tmpl_amount else round(qty * (t.list_price or 0.0), 2)
             rows.append({
                 'tmpl_id':       tid,
                 'name':          t.name,

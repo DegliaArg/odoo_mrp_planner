@@ -151,7 +151,8 @@
                             </div>
                             <div class="row g-2">
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OCs con fecha de vencimiento ya superada y sin recepción completa.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-shopping-cart fa-lg text-secondary mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_po_delayed" nolabel="1"/></div>
@@ -165,7 +166,8 @@
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OCs que vencen dentro del umbral de días configurable (por defecto 10 días).">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
                                             <div class="o_planner_number text-warning"><field name="alert_po_upcoming" nolabel="1"/></div>
@@ -179,21 +181,23 @@
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OCs en estado 'Para aprobar' que requieren autorización antes de ser confirmadas.">
                                         <div class="card-body text-center py-3">
-                                            <i class="fa fa-ban fa-lg text-muted mb-2 d-block"/>
-                                            <div class="o_planner_number"><field name="alert_po_cancelled" nolabel="1"/></div>
-                                            <div class="o_planner_label">OCs canceladas</div>
+                                            <i class="fa fa-clock-o fa-lg text-info mb-2 d-block"/>
+                                            <div class="o_planner_number text-info"><field name="po_to_approve" nolabel="1"/></div>
+                                            <div class="o_planner_label">Por aprobar</div>
                                         </div>
                                         <div class="card-footer p-0">
-                                            <button name="action_view_po_cancelled_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-muted"
-                                                    string="Ver →" invisible="alert_po_cancelled == 0"/>
+                                            <button name="action_view_to_approve" type="object"
+                                                    class="btn btn-sm btn-link w-100 py-1 text-info"
+                                                    string="Ver →" invisible="po_to_approve == 0"/>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="Recepciones de OC con fecha programada ya vencida y sin validar.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-truck fa-lg text-secondary mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_receipt_delayed" nolabel="1"/></div>

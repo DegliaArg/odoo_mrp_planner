@@ -39,7 +39,21 @@
                 </div>
             </div>
 
-            <!-- Fila 2: Filtros -->
+            <!-- Fila 2: Fuente de datos -->
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <span class="small text-muted fw-semibold me-1">Fuente:</span>
+                <t t-foreach="[['sales','OVs'],['rfq','Cotizaciones'],['all','Ambas'],['deliveries','Entregas']]"
+                   t-as="d" t-key="d[0]">
+                    <button t-att-class="'btn btn-sm ' + (state.docType === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="padding:1px 10px; font-size:11px;"
+                            t-att-title="d[0] === 'sales' ? 'OVs confirmadas y entregadas (sale.order.line, estado: sale/done)' : d[0] === 'rfq' ? 'Cotizaciones y borradores (sale.order.line, estado: draft/sent)' : d[0] === 'all' ? 'Todas las OVs y cotizaciones' : 'Entregas físicas completadas (stock.move.line)'"
+                            t-on-click="() => this.setDocType(d[0])">
+                        <t t-esc="d[1]"/>
+                    </button>
+                </t>
+            </div>
+
+            <!-- Fila 3: Filtros -->
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
 
                 <!-- Categoría de venta -->

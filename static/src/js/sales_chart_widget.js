@@ -38,6 +38,7 @@ class SalesChartWidget extends Component {
             productCategId:  "",
             productCategs:   [],
             rows:            [],
+            docType:         "sales",
         });
 
         onMounted(async () => {
@@ -75,7 +76,7 @@ class SalesChartWidget extends Component {
             const rows = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_sales_chart_data",
-                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null, this.state.metric],
+                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null, this.state.metric, this.state.docType],
             );
             this.state.rows = rows || [];
         } catch (e) {
@@ -153,6 +154,7 @@ class SalesChartWidget extends Component {
     setMetric(m)   { if (this.state.metric !== m)          { this.state.metric = m;          this._load(); } }
     setTopN(n)     { if (this.state.topN !== n)            { this.state.topN = n;            this._load(); } }
     setSaleCat(c)  { if (this.state.saleCategory !== c)    { this.state.saleCategory = c;    this._load(); } }
+    setDocType(d)  { if (this.state.docType !== d)         { this.state.docType = d;         this._load(); } }
     setProductCat(ev) {
         const v = ev.target.value;
         if (this.state.productCategId !== v) { this.state.productCategId = v; this._load(); }

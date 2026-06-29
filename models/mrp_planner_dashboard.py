@@ -1064,6 +1064,28 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
+    def get_mo_kpi_counts(self, date_from, date_to):
+        """Contadores de KPIs usando los mismos dominios que los botones de navegación JS.
+        Garantiza que el número del card coincida exactamente con el listado al hacer click."""
+        now   = fields.Datetime.now()
+        MO    = self.env['mrp.production']
+        no_sc = no_subcontract_domain(self.env)
+        dFrom = date_from + ' 00:00:00'
+        dTo   = date_to   + ' 23:59:59'
+        date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
+        active = [('state', 'not in', ('done', 'cancel'))]
+        now_s  = fields.Datetime.to_string(now)
+
+        return {
+            'total':       MO.search_count(active + date_d + no_sc),
+            'in_progress': MO.search_count([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc),
+            'delayed':     MO.search_count(active + [('date_finished', '<', now_s)] + date_d + no_sc),
+            'reschedule':  MO.search_count(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
+            'done':        MO.search_count([('state', '=', 'done')] + date_d + no_sc),
+            'partial':     MO.search_count([('state', '=', 'to_close')] + no_sc),
+        }
+
+    @api.model
     def get_request_widget_data(self, sort_field=None, sort_dir='asc', page=1, page_size=50):
         """KPIs + lista de programaciones activas."""
         Req = self.env['mrp.production.request']

@@ -104,16 +104,22 @@ class MoDashboardWidget extends Component {
         this.state.loading = true;
         try {
             if (this.state.tab === "ofs") {
-                const d = await this.orm.call("mrp.planner.dashboard", "get_mo_widget_data", [
-                    this.state.dateFrom,
-                    this.state.dateTo,
-                    this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
-                    this.state.sortField || null,
-                    this.state.sortDir,
-                    this.state.page,
-                    this.state.pageSize,
+                const [d, kpis] = await Promise.all([
+                    this.orm.call("mrp.planner.dashboard", "get_mo_widget_data", [
+                        this.state.dateFrom,
+                        this.state.dateTo,
+                        this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                        this.state.sortField || null,
+                        this.state.sortDir,
+                        this.state.page,
+                        this.state.pageSize,
+                    ]),
+                    this.orm.call("mrp.planner.dashboard", "get_mo_kpi_counts", [
+                        this.state.dateFrom,
+                        this.state.dateTo,
+                    ]),
                 ]);
-                this.state.ofs_kpis = d.kpis;
+                this.state.ofs_kpis = kpis;
                 this.state.mos      = d.mos;
             } else if (this.state.tab === "requests") {
                 const d = await this.orm.call("mrp.planner.dashboard", "get_request_widget_data", [

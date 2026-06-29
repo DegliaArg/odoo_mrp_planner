@@ -174,7 +174,8 @@ class MoDashboardWidget extends Component {
             type: "ir.actions.act_window", name,
             res_model: "mrp.production", view_mode: "list,form",
             views: [[false, "list"], [false, "form"]],
-            domain, target: "current",
+            domain: [...domain, ["location_src_id.is_subcontracting_location", "!=", true]],
+            target: "current",
         });
     }
 

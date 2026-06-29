@@ -333,7 +333,8 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Navegación — alertas ─────────────────────────────────────────────────
 
     def _open_alerts(self, extra_domain=None):
-        domain = [('resolved', '=', False)] + (extra_domain or [])
+        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
+        domain = [('resolved', '=', False)] + no_sc + (extra_domain or [])
         return {
             'type': 'ir.actions.act_window',
             'name': _('Alertas'),

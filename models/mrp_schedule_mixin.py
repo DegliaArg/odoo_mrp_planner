@@ -11,9 +11,14 @@ _N = ' '  # non-breaking space — los espacios normales colapsan en HTML
 
 def no_subcontract_domain(env):
     """Excluye OFs de subcontratación filtrando por ubicación de origen.
-    Las OFs subcontratadas usan una location_src_id con is_subcontracting_location=True.
-    Más confiable que bom_id.type porque aplica incluso cuando bom_id=False."""
-    return [('location_src_id.is_subcontracting_location', '!=', True)]
+    Pre-carga los IDs de ubicaciones de subcontratación y usa 'not in' directo
+    para evitar problemas de travesía relacional en search/search_count."""
+    sc_loc_ids = env['stock.location'].search(
+        [('is_subcontracting_location', '=', True)]
+    ).ids
+    if not sc_loc_ids:
+        return []
+    return [('location_src_id', 'not in', sc_loc_ids)]
 INDENT_MAP = {
     0: '',
     1: '└─ ',

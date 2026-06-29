@@ -112,7 +112,13 @@ class MrpPlannerDashboard(models.TransientModel):
     def _compute_alert_stats(self):
         Alert = self.env['mrp.reschedule.alert']
         base = [('resolved', '=', False)]
-        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
+        sc_loc_ids = self.env['stock.location'].search(
+            [('is_subcontracting_location', '=', True)]
+        ).ids
+        sc_mo_ids = self.env['mrp.production'].search(
+            [('location_src_id', 'in', sc_loc_ids)]
+        ).ids if sc_loc_ids else []
+        no_sc = [('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
         for rec in self:
             rec.alert_total           = Alert.search_count(base + no_sc)
             rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
@@ -943,7 +949,13 @@ class MrpPlannerDashboard(models.TransientModel):
         """Contadores de alertas de OFs filtrados por estado y sin subcontratadas."""
         Alert = self.env['mrp.reschedule.alert']
         base  = [('resolved', '=', False)]
-        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
+        sc_loc_ids = self.env['stock.location'].search(
+            [('is_subcontracting_location', '=', True)]
+        ).ids
+        sc_mo_ids = self.env['mrp.production'].search(
+            [('location_src_id', 'in', sc_loc_ids)]
+        ).ids if sc_loc_ids else []
+        no_sc = [('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
 
         def cnt(alert_type):
             return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])

@@ -10,9 +10,10 @@ _N = ' '  # non-breaking space — los espacios normales colapsan en HTML
 
 
 def no_subcontract_domain(env):
-    """Fragmento de dominio para excluir OFs de subcontratacion.
-    Usa bom_id.type que es un campo estándar de Odoo mrp."""
-    return ['|', ('bom_id', '=', False), ('bom_id.type', '!=', 'subcontract')]
+    """Excluye OFs de subcontratación filtrando por ubicación de origen.
+    Las OFs subcontratadas usan una location_src_id con is_subcontracting_location=True.
+    Más confiable que bom_id.type porque aplica incluso cuando bom_id=False."""
+    return [('location_src_id.is_subcontracting_location', '!=', True)]
 INDENT_MAP = {
     0: '',
     1: '└─ ',

@@ -112,9 +112,7 @@ class MrpPlannerDashboard(models.TransientModel):
     def _compute_alert_stats(self):
         Alert = self.env['mrp.reschedule.alert']
         base = [('resolved', '=', False)]
-        # Excluye alertas de OFs subcontratadas; para alertas sin production_id
-        # (OC, recepción) la primera condición del OR es True → incluidas correctamente
-        no_sc = ['|', ('production_id.bom_id', '=', False), ('production_id.bom_id.type', '!=', 'subcontract')]
+        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
         for rec in self:
             rec.alert_total           = Alert.search_count(base + no_sc)
             rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
@@ -606,9 +604,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 '|',
                 ('date_finished', '>=', fields.Datetime.to_string(first_day)),
                 ('date_finished', '=', False),
-                '|',
-                ('production_id.bom_id', '=', False),
-                ('production_id.bom_id.type', '!=', 'subcontract'),
+                ('production_id.location_src_id.is_subcontracting_location', '!=', True),
             ])
 
             ejecutado = sum(
@@ -946,18 +942,17 @@ class MrpPlannerDashboard(models.TransientModel):
         """Contadores de alertas de OFs filtrados por estado y sin subcontratadas."""
         Alert = self.env['mrp.reschedule.alert']
         base  = [('resolved', '=', False)]
-        no_sc = ['|', ('production_id.bom_id', '=', False), ('production_id.bom_id.type', '!=', 'subcontract')]
-        state_f = [('production_id.state', 'in', states)] if states else []
+        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
 
         def cnt(alert_type):
-            return Alert.search_count(base + no_sc + state_f + [('alert_type', '=', alert_type)])
+            return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])
 
         return {
             'mo_delayed':   cnt('mo_delayed'),
             'mo_upcoming':  cnt('mo_upcoming'),
             'qty_mismatch': cnt('qty_mismatch'),
             'mo_cancelled': cnt('mo_cancelled'),
-            'critical':     Alert.search_count(base + no_sc + state_f + [('severity', '=', 'critical')]),
+            'critical':     Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
         }
 
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
@@ -1220,9 +1215,7 @@ class MrpPlannerDashboard(models.TransientModel):
         domain = [
             ('state', 'in', ['ready', 'progress', 'pending', 'confirmed']),
             ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
-            '|',
-            ('production_id.bom_id', '=', False),
-            ('production_id.bom_id.type', '!=', 'subcontract'),
+            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
         ]
         wc_map = {}
         for wo in self.env['mrp.workorder'].search(domain):

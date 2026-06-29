@@ -41,9 +41,7 @@ class AlertKpiWidget extends Component {
             domain: [
                 ["resolved", "=", false],
                 ["alert_type", "=", alertType],
-                "|",
-                ["production_id.bom_id", "=", false],
-                ["production_id.bom_id.type", "!=", "subcontract"],
+                ["production_id.location_src_id.is_subcontracting_location", "!=", true],
             ],
             target: "current",
         });

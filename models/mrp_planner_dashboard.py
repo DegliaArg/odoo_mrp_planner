@@ -606,6 +606,9 @@ class MrpPlannerDashboard(models.TransientModel):
                 '|',
                 ('date_finished', '>=', fields.Datetime.to_string(first_day)),
                 ('date_finished', '=', False),
+                '|',
+                ('production_id.bom_id', '=', False),
+                ('production_id.bom_id.type', '!=', 'subcontract'),
             ])
 
             ejecutado = sum(
@@ -1217,6 +1220,9 @@ class MrpPlannerDashboard(models.TransientModel):
         domain = [
             ('state', 'in', ['ready', 'progress', 'pending', 'confirmed']),
             ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
+            '|',
+            ('production_id.bom_id', '=', False),
+            ('production_id.bom_id.type', '!=', 'subcontract'),
         ]
         wc_map = {}
         for wo in self.env['mrp.workorder'].search(domain):
@@ -1321,7 +1327,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('date_finished', '<=', fields.Datetime.to_string(
                 datetime.combine(last_day_of_to, datetime.max.time())
             )),
-        ]
+        ] + no_subcontract_domain(self.env)
         mos = self.env['mrp.production'].search(mo_domain)
 
         # Estructura: {product_id: {month_str: qty}}
@@ -1616,7 +1622,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 datetime.combine(d_from, datetime.min.time()))),
             ('date_finished', '<=', fields.Datetime.to_string(
                 datetime.combine(last_day, datetime.max.time()))),
-        ]
+        ] + no_subcontract_domain(self.env)
         if warehouse_ids:
             wh_recs = self.env['stock.warehouse'].browse(warehouse_ids)
             loc_ids = wh_recs.mapped('lot_stock_id').ids
@@ -1869,7 +1875,7 @@ class MrpPlannerDashboard(models.TransientModel):
         if page_pids:
             mo_groups = self.env['mrp.production'].read_group(
                 [('product_id', 'in', page_pids),
-                 ('state', 'in', ['confirmed', 'progress', 'to_close'])],
+                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_subcontract_domain(self.env),
                 ['product_id'],
                 ['product_id'],
             )
@@ -1911,7 +1917,7 @@ class MrpPlannerDashboard(models.TransientModel):
         mos = self.env['mrp.production'].search([
             ('product_id', '=', product_id),
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
-        ], limit=50, order='date_finished asc')
+        ] + no_subcontract_domain(self.env), limit=50, order='date_finished asc')
         state_labels = {
             'confirmed': 'Confirmada',
             'progress':  'En progreso',

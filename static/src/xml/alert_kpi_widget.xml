@@ -4,31 +4,6 @@
     <t t-name="odoo_mrp_planner.AlertKpiWidget">
         <div t-att-class="'o_alert_kpi_widget' + (state.loading ? ' opacity-50 pe-none' : '')">
 
-            <!-- Filtro de estados -->
-            <div class="d-flex align-items-center gap-2 mb-3">
-                <span class="small text-muted">Estado OF:</span>
-                <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de estados de OF">
-                    <button type="button"
-                            title="Confirmada — OF planificada, sin iniciar producción"
-                            t-att-class="'btn ' + (isStateActive('confirmed') ? 'btn-info' : 'btn-outline-info')"
-                            t-on-click="() => onStateToggle('confirmed')">
-                        Confirmada
-                    </button>
-                    <button type="button"
-                            title="En progreso — producción formalmente iniciada"
-                            t-att-class="'btn ' + (isStateActive('progress') ? 'btn-primary' : 'btn-outline-primary')"
-                            t-on-click="() => onStateToggle('progress')">
-                        En progreso
-                    </button>
-                    <button type="button"
-                            title="Por cerrar — producción completa pendiente de cierre formal"
-                            t-att-class="'btn ' + (isStateActive('to_close') ? 'btn-warning text-dark' : 'btn-outline-warning')"
-                            t-on-click="() => onStateToggle('to_close')">
-                        Por cerrar
-                    </button>
-                </div>
-            </div>
-
             <!-- KPI cards -->
             <div class="row g-2">
 

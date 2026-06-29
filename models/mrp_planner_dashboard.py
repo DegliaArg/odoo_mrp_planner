@@ -936,8 +936,8 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50):
-        """KPIs + lista de OFs activas en el rango, filtradas por sector."""
+    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None):
+        """KPIs + lista de OFs activas en el rango, filtradas por sector y estados."""
         first_day = datetime.strptime(date_from, '%Y-%m-%d')
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
 
@@ -951,8 +951,10 @@ class MrpPlannerDashboard(models.TransientModel):
         mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
-        domain = [
-            ('state', 'not in', ('done', 'cancel')),
+        # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
+        active_states = [s for s in (states or []) if s != 'done'] if states else []
+        state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
+        domain = state_clause + [
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
             '|',
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),

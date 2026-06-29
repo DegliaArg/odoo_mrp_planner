@@ -65,16 +65,17 @@ class MoDashboardWidget extends Component {
         const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         this.state = useState({
-            tab:         "ofs",     // "ofs" | "requests" | "comparison"
-            tags:        [],
-            selectedTag: "",
-            dateFrom:    toDateStr(firstOfMonth),
-            dateTo:      toDateStr(lastOfMonth),
-            loading:     true,
-            sortField:   null,
-            sortDir:     "asc",
-            page:        1,
-            pageSize:    50,
+            tab:            "ofs",     // "ofs" | "requests" | "comparison"
+            tags:           [],
+            selectedTag:    "",
+            selectedStates: ["confirmed", "progress", "to_close"],
+            dateFrom:       toDateStr(firstOfMonth),
+            dateTo:         toDateStr(lastOfMonth),
+            loading:        true,
+            sortField:      null,
+            sortDir:        "asc",
+            page:           1,
+            pageSize:       50,
             // OFs
             ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0, done: 0, partial: 0 },
             mos:         [],
@@ -112,6 +113,7 @@ class MoDashboardWidget extends Component {
                     this.state.sortDir,
                     this.state.page,
                     this.state.pageSize,
+                    this.state.selectedStates,
                 ]);
                 this.state.ofs_kpis = d.kpis;
                 this.state.mos      = d.mos;
@@ -164,6 +166,22 @@ class MoDashboardWidget extends Component {
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._loadData(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._loadData(); }
     onTagChange(ev)      { this.state.selectedTag = ev.target.value; this.state.page = 1; this._loadData(); }
+
+    onStateToggle(stateKey) {
+        const cur = this.state.selectedStates;
+        if (cur.includes(stateKey)) {
+            // Mantener al menos un estado activo
+            if (cur.length > 1) {
+                this.state.selectedStates = cur.filter(s => s !== stateKey);
+            }
+        } else {
+            this.state.selectedStates = [...cur, stateKey];
+        }
+        this.state.page = 1;
+        this._loadData();
+    }
+
+    isStateActive(stateKey) { return this.state.selectedStates.includes(stateKey); }
 
     get showFilters() { return this.state.tab !== "requests"; }
 

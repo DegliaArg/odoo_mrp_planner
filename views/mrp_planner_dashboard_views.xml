@@ -75,7 +75,8 @@
                             </div>
                             <div class="row g-2">
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. El sistema genera esta alerta automáticamente cuando date_finished &lt; hoy. Indica retrasos que requieren acción inmediata.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_mo_delayed" nolabel="1"/></div>
@@ -89,7 +90,8 @@
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado en los parámetros del planificador. Permite anticipar retrasos antes de que ocurran.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
                                             <div class="o_planner_number text-warning"><field name="alert_mo_upcoming" nolabel="1"/></div>
@@ -103,7 +105,8 @@
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OFs completadas donde la cantidad producida difiere de la cantidad planificada más allá de la tolerancia configurada. Indica desvíos en la producción que pueden afectar inventario o entregas.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-balance-scale fa-lg text-secondary mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_qty_mismatch" nolabel="1"/></div>
@@ -117,7 +120,8 @@
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-3">
-                                    <div class="card o_planner_card h-100">
+                                    <div class="card o_planner_card h-100"
+                                         title="OFs que fueron canceladas mientras tenían materiales reservados u operaciones pendientes. Requieren revisión para liberar recursos, reasignar demanda o replanificar.">
                                         <div class="card-body text-center py-3">
                                             <i class="fa fa-ban fa-lg text-muted mb-2 d-block"/>
                                             <div class="o_planner_number"><field name="alert_mo_cancelled" nolabel="1"/></div>

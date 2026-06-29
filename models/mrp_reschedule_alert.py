@@ -542,6 +542,15 @@ class MrpRescheduleAlert(models.Model):
         """
         now = fields.Datetime.now()
 
+        # Limpiar alertas de OFs subcontratadas — no deben generar alertas de producción
+        stale_sc = self.search([
+            ('alert_type', 'in', ('mo_delayed', 'mo_upcoming', 'mo_cancelled', 'qty_mismatch')),
+            ('resolved', '=', False),
+            ('production_id.bom_id.type', '=', 'subcontract'),
+        ])
+        if stale_sc:
+            stale_sc.write({'resolved': True, 'resolve_date': now})
+
         # mo_delayed y qty_mismatch: se resuelven cuando la OF termina o se cancela
         stale_mo = self.search([
             ('alert_type', 'in', ('mo_delayed', 'qty_mismatch')),

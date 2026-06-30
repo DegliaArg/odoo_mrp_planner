@@ -328,12 +328,6 @@
                                                                 <i class="fa fa-clock-o text-muted" title="Recepción pendiente: dentro de plazo"/>
                                                             </t>
                                                         </t>
-                                                        <t t-elif="col.key === 'availability'">
-                                                            <span t-if="pick.availability === 'assigned'" class="badge text-bg-success" title="Cantidades completas, lista para validar">Lista</span>
-                                                            <span t-elif="pick.availability === 'partially_available'" class="badge text-bg-warning" title="Recepción parcial iniciada">Parcial</span>
-                                                            <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'" class="badge text-bg-secondary" title="Sin cantidades ingresadas aún">Sin iniciar</span>
-                                                            <span t-else="" class="text-muted">—</span>
-                                                        </t>
                                                     </td>
                                                 </tr>
                                                 <!-- Filas de líneas (expandibles) -->
@@ -351,7 +345,6 @@
                                                                 <t t-esc="fmt(line.demand)"/>
                                                                 <span class="ms-1 text-secondary" t-esc="line.uom"/>
                                                             </td>
-                                                            <td/>
                                                             <td class="text-center small">
                                                                 <t t-if="line.reserved >= line.demand - 0.001">
                                                                     <span class="badge text-bg-success" title="Completamente recibido">Recibido</span>

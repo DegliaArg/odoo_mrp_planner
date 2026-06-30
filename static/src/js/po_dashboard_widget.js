@@ -24,13 +24,21 @@ const PO_OC_COLS = [
     { key: 'amount_total',label: 'Total',            width: 100, sortKey: 'amount_total', align: 'end', title: 'Importe total de la OC en moneda de la empresa.' },
 ];
 
+const PO_RECEIPT_COLS = [
+    { key: '_expand',       label: '',               width: 32,  fixed: true, noResize: true },
+    { key: 'name',          label: 'Referencia',     width: 100, sortKey: 'name',          title: 'Número del albarán.' },
+    { key: 'partner',       label: 'Proveedor',      width: 175, sortKey: 'partner',       title: 'Proveedor o subcontratista.' },
+    { key: 'scheduled_date',label: 'Fecha prevista', width: 120, sortKey: 'scheduled_date',title: 'Fecha programada del movimiento de stock (scheduled_date).' },
+    { key: 'overdue',       label: 'Estado',         width: 80,  sortKey: 'overdue',       align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
+];
+
 const PO_PICK_COLS = [
     { key: '_expand',       label: '',               width: 32,  fixed: true, noResize: true },
     { key: 'name',          label: 'Referencia',     width: 100, sortKey: 'name',          title: 'Número del albarán.' },
     { key: 'partner',       label: 'Proveedor',      width: 175, sortKey: 'partner',       title: 'Proveedor o subcontratista.' },
     { key: 'scheduled_date',label: 'Fecha prevista', width: 120, sortKey: 'scheduled_date',title: 'Fecha programada del movimiento de stock (scheduled_date).' },
     { key: 'overdue',       label: 'Estado',         width: 80,  sortKey: 'overdue',       align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
-    { key: 'availability',  label: 'Disponibilidad', width: 120, sortKey: 'availability',  align: 'center', title: 'Lista / Parcial / Sin iniciar.' },
+    { key: 'availability',  label: 'Disponibilidad', width: 120, sortKey: 'availability',  align: 'center', title: 'Disponible / Parcialmente / No disponible.' },
 ];
 
 const PO_SVC_COLS = [
@@ -62,7 +70,7 @@ class PoDashboardWidget extends Component {
         this.action = useService("action");
         this._root        = useRef("poRoot");
         this.colsOc       = useColManager('po_ocs',       PO_OC_COLS);
-        this.colsReceipts = useColManager('po_receipts',  PO_PICK_COLS);
+        this.colsReceipts = useColManager('po_receipts',  PO_RECEIPT_COLS);
         this.colsDeliveries= useColManager('po_deliveries', PO_PICK_COLS);
         this.colsSvc      = useColManager('po_services',  PO_SVC_COLS);
 

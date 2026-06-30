@@ -130,7 +130,10 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
             rec.alert_po_upcoming     = Alert.search_count(base + [('alert_type', '=', 'po_upcoming')])
             rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
-            rec.alert_receipt_delayed = Alert.search_count(base + [('alert_type', '=', 'receipt_delayed')])
+            rec.alert_receipt_delayed = Alert.search_count(base + [
+                ('alert_type', '=', 'receipt_delayed'),
+                ('picking_id.purchase_id', '!=', False),
+            ])
             rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + [('alert_type', '=', 'qty_mismatch')])
             rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_cancelled')])
 
@@ -374,7 +377,10 @@ class MrpPlannerDashboard(models.TransientModel):
         return self._open_alerts([('alert_type', '=', 'po_cancelled')])
 
     def action_view_receipt_alerts(self):
-        return self._open_alerts([('alert_type', '=', 'receipt_delayed')])
+        return self._open_alerts([
+            ('alert_type', '=', 'receipt_delayed'),
+            ('picking_id.purchase_id', '!=', False),
+        ])
 
     def action_view_qty_mismatch_alerts(self):
         return self._open_alerts([('alert_type', '=', 'qty_mismatch')])

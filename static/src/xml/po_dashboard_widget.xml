@@ -307,6 +307,7 @@
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
                                                     <td t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                        style="overflow:hidden;"
                                                         t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
                                                         <t t-if="col.key === '_expand'">
                                                             <span t-on-click.stop="() => this.toggleExpand(pick.id)"
@@ -314,7 +315,7 @@
                                                                 <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
                                                             </span>
                                                         </t>
-                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold d-block" style="word-break:break-all;" t-esc="pick.name"/></t>
                                                         <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
                                                         <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
                                                         <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
@@ -414,6 +415,7 @@
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
                                                     <td t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                        style="overflow:hidden;"
                                                         t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
                                                         <t t-if="col.key === '_expand'">
                                                             <span t-on-click.stop="() => this.toggleExpand(pick.id)"
@@ -421,7 +423,7 @@
                                                                 <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
                                                             </span>
                                                         </t>
-                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold d-block" style="word-break:break-all;" t-esc="pick.name"/></t>
                                                         <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
                                                         <t t-elif="col.key === 'finished_product'">
                                                             <span t-if="pick.finished_product and pick.finished_product !== '—'"

@@ -37,7 +37,7 @@ const PO_PICK_COLS = [
     { key: '_expand',          label: '',                   width: 32,  fixed: true, noResize: true },
     { key: 'name',             label: 'Referencia',         width: 85,  sortKey: 'name',    title: 'Número del albarán.' },
     { key: 'po_name',          label: 'OC',                 width: 85,  sortKey: 'po_name', title: 'Número de la orden de compra asociada.' },
-    { key: 'finished_product', label: 'Prod. terminado',    width: 110,                     title: 'Producto final a fabricar por el subcontratista (vía OF de subcontratación).' },
+    { key: 'finished_product', label: 'Prod. terminado',    width: 110, sortKey: 'finished_product', title: 'Producto final a fabricar por el subcontratista (vía OF de subcontratación).' },
     { key: 'partner',          label: 'Proveedor',          width: 120, sortKey: 'partner', title: 'Proveedor o subcontratista.' },
     { key: 'scheduled_date',   label: 'Fecha prevista',     width: 100, sortKey: 'scheduled_date', title: 'Fecha programada del movimiento de stock (scheduled_date).' },
     { key: 'overdue',          label: 'Estado',             width: 65,  sortKey: 'overdue', align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },

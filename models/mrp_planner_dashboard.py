@@ -955,6 +955,11 @@ class MrpPlannerDashboard(models.TransientModel):
             _ak = lambda p: _AO.get(_pick_avail(p), 99)
             receipts   = receipts.sorted(_ak,   reverse=_rev)
             deliveries = deliveries.sorted(_ak, reverse=_rev)
+        elif sort_field == 'finished_product':
+            def _fpk(p):
+                mo = _delivery_mo_s1(p)
+                return (mo.product_id.display_name if mo and mo.product_id else '').lower()
+            deliveries = deliveries.sorted(_fpk, reverse=_rev)
         elif sort_field == 'po_name':
             def _dok(p):
                 mo = _delivery_mo_s1(p)

@@ -776,14 +776,65 @@ class MrpPlannerDashboard(models.TransientModel):
             'waiting':             'No disponible',
         }
 
+        _has_raw_mo = 'raw_material_production_id' in self.env['stock.move']._fields
+
+        def _get_finished_product(p):
+            """Producto terminado al que corresponde una entrega de componentes (subcontratación).
+            4 estrategias en orden de confiabilidad."""
+
+            def _mo_name(mo):
+                return mo.product_id.display_name if mo and mo.product_id else None
+
+            def _trace(moves, depth=0):
+                if depth > 10:
+                    return None
+                for mv in moves:
+                    if _has_raw_mo and mv.raw_material_production_id:
+                        return mv.raw_material_production_id
+                    if mv.production_id:
+                        return mv.production_id
+                    result = _trace(mv.move_dest_ids, depth + 1)
+                    if result:
+                        return result
+                return None
+
+            # Estrategia 1: campo directo en el move del componente
+            if _has_raw_mo:
+                for mv in p.move_ids:
+                    if mv.raw_material_production_id:
+                        return _mo_name(mv.raw_material_production_id)
+
+            # Estrategia 2: trazar por move_dest_ids
+            mo = _trace(p.move_ids)
+            if mo:
+                return _mo_name(mo)
+
+            # Estrategia 3: desde líneas de la OC
+            if p.purchase_id:
+                for line in p.purchase_id.order_line:
+                    for mv in line.move_ids:
+                        if _has_raw_mo and mv.raw_material_production_id and mv.raw_material_production_id.product_id:
+                            return mv.raw_material_production_id.product_id.display_name
+
+            # Estrategia 4: por procurement_group_id (fallback débil)
+            if p.group_id:
+                mo = self.env['mrp.production'].search(
+                    [('procurement_group_id', '=', p.group_id.id)], limit=1
+                )
+                if mo:
+                    return _mo_name(mo)
+
+            return None
+
         def _pick_dict(p, include_lines=False):
             avail = _pick_avail(p)
             is_incoming = p.picking_type_code == 'incoming'
             result = {
-                'id':             p.id,
-                'name':           p.name,
-                'po_name':        p.purchase_id.name if p.purchase_id else (p.origin or '—'),
-                'partner':        p.partner_id.display_name if p.partner_id else '',
+                'id':               p.id,
+                'name':             p.name,
+                'po_name':          p.purchase_id.name if p.purchase_id else (p.origin or '—'),
+                'finished_product': None if is_incoming else (_get_finished_product(p) or '—'),
+                'partner':          p.partner_id.display_name if p.partner_id else '',
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
                 'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
@@ -884,6 +935,8 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # Prefetch moves para evitar N+1 en _pick_dict
         (receipts | deliveries).mapped('move_ids')
+        if deliveries and _has_raw_mo:
+            deliveries.mapped('move_ids.raw_material_production_id.product_id')
 
         receipts_pg        = receipts[offset:offset + page_size]
         deliveries_pg      = deliveries[offset:offset + page_size]

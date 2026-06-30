@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
-from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain, no_return_picking_ids
+from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
 
@@ -399,14 +399,13 @@ class MrpRescheduleAlert(models.Model):
     def _check_delayed_receipts(self, now, impact_cache=None):
         cfg = self._get_config()
         crit_days = cfg.alert_receipt_critical_days if cfg else 3
-        ret_ids = no_return_picking_ids(self.env)
-        no_ret_domain = [('id', 'not in', ret_ids)] if ret_ids else []
         pickings = self.env['stock.picking'].search([
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
+            ('return_id', '=', False),
             ('scheduled_date', '<', now),
-        ] + no_ret_domain)
+        ])
 
         # Preload all open receipt_delayed alerts indexed by picking_id
         by_picking = {

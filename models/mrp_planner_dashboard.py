@@ -3,7 +3,7 @@ import pytz
 from datetime import datetime
 
 from odoo import models, fields, api, _
-from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain, no_return_picking_ids
+from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
 
@@ -121,8 +121,6 @@ class MrpPlannerDashboard(models.TransientModel):
         # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
-        ret_ids = no_return_picking_ids(self.env)
-        no_ret = [('picking_id', 'not in', ret_ids)] if ret_ids else []
         for rec in self:
             rec.alert_total           = Alert.search_count(base + no_sc)
             rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
@@ -132,9 +130,10 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
             rec.alert_po_upcoming     = Alert.search_count(base + [('alert_type', '=', 'po_upcoming')])
             rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
-            rec.alert_receipt_delayed = Alert.search_count(base + no_ret + [
+            rec.alert_receipt_delayed = Alert.search_count(base + [
                 ('alert_type', '=', 'receipt_delayed'),
                 ('picking_id.purchase_id', '!=', False),
+                ('picking_id.return_id', '=', False),
             ])
             rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + [('alert_type', '=', 'qty_mismatch')])
             rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_cancelled')])
@@ -379,11 +378,10 @@ class MrpPlannerDashboard(models.TransientModel):
         return self._open_alerts([('alert_type', '=', 'po_cancelled')])
 
     def action_view_receipt_alerts(self):
-        ret_ids = no_return_picking_ids(self.env)
-        no_ret = [('picking_id', 'not in', ret_ids)] if ret_ids else []
-        return self._open_alerts(no_ret + [
+        return self._open_alerts([
             ('alert_type', '=', 'receipt_delayed'),
             ('picking_id.purchase_id', '!=', False),
+            ('picking_id.return_id', '=', False),
         ])
 
     def action_view_qty_mismatch_alerts(self):
@@ -855,13 +853,12 @@ class MrpPlannerDashboard(models.TransientModel):
         elif filter_type == 'subcontract':
             receipt_sc = [('purchase_id.subcontract_production_ids', '!=', False)]
 
-        ret_ids = no_return_picking_ids(self.env)
-        no_ret_domain = [('id', 'not in', ret_ids)] if ret_ids else []
         receipts = Picking.search([
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
-        ] + no_ret_domain + receipt_sc, order=pick_order)
+            ('return_id', '=', False),
+        ] + receipt_sc, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 

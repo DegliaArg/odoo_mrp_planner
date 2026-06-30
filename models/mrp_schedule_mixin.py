@@ -9,17 +9,6 @@ _logger = logging.getLogger(__name__)
 _N = ' '  # non-breaking space — los espacios normales colapsan en HTML
 
 
-def no_return_picking_ids(env):
-    """IDs de albaranes que son devoluciones, via stock.move.origin_returned_move_id.
-    Devuelve lista vacía si el campo no existe en esta versión de Odoo."""
-    Move = env['stock.move']
-    if 'origin_returned_move_id' not in Move._fields:
-        return []
-    return Move.search(
-        [('origin_returned_move_id', '!=', False)]
-    ).mapped('picking_id').ids
-
-
 def no_subcontract_domain(env):
     """Excluye OFs de subcontratación filtrando por ubicación de origen.
     Pre-carga los IDs de ubicaciones de subcontratación y usa 'not in' directo

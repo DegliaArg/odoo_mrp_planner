@@ -118,7 +118,9 @@ class MrpPlannerDashboard(models.TransientModel):
         sc_mo_ids = self.env['mrp.production'].search(
             [('location_src_id', 'in', sc_loc_ids)]
         ).ids if sc_loc_ids else []
-        no_sc = [('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
+        # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
+        no_sc = ['|', ('production_id', '=', False),
+                 ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
         for rec in self:
             rec.alert_total           = Alert.search_count(base + no_sc)
             rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
@@ -339,7 +341,10 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Navegación — alertas ─────────────────────────────────────────────────
 
     def _open_alerts(self, extra_domain=None):
-        no_sc = [('production_id.location_src_id.is_subcontracting_location', '!=', True)]
+        # Alertas sin OF (recepciones, OCs) siempre se incluyen; solo se excluyen
+        # las alertas de OFs de subcontratación (production_id != False y ubicación SBC)
+        no_sc = ['|', ('production_id', '=', False),
+                 ('production_id.location_src_id.is_subcontracting_location', '!=', True)]
         domain = [('resolved', '=', False)] + no_sc + (extra_domain or [])
         return {
             'type': 'ir.actions.act_window',
@@ -962,7 +967,9 @@ class MrpPlannerDashboard(models.TransientModel):
         sc_mo_ids = self.env['mrp.production'].search(
             [('location_src_id', 'in', sc_loc_ids)]
         ).ids if sc_loc_ids else []
-        no_sc = [('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
+        # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
+        no_sc = ['|', ('production_id', '=', False),
+                 ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
 
         def cnt(alert_type):
             return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])

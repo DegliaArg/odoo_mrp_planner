@@ -26,22 +26,22 @@ const PO_OC_COLS = [
 
 const PO_RECEIPT_COLS = [
     { key: '_expand',       label: '',               width: 32,  fixed: true, noResize: true },
-    { key: 'name',          label: 'Referencia',     width: 100, sortKey: 'name',          title: 'Número del albarán.' },
-    { key: 'po_name',       label: 'OC',             width: 110,                           title: 'Número de la orden de compra asociada.' },
-    { key: 'partner',       label: 'Proveedor',      width: 175, sortKey: 'partner',       title: 'Proveedor o subcontratista.' },
-    { key: 'scheduled_date',label: 'Fecha prevista', width: 120, sortKey: 'scheduled_date',title: 'Fecha programada del movimiento de stock (scheduled_date).' },
-    { key: 'overdue',       label: 'Estado',         width: 80,  sortKey: 'overdue',       align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
+    { key: 'name',          label: 'Referencia',     width: 85,  sortKey: 'name',    title: 'Número del albarán.' },
+    { key: 'po_name',       label: 'OC',             width: 85,  sortKey: 'po_name', title: 'Número de la orden de compra asociada.' },
+    { key: 'partner',       label: 'Proveedor',      width: 140, sortKey: 'partner', title: 'Proveedor.' },
+    { key: 'scheduled_date',label: 'Fecha prevista', width: 100, sortKey: 'scheduled_date', title: 'Fecha programada del movimiento de stock (scheduled_date).' },
+    { key: 'overdue',       label: 'Estado',         width: 65,  sortKey: 'overdue', align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
 ];
 
 const PO_PICK_COLS = [
-    { key: '_expand',          label: '',                  width: 32,  fixed: true, noResize: true },
-    { key: 'name',             label: 'Referencia',        width: 100, sortKey: 'name',          title: 'Número del albarán.' },
-    { key: 'po_name',          label: 'OC',                width: 110,                           title: 'Número de la orden de compra asociada.' },
-    { key: 'finished_product', label: 'Producto terminado',width: 180,                           title: 'Producto final a fabricar por el subcontratista (vía OF de subcontratación).' },
-    { key: 'partner',          label: 'Proveedor',         width: 175, sortKey: 'partner',       title: 'Proveedor o subcontratista.' },
-    { key: 'scheduled_date',   label: 'Fecha prevista',    width: 120, sortKey: 'scheduled_date',title: 'Fecha programada del movimiento de stock (scheduled_date).' },
-    { key: 'overdue',          label: 'Estado',            width: 80,  sortKey: 'overdue',       align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
-    { key: 'availability',     label: 'Disponibilidad',    width: 120, sortKey: 'availability',  align: 'center', title: 'Disponible / Parcialmente / No disponible.' },
+    { key: '_expand',          label: '',                   width: 32,  fixed: true, noResize: true },
+    { key: 'name',             label: 'Referencia',         width: 85,  sortKey: 'name',    title: 'Número del albarán.' },
+    { key: 'po_name',          label: 'OC',                 width: 85,  sortKey: 'po_name', title: 'Número de la orden de compra asociada.' },
+    { key: 'finished_product', label: 'Prod. terminado',    width: 110,                     title: 'Producto final a fabricar por el subcontratista (vía OF de subcontratación).' },
+    { key: 'partner',          label: 'Proveedor',          width: 120, sortKey: 'partner', title: 'Proveedor o subcontratista.' },
+    { key: 'scheduled_date',   label: 'Fecha prevista',     width: 100, sortKey: 'scheduled_date', title: 'Fecha programada del movimiento de stock (scheduled_date).' },
+    { key: 'overdue',          label: 'Estado',             width: 65,  sortKey: 'overdue', align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
+    { key: 'availability',     label: 'Disponibilidad',     width: 80,  sortKey: 'availability', align: 'center', title: 'Disponible / Parcialmente / No disponible.' },
 ];
 
 const PO_SVC_COLS = [

@@ -832,7 +832,8 @@ class MrpPlannerDashboard(models.TransientModel):
             result = {
                 'id':               p.id,
                 'name':             p.name,
-                'po_name':          p.purchase_id.name if p.purchase_id else (p.origin or '—'),
+                'po_name':          (p.purchase_id.name if p.purchase_id
+                                    else po_by_group.get(p.group_id.id if p.group_id else 0, '—')),
                 'finished_product': None if is_incoming else (_get_finished_product(p) or '—'),
                 'partner':          p.partner_id.display_name if p.partner_id else '',
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
@@ -922,7 +923,20 @@ class MrpPlannerDashboard(models.TransientModel):
             ('location_dest_id.is_subcontracting_location', '=', True),
         ] + sched_domain, order=pick_order)
 
-        # Sort por partner/availability en pickings (Python, para que sea cross-página)
+        # Batch-resolve nombre de OC para entregas (no tienen purchase_id directo)
+        po_by_group = {}
+        deliveries_no_po = deliveries.filtered(lambda d: not d.purchase_id)
+        if deliveries_no_po:
+            gids = [g.id for g in deliveries_no_po.mapped('group_id') if g]
+            if gids:
+                try:
+                    for po in self.env['purchase.order'].search([('group_id', 'in', gids)]):
+                        if po.group_id and po.group_id.id not in po_by_group:
+                            po_by_group[po.group_id.id] = po.name
+                except Exception:
+                    pass
+
+        # Sort por partner/availability/po_name en pickings (Python, cross-página)
         if sort_field == 'partner':
             _ppk = lambda p: (p.partner_id.display_name or '').lower()
             receipts   = receipts.sorted(_ppk,   reverse=_rev)
@@ -932,6 +946,13 @@ class MrpPlannerDashboard(models.TransientModel):
             _ak = lambda p: _AO.get(_pick_avail(p), 99)
             receipts   = receipts.sorted(_ak,   reverse=_rev)
             deliveries = deliveries.sorted(_ak, reverse=_rev)
+        elif sort_field == 'po_name':
+            _pok = lambda p: (
+                p.purchase_id.name if p.purchase_id
+                else po_by_group.get(p.group_id.id if p.group_id else 0, '')
+            ).lower()
+            receipts   = receipts.sorted(_pok,   reverse=_rev)
+            deliveries = deliveries.sorted(_pok, reverse=_rev)
 
         # Prefetch moves para evitar N+1 en _pick_dict
         (receipts | deliveries).mapped('move_ids')

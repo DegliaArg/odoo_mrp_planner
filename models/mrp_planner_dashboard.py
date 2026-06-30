@@ -133,7 +133,7 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.alert_receipt_delayed = Alert.search_count(base + [
                 ('alert_type', '=', 'receipt_delayed'),
                 ('picking_id.purchase_id', '!=', False),
-                ('picking_id.origin_return_id', '=', False),
+                ('picking_id.is_return_id', '=', False),
             ])
             rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + [('alert_type', '=', 'qty_mismatch')])
             rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_cancelled')])
@@ -381,7 +381,7 @@ class MrpPlannerDashboard(models.TransientModel):
         return self._open_alerts([
             ('alert_type', '=', 'receipt_delayed'),
             ('picking_id.purchase_id', '!=', False),
-            ('picking_id.origin_return_id', '=', False),
+            ('picking_id.is_return_id', '=', False),
         ])
 
     def action_view_qty_mismatch_alerts(self):
@@ -857,7 +857,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
-            ('origin_return_id', '=', False),
+            ('is_return_id', '=', False),
         ] + receipt_sc, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)

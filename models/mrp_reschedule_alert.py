@@ -403,7 +403,7 @@ class MrpRescheduleAlert(models.Model):
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
-            ('origin_return_id', '=', False),
+            ('is_return_id', '=', False),
             ('scheduled_date', '<', now),
         ])
 

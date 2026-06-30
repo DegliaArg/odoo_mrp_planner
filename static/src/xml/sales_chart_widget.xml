@@ -32,7 +32,7 @@
                             <button t-att-class="'btn ' + (state.topN === n ? 'btn-secondary' : 'btn-outline-secondary')"
                                     t-att-title="'Mostrar los ' + n + ' productos más vendidos según la métrica seleccionada'"
                                     t-on-click="() => this.setTopN(n)">
-                                Top <t t-esc="n"/>
+                                <t t-esc="'Top ' + n"/>
                             </button>
                         </t>
                     </div>

@@ -195,6 +195,11 @@
                                                 <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
                                                 <span t-else="" class="text-muted">—</span>
                                             </t>
+                                            <t t-elif="col.key === 'qty_forecast'">
+                                                <t t-if="prod.qty_forecast !== null and prod.qty_forecast !== undefined"
+                                                   t-esc="fmt(prod.qty_forecast)"/>
+                                                <span t-else="" class="text-muted">—</span>
+                                            </t>
                                             <t t-elif="col.key === 'status'">
                                                 <span t-if="prod.is_broken"
                                                       class="badge text-bg-danger"

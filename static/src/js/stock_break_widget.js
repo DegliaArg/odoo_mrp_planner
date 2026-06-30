@@ -25,6 +25,7 @@ const STOCK_COLS = [
     { key: 'product_types',label: 'Tipo',      width: 130, title: 'Tipos de producto asignados en la ficha del artículo.' },
     { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',    align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
     { key: 'min_qty',      label: 'Mínimo',    width: 85,  sortKey: 'min_qty',  align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
+    { key: 'qty_forecast', label: 'Forecast',  width: 95,  sortKey: 'qty_forecast', align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
     { key: 'status',       label: 'Estado',    width: 100, sortKey: 'status',   align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
 ];
 

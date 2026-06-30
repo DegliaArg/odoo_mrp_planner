@@ -213,7 +213,7 @@ class MoDashboardWidget extends Component {
         ]);
     }
     onClickPartial() {
-        this._navigate("Por cerrar", [["state", "=", "to_close"]]);
+        this._navigate("Por cerrar", [["state", "=", "to_close"], ...this._dateDomain()]);
     }
 
     /** @param {number|string} id — ID de la OF a abrir */

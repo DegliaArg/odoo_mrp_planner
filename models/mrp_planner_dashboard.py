@@ -694,6 +694,13 @@ class MrpPlannerDashboard(models.TransientModel):
         if date_to:
             date_domain.append(('date_order', '<=', date_to + ' 23:59:59'))
 
+        # OCs aprobadas: filtrar por fecha de entrega esperada, no por fecha de orden
+        date_planned_domain = []
+        if date_from:
+            date_planned_domain.append(('date_planned', '>=', date_from + ' 00:00:00'))
+        if date_to:
+            date_planned_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
+
         sched_domain = []
         if date_from:
             sched_domain.append(('scheduled_date', '>=', date_from + ' 00:00:00'))
@@ -702,7 +709,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
         approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
-        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_domain
+        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_planned_domain
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
@@ -837,7 +844,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
-        ] + receipt_sc + sched_domain, order=pick_order)
+        ] + receipt_sc, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
@@ -1082,7 +1089,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'delayed':     MO.search_count(active + [('date_finished', '<', now_s)] + date_d + no_sc),
             'reschedule':  MO.search_count(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
             'done':        MO.search_count([('state', '=', 'done')] + date_d + no_sc),
-            'partial':     MO.search_count([('state', '=', 'to_close')] + no_sc),
+            'partial':     MO.search_count([('state', '=', 'to_close')] + date_d + no_sc),
         }
 
     @api.model
@@ -1832,10 +1839,13 @@ class MrpPlannerDashboard(models.TransientModel):
             op_domain.append(('route_id', '=', mfg_route.id))
         orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
         min_qty_map = {}
+        forecast_map = {}
         for op in orderpoints:
             pid = op.product_id.id
-            if pid not in min_qty_map or op.product_min_qty > min_qty_map[pid]:
-                min_qty_map[pid] = op.product_min_qty
+            op_min = op.product_min_qty
+            if pid not in min_qty_map or op_min > min_qty_map[pid]:
+                min_qty_map[pid] = op_min
+                forecast_map[pid] = getattr(op, 'qty_forecast', None)
 
         # Stock en ubicaciones seleccionadas (batch via read_group)
         quant_groups = self.env['stock.quant'].read_group(
@@ -1852,13 +1862,15 @@ class MrpPlannerDashboard(models.TransientModel):
             qty     = round(qty_map.get(p.id, 0.0), 3)
             min_qty = min_qty_map.get(p.id)
             has_min = min_qty is not None
+            raw_forecast = forecast_map.get(p.id)
             rows.append({
-                'id':       p.id,
-                'name':     p.display_name,
-                'qty':      qty,
-                'min_qty':  min_qty if has_min else None,
-                'has_min':  has_min,
-                'is_broken': has_min and qty < (min_qty - 0.001),
+                'id':           p.id,
+                'name':         p.display_name,
+                'qty':          qty,
+                'min_qty':      min_qty if has_min else None,
+                'has_min':      has_min,
+                'is_broken':    has_min and qty < (min_qty - 0.001),
+                'qty_forecast': round(raw_forecast, 3) if raw_forecast is not None else None,
             })
 
         # KPIs sobre el conjunto completo
@@ -1885,6 +1897,8 @@ class MrpPlannerDashboard(models.TransientModel):
             rows.sort(key=lambda r: r['qty'], reverse=_rev)
         elif sort_field == 'min_qty':
             rows.sort(key=lambda r: (r['min_qty'] if r['min_qty'] is not None else -1), reverse=_rev)
+        elif sort_field == 'qty_forecast':
+            rows.sort(key=lambda r: r['qty_forecast'] if r['qty_forecast'] is not None else -999999, reverse=_rev)
         elif sort_field == 'status':
             rows.sort(key=lambda r: (0 if r['is_broken'] else 1 if not r['has_min'] else 2), reverse=_rev)
         else:

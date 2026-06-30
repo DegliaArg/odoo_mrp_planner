@@ -315,6 +315,7 @@
                                                             </span>
                                                         </t>
                                                         <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
                                                         <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
                                                         <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
                                                         <t t-elif="col.key === 'overdue'">
@@ -340,7 +341,7 @@
                                                     <t t-foreach="pick.lines" t-as="line" t-key="line_index">
                                                         <tr class="table-light" style="cursor:default;">
                                                             <td/>
-                                                            <td colspan="2" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td colspan="3" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
                                                             <td class="small text-muted">
                                                                 <t t-esc="fmt(line.demand)"/>
                                                                 <span class="ms-1 text-secondary" t-esc="line.uom"/>
@@ -421,6 +422,7 @@
                                                             </span>
                                                         </t>
                                                         <t t-elif="col.key === 'name'"><span class="fw-semibold" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
                                                         <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
                                                         <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
                                                         <t t-elif="col.key === 'overdue'">
@@ -445,7 +447,7 @@
                                                     <t t-foreach="pick.lines" t-as="line" t-key="line_index">
                                                         <tr class="table-light" style="cursor:default;">
                                                             <td/>
-                                                            <td colspan="2" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td colspan="3" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
                                                             <td class="small text-muted">
                                                                 <t t-esc="fmt(line.demand)"/>
                                                                 <span class="ms-1 text-secondary" t-esc="line.uom"/>

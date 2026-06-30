@@ -782,6 +782,7 @@ class MrpPlannerDashboard(models.TransientModel):
             result = {
                 'id':             p.id,
                 'name':           p.name,
+                'po_name':        p.purchase_id.name if p.purchase_id else (p.origin or '—'),
                 'partner':        p.partner_id.display_name if p.partner_id else '',
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,

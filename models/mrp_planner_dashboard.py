@@ -776,65 +776,80 @@ class MrpPlannerDashboard(models.TransientModel):
             'waiting':             'No disponible',
         }
 
-        _has_raw_mo = 'raw_material_production_id' in self.env['stock.move']._fields
+        _has_raw_mo  = 'raw_material_production_id' in self.env['stock.move']._fields
+        _has_po_line = 'purchase_line_id' in self.env['mrp.production']._fields
 
-        def _get_finished_product(p):
-            """Producto terminado al que corresponde una entrega de componentes (subcontratación).
-            4 estrategias en orden de confiabilidad."""
-
-            def _mo_name(mo):
-                return mo.product_id.display_name if mo and mo.product_id else None
-
-            def _trace(moves, depth=0):
-                if depth > 10:
-                    return None
-                for mv in moves:
-                    if _has_raw_mo and mv.raw_material_production_id:
-                        return mv.raw_material_production_id
-                    if mv.production_id:
-                        return mv.production_id
-                    result = _trace(mv.move_dest_ids, depth + 1)
-                    if result:
-                        return result
+        def _trace_mo(moves, depth=0):
+            """Traza move_dest_ids recursivamente buscando una OF de subcontratación."""
+            if depth > 10:
                 return None
+            for mv in moves:
+                if _has_raw_mo and mv.raw_material_production_id:
+                    return mv.raw_material_production_id
+                if mv.production_id:
+                    return mv.production_id
+                result = _trace_mo(mv.move_dest_ids, depth + 1)
+                if result:
+                    return result
+            return None
 
-            # Estrategia 1: campo directo en el move del componente
-            if _has_raw_mo:
-                for mv in p.move_ids:
-                    if mv.raw_material_production_id:
-                        return _mo_name(mv.raw_material_production_id)
+        def _delivery_mo_s1(p):
+            """Estrategia 1: campo directo raw_material_production_id (usa prefetch)."""
+            if not _has_raw_mo:
+                return None
+            for mv in p.move_ids:
+                if mv.raw_material_production_id:
+                    return mv.raw_material_production_id
+            return None
 
-            # Estrategia 2: trazar por move_dest_ids
-            mo = _trace(p.move_ids)
-            if mo:
-                return _mo_name(mo)
-
+        def _delivery_info(p):
+            """Para un picking de entrega devuelve (po_name, finished_product).
+            Busca la OF de subcontratación por 4 estrategias y extrae ambos datos."""
+            # Estrategia 1: campo directo en el move (usa prefetch, O(1))
+            mo = _delivery_mo_s1(p)
+            # Estrategia 2: trazar move_dest_ids
+            if not mo:
+                mo = _trace_mo(p.move_ids)
             # Estrategia 3: desde líneas de la OC
-            if p.purchase_id:
+            if not mo and p.purchase_id:
                 for line in p.purchase_id.order_line:
                     for mv in line.move_ids:
-                        if _has_raw_mo and mv.raw_material_production_id and mv.raw_material_production_id.product_id:
-                            return mv.raw_material_production_id.product_id.display_name
-
-            # Estrategia 4: por procurement_group_id (fallback débil)
-            if p.group_id:
+                        if _has_raw_mo and mv.raw_material_production_id:
+                            mo = mv.raw_material_production_id
+                            break
+                    if mo:
+                        break
+            # Estrategia 4: por grupo de abastecimiento (fallback)
+            if not mo and p.group_id:
                 mo = self.env['mrp.production'].search(
                     [('procurement_group_id', '=', p.group_id.id)], limit=1
                 )
-                if mo:
-                    return _mo_name(mo)
 
-            return None
+            finished = (mo.product_id.display_name if mo and mo.product_id else None) or '—'
+
+            po_name = '—'
+            if mo and _has_po_line:
+                try:
+                    if mo.purchase_line_id and mo.purchase_line_id.order_id:
+                        po_name = mo.purchase_line_id.order_id.name
+                except Exception:
+                    pass
+
+            return po_name, finished
 
         def _pick_dict(p, include_lines=False):
             avail = _pick_avail(p)
             is_incoming = p.picking_type_code == 'incoming'
+            if is_incoming:
+                po_name  = p.purchase_id.name if p.purchase_id else '—'
+                finished = None
+            else:
+                po_name, finished = _delivery_info(p)
             result = {
                 'id':               p.id,
                 'name':             p.name,
-                'po_name':          (p.purchase_id.name if p.purchase_id
-                                    else po_by_group.get(p.group_id.id if p.group_id else 0, '—')),
-                'finished_product': None if is_incoming else (_get_finished_product(p) or '—'),
+                'po_name':          po_name,
+                'finished_product': finished,
                 'partner':          p.partner_id.display_name if p.partner_id else '',
                 'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
                 'state':          p.state,
@@ -923,18 +938,12 @@ class MrpPlannerDashboard(models.TransientModel):
             ('location_dest_id.is_subcontracting_location', '=', True),
         ] + sched_domain, order=pick_order)
 
-        # Batch-resolve nombre de OC para entregas (no tienen purchase_id directo)
-        po_by_group = {}
-        deliveries_no_po = deliveries.filtered(lambda d: not d.purchase_id)
-        if deliveries_no_po:
-            gids = [g.id for g in deliveries_no_po.mapped('group_id') if g]
-            if gids:
-                try:
-                    for po in self.env['purchase.order'].search([('group_id', 'in', gids)]):
-                        if po.group_id and po.group_id.id not in po_by_group:
-                            po_by_group[po.group_id.id] = po.name
-                except Exception:
-                    pass
+        # Prefetch para evitar N+1 en sort y en _pick_dict
+        (receipts | deliveries).mapped('move_ids')
+        if deliveries and _has_raw_mo:
+            deliveries.mapped('move_ids.raw_material_production_id.product_id')
+            if _has_po_line:
+                deliveries.mapped('move_ids.raw_material_production_id.purchase_line_id.order_id')
 
         # Sort por partner/availability/po_name en pickings (Python, cross-página)
         if sort_field == 'partner':
@@ -947,17 +956,17 @@ class MrpPlannerDashboard(models.TransientModel):
             receipts   = receipts.sorted(_ak,   reverse=_rev)
             deliveries = deliveries.sorted(_ak, reverse=_rev)
         elif sort_field == 'po_name':
-            _pok = lambda p: (
-                p.purchase_id.name if p.purchase_id
-                else po_by_group.get(p.group_id.id if p.group_id else 0, '')
-            ).lower()
-            receipts   = receipts.sorted(_pok,   reverse=_rev)
-            deliveries = deliveries.sorted(_pok, reverse=_rev)
-
-        # Prefetch moves para evitar N+1 en _pick_dict
-        (receipts | deliveries).mapped('move_ids')
-        if deliveries and _has_raw_mo:
-            deliveries.mapped('move_ids.raw_material_production_id.product_id')
+            def _dok(p):
+                mo = _delivery_mo_s1(p)
+                if mo and _has_po_line:
+                    try:
+                        if mo.purchase_line_id and mo.purchase_line_id.order_id:
+                            return mo.purchase_line_id.order_id.name.lower()
+                    except Exception:
+                        pass
+                return ''
+            receipts   = receipts.sorted(lambda p: (p.purchase_id.name or '').lower(), reverse=_rev)
+            deliveries = deliveries.sorted(_dok, reverse=_rev)
 
         receipts_pg        = receipts[offset:offset + page_size]
         deliveries_pg      = deliveries[offset:offset + page_size]

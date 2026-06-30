@@ -41,7 +41,7 @@ const PO_PICK_COLS = [
     { key: 'partner',          label: 'Proveedor',          width: 120, sortKey: 'partner', title: 'Proveedor o subcontratista.' },
     { key: 'scheduled_date',   label: 'Fecha prevista',     width: 100, sortKey: 'scheduled_date', title: 'Fecha programada del movimiento de stock (scheduled_date).' },
     { key: 'overdue',          label: 'Estado',             width: 65,  sortKey: 'overdue', align: 'center', title: 'Días de retraso. +Nd = vencido hace N días.' },
-    { key: 'availability',     label: 'Disponibilidad',     width: 80,  sortKey: 'availability', align: 'center', title: 'Disponible / Parcialmente / No disponible.' },
+    { key: 'availability',     label: 'Disp.',              width: 80,  sortKey: 'availability', align: 'center', title: 'Disponible / Parcialmente / No disponible.' },
 ];
 
 const PO_SVC_COLS = [

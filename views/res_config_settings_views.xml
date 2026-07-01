@@ -57,21 +57,63 @@
                                 <group string="Categorías de proveedor — Configuración">
                                     <field name="enable_supplier_categories" widget="boolean_toggle"
                                            help="Activa el campo Categoría de proveedor (A–E) en los contactos y lo muestra en la tabla de análisis de proveedores."/>
-                                    <field name="supplier_cat_method" widget="radio" nolabel="1"
-                                           invisible="not enable_supplier_categories"
-                                           help="Manual: se asigna desde la ficha del proveedor. ABC por volumen: Pareto por importe de OCs del último año (20% acumulado = A, 50% = B, 80% = C, 95% = D, resto = E). ABC por frecuencia: igual pero por cantidad de OCs. ABC por RFM: scoring Recencia + Frecuencia + Monetario (1-3 pts c/u); suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, resto = E. ABC por % entrega: Pareto por % de recepciones a tiempo. ABC por variación de precio: Pareto invertido por |var. precio vs costo estándar| (menor = A). ABC calidad cantidad: Pareto por % de movimientos sin diferencia entre pedido y recibido. ABC calidad devoluciones: Pareto invertido por cantidad de devoluciones (menos = A). ABC calidad combinado: promedio de % entrega a tiempo y % sin diferencia de cantidad."/>
-                                    <label for="supplier_cat_cron_number" string="Frecuencia de actualización"
-                                           invisible="not enable_supplier_categories or supplier_cat_method == 'manual'"/>
-                                    <div class="o_row"
-                                         invisible="not enable_supplier_categories or supplier_cat_method == 'manual'">
-                                        <field name="supplier_cat_cron_number" class="o_field_small"/>
-                                        <field name="supplier_cat_cron_type" class="ms-2" nolabel="1"/>
-                                    </div>
-                                    <div class="mt-2" invisible="not enable_supplier_categories">
-                                        <button name="action_compute_supplier_categories"
-                                                type="object"
-                                                string="Calcular ahora"
-                                                class="btn btn-primary btn-sm"/>
+                                    <div invisible="not enable_supplier_categories" class="mt-2">
+                                        <div class="row">
+                                            <div class="col-7">
+                                                <div class="o_planner_method_radio">
+                                                    <field name="supplier_cat_method" widget="radio" nolabel="1"/>
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'manual'">
+                                                    Asignás la categoría directamente desde la ficha de cada proveedor. No se recalcula automáticamente.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_volume'">
+                                                    <b>Pareto por importe:</b> ordena proveedores de mayor a menor importe de OCs confirmadas en el último año. Primero 20% acumulado = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_frequency'">
+                                                    <b>Pareto por cantidad de OCs:</b> igual que por volumen pero usa el número de órdenes como peso. Favorece proveedores con alta frecuencia de compra independientemente del importe.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_rfm'">
+                                                    <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 OCs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, &lt;3 = E.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_delivery_pct'">
+                                                    <b>Pareto por % entrega a tiempo:</b> calcula qué porcentaje de recepciones de cada proveedor llegaron en la fecha planificada o antes. Mayor % = mejor categoría (A).
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_price_var'">
+                                                    <b>Pareto invertido por variación de precio:</b> promedio de |precio OC − costo estándar| / costo estándar × 100 por proveedor. Menor variación = mejor categoría (A).
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_quality_qty'">
+                                                    <b>Pareto por exactitud de cantidad:</b> % de líneas de recepción donde la cantidad recibida coincide con la pedida (tolerancia 0,001 u.). Mayor exactitud = mejor categoría (A).
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_quality_returns'">
+                                                    <b>Pareto invertido por devoluciones:</b> cantidad de recepciones revertidas al proveedor en el último año. Menos devoluciones = mejor categoría (A).
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                     invisible="supplier_cat_method != 'abc_quality_combo'">
+                                                    <b>Combinado entrega + cantidad:</b> promedio simple entre % de recepciones a tiempo y % de recepciones sin diferencia de cantidad. Mayor score = mejor categoría (A).
+                                                </div>
+                                            </div>
+                                            <div class="col-5">
+                                                <div invisible="supplier_cat_method == 'manual'" class="mb-3">
+                                                    <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <field name="supplier_cat_cron_number" nolabel="1"/>
+                                                        <field name="supplier_cat_cron_type" nolabel="1"/>
+                                                    </div>
+                                                </div>
+                                                <button name="action_compute_supplier_categories"
+                                                        type="object"
+                                                        string="Calcular ahora"
+                                                        class="btn btn-primary btn-sm"/>
+                                            </div>
+                                        </div>
                                     </div>
                                 </group>
                             </group>
@@ -83,8 +125,23 @@
                                 <!-- Columna izquierda: categoría de venta + cliente -->
                                 <div class="col-6">
                                     <group string="Categoría de venta — Modo">
-                                        <field name="sale_cat_mode" widget="radio" nolabel="1"
-                                               help="Manual: cada artículo se categoriza desde su ficha. Rotación: calcula días de cobertura (stock ÷ ventas promedio mensual) y asigna A–E por umbrales configurables. Demanda: asigna A–E según promedio de unidades vendidas por mes. Participación: ordena por métrica y clasifica por % acumulado del total (Pareto)."/>
+                                        <field name="sale_cat_mode" widget="radio" nolabel="1"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="sale_cat_mode != 'manual'">
+                                            Asignás la categoría directamente desde la ficha de cada artículo. No hay cálculo automático.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="sale_cat_mode != 'automatic'">
+                                            <b>Por rotación de inventario:</b> calcula stock actual ÷ ventas promedio mensual. El resultado en días se compara con los umbrales A/B/C/D configurados abajo (ej.: ≤30 d = A, ≤60 d = B…).
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="sale_cat_mode != 'demand'">
+                                            <b>Por volumen de demanda:</b> promedia las unidades entregadas por mes en el período de análisis y compara con los umbrales mínimos A/B/C/D (ej.: ≥100 u/mes = A, ≥50 = B…).
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="sale_cat_mode != 'share'">
+                                            <b>Por participación acumulada (Pareto):</b> ordena todos los artículos por la métrica elegida (unidades o importe) y asigna categoría por % acumulado del total. Los que generan el primer X% = A, siguiente tramo = B, etc.
+                                        </div>
                                     </group>
                                     <group string="Categoría de venta — Período"
                                            invisible="sale_cat_mode == 'manual'">
@@ -134,21 +191,41 @@
                                     <group string="Categorías de cliente — Configuración">
                                         <field name="enable_customer_categories" widget="boolean_toggle"
                                                help="Activa el campo Categoría de cliente (A–E) en los contactos y permite calcularlo automáticamente según el método elegido."/>
-                                        <field name="customer_cat_method" widget="radio" nolabel="1"
-                                               invisible="not enable_customer_categories"
-                                               help="Manual: se asigna desde la ficha del cliente. ABC por volumen: Pareto por importe de SOs del último año (20% acumulado = A, 50% = B, 80% = C, 95% = D, resto = E). ABC por frecuencia: igual pero por cantidad de SOs. ABC por RFM: scoring Recencia + Frecuencia + Monetario (1-3 pts c/u); suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, resto = E."/>
-                                        <label for="customer_cat_cron_number" string="Frecuencia de actualización"
-                                               invisible="not enable_customer_categories or customer_cat_method == 'manual'"/>
-                                        <div class="o_row"
-                                             invisible="not enable_customer_categories or customer_cat_method == 'manual'">
-                                            <field name="customer_cat_cron_number" class="o_field_small"/>
-                                            <field name="customer_cat_cron_type" class="ms-2" nolabel="1"/>
-                                        </div>
-                                        <div class="mt-2" invisible="not enable_customer_categories">
-                                            <button name="action_compute_customer_categories"
-                                                    type="object"
-                                                    string="Calcular ahora"
-                                                    class="btn btn-primary btn-sm"/>
+                                        <div invisible="not enable_customer_categories" class="mt-2">
+                                            <div class="row">
+                                                <div class="col-7">
+                                                    <field name="customer_cat_method" widget="radio" nolabel="1"/>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="customer_cat_method != 'manual'">
+                                                        Asignás la categoría directamente desde la ficha de cada cliente.
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="customer_cat_method != 'abc_volume'">
+                                                        <b>Pareto por importe de SOs:</b> ordena clientes de mayor a menor importe de SOs confirmadas en el último año. Primero 20% acumulado = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E.
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="customer_cat_method != 'abc_frequency'">
+                                                        <b>Pareto por cantidad de SOs:</b> igual que por volumen pero usa el número de pedidos como peso. Favorece clientes con alta frecuencia de compra.
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="customer_cat_method != 'abc_rfm'">
+                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 SOs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, &lt;3 = E.
+                                                    </div>
+                                                </div>
+                                                <div class="col-5">
+                                                    <div invisible="customer_cat_method == 'manual'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <field name="customer_cat_cron_number" nolabel="1"/>
+                                                            <field name="customer_cat_cron_type" nolabel="1"/>
+                                                        </div>
+                                                    </div>
+                                                    <button name="action_compute_customer_categories"
+                                                            type="object"
+                                                            string="Calcular ahora"
+                                                            class="btn btn-primary btn-sm"/>
+                                                </div>
+                                            </div>
                                         </div>
                                     </group>
                                 </div>
@@ -166,8 +243,27 @@
                                                help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
                                     </group>
                                     <group string="Forecast — Precisión">
-                                        <field name="forecast_acc_formula" widget="radio" nolabel="1"
-                                               help="Simple: entregado ÷ forecast × 100, puede superar 100%. MAPE: promedio aritmético de precisiones por período, sensible a períodos de bajo volumen. WAPE: pondera por volumen real, robusto cuando el forecast tiene ceros. WMAPE: pondera por volumen planificado, estándar en supply chain. Sesgo: (entregado − forecast) ÷ forecast × 100 — positivo = sobreentrega, negativo = déficit."/>
+                                        <field name="forecast_acc_formula" widget="radio" nolabel="1"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_acc_formula != 'simple'">
+                                            <b>Simple:</b> entregado ÷ forecast × 100. Fácil de interpretar pero puede superar 100% si se sobre-entrega. No penaliza los ceros en forecast.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_acc_formula != 'mape'">
+                                            <b>MAPE — Error porcentual absoluto medio:</b> promedia los errores porcentuales por período (100 − |real−forecast|/real × 100). Muy sensible a períodos con volumen real bajo o cero.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_acc_formula != 'wape'">
+                                            <b>WAPE — Error porcentual absoluto ponderado:</b> 100 − Σ|error|/Σentregado × 100. Pondera por volumen real; robusto cuando hay ceros en el forecast y recomendado para demanda intermitente.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_acc_formula != 'wmape'">
+                                            <b>WMAPE — Error ponderado por forecast:</b> 100 − Σ|error|/Σforecast × 100. Pondera por el volumen planificado; estándar en supply chain cuando los planes son el punto de referencia.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_acc_formula != 'bias'">
+                                            <b>Sesgo (Bias):</b> (entregado − forecast) / forecast × 100. Positivo = se entregó más de lo planeado (sobreentrega). Negativo = déficit. No mide magnitud del error sino dirección sistemática.
+                                        </div>
                                     </group>
                                 </div>
                             </div>

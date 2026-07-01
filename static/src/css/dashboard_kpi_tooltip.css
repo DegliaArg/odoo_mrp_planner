@@ -60,3 +60,10 @@
     z-index: 2;
     background: #f8f9fa;
 }
+
+/* ── Radio buttons en 2 columnas (selector de métodos ABC) ─────────── */
+.o_planner_method_radio .o_field_radio {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+}

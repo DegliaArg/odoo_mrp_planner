@@ -536,17 +536,17 @@ class ForecastWidget extends Component {
         const d = this.state.data;
         if (!d) return '';
         const formula = d.acc_formula;
-        const del = this.fmt(d.kpis.total_delivered), fc = this.fmt(d.kpis.total_forecast);
+        const dem = this.fmt(d.kpis.total_so_demand), fc = this.fmt(d.kpis.total_forecast);
         const val = this.fmtPct(d.kpis.overall_forecast_acc);
         if (formula === 'mape')
-            return `MAPE global = promedio de precisiones por artículo = ${val}`;
+            return `MAPE global = promedio de precisiones por artículo (vs demanda real) = ${val}`;
         if (formula === 'wape')
-            return `WAPE global = 100 − (Σ|errores| ÷ ${del} entregado × 100) = ${val}`;
+            return `WAPE global = 100 − (Σ|errores| ÷ ${dem} demanda real × 100) = ${val}`;
         if (formula === 'wmape')
             return `WMAPE global = 100 − (Σ|errores| ÷ ${fc} forecast × 100) = ${val}`;
         if (formula === 'bias')
-            return `Sesgo global = (${del} − ${fc}) ÷ ${fc} × 100 = ${val}`;
-        return `Precisión global = ${del} entregado ÷ ${fc} forecast × 100 = ${val}`;
+            return `Sesgo global = (${dem} demanda real − ${fc}) ÷ ${fc} × 100 = ${val}`;
+        return `Precisión global = ${dem} demanda real ÷ ${fc} forecast × 100 = ${val}`;
     }
 
     accTooltip(row) {
@@ -556,12 +556,32 @@ class ForecastWidget extends Component {
         const fv = v => v !== null && v !== undefined ? `${v}%` : '—';
         const mark = key => key === configured ? ' ◀' : '';
         return [
-            `Simple:  ${fv(a.simple)}${mark('simple')}`,
-            `MAPE:    ${fv(a.mape)}${mark('mape')}`,
-            `WAPE:    ${fv(a.wape)}${mark('wape')}`,
-            `WMAPE:   ${fv(a.wmape)}${mark('wmape')}`,
-            `Sesgo:   ${fv(a.bias)}${mark('bias')}`,
+            `Simple (dem. real):  ${fv(a.simple)}${mark('simple')}`,
+            `MAPE (dem. real):    ${fv(a.mape)}${mark('mape')}`,
+            `WAPE (dem. real):    ${fv(a.wape)}${mark('wape')}`,
+            `WMAPE:               ${fv(a.wmape)}${mark('wmape')}`,
+            `Sesgo (dem. real):   ${fv(a.bias)}${mark('bias')}`,
         ].join('\n');
+    }
+
+    demandGapClass(pct) {
+        if (pct === null || pct === undefined) return 'text-muted';
+        const abs = Math.abs(pct);
+        if (abs <= 10) return 'text-success fw-semibold';
+        if (abs <= 25) return 'text-warning fw-semibold';
+        return 'text-danger fw-semibold';
+    }
+
+    mosGapClass(pct) {
+        if (pct === null || pct === undefined) return 'text-muted';
+        if (pct >= 0) return 'text-success fw-semibold';
+        if (pct >= -10) return 'text-warning fw-semibold';
+        return 'text-danger fw-semibold';
+    }
+
+    fmtGapPct(n) {
+        if (n === null || n === undefined) return '—';
+        return `${n > 0 ? '+' : ''}${n}%`;
     }
 
     fmt(n) {

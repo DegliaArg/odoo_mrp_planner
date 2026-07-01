@@ -1586,33 +1586,36 @@ class MrpPlannerDashboard(models.TransientModel):
                 pct      = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
                 svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
 
-                abs_err = abs(del_qty - fc_qty)
-                # Acumular siempre todas las métricas (para tooltip multi-fórmula)
-                if del_qty > 0:
-                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / del_qty * 100)
+                abs_err = abs(so_qty - fc_qty)
+                # Precisión calculada vs demanda real (so_qty), no entregado
+                if so_qty > 0:
+                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / so_qty * 100)
                     _mape_acc_count += 1
                     _wape_abs_err   += abs_err
                 if fc_qty > 0:
                     _wmape_abs_err  += abs_err
                 # Valor de celda solo para la fórmula configurada
                 if acc_formula in ('mape', 'wape'):
-                    fc_acc = round(max(0.0, 100.0 - abs_err / del_qty * 100), 1) if del_qty > 0 else None
+                    fc_acc = round(max(0.0, 100.0 - abs_err / so_qty * 100), 1) if so_qty > 0 else None
                 elif acc_formula == 'wmape':
                     fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1) if fc_qty > 0 else None
                 elif acc_formula == 'bias':
-                    fc_acc = round((del_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
+                    fc_acc = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
                 else:  # simple
-                    fc_acc = round(del_qty / fc_qty * 100, 1) if fc_qty > 0 else None
+                    fc_acc = round(so_qty / fc_qty * 100, 1) if fc_qty > 0 else None
+
+                demand_gap_pct = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
 
                 cells.append({
-                    'month':        ym,
-                    'forecast':     round(fc_qty,  2),
-                    'mos':          round(mo_qty,  2),
-                    'pct':          pct,
-                    'delivered':    round(del_qty, 2),
-                    'so_demand':    round(so_qty,  2),
-                    'service_rate': svc_rate,
-                    'forecast_acc': fc_acc,
+                    'month':           ym,
+                    'forecast':        round(fc_qty,  2),
+                    'mos':             round(mo_qty,  2),
+                    'pct':             pct,
+                    'delivered':       round(del_qty, 2),
+                    'so_demand':       round(so_qty,  2),
+                    'service_rate':    svc_rate,
+                    'forecast_acc':    fc_acc,
+                    'demand_gap_pct':  demand_gap_pct,
                 })
                 tot_fc  += fc_qty
                 tot_mos += mo_qty
@@ -1624,13 +1627,13 @@ class MrpPlannerDashboard(models.TransientModel):
             if acc_formula == 'mape':
                 tot_acc = round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None
             elif acc_formula == 'wape':
-                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_del * 100), 1) if tot_del > 0 else None
+                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None
             elif acc_formula == 'wmape':
                 tot_acc = round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None
             elif acc_formula == 'bias':
-                tot_acc = round((tot_del - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
+                tot_acc = round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
             else:
-                tot_acc = round(tot_del / tot_fc * 100, 1) if tot_fc > 0 else None
+                tot_acc = round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None
 
             avg_monthly_del = tot_del / n_months
             if avg_monthly_del > 0:
@@ -1655,12 +1658,13 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_so_demand':    round(tot_so,  2),
                 'total_service_rate': tot_svc,
                 'total_forecast_acc': tot_acc,
+                'demand_gap_pct': round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
                 'acc_all': {
-                    'simple': round(tot_del / tot_fc * 100, 1) if tot_fc > 0 else None,
+                    'simple': round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None,
                     'mape':   round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None,
-                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_del * 100), 1) if tot_del > 0 else None,
+                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None,
                     'wmape':  round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None,
-                    'bias':   round((tot_del - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
+                    'bias':   round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
                 },
                 'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
                 'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
@@ -1702,15 +1706,15 @@ class MrpPlannerDashboard(models.TransientModel):
             ovr_acc = round(all_mape_sum / all_mape_count, 1) if all_mape_count > 0 else None
         elif acc_formula == 'wape':
             all_wape_err = sum(r['_wape_abs_err'] for r in rows)
-            ovr_acc = round(max(0.0, 100.0 - all_wape_err / total_del * 100), 1) if total_del > 0 else None
+            ovr_acc = round(max(0.0, 100.0 - all_wape_err / total_so * 100), 1) if total_so > 0 else None
         elif acc_formula == 'wmape':
             all_wmape_err  = sum(r['_wmape_abs_err'] for r in rows)
             total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
             ovr_acc = round(max(0.0, 100.0 - all_wmape_err / total_fc_wmape * 100), 1) if total_fc_wmape > 0 else None
         elif acc_formula == 'bias':
-            ovr_acc = round((total_del - total_fc) / total_fc * 100, 1) if total_fc > 0 else None
+            ovr_acc = round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None
         else:
-            ovr_acc = round(total_del / total_fc * 100, 1) if total_fc > 0 else None
+            ovr_acc = round(total_so / total_fc * 100, 1) if total_fc > 0 else None
 
         # Limpiar campos internos antes de enviar al frontend
         _internal = ('_mape_acc_sum', '_mape_acc_count', '_wape_abs_err', '_wmape_abs_err')
@@ -1721,12 +1725,16 @@ class MrpPlannerDashboard(models.TransientModel):
         return {
             'kpis': {
                 'total_forecast':       round(total_fc,  2),
+                'total_so_demand':      round(total_so,  2),
                 'total_mos':            round(total_mos, 2),
+                'total_delivered':      round(total_del, 2),
                 'gap':                  round(total_mos - total_fc, 2),
+                'mos_gap_pct':          round((total_mos - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
+                'demand_gap':           round(total_so - total_fc, 2),
+                'demand_gap_pct':       round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
                 'coverage_pct':         coverage,
                 'at_risk':              at_risk,
                 'total_products':       len(rows),
-                'total_delivered':      round(total_del, 2),
                 'overall_service_rate': ovr_svc,
                 'overall_forecast_acc': ovr_acc,
             },

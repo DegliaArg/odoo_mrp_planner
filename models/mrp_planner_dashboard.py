@@ -1185,7 +1185,7 @@ class MrpPlannerDashboard(models.TransientModel):
         dFrom = date_from + ' 00:00:00'
         dTo   = date_to   + ' 23:59:59'
         date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
-        active = [('state', 'not in', ('done', 'cancel'))]
+        active = [('state', 'not in', ('done', 'cancel', 'draft'))]
         now_s  = fields.Datetime.to_string(now)
 
         return {

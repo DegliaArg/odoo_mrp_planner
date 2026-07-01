@@ -192,7 +192,7 @@ class MoDashboardWidget extends Component {
         return d;
     }
 
-    onClickTotal()      { this._navigate("OFs activas",     [["state", "not in", ["done", "cancel"]], ...this._dateDomain()]); }
+    onClickTotal()      { this._navigate("OFs activas",     [["state", "not in", ["done", "cancel", "draft"]], ...this._dateDomain()]); }
     onClickInProgress() { this._navigate("OFs en progreso", [["state", "in", ["progress", "to_close"]], ...this._dateDomain()]); }
     onClickDelayed() {
         const now = new Date().toISOString();

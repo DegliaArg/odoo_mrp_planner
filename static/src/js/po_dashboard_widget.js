@@ -20,7 +20,6 @@ import { useColManager } from "./column_manager";
 const PO_OC_COLS = [
     { key: 'name',         label: 'Referencia',      width: 130, sortKey: 'name',         title: 'Número de la orden de compra.' },
     { key: 'partner',      label: 'Proveedor',        width: 180, sortKey: 'partner',      title: 'Proveedor de la orden de compra.' },
-    { key: 'supplier_cat', label: 'Cat.',             width: 45,  sortKey: 'supplier_cat', align: 'center', title: 'Categoría de proveedor (A–E).' },
     { key: 'date_planned', label: 'Entrega estimada', width: 130, sortKey: 'date_planned', title: 'Fecha de entrega planificada (date_planned).' },
     { key: 'amount_total', label: 'Total',            width: 100, sortKey: 'amount_total', align: 'end',    title: 'Importe total de la OC en moneda de la empresa.' },
 ];
@@ -352,10 +351,6 @@ class PoDashboardWidget extends Component {
         }
     }
 
-    catBadgeClass(cat) {
-        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-warning text-dark', D: 'text-bg-secondary', E: 'text-bg-danger' };
-        return map[cat] || 'text-bg-secondary';
-    }
 }
 
 registry.category("view_widgets").add("po_dashboard_widget", {

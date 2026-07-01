@@ -729,7 +729,6 @@ class MrpPlannerDashboard(models.TransientModel):
                 'id':               po.id,
                 'name':             po.name,
                 'partner':          po.partner_id.display_name if po.partner_id else '',
-                'supplier_cat':     po.partner_id.x_supplier_category or '',
                 'date_planned':     po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
                 'amount_total':     po.amount_total,
                 'is_subcontract':   bool(po.subcontract_production_ids),
@@ -901,15 +900,7 @@ class MrpPlannerDashboard(models.TransientModel):
             pending_list    = pending_list.sorted(_pk,    reverse=_rev)
             services_rs     = services_rs.sorted(_pk,     reverse=_rev)
 
-        # Sort por categoría de proveedor (A–E)
-        if sort_field == 'supplier_cat':
-            _sk = lambda r: (r.partner_id.x_supplier_category or 'Z')
-            rfqs_list       = rfqs_list.sorted(_sk,       reverse=_rev)
-            to_approve_list = to_approve_list.sorted(_sk, reverse=_rev)
-            overdue_list    = overdue_list.sorted(_sk,    reverse=_rev)
-            all_pos_list    = all_pos_list.sorted(_sk,    reverse=_rev)
-            pending_list    = pending_list.sorted(_sk,    reverse=_rev)
-            services_rs     = services_rs.sorted(_sk,     reverse=_rev)
+
 
         rfqs_pg       = rfqs_list[offset:offset + page_size]
         to_approve_pg = to_approve_list[offset:offset + page_size]
@@ -2380,6 +2371,16 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        show_supplier_cat = bool(cfg and cfg.enable_supplier_categories)
+        if show_supplier_cat:
+            cat_map = {r['id']: r['x_supplier_category'] or ''
+                       for r in self.env['res.partner'].search_read(
+                           [('id', 'in', list(partner_data.keys()))],
+                           ['id', 'x_supplier_category']
+                       )}
+            for row in rows:
+                row['supplier_cat'] = cat_map.get(row['partner_id'], '')
+
         sup_config = {
             'sup_on_time_green':   cfg.sup_on_time_green_pct   if cfg else 90,
             'sup_on_time_yellow':  cfg.sup_on_time_yellow_pct  if cfg else 70,
@@ -2391,7 +2392,10 @@ class MrpPlannerDashboard(models.TransientModel):
             'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
         }
 
-        return {'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices, 'config': sup_config}
+        return {
+            'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices,
+            'config': sup_config, 'show_supplier_cat': show_supplier_cat,
+        }
 
     @api.model
     def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to):

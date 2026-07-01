@@ -161,7 +161,14 @@
                                     <td t-foreach="supVisibleCols" t-as="col" t-key="col.key"
                                         style="padding:5px 8px;"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
-                                        <t t-if="col.key === 'partner_name'">
+                                        <t t-if="col.key === 'supplier_cat'">
+                                            <span t-if="row.supplier_cat"
+                                                  t-att-class="'badge ' + catBadgeClass(row.supplier_cat)"
+                                                  t-att-title="'Categoría de proveedor: ' + row.supplier_cat"
+                                                  t-esc="row.supplier_cat"/>
+                                            <span t-else="" class="text-muted small">—</span>
+                                        </t>
+                                        <t t-elif="col.key === 'partner_name'">
                                             <button class="btn btn-link btn-sm p-0 me-1 text-muted"
                                                     style="line-height:1; vertical-align:middle;"
                                                     t-att-title="state.expandedSuppliers[row.partner_id] ? 'Cerrar OCs' : 'Ver OCs del proveedor'"

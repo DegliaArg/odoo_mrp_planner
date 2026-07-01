@@ -5,7 +5,7 @@ from odoo.exceptions import UserError
 
 
 def _assign_abc_pareto(partners, value_by_id, field_name):
-    """Assigns A–E via cumulative Pareto. Partners with no value → E."""
+    """Assigns A–E via cumulative Pareto. Higher value = A. Partners with no value → E."""
     total = sum(value_by_id.get(p.id, 0.0) for p in partners)
     if total <= 0:
         for p in partners:
@@ -24,6 +24,25 @@ def _assign_abc_pareto(partners, value_by_id, field_name):
         elif cumulative <= 0.80: cat = 'C'
         elif cumulative <= 0.95: cat = 'D'
         else:                    cat = 'E'
+        p[field_name] = cat
+
+
+def _assign_abc_pareto_lower(partners, value_by_id, field_name):
+    """Assigns A–E where LOWER value = A (e.g. price variance, return count).
+    Partners with no value → E."""
+    with_val = [(p, value_by_id.get(p.id)) for p in partners]
+    for p, v in with_val:
+        if v is None:
+            p[field_name] = 'E'
+    has_val = sorted([(p, v) for p, v in with_val if v is not None], key=lambda x: x[1])
+    n = len(has_val)
+    for i, (p, _) in enumerate(has_val):
+        pct = (i + 1) / n if n > 0 else 1.0
+        if   pct <= 0.20: cat = 'A'
+        elif pct <= 0.50: cat = 'B'
+        elif pct <= 0.80: cat = 'C'
+        elif pct <= 0.95: cat = 'D'
+        else:             cat = 'E'
         p[field_name] = cat
 
 
@@ -204,22 +223,31 @@ class MrpRescheduleConfig(models.Model):
         help='Activa el campo Categoría de proveedor (A–E) en los contactos y permite '
              'calcularlo automáticamente según el método elegido.')
     supplier_cat_method = fields.Selection([
-        ('manual',        'Manual'),
-        ('abc_volume',    'ABC por volumen (importe OCs)'),
-        ('abc_frequency', 'ABC por frecuencia (cantidad de OCs)'),
-        ('abc_rfm',       'ABC por RFM'),
+        ('manual',              'Manual'),
+        ('abc_volume',          'ABC por volumen (importe OCs)'),
+        ('abc_frequency',       'ABC por frecuencia (cantidad de OCs)'),
+        ('abc_rfm',             'ABC por RFM'),
+        ('abc_delivery_pct',    'ABC por % de entrega a tiempo'),
+        ('abc_price_var',       'ABC por variación de precio'),
+        ('abc_quality_qty',     'ABC por calidad — diferencia de cantidad'),
+        ('abc_quality_returns', 'ABC por calidad — devoluciones'),
+        ('abc_quality_combo',   'ABC por calidad — combinado (entrega + cantidad)'),
     ], string='Método proveedor', default='manual',
        help='Manual: la categoría se asigna desde la ficha de cada proveedor.\n'
-            'ABC por volumen: ordena los proveedores por importe total de OCs confirmadas '
-            'en los últimos 12 meses y aplica Pareto acumulado '
-            '(primero 20% del total = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E).\n'
-            'ABC por frecuencia: igual que volumen pero pondera por cantidad de OCs en vez del importe. '
-            'Favorece proveedores con alta frecuencia de pedidos.\n'
-            'ABC por RFM: scoring multidimensional — '
-            'Recencia (días desde la última OC: < 30d = 3pts, < 90d = 2pts, resto = 1pt), '
-            'Frecuencia (OCs en el año: > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
-            'Monetario (importe relativo al percentil 33/66 del grupo: alto = 3pts, medio = 2pts, bajo = 1pt). '
-            'Suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.')
+            'ABC por volumen: Pareto por importe total de OCs del último año '
+            '(primero 20% = A, 50% = B, 80% = C, 95% = D, resto = E).\n'
+            'ABC por frecuencia: igual que volumen pero por cantidad de OCs.\n'
+            'ABC por RFM: scoring Recencia + Frecuencia + Monetario (1-3 pts c/u); '
+            'suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.\n'
+            'ABC por % de entrega a tiempo: Pareto por % de recepciones completadas '
+            'antes o en la fecha planificada. Mayor % = mejor categoría.\n'
+            'ABC por variación de precio: Pareto invertido por |variación precio OC vs costo estándar|. '
+            'Menor variación = mejor categoría.\n'
+            'ABC por calidad — diferencia de cantidad: Pareto por % de movimientos de recepción '
+            'donde la cantidad recibida coincide exactamente con la pedida.\n'
+            'ABC por calidad — devoluciones: Pareto invertido por cantidad de devoluciones al proveedor. '
+            'Menos devoluciones = mejor categoría.\n'
+            'ABC por calidad — combinado: promedio de % entrega a tiempo y % sin diferencia de cantidad.')
     supplier_cat_cron_number = fields.Integer(string='Cada', default=1,
         help='Número de unidades de tiempo entre cada recálculo automático de las categorías de proveedor.')
     supplier_cat_cron_type   = fields.Selection([
@@ -469,6 +497,137 @@ class MrpRescheduleConfig(models.Model):
                 else:                  cat = 'E'
                 p.x_supplier_category = cat
                 updated += 1
+
+        elif config.supplier_cat_method == 'abc_delivery_pct':
+            picks = self.env['stock.picking'].search([
+                ('state', '=', 'done'),
+                ('picking_type_code', '=', 'incoming'),
+                ('purchase_id.partner_id', 'in', suppliers.ids),
+                ('purchase_id.date_order', '>=', str(start)),
+            ])
+            pct_data = {}
+            for pick in picks:
+                pid = pick.purchase_id.partner_id.id
+                if pid not in pct_data:
+                    pct_data[pid] = {'total': 0, 'on_time': 0}
+                pct_data[pid]['total'] += 1
+                if pick.scheduled_date and pick.date_done and pick.date_done <= pick.scheduled_date:
+                    pct_data[pid]['on_time'] += 1
+            value_by_id = {
+                pid: (d['on_time'] / d['total'] * 100) if d['total'] > 0 else 0.0
+                for pid, d in pct_data.items()
+            }
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            updated = len(suppliers)
+
+        elif config.supplier_cat_method == 'abc_price_var':
+            po_lines = self.env['purchase.order.line'].search([
+                ('order_id.state', 'in', ('purchase', 'done')),
+                ('order_id.date_order', '>=', str(start)),
+                ('order_id.partner_id', 'in', suppliers.ids),
+                ('product_id', '!=', False),
+            ])
+            prod_ids = list({ln.product_id.id for ln in po_lines})
+            std_map = {r['id']: r['standard_price']
+                       for r in self.env['product.product'].search_read(
+                           [('id', 'in', prod_ids)], ['id', 'standard_price']
+                       )} if prod_ids else {}
+            pvar_data = {}
+            for ln in po_lines:
+                pid = ln.order_id.partner_id.id
+                std = std_map.get(ln.product_id.id, 0.0)
+                if std > 0 and ln.price_unit > 0:
+                    var = abs((ln.price_unit - std) / std * 100)
+                    if pid not in pvar_data:
+                        pvar_data[pid] = {'sum': 0.0, 'count': 0}
+                    pvar_data[pid]['sum'] += var
+                    pvar_data[pid]['count'] += 1
+            avg_var_by_id = {
+                pid: d['sum'] / d['count'] if d['count'] > 0 else None
+                for pid, d in pvar_data.items()
+            }
+            _assign_abc_pareto_lower(suppliers, avg_var_by_id, 'x_supplier_category')
+            updated = len(suppliers)
+
+        elif config.supplier_cat_method == 'abc_quality_qty':
+            moves = self.env['stock.move'].search([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_code', '=', 'incoming'),
+                ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
+                ('picking_id.purchase_id.date_order', '>=', str(start)),
+            ])
+            qty_data = {}
+            for mv in moves:
+                pid = mv.picking_id.purchase_id.partner_id.id
+                if pid not in qty_data:
+                    qty_data[pid] = {'total': 0, 'exact': 0}
+                qty_data[pid]['total'] += 1
+                if abs(mv.quantity - mv.product_uom_qty) < 0.001:
+                    qty_data[pid]['exact'] += 1
+            value_by_id = {
+                pid: (d['exact'] / d['total'] * 100) if d['total'] > 0 else 0.0
+                for pid, d in qty_data.items()
+            }
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            updated = len(suppliers)
+
+        elif config.supplier_cat_method == 'abc_quality_returns':
+            returns_by_partner = {}
+            _has_return_id = 'return_id' in self.env['stock.picking']._fields
+            if _has_return_id:
+                ret_picks = self.env['stock.picking'].search([
+                    ('state', '=', 'done'),
+                    ('return_id', '!=', False),
+                    ('return_id.purchase_id', '!=', False),
+                    ('return_id.purchase_id.partner_id', 'in', suppliers.ids),
+                    ('return_id.purchase_id.date_order', '>=', str(start)),
+                ])
+                for pick in ret_picks:
+                    pid = pick.return_id.purchase_id.partner_id.id
+                    returns_by_partner[pid] = returns_by_partner.get(pid, 0) + 1
+            _assign_abc_pareto_lower(suppliers, returns_by_partner, 'x_supplier_category')
+            updated = len(suppliers)
+
+        elif config.supplier_cat_method == 'abc_quality_combo':
+            picks = self.env['stock.picking'].search([
+                ('state', '=', 'done'),
+                ('picking_type_code', '=', 'incoming'),
+                ('purchase_id.partner_id', 'in', suppliers.ids),
+                ('purchase_id.date_order', '>=', str(start)),
+            ])
+            combo_data = {}
+            for pick in picks:
+                pid = pick.purchase_id.partner_id.id
+                if pid not in combo_data:
+                    combo_data[pid] = {'total': 0, 'on_time': 0}
+                combo_data[pid]['total'] += 1
+                if pick.scheduled_date and pick.date_done and pick.date_done <= pick.scheduled_date:
+                    combo_data[pid]['on_time'] += 1
+            moves = self.env['stock.move'].search([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_code', '=', 'incoming'),
+                ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
+                ('picking_id.purchase_id.date_order', '>=', str(start)),
+            ])
+            qty_data = {}
+            for mv in moves:
+                pid = mv.picking_id.purchase_id.partner_id.id
+                if pid not in qty_data:
+                    qty_data[pid] = {'total': 0, 'exact': 0}
+                qty_data[pid]['total'] += 1
+                if abs(mv.quantity - mv.product_uom_qty) < 0.001:
+                    qty_data[pid]['exact'] += 1
+            value_by_id = {}
+            for p in suppliers:
+                on_t = combo_data.get(p.id, {})
+                qt   = qty_data.get(p.id, {})
+                on_time_pct = (on_t.get('on_time', 0) / on_t['total'] * 100) if on_t.get('total') else None
+                qty_pct     = (qt.get('exact', 0) / qt['total'] * 100) if qt.get('total') else None
+                scores = [s for s in [on_time_pct, qty_pct] if s is not None]
+                if scores:
+                    value_by_id[p.id] = sum(scores) / len(scores)
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            updated = len(suppliers)
 
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Categorías de proveedor asignadas',

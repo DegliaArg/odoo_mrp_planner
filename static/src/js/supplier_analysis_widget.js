@@ -7,6 +7,7 @@ import { useColManager } from "./column_manager";
 
 const SUP_COLS = [
     { key: 'partner_name',     label: 'Proveedor',     width: 160, sortKey: 'partner_name',     title: 'Nombre del proveedor.' },
+    { key: 'supplier_cat',     label: 'Cat.',           width: 45,  sortKey: 'supplier_cat',     align: 'center', title: 'Categoría de proveedor A–E calculada según el método configurado.' },
     { key: 'order_count',      label: 'OCs',           width: 55,  sortKey: 'order_count',      align: 'end', title: 'OCs confirmadas en el período.' },
     { key: 'distinct_products',label: 'Artículos',     width: 65,  sortKey: 'distinct_products', align: 'end', title: 'Artículos distintos comprados.' },
     { key: 'total_amount',     label: 'Monto',         width: 100, sortKey: 'total_amount',      align: 'end', title: 'Suma del monto total de OCs confirmadas.' },
@@ -172,9 +173,16 @@ class SupplierAnalysisWidget extends Component {
     }
 
     get supVisibleCols() {
-        return this.colsSup.visibleCols().filter(
-            c => c.key !== 'pending_inv' || (this.state.data && this.state.data.has_invoices)
-        );
+        return this.colsSup.visibleCols().filter(c => {
+            if (c.key === 'pending_inv') return this.state.data && this.state.data.has_invoices;
+            if (c.key === 'supplier_cat') return this.state.data && this.state.data.show_supplier_cat;
+            return true;
+        });
+    }
+
+    catBadgeClass(cat) {
+        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-warning text-dark', D: 'text-bg-secondary', E: 'text-bg-danger' };
+        return map[cat] || 'text-bg-secondary';
     }
 
     // ── Acordeón de OCs ───────────────────────────────────────────────────────

@@ -177,7 +177,7 @@ class MrpPlannerDashboard(models.TransientModel):
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
         for rec in self:
-            active = MO.search([('state', 'not in', ('done', 'cancel'))] + no_sc)
+            active = MO.search([('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc)
             rec.mo_total             = len(active)
             rec.mo_in_progress       = len(active.filtered(lambda m: m.state in ('progress', 'to_close')))
             rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc)
@@ -1928,7 +1928,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 [('name', 'ilike', 'manufactur')], limit=1)
 
         # Productos vendibles activos
-        product_domain = [('sale_ok', '=', True), ('active', '=', True)]
+        product_domain = [('sale_ok', '=', True), ('active', '=', True), ('type', '=', 'consu')]
         if search:
             product_domain += ['|', ('name', 'ilike', search), ('default_code', 'ilike', search)]
         products = self.env['product.product'].search(product_domain)

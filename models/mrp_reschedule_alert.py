@@ -314,8 +314,9 @@ class MrpRescheduleAlert(models.Model):
         cfg = self._get_config()
         crit_days = cfg.alert_po_critical_days if cfg else 5
         pos = self.env['purchase.order'].search([
-            ('state', '=', 'purchase'),
+            ('state', 'in', ('purchase', 'done')),
             ('date_planned', '<', now),
+            ('receipt_status', 'not in', ['full']),
         ])
 
         # Preload all open po_delayed alerts indexed by purchase_id
@@ -597,7 +598,9 @@ class MrpRescheduleAlert(models.Model):
         stale_po = self.search([
             ('alert_type', 'in', ('po_delayed', 'po_cancelled')),
             ('resolved', '=', False),
-            ('purchase_id.state', 'in', ('done', 'cancel')),
+            '|',
+            ('purchase_id.state', '=', 'cancel'),
+            ('purchase_id.receipt_status', '=', 'full'),
         ])
         if stale_po:
             stale_po.write({'resolved': True, 'resolve_date': now})

@@ -4,6 +4,29 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
+def _assign_abc_pareto(partners, value_by_id, field_name):
+    """Assigns A–E via cumulative Pareto. Partners with no value → E."""
+    total = sum(value_by_id.get(p.id, 0.0) for p in partners)
+    if total <= 0:
+        for p in partners:
+            p[field_name] = 'E'
+        return
+    sorted_p = sorted(partners, key=lambda p: value_by_id.get(p.id, 0.0), reverse=True)
+    cumulative = 0.0
+    for p in sorted_p:
+        v = value_by_id.get(p.id, 0.0)
+        if v <= 0:
+            p[field_name] = 'E'
+            continue
+        cumulative += v / total
+        if   cumulative <= 0.20: cat = 'A'
+        elif cumulative <= 0.50: cat = 'B'
+        elif cumulative <= 0.80: cat = 'C'
+        elif cumulative <= 0.95: cat = 'D'
+        else:                    cat = 'E'
+        p[field_name] = cat
+
+
 class MrpRescheduleConfig(models.Model):
     _name = 'mrp.reschedule.config'
     _description = 'Configuración del planificador de producción'
@@ -169,6 +192,34 @@ class MrpRescheduleConfig(models.Model):
         ('months', 'Meses'),
     ], string='Unidad', default='weeks')
 
+    # ── Categorías de proveedor ───────────────────────────────────────────────
+    enable_supplier_categories = fields.Boolean(
+        string='Habilitar categorías de proveedor', default=False)
+    supplier_cat_method = fields.Selection([
+        ('manual',        'Manual'),
+        ('abc_volume',    'ABC por volumen (importe OCs)'),
+        ('abc_frequency', 'ABC por frecuencia (cantidad de OCs)'),
+        ('abc_rfm',       'ABC por RFM'),
+    ], string='Método proveedor', default='manual')
+    supplier_cat_cron_number = fields.Integer(string='Cada', default=1)
+    supplier_cat_cron_type   = fields.Selection([
+        ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
+    ], string='Unidad', default='weeks')
+
+    # ── Categorías de cliente ─────────────────────────────────────────────────
+    enable_customer_categories = fields.Boolean(
+        string='Habilitar categorías de cliente', default=False)
+    customer_cat_method = fields.Selection([
+        ('manual',        'Manual'),
+        ('abc_volume',    'ABC por volumen (importe SOs)'),
+        ('abc_frequency', 'ABC por frecuencia (cantidad de SOs)'),
+        ('abc_rfm',       'ABC por RFM'),
+    ], string='Método cliente', default='manual')
+    customer_cat_cron_number = fields.Integer(string='Cada', default=1)
+    customer_cat_cron_type   = fields.Selection([
+        ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
+    ], string='Unidad', default='weeks')
+
     stock_location_id = fields.Many2one(
         'stock.location',
         string='Ubicación de stock (quiebres)',
@@ -317,6 +368,163 @@ class MrpRescheduleConfig(models.Model):
             return
         config.action_auto_assign_sale_categories()
 
+    def action_compute_supplier_categories(self):
+        config = self.search([], limit=1)
+        if not config or config.supplier_cat_method == 'manual':
+            return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                    'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del proveedor.', 'type': 'warning'}}
+
+        start = date.today() - timedelta(days=365)
+        suppliers = self.env['res.partner'].search([('supplier_rank', '>', 0), ('active', '=', True)])
+        updated = 0
+
+        if config.supplier_cat_method in ('abc_volume', 'abc_frequency'):
+            groups = self.env['purchase.order'].read_group(
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start))],
+                ['partner_id', 'amount_total:sum', 'id:count'],
+                ['partner_id'],
+            )
+            if config.supplier_cat_method == 'abc_volume':
+                value_by_id = {g['partner_id'][0]: g['amount_total'] for g in groups}
+            else:
+                value_by_id = {g['partner_id'][0]: g['partner_id_count'] for g in groups}
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            updated = len(suppliers)
+
+        elif config.supplier_cat_method == 'abc_rfm':
+            start_dt = fields.Datetime.to_datetime(str(start))
+            now_dt   = fields.Datetime.now()
+            groups = self.env['purchase.order'].read_group(
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start))],
+                ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
+                ['partner_id'],
+            )
+            data = {g['partner_id'][0]: {
+                'M': g['amount_total'] or 0.0,
+                'F': g['partner_id_count'] or 0,
+                'R': (now_dt - g['date_order']).days if g.get('date_order') else 999,
+            } for g in groups}
+
+            # Score each dimension into 1–3 using simple thresholds
+            for p in suppliers:
+                d = data.get(p.id)
+                if not d:
+                    p.x_supplier_category = 'E'
+                    updated += 1
+                    continue
+                r_score = 3 if d['R'] < 30 else (2 if d['R'] < 90 else 1)
+                f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
+                # M: score relative to median — compute after
+                data[p.id]['r_score'] = r_score
+                data[p.id]['f_score'] = f_score
+
+            m_vals = sorted([d['M'] for d in data.values() if d.get('M', 0) > 0])
+            m_p33 = m_vals[len(m_vals) // 3] if m_vals else 0
+            m_p66 = m_vals[2 * len(m_vals) // 3] if m_vals else 0
+
+            for p in suppliers:
+                d = data.get(p.id)
+                if not d or p.x_supplier_category == 'E':
+                    continue
+                m_score = 3 if d['M'] >= m_p66 else (2 if d['M'] >= m_p33 else 1)
+                total_score = d['r_score'] + d['f_score'] + m_score
+                if   total_score >= 8: cat = 'A'
+                elif total_score >= 6: cat = 'B'
+                elif total_score >= 4: cat = 'C'
+                elif total_score >= 3: cat = 'D'
+                else:                  cat = 'E'
+                p.x_supplier_category = cat
+                updated += 1
+
+        return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Categorías de proveedor asignadas',
+                           'message': f'{updated} proveedores actualizados.', 'type': 'success'}}
+
+    @api.model
+    def _cron_compute_supplier_categories(self):
+        config = self.search([], limit=1)
+        if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
+            return
+        config.action_compute_supplier_categories()
+
+    def action_compute_customer_categories(self):
+        config = self.search([], limit=1)
+        if not config or config.customer_cat_method == 'manual':
+            return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                    'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del cliente.', 'type': 'warning'}}
+
+        start = date.today() - timedelta(days=365)
+        customers = self.env['res.partner'].search([('customer_rank', '>', 0), ('active', '=', True)])
+        updated = 0
+
+        if config.customer_cat_method in ('abc_volume', 'abc_frequency'):
+            groups = self.env['sale.order'].read_group(
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start))],
+                ['partner_id', 'amount_total:sum', 'id:count'],
+                ['partner_id'],
+            )
+            if config.customer_cat_method == 'abc_volume':
+                value_by_id = {g['partner_id'][0]: g['amount_total'] for g in groups}
+            else:
+                value_by_id = {g['partner_id'][0]: g['partner_id_count'] for g in groups}
+            _assign_abc_pareto(customers, value_by_id, 'x_customer_category')
+            updated = len(customers)
+
+        elif config.customer_cat_method == 'abc_rfm':
+            start_dt = fields.Datetime.to_datetime(str(start))
+            now_dt   = fields.Datetime.now()
+            groups = self.env['sale.order'].read_group(
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start))],
+                ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
+                ['partner_id'],
+            )
+            data = {g['partner_id'][0]: {
+                'M': g['amount_total'] or 0.0,
+                'F': g['partner_id_count'] or 0,
+                'R': (now_dt - g['date_order']).days if g.get('date_order') else 999,
+            } for g in groups}
+
+            # Score each dimension into 1–3 using simple thresholds
+            for p in customers:
+                d = data.get(p.id)
+                if not d:
+                    p.x_customer_category = 'E'
+                    updated += 1
+                    continue
+                r_score = 3 if d['R'] < 30 else (2 if d['R'] < 90 else 1)
+                f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
+                data[p.id]['r_score'] = r_score
+                data[p.id]['f_score'] = f_score
+
+            m_vals = sorted([d['M'] for d in data.values() if d.get('M', 0) > 0])
+            m_p33 = m_vals[len(m_vals) // 3] if m_vals else 0
+            m_p66 = m_vals[2 * len(m_vals) // 3] if m_vals else 0
+
+            for p in customers:
+                d = data.get(p.id)
+                if not d or p.x_customer_category == 'E':
+                    continue
+                m_score = 3 if d['M'] >= m_p66 else (2 if d['M'] >= m_p33 else 1)
+                total_score = d['r_score'] + d['f_score'] + m_score
+                if   total_score >= 8: cat = 'A'
+                elif total_score >= 6: cat = 'B'
+                elif total_score >= 4: cat = 'C'
+                elif total_score >= 3: cat = 'D'
+                else:                  cat = 'E'
+                p.x_customer_category = cat
+                updated += 1
+
+        return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Categorías de cliente asignadas',
+                           'message': f'{updated} clientes actualizados.', 'type': 'success'}}
+
+    @api.model
+    def _cron_compute_customer_categories(self):
+        config = self.search([], limit=1)
+        if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
+            return
+        config.action_compute_customer_categories()
+
     def action_open_user_warehouses(self):
         return {
             'type':      'ir.actions.act_window',
@@ -355,6 +563,30 @@ class MrpRescheduleConfig(models.Model):
                 if 'sale_cat_cron_type' in vals:
                     cat_cron_vals['interval_type'] = vals['sale_cat_cron_type']
                 cat_cron.sudo().write(cat_cron_vals)
+        # Supplier categories cron
+        if any(k in vals for k in ('enable_supplier_categories', 'supplier_cat_cron_number', 'supplier_cat_cron_type')):
+            sup_cron = self.env.ref('odoo_mrp_planner.ir_cron_compute_supplier_categories', raise_if_not_found=False)
+            if sup_cron:
+                sup_vals = {}
+                if 'enable_supplier_categories' in vals:
+                    sup_vals['active'] = vals['enable_supplier_categories']
+                if 'supplier_cat_cron_number' in vals:
+                    sup_vals['interval_number'] = vals['supplier_cat_cron_number']
+                if 'supplier_cat_cron_type' in vals:
+                    sup_vals['interval_type'] = vals['supplier_cat_cron_type']
+                sup_cron.sudo().write(sup_vals)
+        # Customer categories cron
+        if any(k in vals for k in ('enable_customer_categories', 'customer_cat_cron_number', 'customer_cat_cron_type')):
+            cust_cron = self.env.ref('odoo_mrp_planner.ir_cron_compute_customer_categories', raise_if_not_found=False)
+            if cust_cron:
+                cust_vals = {}
+                if 'enable_customer_categories' in vals:
+                    cust_vals['active'] = vals['enable_customer_categories']
+                if 'customer_cat_cron_number' in vals:
+                    cust_vals['interval_number'] = vals['customer_cat_cron_number']
+                if 'customer_cat_cron_type' in vals:
+                    cust_vals['interval_type'] = vals['customer_cat_cron_type']
+                cust_cron.sudo().write(cust_vals)
         return res
 
     @api.model_create_multi

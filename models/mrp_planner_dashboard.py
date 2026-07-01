@@ -726,12 +726,13 @@ class MrpPlannerDashboard(models.TransientModel):
 
         def _po_dict(po):
             return {
-                'id':           po.id,
-                'name':         po.name,
-                'partner':      po.partner_id.display_name if po.partner_id else '',
-                'date_planned': po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
-                'amount_total': po.amount_total,
-                'is_subcontract': bool(po.subcontract_production_ids),
+                'id':               po.id,
+                'name':             po.name,
+                'partner':          po.partner_id.display_name if po.partner_id else '',
+                'supplier_cat':     po.partner_id.x_supplier_category or '',
+                'date_planned':     po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
+                'amount_total':     po.amount_total,
+                'is_subcontract':   bool(po.subcontract_production_ids),
             }
 
         def _move_qty(m):
@@ -899,6 +900,16 @@ class MrpPlannerDashboard(models.TransientModel):
             all_pos_list    = all_pos_list.sorted(_pk,    reverse=_rev)
             pending_list    = pending_list.sorted(_pk,    reverse=_rev)
             services_rs     = services_rs.sorted(_pk,     reverse=_rev)
+
+        # Sort por categoría de proveedor (A–E)
+        if sort_field == 'supplier_cat':
+            _sk = lambda r: (r.partner_id.x_supplier_category or 'Z')
+            rfqs_list       = rfqs_list.sorted(_sk,       reverse=_rev)
+            to_approve_list = to_approve_list.sorted(_sk, reverse=_rev)
+            overdue_list    = overdue_list.sorted(_sk,    reverse=_rev)
+            all_pos_list    = all_pos_list.sorted(_sk,    reverse=_rev)
+            pending_list    = pending_list.sorted(_sk,    reverse=_rev)
+            services_rs     = services_rs.sorted(_sk,     reverse=_rev)
 
         rfqs_pg       = rfqs_list[offset:offset + page_size]
         to_approve_pg = to_approve_list[offset:offset + page_size]

@@ -23,6 +23,26 @@
             <field name="interval_type">weeks</field>
             <field name="active">False</field>
         </record>
+
+        <record id="ir_cron_compute_supplier_categories" model="ir.cron">
+            <field name="name">Planificador: actualizar categorías de proveedor</field>
+            <field name="model_id" ref="model_mrp_reschedule_config"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_compute_supplier_categories()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="active">False</field>
+        </record>
+
+        <record id="ir_cron_compute_customer_categories" model="ir.cron">
+            <field name="name">Planificador: actualizar categorías de cliente</field>
+            <field name="model_id" ref="model_mrp_reschedule_config"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_compute_customer_categories()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="active">False</field>
+        </record>
     </data>
 
     <!-- Acción servidor: Actualizar alertas (visible en menú Acción de la lista) -->

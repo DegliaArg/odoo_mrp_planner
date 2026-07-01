@@ -62,7 +62,8 @@
                             <group>
                                 <!-- Columna izquierda: categoría de venta -->
                                 <group string="Categoría de venta — Modo">
-                                    <field name="sale_cat_mode" widget="radio" nolabel="1"/>
+                                    <field name="sale_cat_mode" widget="radio" nolabel="1"
+                                           help="Manual: cada artículo se categoriza desde su ficha. Rotación: calcula días de cobertura (stock ÷ ventas promedio mensual) y asigna A–E por umbrales configurables. Demanda: asigna A–E según promedio de unidades vendidas por mes. Participación: ordena por métrica y clasifica por % acumulado del total (Pareto)."/>
                                 </group>
                                 <!-- Columna derecha: forecast -->
                                 <group string="Forecast — Visualización">
@@ -83,7 +84,7 @@
                                 </group>
                                 <group string="Forecast — Precisión">
                                     <field name="forecast_acc_formula" widget="radio" nolabel="1"
-                                           help="Fórmula de precisión forecast: Simple, WMAPE, Sesgo, etc."/>
+                                           help="Simple: entregado ÷ forecast × 100, puede superar 100%. MAPE: promedio aritmético de precisiones por período, sensible a períodos de bajo volumen. WAPE: pondera por volumen real, robusto cuando el forecast tiene ceros. WMAPE: pondera por volumen planificado, estándar en supply chain. Sesgo: (entregado − forecast) ÷ forecast × 100 — positivo = sobreentrega, negativo = déficit."/>
                                 </group>
 
                                 <group string="Categoría de venta — Umbrales de rotación (días)"
@@ -104,7 +105,8 @@
 
                                 <group string="Categoría de venta — Participación acumulada (%)"
                                        invisible="sale_cat_mode != 'share'">
-                                    <field name="sale_cat_share_metric" widget="radio" nolabel="1"/>
+                                    <field name="sale_cat_share_metric" widget="radio" nolabel="1"
+                                           help="Métrica usada para ordenar y ponderar los artículos. Unidades entregadas: volumen físico. Importe (precio × cantidad): valor económico. La opción elegida determina qué artículos quedan en la categoría A."/>
                                     <field name="sale_cat_share_a_pct"/>
                                     <field name="sale_cat_share_b_pct"/>
                                     <field name="sale_cat_share_c_pct"/>
@@ -133,7 +135,8 @@
                                     <field name="enable_supplier_categories" widget="boolean_toggle"
                                            help="Habilita la clasificación A–E de proveedores."/>
                                     <field name="supplier_cat_method" widget="radio" nolabel="1"
-                                           invisible="not enable_supplier_categories"/>
+                                           invisible="not enable_supplier_categories"
+                                           help="Manual: se asigna desde la ficha del proveedor. ABC por volumen: Pareto por importe de OCs del último año (20% acumulado = A, 50% = B, 80% = C, 95% = D, resto = E). ABC por frecuencia: igual pero por cantidad de OCs. ABC por RFM: scoring Recencia (días desde última OC) + Frecuencia (cant. OCs) + Monetario (importe relativo); cada dimensión 1-3 pts — suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, resto = E."/>
                                     <label for="supplier_cat_cron_number" string="Frecuencia de actualización"
                                            invisible="not enable_supplier_categories or supplier_cat_method == 'manual'"/>
                                     <div class="o_row"
@@ -153,7 +156,8 @@
                                     <field name="enable_customer_categories" widget="boolean_toggle"
                                            help="Habilita la clasificación A–E de clientes."/>
                                     <field name="customer_cat_method" widget="radio" nolabel="1"
-                                           invisible="not enable_customer_categories"/>
+                                           invisible="not enable_customer_categories"
+                                           help="Manual: se asigna desde la ficha del cliente. ABC por volumen: Pareto por importe de SOs del último año (20% acumulado = A, 50% = B, 80% = C, 95% = D, resto = E). ABC por frecuencia: igual pero por cantidad de SOs. ABC por RFM: scoring Recencia (días desde último SO) + Frecuencia (cant. SOs) + Monetario (importe relativo); cada dimensión 1-3 pts — suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, resto = E."/>
                                     <label for="customer_cat_cron_number" string="Frecuencia de actualización"
                                            invisible="not enable_customer_categories or customer_cat_method == 'manual'"/>
                                     <div class="o_row"
@@ -181,7 +185,8 @@
                                 <group string="Alertas — Detección automática">
                                     <label for="cron_interval_number" string="Revisar alertas cada"/>
                                     <div class="o_row">
-                                        <field name="cron_interval_number" class="o_field_small"/>
+                                        <field name="cron_interval_number" class="o_field_small"
+                                               help="Frecuencia con que el cron de detección revisa las OFs y OCs para generar o resolver alertas automáticamente. Valores bajos = más reactivo, mayor carga en el servidor."/>
                                         <field name="cron_interval_type" class="ms-2" nolabel="1"/>
                                     </div>
                                     <field name="alert_mo_critical_days"

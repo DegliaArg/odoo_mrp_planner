@@ -44,7 +44,10 @@ class MrpRescheduleConfig(models.Model):
         ('manual', 'Secuencia manual en el wizard'),
     ], string='Criterio de prioridad al reprogramar', default='chronological', required=True)
 
-    cron_interval_number = fields.Integer(string='Cada', default=30)
+    cron_interval_number = fields.Integer(string='Cada', default=30,
+        help='Frecuencia con que el cron de detección revisa las OFs y OCs '
+             'para generar o resolver alertas automáticamente. '
+             'Valores bajos = más reactivo, mayor carga en el servidor.')
     cron_interval_type = fields.Selection([
         ('minutes', 'Minutos'),
         ('hours', 'Horas'),
@@ -184,8 +187,11 @@ class MrpRescheduleConfig(models.Model):
     sup_price_var_yellow_pct = fields.Float( string='Var. precio — amarillo (|%| ≤)', default=10.0)
 
     # ── Auto-actualización categoría de venta ─────────────────────────────────
-    sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False)
-    sale_cat_cron_number = fields.Integer(string='Cada', default=1)
+    sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False,
+        help='Recalcula las categorías de venta automáticamente según el intervalo configurado. '
+             'Si está desactivado, las categorías solo se actualizan con el botón manual.')
+    sale_cat_cron_number = fields.Integer(string='Cada', default=1,
+        help='Número de unidades de tiempo entre cada recálculo automático de las categorías de venta.')
     sale_cat_cron_type   = fields.Selection([
         ('days',   'Días'),
         ('weeks',  'Semanas'),
@@ -194,28 +200,56 @@ class MrpRescheduleConfig(models.Model):
 
     # ── Categorías de proveedor ───────────────────────────────────────────────
     enable_supplier_categories = fields.Boolean(
-        string='Habilitar categorías de proveedor', default=False)
+        string='Habilitar categorías de proveedor', default=False,
+        help='Activa el campo Categoría de proveedor (A–E) en los contactos y permite '
+             'calcularlo automáticamente según el método elegido.')
     supplier_cat_method = fields.Selection([
         ('manual',        'Manual'),
         ('abc_volume',    'ABC por volumen (importe OCs)'),
         ('abc_frequency', 'ABC por frecuencia (cantidad de OCs)'),
         ('abc_rfm',       'ABC por RFM'),
-    ], string='Método proveedor', default='manual')
-    supplier_cat_cron_number = fields.Integer(string='Cada', default=1)
+    ], string='Método proveedor', default='manual',
+       help='Manual: la categoría se asigna desde la ficha de cada proveedor.\n'
+            'ABC por volumen: ordena los proveedores por importe total de OCs confirmadas '
+            'en los últimos 12 meses y aplica Pareto acumulado '
+            '(primero 20% del total = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E).\n'
+            'ABC por frecuencia: igual que volumen pero pondera por cantidad de OCs en vez del importe. '
+            'Favorece proveedores con alta frecuencia de pedidos.\n'
+            'ABC por RFM: scoring multidimensional — '
+            'Recencia (días desde la última OC: < 30d = 3pts, < 90d = 2pts, resto = 1pt), '
+            'Frecuencia (OCs en el año: > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
+            'Monetario (importe relativo al percentil 33/66 del grupo: alto = 3pts, medio = 2pts, bajo = 1pt). '
+            'Suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.')
+    supplier_cat_cron_number = fields.Integer(string='Cada', default=1,
+        help='Número de unidades de tiempo entre cada recálculo automático de las categorías de proveedor.')
     supplier_cat_cron_type   = fields.Selection([
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
     ], string='Unidad', default='weeks')
 
     # ── Categorías de cliente ─────────────────────────────────────────────────
     enable_customer_categories = fields.Boolean(
-        string='Habilitar categorías de cliente', default=False)
+        string='Habilitar categorías de cliente', default=False,
+        help='Activa el campo Categoría de cliente (A–E) en los contactos y permite '
+             'calcularlo automáticamente según el método elegido.')
     customer_cat_method = fields.Selection([
         ('manual',        'Manual'),
         ('abc_volume',    'ABC por volumen (importe SOs)'),
         ('abc_frequency', 'ABC por frecuencia (cantidad de SOs)'),
         ('abc_rfm',       'ABC por RFM'),
-    ], string='Método cliente', default='manual')
-    customer_cat_cron_number = fields.Integer(string='Cada', default=1)
+    ], string='Método cliente', default='manual',
+       help='Manual: la categoría se asigna desde la ficha de cada cliente.\n'
+            'ABC por volumen: ordena los clientes por importe total de SOs confirmados '
+            'en los últimos 12 meses y aplica Pareto acumulado '
+            '(primero 20% del total = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E).\n'
+            'ABC por frecuencia: igual que volumen pero pondera por cantidad de SOs en vez del importe. '
+            'Favorece clientes con alta frecuencia de pedidos.\n'
+            'ABC por RFM: scoring multidimensional — '
+            'Recencia (días desde el último SO: < 30d = 3pts, < 90d = 2pts, resto = 1pt), '
+            'Frecuencia (SOs en el año: > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
+            'Monetario (importe relativo al percentil 33/66 del grupo: alto = 3pts, medio = 2pts, bajo = 1pt). '
+            'Suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.')
+    customer_cat_cron_number = fields.Integer(string='Cada', default=1,
+        help='Número de unidades de tiempo entre cada recálculo automático de las categorías de cliente.')
     customer_cat_cron_type   = fields.Selection([
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
     ], string='Unidad', default='weeks')

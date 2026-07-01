@@ -209,8 +209,8 @@ class MrpPlannerDashboard(models.TransientModel):
         for rec in self:
             rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))])
             rec.po_to_approve = PO.search_count([('state', '=', 'to approve')])
-            # Approved, not fully received
-            active = PO.search([('state', '=', 'purchase'), ('receipt_status', '!=', 'full')])
+            # Approved (purchase + done), not fully received
+            active = PO.search([('state', 'in', ('purchase', 'done')), ('receipt_status', '!=', 'full')])
             overdue = active.filtered(lambda p: p.date_planned and p.date_planned < now)
             rec.po_total            = len(active)
             rec.po_pending          = len(active.filtered(
@@ -235,9 +235,9 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('state', '=', 'to approve'),
             ], order='date_planned asc', limit=3)
             rec.overdue_po_ids = PO.search([
-                ('state', '=', 'purchase'),
+                ('state', 'in', ('purchase', 'done')),
                 ('date_planned', '<', now),
-                ('receipt_status', '!=', 'full'),
+                ('receipt_status', 'not in', ['full']),
             ], order='date_planned asc', limit=5)
 
     @api.depends()
@@ -481,9 +481,8 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
             'domain': [
-                ('state', '=', 'purchase'),
-                ('date_planned', '>=', now),
-                ('receipt_status', '!=', 'full'),
+                ('state', 'in', ('purchase', 'done')),
+                '|', ('date_planned', '>=', now), ('date_planned', '=', False),
             ],
             'target': 'current',
         }
@@ -496,9 +495,9 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
             'domain': [
-                ('state', '=', 'purchase'),
+                ('state', 'in', ('purchase', 'done')),
                 ('date_planned', '<', now),
-                ('receipt_status', '!=', 'full'),
+                ('receipt_status', 'not in', ['full']),
             ],
             'target': 'current',
         }
@@ -506,10 +505,10 @@ class MrpPlannerDashboard(models.TransientModel):
     def action_view_all_pos(self):
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Órdenes de compra activas'),
+            'name': _('Órdenes de compra aprobadas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')],
+            'domain': [('state', 'in', ('purchase', 'done'))],
             'target': 'current',
         }
 
@@ -707,13 +706,6 @@ class MrpPlannerDashboard(models.TransientModel):
         if date_to:
             date_domain.append(('date_order', '<=', date_to + ' 23:59:59'))
 
-        # OCs aprobadas: filtrar por fecha de entrega esperada, no por fecha de orden
-        date_planned_domain = []
-        if date_from:
-            date_planned_domain.append(('date_planned', '>=', date_from + ' 00:00:00'))
-        if date_to:
-            date_planned_domain.append(('date_planned', '<=', date_to + ' 23:59:59'))
-
         sched_domain = []
         if date_from:
             sched_domain.append(('scheduled_date', '>=', date_from + ' 00:00:00'))
@@ -722,7 +714,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
         approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
-        approved_dom = [('state', '=', 'purchase'), ('receipt_status', '!=', 'full')] + sc_domain + date_planned_domain
+        approved_dom = [('state', 'in', ('purchase', 'done'))] + sc_domain + date_domain
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)

@@ -4,135 +4,6 @@
     <t t-name="odoo_mrp_planner.ForecastWidget">
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
-            <!-- KPI cards -->
-            <div t-if="!state.data" class="text-center text-muted py-3">
-                <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
-                Cargando…
-            </div>
-
-            <t t-if="state.data">
-                <!-- Fila 1: volúmenes (forecast / demanda real / producción / entregado) -->
-                <div class="row g-2 mb-2">
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades planificadas en líneas de forecast activas para el período seleccionado. Clic para ver líneas."
-                             t-on-click="openDrillForecast">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-bar-chart fa-lg text-primary mb-1 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_forecast)"/></div>
-                                <div class="o_planner_label">Demanda forecast</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades pedidas en SOs confirmadas (productos con línea de forecast). Clic para ver órdenes de venta."
-                             t-on-click="openDrillSoDemand">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-shopping-cart fa-lg text-purple mb-1 d-block" style="color:#7952b3;"/>
-                                <div class="o_planner_number" style="color:#7952b3;"><t t-esc="fmt(state.data.kpis.total_so_demand)"/></div>
-                                <div class="o_planner_label">Demanda real</div>
-                                <div t-if="state.data.kpis.so_demand_no_fc > 0"
-                                     class="text-warning mt-1"
-                                     style="font-size:10px; line-height:1.3;"
-                                     t-att-title="fmt(state.data.kpis.so_demand_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
-                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.so_demand_no_fc)"/> sin FC
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades en OFs activas (según estados configurados) con fecha de fin en el período (productos con línea de forecast). Clic para ver órdenes de fabricación."
-                             t-on-click="openDrillMos">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_mos)"/></div>
-                                <div class="o_planner_label">Producción planificada</div>
-                                <div t-if="state.data.kpis.mos_no_fc > 0"
-                                     class="text-warning mt-1"
-                                     style="font-size:10px; line-height:1.3;"
-                                     t-att-title="fmt(state.data.kpis.mos_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
-                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.mos_no_fc)"/> sin FC
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast. Clic para ver movimientos."
-                             t-on-click="openDrillDelivered">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-truck fa-lg text-info mb-1 d-block"/>
-                                <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.total_delivered)"/></div>
-                                <div class="o_planner_label">Entregado</div>
-                                <div t-if="state.data.kpis.delivered_no_fc > 0"
-                                     class="text-warning mt-1"
-                                     style="font-size:10px; line-height:1.3;"
-                                     t-att-title="fmt(state.data.kpis.delivered_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
-                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.delivered_no_fc)"/> sin FC
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Fila 2: métricas (precisión / brecha demanda / brecha OF / tasa de servicio) -->
-                <div class="row g-2 mb-3">
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100">
-                            <div class="card-body text-center py-2"
-                                 t-att-title="accGlobalTooltip()">
-                                <i class="fa fa-bullseye fa-lg mb-1 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + accClass(state.data.kpis.overall_forecast_acc)">
-                                    <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
-                                </div>
-                                <div class="o_planner_label"
-                                     t-esc="state.data.acc_formula === 'mape' ? 'MAPE' : state.data.acc_formula === 'wape' ? 'WAPE' : state.data.acc_formula === 'wmape' ? 'WMAPE' : state.data.acc_formula === 'bias' ? 'Sesgo forecast' : 'Precisión forecast'"/>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="'Brecha demanda real vs forecast = (demanda real − forecast) ÷ forecast × 100. Positivo: se demandó más de lo planeado. Negativo: demanda por debajo del plan. Demanda real: ' + fmt(state.data.kpis.total_so_demand) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de venta.'"
-                             t-on-click="openDrillSoDemand">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-arrows-h fa-lg mb-1 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + demandGapClass(state.data.kpis.demand_gap_pct)">
-                                    <t t-esc="fmtGapPct(state.data.kpis.demand_gap_pct)"/>
-                                </div>
-                                <div class="o_planner_label">Brecha demanda vs fc.</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="'Brecha OF vs forecast = (producción planificada − forecast) ÷ forecast × 100. Positivo: producción cubre el plan. Negativo: déficit de producción. OFs: ' + fmt(state.data.kpis.total_mos) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de fabricación.'"
-                             t-on-click="openDrillMos">
-                            <div class="card-body text-center py-2">
-                                <i t-att-class="'fa fa-lg mb-1 d-block ' + (state.data.kpis.mos_gap_pct >= 0 ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-danger')"/>
-                                <div t-att-class="'o_planner_number ' + mosGapClass(state.data.kpis.mos_gap_pct)">
-                                    <t t-esc="fmtGapPct(state.data.kpis.mos_gap_pct)"/>
-                                </div>
-                                <div class="o_planner_label">Brecha OF vs fc.</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Tasa de servicio = Total entregado ÷ Total pedidos de venta confirmados × 100. Clic para ver movimientos de entrega."
-                             t-on-click="openDrillDelivered">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-handshake-o fa-lg mb-1 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.overall_service_rate)">
-                                    <t t-esc="fmtPct(state.data.kpis.overall_service_rate)"/>
-                                </div>
-                                <div class="o_planner_label">Tasa de servicio</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </t>
-
             <!-- Filtros + acciones -->
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
 
@@ -299,6 +170,135 @@
                     </button>
                 </div>
             </div>
+
+            <!-- KPI cards -->
+            <div t-if="!state.data" class="text-center text-muted py-3">
+                <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
+                Cargando…
+            </div>
+
+            <t t-if="state.data">
+                <!-- Fila 1: volúmenes (forecast / demanda real / producción / entregado) -->
+                <div class="row g-2 mb-2">
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             title="Total de unidades planificadas en líneas de forecast activas para el período seleccionado. Clic para ver líneas."
+                             t-on-click="openDrillForecast">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-bar-chart fa-lg text-primary mb-1 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_forecast)"/></div>
+                                <div class="o_planner_label">Demanda forecast</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             title="Total de unidades pedidas en SOs confirmadas (productos con línea de forecast). Clic para ver órdenes de venta."
+                             t-on-click="openDrillSoDemand">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-shopping-cart fa-lg text-purple mb-1 d-block" style="color:#7952b3;"/>
+                                <div class="o_planner_number" style="color:#7952b3;"><t t-esc="fmt(state.data.kpis.total_so_demand)"/></div>
+                                <div class="o_planner_label">Demanda real</div>
+                                <div t-if="state.data.kpis.so_demand_no_fc > 0"
+                                     class="text-warning mt-1"
+                                     style="font-size:10px; line-height:1.3;"
+                                     t-att-title="fmt(state.data.kpis.so_demand_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
+                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.so_demand_no_fc)"/> sin FC
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             title="Total de unidades en OFs activas (según estados configurados) con fecha de fin en el período (productos con línea de forecast). Clic para ver órdenes de fabricación."
+                             t-on-click="openDrillMos">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.total_mos)"/></div>
+                                <div class="o_planner_label">Producción planificada</div>
+                                <div t-if="state.data.kpis.mos_no_fc > 0"
+                                     class="text-warning mt-1"
+                                     style="font-size:10px; line-height:1.3;"
+                                     t-att-title="fmt(state.data.kpis.mos_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
+                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.mos_no_fc)"/> sin FC
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             title="Total de unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast. Clic para ver movimientos."
+                             t-on-click="openDrillDelivered">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-truck fa-lg text-info mb-1 d-block"/>
+                                <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.total_delivered)"/></div>
+                                <div class="o_planner_label">Entregado</div>
+                                <div t-if="state.data.kpis.delivered_no_fc > 0"
+                                     class="text-warning mt-1"
+                                     style="font-size:10px; line-height:1.3;"
+                                     t-att-title="fmt(state.data.kpis.delivered_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
+                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.delivered_no_fc)"/> sin FC
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fila 2: métricas (precisión / brecha demanda / brecha OF / tasa de servicio) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body text-center py-2"
+                                 t-att-title="accGlobalTooltip()">
+                                <i class="fa fa-bullseye fa-lg mb-1 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + accClass(state.data.kpis.overall_forecast_acc)">
+                                    <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
+                                </div>
+                                <div class="o_planner_label"
+                                     t-esc="state.data.acc_formula === 'mape' ? 'MAPE' : state.data.acc_formula === 'wape' ? 'WAPE' : state.data.acc_formula === 'wmape' ? 'WMAPE' : state.data.acc_formula === 'bias' ? 'Sesgo forecast' : 'Precisión forecast'"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="'Brecha demanda real vs forecast = (demanda real − forecast) ÷ forecast × 100. Positivo: se demandó más de lo planeado. Negativo: demanda por debajo del plan. Demanda real: ' + fmt(state.data.kpis.total_so_demand) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de venta.'"
+                             t-on-click="openDrillSoDemand">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-arrows-h fa-lg mb-1 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + demandGapClass(state.data.kpis.demand_gap_pct)">
+                                    <t t-esc="fmtGapPct(state.data.kpis.demand_gap_pct)"/>
+                                </div>
+                                <div class="o_planner_label">Brecha demanda vs fc.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="'Brecha OF vs forecast = (producción planificada − forecast) ÷ forecast × 100. Positivo: producción cubre el plan. Negativo: déficit de producción. OFs: ' + fmt(state.data.kpis.total_mos) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de fabricación.'"
+                             t-on-click="openDrillMos">
+                            <div class="card-body text-center py-2">
+                                <i t-att-class="'fa fa-lg mb-1 d-block ' + (state.data.kpis.mos_gap_pct >= 0 ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-danger')"/>
+                                <div t-att-class="'o_planner_number ' + mosGapClass(state.data.kpis.mos_gap_pct)">
+                                    <t t-esc="fmtGapPct(state.data.kpis.mos_gap_pct)"/>
+                                </div>
+                                <div class="o_planner_label">Brecha OF vs fc.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             title="Tasa de servicio = Total entregado ÷ Total pedidos de venta confirmados × 100. Clic para ver movimientos de entrega."
+                             t-on-click="openDrillDelivered">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-handshake-o fa-lg mb-1 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.overall_service_rate)">
+                                    <t t-esc="fmtPct(state.data.kpis.overall_service_rate)"/>
+                                </div>
+                                <div class="o_planner_label">Tasa de servicio</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
 
             <!-- Tabla -->
             <t t-if="state.data">

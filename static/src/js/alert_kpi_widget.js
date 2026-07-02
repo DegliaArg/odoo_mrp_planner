@@ -6,7 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 
 class AlertKpiWidget extends Component {
     static template = "odoo_mrp_planner.AlertKpiWidget";
-    static props = { record: Object, "*": true };
+    static props = { record: { type: Object }, "*": true };
 
     setup() {
         this.orm    = useService("orm");

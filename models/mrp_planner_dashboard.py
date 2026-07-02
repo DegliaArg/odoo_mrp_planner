@@ -551,14 +551,22 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_wc_tags(self):
-        """Tags de centros de trabajo que tienen al menos un WC activo."""
+        """Tags de centros de trabajo que tienen al menos un WC activo.
+
+        Usa una sola query para obtener los tag IDs activos, evitando el N+1
+        original (un search_count por tag).
+        """
         Tag = self.env['mrp.workcenter.tag']
         Wc  = self.env['mrp.workcenter']
-        result = []
-        for tag in Tag.search([]):
-            if Wc.search_count([('tag_ids', 'in', tag.id), ('active', '=', True)]):
-                result.append({'id': tag.id, 'name': tag.name})
-        return result
+        # Un único search para obtener todos los tag IDs con WCs activos
+        active_tag_ids = set(
+            Wc.search([('active', '=', True)]).mapped('tag_ids').ids
+        )
+        return [
+            {'id': tag.id, 'name': tag.name}
+            for tag in Tag.search([])
+            if tag.id in active_tag_ids
+        ]
 
     @api.model
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):
@@ -732,6 +740,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'date_planned':     po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
                 'amount_total':     po.amount_total,
                 'is_subcontract':   bool(po.subcontract_production_ids),
+                'state':            po.state,
             }
 
         def _move_qty(m):
@@ -866,24 +875,27 @@ class MrpPlannerDashboard(models.TransientModel):
         to_approve_list = PO.search(approve_dom, order=po_order)
 
         # ── Separar servicios ────────────────────────────────────────────────
+        # Los servicios se excluyen SIEMPRE de las listas de OC (bienes).
+        # Solo se muestran en la pestaña de servicios cuando show_svc=True.
         show_svc = bool(cfg and cfg.show_po_services_tab)
 
         def _is_svc(po):
             lines = po.order_line.filtered(lambda l: l.product_id)
             return bool(lines) and all(l.product_id.type == 'service' for l in lines)
 
+        rfqs_svc        = rfqs_list.filtered(_is_svc)
+        rfqs_list       = rfqs_list - rfqs_svc
+        approve_svc     = to_approve_list.filtered(_is_svc)
+        to_approve_list = to_approve_list - approve_svc
+        approved_svc    = approved.filtered(_is_svc)
+        approved        = approved - approved_svc
+        overdue         = overdue - approved_svc
+        pending         = pending - approved_svc
+
         if show_svc:
-            rfqs_svc        = rfqs_list.filtered(_is_svc)
-            rfqs_list       = rfqs_list - rfqs_svc
-            approve_svc     = to_approve_list.filtered(_is_svc)
-            to_approve_list = to_approve_list - approve_svc
-            approved_svc    = approved.filtered(_is_svc)
-            approved        = approved - approved_svc
-            overdue         = overdue - approved_svc
-            pending         = pending - approved_svc
-            services_rs     = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
+            services_rs = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
         else:
-            services_rs     = self.env['purchase.order']
+            services_rs = self.env['purchase.order']
 
         overdue_list  = overdue.sorted(po_f,  reverse=_rev)
         all_pos_list  = approved.sorted(po_f, reverse=_rev)
@@ -927,8 +939,9 @@ class MrpPlannerDashboard(models.TransientModel):
         # ── Entregas (component deliveries to subcontractors) ───────────────
         # La OC no es un M2O en estos pickings, es texto. El único campo
         # confiable es el destino: ubicación de subcontratación.
+        # Incluye 'done' para que el usuario vea las entregas ya realizadas.
         deliveries = Picking.search([
-            ('state', 'not in', ['done', 'cancel']),
+            ('state', '!=', 'cancel'),
             ('location_dest_id.is_subcontracting_location', '=', True),
         ] + sched_domain, order=pick_order)
 
@@ -1170,7 +1183,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def get_mo_kpi_counts(self, date_from, date_to):
+    def get_mo_kpi_counts(self, date_from, date_to, tag_id=None):
         """Contadores de KPIs usando los mismos dominios que los botones de navegación JS.
         Garantiza que el número del card coincida exactamente con el listado al hacer click."""
         now   = fields.Datetime.now()
@@ -1182,13 +1195,25 @@ class MrpPlannerDashboard(models.TransientModel):
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
         now_s  = fields.Datetime.to_string(now)
 
+        if tag_id:
+            tag_id = int(tag_id)
+            tag_filter = lambda m: any(
+                tag_id in w.workcenter_id.tag_ids.ids
+                for w in m.workorder_ids if w.workcenter_id
+            )
+            def _cnt(domain):
+                return len(MO.search(domain).filtered(tag_filter))
+        else:
+            def _cnt(domain):
+                return MO.search_count(domain)
+
         return {
-            'total':       MO.search_count(active + date_d + no_sc),
-            'in_progress': MO.search_count([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc),
-            'delayed':     MO.search_count(active + [('date_finished', '<', now_s)] + date_d + no_sc),
-            'reschedule':  MO.search_count(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
-            'done':        MO.search_count([('state', '=', 'done')] + date_d + no_sc),
-            'partial':     MO.search_count([('state', '=', 'to_close')] + date_d + no_sc),
+            'total':       _cnt(active + date_d + no_sc),
+            'in_progress': _cnt([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc),
+            'delayed':     _cnt(active + [('date_finished', '<', now_s)] + date_d + no_sc),
+            'reschedule':  _cnt(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
+            'done':        _cnt([('state', '=', 'done')] + date_d + no_sc),
+            'partial':     _cnt([('state', '=', 'to_close')] + date_d + no_sc),
         }
 
     @api.model
@@ -1735,13 +1760,16 @@ class MrpPlannerDashboard(models.TransientModel):
         except Exception:
             delivered_no_fc = 0.0
 
-        # Demanda de SOs en el período para productos SIN línea de forecast
+        # Demanda de SOs en el período para productos SIN línea de forecast (solo vendibles).
+        # El filtro sale_ok=True es consistente con mos_no_fc y delivered_no_fc; sin él
+        # se inflaría el contador con líneas de productos internos o componentes.
         so_demand_no_fc = 0.0
         try:
             no_fc_domain = [
                 ('order_id.state', 'in', ('sale', 'done')),
                 ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
                 ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
+                ('product_id.sale_ok', '=', True),
                 ('company_id', '=', self.env.company.id),
             ]
             if all_product_ids_list:
@@ -1807,7 +1835,11 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_product_mos_for_forecast(self, product_id, period_from, period_to, warehouse_ids=None):
-        """OFs de un producto para el acordeón del widget de forecast."""
+        """OFs de un producto para el acordeón del widget de forecast.
+
+        Usa la misma conversión UTC que get_forecast_dashboard_data para que los
+        rangos de fecha sean consistentes entre la tabla principal y el drill-down.
+        """
         from datetime import date as _date, datetime
         import calendar as _cal
 
@@ -1815,13 +1847,23 @@ class MrpPlannerDashboard(models.TransientModel):
         d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
         last_day = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
 
+        # Conversión a UTC para consistencia con get_forecast_dashboard_data.
+        # Sin esta conversión, para un usuario en UTC-3 el acordeón y la tabla
+        # principal mostrarían conjuntos de OFs distintos en los límites de mes.
+        tz_name = self.env.context.get('tz') or self.env.user.tz or 'UTC'
+        user_tz = pytz.timezone(tz_name)
+        dt_from = user_tz.localize(
+            datetime.combine(d_from, datetime.min.time())
+        ).astimezone(pytz.utc).replace(tzinfo=None)
+        dt_to = user_tz.localize(
+            datetime.combine(last_day, datetime.max.time())
+        ).astimezone(pytz.utc).replace(tzinfo=None)
+
         domain = [
             ('product_id', '=', product_id),
             ('state', 'not in', ['cancel']),
-            ('date_finished', '>=', fields.Datetime.to_string(
-                datetime.combine(d_from, datetime.min.time()))),
-            ('date_finished', '<=', fields.Datetime.to_string(
-                datetime.combine(last_day, datetime.max.time()))),
+            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
+            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
         ] + no_subcontract_domain(self.env)
         if warehouse_ids:
             wh_recs = self.env['stock.warehouse'].browse(warehouse_ids)
@@ -1970,7 +2012,10 @@ class MrpPlannerDashboard(models.TransientModel):
         else:
             loc_param = self.env['ir.config_parameter'].sudo().get_param(
                 'mrp_reschedule.stock_location_id')
-            loc_id = int(loc_param) if loc_param else False
+            try:
+                loc_id = int(loc_param) if loc_param else False
+            except (ValueError, TypeError):
+                loc_id = False
             loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
             locations = loc if loc_id and loc.exists() else self.env['stock.location']
 
@@ -2244,16 +2289,22 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_product_categories_for_chart(self):
-        """Categorías de producto que tienen al menos un artículo vendible con entregas."""
-        cats = self.env['product.category'].search([])
-        result = []
-        for c in cats:
-            if self.env['product.template'].search_count([
-                ('categ_id', '=', c.id),
-                ('sale_ok', '=', True),
-            ]):
-                result.append({'id': c.id, 'name': c.complete_name})
-        return sorted(result, key=lambda x: x['name'])
+        """Categorías de producto que tienen al menos un artículo vendible.
+
+        Usa una sola read_group para obtener los categ_id activos, evitando el
+        N+1 original (un search_count por categoría).
+        """
+        groups = self.env['product.template'].read_group(
+            [('sale_ok', '=', True)],
+            ['categ_id'],
+            ['categ_id'],
+        )
+        active_categ_ids = {g['categ_id'][0] for g in groups if g.get('categ_id')}
+        cats = self.env['product.category'].search([('id', 'in', list(active_categ_ids))])
+        return sorted(
+            [{'id': c.id, 'name': c.complete_name} for c in cats],
+            key=lambda x: x['name'],
+        )
 
     @api.model
     def get_supplier_analysis_data(self, period_from, period_to, search=''):
@@ -2277,10 +2328,13 @@ class MrpPlannerDashboard(models.TransientModel):
         dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
+        cfg_sa = self.env['mrp.reschedule.config'].search([], limit=1)
+        date_field = (cfg_sa and cfg_sa.supplier_analysis_date_field) or 'date_approve'
+
         po_domain = [
             ('state', 'in', ['purchase', 'done']),
-            ('date_approve', '>=', dt_from),
-            ('date_approve', '<=', dt_to),
+            (date_field, '>=', dt_from),
+            (date_field, '<=', dt_to),
             ('company_id', '=', self.env.company.id),
         ]
         if search:

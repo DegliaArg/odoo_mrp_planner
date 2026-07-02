@@ -87,8 +87,8 @@ class MoDashboardWidget extends Component {
         });
 
         onMounted(async () => {
-            await this._loadTags();
-            await this._loadData();
+            // Paralelizar: get_wc_tags y get_mo_widget_data son RPCs independientes
+            await Promise.all([this._loadTags(), this._loadData()]);
             requestAnimationFrame(() => this._syncH());
         });
         onPatched(() => requestAnimationFrame(() => this._syncH()));
@@ -117,6 +117,7 @@ class MoDashboardWidget extends Component {
                     this.orm.call("mrp.planner.dashboard", "get_mo_kpi_counts", [
                         this.state.dateFrom,
                         this.state.dateTo,
+                        this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
                     ]),
                 ]);
                 this.state.ofs_kpis = kpis;

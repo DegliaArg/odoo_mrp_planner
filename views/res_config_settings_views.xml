@@ -45,6 +45,8 @@
                                 <group string="Dashboard">
                                     <field name="show_po_services_tab"
                                            help="Cuando está activo, las OCs de servicios se muestran en una pestaña propia dentro del widget de OCs."/>
+                                    <field name="supplier_analysis_date_field"
+                                           help="Campo de fecha que se usa para filtrar OCs en el análisis de proveedores."/>
                                 </group>
                                 <group string="Análisis de proveedores — % Recepciones completas">
                                     <field name="sup_complete_green_pct"  help="Completas ≥ este % → verde."/>

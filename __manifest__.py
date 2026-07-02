@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción',
-    'version': '18.0.43.0.0',
+    'version': '18.0.44.0.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -56,7 +56,7 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/js/column_manager.js',
             'odoo_mrp_planner/static/src/js/planner_search_bar.js',
             'odoo_mrp_planner/static/src/xml/planner_search_bar.xml',
-'odoo_mrp_planner/static/src/js/mo_list_widget.js',
+            'odoo_mrp_planner/static/src/js/mo_list_widget.js',
             'odoo_mrp_planner/static/src/xml/mo_list_widget.xml',
             'odoo_mrp_planner/static/src/js/po_dashboard_widget.js',
             'odoo_mrp_planner/static/src/xml/po_dashboard_widget.xml',

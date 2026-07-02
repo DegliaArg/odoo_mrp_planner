@@ -1,7 +1,10 @@
+import logging
 from datetime import date, timedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 def _abc_thresholds(config=None):
@@ -209,6 +212,12 @@ class MrpRescheduleConfig(models.Model):
         default=False,
     )
 
+    supplier_analysis_date_field = fields.Selection([
+        ('date_approve', 'Fecha de aprobación'),
+        ('date_order',   'Fecha de pedido'),
+        ('date_planned', 'Fecha de entrega planificada'),
+    ], string='Fecha para análisis de proveedores', default='date_approve')
+
     # ── Umbrales análisis de proveedores ──────────────────────────────────────
     sup_on_time_green_pct   = fields.Integer(string='% A tiempo — verde (≥)',       default=90)
     sup_on_time_yellow_pct  = fields.Integer(string='% A tiempo — amarillo (≥)',    default=70)
@@ -343,6 +352,13 @@ class MrpRescheduleConfig(models.Model):
             rec.name = 'Configuración del planificador'
 
     def action_auto_assign_sale_categories(self):
+        """Asigna categorías de venta (ABC/RFM) a todos los productos vendibles.
+
+        Requiere permiso de Administrador: escribe en product.template.x_sale_category.
+        """
+        if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('base.group_system')):
+            raise UserError(_('Esta acción está restringida a administradores del planificador.'))
         config = self.search([], limit=1)
         if not config:
             return
@@ -449,12 +465,22 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model
     def _cron_auto_assign_sale_categories(self):
+        _logger.info('MRP Planner cron: inicio actualización categorías de venta')
         config = self.search([], limit=1)
         if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
+            _logger.info('MRP Planner cron: categorías de venta omitidas (desactivado o modo manual)')
             return
         config.action_auto_assign_sale_categories()
+        _logger.info('MRP Planner cron: fin actualización categorías de venta')
 
     def action_compute_supplier_categories(self):
+        """Asigna categorías de proveedor (ABC) a todos los partners activos.
+
+        Requiere permiso de Administrador: escribe en res.partner.x_supplier_category.
+        """
+        if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('base.group_system')):
+            raise UserError(_('Esta acción está restringida a administradores del planificador.'))
         config = self.search([], limit=1)
         if not config or config.supplier_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -659,12 +685,22 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model
     def _cron_compute_supplier_categories(self):
+        _logger.info('MRP Planner cron: inicio actualización categorías de proveedor')
         config = self.search([], limit=1)
         if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
+            _logger.info('MRP Planner cron: categorías de proveedor omitidas (desactivado o modo manual)')
             return
         config.action_compute_supplier_categories()
+        _logger.info('MRP Planner cron: fin actualización categorías de proveedor')
 
     def action_compute_customer_categories(self):
+        """Asigna categorías de cliente (ABC/RFM) a todos los partners activos.
+
+        Requiere permiso de Administrador: escribe en res.partner.x_customer_category.
+        """
+        if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('base.group_system')):
+            raise UserError(_('Esta acción está restringida a administradores del planificador.'))
         config = self.search([], limit=1)
         if not config or config.customer_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -737,10 +773,13 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model
     def _cron_compute_customer_categories(self):
+        _logger.info('MRP Planner cron: inicio actualización categorías de cliente')
         config = self.search([], limit=1)
         if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
+            _logger.info('MRP Planner cron: categorías de cliente omitidas (desactivado o modo manual)')
             return
         config.action_compute_customer_categories()
+        _logger.info('MRP Planner cron: fin actualización categorías de cliente')
 
     def action_open_user_warehouses(self):
         return {
@@ -768,6 +807,8 @@ class MrpRescheduleConfig(models.Model):
                     cron_vals['interval_number'] = vals['cron_interval_number']
                 if 'cron_interval_type' in vals:
                     cron_vals['interval_type'] = vals['cron_interval_type']
+                # sudo() necesario: ir.cron pertenece al superusuario y el administrador
+                # del módulo no tiene permisos de escritura directa sobre él.
                 cron.sudo().write(cron_vals)
         if 'sale_cat_auto_cron' in vals or 'sale_cat_cron_number' in vals or 'sale_cat_cron_type' in vals:
             cat_cron = self.env.ref('odoo_mrp_planner.ir_cron_auto_assign_sale_categories', raise_if_not_found=False)
@@ -779,6 +820,8 @@ class MrpRescheduleConfig(models.Model):
                     cat_cron_vals['interval_number'] = vals['sale_cat_cron_number']
                 if 'sale_cat_cron_type' in vals:
                     cat_cron_vals['interval_type'] = vals['sale_cat_cron_type']
+                # sudo() necesario: ir.cron pertenece al superusuario y el administrador
+                # del módulo no tiene permisos de escritura directa sobre él.
                 cat_cron.sudo().write(cat_cron_vals)
         # Supplier categories cron
         if any(k in vals for k in ('enable_supplier_categories', 'supplier_cat_cron_number', 'supplier_cat_cron_type')):
@@ -791,6 +834,8 @@ class MrpRescheduleConfig(models.Model):
                     sup_vals['interval_number'] = vals['supplier_cat_cron_number']
                 if 'supplier_cat_cron_type' in vals:
                     sup_vals['interval_type'] = vals['supplier_cat_cron_type']
+                # sudo() necesario: ir.cron pertenece al superusuario y el administrador
+                # del módulo no tiene permisos de escritura directa sobre él.
                 sup_cron.sudo().write(sup_vals)
         # Customer categories cron
         if any(k in vals for k in ('enable_customer_categories', 'customer_cat_cron_number', 'customer_cat_cron_type')):
@@ -803,6 +848,8 @@ class MrpRescheduleConfig(models.Model):
                     cust_vals['interval_number'] = vals['customer_cat_cron_number']
                 if 'customer_cat_cron_type' in vals:
                     cust_vals['interval_type'] = vals['customer_cat_cron_type']
+                # sudo() necesario: ir.cron pertenece al superusuario y el administrador
+                # del módulo no tiene permisos de escritura directa sobre él.
                 cust_cron.sudo().write(cust_vals)
         return res
 
@@ -821,6 +868,8 @@ class MrpRescheduleConfig(models.Model):
             sp.set_param('mrp_reschedule.priority', rec.priority)
             cron = self.env.ref('odoo_mrp_planner.ir_cron_check_delays', raise_if_not_found=False)
             if cron:
+                # sudo() necesario: ir.cron pertenece al superusuario y el administrador
+                # del módulo no tiene permisos de escritura directa sobre él.
                 cron.sudo().write({
                     'interval_number': rec.cron_interval_number,
                     'interval_type':   rec.cron_interval_type,

@@ -25,7 +25,9 @@
                 <separator/>
                 <filter string="Archivados" name="archived"   domain="[('active','=',False)]"/>
                 <group expand="0" string="Agrupar por">
-                    <filter string="Estado" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Estado"       name="group_state"       context="{'group_by': 'state'}"/>
+                    <filter string="Orden pivot"  name="group_production"  context="{'group_by': 'production_id'}"/>
+                    <filter string="Aplicado por" name="group_applied_by"  context="{'group_by': 'applied_by'}"/>
                 </group>
             </search>
         </field>
@@ -73,7 +75,7 @@
                             type="object"
                             string="Aplicar cambios"
                             class="btn-primary"
-                            groups="mrp.group_mrp_manager"
+                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
                             invisible="state != 'calculated'"
                             confirm="¿Confirmar la reprogramación? Esta acción actualizará las fechas de las órdenes de fabricación y compra marcadas."/>
                     <button name="action_reset_draft"
@@ -86,9 +88,9 @@
                             string="Cancelar plan"
                             class="btn-secondary"
                             invisible="state in ('applied', 'cancelled')"
-                            confirm="¿Cancelar este plan? Se eliminarán las líneas calculadas."/>
+                            confirm="¿Cancelar este plan? Las líneas calculadas serán eliminadas y el plan pasará a estado Cancelado de forma definitiva. Para rehacer la programación deberá crear un nuevo plan."/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="draft,calculated,applied"/>
+                           statusbar_visible="draft,calculated,applied,cancelled"/>
                 </header>
 
                 <sheet>

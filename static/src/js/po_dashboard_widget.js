@@ -12,7 +12,7 @@
  * @listens onMounted — carga datos y sincroniza altura
  */
 
-import { Component, useState, onMounted, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
@@ -107,7 +107,14 @@ class PoDashboardWidget extends Component {
 
         onMounted(async () => {
             await this._load();
-            requestAnimationFrame(() => this._syncH());
+            this._rafId = requestAnimationFrame(() => this._syncH());
+        });
+
+        onWillUnmount(() => {
+            if (this._rafId) {
+                cancelAnimationFrame(this._rafId);
+                this._rafId = null;
+            }
         });
     }
 
@@ -146,7 +153,10 @@ class PoDashboardWidget extends Component {
         this.state.sortField = null;
         this.state.sortDir   = "asc";
         this.state.page      = 1;
-        this._load().then(() => requestAnimationFrame(() => this._syncH()));
+        this._load().then(() => {
+            if (this._rafId) cancelAnimationFrame(this._rafId);
+            this._rafId = requestAnimationFrame(() => this._syncH());
+        });
     }
 
     /** Iguala la altura del panel de tabla a la del panel de KPIs */

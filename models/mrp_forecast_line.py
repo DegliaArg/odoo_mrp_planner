@@ -10,6 +10,14 @@ class MrpForecastLine(models.Model):
     _rec_name = 'product_id'
     _order = 'period desc, product_id'
 
+    _sql_constraints = [
+        (
+            'product_period_company_unique',
+            'unique(product_id, period, company_id)',
+            'Ya existe una línea de forecast para este artículo y período en esta empresa.',
+        ),
+    ]
+
     product_id = fields.Many2one(
         'product.product',
         string='Artículo',

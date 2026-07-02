@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class MrpRescheduleAlert(models.Model):
             label = type_labels.get(alert.alert_type, alert.alert_type)
             alert.name = f'{label} — {ref}' if ref else label
 
-    @api.depends()
+    @api.depends('production_id.date_finished', 'purchase_id.date_planned', 'picking_id.scheduled_date')
     def _compute_days_late(self):
         """Calcula días de atraso en tiempo real desde la fecha del registro fuente."""
         now = datetime.utcnow()
@@ -96,6 +97,7 @@ class MrpRescheduleAlert(models.Model):
             else:
                 alert.days_late = 0
 
+    @api.depends('impact_mo_ids')
     def _compute_impact_mo_count(self):
         # Usar .ids evita cargar los campos de los registros relacionados
         for alert in self:
@@ -104,6 +106,13 @@ class MrpRescheduleAlert(models.Model):
     # ── Acciones ─────────────────────────────────────────────────────────────
 
     def action_resolve(self):
+        if not (self.env.user.has_group('odoo_mrp_planner.group_prod') or
+                self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('base.group_system')):
+            raise UserError(_(
+                'Solo los usuarios con permiso "Producción - Planificar" o "Administrador" '
+                'pueden marcar alertas como resueltas.'
+            ))
         self.write({'resolved': True, 'resolve_date': fields.Datetime.now()})
 
     def action_view_impact_mos(self):
@@ -171,15 +180,67 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def action_run_cron_manual(self):
-        """Botón manual: ejecuta el chequeo de alertas ahora (solo para responsables)."""
-        # FIX [FASE-2]: sin este guard cualquier usuario puede disparar búsquedas masivas
-        if not self.env.user.has_group('mrp.group_mrp_manager'):
-            from odoo.exceptions import UserError
+        """Botón manual: ejecuta el chequeo de alertas ahora (solo para administradores del planificador)."""
+        # Usar group_admin del módulo propio para consistencia con el resto de controles de acceso.
+        # mrp.group_mrp_manager fue el grupo original pero excluía a usuarios con group_admin
+        # del planificador que no tenían rol nativo de fabricación.
+        if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('base.group_system')):
             raise UserError(_(
-                'Solo los responsables de fabricación pueden ejecutar el chequeo de alertas manualmente.'
+                'Solo los administradores del planificador pueden ejecutar el chequeo de alertas manualmente.'
             ))
         self._cron_check_delays()
         return self.env.ref('odoo_mrp_planner.action_mrp_reschedule_alert').read()[0]
+
+    # ── Helpers — upsert ─────────────────────────────────────────────────────
+
+    @api.model
+    def _upsert_alert(self, alert_type, severity, days_late, message, **fields_vals):
+        """Crea o actualiza una alerta abierta del tipo y registro dados.
+
+        Busca una alerta sin resolver del mismo ``alert_type`` y los mismos campos
+        relacionales pasados en ``fields_vals`` (ej. production_id, purchase_id).
+        Si la encuentra, actualiza ``severity``, ``days_late`` y ``message``.
+        Si no existe, crea una nueva.
+
+        Args:
+            alert_type (str): Valor del campo Selection ``alert_type``.
+            severity (str): 'warning' o 'critical'.
+            days_late (int): Días de atraso calculados por el llamador.
+            message (str): Texto descriptivo del desvío.
+            **fields_vals: Campos relacionales/numéricos para buscar y/o escribir
+                           (ej. production_id=42, product_id=7, impact_mo_ids=[1,2]).
+        """
+        domain = [('alert_type', '=', alert_type), ('resolved', '=', False)]
+        relational_keys = ('production_id', 'purchase_id', 'picking_id', 'product_id')
+        for k in relational_keys:
+            if k in fields_vals:
+                domain.append((k, '=', fields_vals[k]))
+
+        existing = self.search(domain, limit=1)
+        write_vals = {
+            'severity': severity,
+            'days_late': days_late,
+            'message': message,
+        }
+        # Campos extra (ej. expected_qty, actual_qty)
+        extra_skip = set(relational_keys) | {'impact_mo_ids'}
+        for k, v in fields_vals.items():
+            if k not in extra_skip:
+                write_vals[k] = v
+        # Many2many impact_mo_ids requiere sintaxis ORM (6, 0, ids)
+        if 'impact_mo_ids' in fields_vals:
+            write_vals['impact_mo_ids'] = [(6, 0, fields_vals['impact_mo_ids'])]
+
+        if existing:
+            existing.write(write_vals)
+        else:
+            create_vals = dict(write_vals)
+            create_vals['alert_type'] = alert_type
+            for k in relational_keys:
+                if k in fields_vals:
+                    create_vals[k] = fields_vals[k]
+            self.create(create_vals)
 
     # ── Helpers — impacto ────────────────────────────────────────────────────
 
@@ -222,6 +283,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _cron_check_delays(self):
         """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas."""
+        _logger.info('MRP Planner cron: inicio chequeo de desvíos de producción')
         now = datetime.utcnow()
         impact_cache = {}
         steps = [
@@ -238,6 +300,7 @@ class MrpRescheduleAlert(models.Model):
                 fn(*args)
             except Exception as e:
                 _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
+        _logger.info('MRP Planner cron: fin chequeo de desvíos de producción')
 
     def _get_config(self):
         return self.env['mrp.reschedule.config'].search([], limit=1)

@@ -11,6 +11,7 @@ function toDateStr(d) {
 
 class WcLoadChartWidget extends Component {
     static template = "odoo_mrp_planner.WcLoadChartWidget";
+    static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
         this.orm = useService("orm");
@@ -33,8 +34,8 @@ class WcLoadChartWidget extends Component {
 
         onMounted(async () => {
             await loadBundle("web.chartjs_lib");
-            await this._loadTags();
-            await this._loadChart();
+            // Paralelizar: get_wc_tags y get_wc_chart_data son RPCs independientes
+            await Promise.all([this._loadTags(), this._loadChart()]);
         });
 
         onWillUnmount(() => {

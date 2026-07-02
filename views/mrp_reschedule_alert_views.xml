@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Cron cada 30 minutos -->
+    <!-- Cron de alertas: noupdate="0" para que el upgrade pueda actualizar el intervalo
+         sincronizado desde la pantalla de Configuración del planificador. -->
     <data noupdate="0">
         <record id="ir_cron_check_delays" model="ir.cron">
             <field name="name">Planificador: detectar desvíos de producción</field>
@@ -12,7 +13,11 @@
             <field name="interval_type">minutes</field>
             <field name="active">True</field>
         </record>
+    </data>
 
+    <!-- Crons de categorías: noupdate="1" para preservar el estado activo/inactivo
+         configurado por el usuario; el upgrade no debe sobreescribirlos. -->
+    <data noupdate="1">
         <!-- Cron para actualización automática de categorías de venta (inactivo por defecto) -->
         <record id="ir_cron_auto_assign_sale_categories" model="ir.cron">
             <field name="name">Planificador: actualizar categorías de venta</field>
@@ -84,6 +89,7 @@
                 <group expand="0" string="Agrupar por">
                     <filter string="Tipo"      name="group_type"     context="{'group_by': 'alert_type'}"/>
                     <filter string="Severidad" name="group_severity" context="{'group_by': 'severity'}"/>
+                    <filter string="Producto"  name="group_product"  context="{'group_by': 'product_id'}"/>
                 </group>
             </search>
         </field>

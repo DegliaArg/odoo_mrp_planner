@@ -52,14 +52,16 @@
                             type="object"
                             string="Crear órdenes de fabricación"
                             class="btn-primary"
+                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
                             invisible="state != 'calculated'"
                             confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
                     <button name="action_plan_all_mos"
                             type="object"
                             string="Planificar OFs"
                             class="btn-secondary"
+                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
                             invisible="state != 'confirmed'"
-                            confirm="Se llamará button_plan() en todas las OFs del árbol (madres e hijas). ¿Continuar?"/>
+                            confirm="Se recalcularán las fechas de todos los centros de trabajo para las OFs de este plan (madres e hijas). ¿Continuar?"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,calculated,confirmed"/>
                 </header>

@@ -44,11 +44,12 @@ class SalesChartWidget extends Component {
         });
 
         onMounted(async () => {
-            const cats = await this.orm.call(
-                "mrp.planner.dashboard", "get_product_categories_for_chart", []
-            );
+            // Paralelizar: get_product_categories_for_chart y _load() son RPCs independientes
+            const [cats] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_product_categories_for_chart", []),
+                this._load(),
+            ]);
             this.state.productCategs = cats || [];
-            await this._load();
         });
 
         onPatched(() => {

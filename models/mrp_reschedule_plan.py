@@ -166,18 +166,37 @@ class MrpReschedulePlan(models.Model):
                 ) % self.production_id.name)
         else:
             if not self.replan_from:
-                raise UserError(_('Defina la fecha de inicio para el replan global.'))
+                raise UserError(_(
+                    'Falta la fecha de inicio para el replan global. '
+                    'Completá el campo "Replanificar desde" antes de calcular.'
+                ))
         self._build_lines()
         self.state = 'calculated'
 
     def action_reset_draft(self):
         self.ensure_one()
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner.group_prod') or
+                u.has_group('odoo_mrp_planner.group_admin') or
+                u.has_group('base.group_system')):
+            raise UserError(_(
+                'Solo los usuarios con permiso "Producción - Planificar" o "Administrador" '
+                'pueden recalcular un plan de reprogramación.'
+            ))
         self.line_ids.unlink()
         self.wc_line_ids.unlink()
         self.state = 'draft'
 
     def action_cancel(self):
         self.ensure_one()
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner.group_prod') or
+                u.has_group('odoo_mrp_planner.group_admin') or
+                u.has_group('base.group_system')):
+            raise UserError(_(
+                'Solo los usuarios con permiso "Producción - Planificar" o "Administrador" '
+                'pueden cancelar un plan de reprogramación.'
+            ))
         self.line_ids.unlink()
         self.wc_line_ids.unlink()
         self.write({'state': 'cancelled'})
@@ -197,10 +216,16 @@ class MrpReschedulePlan(models.Model):
                 'pueden aplicar un plan de reprogramación.'
             ))
         if self.state != 'calculated':
-            raise UserError(_('El plan debe estar en estado Calculado para aplicar.'))
+            raise UserError(_(
+                'El plan está en estado "%s". Primero calculá el plan (botón Calcular) '
+                'para poder aplicarlo.'
+            ) % self.state)
         active_lines = self.line_ids.filtered('apply')
         if not active_lines:
-            raise UserError(_('No hay líneas marcadas para aplicar.'))
+            raise UserError(_(
+                'No hay líneas marcadas para aplicar. Activá al menos una línea '
+                'con el campo "Aplicar" antes de continuar.'
+            ))
 
         pivot = self.production_id
         if pivot:

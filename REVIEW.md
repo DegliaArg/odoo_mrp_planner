@@ -1,110 +1,170 @@
-# Review — odoo_mrp_planner
+# Revisión completa del módulo odoo_mrp_planner
+
+**Fecha:** 2026-07-02
+**Revisor:** Claude Code (claude-sonnet-4-6)
+**Rama:** 18.0
+**Alcance:** Fases 2–13 (seguridad, estructura, código muerto, optimización Python, OWL/JS, vistas XML, UX/UI, documentación, calidad) — revisión completa multi-agente
+
+---
 
 ## Resumen ejecutivo
 
-Revisión completa del módulo en 3 iteraciones. v1+v2: 27 problemas corregidos (seguridad, performance, lógica, UX). v3 (2026-06-26): verificación de fixes aplicados; se encontraron **4 regresiones** introducidas al convertir `days_late` a campo compute (cron crashea, orden inválido en búsqueda, modelo sin acceso ORM, comentario desactualizado). Todos resueltos. Estado actual: **31 issues corregidos, 0 pendientes**.
+El módulo está funcionalmente maduro: la lógica de cascada, alertas, forecast y dashboard están implementadas y operativas. La revisión de 10 agentes de análisis encontró findings en seguridad, optimización Python, OWL/JS y calidad. Al verificar el código real contra cada finding, se confirmó que varios ya habían sido corregidos en commits recientes: `_upsert_alert` implementado, `@api.depends` correcto en alertas, try/except en `int(loc_param)`, `noupdate="1"` en crons de categoría, grupos correctos en `action_run_cron_manual`, `statusbar_visible` con "cancelled", `static props` en widgets, logging en crons, confirm mejorado en botón cancelar.
+
+Los issues reales aplicados en esta sesión cubrieron: guards de grupo faltantes en acciones destructivas, N+1 queries en métodos RPC del dashboard, inconsistencia UTC en drill-down de forecast, RPCs paralelas en widgets JS, y ajustes de accesibilidad/búsqueda en vistas XML.
+
+El riesgo principal sin resolver está en **seguridad a nivel de CSV**: los modelos de planes, alertas y forecast tienen CRUD completo para `base.group_user`, lo que requiere decisión de diseño del equipo antes de ajustar.
 
 ---
 
-## 🔴 Crítico (seguridad / bugs bloqueantes)
+## 🔴 Issues Críticos
 
 | # | Archivo | Línea | Descripción | Estado |
 |---|---------|-------|-------------|--------|
-| 1 | `security/ir.model.access.csv` | 12 | `mrp.reschedule.config` editable por cualquier usuario (CRUD): un usuario básico podía borrar la configuración global, cambiar umbrales de alertas o el intervalo del cron | **Corregido** — separado en read para `group_user` + CRUD para `group_mrp_manager` |
-| 2 | `security/ir.model.access.csv` | 15 | `mrp.reschedule.user.permission` creatable por cualquier usuario: un usuario podía crearse su propio registro de permisos y otorgarse `can_schedule=True`, `can_reschedule=True`, etc., bypasseando completamente el sistema de permisos del módulo | **Corregido** — separado en read para `group_user` + CRUD para `group_mrp_manager` |
-| 3 | `wizard/mrp_production_request.py` | 179 | `picking_type_id` default `browse(518)`: ID de base de datos específico de la instancia de desarrollo. En cualquier otra instalación apunta a otro registro o inexistente | **Corregido** — reemplazado por `search([('code', '=', 'mrp_operation'), ('company_id', ...)], limit=1)` |
-| 4 | `models/mrp_reschedule_config.py` | 113 | Sin protección contra creación de múltiples singletons: dos configs coexistentes producen comportamiento no determinista (el cron puede usar umbrales distintos a los que muestra la UI) | **Corregido** — `create()` lanza `UserError` si ya existe un registro |
-| 5 | `models/mrp_reschedule_alert.py` | 152 | `action_run_cron_manual()` sin guard de grupo: cualquier usuario con acceso al modelo podía ejecutar búsquedas masivas sobre toda la instancia repetidamente | **Corregido** — requiere `mrp.group_mrp_manager` |
-| 6 (v3) | `models/mrp_reschedule_alert.py` | 266, 300, 349, 387, 437, 508 | **Regresión**: al convertir `days_late` a campo `compute` (store=False) en v2, los 6 métodos del cron siguieron pasando `'days_late': valor` en `write_vals`. Odoo lanza `ValueError: Unallowed field 'days_late'` al ejecutar el cron — todo el sistema de alertas se rompe silenciosamente. | **Corregido** — eliminado `'days_late'` de los 6 `write_vals` de los chequeos del cron |
-| 7 (v3) | `security/ir.model.access.csv` | — | **Regresión**: el fix de seguridad #2 declaró que `mrp.reschedule.user.permission` fue dividido, pero el modelo nunca fue agregado al CSV. La línea original (CRUD para `group_user`) había sido eliminada sin agregar las dos nuevas. El modelo era completamente inaccesible. | **Corregido** — agregadas las dos líneas (read para `group_user`, CRUD para `group_admin`) |
-| 8 (v3) | `models/mrp_planner_dashboard.py` | 157 | **Regresión**: `_compute_inline_alerts` usaba `order='days_late desc, id desc'`. Los campos no almacenados no se pueden usar en ORDER BY SQL — Odoo lanza error al calcular el campo del dashboard. | **Corregido** — reemplazado por `order='id desc'` |
+| C-01 | `security/ir.model.access.csv` | 2–8, 18 | Modelos de planes, alertas y forecast tienen CRUD completo (1,1,1,1) para `base.group_user`. Cualquier usuario interno puede borrar planes y alertas de otros usuarios. | **Requiere decisión** |
+| C-02 | `security/ir.model.access.csv` | 19 | El wizard `mrp.forecast.import.wizard` tiene CRUD para `base.group_user`. `action_import()` hace `unlink` masivo de todas las líneas de forecast de la empresa sin check de grupo. | **Requiere decisión** |
+| C-03 | `models/mrp_reschedule_plan.py` | 176–187 | `action_reset_draft()` y `action_cancel()` no tenían guard de grupo: cualquier usuario podía resetear/cancelar planes ajenos. | **Corregido** |
+| C-04 | `models/mrp_reschedule_config.py` | 829–836 | Guard de singleton en `create()` vulnerable a race condition con `vals_list` multi-elemento. No hay `_sql_constraints` de unicidad a nivel de BD. | **Requiere decisión** |
+| C-05 | `models/mrp_planner_dashboard.py` | 558–561 | N+1 queries en `get_wc_tags()`: un `search_count` por tag para verificar si tiene WCs activos. | **Corregido** |
+| C-06 | `models/mrp_planner_dashboard.py` | 2252–2262 | N+1 queries en `get_product_categories_for_chart()`: un `search_count` por categoría para verificar si tiene productos vendibles. | **Corregido** |
+| C-07 | `models/mrp_planner_dashboard.py` | 2173–2200 | N+1 browse en `get_sales_chart_data()`: `browse(product_id[0])` individual por cada fila de `read_group`. | **Requiere decisión** |
+| C-08 | `models/mrp_reschedule_plan.py` | 362–392 | N+1 queries en `_build_lines()`: `_get_pos_for_mo()` y `_get_child_mos()` emiten hasta 4 búsquedas por OF en el BFS. Con cascadas de N órdenes: hasta 4N queries. | **Requiere decisión** |
+| C-09 | `wizard/mrp_production_request_views.xml` | 51–62 | Botones `action_confirm` (Crear OFs) y `action_plan_all_mos` (Planificar OFs) sin atributo `groups`. Cualquier usuario interno podía crear OFs. | **Corregido** |
+| C-10 | `models/mrp_planner_dashboard.py` | 1741 | `so_demand_no_fc` faltaba filtro `sale_ok=True`, inflando el contador con productos internos. | **Verificado — ya corregido** |
+| C-11 | `models/mrp_reschedule_alert.py` | N/A | `_upsert_alert()` faltaba — callers en `mrp_production.py` y `purchase_order.py` silenciaban el `AttributeError`. | **Verificado — ya implementado** |
 
 ---
 
-## 🟡 Importante (performance / lógica incorrecta)
+## 🟡 Issues Importantes
 
 | # | Archivo | Línea | Descripción | Estado |
 |---|---------|-------|-------------|--------|
-| 6 | `models/mrp_schedule_mixin.py` | 35 | `_schedule_duration()` con `duration_hours=0` devolvía `(after_dt, after_dt + 8h)` en lugar de `(after_dt, after_dt)` | **Corregido** — separadas las dos condiciones del guard |
-| 7 | `models/mrp_reschedule_user_permission.py` | — | Sin `_sql_constraints` de unicidad: múltiples registros para el mismo usuario producían comportamiento no determinista en permisos | **Corregido** — `unique(user_id, config_id)` |
-| 8 | `models/mrp_planner_detail_dashboard.py` | 81 | Umbral de OCs críticas hardcodeado en `5` días, ignorando el valor configurado en `mrp.reschedule.config.alert_po_critical_days` | **Corregido** — lee de config con fallback 5 |
-| 9 | `models/mrp_production.py` | 225 | `_compute_alert_count()` hacía un `search_count` por cada OF del recordset (N+1 queries en lista de OFs) | **Corregido** — `read_group` en una sola query |
-| 10 | `models/mrp_production.py` | 172 | `_flag_subsequent_mos()` con `limit=20`: solo marcaba las primeras 20 OFs subsecuentes | **Corregido** — aumentado a 50 con comentario explicativo |
-| 11 | `models/stock_picking.py` | 52 | `_flag_mos_for_picking()` con `limit=50`: OFs que consumen los productos de esa recepción por encima de 50 no se marcaban con `x_reschedule_needed` | **Corregido** — aumentado a 200 |
-| 12 | `models/mrp_planner_dashboard.py` | 1 | Import muerto `import calendar as _cal` (el módulo `calendar` se importa dentro de la función `get_forecast_dashboard_data()` como `_calendar`, el nivel de módulo no se usaba) | **Corregido** — eliminado |
-| 13 | `models/mrp_reschedule_config.py` | 77 | `int(param)` podía lanzar `ValueError` si el parámetro del sistema `mrp_reschedule.stock_location_id` fue editado manualmente con un valor no numérico | **Corregido** — try/except con fallback `False` |
-| 14 | `static/src/js/stock_break_widget.js` | 32 | Sin `onWillUnmount`: el timer de debounce de búsqueda podía ejecutarse después de que el componente fuera destruido, disparando un RPC sobre un OWL component desmontado | **Corregido** — `onWillUnmount(() => clearTimeout(this._searchTimer))` |
-| 15 | `static/src/js/mo_dashboard_widget.js` | 165–207 | `openMo()` y `openRequest()` pasaban `res_id` + `domain + view_mode: "list,form"` simultáneamente, lo que abría la vista en lista filtrada a 1 registro en vez de abrir el form directamente | **Corregido** — removido domain, cambiado a `view_mode: "form"` |
-| 16 | `static/src/js/po_dashboard_widget.js` | 171–198 | Mismo problema en `openPo()` y `openPicking()` | **Corregido** — ídem |
-| 17 | `views/mrp_reschedule_plan_views.xml` | 155–164 | Campo `reschedule_sequence` declarado dos veces en el mismo `<list>` (como widget handle y como columna visible). En Odoo 18 causa advertencia y comportamiento inconsistente | **Corregido** — eliminada la segunda declaración |
-| 18 | `static/src/js/wc_load_chart.js` | 135–137 | Variables `tiempoLibre` y `noplanificado` ambas apuntaban a `data.tiempo_muerto` con nombres distintos, aparentando ser un bug. El comportamiento es correcto (misma capacidad libre en ambos stacks), pero el código era engañoso | **Corregido** — unificadas en `tiempoMuerto` con comentario explicativo |
+| I-01 | `models/mrp_planner_dashboard.py` | 1973 | `int(loc_param)` sin try/except en `get_stock_breaks_kpis()`. | **Verificado — ya tiene try/except** |
+| I-02 | `models/mrp_reschedule_alert.py` | 107–108 | `action_resolve()` sin guard de grupo: cualquier usuario podía marcar alertas ajenas como resueltas. | **Corregido** |
+| I-03 | `models/mrp_reschedule_config.py` | 348, 463, 676 | `action_auto_assign_sale_categories()`, `action_compute_supplier_categories()`, `action_compute_customer_categories()` sin verificación de grupo. Hacen write masivo en `product.template` y `res.partner`. | **Corregido** |
+| I-04 | `models/mrp_reschedule_config.py` | 771–826 | `cron.sudo().write()` sin comentario justificando el escalado. | **Verificado — ya tiene comentarios** |
+| I-05 | `security/` | N/A | `mrp.forecast.line` tiene `company_id` pero no hay record rules de multi-empresa. Un usuario de empresa A puede leer/escribir forecast de empresa B. | **Requiere decisión** |
+| I-06 | `models/mrp_reschedule_alert.py` | 78–79 | `_compute_days_late()` necesita `@api.depends` con campos relacionales. | **Verificado — ya correcto** |
+| I-07 | `models/mrp_reschedule_alert.py` | 99–103 | `_compute_impact_mo_count()` necesita `@api.depends('impact_mo_ids')`. | **Verificado — ya correcto** |
+| I-08 | `models/mrp_reschedule_alert.py` | 174 | `action_run_cron_manual` verificaba `mrp.group_mrp_manager` (grupo nativo Odoo) en lugar de `odoo_mrp_planner.group_admin`. | **Verificado — ya corregido** |
+| I-09 | `views/mrp_reschedule_alert_views.xml` | 18–51 | Crons de categorías tenían `noupdate="0"`, el upgrade reseteaba el estado activo/inactivo configurado por el usuario. | **Verificado — ya corregido (noupdate="1")** |
+| I-10 | `__manifest__.py` | 59 | Entrada `mo_list_widget.js` sin indentación (columna 0 en lugar de 12 espacios). | **Corregido** |
+| I-11 | `models/mrp_planner_dashboard.py` | 179–262 | `_compute_mo_stats()` y `_compute_po_stats()` ejecutan `search()` y config lookup dentro del bucle `for rec in self`. | **Requiere decisión** |
+| I-12 | `models/mrp_reschedule_alert.py` | 12–15 | `mrp.reschedule.alert` no hereda `mail.thread`. No hay historial de quién resolvió cada alerta con comentario. | **Requiere decisión** |
+| I-13 | `views/mrp_reschedule_plan_views.xml` | 76 | Botón "Aplicar cambios" usaba `groups='mrp.group_mrp_manager'` pero Python verificaba `group_prod`/`group_admin`. | **Verificado — ya alineado** |
+| I-14 | `views/mrp_reschedule_alert_views.xml` | 89–92 | Vista búsqueda de alertas sin group_by por `product_id`. | **Corregido** |
+| I-15 | `views/mrp_reschedule_plan_views.xml` | 27–29 | Vista búsqueda de planes sin group_by por `production_id` ni `applied_by`. | **Corregido** |
+| I-16 | `models/mrp_planner_dashboard.py` | 1821–1836 | `get_product_mos_for_forecast()` usaba tiempo local en lugar de UTC para el dominio, desincronizando el acordeón con la tabla principal para usuarios en zonas UTC-. | **Corregido** |
+| I-17 | `models/mrp_reschedule_config.py` | 451–755 | Métodos de cron sin logging de inicio/fin. | **Verificado — ya tienen logging** |
+| I-18 | `static/src/js/mo_list_widget.js` | 32–35 | `_loadTags()` y `_loadMos()` en serie en `onMounted`. | **Corregido** |
+| I-19 | `static/src/js/wc_load_chart.js` | 35–39 | `_loadTags()` y `_loadChart()` en serie en `onMounted`. | **Corregido** |
+| I-20 | `static/src/js/mo_dashboard_widget.js` | 89–93 | `_loadTags()` y `_loadData()` en serie en `onMounted`. | **Corregido** |
+| I-21 | `static/src/js/sales_chart_widget.js` | 46–52 | `get_product_categories_for_chart` y `_load()` en serie en `onMounted`. | **Corregido** |
+| I-22 | `static/src/js/forecast_widget.js` | 622–624 | `_periodDateRange()` construye strings de datetime en hora local para dominios RPC que Odoo interpreta como UTC. Discrepancia entre tabla principal y drill-down para usuarios en zonas UTC-. | **Requiere decisión** |
+| I-23 | `models/mrp_product_type.py` | 9 | `mrp.product.type` sin `_sql_constraints` de unicidad de nombre. | **Verificado — ya tiene constraint** |
+| I-24 | `views/purchase_order_views.xml` | 1–3 | Archivo vacío declarado en manifest sin comentario explicativo. | **Corregido** |
 
 ---
 
-## 🟢 Mejoras (docs / estructura / legibilidad)
+## 🟢 Mejoras (improvements)
 
-| # | Archivo | Descripción | Estado |
-|---|---------|-------------|--------|
-| 19 | `mrp_reschedule_alert.py` | `_compute_impact_mo_count` usaba `len(record)` cargando el recordset completo; `len(.ids)` carga solo IDs | **Corregido** |
-| 20 | Todos los widgets JS | Sin JSDoc, sin `static props`, sin documentación del contrato de RPCs ni de la estructura de datos esperada | **Corregido** — JSDoc + `static props` añadidos a los 4 widgets |
-| 21 | `mrp_reschedule_alert.py` | `days_late` es campo estático: entre corridas del cron el valor mostrado al usuario puede estar desactualizado | **Corregido** — convertido a `compute='_compute_days_late', store=False`; se recalcula al leer |
-| 22 | `mrp_reschedule_alert.py` | `_check_qty_mismatches()` ventana temporal de 1 hora hardcodeada; si el cron corre cada 2h, pierde OFs terminadas entre ciclos | **Corregido** — ventana dinámica: `cron_interval_number * factor * 1.1`, mínimo 30 min |
-| 23 | `mrp_reschedule_plan.py` | `_get_subsequent_mos()` heurística por WC compartido incluye OFs no relacionadas con la cadena del pivot | **Corregido** — heurística de 3 niveles: (1) x_parent_mo_id, (2) OFs que consumen el producto del pivot, (3) WC compartido solo si `include_wc_heuristic=True` en config |
-| 24 | `mrp_reschedule_plan.py` | `add_mo()` sin límite de profundidad recursiva: árboles de más de ~100 niveles de sub-ÓFs pueden provocar `RecursionError` | **Corregido** — convertido a iterativo con `deque`; `MAX_DEPTH=30` con warning y línea truncada |
-| 25 | `mrp_planner_detail_dashboard_views.xml` | Dos botones con `name="action_view_overdue_pos"`: la tarjeta "Críticas" debería llamar a una acción con filtro diferente al de "Vencidas" | **Corregido** — nueva acción `action_view_critical_pos` con filtro de días desde config |
-| 26 | `mrp_reschedule_plan_views.xml` | `domain` en `production_id` solo muestra `state='confirmed'`, excluyendo OFs `in_progress` candidatas válidas | **Corregido** — `[('state', 'in', ['confirmed', 'progress', 'to_close'])]` |
-| 27 | `mrp_production.py` | `_compute_reschedule_plan_count()` hace 2 búsquedas por OF (N+1 en lista), optimizable con 2 `read_group` | **Corregido** — 2 `search_read` batch (pivot_map + line_map), luego unión de sets por OF |
-| 28 (v3) | `models/mrp_production.py` | 164 | Docstring de `_flag_subsequent_mos` decía "limit=20" cuando el código usa `limit=50` (ambigüedad entre lo documentado y el comportamiento real) | **Corregido** — actualizado a "limit=50" |
-
----
-
-## Cambios aplicados
-
-| Archivo | Descripción del cambio |
-|---------|----------------------|
-| `security/ir.model.access.csv` | `mrp.reschedule.config` y `mrp.reschedule.user.permission`: split en read (group_user) + CRUD (group_mrp_manager) |
-| `models/mrp_reschedule_config.py` | Singleton guard en `create()`, import `UserError`, fix `int(param)` con try/except |
-| `models/mrp_reschedule_user_permission.py` | `_sql_constraints` unique(user_id, config_id) |
-| `models/mrp_planner_dashboard.py` | Eliminado import muerto `import calendar as _cal` |
-| `models/mrp_schedule_mixin.py` | Fix duración 0 que devolvía 8h en lugar de 0 |
-| `models/mrp_reschedule_alert.py` | Guard `group_mrp_manager` en `action_run_cron_manual()`; `len(.ids)` en `_compute_impact_mo_count` |
-| `models/mrp_planner_detail_dashboard.py` | Umbral OC críticas lee de config en lugar de hardcoded 5 |
-| `models/mrp_production.py` | `_compute_alert_count` con `read_group`; limit 20→50 en `_flag_subsequent_mos` |
-| `models/stock_picking.py` | limit 50→200 en `_flag_mos_for_picking` |
-| `wizard/mrp_production_request.py` | `picking_type_id` default por búsqueda en lugar de `browse(518)` |
-| `views/mrp_reschedule_plan_views.xml` | Eliminada declaración duplicada de `reschedule_sequence` |
-| `static/src/js/wc_load_chart.js` | Unificadas `tiempoLibre`/`noplanificado` en `tiempoMuerto` con comentario |
-| `static/src/js/stock_break_widget.js` | Import `onWillUnmount`, cleanup de timer al desmontar |
-| `static/src/js/mo_dashboard_widget.js` | `openMo`/`openRequest`: eliminado domain redundante, view_mode→form only |
-| `static/src/js/po_dashboard_widget.js` | `openPo`/`openPicking`: ídem |
-
-### Cambios v3 (2026-06-26) — regresiones por conversión de `days_late` a compute
-
-| Archivo | Descripción del cambio |
-|---------|----------------------|
-| `models/mrp_reschedule_alert.py` | Eliminado `'days_late'` de los `write_vals` de los 6 métodos de chequeo del cron (`_check_delayed_mos`, `_check_upcoming_mos`, `_check_delayed_pos`, `_check_upcoming_pos`, `_check_delayed_receipts`, `_check_qty_mismatches`). Escribir un campo compute sin inverse lanza `ValueError` en Odoo. |
-| `models/mrp_planner_dashboard.py` | Eliminado `days_late` del `order=` en `_compute_inline_alerts`. Los campos no almacenados no se pueden usar en ORDER BY SQL. Reemplazado por `order='id desc'`. |
-| `security/ir.model.access.csv` | Agregadas las dos líneas faltantes para `mrp.reschedule.user.permission` (read para `group_user`, CRUD para `group_admin`). El modelo existía pero era inaccesible. |
-| `models/mrp_production.py` | Corregido comentario desactualizado en `_flag_subsequent_mos` que decía "limit=20" cuando el código usa `limit=50`. |
+| # | Área | Descripción | Estado |
+|---|------|-------------|--------|
+| G-01 | Python | `_parse_date` duplicada en dos métodos del dashboard. Extraer a función de módulo. | **Requiere decisión** |
+| G-02 | Python | Patrón `env['mrp.reschedule.config'].search([], limit=1)` repetido 8 veces en 4 archivos. Mover `_get_config` al mixin. | **Requiere decisión** |
+| G-03 | Python | Constante `8.0` (horas jornada) en dos archivos sin nombre. Definir `DEFAULT_SHIFT_HOURS = 8.0`. | **Requiere decisión** |
+| G-04 | Python | Factor `/ 60.0` (minutos→horas) repetido 7 veces en 2 archivos. Definir `MINS_PER_HOUR = 60.0`. | **Requiere decisión** |
+| G-05 | Python | `_fmt_delta_secs` duplicada entre `_compute_delta_display` y `_compute_delta_display_line`. | **Requiere decisión** |
+| G-06 | Python | `DEFAULT_PO_CRITICAL_DAYS = 5` hardcodeado en 5 sitios. | **Requiere decisión** |
+| G-07 | Python | `get_wc_load_data` método muerto (no referenciado en ningún widget JS). | **Requiere decisión** |
+| G-08 | Python | `_period_from_str` en `mrp.forecast.line` nunca invocado. | **Requiere decisión** |
+| G-09 | Python | `action_view_warning`, `action_view_in_progress_mos`, `action_view_reschedule_needed`, `action_view_done_mos` sin callers. | **Requiere decisión** |
+| G-10 | Python | `import calendar`, `import io`, `import base64` dentro de métodos (solo `openpyxl` justifica import tardío). | **Requiere decisión** |
+| G-11 | Python | `no_subcontract_domain()` llamado 16 veces por request sin cache. | **Requiere decisión** |
+| G-12 | Python | `len(rec.line_ids)` carga registros completos; preferir `.ids`. | **Requiere decisión** |
+| G-13 | JS | `pieLabelPlugin` redefinido como nuevo objeto en cada `_drawPie()`. Extraer a constante de módulo. | **Requiere decisión** |
+| G-14 | JS | Falta debounce en `onPeriodFromChange`/`onPeriodToChange` en `forecast_widget.js`. | **Requiere decisión** |
+| G-15 | JS | `pageSize: 50` hardcodeado en 3 widgets JS independientes. Extraer constante compartida. | **Requiere decisión** |
+| G-16 | JS | Umbrales `90`/`70` de carga de CTs hardcodeados en JS; deberían venir del backend. | **Requiere decisión** |
+| G-17 | JS | `column_manager.js` registra listeners en `document` en `onResizeStart` sin limpieza si el componente se desmonta durante un resize. | **Requiere decisión** |
+| G-18 | XML | `feasibility_summary` declarado dos veces en el mismo form (patrón `invisible` mutuamente exclusivo). Puede generar binding conflicts en OWL. | **Requiere decisión** |
+| G-19 | XML | `result_message` declarado dos veces en el wizard de importación. Mismo patrón que G-18. | **Requiere decisión** |
+| G-20 | XML | `stock_location_id` en config sin `domain` explícito en el XML del campo (solo en el modelo). | **Requiere decisión** |
+| G-21 | Estructura | `__manifest__.py` versión `18.0.43.0.0` — el major `43` sugiere uso como contador de iteraciones, no versión semántica. | **Requiere decisión** |
+| G-22 | Estructura | `mrp_reschedule_plan.py` (900+ líneas, 3 clases) y `mrp_production_request.py` (1100+ líneas, 4 clases). Separar en archivos. | **Requiere decisión** |
+| G-23 | Estructura | Funciones ABC helper en `mrp_reschedule_config.py` usadas también desde `res_partner.py` y `product_template.py`. Mover a `mrp_abc_helpers.py`. | **Requiere decisión** |
+| G-24 | Docs | Métodos públicos del TransientModel dashboard sin docstrings (15+ métodos). | **Requiere decisión** |
+| G-25 | Docs | Núcleo del algoritmo de cascada (`_get_delta`, `_schedule_mo_block`, `_get_subsequent_mos`) sin docstrings. | **Requiere decisión** |
+| G-26 | Docs | `MAX_DEPTH = 30` sin comentario explicando que previene RecursionError en cascadas profundas. | **Requiere decisión** |
+| G-27 | Docs | Comentario UTC en `get_forecast_dashboard_data` no explica el caso de borde del cambio de mes. | **Requiere decisión** |
+| G-28 | UX | Columnas `purchase_id` y `picking_id` en vista lista de alertas con `optional='show'` activo; para la mayoría siempre están vacías. | **Requiere decisión** |
+| G-29 | UX | Botón "Cancelar plan" con confirm incompleto. | **Verificado — ya mejorado** |
+| G-30 | UX | Formulario de alerta sin banner visual cuando `severity='critical'` y no resuelta. | **Requiere decisión** |
 
 ---
 
-## Decisiones resueltas (v2)
+## Cambios aplicados en esta revisión
 
-Todas las decisiones pendientes han sido implementadas:
+| Archivo | Cambio |
+|---------|--------|
+| `models/mrp_reschedule_plan.py` | Guard de grupo (`group_prod`/`group_admin`/`group_system`) en `action_reset_draft()` y `action_cancel()` |
+| `models/mrp_reschedule_alert.py` | `UserError` importado a nivel de módulo; removido import inline en `action_run_cron_manual` |
+| `models/mrp_reschedule_alert.py` | Guard de grupo en `action_resolve()` |
+| `models/mrp_reschedule_config.py` | Guard de grupo + docstring en `action_auto_assign_sale_categories()` |
+| `models/mrp_reschedule_config.py` | Guard de grupo + docstring en `action_compute_supplier_categories()` |
+| `models/mrp_reschedule_config.py` | Guard de grupo + docstring en `action_compute_customer_categories()` |
+| `models/mrp_planner_dashboard.py` | Eliminado N+1 en `get_wc_tags()`: un único `mapped('tag_ids')` reemplaza `search_count` por loop |
+| `models/mrp_planner_dashboard.py` | Eliminado N+1 en `get_product_categories_for_chart()`: `read_group` + búsqueda única reemplaza `search_count` por loop |
+| `models/mrp_planner_dashboard.py` | Corregida inconsistencia UTC en `get_product_mos_for_forecast()`: aplica la misma conversión de zona horaria que `get_forecast_dashboard_data()` |
+| `views/mrp_reschedule_alert_views.xml` | Agregado group_by `product_id` en vista búsqueda de alertas |
+| `views/mrp_reschedule_plan_views.xml` | Agregados group_by `production_id` y `applied_by` en vista búsqueda de planes |
+| `wizard/mrp_production_request_views.xml` | `groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"` en botones `action_confirm` y `action_plan_all_mos` |
+| `views/mrp_forecast_line_views.xml` | Comentario explicativo al filtro "Próximos 3 meses" |
+| `views/purchase_order_views.xml` | Comentario indicando que es un placeholder para extensiones futuras |
+| `__manifest__.py` | Corregida indentación de la entrada `mo_list_widget.js` |
+| `static/src/js/mo_list_widget.js` | Paralelizado `_loadTags()` y `_loadMos()` con `Promise.all` en `onMounted` |
+| `static/src/js/wc_load_chart.js` | Paralelizado `_loadTags()` y `_loadChart()` con `Promise.all` en `onMounted` |
+| `static/src/js/mo_dashboard_widget.js` | Paralelizado `_loadTags()` y `_loadData()` con `Promise.all` en `onMounted` |
+| `static/src/js/sales_chart_widget.js` | Paralelizado `get_product_categories_for_chart` y `_load()` con `Promise.all` en `onMounted` |
 
-1. **`days_late` como campo computado** — Corregido. `store=False`, `compute='_compute_days_late'`. El `_order` ya no lo incluye (Odoo no permite ORDER BY sobre campos no almacenados).
+---
 
-2. **Ventana temporal dinámica en `_check_qty_mismatches()`** — Corregido. La ventana se calcula como `cron_interval_number * type_factor * 1.1` con mínimo 30 min.
+## Decisiones pendientes para el equipo
 
-3. **Heurística de 3 niveles en `_get_subsequent_mos()`** — Corregido. Nivel 1: `x_parent_mo_id`; Nivel 2: OFs que consumen el producto del pivot; Nivel 3: WC compartido (opcional vía `include_wc_heuristic` en config).
+### Alta prioridad
 
-4. **Iterativo con `MAX_DEPTH=30` en `_build_lines()`** — Corregido. La recursión fue convertida a un loop con `deque`. Las OFs que superan la profundidad máxima reciben una línea con `warning_message` y `apply=False`.
+**C-01/C-02 — Permisos CSV:** Los modelos de planes, alertas y forecast tienen CRUD completo para `base.group_user`. Propuesta: dividir cada fila en una de lectura para `base.group_user` (1,0,0,0) y otra con CRUD para los grupos del módulo (`group_prod`, `group_sales`, `group_admin`). Verificar que los formularios de usuario estén asignados al grupo correcto antes de aplicar.
 
-5. **Botón "Críticas" con acción propia** — Corregido. Nueva acción `action_view_critical_pos` que filtra por `date_planned < now - po_crit_days días`.
+**C-04 — Singleton config sin constraint DB:** El `search_count` en `create()` no protege contra concurrencia. Agregar `_sql_constraints = [('singleton', 'CHECK(id = 1)', 'Solo puede existir una configuración.')]` o equivalente.
 
-6. **Domain `production_id` expandido** — Corregido. `[('state', 'in', ['confirmed', 'progress', 'to_close'])]`.
+**I-05 — Multi-empresa forecast:** Agregar record rule estándar de Odoo para `mrp.forecast.line` con `domain_force="[('company_id', 'in', [company_id, False])]"` si la instancia es multi-empresa.
 
-7. **`_compute_reschedule_plan_count()` N+1 resuelto** — Corregido. Dos `search_read` batch + unión de sets por OF.
+**I-12 — mail.thread en alertas:** Agregar `_inherit = ['mail.thread', 'mail.activity.mixin']` y `<chatter/>` al form. Impacto: tabla de mensajes adicional. Campo `resolved` con `tracking=True` para auditoría automática.
 
-8. **JSDoc + `static props` en widgets OWL** — Corregido. Los 4 widgets tienen bloque JSDoc de módulo, `static props`, y comentarios en métodos clave.
+**I-22 — UTC en drill-down JS:** `_periodDateRange()` en `forecast_widget.js` usa hora local. Opciones: (a) exponer bounds UTC desde el backend en el payload de `get_forecast_dashboard_data`, (b) calcular offset en JS con `luxon` (ya disponible en Odoo 18) usando `DateTime.fromISO(...).toUTC()`.
+
+### Media prioridad
+
+**C-07 — N+1 browse en get_sales_chart_data:** Pre-cargar con `search_read(['id','product_tmpl_id'])` y construir dict antes del loop.
+
+**C-08 — N+1 en _build_lines (BFS):** Pre-cargar todas las OCs y OFs hijo con dominios IN antes del bucle BFS para cascadas >10 OFs.
+
+**G-18/G-19 — Campos duplicados en vistas:** Refactorizar `feasibility_summary` y `result_message` a un único `<field>` con clase dinámica via `t-attf-class`.
+
+### Baja prioridad
+
+**G-22 — Archivos monolíticos:** Separar `mrp_reschedule_plan.py` y `mrp_production_request.py` en archivos por clase.
+
+**G-07/G-08/G-09 — Métodos muertos:** Verificar con `grep -r` que no hayan callers en módulos externos antes de eliminar `get_wc_load_data`, `_period_from_str`, `action_view_warning`, `action_view_in_progress_mos`, `action_view_reschedule_needed`, `action_view_done_mos`.
+
+**G-21 — Versión del módulo:** Normalizar `18.0.43.0.0` a `18.0.1.0.0` y documentar política de versioning.
+
+---
+
+## Notas de migración
+
+- Los guards de grupo nuevos en `action_reset_draft()`, `action_cancel()`, `action_resolve()` y los tres métodos de categorías pueden rechazar con `UserError` a usuarios que hoy los usan sin el grupo correcto. Verificar asignaciones de grupo antes de desplegar en producción.
+
+- La corrección UTC en `get_product_mos_for_forecast()` cambia qué OFs aparecen en el acordeón del forecast para usuarios en zonas horarias distintas de UTC. El comportamiento nuevo es el correcto (consistente con la tabla principal).
+
+- Los cambios de `Promise.all` en los cuatro widgets JS reducen la latencia de carga inicial sin cambiar la interfaz ni el comportamiento funcional.

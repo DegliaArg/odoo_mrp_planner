@@ -55,7 +55,9 @@
                                   ('period', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
                 <filter string="Próximos 3 meses" name="next_3m"
                         domain="[('period', '&gt;=', context_today().strftime('%Y-%m-01')),
-                                  ('period', '&lt;=', (context_today() + relativedelta(months=2, day=1)).strftime('%Y-%m-%d'))]"/>
+                                  ('period', '&lt;=', (context_today() + relativedelta(months=2, day=31)).strftime('%Y-%m-%d'))]"/>
+                <!-- Nota: relativedelta(months=2, day=31) produce el último día del tercer mes
+                     completo (julio=hoy → fin = sep-30), cubriendo correctamente 3 meses. -->
                 <group expand="0" string="Agrupar por">
                     <filter string="Artículo"   name="by_product"   context="{'group_by': 'product_id'}"/>
                     <filter string="Período"    name="by_period"    context="{'group_by': 'period:month'}"/>

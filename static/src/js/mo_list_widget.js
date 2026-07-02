@@ -10,6 +10,7 @@ function toDateStr(d) {
 
 class MoListWidget extends Component {
     static template = "odoo_mrp_planner.MoListWidget";
+    static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
         this.orm    = useService("orm");
@@ -29,8 +30,8 @@ class MoListWidget extends Component {
         });
 
         onMounted(async () => {
-            await this._loadTags();
-            await this._loadMos();
+            // Paralelizar: get_wc_tags y get_filtered_mos son RPCs independientes
+            await Promise.all([this._loadTags(), this._loadMos()]);
         });
     }
 

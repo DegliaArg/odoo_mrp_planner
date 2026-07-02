@@ -250,7 +250,12 @@
                                                     t-on-click="openPoFromRow">
                                                     <td t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
                                                         t-att-class="col.align ? 'text-' + col.align : ''">
-                                                        <t t-if="col.key === 'name'"><span class="fw-semibold" t-esc="po.name"/></t>
+                                                        <t t-if="col.key === 'name'">
+                                                            <span class="fw-semibold" t-esc="po.name"/>
+                                                            <t t-if="state.ocFilter === 'rfqs' and po.state === 'sent'">
+                                                                <span class="badge text-bg-info ms-1" style="font-size:9px;" title="Cotización enviada al proveedor">Enviada</span>
+                                                            </t>
+                                                        </t>
                                                         <t t-elif="col.key === 'partner'"><t t-esc="po.partner"/></t>
                                                         <t t-elif="col.key === 'date_planned'"><t t-esc="po.date_planned"/></t>
                                                         <t t-elif="col.key === 'amount_total'"><t t-esc="fmtAmt(po.amount_total)"/></t>
@@ -302,7 +307,7 @@
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
                                                 <!-- Fila principal -->
-                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                <tr t-att-class="pick.availability === 'assigned' ? 'table-info' : (pick.overdue ? 'table-danger' : '')"
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">
@@ -410,7 +415,7 @@
                                         <tbody>
                                             <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
                                                 <!-- Fila principal -->
-                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                <tr t-att-class="pick.state === 'done' ? 'table-success' : (pick.availability === 'assigned' ? 'table-info' : (pick.overdue ? 'table-danger' : ''))"
                                                     style="cursor:pointer"
                                                     t-att-data-pick-id="pick.id"
                                                     t-on-click="openPickingFromRow">

@@ -1697,6 +1697,49 @@ class MrpPlannerDashboard(models.TransientModel):
         total_mos  = sum(r['total_mos']       for r in rows)
         total_del  = sum(r['total_delivered'] for r in rows)
         total_so   = sum(r['total_so_demand'] for r in rows)
+
+        # Producción de OFs para productos SIN línea de forecast
+        mos_no_fc = round(sum(
+            sum(v.values()) for pid, v in mo_data.items() if pid not in all_product_ids
+        ), 2)
+
+        # Entregado para productos SIN línea de forecast
+        delivered_no_fc = 0.0
+        try:
+            no_fc_del_domain = [
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('date', '>=', fields.Datetime.to_string(
+                    datetime.combine(d_from, datetime.min.time()))),
+                ('date', '<=', fields.Datetime.to_string(
+                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('company_id', '=', self.env.company.id),
+            ]
+            if all_product_ids_list:
+                no_fc_del_domain.append(('product_id', 'not in', all_product_ids_list))
+            groups = self.env['stock.move.line'].read_group(no_fc_del_domain, ['quantity:sum'], [])
+            delivered_no_fc = round((groups[0]['quantity'] or 0.0) if groups else 0.0, 2)
+        except Exception:
+            delivered_no_fc = 0.0
+
+        # Demanda de SOs en el período para productos SIN línea de forecast
+        so_demand_no_fc = 0.0
+        try:
+            no_fc_domain = [
+                ('order_id.state', 'in', ('sale', 'done')),
+                ('order_id.date_order', '>=', fields.Datetime.to_string(
+                    datetime.combine(d_from, datetime.min.time()))),
+                ('order_id.date_order', '<=', fields.Datetime.to_string(
+                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('company_id', '=', self.env.company.id),
+            ]
+            if all_product_ids_list:
+                no_fc_domain.append(('product_id', 'not in', all_product_ids_list))
+            groups = self.env['sale.order.line'].read_group(no_fc_domain, ['product_uom_qty:sum'], [])
+            so_demand_no_fc = round((groups[0]['product_uom_qty'] or 0.0) if groups else 0.0, 2)
+        except Exception:
+            so_demand_no_fc = 0.0
+
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
         ovr_svc = round(total_del / total_so * 100, 1) if total_so > 0 else None
@@ -1737,6 +1780,9 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_products':       len(rows),
                 'overall_service_rate': ovr_svc,
                 'overall_forecast_acc': ovr_acc,
+                'so_demand_no_fc':      so_demand_no_fc,
+                'mos_no_fc':            mos_no_fc,
+                'delivered_no_fc':      delivered_no_fc,
             },
             'months':        months,
             'month_totals':  month_totals,

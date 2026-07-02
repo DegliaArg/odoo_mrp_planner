@@ -26,7 +26,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades pedidas en SOs confirmadas en el período. Es la demanda real que el forecast debería anticipar. Clic para ver órdenes de venta."
+                             t-att-title="'Total de unidades pedidas en SOs confirmadas (productos con línea de forecast).' + (state.data.kpis.so_demand_no_fc > 0 ? ' + ' + fmt(state.data.kpis.so_demand_no_fc) + ' u. adicionales de productos SIN línea de forecast.' : '') + ' Clic para ver órdenes de venta.'"
                              t-on-click="openDrillSoDemand">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-shopping-cart fa-lg text-purple mb-1 d-block" style="color:#7952b3;"/>
@@ -37,7 +37,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades en OFs activas (según estados configurados) con fecha de fin en el período. Clic para ver órdenes de fabricación."
+                             t-att-title="'Total de unidades en OFs activas (según estados configurados) con fecha de fin en el período (productos con línea de forecast).' + (state.data.kpis.mos_no_fc > 0 ? ' + ' + fmt(state.data.kpis.mos_no_fc) + ' u. adicionales de productos SIN línea de forecast.' : '') + ' Clic para ver órdenes de fabricación.'"
                              t-on-click="openDrillMos">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
@@ -48,7 +48,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades entregadas a clientes en el período (albaranes de salida validados). Clic para ver movimientos."
+                             t-att-title="'Total de unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast.' + (state.data.kpis.delivered_no_fc > 0 ? ' + ' + fmt(state.data.kpis.delivered_no_fc) + ' u. adicionales de productos SIN línea de forecast.' : '') + ' Clic para ver movimientos.'"
                              t-on-click="openDrillDelivered">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-truck fa-lg text-info mb-1 d-block"/>

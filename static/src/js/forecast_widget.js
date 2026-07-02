@@ -23,6 +23,17 @@ function addMonthsLastDayYMD(ymd, n) {
     return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
 }
 
+function firstOfMonthYMD() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function lastOfMonthYMD() {
+    const d = new Date();
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+}
+
 class ForecastWidget extends Component {
     static template = "odoo_mrp_planner.ForecastWidget";
     static components = { PlannerSearchBar };
@@ -31,11 +42,10 @@ class ForecastWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
 
-        const now = todayYMD();
         this.state = useState({
             loading:            true,
-            periodFrom:         now,
-            periodTo:           addMonthsLastDayYMD(now, 2),
+            periodFrom:         firstOfMonthYMD(),
+            periodTo:           lastOfMonthYMD(),
             warehouseIds:       [],
             warehouses:         [],
             whDropdownOpen:     false,

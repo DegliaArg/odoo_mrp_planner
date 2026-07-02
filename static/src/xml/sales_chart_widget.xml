@@ -98,8 +98,8 @@
             <!-- Gráficos: torta + barras -->
             <div t-else="" class="d-flex gap-3 align-items-start">
 
-                <!-- Torta — distribución por categoría de venta -->
-                <div style="width:34%; min-width:210px; flex-shrink:0;">
+                <!-- Torta — distribución por categoría de venta (1/3) -->
+                <div style="flex:1; min-width:0;">
                     <p class="text-center small text-muted fw-semibold mb-1" style="font-size:11px;">
                         Distribución por categoría de venta
                     </p>
@@ -108,8 +108,8 @@
                     </div>
                 </div>
 
-                <!-- Barras — top N productos -->
-                <div style="flex:1; position:relative; height:360px;">
+                <!-- Barras — top N productos (2/3) -->
+                <div style="flex:2; min-width:0; position:relative; height:360px;">
                     <canvas t-ref="salesCanvas"/>
                 </div>
 

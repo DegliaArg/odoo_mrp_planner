@@ -616,6 +616,96 @@ class ForecastWidget extends Component {
         });
     }
 
+    // ── Drill-down KPIs forecast ──────────────────────────────────────────────
+
+    _periodDateRange() {
+        const [ty, tm] = this.state.periodTo.split('-').map(Number);
+        const lastDay  = new Date(ty, tm, 0).getDate();
+        return {
+            dateFrom: `${this.state.periodFrom}-01 00:00:00`,
+            dateTo:   `${this.state.periodTo}-${String(lastDay).padStart(2, '0')} 23:59:59`,
+        };
+    }
+
+    _forecastProductIds() {
+        return (this.state.data && this.state.data.rows || []).map(r => r.product_id);
+    }
+
+    openDrillForecast() {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Demanda forecast',
+            res_model: 'mrp.forecast.line',
+            view_mode: 'list,form',
+            views:     [[false, 'list'], [false, 'form']],
+            domain:    [
+                ['period', '>=', this.state.periodFrom + '-01'],
+                ['period', '<=', this.state.periodTo   + '-01'],
+            ],
+            target: 'current',
+        });
+    }
+
+    openDrillMos() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids     = this._forecastProductIds();
+        const moStates = (this.state.data && this.state.data.mo_states) || ['confirmed', 'progress', 'to_close'];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Producción planificada',
+            res_model: 'mrp.production',
+            view_mode: 'list,form',
+            views:     [[false, 'list'], [false, 'form']],
+            domain:    [
+                ['product_id', 'in', pids],
+                ['state', 'in', moStates],
+                ['date_finished', '>=', dateFrom],
+                ['date_finished', '<=', dateTo],
+                ['location_src_id.is_subcontracting_location', '!=', true],
+            ],
+            target: 'current',
+        });
+    }
+
+    openDrillSoDemand() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Demanda real (órdenes de venta)',
+            res_model: 'sale.order.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['order_id.state', 'in', ['sale', 'done']],
+                ['order_id.date_order', '>=', dateFrom],
+                ['order_id.date_order', '<=', dateTo],
+                ['product_id', 'in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
+    openDrillDelivered() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Entregado (movimientos de salida)',
+            res_model: 'stock.move.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['date', '>=', dateFrom],
+                ['date', '<=', dateTo],
+                ['product_id', 'in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
     async downloadExport() {
         try {
             const res = await this.orm.call(

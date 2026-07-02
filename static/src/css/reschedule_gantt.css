@@ -32,6 +32,15 @@
 .o_planner_card_info    { border-color: #b8e7f5; }
 .o_planner_card_success { border-color: #b7e4c7; }
 
+.o_planner_card_clickable {
+    cursor: pointer;
+}
+
+.o_planner_card_clickable:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    border-color: #adb5bd;
+}
+
 .o_planner_card .card-footer {
     background: transparent;
     border-top: 1px solid rgba(0, 0, 0, 0.06);

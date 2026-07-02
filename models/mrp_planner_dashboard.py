@@ -1745,6 +1745,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'critical_pct':  critical_pct,
             'rotation_unit': rotation_unit,
             'acc_formula':   acc_formula,
+            'mo_states':     mo_states,
         }
 
     @api.model

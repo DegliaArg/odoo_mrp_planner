@@ -305,8 +305,8 @@ class SupplierAnalysisWidget extends Component {
             target:    'current',
             domain:    [['partner_id', '=', row.partner_id],
                         ['state', 'in', ['purchase', 'done']],
-                        ['date_approve', '>=', this.periodFromDate],
-                        ['date_approve', '<=', this.periodToDate]],
+                        ['date_approve', '>=', `${this.state.periodFrom} 00:00:00`],
+                        ['date_approve', '<=', `${this.state.periodTo} 23:59:59`]],
         });
     }
 }

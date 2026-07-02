@@ -1431,6 +1431,20 @@ class MrpPlannerDashboard(models.TransientModel):
 
         last_day_of_to = d_to  # día exacto seleccionado por el usuario
 
+        # Conversión a UTC para dominios Datetime (Odoo guarda en UTC)
+        tz_name  = self.env.context.get('tz') or self.env.user.tz or 'UTC'
+        user_tz  = pytz.timezone(tz_name)
+
+        def _to_utc(dt_naive):
+            return user_tz.localize(dt_naive).astimezone(pytz.utc).replace(tzinfo=None)
+
+        def _dt_ym(dt_utc):
+            """Devuelve 'YYYY-MM' en hora local a partir de un Datetime UTC."""
+            return pytz.utc.localize(dt_utc).astimezone(user_tz).strftime('%Y-%m')
+
+        dt_from = _to_utc(datetime.combine(d_from, datetime.min.time()))
+        dt_to   = _to_utc(datetime.combine(last_day_of_to, datetime.max.time()))
+
         # ── Forecast lines ────────────────────────────────────────────────────
         fc_domain = [
             ('period', '>=', _date(d_from.year, d_from.month, 1)),
@@ -1455,12 +1469,8 @@ class MrpPlannerDashboard(models.TransientModel):
         # ── ÓFs planificadas ──────────────────────────────────────────────────
         mo_domain = [
             ('state', 'in', mo_states),
-            ('date_finished', '>=', fields.Datetime.to_string(
-                datetime.combine(d_from, datetime.min.time())
-            )),
-            ('date_finished', '<=', fields.Datetime.to_string(
-                datetime.combine(last_day_of_to, datetime.max.time())
-            )),
+            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
+            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
         ] + no_subcontract_domain(self.env)
         mos = self.env['mrp.production'].search(mo_domain)
 
@@ -1471,7 +1481,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 continue
             pid = mo.product_id.id
             df  = mo.date_finished
-            ym  = f"{df.year}-{df.month:02d}"
+            ym  = _dt_ym(df)
             if ym not in months:
                 continue
             if pid not in mo_data:
@@ -1487,10 +1497,8 @@ class MrpPlannerDashboard(models.TransientModel):
         del_line_domain = [
             ('state', '=', 'done'),
             ('picking_id.picking_type_id.code', '=', 'outgoing'),
-            ('date', '>=', fields.Datetime.to_string(
-                datetime.combine(d_from, datetime.min.time()))),
-            ('date', '<=', fields.Datetime.to_string(
-                datetime.combine(last_day_of_to, datetime.max.time()))),
+            ('date', '>=', fields.Datetime.to_string(dt_from)),
+            ('date', '<=', fields.Datetime.to_string(dt_to)),
             ('product_id', 'in', all_product_ids_list),
             ('company_id', '=', self.env.company.id),
         ]
@@ -1500,7 +1508,7 @@ class MrpPlannerDashboard(models.TransientModel):
             dt  = ml.date
             if not dt:
                 continue
-            ym = f"{dt.year}-{dt.month:02d}"
+            ym = _dt_ym(dt)
             if ym not in months:
                 continue
             del_data.setdefault(pid, {})
@@ -1511,10 +1519,8 @@ class MrpPlannerDashboard(models.TransientModel):
         try:
             so_domain = [
                 ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(
-                    datetime.combine(d_from, datetime.min.time()))),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(
-                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('product_id', 'in', all_product_ids_list),
                 ('company_id', '=', self.env.company.id),
             ]
@@ -1523,7 +1529,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 if not line.order_id.date_order:
                     continue
                 dt  = line.order_id.date_order
-                ym  = f"{dt.year}-{dt.month:02d}"
+                ym  = _dt_ym(dt)
                 if ym not in months:
                     continue
                 so_data.setdefault(pid, {})
@@ -1717,10 +1723,8 @@ class MrpPlannerDashboard(models.TransientModel):
             no_fc_del_domain = [
                 ('state', '=', 'done'),
                 ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                ('date', '>=', fields.Datetime.to_string(
-                    datetime.combine(d_from, datetime.min.time()))),
-                ('date', '<=', fields.Datetime.to_string(
-                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('date', '>=', fields.Datetime.to_string(dt_from)),
+                ('date', '<=', fields.Datetime.to_string(dt_to)),
                 ('product_id.sale_ok', '=', True),
                 ('company_id', '=', self.env.company.id),
             ]
@@ -1736,10 +1740,8 @@ class MrpPlannerDashboard(models.TransientModel):
         try:
             no_fc_domain = [
                 ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(
-                    datetime.combine(d_from, datetime.min.time()))),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(
-                    datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('company_id', '=', self.env.company.id),
             ]
             if all_product_ids_list:

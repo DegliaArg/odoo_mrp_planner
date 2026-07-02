@@ -108,6 +108,20 @@
                                                         <field name="supplier_cat_cron_type" nolabel="1"/>
                                                     </div>
                                                 </div>
+                                                <div invisible="supplier_cat_method in ('manual', 'abc_rfm')" class="mb-3">
+                                                    <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales Pareto (%)</span>
+                                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                        <span class="text-muted small">A ≤</span>
+                                                        <field name="abc_pct_a" nolabel="1" style="width:52px;"/>
+                                                        <span class="text-muted small">B ≤</span>
+                                                        <field name="abc_pct_b" nolabel="1" style="width:52px;"/>
+                                                        <span class="text-muted small">C ≤</span>
+                                                        <field name="abc_pct_c" nolabel="1" style="width:52px;"/>
+                                                        <span class="text-muted small">D ≤</span>
+                                                        <field name="abc_pct_d" nolabel="1" style="width:52px;"/>
+                                                        <span class="text-muted small">E = resto</span>
+                                                    </div>
+                                                </div>
                                                 <button name="action_compute_supplier_categories"
                                                         type="object"
                                                         string="Calcular ahora"

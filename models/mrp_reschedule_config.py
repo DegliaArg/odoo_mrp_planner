@@ -4,8 +4,21 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
-def _assign_abc_pareto(partners, value_by_id, field_name):
+def _abc_thresholds(config=None):
+    """Returns (t_a, t_b, t_c, t_d) as fractions from the config fields (or defaults)."""
+    if config:
+        return (
+            (config.abc_pct_a or 20) / 100.0,
+            (config.abc_pct_b or 50) / 100.0,
+            (config.abc_pct_c or 80) / 100.0,
+            (config.abc_pct_d or 95) / 100.0,
+        )
+    return (0.20, 0.50, 0.80, 0.95)
+
+
+def _assign_abc_pareto(partners, value_by_id, field_name, thresholds=(0.20, 0.50, 0.80, 0.95)):
     """Assigns A–E via cumulative Pareto. Higher value = A. Partners with no value → E."""
+    t_a, t_b, t_c, t_d = thresholds
     total = sum(value_by_id.get(p.id, 0.0) for p in partners)
     if total <= 0:
         for p in partners:
@@ -19,17 +32,18 @@ def _assign_abc_pareto(partners, value_by_id, field_name):
             p[field_name] = 'E'
             continue
         cumulative += v / total
-        if   cumulative <= 0.20: cat = 'A'
-        elif cumulative <= 0.50: cat = 'B'
-        elif cumulative <= 0.80: cat = 'C'
-        elif cumulative <= 0.95: cat = 'D'
-        else:                    cat = 'E'
+        if   cumulative <= t_a: cat = 'A'
+        elif cumulative <= t_b: cat = 'B'
+        elif cumulative <= t_c: cat = 'C'
+        elif cumulative <= t_d: cat = 'D'
+        else:                   cat = 'E'
         p[field_name] = cat
 
 
-def _assign_abc_pareto_lower(partners, value_by_id, field_name):
+def _assign_abc_pareto_lower(partners, value_by_id, field_name, thresholds=(0.20, 0.50, 0.80, 0.95)):
     """Assigns A–E where LOWER value = A (e.g. price variance, return count).
     Partners with no value → E."""
+    t_a, t_b, t_c, t_d = thresholds
     with_val = [(p, value_by_id.get(p.id)) for p in partners]
     for p, v in with_val:
         if v is None:
@@ -38,11 +52,11 @@ def _assign_abc_pareto_lower(partners, value_by_id, field_name):
     n = len(has_val)
     for i, (p, _) in enumerate(has_val):
         pct = (i + 1) / n if n > 0 else 1.0
-        if   pct <= 0.20: cat = 'A'
-        elif pct <= 0.50: cat = 'B'
-        elif pct <= 0.80: cat = 'C'
-        elif pct <= 0.95: cat = 'D'
-        else:             cat = 'E'
+        if   pct <= t_a: cat = 'A'
+        elif pct <= t_b: cat = 'B'
+        elif pct <= t_c: cat = 'C'
+        elif pct <= t_d: cat = 'D'
+        else:            cat = 'E'
         p[field_name] = cat
 
 
@@ -254,6 +268,16 @@ class MrpRescheduleConfig(models.Model):
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
     ], string='Unidad', default='weeks')
 
+    # Umbrales Pareto (aplican a todos los métodos ABC Pareto, no a RFM ni manual)
+    abc_pct_a = fields.Integer(string='A ≤', default=20,
+        help='Acumulado máximo (%) para categoría A. Proveedores/clientes que suman hasta este % del total = A.')
+    abc_pct_b = fields.Integer(string='B ≤', default=50,
+        help='Acumulado máximo (%) para categoría B.')
+    abc_pct_c = fields.Integer(string='C ≤', default=80,
+        help='Acumulado máximo (%) para categoría C.')
+    abc_pct_d = fields.Integer(string='D ≤', default=95,
+        help='Acumulado máximo (%) para categoría D. El resto queda en E.')
+
     # ── Categorías de cliente ─────────────────────────────────────────────────
     enable_customer_categories = fields.Boolean(
         string='Habilitar categorías de cliente', default=False,
@@ -450,7 +474,7 @@ class MrpRescheduleConfig(models.Model):
                 value_by_id = {g['partner_id'][0]: g['amount_total'] for g in groups}
             else:
                 value_by_id = {g['partner_id'][0]: g['partner_id_count'] for g in groups}
-            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_rfm':
@@ -517,7 +541,7 @@ class MrpRescheduleConfig(models.Model):
                 pid: (d['on_time'] / d['total'] * 100) if d['total'] > 0 else 0.0
                 for pid, d in pct_data.items()
             }
-            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_price_var':
@@ -546,7 +570,7 @@ class MrpRescheduleConfig(models.Model):
                 pid: d['sum'] / d['count'] if d['count'] > 0 else None
                 for pid, d in pvar_data.items()
             }
-            _assign_abc_pareto_lower(suppliers, avg_var_by_id, 'x_supplier_category')
+            _assign_abc_pareto_lower(suppliers, avg_var_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_quality_qty':
@@ -568,7 +592,7 @@ class MrpRescheduleConfig(models.Model):
                 pid: (d['exact'] / d['total'] * 100) if d['total'] > 0 else 0.0
                 for pid, d in qty_data.items()
             }
-            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_quality_returns':
@@ -585,7 +609,7 @@ class MrpRescheduleConfig(models.Model):
                 for pick in ret_picks:
                     pid = pick.return_id.purchase_id.partner_id.id
                     returns_by_partner[pid] = returns_by_partner.get(pid, 0) + 1
-            _assign_abc_pareto_lower(suppliers, returns_by_partner, 'x_supplier_category')
+            _assign_abc_pareto_lower(suppliers, returns_by_partner, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_quality_combo':
@@ -626,7 +650,7 @@ class MrpRescheduleConfig(models.Model):
                 scores = [s for s in [on_time_pct, qty_pct] if s is not None]
                 if scores:
                     value_by_id[p.id] = sum(scores) / len(scores)
-            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category')
+            _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -660,7 +684,7 @@ class MrpRescheduleConfig(models.Model):
                 value_by_id = {g['partner_id'][0]: g['amount_total'] for g in groups}
             else:
                 value_by_id = {g['partner_id'][0]: g['partner_id_count'] for g in groups}
-            _assign_abc_pareto(customers, value_by_id, 'x_customer_category')
+            _assign_abc_pareto(customers, value_by_id, 'x_customer_category', _abc_thresholds(config))
             updated = len(customers)
 
         elif config.customer_cat_method == 'abc_rfm':

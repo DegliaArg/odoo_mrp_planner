@@ -2424,10 +2424,10 @@ class MrpPlannerDashboard(models.TransientModel):
         pos = self.env['purchase.order'].search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['purchase', 'done']),
-            ('date_approve', '>=', dt_from),
-            ('date_approve', '<=', dt_to),
+            ('date_order', '>=', dt_from),
+            ('date_order', '<=', dt_to),
             ('company_id', '=', self.env.company.id),
-        ], order='date_approve desc')
+        ], order='date_order desc')
 
         rows = []
         for po in pos:

@@ -178,6 +178,29 @@ class SalesChartWidget extends Component {
         const fmtN   = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
         const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
 
+        const pieLabelPlugin = {
+            id: 'pieLabels',
+            afterDatasetsDraw(chart) {
+                const { ctx, data } = chart;
+                const dataset = data.datasets[0];
+                const ttl = dataset.data.reduce((a, b) => a + b, 0);
+                chart.getDatasetMeta(0).data.forEach((arc, i) => {
+                    const pct = ttl ? Math.round(dataset.data[i] / ttl * 100) : 0;
+                    if (pct < 5) return;
+                    const { x, y } = arc.getCenterPoint();
+                    ctx.save();
+                    ctx.fillStyle    = '#fff';
+                    ctx.font         = 'bold 11px sans-serif';
+                    ctx.textAlign    = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+                    ctx.shadowBlur   = 3;
+                    ctx.fillText(`${pct}%`, x, y);
+                    ctx.restore();
+                });
+            },
+        };
+
         this._pie = new ChartJs(canvas, {
             type: 'doughnut',
             data: {
@@ -189,6 +212,7 @@ class SalesChartWidget extends Component {
                     borderColor: '#fff',
                 }],
             },
+            plugins: [pieLabelPlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,

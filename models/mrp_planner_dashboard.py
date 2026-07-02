@@ -1434,7 +1434,7 @@ class MrpPlannerDashboard(models.TransientModel):
         # ── Forecast lines ────────────────────────────────────────────────────
         fc_domain = [
             ('period', '>=', _date(d_from.year, d_from.month, 1)),
-            ('period', '<=', _date(d_to.year,   d_to.month,   1)),
+            ('period', '<=', last_day_of_to),
             ('company_id', '=', self.env.company.id),
         ]
 
@@ -2180,7 +2180,9 @@ class MrpPlannerDashboard(models.TransientModel):
             })
 
         sort_key = 'amount' if sort_by == 'amount' else 'qty'
-        result = sorted(rows, key=lambda r: r[sort_key], reverse=True)[:int(top_n)]
+        result = sorted(rows, key=lambda r: r[sort_key], reverse=True)
+        if top_n:
+            result = result[:int(top_n)]
         return result
 
     @api.model

@@ -28,3 +28,12 @@ class ProductTemplate(models.Model):
              '(ej. Consumible, Materia prima, Producto terminado). '
              'Solo visible en artículos con venta habilitada.',
     )
+
+    mrp_enable_sale_cat = fields.Boolean(compute='_compute_mrp_sale_cat_flag')
+
+    @api.depends()
+    def _compute_mrp_sale_cat_flag(self):
+        config = self.env['mrp.reschedule.config'].sudo().search([], limit=1)
+        enable = config.enable_sale_categories if config else False
+        for rec in self:
+            rec.mrp_enable_sale_cat = enable

@@ -7,13 +7,14 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
 
-            <!-- Categoría de proveedor y cliente: en la pestaña Ventas y compra -->
             <xpath expr="//page[@name='sales_purchases']" position="inside">
-                <group string="Categorización MRP — Proveedor" invisible="supplier_rank == 0">
+                <group string="Categorización MRP — Proveedor"
+                       invisible="supplier_rank == 0 or not mrp_enable_supplier_cat">
                     <field name="x_supplier_category"
                            help="Clasificación A–E de calidad del proveedor. Se puede asignar manualmente o de forma automática desde la Configuración del planificador."/>
                 </group>
-                <group string="Categorización MRP — Cliente" invisible="customer_rank == 0">
+                <group string="Categorización MRP — Cliente"
+                       invisible="customer_rank == 0 or not mrp_enable_customer_cat">
                     <field name="x_customer_category"
                            help="Clasificación A–E de calidad del cliente. Se puede asignar manualmente o de forma automática desde la Configuración del planificador."/>
                 </group>

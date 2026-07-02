@@ -8,10 +8,11 @@
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
                 <page string="Planificador" name="mrp_planner_tab">
-                    <group string="Categoría de venta" invisible="not sale_ok">
+                    <group string="Categoría de venta"
+                           invisible="not sale_ok or not mrp_enable_sale_cat">
                         <field name="x_sale_category"
                                string="Categoría"
-                               help="Clasificación A–E de rotación (A = alta rotación, E = baja). Se puede asignar automáticamente desde Configuración del planificador."/>
+                               help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración del planificador."/>
                         <field name="x_product_type_ids"
                                string="Tipo de producto"
                                widget="many2many_tags"

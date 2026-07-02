@@ -136,6 +136,11 @@ class MrpRescheduleConfig(models.Model):
     )
 
     # ── Categoría de venta ────────────────────────────────────────────────────
+    enable_sale_categories = fields.Boolean(
+        string='Habilitar categorías de venta', default=False,
+        help='Activa el campo Categoría de venta (A–E) en los productos y permite '
+             'calcularlo automáticamente según el modo elegido.')
+
     sale_cat_mode = fields.Selection([
         ('manual',    'Manual (desde la ficha del artículo)'),
         ('automatic', 'Automática por rotación de inventario'),

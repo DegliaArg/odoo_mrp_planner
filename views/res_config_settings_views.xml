@@ -188,73 +188,105 @@
                                 <!-- Columna izquierda: categorías de venta y cliente -->
                                 <div class="col-6">
 
-                                    <group string="Categoría de venta — Modo">
-                                        <field name="sale_cat_mode" widget="radio" nolabel="1"/>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="sale_cat_mode != 'manual'">
-                                            Asignás la categoría directamente desde la ficha de cada artículo. No hay cálculo automático.
-                                        </div>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="sale_cat_mode != 'automatic'">
-                                            <b>Por rotación de inventario:</b> calcula stock actual ÷ ventas promedio mensual. El resultado en días se compara con los umbrales A/B/C/D configurados abajo (ej.: ≤30 d = A, ≤60 d = B…).
-                                        </div>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="sale_cat_mode != 'demand'">
-                                            <b>Por volumen de demanda:</b> promedia las unidades entregadas por mes en el período de análisis y compara con los umbrales mínimos A/B/C/D (ej.: ≥100 u/mes = A, ≥50 = B…).
-                                        </div>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="sale_cat_mode != 'share'">
-                                            <b>Por participación acumulada (Pareto):</b> ordena todos los artículos por la métrica elegida (unidades o importe) y asigna categoría por % acumulado del total. Los que generan el primer X% = A, siguiente tramo = B, etc.
-                                        </div>
-                                    </group>
-
-                                    <group string="Categoría de venta — Período"
-                                           invisible="sale_cat_mode == 'manual'">
-                                        <field name="sale_cat_lookback_months"
-                                               help="Meses de histórico de entregas a considerar para calcular demanda, rotación o participación."/>
-                                    </group>
-
-                                    <group string="Umbrales — Rotación de inventario (días)"
-                                           invisible="sale_cat_mode != 'automatic'">
-                                        <field name="sale_cat_a_days"/>
-                                        <field name="sale_cat_b_days"/>
-                                        <field name="sale_cat_c_days"/>
-                                        <field name="sale_cat_d_days"/>
-                                    </group>
-
-                                    <group string="Umbrales — Demanda (u./mes)"
-                                           invisible="sale_cat_mode != 'demand'">
-                                        <field name="sale_cat_demand_a_qty"/>
-                                        <field name="sale_cat_demand_b_qty"/>
-                                        <field name="sale_cat_demand_c_qty"/>
-                                        <field name="sale_cat_demand_d_qty"/>
-                                    </group>
-
-                                    <group string="Umbrales — Participación acumulada (%)"
-                                           invisible="sale_cat_mode != 'share'">
-                                        <field name="sale_cat_share_metric" widget="radio" nolabel="1"
-                                               help="Métrica usada para ordenar y ponderar los artículos. Unidades entregadas: volumen físico. Importe (precio × cantidad): valor económico."/>
-                                        <field name="sale_cat_share_a_pct"/>
-                                        <field name="sale_cat_share_b_pct"/>
-                                        <field name="sale_cat_share_c_pct"/>
-                                        <field name="sale_cat_share_d_pct"/>
-                                    </group>
-
-                                    <group string="Categoría de venta — Actualización"
-                                           invisible="sale_cat_mode == 'manual'">
-                                        <field name="sale_cat_auto_cron" widget="boolean_toggle"
-                                               help="Recalcula categorías automáticamente según el intervalo configurado."/>
-                                        <label for="sale_cat_cron_number" string="Frecuencia"
-                                               invisible="not sale_cat_auto_cron"/>
-                                        <div class="o_row" invisible="not sale_cat_auto_cron">
-                                            <field name="sale_cat_cron_number" class="o_field_small"/>
-                                            <field name="sale_cat_cron_type" class="ms-2" nolabel="1"/>
-                                        </div>
-                                        <div class="mt-2">
-                                            <button name="action_auto_assign_sale_categories"
-                                                    type="object"
-                                                    string="Asignar categorías ahora"
-                                                    class="btn btn-primary btn-sm"/>
+                                    <group string="Categorías de venta">
+                                        <field name="enable_sale_categories" widget="boolean_toggle"
+                                               help="Activa el campo Categoría de venta (A–E) en los productos y permite calcularlo automáticamente según el modo elegido."/>
+                                        <div invisible="not enable_sale_categories" class="mt-2">
+                                            <div class="row">
+                                                <div class="col-7">
+                                                    <div class="o_planner_method_radio">
+                                                        <field name="sale_cat_mode" widget="radio" nolabel="1"/>
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="sale_cat_mode != 'manual'">
+                                                        Asignás la categoría directamente desde la ficha de cada artículo. No se recalcula automáticamente.
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="sale_cat_mode != 'automatic'">
+                                                        <b>Por rotación de inventario:</b> calcula stock actual ÷ ventas promedio mensual. El resultado en días se compara con los umbrales configurados (ej.: ≤30 d = A, ≤60 d = B…).
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="sale_cat_mode != 'demand'">
+                                                        <b>Por volumen de demanda:</b> promedia las unidades entregadas por mes en el período de análisis y compara con los umbrales mínimos A/B/C/D (ej.: ≥100 u/mes = A, ≥50 = B…).
+                                                    </div>
+                                                    <div class="text-muted small border-start border-2 ps-2 mt-2"
+                                                         invisible="sale_cat_mode != 'share'">
+                                                        <b>Por participación acumulada (Pareto):</b> ordena todos los artículos por la métrica elegida y asigna categoría por % acumulado del total. Los que generan el primer X% = A, siguiente tramo = B, etc.
+                                                    </div>
+                                                </div>
+                                                <div class="col-5">
+                                                    <div invisible="sale_cat_mode == 'manual'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Período de análisis</span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <field name="sale_cat_lookback_months" nolabel="1"/>
+                                                            <span class="text-muted small">meses</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Umbrales rotación -->
+                                                    <div invisible="sale_cat_mode != 'automatic'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales — Rotación (días)</span>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                            <span class="text-muted small">A ≤</span>
+                                                            <field name="sale_cat_a_days" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">B ≤</span>
+                                                            <field name="sale_cat_b_days" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">C ≤</span>
+                                                            <field name="sale_cat_c_days" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">D ≤</span>
+                                                            <field name="sale_cat_d_days" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">E = resto</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Umbrales demanda -->
+                                                    <div invisible="sale_cat_mode != 'demand'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales — Demanda (u./mes)</span>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                            <span class="text-muted small">A ≥</span>
+                                                            <field name="sale_cat_demand_a_qty" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">B ≥</span>
+                                                            <field name="sale_cat_demand_b_qty" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">C ≥</span>
+                                                            <field name="sale_cat_demand_c_qty" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">D ≥</span>
+                                                            <field name="sale_cat_demand_d_qty" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">E = resto</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Umbrales participación -->
+                                                    <div invisible="sale_cat_mode != 'share'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Métrica</span>
+                                                        <field name="sale_cat_share_metric" widget="radio" nolabel="1"/>
+                                                        <span class="fw-semibold d-block mb-1 mt-2" style="font-size:0.85rem; color:#6c757d;">Umbrales — Participación (%)</span>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                            <span class="text-muted small">A ≤</span>
+                                                            <field name="sale_cat_share_a_pct" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">B ≤</span>
+                                                            <field name="sale_cat_share_b_pct" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">C ≤</span>
+                                                            <field name="sale_cat_share_c_pct" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">D ≤</span>
+                                                            <field name="sale_cat_share_d_pct" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">E = resto</span>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Actualización automática -->
+                                                    <div invisible="sale_cat_mode == 'manual'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
+                                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                                            <field name="sale_cat_auto_cron" widget="boolean_toggle" nolabel="1"/>
+                                                            <span class="text-muted small">Automática</span>
+                                                        </div>
+                                                        <div invisible="not sale_cat_auto_cron" class="d-flex align-items-center gap-2">
+                                                            <field name="sale_cat_cron_number" nolabel="1"/>
+                                                            <field name="sale_cat_cron_type" nolabel="1"/>
+                                                        </div>
+                                                    </div>
+                                                    <button name="action_auto_assign_sale_categories"
+                                                            type="object"
+                                                            string="Asignar ahora"
+                                                            class="btn btn-primary btn-sm"/>
+                                                </div>
+                                            </div>
                                         </div>
                                     </group>
 

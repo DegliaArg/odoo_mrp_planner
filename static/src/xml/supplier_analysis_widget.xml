@@ -89,14 +89,14 @@
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="month" class="form-control form-control-sm"
+                    <input type="date" class="form-control form-control-sm"
                            style="max-width:150px;"
                            t-att-value="state.periodFrom"
                            t-on-change="onPeriodFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="month" class="form-control form-control-sm"
+                    <input type="date" class="form-control form-control-sm"
                            style="max-width:150px;"
                            t-att-value="state.periodTo"
                            t-on-change="onPeriodToChange"/>

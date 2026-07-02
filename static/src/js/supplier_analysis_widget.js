@@ -19,13 +19,13 @@ const SUP_COLS = [
     { key: 'pending_inv',      label: 'Fact. pend.',   width: 100, sortKey: 'pending_inv',       align: 'end', title: 'Facturas de proveedor pendientes de pago.' },
 ];
 
-function firstOfYear() {
-    return `${new Date().getFullYear()}-01`;
+function firstOfYearYMD() {
+    return `${new Date().getFullYear()}-01-01`;
 }
 
-function todayYM() {
+function todayYMD() {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 class SupplierAnalysisWidget extends Component {
@@ -38,8 +38,8 @@ class SupplierAnalysisWidget extends Component {
 
         this.state = useState({
             loading:            true,
-            periodFrom:         firstOfYear(),
-            periodTo:           todayYM(),
+            periodFrom:         firstOfYearYMD(),
+            periodTo:           todayYMD(),
             search:             '',
             sortCol:            'total_amount',
             sortDir:            'desc',
@@ -82,17 +82,10 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Filtros de período ─────────────────────────────────────────────────────
 
-    get periodFromDate() { return `${this.state.periodFrom}-01`; }
-    get periodToDate() {
-        const [y, m] = this.state.periodTo.split('-').map(Number);
-        const last = new Date(y, m, 0).getDate();
-        return `${this.state.periodTo}-${String(last).padStart(2, '0')}`;
-    }
-
     onPeriodFromChange(ev) {
         const val = ev.target.value;
         if (!val) return;
-        this.state.periodFrom = val.substring(0, 7);
+        this.state.periodFrom = val;
         if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
         this._load();
@@ -101,7 +94,7 @@ class SupplierAnalysisWidget extends Component {
     onPeriodToChange(ev) {
         const val = ev.target.value;
         if (!val) return;
-        this.state.periodTo = val.substring(0, 7);
+        this.state.periodTo = val;
         if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
         this._load();

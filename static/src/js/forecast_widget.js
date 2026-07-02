@@ -12,20 +12,15 @@ function monthLabel(ym) {
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
 }
 
-function todayYM() {
+function todayYMD() {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function addMonths(ym, n) {
-    const [y, m] = ym.split('-').map(Number);
-    const d = new Date(y, m - 1 + n, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function ymLastDay(ym) {
-    const [y, m] = ym.split('-').map(Number);
-    return new Date(y, m, 0).getDate();
+function addMonthsLastDayYMD(ymd, n) {
+    const [y, m] = ymd.split('-').map(Number);
+    const last = new Date(y, m - 1 + n + 1, 0);
+    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
 }
 
 class ForecastWidget extends Component {
@@ -36,11 +31,11 @@ class ForecastWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
 
-        const now = todayYM();
+        const now = todayYMD();
         this.state = useState({
             loading:            true,
             periodFrom:         now,
-            periodTo:           addMonths(now, 2),
+            periodTo:           addMonthsLastDayYMD(now, 2),
             warehouseIds:       [],
             warehouses:         [],
             whDropdownOpen:     false,
@@ -122,16 +117,10 @@ class ForecastWidget extends Component {
         }
     }
 
-    get periodFromDate() { return `${this.state.periodFrom}-01`; }
-    get periodToDate() {
-        const last = ymLastDay(this.state.periodTo);
-        return `${this.state.periodTo}-${String(last).padStart(2, '0')}`;
-    }
-
     onPeriodFromChange(ev) {
         const val = ev.target.value;
         if (!val) return;
-        this.state.periodFrom = val.substring(0, 7);
+        this.state.periodFrom = val;
         if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
         this._load();
@@ -140,7 +129,7 @@ class ForecastWidget extends Component {
     onPeriodToChange(ev) {
         const val = ev.target.value;
         if (!val) return;
-        this.state.periodTo = val.substring(0, 7);
+        this.state.periodTo = val;
         if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
         this._load();
@@ -619,11 +608,9 @@ class ForecastWidget extends Component {
     // ── Drill-down KPIs forecast ──────────────────────────────────────────────
 
     _periodDateRange() {
-        const [ty, tm] = this.state.periodTo.split('-').map(Number);
-        const lastDay  = new Date(ty, tm, 0).getDate();
         return {
-            dateFrom: `${this.state.periodFrom}-01 00:00:00`,
-            dateTo:   `${this.state.periodTo}-${String(lastDay).padStart(2, '0')} 23:59:59`,
+            dateFrom: `${this.state.periodFrom} 00:00:00`,
+            dateTo:   `${this.state.periodTo} 23:59:59`,
         };
     }
 
@@ -639,8 +626,8 @@ class ForecastWidget extends Component {
             view_mode: 'list,form',
             views:     [[false, 'list'], [false, 'form']],
             domain:    [
-                ['period', '>=', this.state.periodFrom + '-01'],
-                ['period', '<=', this.state.periodTo   + '-01'],
+                ['period', '>=', this.state.periodFrom.substring(0, 7) + '-01'],
+                ['period', '<=', this.state.periodTo.substring(0, 7)   + '-01'],
             ],
             target: 'current',
         });

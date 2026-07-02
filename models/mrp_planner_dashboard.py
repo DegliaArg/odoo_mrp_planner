@@ -1387,8 +1387,8 @@ class MrpPlannerDashboard(models.TransientModel):
         warehouse_ids = warehouse_ids or []
 
         def _parse_ym(ym):
-            y, m = ym.split('-')
-            return _date(int(y), int(m), 1)
+            parts = ym.split('-')
+            return _date(int(parts[0]), int(parts[1]), 1)
 
         def _months_between(d_from, d_to):
             months = []
@@ -2202,10 +2202,16 @@ class MrpPlannerDashboard(models.TransientModel):
         import calendar as _cal
         from datetime import date as _date
 
+        def _parse_date(s, last_day=False):
+            parts = s.split('-')
+            y, m = int(parts[0]), int(parts[1])
+            if len(parts) >= 3:
+                return _date(y, m, int(parts[2]))
+            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
+
         try:
-            d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
-            d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
-            d_to = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
+            d_from = _parse_date(period_from)
+            d_to   = _parse_date(period_to, last_day=True)
         except Exception:
             return {'rows': [], 'kpis': {}, 'has_invoices': False}
 
@@ -2411,10 +2417,16 @@ class MrpPlannerDashboard(models.TransientModel):
         """OCs de un proveedor para el acordeón del widget de análisis de proveedores."""
         import calendar as _cal
         from datetime import date as _date
+        def _parse_date(s, last_day=False):
+            parts = s.split('-')
+            y, m = int(parts[0]), int(parts[1])
+            if len(parts) >= 3:
+                return _date(y, m, int(parts[2]))
+            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
+
         try:
-            d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
-            d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
-            d_to = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
+            d_from = _parse_date(period_from)
+            d_to   = _parse_date(period_to, last_day=True)
         except Exception:
             return []
 

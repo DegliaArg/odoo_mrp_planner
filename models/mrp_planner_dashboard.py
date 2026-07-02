@@ -1698,12 +1698,20 @@ class MrpPlannerDashboard(models.TransientModel):
         total_del  = sum(r['total_delivered'] for r in rows)
         total_so   = sum(r['total_so_demand'] for r in rows)
 
-        # Producción de OFs para productos SIN línea de forecast
-        mos_no_fc = round(sum(
-            sum(v.values()) for pid, v in mo_data.items() if pid not in all_product_ids
-        ), 2)
+        # Producción de OFs para productos SIN línea de forecast (solo vendibles)
+        no_fc_mo_pids = [pid for pid in mo_data if pid not in all_product_ids]
+        mos_no_fc = 0.0
+        if no_fc_mo_pids:
+            sale_ok_pids = set(
+                self.env['product.product'].browse(no_fc_mo_pids)
+                .filtered(lambda p: p.sale_ok).ids
+            )
+            mos_no_fc = round(sum(
+                sum(v.values()) for pid, v in mo_data.items()
+                if pid not in all_product_ids and pid in sale_ok_pids
+            ), 2)
 
-        # Entregado para productos SIN línea de forecast
+        # Entregado para productos SIN línea de forecast (solo vendibles)
         delivered_no_fc = 0.0
         try:
             no_fc_del_domain = [
@@ -1713,6 +1721,7 @@ class MrpPlannerDashboard(models.TransientModel):
                     datetime.combine(d_from, datetime.min.time()))),
                 ('date', '<=', fields.Datetime.to_string(
                     datetime.combine(last_day_of_to, datetime.max.time()))),
+                ('product_id.sale_ok', '=', True),
                 ('company_id', '=', self.env.company.id),
             ]
             if all_product_ids_list:

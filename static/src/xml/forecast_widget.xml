@@ -255,6 +255,14 @@
                                 </div>
                                 <div class="o_planner_label"
                                      t-esc="state.data.acc_formula === 'mape' ? 'MAPE' : state.data.acc_formula === 'wape' ? 'WAPE' : state.data.acc_formula === 'wmape' ? 'WMAPE' : state.data.acc_formula === 'bias' ? 'Sesgo forecast' : 'Precisión forecast'"/>
+                                <div class="d-flex flex-wrap justify-content-center gap-1 mt-1">
+                                    <t t-foreach="accSecondaryPills()" t-as="pill" t-key="pill.key">
+                                        <span class="text-muted border rounded px-1"
+                                              style="font-size:0.62rem; line-height:1.4;">
+                                            <t t-esc="pill.label"/>: <t t-esc="fmtPct(pill.value)"/>
+                                        </span>
+                                    </t>
+                                </div>
                             </div>
                         </div>
                     </div>

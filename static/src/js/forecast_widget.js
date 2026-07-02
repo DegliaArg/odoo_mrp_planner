@@ -563,6 +563,17 @@ class ForecastWidget extends Component {
         ].join('\n');
     }
 
+    accSecondaryPills() {
+        const d = this.state.data;
+        if (!d || !d.kpis.acc_all) return [];
+        const all = d.kpis.acc_all;
+        const configured = d.acc_formula || 'simple';
+        const LABELS = { simple: 'Simple', mape: 'MAPE', wape: 'WAPE', wmape: 'WMAPE', bias: 'Sesgo' };
+        return Object.entries(LABELS)
+            .filter(([key]) => key !== configured)
+            .map(([key, label]) => ({ key, label, value: all[key] }));
+    }
+
     demandGapClass(pct) {
         if (pct === null || pct === undefined) return 'text-muted';
         const abs = Math.abs(pct);

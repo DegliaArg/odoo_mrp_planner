@@ -1782,21 +1782,19 @@ class MrpPlannerDashboard(models.TransientModel):
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
         ovr_svc = round(total_del / total_so * 100, 1) if total_so > 0 else None
-        if acc_formula == 'mape':
-            all_mape_sum   = sum(r['_mape_acc_sum']   for r in rows)
-            all_mape_count = sum(r['_mape_acc_count'] for r in rows)
-            ovr_acc = round(all_mape_sum / all_mape_count, 1) if all_mape_count > 0 else None
-        elif acc_formula == 'wape':
-            all_wape_err = sum(r['_wape_abs_err'] for r in rows)
-            ovr_acc = round(max(0.0, 100.0 - all_wape_err / total_so * 100), 1) if total_so > 0 else None
-        elif acc_formula == 'wmape':
-            all_wmape_err  = sum(r['_wmape_abs_err'] for r in rows)
-            total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
-            ovr_acc = round(max(0.0, 100.0 - all_wmape_err / total_fc_wmape * 100), 1) if total_fc_wmape > 0 else None
-        elif acc_formula == 'bias':
-            ovr_acc = round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None
-        else:
-            ovr_acc = round(total_so / total_fc * 100, 1) if total_fc > 0 else None
+        _all_mape_sum   = sum(r['_mape_acc_sum']   for r in rows)
+        _all_mape_count = sum(r['_mape_acc_count'] for r in rows)
+        _all_wape_err   = sum(r['_wape_abs_err']   for r in rows)
+        _all_wmape_err  = sum(r['_wmape_abs_err']  for r in rows)
+        _total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
+        acc_all = {
+            'simple': round(total_so / total_fc * 100, 1) if total_fc > 0 else None,
+            'mape':   round(_all_mape_sum / _all_mape_count, 1) if _all_mape_count > 0 else None,
+            'wape':   round(max(0.0, 100.0 - _all_wape_err / total_so * 100), 1) if total_so > 0 else None,
+            'wmape':  round(max(0.0, 100.0 - _all_wmape_err / _total_fc_wmape * 100), 1) if _total_fc_wmape > 0 else None,
+            'bias':   round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
+        }
+        ovr_acc = acc_all[acc_formula]
 
         # Limpiar campos internos antes de enviar al frontend
         _internal = ('_mape_acc_sum', '_mape_acc_count', '_wape_abs_err', '_wmape_abs_err')
@@ -1819,6 +1817,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'total_products':       len(rows),
                 'overall_service_rate': ovr_svc,
                 'overall_forecast_acc': ovr_acc,
+                'acc_all':              acc_all,
                 'so_demand_no_fc':      so_demand_no_fc,
                 'mos_no_fc':            mos_no_fc,
                 'delivered_no_fc':      delivered_no_fc,

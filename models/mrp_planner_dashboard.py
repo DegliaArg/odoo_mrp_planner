@@ -928,7 +928,7 @@ class MrpPlannerDashboard(models.TransientModel):
             receipt_sc = [('purchase_id.subcontract_production_ids', '!=', False)]
 
         receipts = Picking.search([
-            ('state', 'not in', ['done', 'cancel']),
+            ('state', 'in', ['waiting', 'confirmed', 'assigned']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
             ('return_id', '=', False),

@@ -160,9 +160,7 @@ class SupplierAnalysisWidget extends Component {
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
     get tableColspan() {
-        return this.colsSup.visibleCols().filter(
-            c => c.key !== 'pending_inv' || (this.state.data && this.state.data.has_invoices)
-        ).length;
+        return this.supVisibleCols.length;
     }
 
     get supVisibleCols() {

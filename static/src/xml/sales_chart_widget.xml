@@ -95,21 +95,24 @@
                 <span>No hay ventas registradas para los filtros seleccionados.</span>
             </div>
 
-            <!-- Gráfico — alto fijo -->
-            <div t-else="" style="position:relative; height:360px;">
-                <canvas t-ref="salesCanvas" style="width:100%;"/>
-            </div>
+            <!-- Gráficos: torta + barras -->
+            <div t-else="" class="d-flex gap-3 align-items-start">
 
-            <!-- Leyenda de categorías -->
-            <div t-if="!state.loading and state.rows.length"
-                 class="d-flex flex-wrap gap-3 mt-3 small text-muted align-items-center">
-                <span class="fw-semibold">Categoría:</span>
-                <span><span class="badge" style="background:rgba(25,135,84,0.8);">A</span> Alta rotación</span>
-                <span><span class="badge" style="background:rgba(13,110,253,0.8);">B</span></span>
-                <span><span class="badge" style="background:rgba(255,193,7,0.85);color:#212529;">C</span></span>
-                <span><span class="badge" style="background:rgba(108,117,125,0.8);">D</span></span>
-                <span><span class="badge" style="background:rgba(200,210,220,0.9);color:#212529;">E</span> Baja rotación</span>
-                <span><span class="badge bg-secondary">—</span> Sin categoría</span>
+                <!-- Torta — distribución por categoría de venta -->
+                <div style="width:34%; min-width:210px; flex-shrink:0;">
+                    <p class="text-center small text-muted fw-semibold mb-1" style="font-size:11px;">
+                        Distribución por categoría de venta
+                    </p>
+                    <div style="position:relative; height:340px;">
+                        <canvas t-ref="pieCanvas"/>
+                    </div>
+                </div>
+
+                <!-- Barras — top N productos -->
+                <div style="flex:1; position:relative; height:360px;">
+                    <canvas t-ref="salesCanvas"/>
+                </div>
+
             </div>
 
         </div>

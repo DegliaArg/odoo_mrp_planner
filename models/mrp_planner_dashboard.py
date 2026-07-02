@@ -1388,7 +1388,9 @@ class MrpPlannerDashboard(models.TransientModel):
 
         def _parse_ym(ym):
             parts = ym.split('-')
-            return _date(int(parts[0]), int(parts[1]), 1)
+            y, m = int(parts[0]), int(parts[1])
+            d = int(parts[2]) if len(parts) >= 3 else 1
+            return _date(y, m, d)
 
         def _months_between(d_from, d_to):
             months = []
@@ -1427,14 +1429,12 @@ class MrpPlannerDashboard(models.TransientModel):
         if not mo_states:
             mo_states = ['confirmed', 'progress', 'to_close']
 
-        # Último día del rango
-        last_day_of_to = _date(d_to.year, d_to.month,
-                               _calendar.monthrange(d_to.year, d_to.month)[1])
+        last_day_of_to = d_to  # día exacto seleccionado por el usuario
 
         # ── Forecast lines ────────────────────────────────────────────────────
         fc_domain = [
-            ('period', '>=', d_from),
-            ('period', '<=', _date(d_to.year, d_to.month, 1)),
+            ('period', '>=', _date(d_from.year, d_from.month, 1)),
+            ('period', '<=', _date(d_to.year,   d_to.month,   1)),
             ('company_id', '=', self.env.company.id),
         ]
 

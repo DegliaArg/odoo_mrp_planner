@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
-import { registry } from "@web/core/registry";
+import { registry }  from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 const CAT_COLORS = {
@@ -27,7 +27,9 @@ class SalesChartWidget extends Component {
     setup() {
         this.orm      = useService("orm");
         this.chartRef = useRef("salesCanvas");
+        this.pieRef   = useRef("pieCanvas");
         this._chart   = null;
+        this._pie     = null;
 
         this.state = useState({
             loading:         true,
@@ -50,13 +52,15 @@ class SalesChartWidget extends Component {
         });
 
         onPatched(() => {
-            if (!this.state.loading && this.state.rows.length && this.chartRef.el) {
-                this._drawChart();
+            if (!this.state.loading && this.state.rows.length) {
+                if (this.chartRef.el) this._drawChart();
+                if (this.pieRef.el)   this._drawPie();
             }
         });
 
         onWillUnmount(() => {
             if (this._chart) { this._chart.destroy(); this._chart = null; }
+            if (this._pie)   { this._pie.destroy();   this._pie   = null; }
         });
     }
 
@@ -71,6 +75,7 @@ class SalesChartWidget extends Component {
     async _load() {
         this.state.loading = true;
         if (this._chart) { this._chart.destroy(); this._chart = null; }
+        if (this._pie)   { this._pie.destroy();   this._pie   = null; }
         try {
             const [df, dt] = this._dateRange();
             const rows = await this.orm.call(
@@ -144,6 +149,65 @@ class SalesChartWidget extends Component {
                         beginAtZero: true,
                         grid: { color: "rgba(0,0,0,0.06)" },
                         ticks: { font: { size: 11 } },
+                    },
+                },
+            },
+        });
+    }
+
+    _drawPie() {
+        const canvas = this.pieRef.el;
+        if (!canvas) return;
+        const ChartJs = globalThis.Chart;
+        if (!ChartJs) return;
+        if (this._pie) { this._pie.destroy(); this._pie = null; }
+
+        const ORDER  = ['A', 'B', 'C', 'D', 'E', ''];
+        const NAMES  = { A: 'Cat. A', B: 'Cat. B', C: 'Cat. C', D: 'Cat. D', E: 'Cat. E', '': 'Sin cat.' };
+        const bycat  = {};
+        for (const r of this.state.rows) {
+            const c = r.sale_category || '';
+            if (!bycat[c]) bycat[c] = { skus: 0, qty: 0, amount: 0 };
+            bycat[c].skus++;
+            bycat[c].qty    += r.qty    || 0;
+            bycat[c].amount += r.amount || 0;
+        }
+
+        const cats   = ORDER.filter(c => bycat[c]);
+        const total  = cats.reduce((s, c) => s + bycat[c].skus, 0);
+        const fmtN   = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
+        const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
+
+        this._pie = new ChartJs(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: cats.map(c => NAMES[c]),
+                datasets: [{
+                    data:            cats.map(c => bycat[c].skus),
+                    backgroundColor: cats.map(c => CAT_COLORS[c] ?? CAT_COLORS['']),
+                    borderWidth: 1,
+                    borderColor: '#fff',
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '48%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6, boxWidth: 14 } },
+                    tooltip: {
+                        callbacks: {
+                            title: items => NAMES[cats[items[0].dataIndex]],
+                            label: ctx => {
+                                const d   = bycat[cats[ctx.dataIndex]];
+                                const pct = total ? Math.round(d.skus / total * 100) : 0;
+                                return [
+                                    `  ${d.skus} SKU (${pct}%)`,
+                                    `  Qty total: ${fmtN(d.qty)} u.`,
+                                    `  Importe: ${fmtAmt(d.amount)}`,
+                                ];
+                            },
+                        },
                     },
                 },
             },

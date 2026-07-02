@@ -2307,7 +2307,7 @@ class MrpPlannerDashboard(models.TransientModel):
         )
 
     @api.model
-    def get_supplier_analysis_data(self, period_from, period_to, search=''):
+    def get_supplier_analysis_data(self, period_from, period_to, search='', po_type='all'):
         """Análisis de proveedores: cumplimiento, lead time, precio y volumen."""
         import calendar as _cal
         from datetime import date as _date
@@ -2341,6 +2341,16 @@ class MrpPlannerDashboard(models.TransientModel):
             po_domain.append(('partner_id.name', 'ilike', search))
 
         pos = self.env['purchase.order'].search(po_domain)
+
+        if po_type in ('goods', 'services'):
+            def _all_svc(p):
+                lines = p.order_line.filtered(lambda l: l.product_id)
+                return bool(lines) and all(l.product_id.type == 'service' for l in lines)
+            if po_type == 'services':
+                pos = pos.filtered(_all_svc)
+            else:
+                pos = pos.filtered(lambda p: not _all_svc(p))
+
         _empty_kpis = {
             'supplier_count': 0, 'total_amount': 0, 'total_orders': 0,
             'avg_on_time_pct': None, 'avg_lead_time_days': None, 'avg_price_var_pct': None,
@@ -2348,9 +2358,9 @@ class MrpPlannerDashboard(models.TransientModel):
         if not pos:
             return {'rows': [], 'kpis': _empty_kpis, 'has_invoices': False}
 
-        # Aggregación por proveedor
+        # Aggregación por proveedor (usar IDs filtrados, no el dominio original)
         po_groups = self.env['purchase.order'].read_group(
-            po_domain, ['partner_id', 'amount_total:sum'], ['partner_id'],
+            [('id', 'in', pos.ids)], ['partner_id', 'amount_total:sum'], ['partner_id'],
         )
 
         partner_data = {}

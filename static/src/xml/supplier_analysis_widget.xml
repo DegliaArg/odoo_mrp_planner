@@ -101,6 +101,14 @@
                            t-att-value="state.periodTo"
                            t-on-change="onPeriodToChange"/>
                 </div>
+                <div class="btn-group btn-group-sm" role="group" title="Filtrar por tipo de compra">
+                    <button t-att-class="'btn ' + (state.poType === 'all'      ? 'btn-secondary'         : 'btn-outline-secondary')"
+                            t-on-click="() => this.setPoType('all')">Todos</button>
+                    <button t-att-class="'btn ' + (state.poType === 'goods'    ? 'btn-secondary'         : 'btn-outline-secondary')"
+                            t-on-click="() => this.setPoType('goods')">Bienes</button>
+                    <button t-att-class="'btn ' + (state.poType === 'services' ? 'btn-secondary'         : 'btn-outline-secondary')"
+                            t-on-click="() => this.setPoType('services')">Servicios</button>
+                </div>
                 <div class="input-group input-group-sm" style="max-width:220px;">
                     <span class="input-group-text"><i class="fa fa-search"/></span>
                     <input type="text" class="form-control"

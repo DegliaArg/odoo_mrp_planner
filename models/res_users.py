@@ -1,7 +1,24 @@
+"""
+Módulo: res_users.py
+Modelo: extensión de res.users
+
+Extiende el modelo de usuarios de Odoo para incorporar preferencias de acceso
+al Planificador MRP por depósito.
+
+Responsabilidades:
+- Controlar si el usuario visualiza todos los depósitos o solo un subconjunto
+- Almacenar la lista de depósitos permitidos cuando el acceso es restringido
+
+Relacionado con:
+- stock.warehouse: depósitos que el usuario tiene permitido consultar en el
+  Planificador MRP
+"""
 from odoo import models, fields
 
 
 class ResUsers(models.Model):
+    """Extensión de res.users con preferencias de visibilidad del Planificador MRP."""
+
     _inherit = 'res.users'
 
     mrp_planner_all_warehouses = fields.Boolean(

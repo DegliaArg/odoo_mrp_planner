@@ -1,3 +1,29 @@
+/**
+ * @widget ForecastWidget
+ * @description Widget de dashboard de forecast de producción. Muestra una tabla
+ * mensualizada por producto con demanda forecast, cobertura de órdenes de fabricación
+ * (OFs), entregas reales, stock actual, rotación y categoría ABC de ventas.
+ * Permite filtrar por período, depósito, producto y agrupar por categoría.
+ *
+ * Métodos RPC que consume:
+ *   - get_warehouses_for_forecast([]) → [{ id: Number, name: String }]
+ *   - get_forecast_dashboard_data(periodFrom, periodTo, warehouseIds) → {
+ *       months: String[],        // array de "YYYY-MM"
+ *       rows: Object[],          // una fila por producto
+ *       kpis: Object,            // totales globales
+ *       warning_pct: Number,     // umbral amarillo de cobertura
+ *       acc_formula: String,     // fórmula de precisión activa
+ *       rotation_unit: String,   // 'months' | 'days'
+ *       mo_states: String[]      // estados de OF considerados activos
+ *     }
+ *   - get_product_mos_for_forecast(productId, periodFrom, periodTo, warehouseIds)
+ *       → [{ id, name, state, date_planned, qty_production, product_uom_qty }]
+ *   - get_forecast_export(periodFrom, periodTo, warehouseIds) → { url: String }
+ *
+ * Props esperados:
+ *   - record: Object — registro del dashboard (opcional); se usa para leer `can_edit_forecast`
+ */
+
 /** @odoo-module **/
 
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
@@ -7,29 +33,55 @@ import { PlannerSearchBar } from "./planner_search_bar";
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
+/**
+ * Convierte una clave "YYYY-MM" en una etiqueta legible en español, p. ej. "Ene 2025".
+ * @param {string} ym - Clave de mes en formato "YYYY-MM".
+ * @returns {string} Etiqueta del mes, p. ej. "Mar 2025".
+ */
 function monthLabel(ym) {
     const [y, m] = ym.split('-');
     return `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
 }
 
+/**
+ * Devuelve la fecha de hoy en formato "YYYY-MM-DD".
+ * @returns {string} Fecha de hoy.
+ */
 function todayYMD() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * A partir de una fecha "YYYY-MM-DD", avanza n meses y devuelve el último día
+ * de ese mes resultante en formato "YYYY-MM-DD".
+ * @param {string} ymd - Fecha de referencia en formato "YYYY-MM-DD".
+ * @param {number} n   - Cantidad de meses a sumar.
+ * @returns {string} Último día del mes destino en formato "YYYY-MM-DD".
+ */
 function addMonthsLastDayYMD(ymd, n) {
     const [y, m] = ymd.split('-').map(Number);
+    // new Date(y, m-1+n+1, 0) retorna el día 0 del mes siguiente, que equivale al último día del mes destino
     const last = new Date(y, m - 1 + n + 1, 0);
     return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Devuelve el primer día del mes actual en formato "YYYY-MM-DD".
+ * @returns {string} Primer día del mes en curso.
+ */
 function firstOfMonthYMD() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
+/**
+ * Devuelve el último día del mes actual en formato "YYYY-MM-DD".
+ * @returns {string} Último día del mes en curso.
+ */
 function lastOfMonthYMD() {
     const d = new Date();
+    // day 0 del mes siguiente = último día del mes actual
     const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
     return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
 }
@@ -104,6 +156,11 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Inicializa el widget: carga en paralelo la lista de depósitos disponibles
+     * y los datos de forecast, y sincroniza el permiso de edición desde el record padre.
+     * @returns {Promise<void>}
+     */
     async _init() {
         const [whs] = await Promise.all([
             this.orm.call("mrp.planner.dashboard", "get_warehouses_for_forecast", []),
@@ -116,6 +173,12 @@ class ForecastWidget extends Component {
         }
     }
 
+    /**
+     * Carga (o recarga) los datos de forecast desde el servidor.
+     * Resetea la paginación y los acordeones abiertos para evitar inconsistencias
+     * con un dataset anterior.
+     * @returns {Promise<void>}
+     */
     async _load() {
         this.state.loading      = true;
         this.state.page         = 1;
@@ -135,6 +198,12 @@ class ForecastWidget extends Component {
         }
     }
 
+    /**
+     * Maneja el cambio en el campo "Desde" del período.
+     * Si la nueva fecha supera el "Hasta", arrastra el "Hasta" para mantener rango válido.
+     * Dispara una recarga con debounce para no saturar el servidor mientras el usuario escribe.
+     * @param {Event} ev - Evento change del input de fecha.
+     */
     onPeriodFromChange(ev) {
         const val = ev.target.value;
         if (!val) return;
@@ -144,6 +213,12 @@ class ForecastWidget extends Component {
         this._loadDebounced();
     }
 
+    /**
+     * Maneja el cambio en el campo "Hasta" del período.
+     * Si la nueva fecha es anterior al "Desde", arrastra el "Desde" hacia atrás.
+     * Dispara una recarga con debounce.
+     * @param {Event} ev - Evento change del input de fecha.
+     */
     onPeriodToChange(ev) {
         const val = ev.target.value;
         if (!val) return;
@@ -153,16 +228,32 @@ class ForecastWidget extends Component {
         this._loadDebounced();
     }
 
+    /**
+     * Actualiza el texto de búsqueda de producto a medida que el usuario escribe
+     * y resetea a la primera página para que el filtro sea inmediato.
+     * @param {Event} ev - Evento input del campo de búsqueda.
+     */
     onProductSearchInput(ev) {
         this.state.productSearch = ev.target.value;
         this.state.page = 1;
     }
 
+    /**
+     * Establece el texto de búsqueda de producto programáticamente
+     * (p. ej. desde el componente PlannerSearchBar).
+     * @param {string} text - Texto a buscar.
+     */
     setSearch(text) {
         this.state.productSearch = text;
         this.state.page = 1;
     }
 
+    /**
+     * Alterna la visibilidad del dropdown de selección de depósitos.
+     * Cierra todos los demás dropdowns para evitar que coexistan abiertos.
+     * Al abrir, limpia el campo de búsqueda interno del dropdown.
+     * @param {MouseEvent} ev - Evento click sobre el botón de depósitos.
+     */
     toggleWhDropdown(ev) {
         ev.stopPropagation();
         const opening = !this.state.whDropdownOpen;
@@ -173,6 +264,11 @@ class ForecastWidget extends Component {
         if (opening) this.state.whSearch = "";
     }
 
+    /**
+     * Alterna la visibilidad del dropdown de columnas visibles.
+     * Cierra todos los demás dropdowns.
+     * @param {MouseEvent} ev - Evento click sobre el botón de columnas.
+     */
     toggleColsDropdown(ev) {
         ev.stopPropagation();
         this.state.colsDropdownOpen   = !this.state.colsDropdownOpen;
@@ -182,6 +278,11 @@ class ForecastWidget extends Component {
         this.state.groupDropdownOpen  = false;
     }
 
+    /**
+     * Alterna la visibilidad del dropdown de filtros rápidos.
+     * Cierra todos los demás dropdowns.
+     * @param {MouseEvent} ev - Evento click sobre el botón de filtros.
+     */
     toggleFilterDropdown(ev) {
         ev.stopPropagation();
         this.state.filterDropdownOpen = !this.state.filterDropdownOpen;
@@ -191,6 +292,11 @@ class ForecastWidget extends Component {
         this.state.groupDropdownOpen  = false;
     }
 
+    /**
+     * Alterna la visibilidad del dropdown de agrupación.
+     * Cierra todos los demás dropdowns.
+     * @param {MouseEvent} ev - Evento click sobre el botón de agrupar.
+     */
     toggleGroupDropdown(ev) {
         ev.stopPropagation();
         this.state.groupDropdownOpen  = !this.state.groupDropdownOpen;
@@ -200,15 +306,29 @@ class ForecastWidget extends Component {
         this.state.filterDropdownOpen = false;
     }
 
+    /**
+     * Activa o desactiva la visibilidad de una columna individual en la tabla.
+     * @param {string} colKey - Clave de la columna, p. ej. 'forecast', 'mos', 'stock'.
+     */
     toggleCol(colKey) {
         this.state.visibleCols[colKey] = !this.state.visibleCols[colKey];
     }
 
+    /**
+     * Aplica un filtro rápido sobre las filas de la tabla.
+     * @param {string|null} key - Identificador del filtro: 'with_mos', 'no_mos', 'gap' o null para limpiar.
+     */
     setFilter(key) {
         this.state.activeFilter = key;
         this.state.page = 1;
     }
 
+    /**
+     * Establece la dimensión de agrupación de filas (tabs de grupo).
+     * Al activar un grupo, selecciona automáticamente el primer tab disponible.
+     * Al desactivar (key = null), limpia la selección de grupo.
+     * @param {string|null} key - Campo de agrupación: 'sale_category', 'product_categ_name', etc.
+     */
     setGroupBy(key) {
         this.state.groupBy = key;
         this.state.page = 1;
@@ -220,6 +340,10 @@ class ForecastWidget extends Component {
         }
     }
 
+    /**
+     * Selecciona el tab de grupo activo dentro de la agrupación vigente.
+     * @param {string} key - Valor del grupo a seleccionar.
+     */
     setGroup(key) {
         this.state.selectedGroup = key;
         this.state.page = 1;
@@ -227,6 +351,11 @@ class ForecastWidget extends Component {
 
     // ── Columnas ─────────────────────────────────────────────────────────────
 
+    /**
+     * Calcula cuántas sub-columnas ocupa cada mes según las columnas visibles
+     * (forecast, cobertura OFs, entregado). Mínimo 1 para que el colspan sea válido.
+     * @returns {number} Cantidad de sub-columnas por mes.
+     */
     get monthColspan() {
         let n = 0;
         if (this.state.visibleCols.forecast)  n++;
@@ -235,16 +364,31 @@ class ForecastWidget extends Component {
         return n || 1;
     }
 
+    /**
+     * Indica si debe mostrarse la columna de precisión acumulada de forecast.
+     * Solo es relevante cuando tanto forecast como entregado son visibles junto con total.
+     * @returns {boolean}
+     */
     get showForecastAcc() {
         return this.state.visibleCols.total &&
                this.state.visibleCols.forecast &&
                this.state.visibleCols.delivered;
     }
 
+    /**
+     * Colspan de la sección "Total" del encabezado, incluyendo la columna de
+     * precisión acumulada si corresponde.
+     * @returns {number}
+     */
     get totalColspan() {
         return this.monthColspan + (this.showForecastAcc ? 1 : 0);
     }
 
+    /**
+     * Indica si debe renderizarse la columna de totales acumulados del período.
+     * Requiere que la opción 'total' esté activa y al menos una sub-columna visible.
+     * @returns {boolean}
+     */
     get showTotal() {
         return this.state.visibleCols.total &&
                (this.state.visibleCols.forecast ||
@@ -252,6 +396,11 @@ class ForecastWidget extends Component {
                 this.state.visibleCols.delivered);
     }
 
+    /**
+     * Colspan total de la tabla, usado para filas de estado vacío o carga.
+     * Suma columnas fijas (producto + opcionales) más las columnas de meses y totales.
+     * @returns {number}
+     */
     get tableColspan() {
         const n = this.state.data ? this.state.data.months.length : 0;
         let cols = 1;
@@ -267,6 +416,11 @@ class ForecastWidget extends Component {
 
     // ── Sort ──────────────────────────────────────────────────────────────────
 
+    /**
+     * Establece la columna de ordenamiento. Si ya estaba activa, invierte la dirección.
+     * Si es una columna nueva, ordena ascendente por defecto.
+     * @param {string} col - Clave del campo a ordenar, p. ej. 'product', 'total_forecast'.
+     */
     setSort(col) {
         if (this.state.sortCol === col) {
             this.state.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
@@ -277,6 +431,11 @@ class ForecastWidget extends Component {
         this.state.page = 1;
     }
 
+    /**
+     * Devuelve la clase CSS del ícono de ordenamiento para una columna.
+     * @param {string} col - Clave de la columna.
+     * @returns {string} Clase Font Awesome del ícono.
+     */
     sortIcon(col) {
         if (this.state.sortCol !== col) return 'fa fa-sort text-muted ms-1';
         return this.state.sortDir === 'asc'
@@ -284,6 +443,12 @@ class ForecastWidget extends Component {
             : 'fa fa-sort-desc text-primary ms-1';
     }
 
+    /**
+     * Devuelve todas las filas filtradas y ordenadas según la columna y dirección activas.
+     * Los strings vacíos se empujan al final independientemente de la dirección.
+     * Los valores null/undefined se tratan como -Infinity para ordenamiento numérico.
+     * @returns {Object[]} Filas ordenadas.
+     */
     get sortedRows() {
         const rows = [...this.filteredRowsAll];
         const col  = this.state.sortCol;
@@ -304,6 +469,11 @@ class ForecastWidget extends Component {
 
     // ── Filtrado + paginación ─────────────────────────────────────────────────
 
+    /**
+     * Filas base con búsqueda de texto y filtro rápido aplicados,
+     * pero sin restricción de grupo (permite calcular los tabs de grupo sobre el total).
+     * @returns {Object[]} Filas que pasan el filtro de texto y el filtro rápido activo.
+     */
     get baseFilteredRows() {
         if (!this.state.data || !this.state.data.rows) return [];
         let rows = this.state.data.rows;
@@ -316,6 +486,11 @@ class ForecastWidget extends Component {
         return rows;
     }
 
+    /**
+     * Filas con todos los filtros aplicados, incluyendo el filtro de grupo activo.
+     * Es la base para el ordenamiento y la paginación.
+     * @returns {Object[]} Filas filtradas completas (sin paginar).
+     */
     get filteredRowsAll() {
         let rows = this.baseFilteredRows;
         const gb = this.state.groupBy;
@@ -325,20 +500,45 @@ class ForecastWidget extends Component {
         return rows;
     }
 
+    /**
+     * Página actual de filas: aplica el slice de paginación sobre las filas ordenadas.
+     * @returns {Object[]} Filas de la página actual.
+     */
     get filteredRows() {
         const all   = this.sortedRows;
         const start = (this.state.page - 1) * this.state.pageSize;
         return all.slice(start, start + this.state.pageSize);
     }
 
+    /**
+     * Total de páginas de la tabla, mínimo 1.
+     * @returns {number}
+     */
     get totalPages()  { return Math.max(1, Math.ceil(this.filteredRowsAll.length / this.state.pageSize)); }
+    /**
+     * Indica si existe una página siguiente.
+     * @returns {boolean}
+     */
     get hasNextPage() { return this.state.page < this.totalPages; }
+    /**
+     * Indica si existe una página anterior.
+     * @returns {boolean}
+     */
     get hasPrevPage() { return this.state.page > 1; }
+    /** Avanza a la página siguiente si existe. */
     nextPage() { if (this.hasNextPage) this.state.page++; }
+    /** Retrocede a la página anterior si existe. */
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
     // ── Agrupación / tabs ─────────────────────────────────────────────────────
 
+    /**
+     * Genera la lista de tabs para la agrupación activa, con conteo de productos por grupo.
+     * La categoría de ventas (sale_category) tiene orden fijo A→B→C→D→E→sin categoría.
+     * El resto se ordena alfabéticamente en español.
+     * @returns {Array<{key: string, label: string, count: number}>|null}
+     *   Array de tabs, o null si no hay agrupación activa.
+     */
     get allGroupsForTabs() {
         const gb = this.state.groupBy;
         if (!gb) return null;
@@ -361,18 +561,31 @@ class ForecastWidget extends Component {
         return entries.map(([key, count]) => ({ key, label: key || 'Sin categoría', count }));
     }
 
+    /**
+     * Items de la tabla en la página actual, con marcador de tipo para el template.
+     * @returns {Object[]} Filas de la página con la propiedad `_type: 'row'` agregada.
+     */
     get tableItems() {
         return this.filteredRows.map(r => ({ ...r, _type: 'row' }));
     }
 
     // ── Depósito ──────────────────────────────────────────────────────────────
 
+    /**
+     * Lista de depósitos filtrada por el texto de búsqueda interno del dropdown.
+     * @returns {Array<{id: number, name: string}>} Depósitos que coinciden con la búsqueda.
+     */
     get filteredWarehouses() {
         const q = this.state.whSearch.toLowerCase();
         if (!q) return this.state.warehouses;
         return this.state.warehouses.filter(w => w.name.toLowerCase().includes(q));
     }
 
+    /**
+     * Agrega o quita un depósito del filtro activo y recarga los datos.
+     * El ID se lee del atributo `data-wh-id` del elemento que disparó el evento.
+     * @param {MouseEvent} ev - Evento click sobre el checkbox de depósito.
+     */
     toggleWarehouse(ev) {
         const id = parseInt(ev.target.dataset.whId);
         const ids = this.state.warehouseIds;
@@ -380,11 +593,18 @@ class ForecastWidget extends Component {
         this._load();
     }
 
+    /**
+     * Limpia la selección de depósitos (muestra todos) y recarga los datos.
+     */
     clearWhFilter() {
         this.state.warehouseIds = [];
         this._load();
     }
 
+    /**
+     * Etiqueta resumida para el botón del selector de depósitos.
+     * @returns {string} "Todos los depósitos", el nombre del único seleccionado, o "N depósitos".
+     */
     get selectedWhLabel() {
         const ids = this.state.warehouseIds;
         if (!ids.length) return 'Todos los depósitos';
@@ -397,6 +617,10 @@ class ForecastWidget extends Component {
 
     // ── Navegación ────────────────────────────────────────────────────────────
 
+    /**
+     * Navega al formulario del template de producto correspondiente a una fila.
+     * @param {Object} row - Fila de la tabla con la propiedad `product_tmpl_id`.
+     */
     openProduct(row) {
         this.action.doAction({
             type:    'ir.actions.act_window',
@@ -407,6 +631,10 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Navega al formulario de una orden de fabricación específica.
+     * @param {number} moId - ID del registro `mrp.production`.
+     */
     openMo(moId) {
         this.action.doAction({
             type:    'ir.actions.act_window',
@@ -419,6 +647,13 @@ class ForecastWidget extends Component {
 
     // ── Acordeón de OFs ───────────────────────────────────────────────────────
 
+    /**
+     * Abre o cierra el acordeón de órdenes de fabricación de una fila de producto.
+     * La primera vez que se abre, solicita las OFs al servidor (lazy load).
+     * Si el producto no tiene OFs (total_mos === 0), no hace nada para evitar llamadas vacías.
+     * @param {Object} row - Fila de la tabla con `product_id` y `total_mos`.
+     * @returns {Promise<void>}
+     */
     async toggleAccordion(row) {
         if (!row.total_mos) return;
         const pid = row.product_id;
@@ -442,6 +677,11 @@ class ForecastWidget extends Component {
         }
     }
 
+    /**
+     * Devuelve la clase CSS del badge de estado de una orden de fabricación.
+     * @param {string} state - Estado de la OF: 'draft', 'confirmed', 'progress', 'to_close', 'done', 'cancel'.
+     * @returns {string} Clases Bootstrap del badge.
+     */
     moStateBadge(state) {
         const map = {
             draft:     'bg-secondary',
@@ -454,6 +694,11 @@ class ForecastWidget extends Component {
         return `badge ${map[state] || 'bg-secondary'}`;
     }
 
+    /**
+     * Devuelve la clase CSS del badge de categoría ABC de ventas.
+     * @param {string} cat - Categoría ABC: 'A', 'B', 'C', 'D' o 'E'.
+     * @returns {string} Clases Bootstrap del badge.
+     */
     saleCatBadge(cat) {
         const map = {
             A: 'bg-success text-white',
@@ -467,11 +712,22 @@ class ForecastWidget extends Component {
 
     // ── Formateo / clases ─────────────────────────────────────────────────────
 
+    /**
+     * Etiquetas de mes legibles para los encabezados de columna de la tabla.
+     * @returns {string[]} Etiquetas como "Ene 2025", "Feb 2025", etc.
+     */
     get monthLabels() {
         if (!this.state.data) return [];
         return this.state.data.months.map(monthLabel);
     }
 
+    /**
+     * Clase CSS de la celda de cobertura de OF de un mes.
+     * Verde si la cobertura es ≥ 100 %, amarillo si supera el umbral configurado,
+     * rojo en caso contrario. Sin clase si no hay forecast para ese mes.
+     * @param {Object|null} cell - Objeto de celda mensual con `forecast` y `pct`.
+     * @returns {string} Clase CSS.
+     */
     cellClass(cell) {
         if (!cell || cell.forecast === 0) return '';
         const d = this.state.data;
@@ -481,6 +737,12 @@ class ForecastWidget extends Component {
         return 'forecast-critical';
     }
 
+    /**
+     * Clase CSS para la tasa de servicio al cliente.
+     * Verde ≥ 95 %, amarillo ≥ 80 %, rojo por debajo.
+     * @param {number|null} rate - Tasa de servicio en porcentaje.
+     * @returns {string} Clase Bootstrap de color.
+     */
     svcClass(rate) {
         if (rate === null || rate === undefined) return 'text-muted';
         if (rate >= 95) return 'text-success';
@@ -488,6 +750,13 @@ class ForecastWidget extends Component {
         return 'text-danger';
     }
 
+    /**
+     * Clase CSS para el indicador de precisión de forecast de una fila.
+     * Para la fórmula 'bias' usa valor absoluto (desviación ± 10 % / ± 20 %).
+     * Para el resto usa umbrales de 90 % y 70 %.
+     * @param {number|null} acc - Valor de precisión en porcentaje.
+     * @returns {string} Clase Bootstrap de color.
+     */
     accClass(acc) {
         if (acc === null || acc === undefined) return 'text-muted';
         const formula = this.state.data && this.state.data.acc_formula;
@@ -502,6 +771,12 @@ class ForecastWidget extends Component {
         return 'text-danger';
     }
 
+    /**
+     * Formatea el valor de rotación de inventario de una fila según la unidad configurada.
+     * Agrega el sufijo "m" (meses) o "d" (días) según corresponda.
+     * @param {Object} row - Fila de la tabla con `rotation_months` y `rotation_days`.
+     * @returns {string} Valor formateado, p. ej. "3 m" o "90 d", o "—" si no hay dato.
+     */
     fmtRotation(row) {
         const unit = this.state.data && this.state.data.rotation_unit;
         if (unit === 'months') {
@@ -512,6 +787,12 @@ class ForecastWidget extends Component {
         return v !== null && v !== undefined ? `${v} d` : '—';
     }
 
+    /**
+     * Clase CSS para el indicador de rotación.
+     * El umbral verde es ≤ 3 meses (o ≤ 90 días); el doble de ese valor es umbral amarillo.
+     * @param {Object} row - Fila de la tabla.
+     * @returns {string} Clase Bootstrap de color.
+     */
     rotClass(row) {
         const unit = this.state.data && this.state.data.rotation_unit;
         const v = unit === 'months' ? row.rotation_months : row.rotation_days;
@@ -520,17 +801,35 @@ class ForecastWidget extends Component {
         return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
     }
 
+    /**
+     * Genera el tooltip de cobertura de OFs para una celda mensual.
+     * Muestra la fórmula de cálculo del porcentaje.
+     * @param {Object|null} cell - Celda mensual con `mos`, `forecast` y `pct`.
+     * @returns {string} Texto del tooltip o cadena vacía si no aplica.
+     */
     moTooltip(cell) {
         if (!cell || cell.forecast === 0) return '';
         return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(cell.pct)}`;
     }
 
+    /**
+     * Genera el tooltip de tasa de servicio para una celda mensual.
+     * Si no hay pedidos de venta confirmados, explica por qué no hay dato.
+     * @param {Object} cell - Celda mensual con `service_rate`, `delivered` y `so_demand`.
+     * @returns {string} Texto del tooltip.
+     */
     svcTooltip(cell) {
         if (cell.service_rate === null || cell.service_rate === undefined)
             return 'Sin pedidos de venta confirmados en el período';
         return `Tasa de servicio = ${this.fmt(cell.delivered)} entregado ÷ ${this.fmt(cell.so_demand)} pedidos × 100 = ${this.fmtPct(cell.service_rate)}`;
     }
 
+    /**
+     * Genera el tooltip de rotación de inventario para una fila.
+     * Muestra la fórmula completa, incluyendo el factor x30 para conversión a días.
+     * @param {Object} row - Fila de la tabla con `stock_qty` y `total_delivered`.
+     * @returns {string} Texto del tooltip.
+     */
     rotTooltip(row) {
         const n = this.state.data ? this.state.data.months.length : 1;
         if (!row.total_delivered) return 'Sin entregas en el período — rotación no calculable';
@@ -539,6 +838,11 @@ class ForecastWidget extends Component {
         return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val}`;
     }
 
+    /**
+     * Genera el tooltip del KPI de precisión de forecast global.
+     * El texto varía según la fórmula configurada (mape/wape/wmape/bias/simple).
+     * @returns {string} Texto del tooltip con la fórmula y el valor calculado.
+     */
     accGlobalTooltip() {
         const d = this.state.data;
         if (!d) return '';
@@ -556,6 +860,12 @@ class ForecastWidget extends Component {
         return `Precisión global = ${dem} demanda real ÷ ${fc} forecast × 100 = ${val}`;
     }
 
+    /**
+     * Genera el tooltip de la columna de precisión de una fila de producto.
+     * Muestra las cinco métricas de precisión y marca con ◀ la fórmula configurada actualmente.
+     * @param {Object} row - Fila con `acc_all` conteniendo simple/mape/wape/wmape/bias.
+     * @returns {string} Texto multilínea para el atributo title.
+     */
     accTooltip(row) {
         const a = row.acc_all;
         if (!a) return 'Sin datos suficientes para calcular precisión';
@@ -571,6 +881,11 @@ class ForecastWidget extends Component {
         ].join('\n');
     }
 
+    /**
+     * Devuelve las métricas de precisión alternativas (no configuradas) para mostrar
+     * como pills secundarios en la sección de KPIs.
+     * @returns {Array<{key: string, label: string, value: number|null}>}
+     */
     accSecondaryPills() {
         const d = this.state.data;
         if (!d || !d.kpis.acc_all) return [];
@@ -582,6 +897,12 @@ class ForecastWidget extends Component {
             .map(([key, label]) => ({ key, label, value: all[key] }));
     }
 
+    /**
+     * Clase CSS para la brecha entre demanda real y forecast de un KPI.
+     * Usa valor absoluto: ≤ 10 % es verde, ≤ 25 % es amarillo, mayor es rojo.
+     * @param {number|null} pct - Porcentaje de brecha.
+     * @returns {string} Clases Bootstrap de color y peso.
+     */
     demandGapClass(pct) {
         if (pct === null || pct === undefined) return 'text-muted';
         const abs = Math.abs(pct);
@@ -590,6 +911,12 @@ class ForecastWidget extends Component {
         return 'text-danger fw-semibold';
     }
 
+    /**
+     * Clase CSS para la brecha de cobertura de OFs respecto al forecast.
+     * Positivo (superávit) es verde; hasta -10 % es amarillo; más negativo es rojo.
+     * @param {number|null} pct - Porcentaje de brecha de OFs.
+     * @returns {string} Clases Bootstrap de color y peso.
+     */
     mosGapClass(pct) {
         if (pct === null || pct === undefined) return 'text-muted';
         if (pct >= 0) return 'text-success fw-semibold';
@@ -597,21 +924,41 @@ class ForecastWidget extends Component {
         return 'text-danger fw-semibold';
     }
 
+    /**
+     * Formatea un porcentaje de brecha con signo explícito para valores positivos.
+     * @param {number|null} n - Valor de la brecha en porcentaje.
+     * @returns {string} P. ej. "+5%", "-12%" o "—" si no hay dato.
+     */
     fmtGapPct(n) {
         if (n === null || n === undefined) return '—';
         return `${n > 0 ? '+' : ''}${n}%`;
     }
 
+    /**
+     * Formatea un número con separadores de miles en locale es-AR, máximo 1 decimal.
+     * @param {number|null} n - Número a formatear.
+     * @returns {string} Número formateado o "—" si es null/undefined.
+     */
     fmt(n) {
         if (n === null || n === undefined) return '—';
         return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n);
     }
 
+    /**
+     * Formatea un número como porcentaje redondeado al entero más cercano.
+     * @param {number|null} n - Valor porcentual.
+     * @returns {string} P. ej. "85%" o "—" si es null/undefined.
+     */
     fmtPct(n) {
         if (n === null || n === undefined) return '—';
         return `${Math.round(n)}%`;
     }
 
+    /**
+     * Convierte una fecha "YYYY-MM-DD" al formato de pantalla "DD/MM/YYYY".
+     * @param {string|null} d - Fecha en formato ISO.
+     * @returns {string} Fecha formateada o "—" si es falsy.
+     */
     fmtDate(d) {
         if (!d) return '—';
         const [y, m, day] = d.split('-');
@@ -620,10 +967,19 @@ class ForecastWidget extends Component {
 
     // ── Acciones ──────────────────────────────────────────────────────────────
 
+    /**
+     * Abre la vista de importación/edición de líneas de forecast usando la acción
+     * XML definida en el módulo. Requiere permiso `can_edit_forecast`.
+     * @returns {Promise<void>}
+     */
     async openImport() {
         await this.action.doAction('odoo_mrp_planner.action_mrp_forecast_line');
     }
 
+    /**
+     * Abre la vista lista/form de líneas de forecast (`mrp.forecast.line`)
+     * en la pestaña actual para consulta o edición manual.
+     */
     openForecastList() {
         this.action.doAction({
             type:      "ir.actions.act_window",
@@ -636,6 +992,11 @@ class ForecastWidget extends Component {
 
     // ── Drill-down KPIs forecast ──────────────────────────────────────────────
 
+    /**
+     * Construye el rango de fechas del período activo con hora completa
+     * para usarlo en dominios de búsqueda de Odoo (datetime fields).
+     * @returns {{ dateFrom: string, dateTo: string }} Rango con formato "YYYY-MM-DD HH:MM:SS".
+     */
     _periodDateRange() {
         return {
             dateFrom: `${this.state.periodFrom} 00:00:00`,
@@ -643,10 +1004,20 @@ class ForecastWidget extends Component {
         };
     }
 
+    /**
+     * Extrae los IDs de producto de todas las filas cargadas en el dashboard.
+     * Se usa para construir dominios de drill-down que acotan a los mismos productos.
+     * @returns {number[]} Array de IDs de `product.product`.
+     */
     _forecastProductIds() {
         return (this.state.data && this.state.data.rows || []).map(r => r.product_id);
     }
 
+    /**
+     * Drill-down al KPI de forecast: abre las líneas de `mrp.forecast.line`
+     * del período activo.
+     * El dominio usa el primer día de cada mes para comparar con el campo `period`.
+     */
     openDrillForecast() {
         this.action.doAction({
             type:      'ir.actions.act_window',
@@ -662,6 +1033,11 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Drill-down al KPI de producción planificada: abre las órdenes de fabricación
+     * activas del período para los productos del forecast.
+     * Excluye ubicaciones de subcontratación para no inflar el total.
+     */
     openDrillMos() {
         const { dateFrom, dateTo } = this._periodDateRange();
         const pids     = this._forecastProductIds();
@@ -683,6 +1059,10 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Drill-down al KPI de demanda real: abre las líneas de órdenes de venta
+     * confirmadas o hechas del período para los productos del forecast.
+     */
     openDrillSoDemand() {
         const { dateFrom, dateTo } = this._periodDateRange();
         const pids = this._forecastProductIds();
@@ -702,6 +1082,10 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Drill-down al KPI de entregas: abre los movimientos de stock de salida
+     * completados en el período para los productos del forecast.
+     */
     openDrillDelivered() {
         const { dateFrom, dateTo } = this._periodDateRange();
         const pids = this._forecastProductIds();
@@ -722,6 +1106,11 @@ class ForecastWidget extends Component {
         });
     }
 
+    /**
+     * Solicita al servidor la URL de exportación Excel del forecast y la abre
+     * en una nueva pestaña del navegador.
+     * @returns {Promise<void>}
+     */
     async downloadExport() {
         try {
             const res = await this.orm.call(

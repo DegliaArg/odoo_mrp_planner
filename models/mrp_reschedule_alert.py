@@ -1,3 +1,23 @@
+"""
+Módulo: mrp_reschedule_alert.py
+Modelo: mrp.reschedule.alert
+
+Gestiona las alertas de desvío de planificación de producción.
+
+Responsabilidades:
+- Detectar OFs y OCs atrasadas o próximas a vencer mediante un cron periódico.
+- Detectar recepciones de stock demoradas y diferencias de cantidad en OFs cerradas.
+- Calcular el impacto en OFs que consumen los productos afectados.
+- Permitir al usuario resolver alertas manualmente o crear un plan de reprogramación.
+- Resolver automáticamente alertas cuando el registro subyacente vuelve a estado normal.
+
+Relacionado con:
+- mrp.production: OF origen de las alertas mo_delayed / mo_upcoming / qty_mismatch.
+- purchase.order: OC origen de las alertas po_delayed / po_upcoming / po_cancelled.
+- stock.picking: Recepción origen de las alertas receipt_delayed.
+- mrp.reschedule.plan: Plan de reprogramación generado a partir de una alerta.
+- mrp.reschedule.config: Configuración de umbrales (días críticos, tolerancia de cantidad).
+"""
 import logging
 from datetime import datetime, timedelta
 
@@ -7,6 +27,8 @@ from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontrac
 
 _logger = logging.getLogger(__name__)
 
+# Tolerancia de cantidad por defecto (5 %) usada cuando no existe registro de configuración.
+# El valor operativo lo sobreescribe mrp.reschedule.config.qty_tolerance_pct en tiempo de ejecución.
 QTY_TOLERANCE = 0.05  # fallback; sobreescrito por mrp.reschedule.config
 
 
@@ -15,7 +37,8 @@ class MrpRescheduleAlert(models.Model):
     _description = 'Alerta de planificación de producción'
     _order = 'resolved asc, severity desc, id desc'
 
-    name = fields.Char(compute='_compute_name', store=True)
+    name = fields.Char(compute='_compute_name', store=True,
+                       help='Etiqueta legible generada automáticamente: tipo de alerta + referencia del documento.')
 
     alert_type = fields.Selection([
         ('mo_delayed',      'OF atrasada'),
@@ -26,45 +49,69 @@ class MrpRescheduleAlert(models.Model):
         ('receipt_delayed', 'Recepción atrasada'),
         ('qty_mismatch',    'Cantidad diferente'),
         ('mo_cancelled',    'OF cancelada'),
-    ], string='Tipo', required=True)
+    ], string='Tipo', required=True,
+       help='Categoría del desvío detectado. Determina qué documento de origen se analiza y qué reglas de resolución se aplican.')
 
     severity = fields.Selection([
         ('warning',  'Aviso'),
         ('critical', 'Crítico'),
-    ], string='Severidad', required=True, default='warning')
+    ], string='Severidad', required=True, default='warning',
+       help='Nivel de urgencia. "Crítico" se activa cuando el atraso supera el umbral configurado en mrp.reschedule.config.')
 
     production_id = fields.Many2one('mrp.production', string='Orden de fabricación',
-                                    ondelete='cascade', index=True)
+                                    ondelete='cascade', index=True,
+                                    help='OF causante de la alerta (tipos: mo_delayed, mo_upcoming, qty_mismatch, mo_cancelled).')
     purchase_id   = fields.Many2one('purchase.order',  string='Orden de compra',
-                                    ondelete='cascade', index=True)
+                                    ondelete='cascade', index=True,
+                                    help='OC causante de la alerta (tipos: po_delayed, po_upcoming, po_cancelled).')
     picking_id    = fields.Many2one('stock.picking',   string='Recepción',
-                                    ondelete='cascade', index=True)
-    product_id    = fields.Many2one('product.product', string='Producto', index=True)
+                                    ondelete='cascade', index=True,
+                                    help='Recepción de stock causante de la alerta (tipo: receipt_delayed).')
+    product_id    = fields.Many2one('product.product', string='Producto', index=True,
+                                    help='Producto involucrado en el desvío. Relevante para qty_mismatch y cálculo de impacto.')
 
-    expected_qty  = fields.Float(string='Cantidad planificada', digits=(16, 2))
-    actual_qty    = fields.Float(string='Cantidad real',        digits=(16, 2))
+    expected_qty  = fields.Float(string='Cantidad planificada', digits=(16, 2),
+                                 help='Cantidad que estaba planificada producir/recibir según la OF o la OC.')
+    actual_qty    = fields.Float(string='Cantidad real',        digits=(16, 2),
+                                 help='Cantidad efectivamente producida o recibida. Se compara con expected_qty para calcular el desvío.')
 
     impact_mo_ids = fields.Many2many(
         'mrp.production',
         'mrp_reschedule_alert_production_rel',
         'alert_id', 'production_id',
         string='OFs afectadas',
+        help='OFs confirmadas/en progreso cuya demanda acumulada supera el stock disponible del producto afectado.'
     )
-    impact_mo_count = fields.Integer(compute='_compute_impact_mo_count', string='OFs afectadas')
+    impact_mo_count = fields.Integer(compute='_compute_impact_mo_count', string='OFs afectadas',
+                                     help='Cantidad de OFs impactadas por este desvío. Calculado a partir de impact_mo_ids.')
 
-    days_late = fields.Integer(string='Días de atraso', compute='_compute_days_late', store=False)
-    message   = fields.Char(string='Detalle')
+    days_late = fields.Integer(string='Días de atraso', compute='_compute_days_late', store=False,
+                                help='Diferencia en días entre la fecha de referencia del documento y el momento actual.')
+    message   = fields.Char(string='Detalle',
+                            help='Texto descriptivo generado automáticamente con fechas y valores del desvío.')
 
-    resolved     = fields.Boolean(string='Resuelta', default=False)
-    resolve_date = fields.Datetime(string='Resuelta el', readonly=True)
-    plan_id      = fields.Many2one('mrp.reschedule.plan', string='Plan generado', readonly=True)
+    resolved     = fields.Boolean(string='Resuelta', default=False,
+                                  help='Indica si la alerta fue resuelta manualmente o por resolución automática.')
+    resolve_date = fields.Datetime(string='Resuelta el', readonly=True,
+                                   help='Fecha y hora en que se marcó la alerta como resuelta.')
+    plan_id      = fields.Many2one('mrp.reschedule.plan', string='Plan generado', readonly=True,
+                                   help='Plan de reprogramación creado a partir de esta alerta.')
 
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(default=True,
+                            help='Permite archivar alertas sin borrarlas. Las alertas inactivas no aparecen en las vistas estándar.')
 
     # ── Computed ─────────────────────────────────────────────────────────────
 
     @api.depends('alert_type', 'production_id', 'purchase_id', 'picking_id')
     def _compute_name(self):
+        """
+        Calcula el nombre legible de la alerta.
+
+        Fórmula: '<etiqueta del tipo> — <referencia del documento>'.
+        La referencia se toma del primer campo relacional disponible:
+        production_id > purchase_id > picking_id.
+        Depende de: alert_type, production_id.name, purchase_id.name, picking_id.name.
+        """
         type_labels = dict(self._fields['alert_type'].selection)
         for alert in self:
             ref = (
@@ -99,6 +146,12 @@ class MrpRescheduleAlert(models.Model):
 
     @api.depends('impact_mo_ids')
     def _compute_impact_mo_count(self):
+        """
+        Calcula la cantidad de OFs afectadas por la alerta.
+
+        Fórmula: conteo de IDs en impact_mo_ids.
+        Depende de: impact_mo_ids.
+        """
         # Usar .ids evita cargar los campos de los registros relacionados
         for alert in self:
             alert.impact_mo_count = len(alert.impact_mo_ids.ids)
@@ -106,6 +159,14 @@ class MrpRescheduleAlert(models.Model):
     # ── Acciones ─────────────────────────────────────────────────────────────
 
     def action_resolve(self):
+        """
+        Marca la alerta (o el lote seleccionado) como resuelta.
+
+        Verifica que el usuario tenga el grupo 'Producción - Planificar' o 'Administrador'
+        del módulo antes de escribir. La fecha de resolución se registra automáticamente.
+
+        :raises UserError: Si el usuario no pertenece a ninguno de los grupos requeridos.
+        """
         if not (self.env.user.has_group('odoo_mrp_planner.group_prod') or
                 self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('base.group_system')):
@@ -116,6 +177,11 @@ class MrpRescheduleAlert(models.Model):
         self.write({'resolved': True, 'resolve_date': fields.Datetime.now()})
 
     def action_view_impact_mos(self):
+        """
+        Abre la vista de lista/formulario de OFs afectadas por esta alerta.
+
+        :returns: Diccionario de acción de ventana filtrado a las OFs en impact_mo_ids.
+        """
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
@@ -127,7 +193,17 @@ class MrpRescheduleAlert(models.Model):
         }
 
     def action_create_reschedule_plan(self):
-        """Crea (o abre) el plan de reprogramación asociado a esta alerta."""
+        """
+        Crea o abre el plan de reprogramación vinculado a esta alerta.
+
+        Si ya existe un plan activo (no aplicado ni cancelado), lo abre directamente.
+        De lo contrario crea un nuevo mrp.reschedule.plan, intentando asociarlo a la
+        OF correspondiente. Cuando la alerta proviene de una OC (purchase_id), busca
+        la OF relacionada mediante los campos purchase_order_id, purchase_line_id.order_id
+        u origin (en ese orden de prioridad).
+
+        :returns: Acción de ventana al formulario del plan de reprogramación.
+        """
         self.ensure_one()
         if self.plan_id and self.plan_id.state not in ('applied', 'cancelled'):
             return {
@@ -303,11 +379,14 @@ class MrpRescheduleAlert(models.Model):
         _logger.info('MRP Planner cron: fin chequeo de desvíos de producción')
 
     def _get_config(self):
+        """Retorna el primer registro de configuración del planificador, o None si no existe."""
         return self.env['mrp.reschedule.config'].search([], limit=1)
 
     @api.model
     def _check_delayed_mos(self, now):
+        """Detecta OFs confirmadas/en progreso cuya fecha de fin ya pasó y crea/actualiza alertas mo_delayed."""
         cfg = self._get_config()
+        # 3 días es el umbral crítico por defecto si no hay configuración activa
         crit_days = cfg.alert_mo_critical_days if cfg else 3
         mos = self.env['mrp.production'].search([
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
@@ -340,7 +419,9 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_upcoming_mos(self, now):
+        """Detecta OFs con fecha de fin dentro de la ventana de aviso y crea/actualiza alertas mo_upcoming."""
         cfg = self._get_config()
+        # 7 días es el horizonte de aviso por defecto si no hay configuración activa
         warn_days = cfg.alert_mo_warning_days if cfg else 7
         future_limit = now + timedelta(days=warn_days)
 
@@ -374,7 +455,9 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_delayed_pos(self, now, impact_cache=None):
+        """Detecta OCs con fecha de entrega vencida y sin recepción completa; crea/actualiza alertas po_delayed."""
         cfg = self._get_config()
+        # 5 días es el umbral crítico por defecto para OCs si no hay configuración activa
         crit_days = cfg.alert_po_critical_days if cfg else 5
         pos = self.env['purchase.order'].search([
             ('state', 'in', ('purchase', 'done')),
@@ -427,7 +510,9 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_upcoming_pos(self, now):
+        """Detecta OCs con entrega próxima y sin recepción completa; crea/actualiza alertas po_upcoming."""
         cfg = self._get_config()
+        # 10 días es el horizonte de aviso por defecto para OCs si no hay configuración activa
         warn_days = cfg.alert_po_warning_days if cfg else 10
         future_limit = now + timedelta(days=warn_days)
 
@@ -461,7 +546,9 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _check_delayed_receipts(self, now, impact_cache=None):
+        """Detecta recepciones de compra pendientes cuya fecha programada ya pasó; crea/actualiza alertas receipt_delayed."""
         cfg = self._get_config()
+        # 3 días es el umbral crítico por defecto para recepciones si no hay configuración activa
         crit_days = cfg.alert_receipt_critical_days if cfg else 3
         pickings = self.env['stock.picking'].search([
             ('state', 'not in', ['done', 'cancel']),
@@ -519,14 +606,17 @@ class MrpRescheduleAlert(models.Model):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
         cfg = self._get_config()
         qty_tol = (cfg.qty_tolerance_pct / 100.0) if cfg else QTY_TOLERANCE
-        # Dynamic window from config, matching cron interval + 10% margin
+        # La ventana de búsqueda coincide con el intervalo del cron + 10 % de margen para evitar
+        # que OFs cerradas justo entre dos ejecuciones queden fuera del análisis.
         if cfg:
             interval_number = cfg.cron_interval_number or 1
             interval_type = cfg.cron_interval_type or 'hours'
             type_to_hours = {'minutes': 1/60, 'hours': 1, 'days': 24}
+            # Factor 1.1 = margen del 10 % sobre el intervalo configurado
             hours = interval_number * type_to_hours.get(interval_type, 1) * 1.1
         else:
             hours = 2.0
+        # Mínimo de 30 minutos para no dejar ventana en blanco si el cron se configura muy frecuente
         since = now - timedelta(hours=max(hours, 0.5))
         done_mos = self.env['mrp.production'].search([
             ('state', '=', 'done'),
@@ -589,8 +679,16 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _resolve_for(self, alert_types, **record_fields):
-        """Resuelve inmediatamente alertas abiertas del tipo dado para un registro.
-        Usado por los write() de OF/OC/Recepción para resolución reactiva.
+        """
+        Resuelve inmediatamente alertas abiertas del tipo dado para un registro concreto.
+
+        Diseñado para ser llamado desde los write() de OF/OC/Recepción cuando el estado
+        del documento cambia a uno que ya no justifica la alerta (resolución reactiva).
+        Complementa la resolución periódica del cron (_auto_resolve_stale).
+
+        :param alert_types: Iterable de valores de alert_type a buscar.
+        :param record_fields: Pares campo=valor (ej. production_id=42) para restringir
+                              la búsqueda al documento específico que cambió de estado.
         """
         domain = [('alert_type', 'in', list(alert_types)), ('resolved', '=', False)]
         for fname, fval in record_fields.items():

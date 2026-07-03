@@ -1,3 +1,24 @@
+"""
+Módulo: mrp_planner_dashboard.py
+Modelo: mrp.planner.dashboard
+
+Panel de control transitorio del planificador de producción MRP.
+
+Responsabilidades:
+- Agregar y exponer contadores de alertas, OFs, OCs y programaciones para el dashboard.
+- Calcular permisos de visibilidad por grupo de usuario.
+- Proveer acciones de apertura para las distintas vistas del panel (producción, ventas, compras).
+- Ofrecer accesos rápidos de navegación hacia alertas, OFs, OCs y programaciones filtradas.
+- Exponer ubicaciones internas para el widget de quiebres de stock.
+
+Relacionado con:
+- mrp.reschedule.alert: fuente principal de alertas críticas y warnings del panel.
+- mrp.production: OFs activas, atrasadas y con reprogramación pendiente.
+- mrp.production.request: programaciones confirmadas y calculadas.
+- purchase.order: OCs en borrador, por aprobar, activas y vencidas.
+- mrp.reschedule.config: configuración de umbrales (p. ej. días críticos para OCs).
+- mrp_schedule_mixin.no_subcontract_domain: helper para excluir OFs de subcontratación.
+"""
 import logging
 import pytz
 from datetime import datetime
@@ -12,32 +33,32 @@ class MrpPlannerDashboard(models.TransientModel):
     _name = 'mrp.planner.dashboard'
     _description = 'Panel del planificador de producción'
 
-    name = fields.Char(default='Panel del Planificador')
+    name = fields.Char(default='Panel del Planificador', help='Nombre descriptivo del panel (solo uso interno de la vista).')
 
     # ── Alertas — contadores ─────────────────────────────────────────────────
 
-    alert_total           = fields.Integer(compute='_compute_alert_stats')
-    alert_critical        = fields.Integer(compute='_compute_alert_stats')
-    alert_warning         = fields.Integer(compute='_compute_alert_stats')
-    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats')
-    alert_mo_upcoming     = fields.Integer(compute='_compute_alert_stats')
-    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats')
-    alert_po_upcoming     = fields.Integer(compute='_compute_alert_stats')
-    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats')
-    alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats')
-    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats')
-    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats')
+    alert_total           = fields.Integer(compute='_compute_alert_stats', help='Total de alertas activas (sin resolver), excluyendo OFs de subcontratación.')
+    alert_critical        = fields.Integer(compute='_compute_alert_stats', help='Alertas activas con severidad crítica.')
+    alert_warning         = fields.Integer(compute='_compute_alert_stats', help='Alertas activas con severidad advertencia.')
+    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF atrasada (mo_delayed).')
+    alert_mo_upcoming     = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF próxima a vencer (mo_upcoming).')
+    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC atrasada (po_delayed).')
+    alert_po_upcoming     = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC próxima a vencer (po_upcoming).')
+    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC cancelada (po_cancelled).')
+    alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats', help='Alertas de recepción atrasada vinculadas a una OC (no devoluciones).')
+    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats', help='Alertas de discrepancia de cantidad entre OF y recepción (qty_mismatch).')
+    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF cancelada (mo_cancelled).')
 
     # ── Permisos de usuario ──────────────────────────────────────────────────
 
-    can_see_alerts       = fields.Boolean(compute='_compute_user_permissions')
-    can_see_mo           = fields.Boolean(compute='_compute_user_permissions')
-    can_see_po           = fields.Boolean(compute='_compute_user_permissions')
-    can_see_stock_breaks = fields.Boolean(compute='_compute_user_permissions')
-    can_see_forecast     = fields.Boolean(compute='_compute_user_permissions')
-    can_schedule         = fields.Boolean(compute='_compute_user_permissions')
-    can_reschedule       = fields.Boolean(compute='_compute_user_permissions')
-    can_edit_forecast    = fields.Boolean(compute='_compute_user_permissions')
+    can_see_alerts       = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de alertas (producción o compras).')
+    can_see_mo           = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de órdenes de fabricación.')
+    can_see_po           = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de órdenes de compra.')
+    can_see_stock_breaks = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el widget de quiebres de stock.')
+    can_see_forecast     = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de forecast de ventas.')
+    can_schedule         = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede crear programaciones de producción.')
+    can_reschedule       = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ejecutar reprogramaciones en cascada.')
+    can_edit_forecast    = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede editar datos de forecast de ventas.')
 
     # ── Alertas — lista inline ───────────────────────────────────────────────
 
@@ -45,31 +66,34 @@ class MrpPlannerDashboard(models.TransientModel):
         'mrp.reschedule.alert',
         compute='_compute_inline_alerts',
         string='Alertas críticas',
+        help='Últimas 8 alertas críticas sin resolver, ordenadas por ID descendente para el widget inline del dashboard.',
     )
 
     # ── OFs — contadores ─────────────────────────────────────────────────────
 
-    mo_total             = fields.Integer(compute='_compute_mo_stats')
-    mo_in_progress       = fields.Integer(compute='_compute_mo_stats')
-    mo_done              = fields.Integer(compute='_compute_mo_stats')
-    mo_delayed           = fields.Integer(compute='_compute_mo_stats')
-    mo_reschedule_needed = fields.Integer(compute='_compute_mo_stats')
+    mo_total             = fields.Integer(compute='_compute_mo_stats', help='Total de OFs activas (excluye done, cancel, draft y subcontratación).')
+    mo_in_progress       = fields.Integer(compute='_compute_mo_stats', help='OFs en estado "en progreso" o "por cerrar".')
+    mo_done              = fields.Integer(compute='_compute_mo_stats', help='OFs completadas (estado done), excluyendo subcontratación.')
+    mo_delayed           = fields.Integer(compute='_compute_mo_stats', help='OFs activas cuya fecha de finalización planificada ya pasó.')
+    mo_reschedule_needed = fields.Integer(compute='_compute_mo_stats', help='OFs activas marcadas con la bandera x_reschedule_needed.')
 
     # ── OFs — listas inline ──────────────────────────────────────────────────
 
     delayed_mo_ids    = fields.Many2many('mrp.production', compute='_compute_inline_mos',
-                                         string='OFs atrasadas')
+                                         string='OFs atrasadas',
+                                         help='Hasta 4 OFs atrasadas ordenadas por fecha de finalización ascendente, para el widget inline del dashboard.')
     reschedule_mo_ids = fields.Many2many('mrp.production', compute='_compute_inline_mos',
-                                         string='OFs para reprogramar')
+                                         string='OFs para reprogramar',
+                                         help='Hasta 4 OFs con reprogramación pendiente ordenadas por fecha de inicio, para el widget inline del dashboard.')
 
     # ── OCs — contadores ─────────────────────────────────────────────────────
 
-    po_rfq              = fields.Integer(compute='_compute_po_stats')
-    po_to_approve       = fields.Integer(compute='_compute_po_stats')
-    po_total            = fields.Integer(compute='_compute_po_stats')
-    po_pending          = fields.Integer(compute='_compute_po_stats')
-    po_overdue          = fields.Integer(compute='_compute_po_stats')
-    po_overdue_critical = fields.Integer(compute='_compute_po_stats')
+    po_rfq              = fields.Integer(compute='_compute_po_stats', help='OCs en estado borrador o enviadas (solicitudes de cotización).')
+    po_to_approve       = fields.Integer(compute='_compute_po_stats', help='OCs pendientes de aprobación por un segundo nivel de autorización.')
+    po_total            = fields.Integer(compute='_compute_po_stats', help='Total de OCs aprobadas (purchase + done) no totalmente recibidas.')
+    po_pending          = fields.Integer(compute='_compute_po_stats', help='OCs aprobadas cuya fecha planificada de entrega aún no venció.')
+    po_overdue          = fields.Integer(compute='_compute_po_stats', help='OCs aprobadas cuya fecha planificada de entrega ya pasó.')
+    po_overdue_critical = fields.Integer(compute='_compute_po_stats', help='OCs vencidas que superan el umbral de días críticos configurado en mrp.reschedule.config.')
 
     # ── OCs — listas inline ──────────────────────────────────────────────────
 
@@ -77,26 +101,29 @@ class MrpPlannerDashboard(models.TransientModel):
         'purchase.order',
         compute='_compute_inline_pos',
         string='Solicitudes de cotización',
+        help='Hasta 4 solicitudes de cotización (draft/sent) ordenadas por fecha planificada, para el widget inline del panel de compras.',
     )
     to_approve_ids = fields.Many2many(
         'purchase.order',
         compute='_compute_inline_pos',
         string='Por aprobar',
+        help='Hasta 3 OCs en estado "por aprobar" ordenadas por fecha planificada, para el widget inline del panel de compras.',
     )
     overdue_po_ids = fields.Many2many(
         'purchase.order',
         compute='_compute_inline_pos',
         string='OCs vencidas',
+        help='Hasta 5 OCs aprobadas con fecha de entrega vencida y recepción incompleta, ordenadas por fecha planificada ascendente.',
     )
 
     # ── Programaciones — contadores ──────────────────────────────────────────
 
-    request_active            = fields.Integer(compute='_compute_request_stats')
-    request_calculated        = fields.Integer(compute='_compute_request_stats')
-    request_reschedule_needed = fields.Integer(compute='_compute_request_stats')
-    req_mos_total             = fields.Integer(compute='_compute_request_stats')
-    req_mos_delayed           = fields.Integer(compute='_compute_request_stats')
-    req_mos_done              = fields.Integer(compute='_compute_request_stats')
+    request_active            = fields.Integer(compute='_compute_request_stats', help='Programaciones en estado confirmado (OFs ya generadas).')
+    request_calculated        = fields.Integer(compute='_compute_request_stats', help='Programaciones en estado calculado (pendientes de confirmación).')
+    request_reschedule_needed = fields.Integer(compute='_compute_request_stats', help='Programaciones confirmadas que tienen al menos una OF con reprogramación pendiente.')
+    req_mos_total             = fields.Integer(compute='_compute_request_stats', help='Total de OFs vinculadas a programaciones confirmadas.')
+    req_mos_delayed           = fields.Integer(compute='_compute_request_stats', help='OFs vinculadas a programaciones confirmadas que están atrasadas.')
+    req_mos_done              = fields.Integer(compute='_compute_request_stats', help='OFs vinculadas a programaciones confirmadas que ya están completadas.')
 
     # ── Programaciones — lista inline ────────────────────────────────────────
 
@@ -104,12 +131,23 @@ class MrpPlannerDashboard(models.TransientModel):
         'mrp.production.request',
         compute='_compute_inline_requests',
         string='Programaciones activas',
+        help='Hasta 6 programaciones en estado calculado o confirmado, ordenadas por ID descendente para el widget inline del dashboard.',
     )
 
     # ── Cómputos ─────────────────────────────────────────────────────────────
 
     @api.depends()
     def _compute_alert_stats(self):
+        """
+        Calcula todos los contadores de alertas para cada registro del panel.
+
+        Fórmula: búsquedas independientes sobre mrp.reschedule.alert filtrando por
+        resolved=False y tipo/severidad. Las alertas de OFs de subcontratación se
+        excluyen del conteo de producción; las alertas de OCs/recepciones se filtran
+        sin dominio SBC para no ocultarlas.
+        Depende de: mrp.reschedule.alert (resolved, severity, alert_type,
+                    production_id, picking_id.purchase_id, picking_id.return_id).
+        """
         Alert = self.env['mrp.reschedule.alert']
         base = [('resolved', '=', False)]
         sc_loc_ids = self.env['stock.location'].search(
@@ -140,6 +178,14 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_user_permissions(self):
+        """
+        Calcula los flags de visibilidad y acción para el usuario actual.
+
+        Fórmula: evalúa los grupos del módulo (admin, prod_read, prod, purchase,
+        sales_read, sales) y mapea combinaciones a cada permiso. Un usuario sin
+        ningún grupo del módulo recibe acceso mínimo de lectura de producción.
+        Depende de: grupos de seguridad del usuario (res.groups vía has_group).
+        """
         u = self.env.user
         is_admin    = u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')
         has_prod_r  = u.has_group('odoo_mrp_planner.group_prod_read')
@@ -164,6 +210,13 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_inline_alerts(self):
+        """
+        Calcula la lista reducida de alertas críticas para el widget inline.
+
+        Fórmula: últimas 8 alertas con severity='critical' y resolved=False,
+        ordenadas por ID descendente (más recientes primero).
+        Depende de: mrp.reschedule.alert (resolved, severity).
+        """
         for rec in self:
             rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
                 [('resolved', '=', False), ('severity', '=', 'critical')],
@@ -173,6 +226,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_mo_stats(self):
+        """
+        Calcula los contadores de órdenes de fabricación para el panel.
+
+        Fórmula: carga en memoria las OFs activas (no done/cancel/draft ni SBC) y
+        aplica filtros en Python para in_progress y delayed; mo_done se obtiene con
+        search_count para no cargar registros completos.
+        Depende de: mrp.production (state, date_finished, x_reschedule_needed,
+                    location_src_id.is_subcontracting_location).
+        """
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
@@ -188,6 +250,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_inline_mos(self):
+        """
+        Calcula las listas reducidas de OFs para los widgets inline del dashboard.
+
+        Fórmula: delayed_mo_ids = hasta 4 OFs activas con date_finished < now,
+        ordenadas por fecha asc; reschedule_mo_ids = hasta 4 OFs con
+        x_reschedule_needed=True (no done/cancel), ordenadas por date_start asc.
+        Depende de: mrp.production (state, date_finished, x_reschedule_needed,
+                    location_src_id.is_subcontracting_location).
+        """
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
@@ -204,6 +275,16 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_po_stats(self):
+        """
+        Calcula los contadores de órdenes de compra para el panel.
+
+        Fórmula: po_rfq y po_to_approve vía search_count; las OCs activas
+        (purchase/done con recepción incompleta) se cargan en memoria para
+        filtrar pending y overdue en Python. po_overdue_critical usa el umbral
+        alert_po_critical_days de mrp.reschedule.config (fallback: 5 días).
+        Depende de: purchase.order (state, date_planned, receipt_status),
+                    mrp.reschedule.config (alert_po_critical_days).
+        """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
         for rec in self:
@@ -225,6 +306,14 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_inline_pos(self):
+        """
+        Calcula las listas reducidas de OCs para los widgets inline del panel de compras.
+
+        Fórmula: rfq_ids = hasta 4 RFQs ordenadas por fecha planificada;
+        to_approve_ids = hasta 3 OCs por aprobar; overdue_po_ids = hasta 5 OCs
+        vencidas con recepción incompleta, ordenadas por fecha planificada asc.
+        Depende de: purchase.order (state, date_planned, receipt_status).
+        """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
         for rec in self:
@@ -242,6 +331,16 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_request_stats(self):
+        """
+        Calcula los contadores de programaciones de producción para el panel.
+
+        Fórmula: confirmed y calculated se obtienen con search; las OFs asociadas
+        se recopilan desde item_ids.production_id de las programaciones confirmadas
+        y se filtran en Python para done y delayed. request_reschedule_needed
+        cuenta las programaciones que tienen al menos un item con OF marcada.
+        Depende de: mrp.production.request (state, item_ids),
+                    mrp.production (state, date_finished, x_reschedule_needed).
+        """
         Req = self.env['mrp.production.request']
         now = fields.Datetime.now()
         for rec in self:
@@ -265,6 +364,13 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.depends()
     def _compute_inline_requests(self):
+        """
+        Calcula la lista reducida de programaciones activas para el widget inline.
+
+        Fórmula: últimas 6 programaciones en estado calculado o confirmado,
+        ordenadas por ID descendente (más recientes primero).
+        Depende de: mrp.production.request (state).
+        """
         for rec in self:
             rec.active_request_ids = self.env['mrp.production.request'].search([
                 ('state', 'in', ('calculated', 'confirmed')),
@@ -274,6 +380,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def action_open(self):
+        """
+        Abre el panel principal del planificador MRP.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista form principal (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista
+                  mrp_planner_dashboard_form con target='main'.
+        """
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
@@ -288,6 +403,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def action_open_ventas(self):
+        """
+        Abre el panel de forecast de ventas.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista mrp_ventas_dashboard_form (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista de ventas
+                  con target='main'.
+        """
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
@@ -302,6 +426,15 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def action_open_compras(self):
+        """
+        Abre el panel de compras.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista mrp_compras_dashboard_form (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista de compras
+                  con target='main'.
+        """
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
@@ -315,16 +448,36 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_refresh(self):
+        """
+        Recalcula las alertas de demoras y reabre el panel principal.
+
+        Ejecuta el cron de verificación de demoras para actualizar mrp.reschedule.alert
+        antes de reabrir la vista, garantizando datos frescos al usuario.
+
+        :returns: dict — resultado de action_open() (acción de ventana del panel principal).
+        """
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()
 
     def action_refresh_compras(self):
+        """
+        Recalcula las alertas de demoras y reabre el panel de compras.
+
+        Idéntico a action_refresh pero redirige al panel de compras en lugar del principal.
+
+        :returns: dict — resultado de action_open_compras() (acción de ventana del panel de compras).
+        """
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open_compras()
 
     # ── Accesos rápidos ──────────────────────────────────────────────────────
 
     def action_new_request(self):
+        """
+        Abre el formulario de creación de una nueva programación de producción.
+
+        :returns: dict — acción ir.actions.act_window sobre mrp.production.request en modo form.
+        """
         return {
             'type': 'ir.actions.act_window',
             'name': _('Nueva programación'),
@@ -334,6 +487,11 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_new_plan(self):
+        """
+        Abre el formulario de creación de un nuevo plan de reprogramación.
+
+        :returns: dict — acción ir.actions.act_window sobre mrp.reschedule.plan en modo form.
+        """
         return {
             'type': 'ir.actions.act_window',
             'name': _('Nuevo plan de reprogramación'),
@@ -345,6 +503,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Navegación — alertas ─────────────────────────────────────────────────
 
     def _open_alerts(self, extra_domain=None):
+        """Construye y retorna la acción de ventana de alertas con dominio base + filtro adicional."""
         # Alertas sin OF (recepciones, OCs) siempre se incluyen; solo se excluyen
         # las alertas de OFs de subcontratación (production_id != False y ubicación SBC)
         no_sc = ['|', ('production_id', '=', False),
@@ -360,24 +519,31 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_all_alerts(self):
+        """Navega a la lista de todas las alertas activas (sin filtro de tipo/severidad)."""
         return self._open_alerts()
 
     def action_view_critical(self):
+        """Navega a la lista de alertas activas con severidad crítica."""
         return self._open_alerts([('severity', '=', 'critical')])
 
     def action_view_warning(self):
+        """Navega a la lista de alertas activas con severidad advertencia."""
         return self._open_alerts([('severity', '=', 'warning')])
 
     def action_view_mo_delayed_alerts(self):
+        """Navega a las alertas de tipo 'OF atrasada' (mo_delayed)."""
         return self._open_alerts([('alert_type', '=', 'mo_delayed')])
 
     def action_view_po_delayed_alerts(self):
+        """Navega a las alertas de tipo 'OC atrasada' (po_delayed)."""
         return self._open_alerts([('alert_type', '=', 'po_delayed')])
 
     def action_view_po_cancelled_alerts(self):
+        """Navega a las alertas de tipo 'OC cancelada' (po_cancelled)."""
         return self._open_alerts([('alert_type', '=', 'po_cancelled')])
 
     def action_view_receipt_alerts(self):
+        """Navega a las alertas de recepción atrasada vinculadas a OCs (excluye devoluciones)."""
         return self._open_alerts([
             ('alert_type', '=', 'receipt_delayed'),
             ('picking_id.purchase_id', '!=', False),
@@ -385,20 +551,25 @@ class MrpPlannerDashboard(models.TransientModel):
         ])
 
     def action_view_qty_mismatch_alerts(self):
+        """Navega a las alertas de discrepancia de cantidad (qty_mismatch)."""
         return self._open_alerts([('alert_type', '=', 'qty_mismatch')])
 
     def action_view_mo_cancelled_alerts(self):
+        """Navega a las alertas de tipo 'OF cancelada' (mo_cancelled)."""
         return self._open_alerts([('alert_type', '=', 'mo_cancelled')])
 
     def action_view_mo_upcoming_alerts(self):
+        """Navega a las alertas de tipo 'OF próxima a vencer' (mo_upcoming)."""
         return self._open_alerts([('alert_type', '=', 'mo_upcoming')])
 
     def action_view_po_upcoming_alerts(self):
+        """Navega a las alertas de tipo 'OC próxima a vencer' (po_upcoming)."""
         return self._open_alerts([('alert_type', '=', 'po_upcoming')])
 
     # ── Navegación — OFs ─────────────────────────────────────────────────────
 
     def _open_mos(self, domain, name):
+        """Construye y retorna la acción de ventana de OFs con el dominio y nombre dados."""
         return {
             'type': 'ir.actions.act_window',
             'name': name,
@@ -409,6 +580,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_all_mos(self):
+        """Navega a todas las OFs activas (excluye done, cancel y subcontratación)."""
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
             [('state', 'not in', ('done', 'cancel'))] + no_sc,
@@ -416,6 +588,7 @@ class MrpPlannerDashboard(models.TransientModel):
         )
 
     def action_view_in_progress_mos(self):
+        """Navega a las OFs en estado 'en progreso' o 'por cerrar'."""
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
             [('state', 'in', ('progress', 'to_close'))] + no_sc,
@@ -423,6 +596,7 @@ class MrpPlannerDashboard(models.TransientModel):
         )
 
     def action_view_delayed_mos(self):
+        """Navega a las OFs activas cuya fecha de finalización planificada ya pasó."""
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
@@ -435,6 +609,7 @@ class MrpPlannerDashboard(models.TransientModel):
         )
 
     def action_view_reschedule_needed(self):
+        """Navega a las OFs activas marcadas con reprogramación pendiente (x_reschedule_needed)."""
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
             [
@@ -445,6 +620,7 @@ class MrpPlannerDashboard(models.TransientModel):
         )
 
     def action_view_done_mos(self):
+        """Navega a todas las OFs completadas (estado done), excluyendo subcontratación."""
         no_sc = no_subcontract_domain(self.env)
         return self._open_mos(
             [('state', '=', 'done')] + no_sc,
@@ -454,6 +630,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Navegación — OCs ─────────────────────────────────────────────────────
 
     def action_view_rfqs(self):
+        """Navega a la lista de solicitudes de cotización (OCs en estado draft o sent)."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Solicitudes de cotización'),
@@ -464,6 +641,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_to_approve(self):
+        """Navega a la lista de OCs pendientes de aprobación (estado 'to approve')."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Por aprobar'),
@@ -474,6 +652,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_pending_pos(self):
+        """Navega a las OCs aprobadas cuya fecha de entrega planificada aún no venció (o sin fecha)."""
         now = fields.Datetime.now()
         return {
             'type': 'ir.actions.act_window',
@@ -488,6 +667,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_overdue_pos(self):
+        """Navega a las OCs aprobadas con fecha de entrega vencida y recepción incompleta."""
         now = fields.Datetime.now()
         return {
             'type': 'ir.actions.act_window',
@@ -503,6 +683,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_all_pos(self):
+        """Navega a todas las OCs aprobadas (estado purchase o done), sin filtro de recepción."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Órdenes de compra aprobadas'),
@@ -515,6 +696,7 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Navegación — Programaciones ──────────────────────────────────────────
 
     def action_view_active_requests(self):
+        """Navega a las programaciones confirmadas (con OFs ya generadas)."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Programaciones con OFs creadas'),
@@ -525,6 +707,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_calculated_requests(self):
+        """Navega a las programaciones en estado calculado (pendientes de confirmación)."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Programaciones calculadas'),
@@ -535,6 +718,7 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_requests_reschedule(self):
+        """Navega a las programaciones confirmadas que tienen al menos una OF con reprogramación pendiente."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Programaciones con reprogramación pendiente'),
@@ -547,840 +731,6 @@ class MrpPlannerDashboard(models.TransientModel):
             'target': 'current',
         }
 
-    # ── Filtros de sector (WC tags) — usados por widgets de OFs ────────────
-
-    @api.model
-    def get_wc_tags(self):
-        """Tags de centros de trabajo que tienen al menos un WC activo.
-
-        Usa una sola query para obtener los tag IDs activos, evitando el N+1
-        original (un search_count por tag).
-        """
-        Tag = self.env['mrp.workcenter.tag']
-        Wc  = self.env['mrp.workcenter']
-        # Un único search para obtener todos los tag IDs con WCs activos
-        active_tag_ids = set(
-            Wc.search([('active', '=', True)]).mapped('tag_ids').ids
-        )
-        return [
-            {'id': tag.id, 'name': tag.name}
-            for tag in Tag.search([])
-            if tag.id in active_tag_ids
-        ]
-
-    @api.model
-    def get_wc_chart_data(self, date_from, date_to, tag_id=None):
-        """Carga de CTs: horas disponibles vs ejecutado/pendiente/libre por centro de trabajo."""
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-
-        domain = [('active', '=', True)]
-        if tag_id:
-            domain.append(('tag_ids', 'in', int(tag_id)))
-        workcenters = self.env['mrp.workcenter'].search(domain)
-
-        labels, avail_list = [], []
-        ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
-
-        _cal_hours_cache = {}  # (calendar_id, dt_start, dt_end) -> raw hours (sin efficiency)
-
-        def _avail_hours(calendar, dt_start, dt_end, efficiency):
-            key = (calendar.id, dt_start, dt_end)
-            if key not in _cal_hours_cache:
-                try:
-                    h = calendar.get_work_hours_count(
-                        dt_start.replace(tzinfo=pytz.UTC),
-                        dt_end.replace(tzinfo=pytz.UTC),
-                        compute_leaves=False,
-                    )
-                except Exception as e:
-                    _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
-                    weekly = sum(
-                        a.hour_to - a.hour_from
-                        for a in calendar.attendance_ids
-                        if not a.date_from and not a.date_to
-                    )
-                    span = (dt_end - dt_start).days + 1
-                    h = weekly * (span / 7.0)
-                _cal_hours_cache[key] = h
-            return _cal_hours_cache[key] * (efficiency or 100.0) / 100.0
-
-        def _overlap_hours(wo, range_start, range_end):
-            start = wo.date_start
-            end   = wo.date_finished
-            if not start:
-                return 0.0
-            ov_start = max(start, range_start)
-            ov_end   = min(end, range_end) if end else range_end
-            if ov_start >= ov_end:
-                return 0.0
-            if not end:
-                return (wo.duration_expected or 0.0) / 60.0
-            total_secs = (end - start).total_seconds()
-            if total_secs <= 0:
-                return (wo.duration_expected or 0.0) / 60.0
-            proportion = (ov_end - ov_start).total_seconds() / total_secs
-            return (wo.duration_expected or 0.0) / 60.0 * proportion
-
-        # Fix 19: cargar todos los workorders en 1 query batch antes del loop
-        from collections import defaultdict
-        all_wos = self.env['mrp.workorder'].search([
-            ('workcenter_id', 'in', workcenters.ids),
-            ('state', 'not in', ('cancel',)),
-            ('date_start', '!=', False),
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            ('date_finished', '=', False),
-            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
-        ])
-        wos_by_wc = defaultdict(list)
-        for wo in all_wos:
-            wos_by_wc[wo.workcenter_id.id].append(wo)
-
-        for wc in workcenters:
-            efficiency = wc.time_efficiency or 100.0
-            avail = 0.0
-            if wc.resource_calendar_id:
-                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
-
-            wos = wos_by_wc.get(wc.id, [])  # cargado en batch antes del loop
-
-            # Fix 21: una sola pasada en lugar de dos generator expressions
-            ejecutado = pendiente = 0.0
-            for w in wos:
-                if w.state == 'done':
-                    ejecutado += _overlap_hours(w, first_day, last_day)
-                elif w.state != 'cancel':
-                    pendiente += _overlap_hours(w, first_day, last_day)
-            tiempo_muerto = max(0.0, avail - ejecutado - pendiente)
-
-            if avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
-                continue
-
-            labels.append(wc.name)
-            avail_list.append(round(avail, 1))
-            ejecutado_list.append(round(ejecutado, 1))
-            pendiente_list.append(round(pendiente, 1))
-            tiempo_muerto_list.append(round(tiempo_muerto, 1))
-
-        tot_avail = sum(avail_list)
-        tot_ejec  = sum(ejecutado_list)
-        tot_pend  = sum(pendiente_list)
-        tot_plan  = tot_ejec + tot_pend
-        tot_libre = sum(tiempo_muerto_list)
-        carga_pct = round(tot_plan / tot_avail * 100, 1) if tot_avail > 0 else 0.0
-
-        return {
-            'labels':          labels,
-            'available_hours': avail_list,
-            'ejecutado':       ejecutado_list,
-            'pendiente':       pendiente_list,
-            'tiempo_muerto':   tiempo_muerto_list,
-            'totals': {
-                'disponible':   round(tot_avail, 1),
-                'planificado':  round(tot_plan,  1),
-                'carga_pct':    carga_pct,
-                'ejecutado':    round(tot_ejec,  1),
-                'pendiente':    round(tot_pend,  1),
-                'tiempo_libre': round(tot_libre, 1),
-            },
-        }
-
-    # ── Widget OCs con pestañas ──────────────────────────────────────────────
-
-    @api.model
-    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc', page=1, page_size=50):
-        """Datos de OCs filtrados por tipo y rango de fecha de entrega."""
-        PO      = self.env['purchase.order']
-        Picking = self.env['stock.picking']
-        now     = fields.Datetime.now()
-
-        _sd = 'desc' if sort_dir == 'desc' else 'asc'
-        _rev = (_sd == 'desc')
-        _PO_FIELD = {
-            'name': 'name', 'partner': 'partner_id',
-            'date_planned': 'date_planned', 'amount_total': 'amount_total',
-        }
-        _PICK_FIELD = {
-            'name': 'name', 'partner': 'partner_id',
-            'scheduled_date': 'scheduled_date', 'overdue': 'scheduled_date',
-            'availability': 'state',
-        }
-        po_f       = _PO_FIELD.get(sort_field, 'date_planned')
-        pick_f     = _PICK_FIELD.get(sort_field, 'scheduled_date')
-        po_order   = f'{po_f} {_sd}'
-        pick_order = f'{pick_f} {_sd}'
-        offset     = (max(1, page) - 1) * page_size
-
-        sc_domain = []
-        if filter_type == 'purchase':
-            sc_domain = [('subcontract_production_ids', '=', False)]
-        elif filter_type == 'subcontract':
-            sc_domain = [('subcontract_production_ids', '!=', False)]
-
-        date_domain = []
-        if date_from:
-            date_domain.append(('date_order', '>=', date_from + ' 00:00:00'))
-        if date_to:
-            date_domain.append(('date_order', '<=', date_to + ' 23:59:59'))
-
-        sched_domain = []
-        if date_from:
-            sched_domain.append(('scheduled_date', '>=', date_from + ' 00:00:00'))
-        if date_to:
-            sched_domain.append(('scheduled_date', '<=', date_to + ' 23:59:59'))
-
-        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
-        approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
-        # state='done' = OC bloqueada/cerrada — no es accionable, no va en vencidas ni pendientes
-        approved_dom = [('state', '=', 'purchase')] + sc_domain + date_domain
-
-        approved = PO.search(approved_dom)
-        overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
-        pending  = approved.filtered(lambda p: not p.date_planned or p.date_planned >= now)
-
-        # Leer umbral crítico OC desde config
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        po_crit_days = cfg.alert_po_critical_days if cfg else 5
-
-        def _po_dict(po):
-            return {
-                'id':               po.id,
-                'name':             po.name,
-                'partner':          po.partner_id.display_name if po.partner_id else '',
-                'date_planned':     po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '—',
-                'amount_total':     po.amount_total,
-                'is_subcontract':   bool(po.subcontract_production_ids),
-                'state':            po.state,
-            }
-
-        def _move_qty(m):
-            """En Odoo 18, 'quantity' es el campo unificado (antes quantity_done
-            en move_lines). Para pickings de subcontratación, reserved_availability=0
-            pero quantity=demanda. Usamos el máximo de ambos para cubrir ambos casos."""
-            return max(
-                getattr(m, 'quantity', 0) or 0,
-                getattr(m, 'reserved_availability', 0) or 0,
-            )
-
-        def _pick_avail(p):
-            """En Odoo 16+, 'partially_available' fue eliminado como estado.
-            Los pickings parcialmente reservados quedan en 'assigned'.
-            Detectamos la diferencia comparando qty disponible vs demanda."""
-            if p.state == 'assigned':
-                is_partial = any(
-                    _move_qty(m) < m.product_uom_qty - 0.001
-                    for m in p.move_ids if m.state not in ('done', 'cancel')
-                )
-                return 'partially_available' if is_partial else 'assigned'
-            if p.state == 'confirmed':
-                has_any = any(
-                    _move_qty(m) > 0.001
-                    for m in p.move_ids if m.state not in ('done', 'cancel')
-                )
-                return 'partially_available' if has_any else 'confirmed'
-            return p.state
-
-        _AVAIL_LABEL = {
-            'assigned':            'Disponible',
-            'partially_available': 'Parcialmente',
-            'confirmed':           'No disponible',
-            'waiting':             'No disponible',
-        }
-
-        _has_raw_mo  = 'raw_material_production_id' in self.env['stock.move']._fields
-        _has_po_line = 'purchase_line_id' in self.env['mrp.production']._fields
-
-        from collections import deque
-        MAX_DEPTH = 20
-        def _trace_mo_iter(root_moves):
-            result = []
-            queue = deque([(root_moves, 0)])
-            while queue:
-                moves, depth = queue.popleft()
-                if depth >= MAX_DEPTH:
-                    continue
-                for move in moves:
-                    result.append(move)
-                    child = move.move_orig_ids
-                    if child:
-                        queue.append((child, depth + 1))
-            return result
-
-        def _delivery_mo_s1(p):
-            """Estrategia 1: campo directo raw_material_production_id (usa prefetch)."""
-            if not _has_raw_mo:
-                return None
-            for mv in p.move_ids:
-                if mv.raw_material_production_id:
-                    return mv.raw_material_production_id
-            return None
-
-        def _delivery_info(p):
-            """Para un picking de entrega devuelve (po_name, finished_product).
-            Busca la OF de subcontratación por 4 estrategias y extrae ambos datos."""
-            # Estrategia 1: campo directo en el move (usa prefetch, O(1))
-            mo = _delivery_mo_s1(p)
-            # Estrategia 2: trazar move_dest_ids (versión iterativa)
-            if not mo:
-                _moves = _trace_mo_iter(p.move_ids)
-                for _mv in _moves:
-                    if _has_raw_mo and _mv.raw_material_production_id:
-                        mo = _mv.raw_material_production_id
-                        break
-                    if _mv.production_id:
-                        mo = _mv.production_id
-                        break
-            # Estrategia 3: desde líneas de la OC
-            if not mo and p.purchase_id:
-                for line in p.purchase_id.order_line:
-                    for mv in line.move_ids:
-                        if _has_raw_mo and mv.raw_material_production_id:
-                            mo = mv.raw_material_production_id
-                            break
-                    if mo:
-                        break
-            # Estrategia 4: por grupo de abastecimiento (fallback)
-            if not mo and p.group_id:
-                mo = self.env['mrp.production'].search(
-                    [('procurement_group_id', '=', p.group_id.id)], limit=1
-                )
-
-            finished = (mo.product_id.display_name if mo and mo.product_id else None) or '—'
-
-            po_name = '—'
-            if mo and _has_po_line:
-                try:
-                    if mo.purchase_line_id and mo.purchase_line_id.order_id:
-                        po_name = mo.purchase_line_id.order_id.name
-                except Exception:
-                    pass
-
-            return po_name, finished
-
-        def _pick_dict(p, include_lines=False):
-            avail = _pick_avail(p)
-            is_incoming = p.picking_type_code == 'incoming'
-            if is_incoming:
-                po_name  = p.purchase_id.name if p.purchase_id else '—'
-                finished = None
-            else:
-                po_name, finished = _delivery_info(p)
-            result = {
-                'id':               p.id,
-                'name':             p.name,
-                'po_name':          po_name,
-                'finished_product': finished,
-                'partner':          p.partner_id.display_name if p.partner_id else '',
-                'scheduled_date': p.scheduled_date.strftime('%d/%m/%Y') if p.scheduled_date else '—',
-                'state':          p.state,
-                'overdue':        bool(p.scheduled_date and p.scheduled_date < now),
-                'days_late':      max(0, (now - p.scheduled_date).days) if p.scheduled_date and p.scheduled_date < now else 0,
-                'availability':   avail,
-                'availability_label': _AVAIL_LABEL.get(avail, '—'),
-                'lines':          [],
-                'is_incoming':    is_incoming,
-            }
-            if include_lines:
-                # Para recepciones: quantity (campo "done" en Odoo 18) se pre-rellena
-                # automáticamente igual a la demanda cuando el picking es assigned.
-                # Solo mostrar como recibido si el picking fue efectivamente validado (done).
-                result['lines'] = [{
-                    'product':  m.product_id.display_name,
-                    'demand':   m.product_uom_qty,
-                    'reserved': (getattr(m, 'quantity', 0) or 0) if (is_incoming and p.state == 'done')
-                                else (0 if is_incoming else _move_qty(m)),
-                    'uom':      m.product_uom.name if m.product_uom else '',
-                } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
-            return result
-
-        rfqs_list       = PO.search(rfq_dom,     order=po_order)
-        to_approve_list = PO.search(approve_dom, order=po_order)
-
-        # ── Separar servicios ────────────────────────────────────────────────
-        # Los servicios se excluyen SIEMPRE de las listas de OC (bienes).
-        # Solo se muestran en la pestaña de servicios cuando show_svc=True.
-        show_svc = bool(cfg and cfg.show_po_services_tab)
-
-        def _is_svc(po):
-            lines = po.order_line.filtered(lambda l: l.product_id)
-            return bool(lines) and all(l.product_id.type == 'service' for l in lines)
-
-        rfqs_svc        = rfqs_list.filtered(_is_svc)
-        rfqs_list       = rfqs_list - rfqs_svc
-        approve_svc     = to_approve_list.filtered(_is_svc)
-        to_approve_list = to_approve_list - approve_svc
-        approved_svc    = approved.filtered(_is_svc)
-        approved        = approved - approved_svc
-        overdue         = overdue - approved_svc
-        pending         = pending - approved_svc
-
-        if show_svc:
-            services_rs = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
-        else:
-            services_rs = self.env['purchase.order']
-
-        overdue_list  = overdue.sorted(po_f,  reverse=_rev)
-        all_pos_list  = approved.sorted(po_f, reverse=_rev)
-        pending_list  = pending.sorted(po_f,  reverse=_rev)
-
-        # Sort por nombre de partner (no por ID): hacerlo en Python para que
-        # sea correcto en todas las páginas, no solo la primera.
-        if sort_field == 'partner':
-            _pk = lambda r: (r.partner_id.display_name or '').lower()
-            rfqs_list       = rfqs_list.sorted(_pk,       reverse=_rev)
-            to_approve_list = to_approve_list.sorted(_pk, reverse=_rev)
-            overdue_list    = overdue_list.sorted(_pk,    reverse=_rev)
-            all_pos_list    = all_pos_list.sorted(_pk,    reverse=_rev)
-            pending_list    = pending_list.sorted(_pk,    reverse=_rev)
-            services_rs     = services_rs.sorted(_pk,     reverse=_rev)
-
-
-
-        rfqs_pg       = rfqs_list[offset:offset + page_size]
-        to_approve_pg = to_approve_list[offset:offset + page_size]
-        overdue_pg    = overdue_list[offset:offset + page_size]
-        all_pos_pg    = all_pos_list[offset:offset + page_size]
-        pending_pg    = pending_list[offset:offset + page_size]
-
-        # ── Recepciones (incoming pickings linked to POs) ────────────────────
-        receipt_sc = []
-        if filter_type == 'purchase':
-            receipt_sc = [('purchase_id.subcontract_production_ids', '=', False)]
-        elif filter_type == 'subcontract':
-            receipt_sc = [('purchase_id.subcontract_production_ids', '!=', False)]
-
-        receipts = Picking.search([
-            ('state', 'in', ['waiting', 'confirmed', 'assigned']),
-            ('picking_type_code', '=', 'incoming'),
-            ('purchase_id', '!=', False),
-            ('return_id', '=', False),
-        ] + receipt_sc, order=pick_order)
-
-        overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
-
-        # ── Entregas (component deliveries to subcontractors) ───────────────
-        # La OC no es un M2O en estos pickings, es texto. El único campo
-        # confiable es el destino: ubicación de subcontratación.
-        # Incluye 'done' para que el usuario vea las entregas ya realizadas.
-        deliveries = Picking.search([
-            ('state', '!=', 'cancel'),
-            ('location_dest_id.is_subcontracting_location', '=', True),
-        ] + sched_domain, order=pick_order)
-
-        # Prefetch para evitar N+1 en sort y en _pick_dict
-        (receipts | deliveries).mapped('move_ids')
-        if deliveries and _has_raw_mo:
-            deliveries.mapped('move_ids.raw_material_production_id.product_id')
-            if _has_po_line:
-                deliveries.mapped('move_ids.raw_material_production_id.purchase_line_id.order_id')
-
-        # Sort por partner/availability/po_name en pickings (Python, cross-página)
-        if sort_field == 'partner':
-            _ppk = lambda p: (p.partner_id.display_name or '').lower()
-            receipts   = receipts.sorted(_ppk,   reverse=_rev)
-            deliveries = deliveries.sorted(_ppk, reverse=_rev)
-        elif sort_field == 'availability':
-            _AO = {'assigned': 0, 'partially_available': 1, 'confirmed': 2, 'waiting': 3}
-            _ak = lambda p: _AO.get(_pick_avail(p), 99)
-            receipts   = receipts.sorted(_ak,   reverse=_rev)
-            deliveries = deliveries.sorted(_ak, reverse=_rev)
-        elif sort_field == 'finished_product':
-            def _fpk(p):
-                mo = _delivery_mo_s1(p)
-                return (mo.product_id.display_name if mo and mo.product_id else '').lower()
-            deliveries = deliveries.sorted(_fpk, reverse=_rev)
-        elif sort_field == 'po_name':
-            def _dok(p):
-                mo = _delivery_mo_s1(p)
-                if mo and _has_po_line:
-                    try:
-                        if mo.purchase_line_id and mo.purchase_line_id.order_id:
-                            return mo.purchase_line_id.order_id.name.lower()
-                    except Exception:
-                        pass
-                return ''
-            receipts   = receipts.sorted(lambda p: (p.purchase_id.name or '').lower(), reverse=_rev)
-            deliveries = deliveries.sorted(_dok, reverse=_rev)
-
-        receipts_pg        = receipts[offset:offset + page_size]
-        deliveries_pg      = deliveries[offset:offset + page_size]
-        services_pg        = services_rs[offset:offset + page_size]
-        overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
-
-        return {
-            'kpis': {
-                'rfq':              len(rfqs_list),
-                'to_approve':       len(to_approve_list),
-                'total':            len(approved),
-                'pending':          len(pending),
-                'overdue':          len(overdue),
-                'overdue_critical': len(overdue.filtered(
-                    lambda p: (now - p.date_planned).days >= po_crit_days
-                )),
-                'receipts_total':    len(receipts),
-                'receipts_overdue':  len(overdue_receipts),
-                'deliveries_total':  len(deliveries),
-                'deliveries_overdue': len(overdue_deliveries),
-                'services_total':    len(services_rs),
-                'po_critical_days':  po_crit_days,
-            },
-            'show_services_tab': show_svc,
-            'rfqs':        [_po_dict(p) for p in rfqs_pg],
-            'to_approve':  [_po_dict(p) for p in to_approve_pg],
-            'overdue':     [_po_dict(p) for p in overdue_pg],
-            'all_pos':     [_po_dict(p) for p in all_pos_pg],
-            'pending_pos': [_po_dict(p) for p in pending_pg],
-            'receipts':    [_pick_dict(p, True)  for p in receipts_pg],
-            'deliveries':  [_pick_dict(p, True)  for p in deliveries_pg],
-            'services':    [_po_dict(p) for p in services_pg],
-        }
-
-    # ── Widget OFs filtrable ─────────────────────────────────────────────────
-
-    @api.model
-    def get_filtered_mos(self, date_from, date_to, tag_id=None):
-        """OFs activas (sin subcontratación) que solapan con el rango, filtradas por sector."""
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-
-        no_sc = no_subcontract_domain(self.env)
-        domain = [
-            ('state', 'not in', ('done', 'cancel')),
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            '&',
-            ('date_finished', '=', False),
-            ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc
-
-        mos = self.env['mrp.production'].search(domain, order='date_finished asc')
-
-        if tag_id:
-            tag_id = int(tag_id)
-            mos = mos.filtered(
-                lambda m: any(
-                    tag_id in w.workcenter_id.tag_ids.ids
-                    for w in m.workorder_ids
-                    if w.workcenter_id
-                )
-            )
-
-        now = fields.Datetime.now()
-        result = []
-        for mo in mos:
-            result.append({
-                'id':            mo.id,
-                'name':          mo.name,
-                'product':       mo.product_id.display_name if mo.product_id else '',
-                'qty':           mo.product_qty,
-                'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
-                'state':         mo.state,
-                'delayed':       bool(mo.date_finished and mo.date_finished < now),
-                'reschedule':    bool(mo.x_reschedule_needed),
-            })
-        return result
-
-    # ── Widget Alertas ───────────────────────────────────────────────────────
-
-    @api.model
-    def get_alert_stats(self, states=None):
-        """Contadores de alertas de OFs filtrados por estado y sin subcontratadas."""
-        Alert = self.env['mrp.reschedule.alert']
-        base  = [('resolved', '=', False)]
-        sc_loc_ids = self.env['stock.location'].search(
-            [('is_subcontracting_location', '=', True)]
-        ).ids
-        sc_mo_ids = self.env['mrp.production'].search(
-            [('location_src_id', 'in', sc_loc_ids)]
-        ).ids if sc_loc_ids else []
-        # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
-        no_sc = ['|', ('production_id', '=', False),
-                 ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
-
-        def cnt(alert_type):
-            return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])
-
-        mo_in_progress = self.env['mrp.production'].search_count(
-            [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env)
-        )
-
-        return {
-            'mo_delayed':     cnt('mo_delayed'),
-            'mo_upcoming':    cnt('mo_upcoming'),
-            'mo_in_progress': mo_in_progress,
-            'qty_mismatch':   cnt('qty_mismatch'),
-            'critical':       Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
-        }
-
-    # ── Widget OFs con pestañas ──────────────────────────────────────────────
-
-    @api.model
-    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None):
-        """KPIs + lista de OFs activas en el rango, filtradas por sector y estados."""
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-
-        _sd = 'desc' if sort_dir == 'desc' else 'asc'
-        _MO_FIELD = {
-            'name': 'name', 'product': 'product_id', 'qty': 'product_qty',
-            'date_finished': 'date_finished', 'state': 'state',
-            'delayed': 'date_finished', 'reschedule': 'x_reschedule_needed',
-        }
-        mo_f     = _MO_FIELD.get(sort_field, 'date_finished')
-        mo_order = f'{mo_f} {_sd}'
-
-        no_sc = no_subcontract_domain(self.env)
-        # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
-        active_states = [s for s in (states or []) if s != 'done'] if states else []
-        state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
-        domain = state_clause + [
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            '&',
-            ('date_finished', '=', False),
-            ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc
-
-        mos = self.env['mrp.production'].search(domain, order=mo_order)
-
-        if tag_id:
-            tag_id = int(tag_id)
-            tag_filter = lambda m: any(
-                tag_id in w.workcenter_id.tag_ids.ids
-                for w in m.workorder_ids if w.workcenter_id
-            )
-            mos = mos.filtered(tag_filter)
-
-        # OFs finalizadas en el mismo rango de fechas
-        done_domain = [
-            ('state', '=', 'done'),
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            ('date_finished', '<=', fields.Datetime.to_string(last_day)),
-        ] + no_sc
-        done_mos = self.env['mrp.production'].search(done_domain)
-        if tag_id:
-            done_mos = done_mos.filtered(tag_filter)
-
-        offset   = (max(1, page) - 1) * page_size
-        mos_page = mos[offset:offset + page_size]
-
-        now = fields.Datetime.now()
-
-        # Batch-compute pending outgoing deliveries per product (ítem 7)
-        product_ids = list({mo.product_id.id for mo in mos_page if mo.product_id})
-        if product_ids:
-            out_moves = self.env['stock.move'].search([
-                ('product_id', 'in', product_ids),
-                ('state', 'not in', ('done', 'cancel')),
-                ('picking_id.picking_type_id.code', '=', 'outgoing'),
-            ])
-            pending_out = {}
-            for m in out_moves:
-                pid = m.product_id.id
-                pending_out[pid] = pending_out.get(pid, 0.0) + m.product_uom_qty
-        else:
-            pending_out = {}
-
-        def _mo_dict(mo):
-            return {
-                'id':               mo.id,
-                'name':             mo.name,
-                'product':          mo.product_id.display_name if mo.product_id else '',
-                'qty':              mo.product_qty,
-                'date_finished':    mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '',
-                'state':            mo.state,
-                'delayed':          bool(mo.date_finished and mo.date_finished < now),
-                'reschedule':       bool(mo.x_reschedule_needed),
-                'pending_delivery': round(pending_out.get(mo.product_id.id, 0.0), 2),
-            }
-
-        return {
-            'kpis': {
-                'total':       len(mos),
-                'in_progress': len(mos.filtered(lambda m: m.state in ('progress', 'to_close'))),
-                'delayed':     len(mos.filtered(lambda m: m.date_finished and m.date_finished < now)),
-                'reschedule':  len(mos.filtered(lambda m: m.x_reschedule_needed)),
-                'done':        len(done_mos),
-                'partial':     len(mos.filtered(lambda m: m.state == 'to_close')),
-            },
-            'mos': [_mo_dict(m) for m in mos_page],
-        }
-
-    @api.model
-    def get_mo_kpi_counts(self, date_from, date_to, tag_id=None):
-        """Contadores de KPIs usando los mismos dominios que los botones de navegación JS.
-        Garantiza que el número del card coincida exactamente con el listado al hacer click."""
-        now   = fields.Datetime.now()
-        MO    = self.env['mrp.production']
-        no_sc = no_subcontract_domain(self.env)
-        dFrom = date_from + ' 00:00:00'
-        dTo   = date_to   + ' 23:59:59'
-        date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
-        active = [('state', 'not in', ('done', 'cancel', 'draft'))]
-        now_s  = fields.Datetime.to_string(now)
-
-        if tag_id:
-            tag_id = int(tag_id)
-            tag_filter = lambda m: any(
-                tag_id in w.workcenter_id.tag_ids.ids
-                for w in m.workorder_ids if w.workcenter_id
-            )
-            def _cnt(domain):
-                return len(MO.search(domain).filtered(tag_filter))
-        else:
-            def _cnt(domain):
-                return MO.search_count(domain)
-
-        return {
-            'total':       _cnt(active + date_d + no_sc),
-            'in_progress': _cnt([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc),
-            'delayed':     _cnt(active + [('date_finished', '<', now_s)] + date_d + no_sc),
-            'reschedule':  _cnt(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
-            'done':        _cnt([('state', '=', 'done')] + date_d + no_sc),
-            'partial':     _cnt([('state', '=', 'to_close')] + date_d + no_sc),
-        }
-
-    @api.model
-    def get_request_widget_data(self, sort_field=None, sort_dir='asc', page=1, page_size=50):
-        """KPIs + lista de programaciones activas."""
-        Req = self.env['mrp.production.request']
-        now = fields.Datetime.now()
-
-        _sd = 'desc' if sort_dir == 'desc' else 'asc'
-        _REQ_FIELD = {'name': 'name', 'start_from': 'start_from', 'state': 'state'}
-        req_f = _REQ_FIELD.get(sort_field, 'id')
-
-        confirmed  = Req.search([('state', '=', 'confirmed')])
-        calculated = Req.search([('state', '=', 'calculated')])
-        all_active = (confirmed | calculated).sorted(req_f, reverse=(_sd == 'desc'))
-        all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
-
-        offset          = (max(1, page) - 1) * page_size
-        all_active_page = all_active[offset:offset + page_size]
-
-        def _req_dict(r):
-            mos = r.item_ids.mapped('production_id').filtered(lambda m: m.id)
-            return {
-                'id':          r.id,
-                'name':        r.name,
-                'start_from':  r.start_from.strftime('%d/%m/%Y') if r.start_from else '—',
-                'state':       r.state,
-                'mos_total':   len(mos),
-                'mos_done':    len(mos.filtered(lambda m: m.state == 'done')),
-                'mos_delayed': len(mos.filtered(
-                    lambda m: m.state not in ('done', 'cancel')
-                    and m.date_finished and m.date_finished < now
-                )),
-            }
-
-        return {
-            'kpis': {
-                'total':       len(all_active),
-                'active':      len(confirmed),
-                'calculated':  len(calculated),
-                'reschedule':  len(confirmed.filtered(
-                    lambda r: any(
-                        it.production_id and it.production_id.x_reschedule_needed
-                        for it in r.item_ids
-                    )
-                )),
-                'mos_delayed': len(all_mos.filtered(
-                    lambda m: m.state not in ('done', 'cancel')
-                    and m.date_finished and m.date_finished < now
-                )),
-            },
-            'requests': [_req_dict(r) for r in all_active_page],
-        }
-
-    @api.model
-    def get_comparison_data(self, date_from, date_to, tag_id=None):
-        """Producido vs programado por producto en el rango."""
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-
-        no_sc = no_subcontract_domain(self.env)
-
-        done_mos = self.env['mrp.production'].search([
-            ('state', '=', 'done'),
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            ('date_finished', '<=', fields.Datetime.to_string(last_day)),
-        ] + no_sc)
-
-        active_mos = self.env['mrp.production'].search([
-            ('state', 'not in', ('done', 'cancel')),
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            '&',
-            ('date_finished', '=', False),
-            ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc)
-
-        all_mos = done_mos | active_mos
-
-        if tag_id:
-            tag_id = int(tag_id)
-            all_mos = all_mos.filtered(
-                lambda m: any(
-                    tag_id in w.workcenter_id.tag_ids.ids
-                    for w in m.workorder_ids if w.workcenter_id
-                )
-            )
-
-        product_data = {}
-        for mo in all_mos:
-            pid = mo.product_id.id
-            if not pid:
-                continue
-            if pid not in product_data:
-                product_data[pid] = {
-                    'product_id':   pid,
-                    'product':      mo.product_id.display_name,
-                    'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
-                    'planned_qty':  0.0,
-                    'produced_qty': 0.0,
-                }
-            product_data[pid]['planned_qty']  += mo.product_qty
-            product_data[pid]['produced_qty'] += mo.qty_produced
-
-        items = sorted(product_data.values(), key=lambda x: x['planned_qty'], reverse=True)
-        for item in items:
-            item['pct'] = round(
-                item['produced_qty'] / item['planned_qty'] * 100, 1
-            ) if item['planned_qty'] > 0 else 0.0
-            item['planned_qty']  = round(item['planned_qty'],  2)
-            item['produced_qty'] = round(item['produced_qty'], 2)
-
-        total_planned  = sum(x['planned_qty']  for x in items)
-        total_produced = sum(x['produced_qty'] for x in items)
-        pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
-
-        filtered_done = all_mos.filtered(lambda m: m.state == 'done')
-        return {
-            'kpis': {
-                'planned':  round(total_planned,  2),
-                'produced': round(total_produced, 2),
-                'pct':      pct,
-                'ofs_done': len(filtered_done),
-            },
-            'items': items[:20],
-        }
-
-    # ── Backwards compat (paneles de detalle) ─────────────────────────────────
-
-    def action_open_mos_dashboard(self):
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('mos')
-
-    def action_open_pos_dashboard(self):
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('pos')
-
-    def action_open_requests_dashboard(self):
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')
-
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 
     @api.model
@@ -1392,1290 +742,3 @@ class MrpPlannerDashboard(models.TransientModel):
         )
         return [{'id': l.id, 'name': l.complete_name} for l in locations]
 
-    # ── Forecast ─────────────────────────────────────────────────────────────
-
-    @api.model
-    def get_warehouses_for_forecast(self):
-        user = self.env.user
-        if user.mrp_planner_all_warehouses or not user.mrp_planner_warehouse_ids:
-            whs = self.env['stock.warehouse'].search([], order='name')
-        else:
-            whs = user.mrp_planner_warehouse_ids.sorted('name')
-        return [{'id': w.id, 'name': w.name} for w in whs]
-
-    @api.model
-    def get_wc_load_data(self):
-        """Carga de centros de trabajo: horas planificadas en OFs activas."""
-        domain = [
-            ('state', 'in', ['ready', 'progress', 'pending', 'confirmed']),
-            ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
-            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
-        ]
-        wc_map = {}
-        for wo in self.env['mrp.workorder'].search(domain):
-            wc = wo.workcenter_id
-            if not wc:
-                continue
-            hours = (wo.duration_expected or 0.0) / 60.0
-            if wc.id not in wc_map:
-                wc_map[wc.id] = {'id': wc.id, 'name': wc.name, 'hours': 0.0, 'count': 0}
-            wc_map[wc.id]['hours'] += hours
-            wc_map[wc.id]['count'] += 1
-
-        rows = sorted(wc_map.values(), key=lambda x: -x['hours'])[:10]
-        if not rows:
-            return []
-        max_h = rows[0]['hours'] or 1.0
-        for r in rows:
-            r['hours'] = round(r['hours'], 1)
-            r['bar_pct'] = min(100, round(r['hours'] / max_h * 100))
-        return rows
-
-    @api.model
-    def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):
-        """Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado."""
-        from datetime import date as _date
-        import calendar as _calendar
-
-        warehouse_ids = warehouse_ids or []
-
-        def _parse_ym(ym):
-            parts = ym.split('-')
-            y, m = int(parts[0]), int(parts[1])
-            d = int(parts[2]) if len(parts) >= 3 else 1
-            return _date(y, m, d)
-
-        def _months_between(d_from, d_to):
-            months = []
-            d = _date(d_from.year, d_from.month, 1)
-            while d <= _date(d_to.year, d_to.month, 1):
-                months.append(f"{d.year}-{d.month:02d}")
-                if d.month == 12:
-                    d = _date(d.year + 1, 1, 1)
-                else:
-                    d = _date(d.year, d.month + 1, 1)
-            return months
-
-        try:
-            d_from = _parse_ym(period_from)
-            d_to   = _parse_ym(period_to)
-        except Exception:
-            return {'kpis': {}, 'months': [], 'month_totals': [], 'rows': [],
-                    'warning_pct': 70, 'critical_pct': 50}
-
-        months = _months_between(d_from, d_to)
-
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        warning_pct    = cfg.forecast_warning_pct    if cfg else 70
-        critical_pct   = cfg.forecast_critical_pct   if cfg else 50
-        rotation_unit  = (cfg.forecast_rotation_unit if cfg else None) or 'days'
-        acc_formula    = (cfg.forecast_acc_formula   if cfg else None) or 'simple'
-
-        # Estados de OF configurados
-        mo_states = []
-        if cfg:
-            if cfg.forecast_mo_state_draft:     mo_states.append('draft')
-            if cfg.forecast_mo_state_confirmed: mo_states.append('confirmed')
-            if cfg.forecast_mo_state_progress:  mo_states.append('progress')
-            if cfg.forecast_mo_state_to_close:  mo_states.append('to_close')
-            if cfg.forecast_mo_state_done:      mo_states.append('done')
-        if not mo_states:
-            mo_states = ['confirmed', 'progress', 'to_close']
-
-        last_day_of_to = d_to  # día exacto seleccionado por el usuario
-
-        # Conversión a UTC para dominios Datetime (Odoo guarda en UTC)
-        tz_name  = self.env.context.get('tz') or self.env.user.tz or 'UTC'
-        user_tz  = pytz.timezone(tz_name)
-
-        def _to_utc(dt_naive):
-            return user_tz.localize(dt_naive).astimezone(pytz.utc).replace(tzinfo=None)
-
-        def _dt_ym(dt_utc):
-            """Devuelve 'YYYY-MM' en hora local a partir de un Datetime UTC."""
-            return pytz.utc.localize(dt_utc).astimezone(user_tz).strftime('%Y-%m')
-
-        dt_from = _to_utc(datetime.combine(d_from, datetime.min.time()))
-        dt_to   = _to_utc(datetime.combine(last_day_of_to, datetime.max.time()))
-
-        # ── Forecast lines ────────────────────────────────────────────────────
-        fc_domain = [
-            ('period', '>=', _date(d_from.year, d_from.month, 1)),
-            ('period', '<=', last_day_of_to),
-            ('company_id', '=', self.env.company.id),
-        ]
-
-        fc_lines = self.env['mrp.forecast.line'].search(fc_domain)
-
-        # Precarga en un solo SELECT todos los campos relacionales necesarios
-        _product_ids_fc = fc_lines.mapped('product_id')
-        _product_read   = {r['id']: r for r in _product_ids_fc.read(['id', 'display_name', 'product_tmpl_id'])}
-
-        # Estructura: {product_id: {month_str: forecast_qty}}
-        fc_data = {}
-        for line in fc_lines:
-            pid = line.product_id.id
-            ym  = f"{line.period.year}-{line.period.month:02d}"
-            if pid not in fc_data:
-                _pr = _product_read.get(pid, {})
-                fc_data[pid] = {
-                    'product':         _pr.get('display_name', ''),
-                    'product_tmpl_id': _pr.get('product_tmpl_id', [False])[0],
-                }
-            fc_data[pid][ym] = fc_data[pid].get(ym, 0.0) + line.forecast_qty
-
-        # ── ÓFs planificadas ──────────────────────────────────────────────────
-        mo_domain = [
-            ('state', 'in', mo_states),
-            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
-            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
-        ] + no_subcontract_domain(self.env)
-        mos = self.env['mrp.production'].search(mo_domain)
-
-        # Estructura: {product_id: {month_str: qty}}
-        mo_data = {}
-        for _mo in mos.read(['product_id', 'date_finished', 'product_qty']):
-            pid = _mo['product_id'][0] if _mo['product_id'] else False
-            df  = _mo['date_finished']
-            if not pid or not df:
-                continue
-            ym  = _dt_ym(df)
-            if ym not in months:
-                continue
-            if pid not in mo_data:
-                mo_data[pid] = {}
-            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
-
-        # ── Ids de productos con forecast ──────────────────────────────────────
-        all_product_ids      = set(fc_data.keys())
-        all_product_ids_list = list(all_product_ids)
-        n_months             = len(months) or 1
-
-        # ── Movimientos de salida completados (entregado) ──────────────────────
-        del_line_domain = [
-            ('state', '=', 'done'),
-            ('picking_id.picking_type_id.code', '=', 'outgoing'),
-            ('date', '>=', fields.Datetime.to_string(dt_from)),
-            ('date', '<=', fields.Datetime.to_string(dt_to)),
-            ('product_id', 'in', all_product_ids_list),
-            ('company_id', '=', self.env.company.id),
-        ]
-        del_data = {}   # {product_id: {ym: qty}}
-        for _ml in self.env['stock.move.line'].search(del_line_domain).read(
-                ['product_id', 'date', 'quantity']):
-            pid = _ml['product_id'][0] if _ml['product_id'] else False
-            dt  = _ml['date']
-            if not pid or not dt:
-                continue
-            ym = _dt_ym(dt)
-            if ym not in months:
-                continue
-            del_data.setdefault(pid, {})
-            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + _ml['quantity']
-
-        # ── Demanda real: pedidos de venta confirmados ─────────────────────────
-        so_data = {}    # {product_id: {ym: qty}}
-        try:
-            so_domain = [
-                ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id', 'in', all_product_ids_list),
-                ('company_id', '=', self.env.company.id),
-            ]
-            sol_rows = self.env['sale.order.line'].search(so_domain).read(
-                ['product_id', 'product_uom_qty', 'order_id']
-            )
-            # Precarga date_order de todas las sale.order en un solo SELECT
-            _order_ids  = list({r['order_id'][0] for r in sol_rows if r['order_id']})
-            _order_dates = {o['id']: o['date_order'] for o in
-                            self.env['sale.order'].browse(_order_ids).read(['id', 'date_order'])}
-            for _sl in sol_rows:
-                pid = _sl['product_id'][0] if _sl['product_id'] else False
-                if not pid:
-                    continue
-                dt  = _order_dates.get(_sl['order_id'][0]) if _sl['order_id'] else None
-                if not dt:
-                    continue
-                ym  = _dt_ym(dt)
-                if ym not in months:
-                    continue
-                so_data.setdefault(pid, {})
-                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + _sl['product_uom_qty']
-        except Exception:
-            pass    # módulo sale no disponible
-
-        # ── Stock actual (snapshot) ───────────────────────────────────────────
-        stock_data = {}   # {product_id: qty}
-        quant_domain = [
-            ('location_id.usage', '=', 'internal'),
-            ('product_id', 'in', all_product_ids_list),
-            ('company_id', '=', self.env.company.id),
-        ]
-        if warehouse_ids:
-            wh_recs  = self.env['stock.warehouse'].browse(warehouse_ids)
-            loc_ids  = wh_recs.mapped('lot_stock_id').ids
-            if loc_ids:
-                quant_domain.append(('location_id', 'in', loc_ids))
-        for _qg in self.env['stock.quant'].read_group(
-                quant_domain, ['product_id', 'quantity:sum'], ['product_id']):
-            pid = _qg['product_id'][0] if _qg['product_id'] else False
-            if pid:
-                stock_data[pid] = round(_qg['quantity'] or 0.0, 6)
-
-        # ── Construir filas ────────────────────────────────────────────────────
-        rows = []
-        # Categorías de venta por product.template
-        tmpl_ids = [fc_data[pid].get('product_tmpl_id') for pid in all_product_ids
-                    if fc_data[pid].get('product_tmpl_id')]
-        if tmpl_ids:
-            tmpl_info = {}
-            _tmpl_rows = self.env['product.template'].browse(tmpl_ids).read(
-                ['id', 'x_sale_category', 'categ_id', 'x_product_type_ids']
-            )
-            # Precarga nombres de categorías en un solo SELECT
-            _categ_ids = list({r['categ_id'][0] for r in _tmpl_rows if r['categ_id']})
-            _categ_names = {c['id']: c['display_name'] for c in
-                            self.env['product.category'].browse(_categ_ids).read(['id', 'display_name'])}
-            # Precarga nombres de tipos de producto
-            _type_ids_all = list({tid for r in _tmpl_rows for tid in (r['x_product_type_ids'] or [])})
-            _type_names = {tp['id']: tp['name'] for tp in
-                           self.env['x.product.type'].browse(_type_ids_all).read(['id', 'name'])} \
-                          if _type_ids_all else {}
-            for _tr in _tmpl_rows:
-                _categ_id = _tr['categ_id'][0] if _tr['categ_id'] else False
-                tmpl_info[_tr['id']] = {
-                    'sale_category': _tr.get('x_sale_category') or '',
-                    'product_categ': _categ_names.get(_categ_id, '') if _categ_id else '',
-                    'product_types': ', '.join(_type_names.get(tid, '') for tid in (_tr['x_product_type_ids'] or [])),
-                }
-        else:
-            tmpl_info = {}
-
-        for pid in all_product_ids:
-            pname    = fc_data[pid]['product']
-            pid_del  = del_data.get(pid, {})
-            pid_so   = so_data.get(pid, {})
-            stock_qty = round(stock_data.get(pid, 0.0), 2)
-            cells            = []
-            tot_fc           = 0.0
-            tot_mos          = 0.0
-            tot_del          = 0.0
-            tot_so           = 0.0
-            _mape_acc_sum    = 0.0   # Σ precisión por período (MAPE)
-            _mape_acc_count  = 0     # períodos con del > 0 (MAPE)
-            _wape_abs_err    = 0.0   # Σ|error| ponderado por real (WAPE)
-            _wmape_abs_err   = 0.0   # Σ|error| ponderado por forecast (WMAPE)
-
-            for ym in months:
-                fc_qty  = fc_data[pid].get(ym, 0.0)
-                mo_qty  = mo_data.get(pid, {}).get(ym, 0.0)
-                del_qty = pid_del.get(ym, 0.0)
-                so_qty  = pid_so.get(ym, 0.0)
-                pct      = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
-                svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
-
-                abs_err = abs(so_qty - fc_qty)
-                # Precisión calculada vs demanda real (so_qty), no entregado
-                if so_qty > 0:
-                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / so_qty * 100)
-                    _mape_acc_count += 1
-                    _wape_abs_err   += abs_err
-                if fc_qty > 0:
-                    _wmape_abs_err  += abs_err
-                # Valor de celda solo para la fórmula configurada
-                if acc_formula in ('mape', 'wape'):
-                    fc_acc = round(max(0.0, 100.0 - abs_err / so_qty * 100), 1) if so_qty > 0 else None
-                elif acc_formula == 'wmape':
-                    fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1) if fc_qty > 0 else None
-                elif acc_formula == 'bias':
-                    fc_acc = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
-                else:  # simple
-                    fc_acc = round(so_qty / fc_qty * 100, 1) if fc_qty > 0 else None
-
-                demand_gap_pct = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
-
-                cells.append({
-                    'month':           ym,
-                    'forecast':        round(fc_qty,  2),
-                    'mos':             round(mo_qty,  2),
-                    'pct':             pct,
-                    'delivered':       round(del_qty, 2),
-                    'so_demand':       round(so_qty,  2),
-                    'service_rate':    svc_rate,
-                    'forecast_acc':    fc_acc,
-                    'demand_gap_pct':  demand_gap_pct,
-                })
-                tot_fc  += fc_qty
-                tot_mos += mo_qty
-                tot_del += del_qty
-                tot_so  += so_qty
-
-            tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
-            tot_svc = round(tot_del / tot_so * 100, 1) if tot_so > 0 else None
-            if acc_formula == 'mape':
-                tot_acc = round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None
-            elif acc_formula == 'wape':
-                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None
-            elif acc_formula == 'wmape':
-                tot_acc = round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None
-            elif acc_formula == 'bias':
-                tot_acc = round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
-            else:
-                tot_acc = round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None
-
-            avg_monthly_del = tot_del / n_months
-            if avg_monthly_del > 0:
-                rot_months = round(stock_qty / avg_monthly_del, 1)
-                rot_days   = int(round(stock_qty / avg_monthly_del * 30))
-            else:
-                rot_months = None
-                rot_days   = None
-
-            rows.append({
-                'product_id':         pid,
-                'product_tmpl_id':    fc_data[pid].get('product_tmpl_id'),
-                'product':            pname,
-                'cells':              cells,
-                'stock_qty':          stock_qty,
-                'rotation_days':      rot_days,
-                'rotation_months':    rot_months,
-                'total_forecast':     round(tot_fc,  2),
-                'total_mos':          round(tot_mos, 2),
-                'total_pct':          tot_pct,
-                'total_delivered':    round(tot_del, 2),
-                'total_so_demand':    round(tot_so,  2),
-                'total_service_rate': tot_svc,
-                'total_forecast_acc': tot_acc,
-                'demand_gap_pct': round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
-                'acc_all': {
-                    'simple': round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None,
-                    'mape':   round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None,
-                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None,
-                    'wmape':  round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None,
-                    'bias':   round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
-                },
-                'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
-                'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
-                'product_types':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_types', ''),
-                '_mape_acc_sum':      _mape_acc_sum,
-                '_mape_acc_count':    _mape_acc_count,
-                '_wape_abs_err':      _wape_abs_err,
-                '_wmape_abs_err':     _wmape_abs_err,
-            })
-
-        rows.sort(key=lambda r: r['product'].lower())
-
-        # ── Totales por mes ────────────────────────────────────────────────────
-        month_totals = []
-        for i, ym in enumerate(months):
-            mfc = sum(r['cells'][i]['forecast']  for r in rows)
-            mmo = sum(r['cells'][i]['mos']       for r in rows)
-            mdl = sum(r['cells'][i]['delivered'] for r in rows)
-            mso = sum(r['cells'][i]['so_demand'] for r in rows)
-            month_totals.append({
-                'month':     ym,
-                'forecast':  round(mfc, 2),
-                'mos':       round(mmo, 2),
-                'delivered': round(mdl, 2),
-                'so_demand': round(mso, 2),
-            })
-
-        # ── KPIs globales ──────────────────────────────────────────────────────
-        total_fc   = sum(r['total_forecast']  for r in rows)
-        total_mos  = sum(r['total_mos']       for r in rows)
-        total_del  = sum(r['total_delivered'] for r in rows)
-        total_so   = sum(r['total_so_demand'] for r in rows)
-
-        # Producción de OFs para productos SIN línea de forecast (solo vendibles)
-        no_fc_mo_pids = [pid for pid in mo_data if pid not in all_product_ids]
-        mos_no_fc = 0.0
-        if no_fc_mo_pids:
-            sale_ok_pids = set(
-                self.env['product.product'].browse(no_fc_mo_pids)
-                .filtered(lambda p: p.sale_ok).ids
-            )
-            mos_no_fc = round(sum(
-                sum(v.values()) for pid, v in mo_data.items()
-                if pid not in all_product_ids and pid in sale_ok_pids
-            ), 2)
-
-        # Entregado para productos SIN línea de forecast (solo vendibles)
-        delivered_no_fc = 0.0
-        try:
-            no_fc_del_domain = [
-                ('state', '=', 'done'),
-                ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                ('date', '>=', fields.Datetime.to_string(dt_from)),
-                ('date', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', '=', self.env.company.id),
-            ]
-            if all_product_ids_list:
-                no_fc_del_domain.append(('product_id', 'not in', all_product_ids_list))
-            groups = self.env['stock.move.line'].read_group(no_fc_del_domain, ['quantity:sum'], [])
-            delivered_no_fc = round((groups[0]['quantity'] or 0.0) if groups else 0.0, 2)
-        except Exception:
-            delivered_no_fc = 0.0
-
-        # Demanda de SOs en el período para productos SIN línea de forecast (solo vendibles).
-        # El filtro sale_ok=True es consistente con mos_no_fc y delivered_no_fc; sin él
-        # se inflaría el contador con líneas de productos internos o componentes.
-        so_demand_no_fc = 0.0
-        try:
-            no_fc_domain = [
-                ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', '=', self.env.company.id),
-            ]
-            if all_product_ids_list:
-                no_fc_domain.append(('product_id', 'not in', all_product_ids_list))
-            groups = self.env['sale.order.line'].read_group(no_fc_domain, ['product_uom_qty:sum'], [])
-            so_demand_no_fc = round((groups[0]['product_uom_qty'] or 0.0) if groups else 0.0, 2)
-        except Exception:
-            so_demand_no_fc = 0.0
-
-        coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
-        at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
-        ovr_svc = round(total_del / total_so * 100, 1) if total_so > 0 else None
-        _all_mape_sum   = sum(r['_mape_acc_sum']   for r in rows)
-        _all_mape_count = sum(r['_mape_acc_count'] for r in rows)
-        _all_wape_err   = sum(r['_wape_abs_err']   for r in rows)
-        _all_wmape_err  = sum(r['_wmape_abs_err']  for r in rows)
-        _total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
-        acc_all = {
-            'simple': round(total_so / total_fc * 100, 1) if total_fc > 0 else None,
-            'mape':   round(_all_mape_sum / _all_mape_count, 1) if _all_mape_count > 0 else None,
-            'wape':   round(max(0.0, 100.0 - _all_wape_err / total_so * 100), 1) if total_so > 0 else None,
-            'wmape':  round(max(0.0, 100.0 - _all_wmape_err / _total_fc_wmape * 100), 1) if _total_fc_wmape > 0 else None,
-            'bias':   round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
-        }
-        ovr_acc = acc_all[acc_formula]
-
-        # Limpiar campos internos antes de enviar al frontend
-        _internal = ('_mape_acc_sum', '_mape_acc_count', '_wape_abs_err', '_wmape_abs_err')
-        for r in rows:
-            for k in _internal:
-                r.pop(k, None)
-
-        return {
-            'kpis': {
-                'total_forecast':       round(total_fc,  2),
-                'total_so_demand':      round(total_so,  2),
-                'total_mos':            round(total_mos, 2),
-                'total_delivered':      round(total_del, 2),
-                'gap':                  round(total_mos - total_fc, 2),
-                'mos_gap_pct':          round((total_mos - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
-                'demand_gap':           round(total_so - total_fc, 2),
-                'demand_gap_pct':       round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
-                'coverage_pct':         coverage,
-                'at_risk':              at_risk,
-                'total_products':       len(rows),
-                'overall_service_rate': ovr_svc,
-                'overall_forecast_acc': ovr_acc,
-                'acc_all':              acc_all,
-                'so_demand_no_fc':      so_demand_no_fc,
-                'mos_no_fc':            mos_no_fc,
-                'delivered_no_fc':      delivered_no_fc,
-            },
-            'months':        months,
-            'month_totals':  month_totals,
-            'rows':          rows,
-            'warning_pct':   warning_pct,
-            'critical_pct':  critical_pct,
-            'rotation_unit': rotation_unit,
-            'acc_formula':   acc_formula,
-            'mo_states':     mo_states,
-        }
-
-    @api.model
-    def get_product_mos_for_forecast(self, product_id, period_from, period_to, warehouse_ids=None):
-        """OFs de un producto para el acordeón del widget de forecast.
-
-        Usa la misma conversión UTC que get_forecast_dashboard_data para que los
-        rangos de fecha sean consistentes entre la tabla principal y el drill-down.
-        """
-        from datetime import date as _date, datetime
-        import calendar as _cal
-
-        d_from = _date(int(period_from[:4]), int(period_from[5:7]), 1)
-        d_to_y, d_to_m = int(period_to[:4]), int(period_to[5:7])
-        last_day = _date(d_to_y, d_to_m, _cal.monthrange(d_to_y, d_to_m)[1])
-
-        # Conversión a UTC para consistencia con get_forecast_dashboard_data.
-        # Sin esta conversión, para un usuario en UTC-3 el acordeón y la tabla
-        # principal mostrarían conjuntos de OFs distintos en los límites de mes.
-        tz_name = self.env.context.get('tz') or self.env.user.tz or 'UTC'
-        user_tz = pytz.timezone(tz_name)
-        dt_from = user_tz.localize(
-            datetime.combine(d_from, datetime.min.time())
-        ).astimezone(pytz.utc).replace(tzinfo=None)
-        dt_to = user_tz.localize(
-            datetime.combine(last_day, datetime.max.time())
-        ).astimezone(pytz.utc).replace(tzinfo=None)
-
-        domain = [
-            ('product_id', '=', product_id),
-            ('state', 'not in', ['cancel']),
-            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
-            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
-        ] + no_subcontract_domain(self.env)
-        if warehouse_ids:
-            wh_recs = self.env['stock.warehouse'].browse(warehouse_ids)
-            loc_ids = wh_recs.mapped('lot_stock_id').ids
-            if loc_ids:
-                domain.append(('location_dest_id', 'in', loc_ids))
-
-        mos = self.env['mrp.production'].search(domain, limit=100, order='date_finished asc')
-        state_labels = {
-            'draft':     'Borrador',
-            'confirmed': 'Confirmada',
-            'progress':  'En progreso',
-            'to_close':  'Por cerrar',
-            'done':      'Hecha',
-            'cancel':    'Cancelada',
-        }
-        return [{
-            'id':           mo.id,
-            'name':         mo.name,
-            'state':        mo.state,
-            'state_label':  state_labels.get(mo.state, mo.state),
-            'product_qty':  round(mo.product_qty, 2),
-            'qty_produced': round(mo.qty_produced, 2),
-            'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
-            'date_start':   mo.date_start.strftime('%Y-%m-%d')    if mo.date_start    else None,
-            'date_finished': mo.date_finished.strftime('%Y-%m-%d') if mo.date_finished else None,
-        } for mo in mos]
-
-    @api.model
-    def get_forecast_export(self, period_from, period_to, warehouse_ids=None):
-        """Genera un Excel con el forecast y las ÓFs planificadas y retorna la URL de descarga."""
-        try:
-            import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment
-        except ImportError:
-            return {'error': 'openpyxl no disponible'}
-        import io, base64
-
-        data = self.get_forecast_dashboard_data(period_from, period_to, warehouse_ids)
-        months = data['months']
-        rows   = data['rows']
-
-        MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-        def _label(ym):
-            y, m = ym.split('-')
-            return f"{MONTHS_ES[int(m)-1]} {y}"
-
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = 'Forecast'
-
-        hdr_fill = PatternFill('solid', fgColor='1F497D')
-        hdr_font = Font(bold=True, color='FFFFFF')
-        ok_fill   = PatternFill('solid', fgColor='C6EFCE')
-        warn_fill = PatternFill('solid', fgColor='FFEB9C')
-        crit_fill = PatternFill('solid', fgColor='FFC7CE')
-
-        warning_pct  = data['warning_pct']
-
-        # Fila 1: encabezados de meses (agrupados de a 2)
-        col = 2
-        ws.cell(1, 1, 'Artículo').font = hdr_font
-        ws.cell(1, 1).fill = hdr_fill
-        for ym in months:
-            c1 = ws.cell(1, col, _label(ym))
-            c1.font = hdr_font
-            c1.fill = hdr_fill
-            c1.alignment = Alignment(horizontal='center')
-            ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 1)
-            col += 2
-        ws.cell(1, col, 'Total Forecast').font = hdr_font
-        ws.cell(1, col).fill = hdr_fill
-        ws.cell(1, col + 1, 'Total OFs').font = hdr_font
-        ws.cell(1, col + 1).fill = hdr_fill
-
-        # Fila 2: sub-encabezados Forecast / OFs
-        ws.cell(2, 1, 'Artículo').font = Font(bold=True)
-        col = 2
-        for _ in months:
-            ws.cell(2, col, 'Forecast').font = Font(bold=True)
-            ws.cell(2, col + 1, 'OFs').font = Font(bold=True)
-            col += 2
-        ws.cell(2, col, 'Forecast').font = Font(bold=True)
-        ws.cell(2, col + 1, 'OFs').font = Font(bold=True)
-
-        # Datos
-        for r, row in enumerate(rows, start=3):
-            ws.cell(r, 1, row['product'])
-            col = 2
-            for ci, ym in enumerate(months):
-                cell = row['cells'][ci]
-                fc_cell = ws.cell(r, col, cell['forecast'])
-                mo_cell = ws.cell(r, col + 1, cell['mos'])
-                if cell['forecast'] > 0:
-                    fill = ok_fill if cell['pct'] >= 100 else (warn_fill if cell['pct'] >= warning_pct else crit_fill)
-                    fc_cell.fill = fill
-                    mo_cell.fill = fill
-                col += 2
-            ws.cell(r, col, row['total_forecast'])
-            ws.cell(r, col + 1, row['total_mos'])
-
-        # Fila de totales
-        trow = len(rows) + 3
-        ws.cell(trow, 1, 'TOTAL').font = Font(bold=True)
-        col = 2
-        for mt in data['month_totals']:
-            ws.cell(trow, col, mt['forecast']).font = Font(bold=True)
-            ws.cell(trow, col + 1, mt['mos']).font = Font(bold=True)
-            col += 2
-        ws.cell(trow, col, data['kpis']['total_forecast']).font = Font(bold=True)
-        ws.cell(trow, col + 1, data['kpis']['total_mos']).font = Font(bold=True)
-
-        ws.column_dimensions['A'].width = 30
-        for i in range(2, col + 2):
-            ws.column_dimensions[ws.cell(1, i).column_letter].width = 12
-
-        buf = io.BytesIO()
-        wb.save(buf)
-        content = base64.b64encode(buf.getvalue()).decode()
-
-        attachment = self.env['ir.attachment'].create({
-            'name': f'forecast_{period_from}_{period_to}.xlsx',
-            'type': 'binary',
-            'datas': content,
-            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        })
-        return {'url': f'/web/content/{attachment.id}?download=true'}
-
-    # ── Widget quiebres de stock ─────────────────────────────────────────────
-
-    @api.model
-    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search='', location_ids=None):
-        """Productos con sale_ok=True, su stock en la/las ubicación/es indicadas y el mínimo
-        del punto de reorden con ruta Fabricación. location_ids puede ser una lista de IDs
-        o None/[] para usar la ubicación configurada por defecto."""
-        _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
-
-        # Normalizar location_ids a lista de enteros
-        if location_ids and isinstance(location_ids, int):
-            location_ids = [location_ids]
-        elif not location_ids:
-            location_ids = []
-
-        if location_ids:
-            locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
-        else:
-            loc_param = self.env['ir.config_parameter'].sudo().get_param(
-                'mrp_reschedule.stock_location_id')
-            try:
-                loc_id = int(loc_param) if loc_param else False
-            except (ValueError, TypeError):
-                loc_id = False
-            loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
-            locations = loc if loc_id and loc.exists() else self.env['stock.location']
-
-        if not locations:
-            return {'error': 'no_location', 'kpis': _empty_kpis,
-                    'products': [], 'location_name': '', 'location_ids': [],
-                    'location_id': False, 'total_filtered': 0}
-
-        location_name = ' + '.join(locations.mapped('complete_name'))
-
-        # Ruta fabricación: primero por xmlid, fallback por nombre
-        mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
-        if not mfg_route:
-            mfg_route = self.env['stock.route'].search(
-                [('name', 'ilike', 'manufactur')], limit=1)
-
-        # Productos vendibles activos
-        product_domain = [('sale_ok', '=', True), ('active', '=', True), ('type', '=', 'consu')]
-        if search:
-            product_domain += ['|', ('name', 'ilike', search), ('default_code', 'ilike', search)]
-        # Traer sólo los IDs primero; los campos se cargan luego sólo para la página.
-        product_ids_all = self.env['product.product'].search(product_domain).ids
-        if not product_ids_all:
-            return {'error': None, 'kpis': _empty_kpis,
-                    'products': [], 'location_name': location_name, 'total_filtered': 0}
-
-        product_ids = product_ids_all
-
-        # Puntos de reorden con ruta fabricación → min_qty por producto.
-        # read_group no funciona con qty_forecast (campo computed no stored),
-        # así que se usa .search() + loop tomando el máximo por producto.
-        op_domain = [('product_id', 'in', product_ids)]
-        if mfg_route:
-            op_domain.append(('route_id', '=', mfg_route.id))
-        orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
-        min_qty_map = {}
-        forecast_map = {}
-        for op in orderpoints:
-            pid = op.product_id.id
-            op_min = op.product_min_qty
-            if pid not in min_qty_map or op_min > min_qty_map[pid]:
-                min_qty_map[pid] = op_min
-                forecast_map[pid] = getattr(op, 'qty_forecast', None)
-
-        # Stock en ubicaciones seleccionadas (batch via read_group)
-        # Fix 17: añadir location_id.usage='internal' para excluir ubicaciones no internas
-        quant_groups = self.env['stock.quant'].read_group(
-            [('product_id', 'in', product_ids),
-             ('location_id', 'child_of', locations.ids),
-             ('location_id.usage', '=', 'internal')],
-            ['product_id', 'quantity:sum'],
-            ['product_id'],
-        )
-        qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
-
-        # Construir filas sólo con los IDs ya cargados (sin acceder a campos ORM aquí)
-        rows = []
-        for pid in product_ids_all:
-            qty     = round(qty_map.get(pid, 0.0), 3)
-            min_qty = min_qty_map.get(pid)
-            has_min = min_qty is not None
-            raw_forecast = forecast_map.get(pid)
-            rows.append({
-                'id':           pid,
-                'name':         None,   # se rellena sólo para la página (ver SB-02b)
-                'qty':          qty,
-                'min_qty':      min_qty if has_min else None,
-                'has_min':      has_min,
-                'is_broken':    has_min and qty < (min_qty - 0.001),
-                'qty_forecast': round(raw_forecast, 3) if raw_forecast is not None else None,
-            })
-
-        # KPIs sobre el conjunto completo
-        kpis = {
-            'total':  len(rows),
-            'broken': sum(1 for r in rows if r['is_broken']),
-            'ok':     sum(1 for r in rows if r['has_min'] and not r['is_broken']),
-            'no_min': sum(1 for r in rows if not r['has_min']),
-        }
-
-        # Filtro
-        if filter_type == 'broken':
-            rows = [r for r in rows if r['is_broken']]
-        elif filter_type == 'ok':
-            rows = [r for r in rows if r['has_min'] and not r['is_broken']]
-        elif filter_type == 'no_min':
-            rows = [r for r in rows if not r['has_min']]
-
-        # Sort — para sort por nombre, cargar display_name de todos los IDs filtrados antes de ordenar
-        _rev = (sort_dir == 'desc')
-        if sort_field == 'name':
-            _all_pids_for_sort = [r['id'] for r in rows]
-            _name_map_sort = {p['id']: p['display_name'] for p in
-                              self.env['product.product'].browse(_all_pids_for_sort).read(['id', 'display_name'])}
-            for r in rows:
-                r['name'] = _name_map_sort.get(r['id'], '')
-            rows.sort(key=lambda r: (r['name'] or '').lower(), reverse=_rev)
-        elif sort_field == 'qty':
-            rows.sort(key=lambda r: r['qty'], reverse=_rev)
-        elif sort_field == 'min_qty':
-            rows.sort(key=lambda r: (r['min_qty'] if r['min_qty'] is not None else -1), reverse=_rev)
-        elif sort_field == 'qty_forecast':
-            rows.sort(key=lambda r: r['qty_forecast'] if r['qty_forecast'] is not None else -999999, reverse=_rev)
-        elif sort_field == 'status':
-            rows.sort(key=lambda r: (0 if r['is_broken'] else 1 if not r['has_min'] else 2), reverse=_rev)
-        else:
-            # Default: quiebres primero, luego OK, luego sin mínimo; dentro de cada grupo por nombre
-            rows.sort(key=lambda r: (
-                0 if r['is_broken'] else 1 if not r['has_min'] else 2,
-            ))
-
-        total_filtered = len(rows)
-        offset = (max(1, page) - 1) * page_size
-        page_rows = rows[offset:offset + page_size]
-
-        # Después de paginar, cargar display_name sólo para los IDs de la página (SB-02b)
-        page_pids = [r['id'] for r in page_rows]
-        if page_pids:
-            page_prods_map = {p['id']: p['display_name'] for p in
-                              self.env['product.product'].browse(page_pids).read(['id', 'display_name'])}
-            for r in page_rows:
-                if r['name'] is None:
-                    r['name'] = page_prods_map.get(r['id'], '')
-
-        # Fix 18: calcular no_subcontract_domain UNA vez
-        no_sc_domain = no_subcontract_domain(self.env)
-
-        # Conteo de OFs activas para los productos de esta página
-        if page_pids:
-            mo_groups = self.env['mrp.production'].read_group(
-                [('product_id', 'in', page_pids),
-                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain,
-                ['product_id'],
-                ['product_id'],
-            )
-            mo_count_map = {g['product_id'][0]: g['product_id_count'] for g in mo_groups}
-        else:
-            mo_count_map = {}
-        for r in page_rows:
-            r['mo_count'] = mo_count_map.get(r['id'], 0)
-
-        # Tipos de producto para esta página (batch) — Fix 16
-        if page_pids:
-            page_prods = self.env['product.product'].browse(page_pids)
-            page_tmpls = page_prods.mapped('product_tmpl_id')
-            # Forzar prefetch de la M2M en una sola query antes del loop
-            page_tmpls.mapped('x_product_type_ids')  # carga el batch completo
-            tmpl_type_map = {
-                t.id: ', '.join(t.x_product_type_ids.mapped('name'))
-                for t in page_tmpls
-            }
-            prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in page_prods}
-        else:
-            tmpl_type_map = {}
-            prod_to_tmpl = {}
-        for r in page_rows:
-            tmpl_id = prod_to_tmpl.get(r['id'])
-            r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
-
-        return {
-            'error':          None,
-            'kpis':           kpis,
-            'products':       page_rows,
-            'location_name':  location_name,
-            'location_ids':   locations.ids,
-            'location_id':    locations[0].id if locations else False,
-            'total_filtered': total_filtered,
-        }
-
-    @api.model
-    def get_product_mos_for_stock_break(self, product_id):
-        """OFs activas de un producto para el acordeón del widget de quiebres de stock."""
-        mos = self.env['mrp.production'].search([
-            ('product_id', '=', product_id),
-            ('state', 'in', ['confirmed', 'progress', 'to_close']),
-        ] + no_subcontract_domain(self.env), limit=50, order='date_finished asc')
-        state_labels = {
-            'confirmed': 'Confirmada',
-            'progress':  'En progreso',
-            'to_close':  'Por cerrar',
-        }
-        return [{
-            'id':            mo.id,
-            'name':          mo.name,
-            'state':         mo.state,
-            'state_label':   state_labels.get(mo.state, mo.state),
-            'product_qty':   round(mo.product_qty, 2),
-            'qty_produced':  round(mo.qty_produced, 2),
-            'uom':           mo.product_uom_id.name if mo.product_uom_id else '',
-            'date_finished': mo.date_finished.strftime('%d/%m/%Y') if mo.date_finished else '—',
-        } for mo in mos]
-
-    @api.model
-    def get_sales_chart_data(self, date_from, date_to, top_n=20, sale_category=None, product_categ_id=None, sort_by='qty', doc_type='sales'):
-        tmpl_qty = {}
-        tmpl_amount = {}
-
-        if doc_type in ('sales', 'rfq', 'all'):
-            so_states = []
-            if doc_type in ('sales', 'all'):
-                so_states += ['sale', 'done']
-            if doc_type in ('rfq', 'all'):
-                so_states += ['draft', 'sent']
-            sol_domain = [
-                ('order_id.state', 'in', so_states),
-                ('order_id.date_order', '>=', date_from + ' 00:00:00'),
-                ('order_id.date_order', '<=', date_to + ' 23:59:59'),
-                ('product_id', '!=', False),
-                ('product_id.sale_ok', '=', True),
-            ]
-            if product_categ_id:
-                sol_domain.append(('product_id.categ_id', '=', int(product_categ_id)))
-            try:
-                groups = self.env['sale.order.line'].read_group(
-                    sol_domain,
-                    ['product_id', 'product_uom_qty:sum', 'price_subtotal:sum'],
-                    ['product_id'],
-                )
-                for g in groups:
-                    if not g['product_id']:
-                        continue
-                    pp = self.env['product.product'].browse(g['product_id'][0])
-                    tid = pp.product_tmpl_id.id
-                    tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
-                    tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
-            except Exception:
-                return []
-        else:
-            domain = [
-                ('state', '=', 'done'),
-                ('picking_id.picking_type_code', '=', 'outgoing'),
-                ('date', '>=', date_from + ' 00:00:00'),
-                ('date', '<=', date_to + ' 23:59:59'),
-                ('product_id', '!=', False),
-                ('product_id.sale_ok', '=', True),
-            ]
-            if product_categ_id:
-                domain.append(('product_id.categ_id', '=', int(product_categ_id)))
-            groups = self.env['stock.move.line'].read_group(
-                domain,
-                ['product_id', 'quantity:sum'],
-                ['product_id'],
-            )
-            for g in groups:
-                if not g['product_id']:
-                    continue
-                pp = self.env['product.product'].browse(g['product_id'][0])
-                tid = pp.product_tmpl_id.id
-                tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
-
-        if not tmpl_qty:
-            return []
-
-        if sale_category is not None and sale_category != '':
-            tmpls_all = self.env['product.template'].browse(list(tmpl_qty.keys()))
-            tmpl_by_id_f = {t.id: t for t in tmpls_all}
-            if sale_category == '__none__':
-                keep = {tid for tid in tmpl_qty
-                        if not (tmpl_by_id_f.get(tid) and tmpl_by_id_f[tid].x_sale_category)}
-            else:
-                keep = {tid for tid in tmpl_qty
-                        if tmpl_by_id_f.get(tid) and tmpl_by_id_f[tid].x_sale_category == sale_category}
-            tmpl_qty   = {tid: q for tid, q in tmpl_qty.items()   if tid in keep}
-            tmpl_amount = {tid: a for tid, a in tmpl_amount.items() if tid in keep}
-            if not tmpl_qty:
-                return []
-
-        all_ids    = list(tmpl_qty.keys())
-        templates  = self.env['product.template'].browse(all_ids)
-        tmpl_by_id = {t.id: t for t in templates}
-
-        rows = []
-        for tid in all_ids:
-            t = tmpl_by_id.get(tid)
-            if not t:
-                continue
-            qty    = round(tmpl_qty[tid], 2)
-            amount = round(tmpl_amount[tid], 2) if tid in tmpl_amount else round(qty * (t.list_price or 0.0), 2)
-            rows.append({
-                'tmpl_id':       tid,
-                'name':          t.name,
-                'code':          t.default_code or '',
-                'sale_category': t.x_sale_category or '',
-                'qty':           qty,
-                'amount':        amount,
-            })
-
-        sort_key = 'amount' if sort_by == 'amount' else 'qty'
-        result = sorted(rows, key=lambda r: r[sort_key], reverse=True)
-        if top_n:
-            result = result[:int(top_n)]
-        return result
-
-    @api.model
-    def get_product_categories_for_chart(self):
-        """Categorías de producto que tienen al menos un artículo vendible.
-
-        Usa una sola read_group para obtener los categ_id activos, evitando el
-        N+1 original (un search_count por categoría).
-        """
-        groups = self.env['product.template'].read_group(
-            [('sale_ok', '=', True)],
-            ['categ_id'],
-            ['categ_id'],
-        )
-        active_categ_ids = {g['categ_id'][0] for g in groups if g.get('categ_id')}
-        cats = self.env['product.category'].search([('id', 'in', list(active_categ_ids))])
-        return sorted(
-            [{'id': c.id, 'name': c.complete_name} for c in cats],
-            key=lambda x: x['name'],
-        )
-
-    @api.model
-    def get_supplier_analysis_data(self, period_from, period_to, search='', po_type='all'):
-        """Análisis de proveedores: cumplimiento, lead time, precio y volumen."""
-        import calendar as _cal
-        from datetime import date as _date
-
-        def _parse_date(s, last_day=False):
-            parts = s.split('-')
-            y, m = int(parts[0]), int(parts[1])
-            if len(parts) >= 3:
-                return _date(y, m, int(parts[2]))
-            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
-
-        try:
-            d_from = _parse_date(period_from)
-            d_to   = _parse_date(period_to, last_day=True)
-        except Exception:
-            return {'rows': [], 'kpis': {}, 'has_invoices': False}
-
-        dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
-        dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
-
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        date_field = (cfg and cfg.supplier_analysis_date_field) or 'date_approve'
-        # Nota: reemplazar todas las referencias posteriores a cfg_sa por cfg,
-        # y eliminar la segunda búsqueda en línea 2510 (cfg = self.env[...].search(...)).
-
-        po_domain = [
-            ('state', 'in', ['purchase', 'done']),
-            (date_field, '>=', dt_from),
-            (date_field, '<=', dt_to),
-            ('company_id', '=', self.env.company.id),
-        ]
-        if search:
-            po_domain.append(('partner_id.name', 'ilike', search))
-
-        # Pre-clasificar OCs por tipo usando SQL antes del search principal
-        if po_type in ('goods', 'services'):
-            # 1 query: obtener IDs de OCs con al menos una línea de producto no-servicio
-            goods_line_groups = self.env['purchase.order.line'].read_group(
-                [('order_id.state', 'in', ['purchase', 'done']),
-                 ('product_id.type', '!=', 'service'),
-                 ('product_id', '!=', False)],
-                ['order_id'],
-                ['order_id'],
-            )
-            goods_po_ids = {g['order_id'][0] for g in goods_line_groups if g['order_id']}
-            if po_type == 'goods':
-                po_domain.append(('id', 'in', list(goods_po_ids)))
-            else:  # services: OCs sin ninguna línea de bien
-                po_domain.append(('id', 'not in', list(goods_po_ids)))
-
-        pos = self.env['purchase.order'].search(po_domain)
-
-        _empty_kpis = {
-            'supplier_count': 0, 'total_amount': 0, 'total_orders': 0,
-            'avg_on_time_pct': None, 'avg_lead_time_days': None, 'avg_price_var_pct': None,
-        }
-        if not pos:
-            return {'rows': [], 'kpis': _empty_kpis, 'has_invoices': False}
-
-        # Aggregación por proveedor (usar IDs filtrados, no el dominio original)
-        po_groups = self.env['purchase.order'].read_group(
-            [('id', 'in', pos.ids)], ['partner_id', 'amount_total:sum'], ['partner_id'],
-        )
-
-        partner_data = {}
-        for g in po_groups:
-            if not g['partner_id']:
-                continue
-            pid = g['partner_id'][0]
-            partner_data[pid] = {
-                'partner_id':   pid,
-                'partner_name': g['partner_id'][1],
-                'order_count':  g['partner_id_count'],
-                'total_amount': round(g['amount_total'] or 0.0, 2),
-                'products':     set(),
-                'pick_count':   0, 'on_time_count': 0,
-                'delay_sum':    0.0, 'delay_count': 0,
-                'complete_count': 0,
-                'lt_sum':       0.0, 'lt_count': 0,
-                'pvar_sum':     0.0, 'pvar_count': 0,
-                'pending_inv':  0.0,
-            }
-
-        # Prefetch partner_id para garantizar que el dict comprehension no genere lazy-loads
-        pos.mapped('partner_id')
-        # Mapa po_id → (partner_id, date_approve)
-        po_map = {po.id: (po.partner_id.id, po.date_approve) for po in pos}
-
-        # Líneas de OC: productos + variación de precio
-        po_line_data = self.env['purchase.order.line'].search_read(
-            [('order_id', 'in', pos.ids), ('product_id', '!=', False)],
-            ['order_id', 'product_id', 'price_unit'],
-        )
-        all_prod_ids = list({ln['product_id'][0] for ln in po_line_data if ln['product_id']})
-        if all_prod_ids:
-            std_map = {r['id']: r['standard_price']
-                       for r in self.env['product.product'].search_read(
-                           [('id', 'in', all_prod_ids)], ['id', 'standard_price'])}
-        else:
-            std_map = {}
-
-        for ln in po_line_data:
-            po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
-            prod_id  = ln['product_id'][0] if isinstance(ln['product_id'], (list, tuple)) else ln['product_id']
-            partner_id = po_map.get(po_id, (None,))[0]
-            if partner_id not in partner_data:
-                continue
-            pd = partner_data[partner_id]
-            pd['products'].add(prod_id)
-            std = std_map.get(prod_id, 0.0)
-            if std > 0 and ln['price_unit'] > 0:
-                pd['pvar_sum']   += (ln['price_unit'] - std) / std * 100
-                pd['pvar_count'] += 1
-
-        # Recepciones completadas vinculadas a las OCs
-        pickings = self.env['stock.picking'].search([
-            ('purchase_id', 'in', pos.ids),
-            ('state', '=', 'done'),
-            ('picking_type_code', '=', 'incoming'),
-        ])
-        # Recepciones que tuvieron backorder (parciales)
-        partial_ids = set(
-            self.env['stock.picking'].search(
-                [('backorder_id', 'in', pickings.ids)]
-            ).mapped('backorder_id').ids
-        )
-
-        pickings.mapped('purchase_id')  # prefetch en 1 query
-        for picking in pickings:
-            po_id = picking.purchase_id.id if picking.purchase_id else None
-            if not po_id or po_id not in po_map:
-                continue
-            partner_id, date_approve = po_map[po_id]
-            if partner_id not in partner_data:
-                continue
-            pd = partner_data[partner_id]
-            pd['pick_count'] += 1
-
-            sched = picking.scheduled_date
-            done  = picking.date_done
-            if sched and done:
-                delay = (done - sched).days
-                if delay <= 0:
-                    pd['on_time_count'] += 1
-                else:
-                    pd['delay_sum']   += delay
-                    pd['delay_count'] += 1
-
-            if picking.id not in partial_ids:
-                pd['complete_count'] += 1
-
-            if date_approve and done:
-                lt = (done - date_approve).days
-                if lt >= 0:
-                    pd['lt_sum']   += lt
-                    pd['lt_count'] += 1
-
-        # Facturas pendientes (módulo account — opcional)
-        has_invoices = False
-        try:
-            inv_groups = self.env['account.move'].read_group(
-                [('move_type', '=', 'in_invoice'),
-                 ('partner_id', 'in', list(partner_data.keys())),
-                 ('payment_state', 'not in', ['paid', 'reversed']),
-                 ('state', '=', 'posted'),
-                 ('company_id', '=', self.env.company.id)],
-                ['partner_id', 'amount_residual:sum'],
-                ['partner_id'],
-            )
-            for g in inv_groups:
-                if g['partner_id'] and g['partner_id'][0] in partner_data:
-                    partner_data[g['partner_id'][0]]['pending_inv'] = round(g['amount_residual'] or 0.0, 2)
-            has_invoices = True
-        except Exception:
-            pass
-
-        # Construir filas
-        rows = []
-        for pid, d in partner_data.items():
-            pc = d['pick_count']
-            rows.append({
-                'partner_id':        pid,
-                'partner_name':      d['partner_name'],
-                'order_count':       d['order_count'],
-                'total_amount':      d['total_amount'],
-                'distinct_products': len(d['products']),
-                'pick_count':        pc,
-                'on_time_pct':   round(d['on_time_count'] / pc * 100, 1) if pc > 0 else None,
-                'avg_delay_days': round(d['delay_sum'] / d['delay_count'], 1) if d['delay_count'] > 0 else None,
-                'complete_pct':  round(d['complete_count'] / pc * 100, 1) if pc > 0 else None,
-                'avg_lead_time': round(d['lt_sum'] / d['lt_count'], 1) if d['lt_count'] > 0 else None,
-                'avg_price_var_pct': round(d['pvar_sum'] / d['pvar_count'], 1) if d['pvar_count'] > 0 else None,
-                'pending_inv':   d['pending_inv'] if has_invoices else None,
-            })
-
-        rows.sort(key=lambda r: r['total_amount'], reverse=True)
-
-        def _wavg(rows, key):
-            vals = [r[key] for r in rows if r[key] is not None]
-            return round(sum(vals) / len(vals), 1) if vals else None
-
-        total_pickings = sum(r['pick_count'] for r in rows)
-        on_time_abs    = sum(d['on_time_count'] for d in partner_data.values())
-        kpis = {
-            'supplier_count':     len(rows),
-            'total_amount':       round(sum(r['total_amount'] for r in rows), 2),
-            'total_orders':       sum(r['order_count'] for r in rows),
-            'avg_on_time_pct':    round(on_time_abs / total_pickings * 100, 1) if total_pickings > 0 else None,
-            'avg_lead_time_days': _wavg(rows, 'avg_lead_time'),
-            'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
-        }
-
-        show_supplier_cat = bool(cfg and cfg.enable_supplier_categories)
-        if show_supplier_cat:
-            cat_map = {r['id']: r['x_supplier_category'] or ''
-                       for r in self.env['res.partner'].search_read(
-                           [('id', 'in', list(partner_data.keys()))],
-                           ['id', 'x_supplier_category']
-                       )}
-            for row in rows:
-                row['supplier_cat'] = cat_map.get(row['partner_id'], '')
-
-        sup_config = {
-            'sup_on_time_green':   cfg.sup_on_time_green_pct   if cfg else 90,
-            'sup_on_time_yellow':  cfg.sup_on_time_yellow_pct  if cfg else 70,
-            'sup_delay_green':     cfg.sup_delay_green_days    if cfg else 1,
-            'sup_delay_yellow':    cfg.sup_delay_yellow_days   if cfg else 3,
-            'sup_complete_green':  cfg.sup_complete_green_pct  if cfg else 95,
-            'sup_complete_yellow': cfg.sup_complete_yellow_pct if cfg else 80,
-            'sup_price_var_green':  cfg.sup_price_var_green_pct  if cfg else 3.0,
-            'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
-        }
-
-        return {
-            'rows': rows, 'kpis': kpis, 'has_invoices': has_invoices,
-            'config': sup_config, 'show_supplier_cat': show_supplier_cat,
-        }
-
-    @api.model
-    def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to):
-        """OCs de un proveedor para el acordeón del widget de análisis de proveedores."""
-        import calendar as _cal
-        from datetime import date as _date
-        def _parse_date(s, last_day=False):
-            parts = s.split('-')
-            y, m = int(parts[0]), int(parts[1])
-            if len(parts) >= 3:
-                return _date(y, m, int(parts[2]))
-            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
-
-        try:
-            d_from = _parse_date(period_from)
-            d_to   = _parse_date(period_to, last_day=True)
-        except Exception:
-            return []
-
-        dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
-        dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
-
-        pos = self.env['purchase.order'].search([
-            ('partner_id', '=', partner_id),
-            ('state', 'in', ['purchase', 'done']),
-            ('date_order', '>=', dt_from),
-            ('date_order', '<=', dt_to),
-            ('company_id', '=', self.env.company.id),
-        ], order='date_order desc')
-
-        rows = []
-        for po in pos:
-            pickings = po.picking_ids.filtered(
-                lambda p: p.state != 'cancel' and p.picking_type_code == 'incoming'
-            )
-            done_picks = pickings.filtered(lambda p: p.state == 'done')
-            if not pickings:
-                receipt_status = 'none'
-            elif len(done_picks) == len(pickings):
-                receipt_status = 'full'
-            elif done_picks:
-                receipt_status = 'partial'
-            else:
-                receipt_status = 'pending'
-
-            rows.append({
-                'po_id':          po.id,
-                'name':           po.name,
-                'date_approve':   po.date_approve.strftime('%d/%m/%Y') if po.date_approve else '',
-                'date_planned':   po.date_planned.strftime('%d/%m/%Y') if po.date_planned else '',
-                'amount_total':   round(po.amount_total, 2),
-                'product_count':  len(po.order_line.mapped('product_id')),
-                'receipt_status': receipt_status,
-            })
-        return rows

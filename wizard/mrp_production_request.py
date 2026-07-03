@@ -1,3 +1,26 @@
+"""
+Módulo: mrp_production_request.py
+Modelo: mrp.production.request
+
+Solicitud de programación de fabricación: agrupa artículos a producir, calcula
+un plan de fechas considerando stock, rutas, calendarios y carga de centros de
+trabajo, y finalmente crea las órdenes de fabricación (OF) confirmadas en Odoo.
+
+Responsabilidades:
+- Recibir una lista de productos con cantidades y fechas límite.
+- Construir el árbol de demanda multinivel (OF, OC, subcontrato, stock) por producto.
+- Programar el árbol de forma bottom-up respetando la carga existente en los WC.
+- Guardar el plan calculado como líneas auditables antes de confirmar.
+- Crear y confirmar las OFs madre (nivel 0); Odoo genera las hijas automáticamente.
+- Planificar recursivamente las OFs hijas propagando fechas hacia atrás.
+
+Relacionado con:
+- mrp.production.request.item: artículos solicitados (1 por producto/cantidad).
+- mrp.production.request.line: líneas del plan calculado (OF / OC / Stock).
+- mrp.production.request.wc: resumen de carga por centro de trabajo.
+- mrp.schedule.mixin: lógica compartida de scheduling (schedule_duration, etc.).
+- mrp.planner.detail.dashboard: dashboard de planificación asociado.
+"""
 import logging
 import pytz
 from datetime import datetime, timedelta
@@ -10,142 +33,20 @@ from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import INDENT_MAP
 _logger = logging.getLogger(__name__)
 
 
-class MrpProductionRequestItem(models.Model):
-    """Una fila de entrada: qué fabricar, cuánto y para cuándo."""
-    _name = 'mrp.production.request.item'
-    _description = 'Artículo de solicitud de programación'
-    _order = 'sequence, id'
-    _rec_name = 'name'
-
-    request_id  = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
-    sequence    = fields.Integer(default=10)
-    name        = fields.Char(compute='_compute_name', store=True)
-    product_id  = fields.Many2one('product.product', string='Producto', required=True,
-                                  domain=[('type', 'in', ['consu', 'product'])])
-    product_qty = fields.Float(string='Cantidad', default=1.0, required=True)
-    date_deadline = fields.Datetime(string='Fecha de entrega deseada', required=True)
-
-    earliest_end    = fields.Datetime(string='Mínimo alcanzable', readonly=True,
-                                      help='Fecha mínima posible calculada por el sistema.')
-    projected_start = fields.Datetime(string='Inicio planificado', readonly=True)
-    projected_end   = fields.Datetime(string='Fin planificado',
-                                      help='Fecha de fin de producción. Podés adelantarla al mínimo posible con el botón Adelantar.')
-    feasible        = fields.Boolean(compute='_compute_feasible', store=False)
-    feasibility_msg = fields.Char(compute='_compute_feasible', store=False, string='Info')
-    bom_warning     = fields.Char(compute='_compute_bom_warning', store=False)
-
-    @api.depends('product_id')
-    def _compute_bom_warning(self):
-        for item in self:
-            if not item.product_id:
-                item.bom_warning = ''
-                continue
-            bom = self.env['mrp.bom'].search([
-                ('type', 'not in', ['phantom', 'subcontract']),
-                ('company_id', 'in', [False, self.env.company.id]),
-                '|',
-                ('product_id', '=', item.product_id.id),
-                '&', ('product_id', '=', False),
-                ('product_tmpl_id', '=', item.product_id.product_tmpl_id.id),
-            ], limit=1)
-            item.bom_warning = '' if bom else _('Sin LdM')
-
-    @api.onchange('product_id')
-    def _onchange_product_id_bom(self):
-        if not self.product_id:
-            return
-        bom = self.env['mrp.bom'].search([
-            ('type', 'not in', ['phantom', 'subcontract']),
-            ('company_id', 'in', [False, self.env.company.id]),
-            '|',
-            ('product_id', '=', self.product_id.id),
-            '&', ('product_id', '=', False),
-            ('product_tmpl_id', '=', self.product_id.product_tmpl_id.id),
-        ], limit=1)
-        if not bom:
-            return {'warning': {
-                'title': _('Sin Lista de Materiales'),
-                'message': _(
-                    'El producto "%s" no tiene una LdM de fabricación. '
-                    'No se podrá calcular el plan.'
-                ) % self.product_id.display_name,
-            }}
-
-    production_id = fields.Many2one(
-        'mrp.production', string='OF madre', readonly=True, copy=False, index=True,
-        ondelete='set null',
-    )
-    mo_state    = fields.Selection(related='production_id.state', string='Estado OF')
-    qty_produced = fields.Float(compute='_compute_tracking', string='Producido', store=False)
-    qty_delta    = fields.Float(compute='_compute_tracking', string='Δ Cant.',    store=False)
-
-    @api.depends('production_id', 'production_id.state', 'production_id.qty_producing',
-                 'production_id.move_finished_ids.state')
-    def _compute_tracking(self):
-        for item in self:
-            mo = item.production_id
-            if not mo:
-                item.qty_produced = 0.0
-                item.qty_delta    = 0.0
-                continue
-            if mo.state == 'done':
-                try:
-                    done = mo.move_finished_ids.filtered(
-                        lambda m: m.state == 'done' and m.product_id == mo.product_id
-                    )
-                    qty = sum(
-                        getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
-                        for m in done
-                    ) if done else mo.product_qty
-                except Exception:
-                    qty = mo.product_qty
-                item.qty_produced = qty
-            else:
-                item.qty_produced = mo.qty_producing or 0.0
-            item.qty_delta = item.qty_produced - item.product_qty
-
-    @api.depends('product_id')
-    def _compute_name(self):
-        for item in self:
-            item.name = item.product_id.display_name or '—'
-
-    @api.depends('earliest_end', 'date_deadline')
-    def _compute_feasible(self):
-        for item in self:
-            if not item.earliest_end or not item.date_deadline:
-                item.feasible = False
-                item.feasibility_msg = '—'
-                continue
-            if item.earliest_end <= item.date_deadline:
-                secs = (item.date_deadline - item.earliest_end).total_seconds()
-                d, h = int(secs // 86400), int((secs % 86400) // 3600)
-                item.feasible = True
-                delta = f'{d}d {h}h' if d else f'{h}h'
-                item.feasibility_msg = _(
-                    'Puede adelantarse %s (mínimo: %s)'
-                ) % (delta, item.earliest_end.strftime('%d/%m %H:%M'))
-            else:
-                secs = (item.earliest_end - item.date_deadline).total_seconds()
-                d, h = int(secs // 86400), int((secs % 86400) // 3600)
-                item.feasible = False
-                delta = f'{d}d {h}h' if d else f'{h}h'
-                item.feasibility_msg = _('Atraso estimado: %s') % delta
-
-    def action_adelantar(self):
-        """Setea projected_end a la fecha más temprana calculada."""
-        self.ensure_one()
-        if self.earliest_end:
-            self.projected_end = self.earliest_end
-
-
 class MrpProductionRequest(models.Model):
     _name = 'mrp.production.request'
     _description = 'Solicitud de programación de fabricación'
     _inherit = ['mrp.schedule.mixin', 'mail.thread', 'mail.activity.mixin']
     _order = 'id desc'
 
-    name = fields.Char(string='Referencia', readonly=True, default='Nuevo', copy=False)
-    active = fields.Boolean(default=True)
+    name = fields.Char(
+        string='Referencia', readonly=True, default='Nuevo', copy=False,
+        help='Número de secuencia autogenerado al guardar (ej. MRP/2024/0001).',
+    )
+    active = fields.Boolean(
+        default=True,
+        help='Desactivar oculta la solicitud sin eliminarla (archivado).',
+    )
 
     start_from = fields.Datetime(
         string='Disponible desde', default=fields.Datetime.now,
@@ -162,7 +63,9 @@ class MrpProductionRequest(models.Model):
         ('draft',      'Borrador'),
         ('calculated', 'Calculado'),
         ('confirmed',  'OFs creadas'),
-    ], default='draft', tracking=True)
+    ], default='draft', tracking=True,
+        help='Ciclo de vida: Borrador → Calculado (plan listo) → OFs creadas (confirmado).',
+    )
 
     all_feasible        = fields.Boolean(compute='_compute_summary', store=False)
     feasibility_summary = fields.Char(compute='_compute_summary', store=False)
@@ -170,6 +73,7 @@ class MrpProductionRequest(models.Model):
     hide_auto_reorder = fields.Boolean(
         string='Ocultar reab. automático',
         default=True,
+        help='Si está activo, oculta en la vista las líneas de reabastecimiento automático (min/max).',
     )
     picking_type_id = fields.Many2one(
         'stock.picking.type',
@@ -180,12 +84,23 @@ class MrpProductionRequest(models.Model):
         default=lambda self: self.env['stock.picking.type'].search(
             [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
         ),
+        help='Tipo de operación de fabricación con el que se crearán las OFs.',
     )
-    workorder_count = fields.Integer(compute='_compute_workorder_count', string='OTs')
+    workorder_count = fields.Integer(
+        compute='_compute_workorder_count', string='OTs',
+        help='Cantidad total de órdenes de trabajo (work orders) de las OFs vinculadas.',
+    )
     wc_load_ids     = fields.One2many('mrp.production.request.wc', 'request_id', string='Carga WC')
 
     @api.depends('item_ids.feasible', 'item_ids.earliest_end')
     def _compute_summary(self):
+        """
+        Calcula all_feasible y feasibility_summary para cada solicitud.
+
+        Fórmula: cuenta artículos con earliest_end calculado y cuántos de ellos
+        son feasible; construye un texto resumen del estado global.
+        Depende de: item_ids.feasible, item_ids.earliest_end.
+        """
         for rec in self:
             done = rec.item_ids.filtered('earliest_end')
             if not done:
@@ -203,6 +118,12 @@ class MrpProductionRequest(models.Model):
 
     @api.depends('item_ids.production_id')
     def _compute_workorder_count(self):
+        """
+        Calcula workorder_count para cada solicitud.
+
+        Fórmula: suma los work orders de todas las OFs vinculadas a los items.
+        Depende de: item_ids.production_id.
+        """
         for rec in self:
             mo_ids = rec.item_ids.mapped('production_id').ids
             rec.workorder_count = self.env['mrp.workorder'].search_count([
@@ -210,9 +131,19 @@ class MrpProductionRequest(models.Model):
             ]) if mo_ids else 0
 
     def action_open_planner_dashboard(self):
+        """
+        Abre el dashboard del planificador filtrado por la categoría 'requests'.
+
+        :returns: dict — acción de ventana al dashboard de planificación.
+        """
         return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')
 
     def action_view_workorders(self):
+        """
+        Abre la vista lista/form/gantt de todas las OTs vinculadas a la solicitud.
+
+        :returns: dict — acción de ventana con dominio filtrado por las OFs del plan.
+        """
         self.ensure_one()
         mo_ids = self.item_ids.mapped('production_id').ids
         return {
@@ -228,6 +159,15 @@ class MrpProductionRequest(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Crea solicitudes de programación asignando número de secuencia automático.
+
+        Reemplaza el valor por defecto 'Nuevo' con el siguiente número de la
+        secuencia 'mrp.production.request' antes de delegar a super().
+
+        :param vals_list: list[dict] — valores de los registros a crear.
+        :returns: mrp.production.request — recordset de los registros creados.
+        """
         for vals in vals_list:
             if vals.get('name', 'Nuevo') == 'Nuevo':
                 vals['name'] = (
@@ -239,6 +179,21 @@ class MrpProductionRequest(models.Model):
     # ── Acciones ─────────────────────────────────────────────────────────────
 
     def action_calculate(self):
+        """
+        Calcula el plan de fabricación para todos los artículos de la solicitud.
+
+        Pasos:
+        1. Preserva overrides de WC editados manualmente y limpia líneas anteriores.
+        2. Determina el piso temporal (max entre start_from y hoy UTC).
+        3. Construye el árbol de demanda multinivel para cada artículo.
+        4. Obtiene los anclas de WC (carga existente en OFs confirmadas).
+        5. Programa el árbol bottom-up compartiendo anclas entre artículos.
+        6. Crea las líneas del plan y el resumen de carga por WC.
+        7. Transiciona el estado a 'calculated'.
+
+        :returns: dict — acción de ventana que recarga el formulario actual.
+        :raises UserError: si no hay artículos o si algún artículo no tiene LdM.
+        """
         self.ensure_one()
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
@@ -354,9 +309,17 @@ class MrpProductionRequest(models.Model):
         }
 
     def action_confirm(self):
-        """Crea solo las OFs madre (nivel 0) y las confirma.
-        Odoo genera automáticamente las órdenes hijas (OFs y OCs) vía
-        las reglas de abastecimiento configuradas en cada producto.
+        """
+        Crea y confirma las OFs madre (nivel 0) del plan calculado.
+
+        Odoo genera automáticamente las órdenes hijas (OFs y OCs) a través
+        de las reglas de abastecimiento configuradas en cada producto.
+        Luego se planifican recursivamente todas las OFs hijas propagando
+        fechas hacia atrás desde la OF madre.
+
+        :returns: dict — acción de ventana con la lista de OFs creadas.
+        :raises UserError: si el estado no es 'calculated' o si no se pudo
+                           crear ninguna OF.
         """
         self.ensure_one()
         if self.state != 'calculated':
@@ -436,8 +399,12 @@ class MrpProductionRequest(models.Model):
         """Devuelve las OFs hijas directas de `mo` no procesadas aún.
 
         Usa dos estrategias combinadas para mayor robustez:
-        1. Vínculo por movimientos: move_raw_ids → move_orig_ids → production_id
-        2. Campo origin de la OF hija (Odoo siempre lo setea con el nombre de la madre)
+        1. Vínculo por movimientos: move_raw_ids → move_orig_ids → production_id.
+        2. Campo origin de la OF hija (Odoo siempre lo setea con el nombre de la madre).
+
+        :param mo: mrp.production — OF madre a inspeccionar.
+        :param planned: set[int] — IDs de OFs ya procesadas (se excluyen del resultado).
+        :returns: mrp.production — recordset de OFs hijas activas no procesadas.
         """
         # Estrategia 1: vínculo por movimientos de stock
         via_moves = mo.move_raw_ids.mapped('move_orig_ids').filtered(
@@ -457,13 +424,18 @@ class MrpProductionRequest(models.Model):
         )
 
     def _plan_child_mos(self, mo, planned, depth=0):
-        """Navega recursivamente el árbol de OFs hijas, llama button_plan() en cada
-        una y propaga las fechas hacia atrás: la hija debe terminar cuando la madre
-        necesita empezar (mo.date_start).
+        """Navega recursivamente el árbol de OFs hijas y planifica cada una.
 
-        `planned` es un set de IDs ya procesados para evitar loops y trabajo doble.
+        Llama button_plan() en cada OF hija y propaga las fechas hacia atrás:
+        la hija debe terminar cuando la madre necesita empezar (mo.date_start).
+        El parámetro `planned` evita bucles y trabajo doble en árboles con
+        referencias cruzadas o reutilización de componentes.
+
+        :param mo: mrp.production — OF padre desde la que se navega hacia abajo.
+        :param planned: set[int] — IDs ya procesados; se modifica en-place.
+        :param depth: int — profundidad actual de recursión (protección ante ciclos).
         """
-        if depth > 15:
+        if depth > 15:  # Límite de seguridad ante árboles de LdM extraordinariamente profundos
             return
 
         child_mos = self._find_child_mos(mo, planned)
@@ -540,8 +512,15 @@ class MrpProductionRequest(models.Model):
     def _get_supply_method(self, product):
         """
         Determina cómo se abastece un producto según las rutas configuradas.
-        Retorna: 'subcontract' | 'manufacture' | 'buy' | 'stock'
-        Prioridad: subcontratación > ruta mrp_operation > ruta incoming > fallback BOM/purchase_ok.
+
+        Evalúa en orden de prioridad:
+        1. Subcontratación: existe LdM de tipo 'subcontract'.
+        2. Fabricación: alguna regla de ruta tiene action == 'manufacture'.
+        3. Compra: alguna regla de ruta tiene action == 'buy'.
+        4. Fallback por BOM genérica o purchase_ok.
+
+        :param product: product.product — producto a evaluar.
+        :returns: str — 'subcontract' | 'manufacture' | 'buy' | 'stock'.
         """
         # Subcontratación: tiene una LdM de tipo subcontract (máxima prioridad)
         sub_bom = self.env['mrp.bom'].search([
@@ -579,6 +558,14 @@ class MrpProductionRequest(models.Model):
         return 'stock'
 
     def _get_purchase_lead_days(self, product):
+        """Retorna el plazo de entrega en días del proveedor principal del producto.
+
+        Usa el delay del primer seller_id (menor sequence); si no hay sellers,
+        cae a purchase_delay del producto o a 7 días por defecto.
+
+        :param product: product.product — producto a consultar.
+        :returns: int — días de plazo de entrega (mínimo 1).
+        """
         if product.seller_ids:
             main = product.seller_ids.sorted(lambda s: (s.sequence, s.id))[:1]
             if main:
@@ -586,6 +573,15 @@ class MrpProductionRequest(models.Model):
         return int(getattr(product, 'purchase_delay', 0) or 7)
 
     def _find_bom(self, product):
+        """Busca la LdM de fabricación activa para el producto dado.
+
+        Intenta primero con el método oficial _bom_find de Odoo (robusto pero
+        puede lanzar excepciones en versiones con API inestable); si falla,
+        realiza una búsqueda directa excluyendo tipos 'phantom' y 'subcontract'.
+
+        :param product: product.product — producto para el que se busca la LdM.
+        :returns: mrp.bom — primera LdM encontrada, o recordset vacío si no existe.
+        """
         try:
             result = self.env['mrp.bom']._bom_find(product, company_id=self.env.company.id)
             bom = result.get(product) if isinstance(result, dict) else result
@@ -603,6 +599,15 @@ class MrpProductionRequest(models.Model):
         ], limit=1, order='sequence, id')
 
     def _get_op_duration_hours(self, op, bom_factor):
+        """Calcula la duración en horas de una operación de LdM escalada por bom_factor.
+
+        Prioriza time_cycle_manual (ajuste manual) sobre time_cycle (calculado);
+        si ambos son cero usa 60 minutos como mínimo operativo.
+
+        :param op: mrp.routing.workcenter — operación de la LdM.
+        :param bom_factor: float — factor de escala (qty_solicitada / bom.product_qty).
+        :returns: float — duración en horas.
+        """
         dur_min = (
             getattr(op, 'time_cycle_manual', None)
             or getattr(op, 'time_cycle', None)
@@ -623,14 +628,22 @@ class MrpProductionRequest(models.Model):
         return None
 
     def _forward_schedule_days(self, calendar, from_dt, lead_days):
-        """Avanza lead_days días hábiles desde from_dt según el calendario.
-        Retorna el inicio del primer turno del día resultante."""
+        """Avanza lead_days días hábiles hacia adelante desde from_dt.
+
+        Retorna el inicio del primer turno del día resultante según el calendario.
+        Si no hay calendario o lead_days <= 0, suma días naturales directamente.
+
+        :param calendar: resource.calendar | None — calendario de trabajo a usar.
+        :param from_dt: datetime — fecha de partida (UTC naive).
+        :param lead_days: int — cantidad de días hábiles a avanzar.
+        :returns: datetime — fecha de inicio del primer turno tras lead_days días hábiles.
+        """
         if not calendar or lead_days <= 0:
             return from_dt + timedelta(days=lead_days or 0)
 
         dt = from_dt
         days_counted = 0
-        max_iter = lead_days * 7 + 30
+        max_iter = lead_days * 7 + 30  # margen extra para calendarios con muchos días festivos
 
         for _ in range(max_iter):
             if days_counted >= lead_days:
@@ -665,8 +678,17 @@ class MrpProductionRequest(models.Model):
         return dt.replace(hour=8, minute=0, second=0, microsecond=0)
 
     def _backward_schedule_days(self, calendar, before_dt, lead_days):
-        """Retrocede lead_days días hábiles desde before_dt según el calendario.
-        Cae en el primer turno disponible del día resultante."""
+        """Retrocede lead_days días hábiles hacia atrás desde before_dt.
+
+        Cae en el inicio del primer turno disponible del día resultante.
+        Se usa para calcular cuándo debe pedirse un componente de compra/subcontrato
+        dado que debe estar listo antes de before_dt.
+
+        :param calendar: resource.calendar | None — calendario de trabajo a usar.
+        :param before_dt: datetime — fecha límite de entrega (UTC naive).
+        :param lead_days: int — cantidad de días hábiles a retroceder.
+        :returns: datetime — fecha de inicio del turno tras retroceder lead_days días hábiles.
+        """
         if not calendar or lead_days <= 0:
             return before_dt - timedelta(days=lead_days or 0)
 
@@ -708,7 +730,11 @@ class MrpProductionRequest(models.Model):
         return dt.replace(hour=8, minute=0, second=0, microsecond=0)
 
     def _get_tree_earliest_start(self, node):
-        """Retorna el scheduled_start más temprano entre todos los nodos de fabricación del árbol."""
+        """Retorna el scheduled_start más temprano entre todos los nodos 'manufacture' del árbol.
+
+        :param node: dict — nodo raíz del árbol de demanda.
+        :returns: datetime | None — fecha de inicio más temprana, o None si no hay nodos programados.
+        """
         result = None
         if node.get('type') == 'manufacture' and node.get('scheduled_start'):
             result = node['scheduled_start']
@@ -719,7 +745,15 @@ class MrpProductionRequest(models.Model):
         return result
 
     def _apply_wc_overrides(self, node, item_id, overrides):
-        """Aplica los WC editados manualmente a los nodos del árbol antes de programar."""
+        """Aplica los centros de trabajo editados manualmente al árbol de demanda.
+
+        Reemplaza las operaciones del nodo con el WC guardado en overrides para la
+        combinación (item_id, product.id, level). La duración total se preserva.
+
+        :param node: dict — nodo del árbol a procesar (se modifica en-place).
+        :param item_id: int — ID del mrp.production.request.item al que pertenece el árbol.
+        :param overrides: dict — {(item_id, product_id, level): workcenter} con los overrides.
+        """
         if node.get('type') == 'manufacture' and node.get('operations'):
             key = (item_id, node['product'].id, node['level'])
             if key in overrides:
@@ -730,7 +764,14 @@ class MrpProductionRequest(models.Model):
             self._apply_wc_overrides(child, item_id, overrides)
 
     def _get_preferred_workcenter(self, product):
-        """Devuelve el WC preferido activo del producto, o None si no tiene configurados."""
+        """Devuelve el WC preferido activo del producto desde x_centros_compatibles.
+
+        Si hay varios centros compatibles, prioriza el marcado como is_preferred;
+        de lo contrario, toma el primero de la lista. Retorna None si no hay centros.
+
+        :param product: product.product — producto a consultar.
+        :returns: mrp.workcenter | None — centro de trabajo preferido, o None.
+        """
         centros = product.product_tmpl_id.x_centros_compatibles.filtered('active')
         if not centros:
             return None
@@ -739,10 +780,24 @@ class MrpProductionRequest(models.Model):
 
     def _build_demand_tree(self, product, qty, level, visited=None):
         """
-        Construye el árbol de demanda usando las rutas del sistema.
-        - rule.action == 'manufacture' → nodo OF (recursivo).
-        - rule.action == 'buy' o subcontrato → nodo hoja OC/Subcont.
-        - Stock suficiente → nodo hoja Stock.
+        Construye recursivamente el árbol de demanda multinivel para un producto.
+
+        Cada nodo del árbol es un dict con las claves: type, product, qty, bom,
+        level, operations, children, scheduled_start, scheduled_end.
+        Los tipos de nodo posibles son:
+          - 'manufacture': se debe fabricar (nodo interno, puede tener hijos).
+          - 'buy' / 'subcontract': se debe comprar/subcontratar (nodo hoja).
+          - 'stock': cubierto por stock existente o reorden automático (nodo hoja).
+
+        Para cada componente de la LdM se evalúa stock disponible primero; si
+        hay stock parcial se genera un nodo stock por la parte cubierta y se
+        continúa con el método de abastecimiento para el remanente.
+
+        :param product: product.product — producto raíz o componente a evaluar.
+        :param qty: float — cantidad necesaria a producir/abastecer.
+        :param level: int — profundidad en el árbol (0 = artículo raíz de la solicitud).
+        :param visited: set | None — productos ya visitados en la rama actual (evita ciclos).
+        :returns: dict | None — nodo raíz del árbol, o None si no existe LdM fabricable.
         """
         if visited is None:
             visited = set()
@@ -882,6 +937,18 @@ class MrpProductionRequest(models.Model):
         return node
 
     def _get_wc_anchors_multi(self, start, roots):
+        """Construye el diccionario de anclas de WC a partir de la carga existente en Odoo.
+
+        Para cada WC referenciado en los árboles, busca las OFs confirmadas/en progreso
+        con work orders en ese WC y calcula cuándo termina el último trabajo planificado.
+        Esto permite que la programación nueva se apile correctamente detrás de la carga
+        ya existente sin generar solapamientos.
+
+        :param start: datetime — fecha mínima de referencia (no se usa directamente,
+                      pero orienta el contexto temporal del cálculo).
+        :param roots: list[dict] — lista de nodos raíz de los árboles de demanda.
+        :returns: dict — {workcenter_id: datetime} con la fecha fin más tardía por WC.
+        """
         wc_ids = set()
 
         def _collect(node):
@@ -917,9 +984,24 @@ class MrpProductionRequest(models.Model):
         return anchors
 
     def _schedule_tree(self, node, start, wc_anchors, min_dt=None):
-        """Programa bottom-up los nodos OF. Los nodos OC/Subcont./compra se resuelven
-        en un post-paso (sus fechas dependen del inicio del padre OF).
-        Los nodos stock son hojas sin fechas."""
+        """Programa los nodos OF del árbol en orden bottom-up (primero las hojas).
+
+        Los nodos OC/Subcont./compra se resuelven en un post-paso: su fecha de
+        inicio se calcula retrocediendo lead_days desde el inicio de la OF padre.
+        Los nodos stock son hojas sin fechas propias.
+
+        La fecha de inicio de cada nodo OF respeta:
+        - El fin del último hijo OF ya programado (dependencia de materiales).
+        - El ancla actual del WC (carga existente más trabajos anteriores en este plan).
+        - min_dt: piso global (no se puede programar antes de hoy).
+        - Para hijos OC/Subcont.: se pushea after_dt para que la fecha de pedido
+          no caiga antes de min_dt (no se puede pedir en el pasado).
+
+        :param node: dict — nodo del árbol de demanda (se modifica en-place).
+        :param start: datetime — fecha mínima de inicio para este nodo.
+        :param wc_anchors: dict — {wc_id: datetime} anclas compartidas entre artículos.
+        :param min_dt: datetime | None — piso temporal global (normalmente hoy UTC midnight).
+        """
         leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
         if node.get('type') in leaf_types:
             return  # Se resuelve desde el padre
@@ -974,7 +1056,19 @@ class MrpProductionRequest(models.Model):
                 child['scheduled_start'] = max(raw_start, min_dt) if min_dt else raw_start
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None):
-        indent    = INDENT_MAP.get(node['level'], ' ' * 9 + '└─ ')
+        """Convierte el árbol de demanda programado en una lista de dicts para crear líneas.
+
+        Recorre el árbol en pre-orden (padre antes que hijos) y agrega un dict por
+        nodo a lines_vals. Los nodos OC/stock son hojas (no tienen hijos que procesar).
+        Los nodos OF continúan la recursión para agregar sus componentes.
+
+        :param node: dict — nodo del árbol de demanda ya programado.
+        :param lines_vals: list[dict] — lista acumuladora de valores para crear líneas.
+        :param seq: list[int] — lista de un elemento usado como contador de secuencia
+                    mutable (trick para pasar por referencia en recursión).
+        :param item_id: int | None — ID del mrp.production.request.item al que pertenece.
+        """
+        indent    = INDENT_MAP.get(node['level'], ' ' * 9 + '└─ ')
         product   = node['product']
         node_type = node.get('type', 'manufacture')
 
@@ -1051,75 +1145,3 @@ class MrpProductionRequest(models.Model):
 
         for child in node['children']:
             self._collect_lines(child, lines_vals, seq, item_id=item_id)
-
-
-class MrpProductionRequestLine(models.Model):
-    _name = 'mrp.production.request.line'
-    _description = 'Línea de solicitud de programación'
-    _order = 'sequence'
-
-    request_id  = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
-    item_id     = fields.Many2one('mrp.production.request.item', string='Artículo',
-                                  ondelete='cascade')
-    sequence    = fields.Integer(default=10)
-    level       = fields.Integer(default=0)
-    record_type = fields.Selection(
-        [('mrp', 'Fabricación'), ('purchase', 'Compra'), ('stock', 'Stock')],
-        string='Tipo registro', default='mrp',
-    )
-
-    product_id  = fields.Many2one('product.product', string='Producto', required=True)
-    bom_id      = fields.Many2one('mrp.bom', string='LdM')
-    product_qty = fields.Float(string='Cantidad', digits=(16, 2))
-    duration_hours = fields.Float(string='Duración (hs)', digits=(10, 2))
-
-    new_date_start  = fields.Datetime(string='Fecha inicio')
-    new_date_finish = fields.Datetime(string='Fecha fin')
-    workcenter_id   = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
-    compatible_workcenter_ids = fields.Many2many(
-        'mrp.workcenter', compute='_compute_compatible_wc_ids',
-    )
-
-    @api.depends('product_id')
-    def _compute_compatible_wc_ids(self):
-        get_param = self.env['ir.config_parameter'].sudo().get_param
-        fallback = get_param('mrp_reschedule.wc_fallback', 'ldm')
-        all_wcs = None
-        for line in self:
-            if not line.product_id:
-                line.compatible_workcenter_ids = self.env['mrp.workcenter']
-                continue
-            centros = line.product_id.product_tmpl_id.x_centros_compatibles.filtered('active')
-            if centros:
-                line.compatible_workcenter_ids = centros.mapped('workcenter_id')
-            elif fallback == 'none':
-                line.compatible_workcenter_ids = self.env['mrp.workcenter']
-            else:
-                if all_wcs is None:
-                    all_wcs = self.env['mrp.workcenter'].search([])
-                line.compatible_workcenter_ids = all_wcs
-
-    workcenter_label  = fields.Char(string='WC / Proveedor')
-    workcenter_chain  = fields.Char(string='Cadena WC', readonly=True)
-    description_label = fields.Char(string='Producto')
-    type_label        = fields.Char(string='Tipo')
-
-    warning_type = fields.Selection([
-        ('', 'Ninguna'),
-        ('stock_ok',      'Stock suficiente'),
-        ('stock_partial', 'Stock parcial'),
-    ], string='Tipo advertencia', default='')
-    warning_message  = fields.Char(string='Advertencia')
-    is_auto_reorder  = fields.Boolean(default=False)
-
-
-class MrpProductionRequestWc(models.Model):
-    _name = 'mrp.production.request.wc'
-    _description = 'Carga de centro de trabajo en programación'
-    _order = 'date_start, id'
-
-    request_id    = fields.Many2one('mrp.production.request', required=True, ondelete='cascade')
-    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo', required=True)
-    total_hours   = fields.Float(string='Horas totales', digits=(10, 2))
-    date_start    = fields.Datetime(string='Inicio')
-    date_end      = fields.Datetime(string='Fin')

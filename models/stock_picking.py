@@ -1,3 +1,21 @@
+"""
+Módulo: stock_picking.py
+Modelo: extensión de stock.picking
+
+Intercepta escrituras en transferencias para mantener el sistema de alertas
+de reprogramación MRP actualizado cuando cambia el estado o la fecha de una recepción.
+
+Responsabilidades:
+- Detectar cancelaciones, confirmaciones y cambios de fecha en recepciones entrantes.
+- Resolver alertas de tipo 'receipt_delayed' cuando la situación se normaliza.
+- Marcar las órdenes de fabricación (MOs) que consumen los productos afectados
+  como necesitadas de reprogramación (x_reschedule_needed).
+
+Relacionado con:
+- mrp.reschedule.alert: gestiona las alertas de retraso que este módulo resuelve.
+- mrp.production: las órdenes de fabricación que se marcan para reprogramar.
+"""
+
 import logging
 from odoo import models, fields
 
@@ -8,6 +26,27 @@ class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
     def write(self, vals):
+        """
+        Extiende write para disparar la lógica de alertas MRP en recepciones.
+
+        Al persistir cambios en transferencias, evalúa tres condiciones sobre los
+        registros de tipo 'incoming' (recepciones de proveedor):
+
+        1. Cancelación (state → 'cancel'): resuelve alertas 'receipt_delayed' activas
+           y marca las MOs dependientes para reprogramación, porque el material ya
+           no llegará por esta vía.
+        2. Confirmación/recepción (state → 'done'): resuelve alertas 'receipt_delayed'
+           porque el material ya ingresó al almacén.
+        3. Cambio de fecha programada: si la nueva fecha es posterior a la anterior,
+           la recepción se atrasó y las MOs dependientes deben reevaluarse; si la
+           nueva fecha es futura respecto al momento actual, la alerta previa se resuelve.
+
+        Los errores por recepción se loguean como warning sin interrumpir el write,
+        para no bloquear operaciones de almacén por fallos en la lógica de planificación.
+
+        :param vals: dict con los valores a escribir en los registros.
+        :returns: resultado de super().write(vals) (bool True en Odoo ORM).
+        """
         track_cancel = vals.get('state') == 'cancel'
         track_done   = vals.get('state') == 'done'
         track_date   = 'scheduled_date' in vals

@@ -1,5 +1,21 @@
 /** @odoo-module **/
 
+/**
+ * @widget SupplierAnalysisWidget
+ * @description Tabla interactiva de análisis de proveedores con métricas de desempeño
+ * (puntualidad, retrasos, lead time, variación de precio, facturas pendientes).
+ * Permite filtrar por período y tipo de OC, buscar por nombre, ordenar por cualquier
+ * columna y expandir en acordeón las órdenes de compra de cada proveedor.
+ *
+ * Métodos RPC que consume:
+ *   - get_supplier_analysis_data(date_from, date_to, search, po_type)
+ *       → { rows: Array<SupplierRow>, config: Object, has_invoices: boolean, show_supplier_cat: boolean }
+ *   - get_supplier_pos_for_analysis(partner_id, date_from, date_to)
+ *       → Array<{ po_id, name, date_approve, amount_total, receipt_status, ... }>
+ *
+ * Props esperados:
+ *   - record: Object — registro del dashboard (mrp.planner.dashboard)
+ */
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -19,10 +35,20 @@ const SUP_COLS = [
     { key: 'pending_inv',      label: 'Fact. pend.',   width: 100, sortKey: 'pending_inv',       align: 'end', title: 'Facturas de proveedor pendientes de pago.' },
 ];
 
+/**
+ * Retorna el primer día del año en curso en formato YYYY-MM-DD.
+ * Usado como valor inicial del filtro de período "Desde".
+ * @returns {string} Fecha en formato YYYY-MM-DD (ej. "2026-01-01")
+ */
 function firstOfYearYMD() {
     return `${new Date().getFullYear()}-01-01`;
 }
 
+/**
+ * Retorna la fecha de hoy en formato YYYY-MM-DD.
+ * Usado como valor inicial del filtro de período "Hasta".
+ * @returns {string} Fecha en formato YYYY-MM-DD (ej. "2026-07-03")
+ */
 function todayYMD() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -32,6 +58,10 @@ class SupplierAnalysisWidget extends Component {
     static template = "odoo_mrp_planner.SupplierAnalysisWidget";
     static props = { record: { type: Object }, "*": true };
 
+    /**
+     * Inicializa servicios, estado reactivo, gestor de columnas y lifecycle hooks.
+     * El debounce de carga evita llamadas RPC excesivas al tipear en los filtros de fecha.
+     */
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
@@ -67,11 +97,22 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Manejador de clic en encabezado de columna para ordenar la tabla.
+     * Delega en setSort usando el atributo data-sort-key del elemento clicado.
+     * @param {MouseEvent} ev - Evento de clic sobre el th del encabezado
+     */
     onHeaderClick(ev) {
         const sortKey = ev.currentTarget.dataset.sortKey;
         if (sortKey) this.setSort(sortKey);
     }
 
+    /**
+     * Carga los datos de análisis de proveedores desde el backend.
+     * Reinicia el acordeón y los datos de OCs cacheados para evitar mostrar
+     * datos de un período anterior mientras llega la respuesta del nuevo.
+     * @returns {Promise<void>}
+     */
     async _load() {
         this.state.loading = true;
         this.state.expandedSuppliers = {};
@@ -93,6 +134,11 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Filtros de período ─────────────────────────────────────────────────────
 
+    /**
+     * Actualiza la fecha de inicio del período y dispara una carga con debounce.
+     * Si la nueva fecha es posterior al "Hasta", adelanta "Hasta" para mantener coherencia.
+     * @param {Event} ev - Evento change del input[type=date] "Desde"
+     */
     onPeriodFromChange(ev) {
         const val = ev.target.value;
         if (!val) return;
@@ -102,6 +148,11 @@ class SupplierAnalysisWidget extends Component {
         this._loadDebounced();
     }
 
+    /**
+     * Actualiza la fecha de fin del período y dispara una carga con debounce.
+     * Si la nueva fecha es anterior al "Desde", retrocede "Desde" para mantener coherencia.
+     * @param {Event} ev - Evento change del input[type=date] "Hasta"
+     */
     onPeriodToChange(ev) {
         const val = ev.target.value;
         if (!val) return;
@@ -113,11 +164,21 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Búsqueda reactiva (client-side) ───────────────────────────────────────
 
+    /**
+     * Filtra la tabla por nombre de proveedor en tiempo real (client-side).
+     * Reinicia la página a 1 para evitar quedarse en una página vacía.
+     * @param {InputEvent} ev - Evento input del campo de búsqueda
+     */
     onSearchInput(ev) {
         this.state.search = ev.target.value;
         this.state.page   = 1;
     }
 
+    /**
+     * Cambia el filtro de tipo de OC y recarga los datos desde el backend.
+     * El guard de igualdad evita una llamada innecesaria si se selecciona el tipo ya activo.
+     * @param {'all'|'purchase'|'done'} t - Tipo de OC a filtrar
+     */
     setPoType(t) {
         if (this.state.poType === t) return;
         this.state.poType = t;
@@ -127,6 +188,12 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Sort ──────────────────────────────────────────────────────────────────
 
+    /**
+     * Cambia la columna de ordenamiento o invierte la dirección si ya está activa.
+     * La columna "partner_name" ordena ascendente por defecto (A→Z);
+     * el resto ordena descendente (mayor → menor).
+     * @param {string} col - Clave de columna definida en SUP_COLS (sortKey)
+     */
     setSort(col) {
         if (this.state.sortCol === col) {
             this.state.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
@@ -137,6 +204,13 @@ class SupplierAnalysisWidget extends Component {
         this.state.page = 1;
     }
 
+    /**
+     * Retorna la clase CSS del ícono de ordenamiento para una columna dada.
+     * Muestra un ícono neutro si la columna no está activa, o un ícono
+     * direccional (asc/desc) resaltado en azul si es la columna activa.
+     * @param {string} col - Clave de columna
+     * @returns {string} Clases CSS de FontAwesome para el ícono
+     */
     sortIcon(col) {
         if (this.state.sortCol !== col) return 'fa fa-sort text-muted ms-1';
         return this.state.sortDir === 'asc'
@@ -144,6 +218,12 @@ class SupplierAnalysisWidget extends Component {
             : 'fa fa-sort-desc text-primary ms-1';
     }
 
+    /**
+     * Retorna las filas de proveedores filtradas por búsqueda y ordenadas.
+     * Los nulos se ubican al final en cualquier dirección de orden (usando
+     * Infinity/-Infinity) para no distorsionar el ranking de proveedores activos.
+     * @returns {Array<Object>} Filas ordenadas y filtradas del dataset completo
+     */
     get sortedRows() {
         if (!this.state.data) return [];
         let rows = [...this.state.data.rows];
@@ -166,21 +246,41 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Paginación ────────────────────────────────────────────────────────────
 
+    /**
+     * Retorna el subconjunto de filas correspondiente a la página actual.
+     * @returns {Array<Object>} Filas visibles en la página activa
+     */
     get pagedRows() {
         const start = (this.state.page - 1) * this.state.pageSize;
         return this.sortedRows.slice(start, start + this.state.pageSize);
     }
 
+    /** @returns {number} Total de páginas disponibles (mínimo 1 aunque no haya datos) */
     get totalPages()  { return Math.max(1, Math.ceil(this.sortedRows.length / this.state.pageSize)); }
+    /** @returns {boolean} True si existe una página siguiente */
     get hasNextPage() { return this.state.page < this.totalPages; }
+    /** @returns {boolean} True si existe una página anterior */
     get hasPrevPage() { return this.state.page > 1; }
+    /** Avanza a la siguiente página si está disponible. */
     nextPage() { if (this.hasNextPage) this.state.page++; }
+    /** Retrocede a la página anterior si está disponible. */
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
+    /**
+     * Retorna el número de columnas visibles para el atributo colspan de filas de estado
+     * (loading, sin datos, acordeón de OCs).
+     * @returns {number} Cantidad de columnas visibles actualmente
+     */
     get tableColspan() {
         return this.supVisibleCols.length;
     }
 
+    /**
+     * Retorna las columnas visibles filtradas por disponibilidad de datos.
+     * "pending_inv" se oculta si el backend indica que no hay módulo de facturación activo.
+     * "supplier_cat" se oculta si la clasificación ABC de proveedor no está configurada.
+     * @returns {Array<Object>} Definiciones de columna visibles según contexto
+     */
     get supVisibleCols() {
         return this.colsSup.visibleCols().filter(c => {
             if (c.key === 'pending_inv') return this.state.data && this.state.data.has_invoices;
@@ -189,6 +289,12 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Retorna la clase Bootstrap para el badge de categoría de proveedor (A–E).
+     * Usa text-bg-* para garantizar contraste automático de texto según el fondo.
+     * @param {'A'|'B'|'C'|'D'|'E'} cat - Letra de categoría Pareto del proveedor
+     * @returns {string} Clases CSS del badge
+     */
     catBadgeClass(cat) {
         const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-warning text-dark', D: 'text-bg-secondary', E: 'text-bg-danger' };
         return map[cat] || 'text-bg-secondary';
@@ -196,6 +302,13 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Acordeón de OCs ───────────────────────────────────────────────────────
 
+    /**
+     * Expande o colapsa el acordeón de OCs de un proveedor.
+     * Si se abre por primera vez, carga las OCs desde el backend y las cachea
+     * en posBySupplier para no repetir la llamada RPC en aperturas subsiguientes.
+     * @param {Object} row - Fila del proveedor con al menos partner_id
+     * @returns {Promise<void>}
+     */
     async toggleAccordion(row) {
         const pid = row.partner_id;
         const wasOpen = !!this.state.expandedSuppliers[pid];
@@ -218,6 +331,11 @@ class SupplierAnalysisWidget extends Component {
         }
     }
 
+    /**
+     * Retorna las clases CSS del badge para el estado de recepción de una OC.
+     * @param {'full'|'partial'|'pending'|'none'} status - Estado de recepción
+     * @returns {string} Clases CSS del badge Bootstrap
+     */
     receiptBadge(status) {
         const map = {
             full:    'badge bg-success',
@@ -228,6 +346,11 @@ class SupplierAnalysisWidget extends Component {
         return map[status] || 'badge bg-light';
     }
 
+    /**
+     * Retorna la etiqueta legible en español para el estado de recepción de una OC.
+     * @param {'full'|'partial'|'pending'|'none'} status - Estado de recepción
+     * @returns {string} Texto visible en el badge de recepción
+     */
     receiptLabel(status) {
         const map = { full: 'Completa', partial: 'Parcial', pending: 'Pendiente', none: 'Sin recepción' };
         return map[status] || status;
@@ -235,18 +358,42 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Formateo / clases ─────────────────────────────────────────────────────
 
+    /**
+     * Acceso seguro al objeto de configuración de umbrales del dashboard.
+     * Retorna un objeto vacío si los datos aún no fueron cargados, evitando
+     * errores al acceder a propiedades de configuración durante la carga inicial.
+     * @returns {Object} Configuración con umbrales sup_on_time_*, sup_delay_*, etc.
+     */
     _cfg() { return (this.state.data && this.state.data.config) || {}; }
 
+    /**
+     * Formatea un número como monto monetario sin decimales en locale es-AR.
+     * @param {number|null|undefined} n - Monto a formatear
+     * @returns {string} Monto formateado (ej. "1.234.567") o "—" si es nulo
+     */
     fmtMoney(n) {
         if (n === null || n === undefined) return '—';
         return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n);
     }
 
+    /**
+     * Formatea un número como variación porcentual con signo explícito.
+     * El signo "+" se muestra en valores positivos para facilitar lectura de variaciones.
+     * @param {number|null|undefined} n - Porcentaje a formatear
+     * @returns {string} Porcentaje con signo (ej. "+5%", "-3%") o "—" si es nulo
+     */
     fmtPct(n) {
         if (n === null || n === undefined) return '—';
         return `${n > 0 ? '+' : ''}${n}%`;
     }
 
+    /**
+     * Retorna la clase CSS semafórica para el porcentaje de entregas a tiempo.
+     * Los umbrales green/yellow se toman de la configuración del dashboard
+     * (sup_on_time_green, sup_on_time_yellow), con defaults 90% y 70%.
+     * @param {number|null|undefined} v - Porcentaje de entregas a tiempo (0–100)
+     * @returns {string} Clase CSS de Bootstrap text-* según semáforo
+     */
     onTimeCls(v) {
         if (v === null || v === undefined) return 'text-muted';
         const cfg = this._cfg();
@@ -257,6 +404,13 @@ class SupplierAnalysisWidget extends Component {
         return 'text-danger fw-semibold';
     }
 
+    /**
+     * Retorna la clase CSS semafórica para el promedio de días de retraso.
+     * La lógica está invertida respecto a onTimeCls: menor valor es mejor,
+     * por lo que verde corresponde a valores bajos. Defaults: green ≤ 1 d, yellow ≤ 3 d.
+     * @param {number|null|undefined} v - Promedio de días de retraso
+     * @returns {string} Clase CSS de Bootstrap text-* según semáforo
+     */
     delayCls(v) {
         if (v === null || v === undefined) return 'text-muted';
         const cfg = this._cfg();
@@ -267,6 +421,12 @@ class SupplierAnalysisWidget extends Component {
         return 'text-danger';
     }
 
+    /**
+     * Retorna la clase CSS semafórica para el porcentaje de recepciones completas.
+     * Umbral configurable via sup_complete_green (default 95%) y sup_complete_yellow (default 80%).
+     * @param {number|null|undefined} v - Porcentaje de recepciones sin backorder (0–100)
+     * @returns {string} Clase CSS de Bootstrap text-* según semáforo
+     */
     completeCls(v) {
         if (v === null || v === undefined) return 'text-muted';
         const cfg = this._cfg();
@@ -277,6 +437,13 @@ class SupplierAnalysisWidget extends Component {
         return 'text-danger';
     }
 
+    /**
+     * Retorna la clase CSS semafórica para la variación de precio OC vs costo estándar.
+     * Usa valor absoluto porque tanto sobreprecios como subprecios inusuales son señales
+     * de alerta. Umbrales: sup_price_var_green (default 3%) y sup_price_var_yellow (default 10%).
+     * @param {number|null|undefined} v - Variación porcentual (puede ser negativa)
+     * @returns {string} Clase CSS de Bootstrap text-* según semáforo
+     */
     priceVarCls(v) {
         if (v === null || v === undefined) return 'text-muted';
         const cfg = this._cfg();
@@ -290,6 +457,13 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Navegación ────────────────────────────────────────────────────────────
 
+    /**
+     * Navega al formulario del proveedor en res.partner.
+     * Detiene la propagación del evento para no disparar el toggleAccordion
+     * de la fila padre al hacer clic en el enlace de nombre.
+     * @param {MouseEvent} ev - Evento de clic
+     * @param {Object} row - Fila del proveedor con partner_id
+     */
     openSupplier(ev, row) {
         ev.stopPropagation();
         this.action.doAction({
@@ -301,6 +475,12 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Navega al formulario de una orden de compra específica.
+     * Detiene la propagación para no colapsar el acordeón del proveedor al hacer clic.
+     * @param {MouseEvent} ev - Evento de clic
+     * @param {Object} po - Objeto de OC con po_id
+     */
     openPO(ev, po) {
         ev.stopPropagation();
         this.action.doAction({
@@ -312,6 +492,13 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Abre la vista de lista de todas las OCs confirmadas del proveedor en el período activo.
+     * El dominio replica exactamente los filtros aplicados en el análisis (partner, estados,
+     * rango de fechas de aprobación) para que el usuario vea el mismo universo de datos.
+     * @param {MouseEvent} ev - Evento de clic
+     * @param {Object} row - Fila del proveedor con partner_id
+     */
     openPOs(ev, row) {
         ev.stopPropagation();
         this.action.doAction({

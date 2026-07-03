@@ -1,3 +1,26 @@
+"""
+Módulo: mrp_reschedule_plan.py
+Modelo: mrp.reschedule.plan (+ mrp.reschedule.plan.line + mrp.reschedule.plan.wc.line)
+
+Motor de reprogramación en cascada para órdenes de fabricación (MOs) y compras (POs).
+
+Responsabilidades:
+- Calcular nuevas fechas de inicio/fin para todas las MOs dependientes de una
+  orden pivot (o para todas las MOs activas en modo global) dado un desplazamiento.
+- Respetar los calendarios laborales de los centros de trabajo y los anchos de
+  capacidad compartida entre órdenes.
+- Registrar las líneas propuestas (MrpReschedulePlanLine) y la carga detallada
+  por centro de trabajo (MrpReschedulePlanWcLine) antes de aplicar cambios.
+- Aplicar los cambios en Odoo sólo al ejecutar action_apply, con control de
+  permisos por grupo de seguridad.
+
+Relacionado con:
+- mrp.production: órdenes de fabricación que se reprograman.
+- purchase.order: órdenes de compra vinculadas que se actualizan en cascada.
+- mrp.reschedule.config: configuración global del módulo (heurística WC, etc.).
+- mrp.schedule.mixin: mixin que provee _schedule_duration y INDENT_MAP.
+"""
+
 import logging
 import pytz
 from collections import deque
@@ -10,6 +33,8 @@ from .mrp_schedule_mixin import INDENT_MAP
 
 _logger = logging.getLogger(__name__)
 
+# Límite de profundidad del árbol de cascada para evitar bucles infinitos en
+# estructuras de producto con referencias circulares o jerarquías muy profundas.
 MAX_DEPTH = 30
 
 
@@ -32,10 +57,12 @@ def _get_old_code(mo):
     return ''
 
 
+# Traducciones de estados técnicos de mrp.production para mostrar en la vista.
 MRP_STATES = {
     'draft': 'Borrador', 'confirmed': 'Confirmado', 'progress': 'En proceso',
     'to_close': 'Por cerrar', 'done': 'Hecho', 'cancel': 'Cancelado',
 }
+# Traducciones de estados técnicos de purchase.order para mostrar en la vista.
 PO_STATES = {
     'draft': 'Presupuesto', 'sent': 'Enviado', 'to approve': 'Por aprobar',
     'purchase': 'OC confirmada', 'done': 'Bloqueado', 'cancel': 'Cancelado',
@@ -48,7 +75,10 @@ class MrpReschedulePlan(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin', 'mrp.schedule.mixin']
     _order = 'id desc'
 
-    name = fields.Char(string='Referencia', readonly=True, default='Nuevo', copy=False)
+    name = fields.Char(
+        string='Referencia', readonly=True, default='Nuevo', copy=False,
+        help='Secuencia autogenerada al crear el plan (ej. REPLAN/2024/001).',
+    )
     state = fields.Selection([
         ('draft',       'Borrador'),
         ('calculated',  'Calculado'),
@@ -65,6 +95,9 @@ class MrpReschedulePlan(models.Model):
     )
     new_finish_date = fields.Datetime(
         string='Nueva fecha de finalización', default=fields.Datetime.now,
+        help='Nueva fecha de fin deseada para la orden pivot. '
+             'El algoritmo calcula el desplazamiento respecto a la fecha actual '
+             'y lo propaga en cascada a todas las órdenes dependientes.',
     )
     replan_from = fields.Datetime(
         string='Replanificar desde',
@@ -72,17 +105,31 @@ class MrpReschedulePlan(models.Model):
         help='Punto de inicio para el modo global (sin pivot). '
              'En modo pivot se usa la nueva fecha de fin de la MO pivot.',
     )
-    delta_display = fields.Char(string='Desplazamiento', compute='_compute_delta_display')
+    delta_display = fields.Char(
+        string='Desplazamiento', compute='_compute_delta_display',
+        help='Diferencia entre la nueva fecha de fin y la planificada actualmente '
+             'en la orden pivot (ej. +2d 4h). En modo global muestra la fecha de inicio.',
+    )
     line_ids    = fields.One2many('mrp.reschedule.plan.line',    'plan_id', string='Líneas')
     wc_line_ids = fields.One2many('mrp.reschedule.plan.wc.line', 'plan_id', string='Líneas WC')
-    line_count  = fields.Integer(compute='_compute_line_count')
+    line_count  = fields.Integer(
+        compute='_compute_line_count',
+        help='Cantidad de líneas (MOs + POs) incluidas en este plan.',
+    )
 
-    applied_date = fields.Datetime(string='Fecha de aplicación', readonly=True, copy=False)
-    applied_by = fields.Many2one('res.users', string='Aplicado por', readonly=True, copy=False)
+    applied_date = fields.Datetime(
+        string='Fecha de aplicación', readonly=True, copy=False,
+        help='Momento en que se ejecutó action_apply y se escribieron las fechas en Odoo.',
+    )
+    applied_by = fields.Many2one(
+        'res.users', string='Aplicado por', readonly=True, copy=False,
+        help='Usuario que ejecutó la acción "Aplicar plan".',
+    )
 
     # ── Migración ────────────────────────────────────────────────────────────
 
     def _auto_init(self):
+        """Migración DDL: elimina la restricción NOT NULL de production_id para soportar modo global."""
         super()._auto_init()
         # production_id pasa a ser opcional (modo global sin pivot)
         self.env.cr.execute("SAVEPOINT drop_nn_production_id")
@@ -99,6 +146,16 @@ class MrpReschedulePlan(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Asigna número de secuencia automático al crear un plan.
+
+        Reemplaza el valor por defecto 'Nuevo' por el siguiente número de la
+        secuencia 'mrp.reschedule.plan'. Si la secuencia no está configurada
+        en la instancia, mantiene 'Nuevo' como fallback.
+
+        :param vals_list: lista de dicts con los valores a crear.
+        :returns: recordset con los registros creados.
+        """
         for vals in vals_list:
             if vals.get('name', 'Nuevo') == 'Nuevo':
                 vals['name'] = (
@@ -109,6 +166,7 @@ class MrpReschedulePlan(models.Model):
 
     @api.onchange('production_id')
     def _onchange_production_id(self):
+        """Actualiza new_finish_date con la fecha real de fin de la nueva orden pivot."""
         if not self.production_id:
             return
         done_wos = self.production_id.workorder_ids.filtered(
@@ -123,6 +181,7 @@ class MrpReschedulePlan(models.Model):
 
     @api.onchange('new_finish_date')
     def _onchange_new_finish_date(self):
+        """Invalida el cálculo previo si el usuario modifica la fecha objetivo."""
         if self.state == 'calculated':
             self.state = 'draft'
 
@@ -130,11 +189,25 @@ class MrpReschedulePlan(models.Model):
 
     @api.depends('line_ids')
     def _compute_line_count(self):
+        """
+        Calcula line_count para cada registro.
+
+        Fórmula: longitud de line_ids (incluye MOs y POs).
+        Depende de: line_ids.
+        """
         for rec in self:
             rec.line_count = len(rec.line_ids)
 
     @api.depends('new_finish_date', 'replan_from', 'production_id', 'production_id.date_finished')
     def _compute_delta_display(self):
+        """
+        Calcula delta_display para cada registro.
+
+        Fórmula: en modo pivot, diferencia entre new_finish_date y date_finished
+        del pivot expresada como ±Xd Yh. En modo global, muestra la fecha de
+        replan_from como texto informativo.
+        Depende de: new_finish_date, replan_from, production_id.date_finished.
+        """
         for rec in self:
             if not rec.production_id:
                 dt = rec.replan_from
@@ -158,6 +231,15 @@ class MrpReschedulePlan(models.Model):
     # ── Acciones de estado ───────────────────────────────────────────────────
 
     def action_calculate(self):
+        """
+        Construye las líneas propuestas de reprogramación sin modificar registros en Odoo.
+
+        Valida precondiciones (fecha de fin en la pivot o fecha de inicio en modo global),
+        delega la construcción al método _build_lines y transiciona el estado a 'calculated'.
+
+        :raises UserError: si la orden pivot no tiene fecha_finished planificada.
+        :raises UserError: si en modo global falta el campo replan_from.
+        """
         self.ensure_one()
         if self.production_id:
             if not self.production_id.date_finished:
@@ -174,6 +256,14 @@ class MrpReschedulePlan(models.Model):
         self.state = 'calculated'
 
     def action_reset_draft(self):
+        """
+        Vuelve el plan a estado borrador y borra todas las líneas calculadas.
+
+        Permite recalcular el plan con parámetros modificados. Solo usuarios con
+        el permiso 'Producción - Planificar' o superior pueden ejecutar esta acción.
+
+        :raises UserError: si el usuario no tiene el grupo de planificación o admin.
+        """
         self.ensure_one()
         u = self.env.user
         if not (u.has_group('odoo_mrp_planner.group_prod') or
@@ -188,6 +278,11 @@ class MrpReschedulePlan(models.Model):
         self.state = 'draft'
 
     def action_cancel(self):
+        """
+        Cancela el plan y elimina todas las líneas sin aplicar cambios en Odoo.
+
+        :raises UserError: si el usuario no tiene el grupo de planificación o admin.
+        """
         self.ensure_one()
         u = self.env.user
         if not (u.has_group('odoo_mrp_planner.group_prod') or
@@ -203,6 +298,22 @@ class MrpReschedulePlan(models.Model):
         self.message_post(body=_('Plan cancelado.'))
 
     def action_apply(self):
+        """
+        Aplica las fechas propuestas en las MOs y POs marcadas con 'apply=True'.
+
+        Secuencia de operaciones:
+        1. Verifica permisos del usuario.
+        2. Requiere estado 'calculated' y al menos una línea marcada para aplicar.
+        3. En modo pivot: desplaza fechas de la MO pivot si está confirmada.
+        4. Escribe date_start / date_finished en cada MO de las líneas activas.
+        5. Actualiza date_planned en las líneas abiertas de las POs activas.
+        6. Ejecuta button_plan() en todas las MOs modificadas para re-secuenciar WOs.
+        7. Registra applied_date, applied_by y publica mensaje en el chatter.
+
+        :raises UserError: si el usuario no tiene permisos de planificación.
+        :raises UserError: si el plan no está en estado 'calculated'.
+        :raises UserError: si no hay líneas marcadas para aplicar.
+        """
         self.ensure_one()
         u = self.env.user
         can_apply = (
@@ -278,6 +389,14 @@ class MrpReschedulePlan(models.Model):
         )
 
     def action_open_gantt(self):
+        """
+        Abre la vista Gantt con las fechas PROPUESTAS (new_date_start / new_date_finish).
+
+        Solo muestra líneas de tipo 'mrp' con new_date_start definido.
+
+        :raises UserError: si el plan no tiene líneas calculadas.
+        :returns: acción de ventana con vista gantt de mrp.reschedule.plan.line.
+        """
         self.ensure_one()
         if not self.line_ids:
             raise UserError(_('Primero calcule los cambios propuestos.'))
@@ -296,6 +415,14 @@ class MrpReschedulePlan(models.Model):
         }
 
     def action_open_current_gantt(self):
+        """
+        Abre la vista Gantt con las fechas ACTUALES (current_date_start / current_date_finish).
+
+        Usa la vista específica 'mrp_reschedule_plan_line_gantt_current' si existe.
+
+        :raises UserError: si el plan no tiene líneas calculadas.
+        :returns: acción de ventana con vista gantt de mrp.reschedule.plan.line.
+        """
         self.ensure_one()
         if not self.line_ids:
             raise UserError(_('Primero calcule los cambios propuestos.'))
@@ -321,6 +448,7 @@ class MrpReschedulePlan(models.Model):
     # ── Helpers — consultas ──────────────────────────────────────────────────
 
     def _get_delta(self):
+        """Retorna el timedelta entre new_finish_date y la fecha_finished actual del pivot."""
         self.ensure_one()
         planned = self.production_id.date_finished
         if not planned or not self.new_finish_date:
@@ -328,6 +456,18 @@ class MrpReschedulePlan(models.Model):
         return self.new_finish_date - planned
 
     def _get_subsequent_mos(self):
+        """
+        Obtiene todas las MOs dependientes de la orden pivot en modo pivot.
+
+        Busca en tres niveles:
+        - Nivel 1: MOs con x_parent_mo_id apuntando al pivot (hijas directas).
+        - Nivel 2: MOs que consumen el producto del pivot como materia prima y
+          tienen fecha de inicio igual o posterior al pivot.
+        - Nivel 3: MOs que comparten centros de trabajo con el pivot y tienen
+          fecha de inicio igual o posterior (solo si include_wc_heuristic=True).
+
+        :returns: recordset de mrp.production ordenado por date_start, id.
+        """
         pivot = self.production_id
         if not pivot:
             return self.env['mrp.production']
@@ -385,6 +525,17 @@ class MrpReschedulePlan(models.Model):
         ], order='date_start, id')
 
     def _get_pos_for_mo(self, mo):
+        """
+        Busca las órdenes de compra no finalizadas vinculadas a una MO.
+
+        Busca en tres fuentes complementarias:
+        - Campo purchase_order_id directamente en la MO (si existe).
+        - Campo purchase_line_id en la MO (si existe).
+        - Campo origin de purchase.order que contenga el nombre de la MO.
+
+        :param mo: mrp.production — orden de fabricación de referencia.
+        :returns: recordset de purchase.order con estado distinto de done/cancel.
+        """
         pos = self.env['purchase.order']
         mo_fields = mo._fields
         if 'purchase_order_id' in mo_fields:
@@ -403,6 +554,15 @@ class MrpReschedulePlan(models.Model):
         return pos
 
     def _get_child_mos(self, mo):
+        """
+        Retorna las MOs hijas directas de una MO padre.
+
+        Busca por x_parent_mo_id y también por origin (para MOs generadas
+        automáticamente desde el módulo de planificación sin campo Studio).
+
+        :param mo: mrp.production — orden padre.
+        :returns: recordset de mrp.production activas (excluye done/cancel).
+        """
         children = self.env['mrp.production'].search([
             ('x_parent_mo_id', '=', mo.id),
             ('state', 'not in', ['done', 'cancel']),
@@ -418,15 +578,35 @@ class MrpReschedulePlan(models.Model):
     # ── Helpers — calendario ─────────────────────────────────────────────────
 
     def _get_mo_duration_hours(self, mo):
+        """
+        Estima la duración en horas de una MO para usarla como bloque en el calendario.
+
+        Prioridad: suma de duration_expected de WOs (en minutos → horas) >
+        diferencia real entre date_start y date_finished > valor por defecto de 8h.
+
+        :param mo: mrp.production — orden a evaluar.
+        :returns: float con la duración estimada en horas.
+        """
         if mo.workorder_ids:
             total = sum(wo.duration_expected or 0.0 for wo in mo.workorder_ids)
             if total > 0:
                 return total / 60.0
         if mo.date_start and mo.date_finished and mo.date_finished > mo.date_start:
             return (mo.date_finished - mo.date_start).total_seconds() / 3600.0
-        return 8.0
+        return 8.0  # Fallback: jornada laboral estándar cuando no hay datos de duración
 
     def _get_mo_calendar(self, mo, pivot_wc_ids=None):
+        """
+        Resuelve el calendario de recursos más apropiado para programar una MO.
+
+        Prioridad: WC compartido con el pivot que tenga calendario propio >
+        primer WC de la MO (por secuencia) con calendario propio >
+        calendario de la compañía como fallback.
+
+        :param mo: mrp.production — orden a evaluar.
+        :param pivot_wc_ids: set de IDs de workcenters del pivot para preferencia.
+        :returns: resource.calendar vinculado al workcenter o a la compañía.
+        """
         pivot_wc_ids = set(pivot_wc_ids or [])
         if mo.workorder_ids:
             if pivot_wc_ids:
@@ -441,6 +621,25 @@ class MrpReschedulePlan(models.Model):
         return self.env.company.resource_calendar_id
 
     def _schedule_mo_block(self, mo, wc_anchors, base_dt, duration_override=None, wc_collector=None):
+        """
+        Programa un bloque de MO respetando la disponibilidad de cada centro de trabajo.
+
+        Si la MO no tiene WOs, la trata como un bloque único usando el calendario de
+        la compañía. Si tiene WOs, las programa en secuencia escalando las duraciones
+        proporcionalmente si se especifica duration_override.
+
+        Actualiza wc_anchors in-place para que el próximo bloque en ese WC empiece
+        después de que este termine.
+
+        :param mo: mrp.production — orden a programar.
+        :param wc_anchors: dict {workcenter_id: datetime} con el último fin ocupado por WC.
+        :param base_dt: datetime — fecha mínima de inicio para esta MO.
+        :param duration_override: float opcional — duración total en horas que reemplaza
+            la suma de WOs (se redistribuye proporcionalmente entre ellas).
+        :param wc_collector: list opcional — si se pasa, se agregan dicts con los rangos
+            de cada WO para crear MrpReschedulePlanWcLine.
+        :returns: tuple (new_date_start, new_date_finish) como datetimes UTC naive.
+        """
         wos = mo.workorder_ids.sorted('sequence')
         total_wo_dur = sum(wo.duration_expected or 0.0 for wo in wos)
 
@@ -488,11 +687,23 @@ class MrpReschedulePlan(models.Model):
         return (mo_start, wo_prev_end)
 
     def _sort_mos_by_priority(self, mos, sequence_overrides=None):
+        """
+        Ordena una lista de MOs según la estrategia de prioridad configurada en el sistema.
+
+        Estrategias soportadas:
+        - 'chronological' (default): por date_start ASC, luego id ASC.
+        - 'shortest_first': por duración estimada ASC, luego date_start ASC.
+        - 'manual': por secuencia en sequence_overrides, luego date_start ASC.
+
+        :param mos: iterable de mrp.production.
+        :param sequence_overrides: dict {production_id: int} con orden manual opcional.
+        :returns: lista de mrp.production ordenada.
+        """
         priority = self.env['ir.config_parameter'].sudo().get_param(
             'mrp_reschedule.priority', 'chronological'
         )
         seq_map = sequence_overrides or {}
-        dt_max = datetime(9999, 12, 31)
+        dt_max = datetime(9999, 12, 31)  # Centinela para MOs sin fecha de inicio (van al final)
         if priority == 'shortest_first':
             return sorted(mos, key=lambda m: (
                 self._get_mo_duration_hours(m), m.date_start or dt_max,
@@ -506,6 +717,26 @@ class MrpReschedulePlan(models.Model):
     # ── Construcción de líneas ────────────────────────────────────────────────
 
     def _build_lines(self):
+        """
+        Construye todas las líneas del plan (MrpReschedulePlanLine y MrpReschedulePlanWcLine).
+
+        Algoritmo iterativo BFS (usando deque) que recorre el árbol de MOs en cascada:
+        1. Recoge overrides existentes en las líneas previas (duración, ancla, secuencia,
+           inicio forzado) para que el recálculo los respete.
+        2. Elimina líneas y líneas WC anteriores.
+        3. Inicializa wc_anchors con los WCs del pivot (modo pivot) o vacío (modo global).
+        4. Pre-carga en wc_anchors las MOs en estado 'progress' para respetar la
+           capacidad ya comprometida.
+        5. Procesa cada MO de la cola:
+           - Anclas: mantienen sus fechas actuales (o aplican inicio forzado con calendario).
+           - Nivel 0: se programan desde base_dt usando _schedule_mo_block.
+           - Nivel > 0: se desplazan según el delta del padre y se ajustan al calendario.
+        6. Para cada MO procesada, agrega las POs vinculadas con el mismo desplazamiento.
+        7. Encola las MOs hijas para procesamiento en profundidad.
+        8. Crea los registros en batch al final para minimizar queries.
+
+        :raises nada directamente — los errores de profundidad se registran en _logger.
+        """
         self.ensure_one()
         pivot = self.production_id
         is_global = not pivot
@@ -745,35 +976,73 @@ class MrpReschedulePlanLine(models.Model):
     _order = 'reschedule_sequence, id'
     _rec_name = 'record_label'
 
-    plan_id  = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade')
-    sequence = fields.Integer(default=10)
-    reschedule_sequence = fields.Integer(string='Orden', default=0)
+    plan_id  = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade',
+                               string='Plan', help='Plan de reprogramación al que pertenece esta línea.')
+    sequence = fields.Integer(default=10,
+                              help='Orden interno de creación usado como fallback de visualización.')
+    reschedule_sequence = fields.Integer(
+        string='Orden',
+        default=0,
+        help='Secuencia editable por el usuario para ordenar manualmente las MOs '
+             'antes de calcular con la estrategia "manual".',
+    )
 
-    apply             = fields.Boolean(string='Aplicar', default=True)
-    is_anchor         = fields.Boolean(string='Fijo', default=False)
+    apply             = fields.Boolean(
+        string='Aplicar', default=True,
+        help='Si está activo, esta línea se incluirá al ejecutar "Aplicar plan". '
+             'Las líneas de MOs anchor y POs en estado cerrado se marcan en False por defecto.',
+    )
+    is_anchor         = fields.Boolean(
+        string='Fijo', default=False,
+        help='Las líneas fijas no se desplazan: conservan sus fechas actuales (o usan '
+             'inicio forzado). Las MOs en estado progress/done/to_close se fijan automáticamente.',
+    )
     forced_start_date = fields.Datetime(
         string='Inicio forzado',
         help='Si está definido en una línea fija, el algoritmo programa '
              'esta OF a partir de esta fecha (respetando el calendario del WC) '
              'en lugar de usar su fecha actual.',
     )
-    color     = fields.Integer(compute='_compute_color', store=True)
+    color     = fields.Integer(
+        compute='_compute_color', store=True,
+        help='Color Kanban: rojo=OC confirmada, naranja=hija ajustada, gris=anchor, '
+             'verde=compra, azul=fabricación.',
+    )
 
     record_type  = fields.Selection(
         [('mrp', 'Fabricación'), ('purchase', 'Compra')], string='Tipo', required=True,
+        help='Indica si la línea representa una orden de fabricación o una orden de compra.',
     )
-    level        = fields.Integer(default=0)
-    parent_label = fields.Char(string='Generado por')
+    level        = fields.Integer(
+        default=0,
+        help='Profundidad en el árbol de cascada. 0=raíz, 1=hija directa, 2=nieta, etc. '
+             'Usado para indentar la referencia en la vista árbol.',
+    )
+    parent_label = fields.Char(
+        string='Generado por',
+        help='Nombre de la MO padre que originó esta línea (para trazabilidad en la vista).',
+    )
 
-    production_id = fields.Many2one('mrp.production', string='Orden de fabricación')
-    purchase_id   = fields.Many2one('purchase.order',  string='Orden de compra')
+    production_id = fields.Many2one('mrp.production', string='Orden de fabricación',
+                                    help='MO asociada a esta línea (solo para record_type="mrp").')
+    purchase_id   = fields.Many2one('purchase.order',  string='Orden de compra',
+                                    help='PO asociada a esta línea (solo para record_type="purchase").')
 
-    duration_hours = fields.Float(string='Duración (hs)', digits=(10, 2))
+    duration_hours = fields.Float(
+        string='Duración (hs)', digits=(10, 2),
+        help='Duración estimada del bloque de producción en horas. '
+             'Editable para ajustar el largo del bloque antes de recalcular.',
+    )
     warning_type = fields.Selection(
         [('confirmed_po', 'OC confirmada'), ('child_adjusted', 'Hija ajustada')],
         string='Tipo advertencia', default=False,
+        help='confirmed_po: la PO ya está confirmada y requiere gestión con el proveedor. '
+             'child_adjusted: la MO hija fue ajustada al primer turno disponible.',
     )
-    warning_message = fields.Char(string='Advertencia')
+    warning_message = fields.Char(
+        string='Advertencia',
+        help='Descripción detallada del tipo de advertencia para mostrar en la vista.',
+    )
 
     # Campos de display almacenados para que el Gantt los lea sin recomputar
     record_label      = fields.Char(string='Referencia',           compute='_compute_display', store=True)
@@ -791,6 +1060,13 @@ class MrpReschedulePlanLine(models.Model):
 
     @api.depends('warning_type', 'is_anchor', 'record_type')
     def _compute_color(self):
+        """
+        Calcula color para cada línea.
+
+        Fórmula: jerarquía de prioridad — advertencia OC confirmada (1=rojo) >
+        hija ajustada (3=naranja) > anchor (0=gris) > compra (10=verde) > MO (4=azul).
+        Depende de: warning_type, is_anchor, record_type.
+        """
         for line in self:
             if line.warning_type == 'confirmed_po':
                 line.color = 1   # rojo
@@ -807,6 +1083,14 @@ class MrpReschedulePlanLine(models.Model):
                  'production_id.workorder_ids.workcenter_id',
                  'production_id.product_qty', 'production_id.product_uom_id')
     def _compute_display(self):
+        """
+        Calcula los campos de etiqueta para mostrar en vistas árbol y Gantt.
+
+        Fórmula: construye record_label con indentación según level (usando INDENT_MAP),
+        prefijando el código viejo del producto si existe. Compone description_label,
+        workcenter_label (secuencia de WCs con ' › '), product_qty_display y type_label.
+        Depende de: level, record_type, production_id, purchase_id y sus subfields.
+        """
         for line in self:
             prefix = INDENT_MAP.get(line.level, ' ' * 9 + '└─ ')
             if line.record_type == 'mrp' and line.production_id:
@@ -837,6 +1121,13 @@ class MrpReschedulePlanLine(models.Model):
 
     @api.depends('record_type', 'production_id.state', 'purchase_id.state')
     def _compute_state_display(self):
+        """
+        Calcula state_display para cada línea.
+
+        Fórmula: traduce el estado técnico de la MO o PO usando MRP_STATES / PO_STATES.
+        No se almacena (store=False) ya que cambia con frecuencia en producción.
+        Depende de: record_type, production_id.state, purchase_id.state.
+        """
         for line in self:
             if line.record_type == 'mrp' and line.production_id:
                 line.state_display = MRP_STATES.get(line.production_id.state, line.production_id.state)
@@ -847,6 +1138,14 @@ class MrpReschedulePlanLine(models.Model):
 
     @api.depends('current_date_finish', 'new_date_finish')
     def _compute_delta_display_line(self):
+        """
+        Calcula date_delta_display para cada línea.
+
+        Fórmula: diferencia entre new_date_finish y current_date_finish expresada
+        como ±Xd Yh. Muestra '—' si alguna fecha es nula y 'sin cambio' si la
+        diferencia es menor a 60 segundos.
+        Depende de: current_date_finish, new_date_finish.
+        """
         for line in self:
             cur = line.current_date_finish
             new = line.new_date_finish
@@ -870,28 +1169,54 @@ class MrpReschedulePlanLine(models.Model):
 
 
 class MrpReschedulePlanWcLine(models.Model):
+    """
+    Registro de carga detallada por operación (WO) dentro de un plan de reprogramación.
+
+    Cada línea representa el bloque de tiempo que una operación (mrp.workorder) ocupará
+    en su centro de trabajo con las nuevas fechas propuestas. Se usa principalmente para
+    la vista Gantt de carga de centros de trabajo y para detectar solapamientos.
+    """
+
     _name = 'mrp.reschedule.plan.wc.line'
     _description = 'Carga de centro de trabajo — plan de reprogramación'
     _order = 'new_date_start, id'
     _rec_name = 'record_label'
 
-    plan_id       = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade', string='Plan')
-    production_id = fields.Many2one('mrp.production', string='Orden de fabricación')
-    workorder_id  = fields.Many2one('mrp.workorder',  string='Operación')
-    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo')
+    plan_id       = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade', string='Plan',
+                                    help='Plan de reprogramación al que pertenece esta línea de WC.')
+    production_id = fields.Many2one('mrp.production', string='Orden de fabricación',
+                                    help='MO a la que pertenece la operación.')
+    workorder_id  = fields.Many2one('mrp.workorder',  string='Operación',
+                                    help='Operación específica dentro de la MO.')
+    workcenter_id = fields.Many2one('mrp.workcenter', string='Centro de trabajo',
+                                    help='Centro de trabajo que ejecuta la operación.')
 
-    new_date_start  = fields.Datetime(string='Nuevo inicio')
-    new_date_finish = fields.Datetime(string='Nuevo fin')
+    new_date_start  = fields.Datetime(string='Nuevo inicio',
+                                      help='Fecha/hora de inicio propuesta para esta operación.')
+    new_date_finish = fields.Datetime(string='Nuevo fin',
+                                      help='Fecha/hora de fin propuesta para esta operación.')
 
-    record_label = fields.Char(string='OF',        compute='_compute_display', store=True)
-    wo_name      = fields.Char(string='Operación', compute='_compute_display', store=True)
-    color        = fields.Integer(compute='_compute_color', store=True)
+    record_label = fields.Char(string='OF',        compute='_compute_display', store=True,
+                               help='Nombre de la MO, con código viejo si aplica.')
+    wo_name      = fields.Char(string='Operación', compute='_compute_display', store=True,
+                               help='Nombre de la operación o del producto si no hay WO.')
+    color        = fields.Integer(compute='_compute_color', store=True,
+                                  help='Color según estado del plan: verde=aplicado, azul=calculado, gris=otro.')
 
-    plan_state = fields.Selection(related='plan_id.state', store=True, string='Estado plan')
-    plan_name  = fields.Char(related='plan_id.name',  store=True, string='Plan')
+    plan_state = fields.Selection(related='plan_id.state', store=True, string='Estado plan',
+                                  help='Estado del plan padre, denormalizado para filtros en vista.')
+    plan_name  = fields.Char(related='plan_id.name',  store=True, string='Plan',
+                             help='Referencia del plan padre, denormalizada para búsquedas.')
 
     @api.depends('production_id', 'workorder_id')
     def _compute_display(self):
+        """
+        Calcula record_label y wo_name para cada línea WC.
+
+        Fórmula: record_label = nombre de la MO con prefijo de código viejo si existe.
+        wo_name = nombre de la WO o nombre del producto de la MO como fallback.
+        Depende de: production_id, workorder_id.
+        """
         for line in self:
             mo = line.production_id
             wo = line.workorder_id
@@ -906,6 +1231,12 @@ class MrpReschedulePlanWcLine(models.Model):
 
     @api.depends('plan_state')
     def _compute_color(self):
+        """
+        Calcula color para cada línea WC según el estado del plan padre.
+
+        Fórmula: aplicado=10 (verde), calculado=4 (azul), otro=0 (gris).
+        Depende de: plan_state.
+        """
         for line in self:
             if line.plan_state == 'applied':
                 line.color = 10   # verde

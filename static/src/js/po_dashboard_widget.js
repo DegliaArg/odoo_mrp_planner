@@ -51,6 +51,12 @@ const PO_SVC_COLS = [
     { key: 'amount_total',label: 'Total',            width: 100, sortKey: 'amount_total', align: 'end', title: 'Importe total de la OC de servicio.' },
 ];
 
+/**
+ * Convierte un objeto Date en cadena "YYYY-MM-DD" sin depender de toISOString,
+ * evitando desfases por zona horaria (UTC vs. local).
+ * @param {Date} d - Fecha a convertir
+ * @returns {string} Fecha en formato ISO local "YYYY-MM-DD"
+ */
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -68,6 +74,11 @@ class PoDashboardWidget extends Component {
         "*": true,
     };
 
+    /**
+     * Inicializa servicios OWL, gestores de columnas, estado reactivo y
+     * registra los hooks de ciclo de vida (onMounted / onWillUnmount).
+     * El rango de fechas inicial cubre el mes en curso.
+     */
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
@@ -118,7 +129,11 @@ class PoDashboardWidget extends Component {
         });
     }
 
-    /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */
+    /**
+     * Llama al método Python get_po_dashboard_data y vuelca el resultado en
+     * el estado reactivo. Gestiona el flag loading para el spinner del template.
+     * @returns {Promise<void>}
+     */
     async _load() {
         this.state.loading = true;
         try {
@@ -146,6 +161,11 @@ class PoDashboardWidget extends Component {
         }
     }
 
+    /**
+     * Cambia el tab principal (all / purchase / subcontract) y recarga datos.
+     * Reinicia subtab, ordenamiento y página para evitar estados inconsistentes.
+     * @param {string} tab - "all" | "purchase" | "subcontract"
+     */
     setTab(tab) {
         if (this.state.tab === tab) return;
         this.state.tab       = tab;
@@ -171,9 +191,22 @@ class PoDashboardWidget extends Component {
         tableEl.style.height = Math.max(h, 150) + 'px';
     }
 
+    /**
+     * Actualiza la fecha de inicio del filtro y recarga desde la página 1.
+     * @param {Event} ev - Evento change del input date
+     */
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._load(); }
+    /**
+     * Actualiza la fecha de fin del filtro y recarga desde la página 1.
+     * @param {Event} ev - Evento change del input date
+     */
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._load(); }
 
+    /**
+     * Cambia el filtro de tipo de OC (all / pending / overdue / rfqs / approve)
+     * desde el select del template y recarga datos.
+     * @param {Event} ev - Evento change del select
+     */
     onOcFilterChange(ev) {
         this.state.ocFilter  = ev.target.value;
         this.state.listTab   = null;
@@ -183,6 +216,11 @@ class PoDashboardWidget extends Component {
         this._load();
     }
 
+    /**
+     * Activa un subtab de movimientos (receipts / deliveries / services).
+     * Pasar null vuelve al modo OC. Reinicia orden y página.
+     * @param {string|null} tab - "receipts" | "deliveries" | "services" | null
+     */
     setListTab(tab) {
         if (this.state.listTab === tab) return;
         this.state.listTab   = tab;
@@ -192,12 +230,24 @@ class PoDashboardWidget extends Component {
         this._load();
     }
 
+    /**
+     * Construye el fragmento de dominio Odoo que filtra por tipo de OC
+     * (compra directa vs. subcontratación) según el tab activo.
+     * Devuelve array vacío cuando el tab es "all".
+     * @returns {Array} Fragmento de dominio para purchase.order
+     */
     _scDomain() {
         if (this.state.tab === "purchase")    return [["subcontract_production_ids", "=", false]];
         if (this.state.tab === "subcontract") return [["subcontract_production_ids", "!=", false]];
         return [];
     }
 
+    /**
+     * Abre una vista lista/form de purchase.order con el dominio compuesto
+     * (baseDomain + filtro de subcontratación del tab activo).
+     * @param {string} name - Título que se muestra en la vista
+     * @param {Array} baseDomain - Dominio base antes de aplicar _scDomain
+     */
     _navigate(name, baseDomain) {
         this.action.doAction({
             type:      "ir.actions.act_window",
@@ -210,6 +260,12 @@ class PoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Genera el fragmento de dominio que acota por date_order al rango
+     * dateFrom/dateTo definido en el estado. Los extremos se normalizan
+     * a 00:00:00 y 23:59:59 para capturar el día completo.
+     * @returns {Array} Entre 0 y 2 condiciones de dominio Odoo
+     */
     _dateDomain() {
         const d = [];
         if (this.state.dateFrom) d.push(["date_order", ">=", this.state.dateFrom + " 00:00:00"]);
@@ -217,13 +273,20 @@ class PoDashboardWidget extends Component {
         return d;
     }
 
+    /** Navega a la lista de cotizaciones (estado draft o sent) en el rango de fechas activo. */
     onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._dateDomain()]); }
+    /** Navega a la lista de OCs pendientes de aprobación (estado to approve). */
     onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._dateDomain()]); }
+    /** Navega a todas las OCs aprobadas o completadas en el rango de fechas. */
     onClickAll() {
         this._navigate("Aprobadas", [
             ["state", "in", ["purchase", "done"]], ...this._dateDomain(),
         ]);
     }
+    /**
+     * Navega a OCs a tiempo: aprobadas con date_planned en el futuro
+     * o sin fecha planificada (OR explícito en el dominio).
+     */
     onClickPending() {
         const now = new Date().toISOString();
         this._navigate("A tiempo", [
@@ -232,6 +295,10 @@ class PoDashboardWidget extends Component {
             ...this._dateDomain(),
         ]);
     }
+    /**
+     * Navega a OCs vencidas: aprobadas con date_planned en el pasado
+     * y cuya recepción no está completa (receipt_status not in full).
+     */
     onClickOverdue() {
         const now = new Date().toISOString();
         this._navigate("Vencidas", [
@@ -255,6 +322,11 @@ class PoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Manejador de click en una fila de OC: extrae el data-po-id del tr
+     * más cercano y delega en openPo.
+     * @param {MouseEvent} ev - Click sobre cualquier celda de la fila
+     */
     openPoFromRow(ev) {
         const id = ev.currentTarget.closest("tr").dataset.poId;
         if (id) this.openPo(id);
@@ -273,11 +345,21 @@ class PoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Manejador de click en una fila de picking: extrae el data-pick-id del tr
+     * más cercano y delega en openPicking.
+     * @param {MouseEvent} ev - Click sobre cualquier celda de la fila
+     */
     openPickingFromRow(ev) {
         const id = ev.currentTarget.closest("tr").dataset.pickId;
         if (id) this.openPicking(id);
     }
 
+    /**
+     * Devuelve true cuando no hay datos en ninguna lista y la carga terminó,
+     * para mostrar el estado vacío en el template.
+     * @returns {boolean}
+     */
     get isEmpty() {
         const s = this.state;
         return !s.loading
@@ -286,6 +368,11 @@ class PoDashboardWidget extends Component {
             && s.receipts.length === 0 && s.deliveries.length === 0 && s.services.length === 0;
     }
 
+    /**
+     * Selecciona el array de filas que debe renderizar la tabla activa,
+     * priorizando el subtab de movimientos sobre el filtro de OC.
+     * @returns {Array} Lista de filas (PoRow[] | PickRow[] | ServiceRow[])
+     */
     get activeList() {
         if (this.state.listTab) {
             switch (this.state.listTab) {
@@ -303,6 +390,11 @@ class PoDashboardWidget extends Component {
         }
     }
 
+    /**
+     * Devuelve el total de registros (server-side) de la lista activa,
+     * usado para calcular el número total de páginas.
+     * @returns {number}
+     */
     get activeCount() {
         const s = this.state;
         if (s.listTab === 'receipts')   return s.kpis.receipts_total;
@@ -317,23 +409,58 @@ class PoDashboardWidget extends Component {
         }
     }
 
+    /**
+     * Total de páginas calculado a partir de activeCount y pageSize.
+     * Mínimo 1 para evitar divisiones por cero en el template.
+     * @returns {number}
+     */
     get totalPages()  { return Math.max(1, Math.ceil(this.activeCount / this.state.pageSize)); }
+    /**
+     * Indica si existe una página siguiente disponible.
+     * @returns {boolean}
+     */
     get hasNextPage() { return this.state.page < this.totalPages; }
+    /**
+     * Indica si existe una página anterior disponible.
+     * @returns {boolean}
+     */
     get hasPrevPage() { return this.state.page > 1; }
 
+    /** Avanza a la página siguiente y recarga datos si hay una disponible. */
     nextPage() { if (this.hasNextPage) { this.state.page++; this._load(); } }
+    /** Retrocede a la página anterior y recarga datos si hay una disponible. */
     prevPage() { if (this.hasPrevPage) { this.state.page--; this._load(); } }
 
+    /**
+     * Formatea un número entero con separadores de miles en locale es-AR.
+     * @param {number} n - Número a formatear
+     * @returns {string} Número formateado (ej: "1.234")
+     */
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
+    /**
+     * Formatea un importe monetario con dos decimales en locale es-AR.
+     * @param {number} n - Importe a formatear
+     * @returns {string} Importe formateado (ej: "1.234,56")
+     */
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
     // ── Ordenamiento ─────────────────────────────────────────────────────────
 
+    /**
+     * Manejador de click en cabecera de columna: lee el atributo data-sort-key
+     * y delega en sortBy para alternar la dirección.
+     * @param {MouseEvent} ev - Click en el th de la tabla
+     */
     onHeaderClick(ev) {
         const sortKey = ev.currentTarget.dataset.sortKey;
         if (sortKey) this.sortBy(sortKey);
     }
 
+    /**
+     * Activa el ordenamiento por un campo dado. Si ya estaba activo,
+     * alterna entre asc y desc. Siempre reinicia la página a 1 y recarga.
+     * @param {string} field - Clave de columna (sortKey) a ordenar
+     */
     sortBy(field) {
         if (this.state.sortField === field) {
             this.state.sortDir = this.state.sortDir === "asc" ? "desc" : "asc";
@@ -345,14 +472,32 @@ class PoDashboardWidget extends Component {
         this._load();
     }
 
+    /**
+     * Devuelve la clase CSS de Font Awesome adecuada para el icono de
+     * ordenamiento de una columna (neutro / asc / desc).
+     * @param {string} field - Clave de columna a evaluar
+     * @returns {string} Clases CSS (fa fa-sort | fa fa-sort-asc | fa fa-sort-desc)
+     */
     sortIcon(field) {
         if (this.state.sortField !== field) return "fa fa-sort text-muted ms-1 small";
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
     // El sort es siempre server-side (partner y availability se ordenan en Python antes de paginar)
+    /**
+     * Alias de activeList mantenido para compatibilidad con el template.
+     * El sort real ocurre server-side en Python antes de la paginación;
+     * no se reordena en el cliente para evitar inconsistencias entre páginas.
+     * @returns {Array}
+     */
     get sortedList() { return this.activeList; }
 
+    /**
+     * Alterna el estado expandido/colapsado de la fila detalle de un picking.
+     * Usa spread al expandir para que OWL detecte el cambio de referencia
+     * y reactive el template correctamente.
+     * @param {number|string} id - ID del picking a expandir/colapsar
+     */
     toggleExpand(id) {
         if (this.state.expandedIds[id]) {
             delete this.state.expandedIds[id];

@@ -41,6 +41,11 @@ const MO_COMP_COLS = [
     { key: 'pct',          label: '%',          width: 80,  sortKey: 'pct',          align: 'end', title: 'Cumplimiento = Producido ÷ Programado × 100.' },
 ];
 
+/**
+ * Convierte un objeto Date en string con formato YYYY-MM-DD.
+ * @param {Date} d - Fecha a convertir.
+ * @returns {string} Fecha en formato ISO local (sin zona horaria).
+ */
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -52,6 +57,11 @@ class MoDashboardWidget extends Component {
         "*": true,
     };
 
+    /**
+     * Inicializa servicios ORM y action, gestores de columnas, estado reactivo y
+     * ciclos de vida del componente. Calcula el rango de fechas del mes actual como
+     * valor inicial de los filtros dateFrom / dateTo.
+     */
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
@@ -147,6 +157,12 @@ class MoDashboardWidget extends Component {
         }
     }
 
+    /**
+     * Cambia la pestaña activa y recarga los datos correspondientes.
+     * Resetea la paginación y el ordenamiento para evitar estados inconsistentes
+     * entre pestañas que manejan columnas diferentes.
+     * @param {"ofs"|"requests"|"comparison"} tab - Pestaña destino.
+     */
     setTab(tab) {
         if (this.state.tab === tab) return;
         this.state.tab = tab;
@@ -168,14 +184,40 @@ class MoDashboardWidget extends Component {
         tableEl.style.height = Math.max(h, 150) + 'px';
     }
 
+    /**
+     * Actualiza el filtro de fecha inicial y recarga datos desde la página 1.
+     * @param {Event} ev - Evento change del input[type=date].
+     */
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._loadData(); }
+
+    /**
+     * Actualiza el filtro de fecha final y recarga datos desde la página 1.
+     * @param {Event} ev - Evento change del input[type=date].
+     */
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._loadData(); }
+
+    /**
+     * Actualiza el filtro de sector/tag y recarga datos desde la página 1.
+     * @param {Event} ev - Evento change del select de categorías de WC.
+     */
     onTagChange(ev)      { this.state.selectedTag = ev.target.value; this.state.page = 1; this._loadData(); }
 
+    /**
+     * Indica si se deben mostrar los filtros de fecha y sector.
+     * La pestaña "requests" no aplica estos filtros porque las programaciones
+     * no tienen rango de fechas propio.
+     * @returns {boolean}
+     */
     get showFilters() { return this.state.tab !== "requests"; }
 
     // ── Navegación OFs ───────────────────────────────────────────────────────
 
+    /**
+     * Abre la vista lista/form de mrp.production aplicando el dominio indicado.
+     * Excluye siempre las OFs de subcontratación para no mezclar flujos.
+     * @param {string} name - Título de la ventana de acción.
+     * @param {Array} domain - Dominio Odoo adicional para filtrar las OFs.
+     */
     _navigate(name, domain) {
         this.action.doAction({
             type: "ir.actions.act_window", name,
@@ -186,6 +228,11 @@ class MoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Construye el fragmento de dominio de rango de fechas según los filtros activos.
+     * Agrega condiciones sobre date_finished solo si los valores no están vacíos.
+     * @returns {Array} Tuplas de dominio Odoo para dateFrom y/o dateTo.
+     */
     _dateDomain() {
         const d = [];
         if (this.state.dateFrom) d.push(["date_finished", ">=", this.state.dateFrom + " 00:00:00"]);
@@ -193,19 +240,27 @@ class MoDashboardWidget extends Component {
         return d;
     }
 
+    /** Navega a la lista de OFs activas (excluye done, cancel y draft) del período. */
     onClickTotal()      { this._navigate("OFs activas",     [["state", "not in", ["done", "cancel", "draft"]], ...this._dateDomain()]); }
+
+    /** Navega a la lista de OFs en progreso o por cerrar del período. */
     onClickInProgress() { this._navigate("OFs en progreso", [["state", "in", ["progress", "to_close"]], ...this._dateDomain()]); }
+
+    /** Navega a las OFs atrasadas: estado no terminal y date_finished menor al momento actual. */
     onClickDelayed() {
         const now = new Date().toISOString();
         this._navigate("OFs atrasadas", [
             ["state", "not in", ["done", "cancel"]], ["date_finished", "<", now], ...this._dateDomain(),
         ]);
     }
+    /** Navega a las OFs marcadas con x_reschedule_needed que aún no finalizaron. */
     onClickReschedule() {
         this._navigate("Para reprogramar", [
             ["state", "not in", ["done", "cancel"]], ["x_reschedule_needed", "=", true], ...this._dateDomain(),
         ]);
     }
+
+    /** Navega a las OFs con state=done dentro del rango de fechas seleccionado. */
     onClickDone() {
         this._navigate("OFs finalizadas", [
             ["state", "=", "done"],
@@ -213,6 +268,8 @@ class MoDashboardWidget extends Component {
             ["date_finished", "<=", this.state.dateTo   + " 23:59:59"],
         ]);
     }
+
+    /** Navega a las OFs con state=to_close (producción terminada, pendiente de cierre formal). */
     onClickPartial() {
         this._navigate("Por cerrar", [["state", "=", "to_close"], ...this._dateDomain()]);
     }
@@ -230,6 +287,11 @@ class MoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Maneja el click en una fila de la tabla de OFs y abre el formulario de esa OF.
+     * Obtiene el ID desde el atributo data-mo-id del tr más cercano.
+     * @param {MouseEvent} ev - Evento click sobre la fila.
+     */
     openMoFromRow(ev) {
         const id = ev.currentTarget.closest("tr").dataset.moId;
         if (id) this.openMo(id);
@@ -237,11 +299,23 @@ class MoDashboardWidget extends Component {
 
     // ── Navegación Programaciones ────────────────────────────────────────────
 
+    /** Navega a las solicitudes de programación en estado confirmed (OFs ya creadas). */
     onClickReqActive()     { this._navReq("OFs creadas",              [["state", "=", "confirmed"]]); }
+
+    /** Navega a las solicitudes en estado calculated (con fechas de inicio calculadas). */
     onClickReqCalc()       { this._navReq("Programaciones calculadas", [["state", "=", "calculated"]]); }
+
+    /** Navega a las solicitudes confirmed que tienen al menos una OF marcada para reprogramar. */
     onClickReqReschedule() { this._navReq("Con reprogramación",        [["state", "=", "confirmed"], ["item_ids.production_id.x_reschedule_needed", "=", true]]); }
+
+    /** Navega a todas las solicitudes de programación sin filtro de estado. */
     onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
 
+    /**
+     * Abre la vista lista/form de mrp.production.request con el dominio indicado.
+     * @param {string} name - Título de la ventana de acción.
+     * @param {Array} domain - Dominio Odoo para filtrar las solicitudes.
+     */
     _navReq(name, domain) {
         this.action.doAction({
             type: "ir.actions.act_window", name,
@@ -264,6 +338,11 @@ class MoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Maneja el click en una fila de la tabla de solicitudes y abre el formulario.
+     * Obtiene el ID desde el atributo data-req-id del tr más cercano.
+     * @param {MouseEvent} ev - Evento click sobre la fila.
+     */
     openRequestFromRow(ev) {
         const id = ev.currentTarget.closest("tr").dataset.reqId;
         if (id) this.openRequest(id);
@@ -271,54 +350,125 @@ class MoDashboardWidget extends Component {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * Devuelve la etiqueta legible para el estado de una OF.
+     * @param {string} state - Valor del campo state en mrp.production.
+     * @returns {string} Etiqueta en español, o el valor original si no está mapeado.
+     */
     stateLabel(state) {
         return { confirmed: "Confirmada", progress: "En progreso", to_close: "Por cerrar",
                  done: "Completada", draft: "Borrador" }[state] || state;
     }
 
+    /**
+     * Devuelve las clases CSS Bootstrap para el badge del estado de una OF.
+     * @param {string} state - Valor del campo state en mrp.production.
+     * @returns {string} Clases CSS del badge.
+     */
     stateClass(state) {
         return { confirmed: "badge bg-info", progress: "badge bg-primary",
                  to_close: "badge bg-warning text-dark", done: "badge bg-success",
                  draft: "badge bg-secondary" }[state] || "badge bg-secondary";
     }
 
+    /**
+     * Devuelve la etiqueta legible para el estado de una solicitud de programación.
+     * @param {string} state - Valor del campo state en mrp.production.request.
+     * @returns {string} Etiqueta en español, o el valor original si no está mapeado.
+     */
     reqStateLabel(state) {
         return { confirmed: "OFs creadas", calculated: "Calculada" }[state] || state;
     }
 
+    /**
+     * Devuelve las clases CSS Bootstrap para el badge del estado de una solicitud.
+     * @param {string} state - Valor del campo state en mrp.production.request.
+     * @returns {string} Clases CSS del badge.
+     */
     reqStateClass(state) {
         return { confirmed: "badge bg-success", calculated: "badge bg-info" }[state] || "badge bg-secondary";
     }
 
+    /**
+     * Devuelve las clases CSS de color según el porcentaje de cumplimiento.
+     * Umbrales: >= 90 → verde, >= 50 → amarillo, < 50 → rojo.
+     * @param {number} pct - Porcentaje de cumplimiento (0–100+).
+     * @returns {string} Clases CSS Bootstrap de color y peso de fuente.
+     */
     pctClass(pct) {
         if (pct >= 90) return "text-success fw-semibold";
         if (pct >= 50) return "text-warning fw-semibold";
         return "text-danger fw-semibold";
     }
 
+    /**
+     * Total de registros del dataset activo según la pestaña.
+     * Para OFs y requests usa el conteo del servidor (KPI); para comparativo
+     * usa la longitud del array local porque es una agregación client-side.
+     * @returns {number}
+     */
     get activeCount() {
         if (this.state.tab === 'ofs')      return this.state.ofs_kpis.total || 0;
         if (this.state.tab === 'requests') return this.state.req_kpis.total || 0;
         return this.state.comparison.length;
     }
 
+    /**
+     * Número total de páginas calculado a partir de activeCount y pageSize.
+     * Devuelve al menos 1 para evitar división por cero en la plantilla.
+     * @returns {number}
+     */
     get totalPages()  { return Math.max(1, Math.ceil(this.activeCount / this.state.pageSize)); }
+
+    /**
+     * Indica si existe una página siguiente disponible.
+     * @returns {boolean}
+     */
     get hasNextPage() { return this.state.page < this.totalPages; }
+
+    /**
+     * Indica si existe una página anterior disponible.
+     * @returns {boolean}
+     */
     get hasPrevPage() { return this.state.page > 1; }
 
+    /** Avanza a la página siguiente y recarga datos si hay página disponible. */
     nextPage() { if (this.hasNextPage) { this.state.page++; this._loadData(); } }
+
+    /** Retrocede a la página anterior y recarga datos si hay página disponible. */
     prevPage() { if (this.hasPrevPage) { this.state.page--; this._loadData(); } }
 
+    /**
+     * Formatea un número entero con separadores de miles en locale es-AR.
+     * @param {number} n - Número a formatear.
+     * @returns {string} Número formateado (ej. "1.234").
+     */
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
+
+    /**
+     * Formatea un número decimal con exactamente 2 decimales en locale es-AR.
+     * @param {number} n - Número a formatear.
+     * @returns {string} Número formateado (ej. "1.234,56").
+     */
     fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
     // ── Ordenamiento ─────────────────────────────────────────────────────────
 
+    /**
+     * Maneja el click en el encabezado de una columna sorteable.
+     * Lee el atributo data-sort-key del th y delega en sortBy.
+     * @param {MouseEvent} ev - Evento click sobre el th.
+     */
     onHeaderClick(ev) {
         const sortKey = ev.currentTarget.dataset.sortKey;
         if (sortKey) this.sortBy(sortKey);
     }
 
+    /**
+     * Cambia el campo de ordenamiento o invierte la dirección si ya estaba activo.
+     * Resetea a la página 1 para no quedar en una página inexistente tras re-sort.
+     * @param {string} field - Clave de columna a ordenar (coincide con sortKey de la columna).
+     */
     sortBy(field) {
         if (this.state.sortField === field) {
             this.state.sortDir = this.state.sortDir === "asc" ? "desc" : "asc";
@@ -330,6 +480,12 @@ class MoDashboardWidget extends Component {
         this._loadData();
     }
 
+    /**
+     * Devuelve las clases CSS del ícono de ordenamiento para la columna indicada.
+     * Muestra fa-sort neutro si la columna no es la activa, o la flecha direccional si lo es.
+     * @param {string} field - Clave de columna a evaluar.
+     * @returns {string} Clases Font Awesome para el ícono de sort.
+     */
     sortIcon(field) {
         if (this.state.sortField !== field) return "fa fa-sort text-muted ms-1 small";
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
@@ -339,6 +495,16 @@ class MoDashboardWidget extends Component {
     static _CLIENT_SORT_MO  = new Set(["pending_delivery", "partner"]);
     static _CLIENT_SORT_REQ = new Set(["mos_total", "mos_done", "mos_delayed", "partner"]);
 
+    /**
+     * Ordena una lista de filas en el cliente cuando el campo no puede resolverse en BD.
+     * Si clientFields es null, aplica siempre el sort client-side (caso comparativo).
+     * Si clientFields es un Set, solo ordena si el campo activo está en ese Set;
+     * de lo contrario el backend ya devolvió la lista ordenada y no hay que tocarla.
+     * Detecta fechas en formato DD/MM/YYYY y las convierte a YYYYMMDD antes de comparar.
+     * @param {Array<Object>} list - Filas a ordenar (no muta el array original).
+     * @param {Set<string>|null} clientFields - Campos que requieren sort en cliente, o null para forzarlo.
+     * @returns {Array<Object>} Nueva copia del array ordenada.
+     */
     _sortList(list, clientFields) {
         const { sortField, sortDir } = this.state;
         if (!sortField) return list;
@@ -359,8 +525,25 @@ class MoDashboardWidget extends Component {
         });
     }
 
+    /**
+     * Lista de OFs ordenada, aplicando sort client-side solo para campos calculados
+     * que el backend no puede resolver directamente en la query (pending_delivery, partner).
+     * @returns {Array<Object>}
+     */
     get sortedMos()        { return this._sortList(this.state.mos,        MoDashboardWidget._CLIENT_SORT_MO); }
+
+    /**
+     * Lista de solicitudes de programación ordenada, aplicando sort client-side solo
+     * para campos agregados que no existen en la tabla (mos_total, mos_done, etc.).
+     * @returns {Array<Object>}
+     */
     get sortedRequests()   { return this._sortList(this.state.requests,    MoDashboardWidget._CLIENT_SORT_REQ); }
+
+    /**
+     * Lista del comparativo producción vs plan siempre ordenada en cliente,
+     * ya que los datos son resultado de una agregación y no tienen orden de BD propio.
+     * @returns {Array<Object>}
+     */
     get sortedComparison() { return this._sortList(this.state.comparison,  null); }  // client-side always (aggregated)
 }
 

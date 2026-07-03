@@ -1,3 +1,22 @@
+"""
+Módulo: mrp_schedule_mixin.py
+Modelo: mrp.schedule.mixin (AbstractModel — mixin reutilizable)
+
+Provee utilidades de programación de calendarios laborales para órdenes
+de fabricación (Manufacturing Orders), calculando ventanas de trabajo
+reales a partir de los calendarios de turnos de Odoo.
+
+Responsabilidades:
+- Calcular el intervalo (start, end) en UTC para una duración en horas
+  hábiles sobre un calendario de asistencia dado.
+- Exponer un dominio de búsqueda que excluye órdenes de subcontratación.
+- Definir el mapa de sangría visual para jerarquías de BoM en vistas HTML.
+
+Relacionado con:
+- resource.calendar: lee attendance_ids para determinar horarios hábiles.
+- mrp.production: modelos concretos que heredan este mixin para reprogramar.
+- stock.location: consulta ubicaciones de subcontratación al armar el dominio.
+"""
 import logging
 import pytz
 from datetime import datetime, time, timedelta
@@ -10,15 +29,27 @@ _N = ' '  # non-breaking space — los espacios normales colapsan en HTML
 
 
 def no_subcontract_domain(env):
-    """Excluye OFs de subcontratación filtrando por ubicación de origen.
+    """
+    Construye un dominio que excluye órdenes de fabricación subcontratadas.
+
     Pre-carga los IDs de ubicaciones de subcontratación y usa 'not in' directo
-    para evitar problemas de travesía relacional en search/search_count."""
+    para evitar problemas de travesía relacional en search/search_count.
+    Retorna una lista vacía cuando no existen ubicaciones de subcontratación
+    para no penalizar el rendimiento de la consulta innecesariamente.
+
+    :param env: entorno de Odoo (odoo.api.Environment).
+    :returns: list — dominio de búsqueda compatible con ORM de Odoo.
+    """
     sc_loc_ids = env['stock.location'].search(
         [('is_subcontracting_location', '=', True)]
     ).ids
     if not sc_loc_ids:
         return []
     return [('location_src_id', 'not in', sc_loc_ids)]
+
+# Prefijos de sangría visual para jerarquías de BoM en vistas HTML.
+# Se usa _N (espacio no separable) porque los espacios normales colapsan en HTML.
+# Cada nivel agrega 3 caracteres _N antes del conector de árbol '└─ '.
 INDENT_MAP = {
     0: '',
     1: '└─ ',
@@ -34,8 +65,20 @@ class MrpScheduleMixin(models.AbstractModel):
     _description = 'Utilidades de programación de calendarios'
 
     def _schedule_duration(self, calendar, after_dt, duration_hours):
-        """Programa duration_hours horas hábiles a partir de after_dt según el calendario.
-        Retorna (start, end) como datetimes UTC naive."""
+        """
+        Programa duration_hours horas hábiles a partir de after_dt en el calendario dado.
+
+        Recorre los turnos de asistencia del calendario (attendance_ids) día a día,
+        acumulando segmentos de tiempo hábil hasta completar la duración solicitada.
+        Maneja correctamente zonas horarias: trabaja en la TZ del calendario y convierte
+        los resultados a UTC naive para compatibilidad con campos Datetime de Odoo.
+
+        :param calendar: resource.calendar — calendario de turnos a usar.
+                         Si es falsy se aplica fallback lineal de 8 h.
+        :param after_dt: datetime — momento de inicio (UTC naive o aware).
+        :param duration_hours: float — horas hábiles a programar.
+        :returns: tuple(datetime, datetime) — (start, end) en UTC naive.
+        """
         if hasattr(after_dt, 'tzinfo') and after_dt.tzinfo:
             after_dt = after_dt.astimezone(pytz.utc).replace(tzinfo=None)
         if not calendar:
@@ -50,9 +93,11 @@ class MrpScheduleMixin(models.AbstractModel):
         start_result = None
         current = pytz.utc.localize(after_dt).astimezone(tz)
 
+        # 365 días: límite de seguridad para calendarios con muchos días festivos
+        # o configuraciones incompletas; evita bucles infinitos en producción.
         for _ in range(365):
             day_date = current.date()
-            weekday = str(day_date.weekday())
+            weekday = str(day_date.weekday())  # dayofweek en attendance_ids es string ('0'..'6')
             day_atts = calendar.attendance_ids.filtered(
                 lambda a: a.dayofweek == weekday
                 and (not a.date_from or a.date_from <= day_date)
@@ -61,7 +106,9 @@ class MrpScheduleMixin(models.AbstractModel):
 
             for att in day_atts:
                 def _hm(hf):
+                    """Convierte hora decimal (ej. 8.5) a (hora, minuto) enteros."""
                     h = int(hf)
+                    # min(..., 59): evita time(h, 60) cuando la fracción es exactamente 1.0
                     return h, min(int(round((hf - h) * 60)), 59)
                 h_from, m_from = _hm(att.hour_from)
                 h_to,   m_to   = _hm(att.hour_to)
@@ -69,6 +116,8 @@ class MrpScheduleMixin(models.AbstractModel):
                     datetime.combine(day_date, time(h_from, m_from)), is_dst=False
                 )
                 if h_to >= 24:
+                    # hour_to == 24 indica "fin de día"; time() no acepta hora 24
+                    # por eso se construye como medianoche del día siguiente.
                     iv_end = tz.localize(
                         datetime.combine(day_date + timedelta(days=1), time(0, 0)),
                         is_dst=False,
@@ -81,11 +130,11 @@ class MrpScheduleMixin(models.AbstractModel):
                     continue
                 seg_start = max(current, iv_start)
                 seg_hours = (iv_end - seg_start).total_seconds() / 3600.0
-                if seg_hours <= 1e-9:
+                if seg_hours <= 1e-9:  # tolerancia de punto flotante; descarta segmentos ~0 s
                     continue
                 if start_result is None:
                     start_result = seg_start
-                if remaining <= seg_hours + 1e-9:
+                if remaining <= seg_hours + 1e-9:  # +1e-9: absorbe error de punto flotante acumulado
                     end_result = seg_start + timedelta(hours=remaining)
                     return (
                         start_result.astimezone(pytz.utc).replace(tzinfo=None),

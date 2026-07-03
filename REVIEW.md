@@ -161,6 +161,53 @@ El riesgo principal sin resolver está en **seguridad a nivel de CSV**: los mode
 
 ---
 
+## Revisión v45 — Refactor: separación de archivos y documentación
+
+**Fecha:** 2026-07-03  
+**Alcance:** Separación de archivos monolíticos en módulos focalizados; incorporación de docstrings completos en todos los archivos Python y JS del módulo.
+
+---
+
+### Archivos creados (separación de módulos)
+
+| Archivo nuevo | Líneas | Origen | Métodos migrados |
+|---------------|--------|--------|-----------------|
+| `models/mrp_partner_category.py` | 616 | `mrp_reschedule_config.py` | Funciones ABC helper + `MrpPartnerCategory` (clase separada con métodos de clasificación) |
+| `models/mrp_planner_dashboard_wc.py` | 256 | `mrp_planner_dashboard.py` | `get_wc_tags`, `get_wc_chart_data`, `get_wc_load_data` |
+| `models/mrp_planner_dashboard_po.py` | 431 | `mrp_planner_dashboard.py` | `get_po_dashboard_data` |
+| `models/mrp_planner_dashboard_mo.py` | 477 | `mrp_planner_dashboard.py` | `get_filtered_mos`, `get_alert_stats`, `get_mo_widget_data`, `get_mo_kpi_counts`, `get_request_widget_data`, `get_comparison_data` |
+| `models/mrp_planner_dashboard_forecast.py` | 741 | `mrp_planner_dashboard.py` | `get_warehouses_for_forecast`, `get_forecast_dashboard_data`, `get_product_mos_for_forecast`, `get_forecast_export` |
+| `models/mrp_planner_dashboard_stock.py` | 295 | `mrp_planner_dashboard.py` | `get_stock_break_data`, `get_product_mos_for_stock_break` |
+| `models/mrp_planner_dashboard_sales.py` | 570 | `mrp_planner_dashboard.py` | `get_sales_chart_data`, `get_product_categories_for_chart`, `get_supplier_analysis_data`, `get_supplier_pos_for_analysis` |
+| `wizard/mrp_production_request_item.py` | 205 | `mrp_production_request.py` | `MrpProductionRequestItem` clase completa |
+| `wizard/mrp_production_request_line.py` | 182 | `mrp_production_request.py` | `MrpProductionRequestLine` + `MrpProductionRequestWc` |
+
+### Archivos reducidos
+
+| Archivo | Líneas antes | Líneas después |
+|---------|-------------|---------------|
+| `models/mrp_planner_dashboard.py` | ~2681 | ~744 |
+| `models/mrp_reschedule_config.py` | ~900+ | reducido (ABC movido) |
+| `wizard/mrp_production_request.py` | ~1100+ | reducido (clases movidas) |
+
+### Documentación incorporada
+
+Todos los archivos Python y JS del módulo recibieron docstrings siguiendo el formato:
+- **Módulo**: encabezado con responsabilidades y relaciones.
+- **Clase**: descripción del modelo y su rol.
+- **Método**: fórmula/lógica, campos que modifica, dependencias.
+
+Archivos documentados (38 de 41 — 3 fallaron por rate limit y se retomaron manualmente):
+- `models/`: todos los archivos Python incluyendo los 7 nuevos de dashboard
+- `wizard/`: `mrp_production_request.py`, `mrp_production_request_item.py`, `mrp_production_request_line.py`, `mrp_forecast_import_wizard.py`
+- `static/src/js/`: todos los widgets OWL
+
+### Fix adicional — orden en `models/__init__.py`
+
+`mrp_partner_category` (usa `_inherit = 'mrp.reschedule.config'`) movido después de `mrp_reschedule_config` para garantizar que el modelo base esté registrado antes de la extensión.
+
+---
+
 ## Notas de migración
 
 - Los guards de grupo nuevos en `action_reset_draft()`, `action_cancel()`, `action_resolve()` y los tres métodos de categorías pueden rechazar con `UserError` a usuarios que hoy los usan sin el grupo correcto. Verificar asignaciones de grupo antes de desplegar en producción.

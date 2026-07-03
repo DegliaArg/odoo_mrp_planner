@@ -37,6 +37,12 @@ class StockBreakWidget extends Component {
         "*": true,
     };
 
+    /**
+     * Inicializa servicios ORM y action, estado reactivo, gestor de columnas,
+     * timer de debounce y listeners de ciclo de vida del componente.
+     * Registra un listener global en `document` para cerrar el dropdown de
+     * ubicaciones al hacer clic fuera de él.
+     */
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
@@ -77,6 +83,11 @@ class StockBreakWidget extends Component {
         });
     }
 
+    /**
+     * Maneja el clic en la cabecera de una columna ordenable.
+     * Lee el atributo `data-sort-key` del elemento disparador y delega en `sortBy`.
+     * @param {MouseEvent} ev - Evento de clic del encabezado de tabla
+     */
     onHeaderClick(ev) {
         const sortKey = ev.currentTarget.dataset.sortKey;
         if (sortKey) this.sortBy(sortKey);
@@ -118,18 +129,35 @@ class StockBreakWidget extends Component {
         }
     }
 
+    /**
+     * Abre o cierra el dropdown de selección de ubicaciones.
+     * Llama a `stopPropagation` para evitar que el listener global lo cierre
+     * inmediatamente después de abrirlo. Resetea `locSearch` al abrir.
+     * @param {MouseEvent} ev - Evento de clic sobre el botón del dropdown
+     */
     toggleLocDropdown(ev) {
         ev.stopPropagation();
         this.state.locDropdownOpen = !this.state.locDropdownOpen;
         if (this.state.locDropdownOpen) this.state.locSearch = "";
     }
 
+    /**
+     * Lista de ubicaciones internas filtradas por el texto de búsqueda del dropdown.
+     * Retorna todas las ubicaciones si `locSearch` está vacío.
+     * @returns {Array<{id: number, name: string}>} Ubicaciones que coinciden con la búsqueda
+     */
     get filteredLocations() {
         const q = this.state.locSearch.toLowerCase();
         if (!q) return this.state.locations;
         return this.state.locations.filter(l => l.name.toLowerCase().includes(q));
     }
 
+    /**
+     * Agrega o quita una ubicación del filtro activo según el checkbox marcado.
+     * Lee el id desde `data-loc-id` del elemento disparador. Resetea la página a 1
+     * y recarga los datos.
+     * @param {MouseEvent} ev - Evento de cambio del checkbox de ubicación
+     */
     toggleLocation(ev) {
         const id = parseInt(ev.target.dataset.locId);
         const ids = this.state.locationIds;
@@ -138,12 +166,23 @@ class StockBreakWidget extends Component {
         this._load();
     }
 
+    /**
+     * Elimina todos los filtros de ubicación activos, resetea la página a 1
+     * y recarga los datos para mostrar todas las ubicaciones.
+     */
     clearLocFilter() {
         this.state.locationIds = [];
         this.state.page = 1;
         this._load();
     }
 
+    /**
+     * Texto resumen del filtro de ubicaciones activo para mostrar en el botón del dropdown.
+     * - Sin selección → "Todas las ubicaciones"
+     * - Una seleccionada → nombre de la ubicación
+     * - Varias → "N ubicaciones"
+     * @returns {string} Etiqueta descriptiva del filtro de ubicación actual
+     */
     get selectedLocLabel() {
         const ids = this.state.locationIds;
         if (!ids.length) return 'Todas las ubicaciones';
@@ -154,6 +193,12 @@ class StockBreakWidget extends Component {
         return `${ids.length} ubicaciones`;
     }
 
+    /**
+     * Maneja el evento `input` del campo de búsqueda nativo.
+     * Actualiza `state.search` de forma inmediata para reflejar el texto en la UI
+     * y aplana la recarga mediante debounce de 300 ms.
+     * @param {InputEvent} ev - Evento de entrada del campo de búsqueda
+     */
     onSearchInput(ev) {
         const val = ev.target.value;
         this.state.search = val;
@@ -164,6 +209,11 @@ class StockBreakWidget extends Component {
         }, 300);
     }
 
+    /**
+     * Establece el texto de búsqueda programáticamente (usado por `PlannerSearchBar`)
+     * y dispara la recarga con debounce de 300 ms.
+     * @param {string} text - Texto de búsqueda a aplicar
+     */
     setSearch(text) {
         this.state.search = text;
         clearTimeout(this._searchTimer);
@@ -173,6 +223,12 @@ class StockBreakWidget extends Component {
         }, 300);
     }
 
+    /**
+     * Cambia el filtro de tipo directamente por clave (usado desde botones KPI del template).
+     * Si la clave está vacía o es undefined, normaliza a 'all'.
+     * Evita recargar si el filtro ya estaba activo.
+     * @param {string} key - Clave del filtro: 'all' | 'broken' | 'ok' | 'no_min'
+     */
     setFilterDirect(key) {
         const f = key || 'all';
         if (this.state.filterType === f) return;
@@ -181,6 +237,11 @@ class StockBreakWidget extends Component {
         this._load();
     }
 
+    /**
+     * Maneja el evento `change` del selector `<select>` de filtro de tipo.
+     * Evita recargar si el filtro seleccionado ya estaba activo.
+     * @param {Event} ev - Evento change del elemento select
+     */
     onFilterChange(ev) {
         const f = ev.target.value;
         if (this.state.filterType === f) return;
@@ -189,6 +250,11 @@ class StockBreakWidget extends Component {
         this._load();
     }
 
+    /**
+     * Cambia el filtro de tipo programáticamente. Alias semántico de `setFilterDirect`
+     * para uso desde el template con t-on-click, sin normalización de falsy.
+     * @param {string} f - Clave del filtro: 'all' | 'broken' | 'ok' | 'no_min'
+     */
     setFilter(f) {
         if (this.state.filterType === f) return;
         this.state.filterType = f;
@@ -196,6 +262,12 @@ class StockBreakWidget extends Component {
         this._load();
     }
 
+    /**
+     * Ordena la tabla por el campo indicado. Si el campo ya era el activo,
+     * invierte la dirección (asc ↔ desc); si es diferente, inicia en 'asc'.
+     * Resetea la página a 1 y recarga los datos.
+     * @param {string} field - Clave de ordenamiento (sortKey) de la columna
+     */
     sortBy(field) {
         if (this.state.sortField === field) {
             this.state.sortDir = this.state.sortDir === "asc" ? "desc" : "asc";
@@ -207,21 +279,47 @@ class StockBreakWidget extends Component {
         this._load();
     }
 
+    /**
+     * Devuelve la clase CSS de Font Awesome correspondiente al estado de ordenamiento
+     * de una columna: icono neutro si no es la columna activa, flecha arriba/abajo si lo es.
+     * @param {string} field - Clave de la columna a evaluar
+     * @returns {string} Clases CSS para el ícono de ordenamiento
+     */
     sortIcon(field) {
         if (this.state.sortField !== field) return "fa fa-sort text-muted ms-1 small";
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
+    /** Total de páginas calculado a partir de `totalFiltered` y `pageSize`. Mínimo 1.
+     * @returns {number} Número total de páginas disponibles */
     get totalPages()  { return Math.max(1, Math.ceil(this.state.totalFiltered / this.state.pageSize)); }
+    /** Indica si existe una página siguiente a la actual.
+     * @returns {boolean} */
     get hasNextPage() { return this.state.page < this.totalPages; }
+    /** Indica si existe una página anterior a la actual.
+     * @returns {boolean} */
     get hasPrevPage() { return this.state.page > 1; }
+    /** Avanza a la siguiente página y recarga los datos si es posible. */
     nextPage() { if (this.hasNextPage) { this.state.page++; this._load(); } }
+    /** Retrocede a la página anterior y recarga los datos si es posible. */
     prevPage() { if (this.hasPrevPage) { this.state.page--; this._load(); } }
 
+    /**
+     * Formatea un número con separador de miles y hasta 2 decimales en locale es-AR.
+     * Trata `null`, `undefined` y `NaN` como 0.
+     * @param {number|null|undefined} n - Valor numérico a formatear
+     * @returns {string} Número formateado, ej. "1.234,56"
+     */
     fmt(n) {
         return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n || 0);
     }
 
+    /**
+     * Abre el formulario del producto `product.product` al hacer clic en una fila.
+     * Lee el id desde el atributo `data-product-id` del `<tr>` ancestro del elemento
+     * disparador. No hace nada si no encuentra el atributo.
+     * @param {MouseEvent} ev - Evento de clic dentro de la fila de tabla
+     */
     openProductFromRow(ev) {
         const id = ev.currentTarget.closest("tr").dataset.productId;
         if (!id) return;
@@ -235,6 +333,15 @@ class StockBreakWidget extends Component {
         });
     }
 
+    /**
+     * Expande o colapsa el acordeón de órdenes de fabricación activas de un producto.
+     * Si se abre por primera vez y no hay datos en caché, llama al RPC
+     * `get_product_mos_for_stock_break` para obtener las OFs del producto.
+     * Usa `stopPropagation` para evitar que el clic propague a la fila y abra el formulario.
+     * @param {{ id: number }} prod - Objeto de producto de la tabla (debe tener `id`)
+     * @param {MouseEvent} ev - Evento de clic sobre el botón de expandir
+     * @returns {Promise<void>}
+     */
     async toggleAccordion(prod, ev) {
         ev.stopPropagation();
         const pid = prod.id;
@@ -258,6 +365,10 @@ class StockBreakWidget extends Component {
         }
     }
 
+    /**
+     * Abre el formulario de una orden de fabricación `mrp.production` en la vista actual.
+     * @param {number} moId - ID de la orden de fabricación a abrir
+     */
     openMo(moId) {
         this.action.doAction({
             type:      'ir.actions.act_window',
@@ -268,6 +379,13 @@ class StockBreakWidget extends Component {
         });
     }
 
+    /**
+     * Devuelve las clases CSS Bootstrap para el badge de estado de una OF.
+     * Estados reconocidos: 'confirmed' (info), 'progress' (primary), 'to_close' (warning).
+     * Cualquier otro estado recibe 'bg-secondary'.
+     * @param {string} state - Estado de la orden de fabricación
+     * @returns {string} Clases CSS del badge, ej. "badge bg-info text-dark"
+     */
     moStateBadge(state) {
         const map = {
             confirmed: 'bg-info text-dark',
@@ -277,6 +395,11 @@ class StockBreakWidget extends Component {
         return `badge ${map[state] || 'bg-secondary'}`;
     }
 
+    /**
+     * Abre la vista de configuración de reprogramación del planificador MRP
+     * usando la acción XML `action_mrp_reschedule_config`.
+     * @returns {Promise<void>}
+     */
     async openConfig() {
         await this.action.doAction('odoo_mrp_planner.action_mrp_reschedule_config');
     }

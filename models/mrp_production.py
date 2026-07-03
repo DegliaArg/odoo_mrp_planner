@@ -1,9 +1,30 @@
+"""
+Módulo: mrp_production.py
+Modelo: extensión de mrp.production
+
+Extiende la orden de fabricación estándar de Odoo con capacidades de
+planificación y reprogramación del módulo MRP Planner.
+
+Responsabilidades:
+- Vincular OFs hijo con su OF madre mediante campo tipado (x_parent_mo_id).
+- Detectar cambios de estado (done/cancel) y marcar OFs subsecuentes para reprogramación.
+- Generar y resolver alertas de atraso, cancelación y desvío de cantidad.
+- Proveer contadores (smart buttons) de planes de reprogramación y alertas activas.
+- Exponer la acción que abre o crea un plan de reprogramación desde la OF.
+
+Relacionado con:
+- mrp.reschedule.plan: planes de reprogramación creados o vinculados a esta OF.
+- mrp.reschedule.plan.line: líneas de planes donde esta OF aparece como afectada.
+- mrp.reschedule.alert: alertas activas (atraso, cancelación, desvío de cantidad).
+- mrp_schedule_mixin: provee no_subcontract_domain para filtrar OFs subcontratadas.
+"""
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 import logging
 _logger = logging.getLogger(__name__)
 
+# Tolerancia de desvío de cantidad: diferencias <= 5 % no generan alerta qty_mismatch.
 QTY_TOLERANCE = 0.05
 
 
@@ -11,6 +32,7 @@ class MrpProduction(models.Model):
     _inherit = 'mrp.production'
 
     def _where_calc(self, domain, active_test=True):
+        """Normaliza el dominio a lista antes de pasarlo a ORM para evitar TypeError."""
         # Workaround Odoo 18 bug: mrp.stock_rule._run_manufacture construye el
         # domain como tupla en vez de lista, causando TypeError en _where_calc.
         if isinstance(domain, tuple):
@@ -43,6 +65,22 @@ class MrpProduction(models.Model):
     # ── Fase 4: override de write() para detección semi-automática ───────────
 
     def write(self, vals):
+        """
+        Extiende write() para detectar cambios de estado y fecha, y actuar en consecuencia.
+
+        Acciones por transición de estado:
+        - Cualquier estado → done/cancel: marca OFs subsecuentes con x_reschedule_needed.
+        - → cancel: resuelve alertas mo_delayed/qty_mismatch y crea alerta mo_cancelled.
+        - → done: resuelve alerta mo_delayed y compara cantidad producida vs planificada;
+                  si el desvío supera QTY_TOLERANCE crea alerta qty_mismatch.
+        - Cambio de date_finished a fecha futura: resuelve alerta mo_delayed (ya no hay atraso).
+
+        Todos los bloques de alerta están envueltos en try/except para no interrumpir
+        la escritura principal ante errores en el subsistema de alertas.
+
+        :param vals: dict de campos a escribir.
+        :returns: bool — resultado de super().write().
+        """
         trigger_state = 'state' in vals and vals['state'] in ('done', 'cancel')
         going_done = trigger_state and vals['state'] == 'done'
         track_date = 'date_finished' in vals
@@ -184,9 +222,18 @@ class MrpProduction(models.Model):
     reschedule_plan_count = fields.Integer(
         compute='_compute_reschedule_plan_count',
         string='Planes',
+        help='Cantidad de planes de reprogramación en los que participa esta OF, '
+             'ya sea como pivot principal o como línea afectada.',
     )
 
     def _compute_reschedule_plan_count(self):
+        """
+        Calcula reschedule_plan_count para cada registro.
+
+        Fórmula: unión de IDs de planes donde la OF es pivot + IDs de planes
+                 donde la OF aparece como línea afectada.
+        Depende de: mrp.reschedule.plan.production_id, mrp.reschedule.plan.line.production_id.
+        """
         # PERF: optimización vs versión anterior que hacía N búsquedas por OF
         mo_ids = self.ids
         if not mo_ids:
@@ -215,10 +262,19 @@ class MrpProduction(models.Model):
             line_map.setdefault(mo_id, set()).add(d['plan_id'][0])
 
         for mo in self:
+            # Unión de conjuntos para evitar contar el mismo plan dos veces
             all_ids = pivot_map.get(mo.id, set()) | line_map.get(mo.id, set())
             mo.reschedule_plan_count = len(all_ids)
 
     def action_view_reschedule_plans(self):
+        """
+        Abre la lista de planes de reprogramación relacionados con esta OF.
+
+        Incluye tanto los planes donde la OF es pivot principal como aquellos
+        en los que aparece únicamente como línea afectada.
+
+        :returns: dict — acción de ventana ir.actions.act_window filtrada por los IDs encontrados.
+        """
         self.ensure_one()
         pivot_ids = self.env['mrp.reschedule.plan'].search([
             ('production_id', '=', self.id),
@@ -226,6 +282,7 @@ class MrpProduction(models.Model):
         line_ids = self.env['mrp.reschedule.plan.line'].search([
             ('production_id', '=', self.id),
         ]).mapped('plan_id').ids
+        # set() elimina duplicados cuando la OF aparece como pivot y como línea en el mismo plan
         all_ids = list(set(pivot_ids + line_ids))
         return {
             'type': 'ir.actions.act_window',
@@ -241,9 +298,17 @@ class MrpProduction(models.Model):
     alert_count = fields.Integer(
         compute='_compute_alert_count',
         string='Alertas',
+        help='Número de alertas activas (no resueltas) asociadas a esta OF: '
+             'atrasos, cancelaciones o desvíos de cantidad producida.',
     )
 
     def _compute_alert_count(self):
+        """
+        Calcula alert_count para cada registro.
+
+        Fórmula: conteo de alertas activas (resolved=False) agrupadas por production_id.
+        Depende de: mrp.reschedule.alert.production_id, mrp.reschedule.alert.resolved.
+        """
         # FIX [FASE-4]: read_group en lugar de N search_count individuales
         data = self.env['mrp.reschedule.alert'].read_group(
             [('production_id', 'in', self.ids), ('resolved', '=', False)],
@@ -255,6 +320,11 @@ class MrpProduction(models.Model):
             mo.alert_count = counts.get(mo.id, 0)
 
     def action_view_alerts(self):
+        """
+        Abre la lista de alertas asociadas a esta OF (resueltas e irresueltas).
+
+        :returns: dict — acción de ventana ir.actions.act_window filtrada por production_id.
+        """
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

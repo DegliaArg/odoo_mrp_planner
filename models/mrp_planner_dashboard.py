@@ -883,11 +883,14 @@ class MrpPlannerDashboard(models.TransientModel):
                 'is_incoming':    is_incoming,
             }
             if include_lines:
+                # Para recepciones: quantity (campo "done" en Odoo 18) se pre-rellena
+                # automáticamente igual a la demanda cuando el picking es assigned.
+                # Solo mostrar como recibido si el picking fue efectivamente validado (done).
                 result['lines'] = [{
                     'product':  m.product_id.display_name,
                     'demand':   m.product_uom_qty,
-                    'reserved': (getattr(m, 'quantity_done', None) or getattr(m, 'quantity', 0) or 0)
-                                if is_incoming else _move_qty(m),
+                    'reserved': (getattr(m, 'quantity', 0) or 0) if (is_incoming and p.state == 'done')
+                                else (0 if is_incoming else _move_qty(m)),
                     'uom':      m.product_uom.name if m.product_uom else '',
                 } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
             return result

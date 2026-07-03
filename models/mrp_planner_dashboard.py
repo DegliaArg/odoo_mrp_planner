@@ -1103,12 +1103,16 @@ class MrpPlannerDashboard(models.TransientModel):
         def cnt(alert_type):
             return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])
 
+        mo_in_progress = self.env['mrp.production'].search_count(
+            [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env)
+        )
+
         return {
-            'mo_delayed':   cnt('mo_delayed'),
-            'mo_upcoming':  cnt('mo_upcoming'),
-            'qty_mismatch': cnt('qty_mismatch'),
-            'mo_cancelled': cnt('mo_cancelled'),
-            'critical':     Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
+            'mo_delayed':     cnt('mo_delayed'),
+            'mo_upcoming':    cnt('mo_upcoming'),
+            'mo_in_progress': mo_in_progress,
+            'qty_mismatch':   cnt('qty_mismatch'),
+            'critical':       Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
         }
 
     # ── Widget OFs con pestañas ──────────────────────────────────────────────

@@ -7,25 +7,27 @@
             <!-- KPI cards -->
             <div class="row g-2">
 
+                <!-- OFs atrasadas -->
                 <div class="col-6 col-md-3">
                     <div class="card o_planner_card h-100"
-                         title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. El sistema genera esta alerta automáticamente cuando date_finished &lt; hoy. Indica retrasos que requieren acción inmediata.">
+                         title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. Indica retrasos que requieren acción inmediata.">
                         <div class="card-body text-center py-3">
-                            <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block"/>
-                            <div class="o_planner_number" t-esc="fmt(state.kpis.mo_delayed)"/>
+                            <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
+                            <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.mo_delayed)"/>
                             <div class="o_planner_label">OFs atrasadas</div>
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.mo_delayed > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
+                                    class="btn btn-sm btn-link w-100 py-1 text-danger"
                                     t-on-click="onViewDelayed">Ver →</button>
                         </div>
                     </div>
                 </div>
 
+                <!-- OFs por vencer -->
                 <div class="col-6 col-md-3">
                     <div class="card o_planner_card h-100"
-                         title="OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado en los parámetros del planificador. Permite anticipar retrasos antes de que ocurran.">
+                         title="OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado.">
                         <div class="card-body text-center py-3">
                             <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block"/>
                             <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.mo_upcoming)"/>
@@ -39,9 +41,27 @@
                     </div>
                 </div>
 
+                <!-- OFs en curso -->
                 <div class="col-6 col-md-3">
                     <div class="card o_planner_card h-100"
-                         title="OFs completadas donde la cantidad producida difiere de la cantidad planificada más allá de la tolerancia configurada. Indica desvíos en la producción que pueden afectar inventario o entregas.">
+                         title="OFs actualmente en producción (en progreso o listas para cerrar).">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
+                            <div class="o_planner_number text-info" t-esc="fmt(state.kpis.mo_in_progress)"/>
+                            <div class="o_planner_label">OFs en curso</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button t-if="state.kpis.mo_in_progress > 0"
+                                    class="btn btn-sm btn-link w-100 py-1 text-info"
+                                    t-on-click="onViewInProgress">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cant. diferentes -->
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         title="OFs completadas donde la cantidad producida difiere de la planificada más allá de la tolerancia configurada.">
                         <div class="card-body text-center py-3">
                             <i class="fa fa-balance-scale fa-lg text-secondary mb-2 d-block"/>
                             <div class="o_planner_number" t-esc="fmt(state.kpis.qty_mismatch)"/>
@@ -51,22 +71,6 @@
                             <button t-if="state.kpis.qty_mismatch > 0"
                                     class="btn btn-sm btn-link w-100 py-1 text-secondary"
                                     t-on-click="onViewMismatch">Ver →</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         title="OFs que fueron canceladas mientras tenían materiales reservados u operaciones pendientes. Requieren revisión para liberar recursos, reasignar demanda o replanificar.">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-ban fa-lg text-muted mb-2 d-block"/>
-                            <div class="o_planner_number" t-esc="fmt(state.kpis.mo_cancelled)"/>
-                            <div class="o_planner_label">OFs canceladas</div>
-                        </div>
-                        <div class="card-footer p-0">
-                            <button t-if="state.kpis.mo_cancelled > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-muted"
-                                    t-on-click="onViewCancelled">Ver →</button>
                         </div>
                     </div>
                 </div>

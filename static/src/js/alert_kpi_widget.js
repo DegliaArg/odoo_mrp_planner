@@ -12,7 +12,7 @@ class AlertKpiWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
         this.state  = useState({
-            kpis:    { mo_delayed: 0, mo_upcoming: 0, qty_mismatch: 0, mo_cancelled: 0, critical: 0 },
+            kpis:    { mo_delayed: 0, mo_upcoming: 0, mo_in_progress: 0, qty_mismatch: 0, critical: 0 },
             loading: true,
         });
         onMounted(() => this._loadData());
@@ -47,10 +47,21 @@ class AlertKpiWidget extends Component {
         });
     }
 
-    onViewDelayed()   { if (this.state.kpis.mo_delayed)   this._navigate("OFs atrasadas",    "mo_delayed"); }
-    onViewUpcoming()  { if (this.state.kpis.mo_upcoming)  this._navigate("OFs por vencer",   "mo_upcoming"); }
-    onViewMismatch()  { if (this.state.kpis.qty_mismatch) this._navigate("Cant. diferentes", "qty_mismatch"); }
-    onViewCancelled() { if (this.state.kpis.mo_cancelled) this._navigate("OFs canceladas",   "mo_cancelled"); }
+    onViewDelayed()    { if (this.state.kpis.mo_delayed)     this._navigate("OFs atrasadas",    "mo_delayed"); }
+    onViewUpcoming()   { if (this.state.kpis.mo_upcoming)   this._navigate("OFs por vencer",   "mo_upcoming"); }
+    onViewMismatch()   { if (this.state.kpis.qty_mismatch)  this._navigate("Cant. diferentes", "qty_mismatch"); }
+    onViewInProgress() {
+        if (!this.state.kpis.mo_in_progress) return;
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: "OFs en curso",
+            res_model: "mrp.production",
+            view_mode: "list,form",
+            views: [[false, "list"], [false, "form"]],
+            domain: [["state", "in", ["progress", "to_close"]]],
+            target: "current",
+        });
+    }
 
     fmt(n) { return new Intl.NumberFormat("es-AR").format(n || 0); }
 }

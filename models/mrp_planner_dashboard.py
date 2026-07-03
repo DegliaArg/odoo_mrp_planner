@@ -733,7 +733,8 @@ class MrpPlannerDashboard(models.TransientModel):
 
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
         approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
-        approved_dom = [('state', 'in', ('purchase', 'done'))] + sc_domain + date_domain
+        # state='done' = OC bloqueada/cerrada — no es accionable, no va en vencidas ni pendientes
+        approved_dom = [('state', '=', 'purchase')] + sc_domain + date_domain
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
@@ -2093,18 +2094,21 @@ class MrpPlannerDashboard(models.TransientModel):
 
         product_ids = product_ids_all
 
-        # Puntos de reorden con ruta fabricación → min_qty por producto (Fix 15)
+        # Puntos de reorden con ruta fabricación → min_qty por producto.
+        # read_group no funciona con qty_forecast (campo computed no stored),
+        # así que se usa .search() + loop tomando el máximo por producto.
         op_domain = [('product_id', 'in', product_ids)]
         if mfg_route:
             op_domain.append(('route_id', '=', mfg_route.id))
-        # Usar read_group para traer sólo los agregados necesarios sin cargar recordsets
-        op_groups = self.env['stock.warehouse.orderpoint'].read_group(
-            op_domain,
-            ['product_id', 'product_min_qty:max', 'qty_forecast:max'],
-            ['product_id'],
-        )
-        min_qty_map = {g['product_id'][0]: g['product_min_qty'] for g in op_groups if g['product_id']}
-        forecast_map = {g['product_id'][0]: g['qty_forecast'] for g in op_groups if g['product_id']}
+        orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
+        min_qty_map = {}
+        forecast_map = {}
+        for op in orderpoints:
+            pid = op.product_id.id
+            op_min = op.product_min_qty
+            if pid not in min_qty_map or op_min > min_qty_map[pid]:
+                min_qty_map[pid] = op_min
+                forecast_map[pid] = getattr(op, 'qty_forecast', None)
 
         # Stock en ubicaciones seleccionadas (batch via read_group)
         # Fix 17: añadir location_id.usage='internal' para excluir ubicaciones no internas

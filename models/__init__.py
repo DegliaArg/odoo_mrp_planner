@@ -4,6 +4,7 @@ from . import product_template
 from . import mrp_forecast_line
 from . import mrp_product_workcenter
 from . import res_users
+from . import mrp_abc_helpers
 from . import mrp_reschedule_config
 from . import mrp_partner_category
 from . import mrp_reschedule_user_permission

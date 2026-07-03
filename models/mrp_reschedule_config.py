@@ -27,7 +27,7 @@ from datetime import date, timedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
-from .mrp_partner_category import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
+from .mrp_abc_helpers import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
 
 _logger = logging.getLogger(__name__)
 

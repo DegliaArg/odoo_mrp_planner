@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
@@ -54,7 +54,17 @@ class SupplierAnalysisWidget extends Component {
 
         this.colsSup = useColManager('supplier_analysis', SUP_COLS);
 
+        this._loadDebounceTimer = null;
+        this._loadDebounced = () => {
+            clearTimeout(this._loadDebounceTimer);
+            this._loadDebounceTimer = setTimeout(() => this._load(), 400);
+        };
+
         onMounted(() => this._load());
+        onWillUnmount(() => {
+            this.colsSup.cancelResize();
+            clearTimeout(this._loadDebounceTimer);
+        });
     }
 
     onHeaderClick(ev) {
@@ -89,7 +99,7 @@ class SupplierAnalysisWidget extends Component {
         this.state.periodFrom = val;
         if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
-        this._load();
+        this._loadDebounced();
     }
 
     onPeriodToChange(ev) {
@@ -98,7 +108,7 @@ class SupplierAnalysisWidget extends Component {
         this.state.periodTo = val;
         if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
-        this._load();
+        this._loadDebounced();
     }
 
     // ── Búsqueda reactiva (client-side) ───────────────────────────────────────

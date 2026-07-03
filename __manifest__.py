@@ -34,6 +34,7 @@ Panel en tiempo real
     'depends': ['mrp', 'mrp_workorder', 'purchase', 'stock', 'mail', 'sale'],
     'data': [
         'security/groups.xml',
+        'security/ir_rules.xml',
         'security/ir.model.access.csv',
         'views/product_template_views.xml',
         'views/mrp_planner_dashboard_views.xml',

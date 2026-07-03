@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Restringe la visibilidad de mrp.forecast.line a la empresa propia del usuario.
+         Sin esta regla, en instalaciones multi-empresa un usuario ve forecasts de todas
+         las empresas aunque no tenga acceso a ellas. -->
+    <record id="rule_forecast_line_company" model="ir.rule">
+        <field name="name">Forecast Line: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_forecast_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+</odoo>

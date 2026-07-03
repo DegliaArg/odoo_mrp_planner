@@ -1,12 +1,5 @@
 from odoo import models, fields, api
-
-SALE_CAT_SELECTION = [
-    ('A', 'A — Alta rotación'),
-    ('B', 'B'),
-    ('C', 'C'),
-    ('D', 'D'),
-    ('E', 'E — Baja rotación'),
-]
+from odoo.addons.odoo_mrp_planner.models.const import SALE_CAT_SELECTION
 
 
 class ProductTemplate(models.Model):
@@ -31,7 +24,7 @@ class ProductTemplate(models.Model):
 
     mrp_enable_sale_cat = fields.Boolean(compute='_compute_mrp_sale_cat_flag')
 
-    @api.depends()
+    @api.depends_context('company')
     def _compute_mrp_sale_cat_flag(self):
         config = self.env['mrp.reschedule.config'].sudo().search([], limit=1)
         enable = config.enable_sale_categories if config else False

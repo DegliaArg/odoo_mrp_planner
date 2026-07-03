@@ -65,6 +65,9 @@ export function useColManager(tableKey, defaultCols) {
         return w != null ? `width:${w}px; min-width:${Math.max(20, w)}px;` : '';
     }
 
+    // Track pending resize listeners so they can be removed on unmount.
+    let _resizeCleanup = null;
+
     function onResizeStart(ev) {
         ev.preventDefault();
         const key   = ev.currentTarget.dataset.colKey;
@@ -79,9 +82,18 @@ export function useColManager(tableKey, defaultCols) {
             _save(tableKey, colState.order, colState.widths);
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
+            _resizeCleanup = null;
         }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
+        _resizeCleanup = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+    }
+
+    function cancelResize() {
+        if (_resizeCleanup) { _resizeCleanup(); _resizeCleanup = null; }
     }
 
     function onDragStart(ev) {
@@ -136,5 +148,5 @@ export function useColManager(tableKey, defaultCols) {
         _save(tableKey, colState.order, colState.widths);
     }
 
-    return { state: colState, colMap, visibleCols, colGroupStyle, onResizeStart, onDragStart, onDragOver, onDrop, onDragEnd, reset };
+    return { state: colState, colMap, visibleCols, colGroupStyle, onResizeStart, cancelResize, onDragStart, onDragOver, onDrop, onDragEnd, reset };
 }

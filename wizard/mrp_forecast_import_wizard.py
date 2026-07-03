@@ -56,6 +56,14 @@ class MrpForecastImportWizard(models.TransientModel):
 
     def action_import(self):
         self.ensure_one()
+        # Solo Ventas-Administrador o Administrador del módulo pueden importar masivamente.
+        # group_sales tiene CRUD en mrp.forecast.line; group_admin es el rol superior.
+        if not (self.env.user.has_group('odoo_mrp_planner.group_sales') or
+                self.env.user.has_group('odoo_mrp_planner.group_admin')):
+            raise UserError(_(
+                'Solo usuarios con perfil "Ventas - Administrador" o '
+                '"Administrador" del módulo pueden importar forecasts masivos.'
+            ))
         try:
             import openpyxl
         except ImportError:

@@ -37,6 +37,7 @@ function lastOfMonthYMD() {
 class ForecastWidget extends Component {
     static template = "odoo_mrp_planner.ForecastWidget";
     static components = { PlannerSearchBar };
+    static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
         this.orm    = useService("orm");
@@ -87,12 +88,19 @@ class ForecastWidget extends Component {
             this.state.groupDropdownOpen  = false;
         };
 
+        this._loadDebounceTimer = null;
+        this._loadDebounced = () => {
+            clearTimeout(this._loadDebounceTimer);
+            this._loadDebounceTimer = setTimeout(() => this._load(), 400);
+        };
+
         onMounted(() => {
             this._init();
             document.addEventListener('click', this._closeAll);
         });
         onWillUnmount(() => {
             document.removeEventListener('click', this._closeAll);
+            clearTimeout(this._loadDebounceTimer);
         });
     }
 
@@ -133,7 +141,7 @@ class ForecastWidget extends Component {
         this.state.periodFrom = val;
         if (this.state.periodFrom > this.state.periodTo)
             this.state.periodTo = this.state.periodFrom;
-        this._load();
+        this._loadDebounced();
     }
 
     onPeriodToChange(ev) {
@@ -142,7 +150,7 @@ class ForecastWidget extends Component {
         this.state.periodTo = val;
         if (this.state.periodTo < this.state.periodFrom)
             this.state.periodFrom = this.state.periodTo;
-        this._load();
+        this._loadDebounced();
     }
 
     onProductSearchInput(ev) {

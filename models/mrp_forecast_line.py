@@ -1,3 +1,5 @@
+from datetime import date
+
 from odoo import models, fields, api
 
 _MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -29,6 +31,8 @@ class MrpForecastLine(models.Model):
         string='Cantidad forecast',
         required=True,
         digits=(16, 2),
+        default=0.0,
+        help='Cantidad planificada para el período. Debe ser mayor o igual a cero.',
     )
     period = fields.Date(
         string='Período',
@@ -39,17 +43,20 @@ class MrpForecastLine(models.Model):
         string='Mes',
         compute='_compute_period_display',
         store=False,
+        help='Nombre abreviado del período (ej. "Jul 2025"). Solo para visualización.',
     )
     company_id = fields.Many2one(
         'res.company',
         string='Empresa',
         required=True,
         default=lambda self: self.env.company,
+        index=True,
     )
     uom_id = fields.Many2one(
         related='product_id.uom_id',
         string='Unidad',
         readonly=True,
+        store=False,
     )
 
     @api.depends('period')
@@ -63,7 +70,6 @@ class MrpForecastLine(models.Model):
     @api.model
     def _period_from_str(self, period_str):
         """Convierte 'YYYY-MM' a un objeto date (primer día del mes)."""
-        from datetime import date
         parts = period_str.split('-')
         if len(parts) != 2:
             return None

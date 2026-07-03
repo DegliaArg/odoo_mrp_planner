@@ -582,23 +582,28 @@ class MrpPlannerDashboard(models.TransientModel):
         labels, avail_list = [], []
         ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
 
+        _cal_hours_cache = {}  # (calendar_id, dt_start, dt_end) -> raw hours (sin efficiency)
+
         def _avail_hours(calendar, dt_start, dt_end, efficiency):
-            try:
-                h = calendar.get_work_hours_count(
-                    dt_start.replace(tzinfo=pytz.UTC),
-                    dt_end.replace(tzinfo=pytz.UTC),
-                    compute_leaves=False,
-                )
-                return h * (efficiency or 100.0) / 100.0
-            except Exception as e:
-                _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
-                weekly = sum(
-                    a.hour_to - a.hour_from
-                    for a in calendar.attendance_ids
-                    if not a.date_from and not a.date_to
-                )
-                span = (dt_end - dt_start).days + 1
-                return weekly * (span / 7.0) * (efficiency or 100.0) / 100.0
+            key = (calendar.id, dt_start, dt_end)
+            if key not in _cal_hours_cache:
+                try:
+                    h = calendar.get_work_hours_count(
+                        dt_start.replace(tzinfo=pytz.UTC),
+                        dt_end.replace(tzinfo=pytz.UTC),
+                        compute_leaves=False,
+                    )
+                except Exception as e:
+                    _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
+                    weekly = sum(
+                        a.hour_to - a.hour_from
+                        for a in calendar.attendance_ids
+                        if not a.date_from and not a.date_to
+                    )
+                    span = (dt_end - dt_start).days + 1
+                    h = weekly * (span / 7.0)
+                _cal_hours_cache[key] = h
+            return _cal_hours_cache[key] * (efficiency or 100.0) / 100.0
 
         def _overlap_hours(wo, range_start, range_end):
             start = wo.date_start
@@ -617,31 +622,37 @@ class MrpPlannerDashboard(models.TransientModel):
             proportion = (ov_end - ov_start).total_seconds() / total_secs
             return (wo.duration_expected or 0.0) / 60.0 * proportion
 
+        # Fix 19: cargar todos los workorders en 1 query batch antes del loop
+        from collections import defaultdict
+        all_wos = self.env['mrp.workorder'].search([
+            ('workcenter_id', 'in', workcenters.ids),
+            ('state', 'not in', ('cancel',)),
+            ('date_start', '!=', False),
+            ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            '|',
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '=', False),
+            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
+        ])
+        wos_by_wc = defaultdict(list)
+        for wo in all_wos:
+            wos_by_wc[wo.workcenter_id.id].append(wo)
+
         for wc in workcenters:
             efficiency = wc.time_efficiency or 100.0
             avail = 0.0
             if wc.resource_calendar_id:
                 avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
 
-            wos = self.env['mrp.workorder'].search([
-                ('workcenter_id', '=', wc.id),
-                ('state', 'not in', ('cancel',)),
-                ('date_start', '!=', False),
-                ('date_start', '<=', fields.Datetime.to_string(last_day)),
-                '|',
-                ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-                ('date_finished', '=', False),
-                ('production_id.location_src_id.is_subcontracting_location', '!=', True),
-            ])
+            wos = wos_by_wc.get(wc.id, [])  # cargado en batch antes del loop
 
-            ejecutado = sum(
-                _overlap_hours(w, first_day, last_day)
-                for w in wos if w.state == 'done'
-            )
-            pendiente = sum(
-                _overlap_hours(w, first_day, last_day)
-                for w in wos if w.state not in ('done', 'cancel')
-            )
+            # Fix 21: una sola pasada en lugar de dos generator expressions
+            ejecutado = pendiente = 0.0
+            for w in wos:
+                if w.state == 'done':
+                    ejecutado += _overlap_hours(w, first_day, last_day)
+                elif w.state != 'cancel':
+                    pendiente += _overlap_hours(w, first_day, last_day)
             tiempo_muerto = max(0.0, avail - ejecutado - pendiente)
 
             if avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
@@ -780,19 +791,21 @@ class MrpPlannerDashboard(models.TransientModel):
         _has_raw_mo  = 'raw_material_production_id' in self.env['stock.move']._fields
         _has_po_line = 'purchase_line_id' in self.env['mrp.production']._fields
 
-        def _trace_mo(moves, depth=0):
-            """Traza move_dest_ids recursivamente buscando una OF de subcontratación."""
-            if depth > 10:
-                return None
-            for mv in moves:
-                if _has_raw_mo and mv.raw_material_production_id:
-                    return mv.raw_material_production_id
-                if mv.production_id:
-                    return mv.production_id
-                result = _trace_mo(mv.move_dest_ids, depth + 1)
-                if result:
-                    return result
-            return None
+        from collections import deque
+        MAX_DEPTH = 20
+        def _trace_mo_iter(root_moves):
+            result = []
+            queue = deque([(root_moves, 0)])
+            while queue:
+                moves, depth = queue.popleft()
+                if depth >= MAX_DEPTH:
+                    continue
+                for move in moves:
+                    result.append(move)
+                    child = move.move_orig_ids
+                    if child:
+                        queue.append((child, depth + 1))
+            return result
 
         def _delivery_mo_s1(p):
             """Estrategia 1: campo directo raw_material_production_id (usa prefetch)."""
@@ -808,9 +821,16 @@ class MrpPlannerDashboard(models.TransientModel):
             Busca la OF de subcontratación por 4 estrategias y extrae ambos datos."""
             # Estrategia 1: campo directo en el move (usa prefetch, O(1))
             mo = _delivery_mo_s1(p)
-            # Estrategia 2: trazar move_dest_ids
+            # Estrategia 2: trazar move_dest_ids (versión iterativa)
             if not mo:
-                mo = _trace_mo(p.move_ids)
+                _moves = _trace_mo_iter(p.move_ids)
+                for _mv in _moves:
+                    if _has_raw_mo and _mv.raw_material_production_id:
+                        mo = _mv.raw_material_production_id
+                        break
+                    if _mv.production_id:
+                        mo = _mv.production_id
+                        break
             # Estrategia 3: desde líneas de la OC
             if not mo and p.purchase_id:
                 for line in p.purchase_id.order_line:
@@ -1479,15 +1499,20 @@ class MrpPlannerDashboard(models.TransientModel):
 
         fc_lines = self.env['mrp.forecast.line'].search(fc_domain)
 
+        # Precarga en un solo SELECT todos los campos relacionales necesarios
+        _product_ids_fc = fc_lines.mapped('product_id')
+        _product_read   = {r['id']: r for r in _product_ids_fc.read(['id', 'display_name', 'product_tmpl_id'])}
+
         # Estructura: {product_id: {month_str: forecast_qty}}
         fc_data = {}
         for line in fc_lines:
             pid = line.product_id.id
             ym  = f"{line.period.year}-{line.period.month:02d}"
             if pid not in fc_data:
+                _pr = _product_read.get(pid, {})
                 fc_data[pid] = {
-                    'product':         line.product_id.display_name,
-                    'product_tmpl_id': line.product_id.product_tmpl_id.id,
+                    'product':         _pr.get('display_name', ''),
+                    'product_tmpl_id': _pr.get('product_tmpl_id', [False])[0],
                 }
             fc_data[pid][ym] = fc_data[pid].get(ym, 0.0) + line.forecast_qty
 
@@ -1501,17 +1526,17 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # Estructura: {product_id: {month_str: qty}}
         mo_data = {}
-        for mo in mos:
-            if not mo.product_id or not mo.date_finished:
+        for _mo in mos.read(['product_id', 'date_finished', 'product_qty']):
+            pid = _mo['product_id'][0] if _mo['product_id'] else False
+            df  = _mo['date_finished']
+            if not pid or not df:
                 continue
-            pid = mo.product_id.id
-            df  = mo.date_finished
             ym  = _dt_ym(df)
             if ym not in months:
                 continue
             if pid not in mo_data:
                 mo_data[pid] = {}
-            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + mo.product_qty
+            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
 
         # ── Ids de productos con forecast ──────────────────────────────────────
         all_product_ids      = set(fc_data.keys())
@@ -1528,16 +1553,17 @@ class MrpPlannerDashboard(models.TransientModel):
             ('company_id', '=', self.env.company.id),
         ]
         del_data = {}   # {product_id: {ym: qty}}
-        for ml in self.env['stock.move.line'].search(del_line_domain):
-            pid = ml.product_id.id
-            dt  = ml.date
-            if not dt:
+        for _ml in self.env['stock.move.line'].search(del_line_domain).read(
+                ['product_id', 'date', 'quantity']):
+            pid = _ml['product_id'][0] if _ml['product_id'] else False
+            dt  = _ml['date']
+            if not pid or not dt:
                 continue
             ym = _dt_ym(dt)
             if ym not in months:
                 continue
             del_data.setdefault(pid, {})
-            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + ml.quantity
+            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + _ml['quantity']
 
         # ── Demanda real: pedidos de venta confirmados ─────────────────────────
         so_data = {}    # {product_id: {ym: qty}}
@@ -1549,16 +1575,25 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('product_id', 'in', all_product_ids_list),
                 ('company_id', '=', self.env.company.id),
             ]
-            for line in self.env['sale.order.line'].search(so_domain):
-                pid = line.product_id.id
-                if not line.order_id.date_order:
+            sol_rows = self.env['sale.order.line'].search(so_domain).read(
+                ['product_id', 'product_uom_qty', 'order_id']
+            )
+            # Precarga date_order de todas las sale.order en un solo SELECT
+            _order_ids  = list({r['order_id'][0] for r in sol_rows if r['order_id']})
+            _order_dates = {o['id']: o['date_order'] for o in
+                            self.env['sale.order'].browse(_order_ids).read(['id', 'date_order'])}
+            for _sl in sol_rows:
+                pid = _sl['product_id'][0] if _sl['product_id'] else False
+                if not pid:
                     continue
-                dt  = line.order_id.date_order
+                dt  = _order_dates.get(_sl['order_id'][0]) if _sl['order_id'] else None
+                if not dt:
+                    continue
                 ym  = _dt_ym(dt)
                 if ym not in months:
                     continue
                 so_data.setdefault(pid, {})
-                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + line.product_uom_qty
+                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + _sl['product_uom_qty']
         except Exception:
             pass    # módulo sale no disponible
 
@@ -1574,9 +1609,11 @@ class MrpPlannerDashboard(models.TransientModel):
             loc_ids  = wh_recs.mapped('lot_stock_id').ids
             if loc_ids:
                 quant_domain.append(('location_id', 'in', loc_ids))
-        for q in self.env['stock.quant'].search(quant_domain):
-            pid = q.product_id.id
-            stock_data[pid] = stock_data.get(pid, 0.0) + q.quantity
+        for _qg in self.env['stock.quant'].read_group(
+                quant_domain, ['product_id', 'quantity:sum'], ['product_id']):
+            pid = _qg['product_id'][0] if _qg['product_id'] else False
+            if pid:
+                stock_data[pid] = round(_qg['quantity'] or 0.0, 6)
 
         # ── Construir filas ────────────────────────────────────────────────────
         rows = []
@@ -1585,11 +1622,24 @@ class MrpPlannerDashboard(models.TransientModel):
                     if fc_data[pid].get('product_tmpl_id')]
         if tmpl_ids:
             tmpl_info = {}
-            for t in self.env['product.template'].browse(tmpl_ids):
-                tmpl_info[t.id] = {
-                    'sale_category': t.x_sale_category or '',
-                    'product_categ': t.categ_id.display_name if t.categ_id else '',
-                    'product_types': ', '.join(t.x_product_type_ids.mapped('name')),
+            _tmpl_rows = self.env['product.template'].browse(tmpl_ids).read(
+                ['id', 'x_sale_category', 'categ_id', 'x_product_type_ids']
+            )
+            # Precarga nombres de categorías en un solo SELECT
+            _categ_ids = list({r['categ_id'][0] for r in _tmpl_rows if r['categ_id']})
+            _categ_names = {c['id']: c['display_name'] for c in
+                            self.env['product.category'].browse(_categ_ids).read(['id', 'display_name'])}
+            # Precarga nombres de tipos de producto
+            _type_ids_all = list({tid for r in _tmpl_rows for tid in (r['x_product_type_ids'] or [])})
+            _type_names = {tp['id']: tp['name'] for tp in
+                           self.env['x.product.type'].browse(_type_ids_all).read(['id', 'name'])} \
+                          if _type_ids_all else {}
+            for _tr in _tmpl_rows:
+                _categ_id = _tr['categ_id'][0] if _tr['categ_id'] else False
+                tmpl_info[_tr['id']] = {
+                    'sale_category': _tr.get('x_sale_category') or '',
+                    'product_categ': _categ_names.get(_categ_id, '') if _categ_id else '',
+                    'product_types': ', '.join(_type_names.get(tid, '') for tid in (_tr['x_product_type_ids'] or [])),
                 }
         else:
             tmpl_info = {}
@@ -2035,46 +2085,48 @@ class MrpPlannerDashboard(models.TransientModel):
         product_domain = [('sale_ok', '=', True), ('active', '=', True), ('type', '=', 'consu')]
         if search:
             product_domain += ['|', ('name', 'ilike', search), ('default_code', 'ilike', search)]
-        products = self.env['product.product'].search(product_domain)
-        if not products:
+        # Traer sólo los IDs primero; los campos se cargan luego sólo para la página.
+        product_ids_all = self.env['product.product'].search(product_domain).ids
+        if not product_ids_all:
             return {'error': None, 'kpis': _empty_kpis,
                     'products': [], 'location_name': location_name, 'total_filtered': 0}
 
-        product_ids = products.ids
+        product_ids = product_ids_all
 
-        # Puntos de reorden con ruta fabricación → min_qty por producto
+        # Puntos de reorden con ruta fabricación → min_qty por producto (Fix 15)
         op_domain = [('product_id', 'in', product_ids)]
         if mfg_route:
             op_domain.append(('route_id', '=', mfg_route.id))
-        orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
-        min_qty_map = {}
-        forecast_map = {}
-        for op in orderpoints:
-            pid = op.product_id.id
-            op_min = op.product_min_qty
-            if pid not in min_qty_map or op_min > min_qty_map[pid]:
-                min_qty_map[pid] = op_min
-                forecast_map[pid] = getattr(op, 'qty_forecast', None)
+        # Usar read_group para traer sólo los agregados necesarios sin cargar recordsets
+        op_groups = self.env['stock.warehouse.orderpoint'].read_group(
+            op_domain,
+            ['product_id', 'product_min_qty:max', 'qty_forecast:max'],
+            ['product_id'],
+        )
+        min_qty_map = {g['product_id'][0]: g['product_min_qty'] for g in op_groups if g['product_id']}
+        forecast_map = {g['product_id'][0]: g['qty_forecast'] for g in op_groups if g['product_id']}
 
         # Stock en ubicaciones seleccionadas (batch via read_group)
+        # Fix 17: añadir location_id.usage='internal' para excluir ubicaciones no internas
         quant_groups = self.env['stock.quant'].read_group(
             [('product_id', 'in', product_ids),
-             ('location_id', 'child_of', locations.ids)],
+             ('location_id', 'child_of', locations.ids),
+             ('location_id.usage', '=', 'internal')],
             ['product_id', 'quantity:sum'],
             ['product_id'],
         )
         qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
 
-        # Construir filas
+        # Construir filas sólo con los IDs ya cargados (sin acceder a campos ORM aquí)
         rows = []
-        for p in products:
-            qty     = round(qty_map.get(p.id, 0.0), 3)
-            min_qty = min_qty_map.get(p.id)
+        for pid in product_ids_all:
+            qty     = round(qty_map.get(pid, 0.0), 3)
+            min_qty = min_qty_map.get(pid)
             has_min = min_qty is not None
-            raw_forecast = forecast_map.get(p.id)
+            raw_forecast = forecast_map.get(pid)
             rows.append({
-                'id':           p.id,
-                'name':         p.display_name,
+                'id':           pid,
+                'name':         None,   # se rellena sólo para la página (ver SB-02b)
                 'qty':          qty,
                 'min_qty':      min_qty if has_min else None,
                 'has_min':      has_min,
@@ -2098,9 +2150,14 @@ class MrpPlannerDashboard(models.TransientModel):
         elif filter_type == 'no_min':
             rows = [r for r in rows if not r['has_min']]
 
-        # Sort
+        # Sort — para sort por nombre, cargar display_name de todos los IDs filtrados antes de ordenar
         _rev = (sort_dir == 'desc')
         if sort_field == 'name':
+            _all_pids_for_sort = [r['id'] for r in rows]
+            _name_map_sort = {p['id']: p['display_name'] for p in
+                              self.env['product.product'].browse(_all_pids_for_sort).read(['id', 'display_name'])}
+            for r in rows:
+                r['name'] = _name_map_sort.get(r['id'], '')
             rows.sort(key=lambda r: (r['name'] or '').lower(), reverse=_rev)
         elif sort_field == 'qty':
             rows.sort(key=lambda r: r['qty'], reverse=_rev)
@@ -2114,19 +2171,29 @@ class MrpPlannerDashboard(models.TransientModel):
             # Default: quiebres primero, luego OK, luego sin mínimo; dentro de cada grupo por nombre
             rows.sort(key=lambda r: (
                 0 if r['is_broken'] else 1 if not r['has_min'] else 2,
-                (r['name'] or '').lower(),
             ))
 
         total_filtered = len(rows)
         offset = (max(1, page) - 1) * page_size
         page_rows = rows[offset:offset + page_size]
 
-        # Conteo de OFs activas para los productos de esta página
+        # Después de paginar, cargar display_name sólo para los IDs de la página (SB-02b)
         page_pids = [r['id'] for r in page_rows]
+        if page_pids:
+            page_prods_map = {p['id']: p['display_name'] for p in
+                              self.env['product.product'].browse(page_pids).read(['id', 'display_name'])}
+            for r in page_rows:
+                if r['name'] is None:
+                    r['name'] = page_prods_map.get(r['id'], '')
+
+        # Fix 18: calcular no_subcontract_domain UNA vez
+        no_sc_domain = no_subcontract_domain(self.env)
+
+        # Conteo de OFs activas para los productos de esta página
         if page_pids:
             mo_groups = self.env['mrp.production'].read_group(
                 [('product_id', 'in', page_pids),
-                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_subcontract_domain(self.env),
+                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain,
                 ['product_id'],
                 ['product_id'],
             )
@@ -2136,13 +2203,15 @@ class MrpPlannerDashboard(models.TransientModel):
         for r in page_rows:
             r['mo_count'] = mo_count_map.get(r['id'], 0)
 
-        # Tipos de producto para esta página (batch)
+        # Tipos de producto para esta página (batch) — Fix 16
         if page_pids:
-            page_pids_set = set(page_pids)
-            page_prods = products.filtered(lambda p: p.id in page_pids_set)
+            page_prods = self.env['product.product'].browse(page_pids)
+            page_tmpls = page_prods.mapped('product_tmpl_id')
+            # Forzar prefetch de la M2M en una sola query antes del loop
+            page_tmpls.mapped('x_product_type_ids')  # carga el batch completo
             tmpl_type_map = {
                 t.id: ', '.join(t.x_product_type_ids.mapped('name'))
-                for t in page_prods.mapped('product_tmpl_id')
+                for t in page_tmpls
             }
             prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in page_prods}
         else:
@@ -2327,8 +2396,10 @@ class MrpPlannerDashboard(models.TransientModel):
         dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
-        cfg_sa = self.env['mrp.reschedule.config'].search([], limit=1)
-        date_field = (cfg_sa and cfg_sa.supplier_analysis_date_field) or 'date_approve'
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        date_field = (cfg and cfg.supplier_analysis_date_field) or 'date_approve'
+        # Nota: reemplazar todas las referencias posteriores a cfg_sa por cfg,
+        # y eliminar la segunda búsqueda en línea 2510 (cfg = self.env[...].search(...)).
 
         po_domain = [
             ('state', 'in', ['purchase', 'done']),
@@ -2339,16 +2410,23 @@ class MrpPlannerDashboard(models.TransientModel):
         if search:
             po_domain.append(('partner_id.name', 'ilike', search))
 
-        pos = self.env['purchase.order'].search(po_domain)
-
+        # Pre-clasificar OCs por tipo usando SQL antes del search principal
         if po_type in ('goods', 'services'):
-            def _all_svc(p):
-                lines = p.order_line.filtered(lambda l: l.product_id)
-                return bool(lines) and all(l.product_id.type == 'service' for l in lines)
-            if po_type == 'services':
-                pos = pos.filtered(_all_svc)
-            else:
-                pos = pos.filtered(lambda p: not _all_svc(p))
+            # 1 query: obtener IDs de OCs con al menos una línea de producto no-servicio
+            goods_line_groups = self.env['purchase.order.line'].read_group(
+                [('order_id.state', 'in', ['purchase', 'done']),
+                 ('product_id.type', '!=', 'service'),
+                 ('product_id', '!=', False)],
+                ['order_id'],
+                ['order_id'],
+            )
+            goods_po_ids = {g['order_id'][0] for g in goods_line_groups if g['order_id']}
+            if po_type == 'goods':
+                po_domain.append(('id', 'in', list(goods_po_ids)))
+            else:  # services: OCs sin ninguna línea de bien
+                po_domain.append(('id', 'not in', list(goods_po_ids)))
+
+        pos = self.env['purchase.order'].search(po_domain)
 
         _empty_kpis = {
             'supplier_count': 0, 'total_amount': 0, 'total_orders': 0,
@@ -2381,6 +2459,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 'pending_inv':  0.0,
             }
 
+        # Prefetch partner_id para garantizar que el dict comprehension no genere lazy-loads
+        pos.mapped('partner_id')
         # Mapa po_id → (partner_id, date_approve)
         po_map = {po.id: (po.partner_id.id, po.date_approve) for po in pos}
 
@@ -2423,6 +2503,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ).mapped('backorder_id').ids
         )
 
+        pickings.mapped('purchase_id')  # prefetch en 1 query
         for picking in pickings:
             po_id = picking.purchase_id.id if picking.purchase_id else None
             if not po_id or po_id not in po_map:
@@ -2507,7 +2588,6 @@ class MrpPlannerDashboard(models.TransientModel):
             'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
         }
 
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
         show_supplier_cat = bool(cfg and cfg.enable_supplier_categories)
         if show_supplier_cat:
             cat_map = {r['id']: r['x_supplier_category'] or ''

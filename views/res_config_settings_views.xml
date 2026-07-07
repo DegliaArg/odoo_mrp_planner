@@ -464,15 +464,12 @@
               action="action_mrp_reschedule_config"
               groups="odoo_mrp_planner.group_admin,base.group_system"/>
 
-    <!-- Herencia: agrega toggle de rotación al grupo Quiebres de stock y js_class al form -->
+    <!-- Herencia: agrega toggle de rotación al grupo Quiebres de stock -->
     <record id="mrp_reschedule_config_form_view_rotation" model="ir.ui.view">
         <field name="name">mrp.reschedule.config.form.rotation</field>
         <field name="model">mrp.reschedule.config</field>
         <field name="inherit_id" ref="mrp_reschedule_config_form_view"/>
         <field name="arch" type="xml">
-            <xpath expr="//form" position="attributes">
-                <attribute name="js_class">mrp_planner_config_form</attribute>
-            </xpath>
             <xpath expr="//field[@name='stock_location_id']" position="after">
                 <field name="stock_break_show_rotation"
                        widget="boolean_toggle"

@@ -859,7 +859,7 @@ class ForecastWidget extends Component {
             return `Ventas: ${n * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
         }
         const suffix = unit !== 'months' ? ' × 30' : '';
-        return `Unidades: ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${suffix} = ${val}`;
+        return `Unidades: ${this.fmt(row.avg_stock_qty)} stock promedio ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${suffix} = ${val}`;
     }
 
     /**

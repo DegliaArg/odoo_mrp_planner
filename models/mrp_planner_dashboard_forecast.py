@@ -286,8 +286,59 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             if pid:
                 stock_data[pid] = round(_qg['quantity'] or 0.0, 6)
 
-        # ── Datos de rotación: COGS y ventas (batch, solo si el método lo requiere) ──
+        # ── Datos de rotación (batch, según método) ───────────────────────────────
         period_days_rot = n_months * 30  # días comerciales del período (aproximación de mes comercial)
+        dt_from_str = fields.Datetime.to_string(dt_from)
+        dt_to_str   = fields.Datetime.to_string(dt_to)
+
+        # Método units: reconstrucción de stock histórico desde stock.move (sin valorización)
+        qty_in_start_by_pid  = {}
+        qty_out_start_by_pid = {}
+        qty_in_end_by_pid    = {}
+        qty_out_end_by_pid   = {}
+
+        if rotation_method == 'units' and all_product_ids_list:
+            try:
+                SM = self.env['stock.move'].sudo()
+                _sm_base = [
+                    ('state', '=', 'done'),
+                    ('product_id', 'in', all_product_ids_list),
+                    ('company_id', '=', self.env.company.id),
+                ]
+                for g in SM.read_group(_sm_base + [
+                    ('date', '<', dt_from_str),
+                    ('location_dest_id.usage', '=', 'internal'),
+                    ('location_id.usage', '!=', 'internal'),
+                ], ['product_id', 'product_qty:sum'], ['product_id']):
+                    if g['product_id']:
+                        qty_in_start_by_pid[g['product_id'][0]] = g['product_qty'] or 0.0
+
+                for g in SM.read_group(_sm_base + [
+                    ('date', '<', dt_from_str),
+                    ('location_id.usage', '=', 'internal'),
+                    ('location_dest_id.usage', '!=', 'internal'),
+                ], ['product_id', 'product_qty:sum'], ['product_id']):
+                    if g['product_id']:
+                        qty_out_start_by_pid[g['product_id'][0]] = g['product_qty'] or 0.0
+
+                for g in SM.read_group(_sm_base + [
+                    ('date', '<=', dt_to_str),
+                    ('location_dest_id.usage', '=', 'internal'),
+                    ('location_id.usage', '!=', 'internal'),
+                ], ['product_id', 'product_qty:sum'], ['product_id']):
+                    if g['product_id']:
+                        qty_in_end_by_pid[g['product_id'][0]] = g['product_qty'] or 0.0
+
+                for g in SM.read_group(_sm_base + [
+                    ('date', '<=', dt_to_str),
+                    ('location_id.usage', '=', 'internal'),
+                    ('location_dest_id.usage', '!=', 'internal'),
+                ], ['product_id', 'product_qty:sum'], ['product_id']):
+                    if g['product_id']:
+                        qty_out_end_by_pid[g['product_id'][0]] = g['product_qty'] or 0.0
+            except Exception:
+                pass
+
         cogs_by_pid      = {}
         inv_start_by_pid = {}
         inv_end_by_pid   = {}
@@ -299,8 +350,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 # COGS: capas con valor negativo (salidas) dentro del período
                 for g in SVL.read_group([
                     ('product_id', 'in', all_product_ids_list),
-                    ('create_date', '>=', fields.Datetime.to_string(dt_from)),
-                    ('create_date', '<=', fields.Datetime.to_string(dt_to)),
+                    ('create_date', '>=', dt_from_str),
+                    ('create_date', '<=', dt_to_str),
                     ('value', '<', 0),
                     ('company_id', '=', self.env.company.id),
                 ], ['product_id', 'value:sum'], ['product_id']):
@@ -310,7 +361,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 # Inventario valorizado acumulado al inicio del período
                 for g in SVL.read_group([
                     ('product_id', 'in', all_product_ids_list),
-                    ('create_date', '<', fields.Datetime.to_string(dt_from)),
+                    ('create_date', '<', dt_from_str),
                     ('company_id', '=', self.env.company.id),
                 ], ['product_id', 'value:sum'], ['product_id']):
                     if g['product_id']:
@@ -319,7 +370,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 # Inventario valorizado acumulado al fin del período
                 for g in SVL.read_group([
                     ('product_id', 'in', all_product_ids_list),
-                    ('create_date', '<=', fields.Datetime.to_string(dt_to)),
+                    ('create_date', '<=', dt_to_str),
                     ('company_id', '=', self.env.company.id),
                 ], ['product_id', 'value:sum'], ['product_id']):
                     if g['product_id']:
@@ -444,11 +495,16 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
             rot_months = None
             rot_days   = None
+            avg_stock_qty = stock_qty  # fallback: stock actual si no hay historial
             if rotation_method == 'units':
+                stock_start = max(0.0, qty_in_start_by_pid.get(pid, 0.0) - qty_out_start_by_pid.get(pid, 0.0))
+                stock_end   = max(0.0, qty_in_end_by_pid.get(pid, 0.0)   - qty_out_end_by_pid.get(pid, 0.0))
+                if stock_start > 0 or stock_end > 0:
+                    avg_stock_qty = (stock_start + stock_end) / 2.0
                 avg_monthly_del = tot_del / n_months
                 if avg_monthly_del > 0:
-                    rot_months = round(stock_qty / avg_monthly_del, 1)
-                    rot_days   = int(round(stock_qty / avg_monthly_del * 30))
+                    rot_months = round(avg_stock_qty / avg_monthly_del, 1)
+                    rot_days   = int(round(avg_stock_qty / avg_monthly_del * 30))
             elif rotation_method in ('cogs', 'sales'):
                 inv_s   = inv_start_by_pid.get(pid, 0.0)
                 inv_e   = inv_end_by_pid.get(pid, 0.0)
@@ -467,6 +523,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'product':            pname,
                 'cells':              cells,
                 'stock_qty':          stock_qty,
+                'avg_stock_qty':      round(avg_stock_qty, 2),
                 'rotation_days':      rot_days,
                 'rotation_months':    rot_months,
                 'total_forecast':     round(tot_fc,  2),

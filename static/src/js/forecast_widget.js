@@ -30,8 +30,27 @@ import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { useColManager } from "./column_manager";
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+const FC_STATIC_COLS = [
+    { key: 'product',      label: 'Artículo', width: 200, fixed: true, align: 'start' },
+    { key: 'saleCategory', label: 'Cat.',      width:  55, align: 'center' },
+    { key: 'productCateg', label: 'Familia',   width: 120, align: 'start' },
+    { key: 'productTypes', label: 'Tipo',      width: 120, align: 'start' },
+    { key: 'stock',        label: 'Stock',     width:  80, align: 'end' },
+    { key: 'rotation',     label: 'Rot.',      width:  75, align: 'end' },
+];
+
+const FC_SORT_KEYS = {
+    product:      'product',
+    saleCategory: 'sale_category',
+    productCateg: 'product_categ',
+    productTypes: 'product_types',
+    stock:        'stock_qty',
+    rotation:     'rotation_days',
+};
 
 /**
  * Convierte una clave "YYYY-MM" en una etiqueta legible en español, p. ej. "Ene 2025".
@@ -92,8 +111,10 @@ class ForecastWidget extends Component {
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
-        this.orm    = useService("orm");
-        this.action = useService("action");
+        this.orm       = useService("orm");
+        this.action    = useService("action");
+        this.cols      = useColManager('forecast_static', FC_STATIC_COLS);
+        this.fcSortKeys = FC_SORT_KEYS;
 
         this.state = useState({
             loading:            true,
@@ -403,15 +424,34 @@ class ForecastWidget extends Component {
      */
     get tableColspan() {
         const n = this.state.data ? this.state.data.months.length : 0;
-        let cols = 1;
-        if (this.state.visibleCols.saleCategory)  cols++;
-        if (this.state.visibleCols.productCateg)  cols++;
-        if (this.state.visibleCols.productTypes)  cols++;
-        if (this.state.visibleCols.stock)         cols++;
-        if (this.state.visibleCols.rotation)      cols++;
+        let cols = this.staticVisibleCols.length;
         cols += n * this.monthColspan;
         if (this.showTotal) cols += this.totalColspan;
         return cols;
+    }
+
+    // ── Column manager helpers ────────────────────────────────────────────────
+
+    get staticVisibleCols() {
+        return this.cols.visibleCols().filter(col => {
+            if (col.key === 'product') return true;
+            return !!this.state.visibleCols[col.key];
+        });
+    }
+
+    colTitle(col) {
+        if (col.key === 'rotation')     return this.rotHeaderTitle;
+        if (col.key === 'product')      return 'Ordenar por nombre de artículo';
+        if (col.key === 'saleCategory') return 'Categoría de venta (A=alta rotación, E=baja). Clic para ordenar.';
+        if (col.key === 'productCateg') return 'Familia de producto (product.template.categ_id). Clic para ordenar.';
+        if (col.key === 'productTypes') return 'Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar.';
+        if (col.key === 'stock')        return 'Stock disponible en ubicaciones internas. Clic para ordenar.';
+        return '';
+    }
+
+    onColHeaderClick(col) {
+        const sk = FC_SORT_KEYS[col.key];
+        if (sk) this.setSort(sk);
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────
@@ -832,7 +872,7 @@ class ForecastWidget extends Component {
         const method = this.state.data && this.state.data.rotation_method;
         if (method === 'cogs')  return 'Rotación COGS = período (días) × inventario promedio (costo) ÷ costo de ventas. Clic para ordenar.';
         if (method === 'sales') return 'Rotación Ventas = período (días) × inventario promedio (costo) ÷ ventas netas. Clic para ordenar.';
-        return 'Rotación Unidades = stock actual ÷ (entregado ÷ N meses). Clic para ordenar.';
+        return 'Rotación Unidades = stock promedio del período ÷ (entregado ÷ N meses). Clic para ordenar.';
     }
 
     /**

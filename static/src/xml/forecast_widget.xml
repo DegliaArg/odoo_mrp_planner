@@ -361,52 +361,26 @@
 
                                 <!-- Fila 1 -->
                                 <tr>
-                                    <th rowspan="2" class="align-middle"
-                                        style="min-width:170px; padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Ordenar por nombre de artículo"
-                                        t-on-click="() => this.setSort('product')">
-                                        Artículo <i t-att-class="sortIcon('product')"/>
-                                    </th>
-
-                                    <th t-if="state.visibleCols.saleCategory" rowspan="2"
-                                        class="text-center align-middle"
-                                        style="min-width:45px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Categoría de venta (A=alta rotación, E=baja). Clic para ordenar."
-                                        t-on-click="() => this.setSort('sale_category')">
-                                        Cat. <i t-att-class="sortIcon('sale_category')"/>
-                                    </th>
-
-                                    <th t-if="state.visibleCols.productCateg" rowspan="2"
-                                        class="text-start align-middle"
-                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Familia de producto (product.template.categ_id). Clic para ordenar."
-                                        t-on-click="() => this.setSort('product_categ')">
-                                        Familia <i t-att-class="sortIcon('product_categ')"/>
-                                    </th>
-
-                                    <th t-if="state.visibleCols.productTypes" rowspan="2"
-                                        class="text-start align-middle"
-                                        style="min-width:100px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar."
-                                        t-on-click="() => this.setSort('product_types')">
-                                        Tipo <i t-att-class="sortIcon('product_types')"/>
-                                    </th>
-
-                                    <th t-if="state.visibleCols.stock" rowspan="2"
-                                        class="text-end align-middle"
-                                        style="min-width:70px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Stock disponible en ubicaciones internas. Clic para ordenar."
-                                        t-on-click="() => this.setSort('stock_qty')">
-                                        Stock <i t-att-class="sortIcon('stock_qty')"/>
-                                    </th>
-
-                                    <th t-if="state.visibleCols.rotation" rowspan="2"
-                                        class="text-end align-middle"
-                                        style="min-width:65px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        t-att-title="rotHeaderTitle"
-                                        t-on-click="() => this.setSort('rotation_days')">
-                                        Rot. <i t-att-class="sortIcon('rotation_days')"/>
-                                    </th>
+                                    <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                        <th rowspan="2"
+                                            t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                            t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
+                                            t-att-title="colTitle(col)"
+                                            t-att-data-col-key="col.key"
+                                            t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-on-dragstart="cols.onDragStart"
+                                            t-on-dragover="cols.onDragOver"
+                                            t-on-drop="cols.onDrop"
+                                            t-on-dragend="cols.onDragEnd"
+                                            t-on-click="() => onColHeaderClick(col)">
+                                            <t t-esc="col.label"/>
+                                            <i t-att-class="sortIcon(fcSortKeys[col.key])"/>
+                                            <div class="o_col_resize_handle"
+                                                 t-att-data-col-key="col.key"
+                                                 t-on-mousedown.stop="cols.onResizeStart"
+                                                 t-on-click.stop="() => {}"/>
+                                        </th>
+                                    </t>
 
                                     <t t-foreach="state.data.months" t-as="m" t-key="m">
                                         <th t-att-colspan="monthColspan"
@@ -486,68 +460,61 @@
                                         <t t-set="row" t-value="item"/>
 
                                         <tr>
-                                            <!-- Artículo: botón expand + nombre cliqueable -->
-                                            <td style="padding:3px 6px; white-space:nowrap;">
-                                                <button class="btn btn-link btn-sm p-0 me-1"
-                                                        t-att-class="row.total_mos ? 'text-muted' : 'text-muted opacity-25'"
-                                                        t-att-disabled="!row.total_mos || undefined"
-                                                        style="line-height:1; vertical-align:middle;"
-                                                        t-att-title="row.total_mos ? (state.expandedProducts[row.product_id] ? 'Cerrar OFs' : 'Ver OFs del artículo') : 'Sin OFs en el período'"
-                                                        t-on-click="() => this.toggleAccordion(row)">
-                                                    <i t-att-class="'fa ' + (state.expandedProducts[row.product_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                                                </button>
-                                                <a href="#"
-                                                   class="fw-semibold text-truncate d-inline-block"
-                                                   style="max-width:145px; vertical-align:middle; color:inherit; text-decoration:none;"
-                                                   t-att-title="row.product"
-                                                   t-on-click.prevent="() => this.openProduct(row)">
-                                                    <t t-esc="row.product"/>
-                                                </a>
-                                            </td>
-
-                                            <!-- Categoría de venta -->
-                                            <td t-if="state.visibleCols.saleCategory"
-                                                class="text-center" style="padding:3px 6px;">
-                                                <span t-if="row.sale_category"
-                                                      t-att-class="saleCatBadge(row.sale_category)"
-                                                      style="font-size:10px; padding:2px 6px;">
-                                                    <t t-esc="row.sale_category"/>
-                                                </span>
-                                                <span t-else="" class="text-muted">—</span>
-                                            </td>
-
-                                            <!-- Familia de producto -->
-                                            <td t-if="state.visibleCols.productCateg"
-                                                class="text-start" style="padding:3px 6px; max-width:120px;"
-                                                t-att-title="row.product_categ || ''">
-                                                <span class="text-truncate d-inline-block" style="max-width:115px;">
-                                                    <t t-esc="row.product_categ || '—'"/>
-                                                </span>
-                                            </td>
-
-                                            <!-- Tipo de producto -->
-                                            <td t-if="state.visibleCols.productTypes"
-                                                class="text-start text-muted" style="padding:3px 6px; max-width:120px;"
-                                                t-att-title="row.product_types || ''">
-                                                <span class="text-truncate d-inline-block" style="max-width:115px;">
-                                                    <t t-esc="row.product_types || '—'"/>
-                                                </span>
-                                            </td>
-
-                                            <!-- Stock -->
-                                            <td t-if="state.visibleCols.stock"
-                                                class="text-end" style="padding:3px 6px;"
-                                                title="Stock disponible en ubicaciones internas.">
-                                                <t t-esc="fmt(row.stock_qty)"/>
-                                            </td>
-
-                                            <!-- Rotación -->
-                                            <td t-if="state.visibleCols.rotation"
-                                                t-att-class="'text-end ' + rotClass(row)"
-                                                style="padding:3px 6px;"
-                                                t-att-title="rotTooltip(row)">
-                                                <t t-esc="fmtRotation(row)"/>
-                                            </td>
+                                            <!-- Columnas estáticas izquierdas (orden gestionado por col manager) -->
+                                            <t t-foreach="staticVisibleCols" t-as="col" t-key="'td_' + col.key">
+                                                <td t-if="col.key === 'product'"
+                                                    style="padding:3px 6px; white-space:nowrap;">
+                                                    <button class="btn btn-link btn-sm p-0 me-1"
+                                                            t-att-class="row.total_mos ? 'text-muted' : 'text-muted opacity-25'"
+                                                            t-att-disabled="!row.total_mos || undefined"
+                                                            style="line-height:1; vertical-align:middle;"
+                                                            t-att-title="row.total_mos ? (state.expandedProducts[row.product_id] ? 'Cerrar OFs' : 'Ver OFs del artículo') : 'Sin OFs en el período'"
+                                                            t-on-click="() => this.toggleAccordion(row)">
+                                                        <i t-att-class="'fa ' + (state.expandedProducts[row.product_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                                    </button>
+                                                    <a href="#"
+                                                       class="fw-semibold text-truncate d-inline-block"
+                                                       style="max-width:145px; vertical-align:middle; color:inherit; text-decoration:none;"
+                                                       t-att-title="row.product"
+                                                       t-on-click.prevent="() => this.openProduct(row)">
+                                                        <t t-esc="row.product"/>
+                                                    </a>
+                                                </td>
+                                                <td t-elif="col.key === 'saleCategory'"
+                                                    class="text-center" style="padding:3px 6px;">
+                                                    <span t-if="row.sale_category"
+                                                          t-att-class="saleCatBadge(row.sale_category)"
+                                                          style="font-size:10px; padding:2px 6px;">
+                                                        <t t-esc="row.sale_category"/>
+                                                    </span>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
+                                                <td t-elif="col.key === 'productCateg'"
+                                                    class="text-start" style="padding:3px 6px; max-width:120px;"
+                                                    t-att-title="row.product_categ || ''">
+                                                    <span class="text-truncate d-inline-block" style="max-width:115px;">
+                                                        <t t-esc="row.product_categ || '—'"/>
+                                                    </span>
+                                                </td>
+                                                <td t-elif="col.key === 'productTypes'"
+                                                    class="text-start text-muted" style="padding:3px 6px; max-width:120px;"
+                                                    t-att-title="row.product_types || ''">
+                                                    <span class="text-truncate d-inline-block" style="max-width:115px;">
+                                                        <t t-esc="row.product_types || '—'"/>
+                                                    </span>
+                                                </td>
+                                                <td t-elif="col.key === 'stock'"
+                                                    class="text-end" style="padding:3px 6px;"
+                                                    title="Stock disponible en ubicaciones internas.">
+                                                    <t t-esc="fmt(row.stock_qty)"/>
+                                                </td>
+                                                <td t-elif="col.key === 'rotation'"
+                                                    t-att-class="'text-end ' + rotClass(row)"
+                                                    style="padding:3px 6px;"
+                                                    t-att-title="rotTooltip(row)">
+                                                    <t t-esc="fmtRotation(row)"/>
+                                                </td>
+                                            </t>
 
                                             <!-- Celdas por mes -->
                                             <t t-foreach="row.cells" t-as="cell" t-key="cell.month">
@@ -709,12 +676,11 @@
                             <!-- Totales globales -->
                             <tfoot class="fw-bold" style="background:#f8f9fa;">
                                 <tr>
-                                    <td style="padding:3px 8px;">Total</td>
-                                    <td t-if="state.visibleCols.saleCategory" style="padding:3px 6px;"/>
-                                    <td t-if="state.visibleCols.productCateg" style="padding:3px 6px;"/>
-                                    <td t-if="state.visibleCols.productTypes" style="padding:3px 6px;"/>
-                                    <td t-if="state.visibleCols.stock" style="padding:3px 6px;"/>
-                                    <td t-if="state.visibleCols.rotation" style="padding:3px 6px;"/>
+                                    <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                        <td style="padding:3px 6px;">
+                                            <t t-if="col.key === 'product'">Total</t>
+                                        </td>
+                                    </t>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">
                                         <td t-if="state.visibleCols.forecast"
                                             class="text-end" style="padding:3px 5px;">

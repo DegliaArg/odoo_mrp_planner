@@ -435,7 +435,7 @@
         <field name="view_id" ref="mrp_reschedule_config_form_view"/>
         <field name="res_id" ref="mrp_reschedule_config_singleton"/>
         <field name="target">current</field>
-        <field name="context">{'create': False, 'delete': False, 'no_pager': True}</field>
+        <field name="context">{'create': False, 'delete': False, 'no_pager': 1}</field>
     </record>
 
     <menuitem id="mrp_reschedule_menu_config"

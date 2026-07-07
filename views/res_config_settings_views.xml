@@ -478,6 +478,21 @@
                        widget="radio"
                        invisible="not stock_break_show_rotation"
                        help="Fórmula base para calcular la rotación en el widget de quiebres de stock."/>
+                <div class="text-muted small border-start border-2 ps-2 mt-1"
+                     invisible="not stock_break_show_rotation or stock_break_rotation_method != 'units'">
+                    <b>Por unidades:</b> stock actual ÷ (entregas del período ÷ meses configurados) × 30.
+                    No requiere valorización de stock. Ideal para medir cuántos días de stock quedan al ritmo de despacho actual.
+                </div>
+                <div class="text-muted small border-start border-2 ps-2 mt-1"
+                     invisible="not stock_break_show_rotation or stock_break_rotation_method != 'cogs'">
+                    <b>Por COGS (a costo):</b> días del período × inventario promedio (valorizado a costo) ÷ costo de lo vendido en el período.
+                    La más correcta contablemente. Requiere valorización de stock activa (AVCO o FIFO).
+                </div>
+                <div class="text-muted small border-start border-2 ps-2 mt-1"
+                     invisible="not stock_break_show_rotation or stock_break_rotation_method != 'sales'">
+                    <b>Por ventas (a precio):</b> días del período × inventario promedio (a costo) ÷ ventas netas (a precio de venta).
+                    Mezcla costo e ingreso — menos precisa, pero más intuitiva para el área comercial.
+                </div>
                 <field name="stock_break_rotation_months"
                        invisible="not stock_break_show_rotation"
                        help="Cantidad de meses de historial a considerar para calcular la rotación en quiebres de stock."/>

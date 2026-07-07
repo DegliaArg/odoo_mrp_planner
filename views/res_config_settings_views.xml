@@ -474,9 +474,13 @@
                 <field name="stock_break_show_rotation"
                        widget="boolean_toggle"
                        help="Muestra la columna de rotación de inventario en la tabla de quiebres de stock."/>
+                <field name="stock_break_rotation_method"
+                       widget="radio"
+                       invisible="not stock_break_show_rotation"
+                       help="Fórmula base para calcular la rotación en el widget de quiebres de stock."/>
                 <field name="stock_break_rotation_months"
                        invisible="not stock_break_show_rotation"
-                       help="Cantidad de meses de historial de entregas para calcular la rotación en quiebres de stock."/>
+                       help="Cantidad de meses de historial a considerar para calcular la rotación en quiebres de stock."/>
             </xpath>
         </field>
     </record>

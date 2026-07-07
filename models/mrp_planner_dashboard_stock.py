@@ -139,34 +139,90 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
         # Config: rotación en quiebres
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        show_rotation        = (cfg.stock_break_show_rotation if cfg else False)
+        show_rotation        = (cfg.stock_break_show_rotation   if cfg else False)
+        rotation_method      = (cfg.stock_break_rotation_method if cfg else None) or 'units'
         rotation_months_cfg  = (cfg.stock_break_rotation_months if cfg else 3) or 3
         rotation_period_days = rotation_months_cfg * 30
 
-        # Rotación de inventario (período configurable, método unidades)
         rotation_days_map   = {}
         rotation_months_map = {}
         if show_rotation:
-            try:
-                d_rot      = _date.today() - timedelta(days=rotation_period_days)
-                dt_rot_str = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
-                for g in self.env['stock.move.line'].read_group([
-                    ('state', '=', 'done'),
-                    ('product_id', 'in', product_ids),
-                    ('date', '>=', dt_rot_str),
-                    ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                    ('company_id', '=', self.env.company.id),
-                ], ['product_id', 'quantity:sum'], ['product_id']):
-                    if g['product_id']:
-                        _pid = g['product_id'][0]
-                        _del = g['quantity'] or 0.0
-                        _avg = _del / rotation_months_cfg
-                        if _avg > 0:
-                            _sq = qty_map.get(_pid, 0.0)
-                            rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
-                            rotation_months_map[_pid] = round(_sq / _avg, 1)
-            except Exception:
-                pass
+            d_rot        = _date.today() - timedelta(days=rotation_period_days)
+            dt_rot_str   = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
+            dt_today_str = fields.Datetime.to_string(_datetime.combine(_date.today(), _datetime.max.time()))
+
+            if rotation_method == 'units':
+                try:
+                    for g in self.env['stock.move.line'].read_group([
+                        ('state', '=', 'done'),
+                        ('product_id', 'in', product_ids),
+                        ('date', '>=', dt_rot_str),
+                        ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                        ('company_id', '=', self.env.company.id),
+                    ], ['product_id', 'quantity:sum'], ['product_id']):
+                        if g['product_id']:
+                            _pid = g['product_id'][0]
+                            _avg = (g['quantity'] or 0.0) / rotation_months_cfg
+                            if _avg > 0:
+                                _sq = qty_map.get(_pid, 0.0)
+                                rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
+                                rotation_months_map[_pid] = round(_sq / _avg, 1)
+                except Exception:
+                    pass
+
+            elif rotation_method in ('cogs', 'sales') and 'stock.valuation.layer' in self.env:
+                try:
+                    SVL = self.env['stock.valuation.layer'].sudo()
+                    cogs_map      = {}
+                    inv_start_map = {}
+                    inv_end_map   = {}
+                    for g in SVL.read_group([
+                        ('product_id', 'in', product_ids),
+                        ('create_date', '>=', dt_rot_str),
+                        ('create_date', '<=', dt_today_str),
+                        ('value', '<', 0),
+                        ('company_id', '=', self.env.company.id),
+                    ], ['product_id', 'value:sum'], ['product_id']):
+                        if g['product_id']:
+                            cogs_map[g['product_id'][0]] = -(g['value'] or 0.0)
+                    for g in SVL.read_group([
+                        ('product_id', 'in', product_ids),
+                        ('create_date', '<', dt_rot_str),
+                        ('company_id', '=', self.env.company.id),
+                    ], ['product_id', 'value:sum'], ['product_id']):
+                        if g['product_id']:
+                            inv_start_map[g['product_id'][0]] = g['value'] or 0.0
+                    for g in SVL.read_group([
+                        ('product_id', 'in', product_ids),
+                        ('create_date', '<=', dt_today_str),
+                        ('company_id', '=', self.env.company.id),
+                    ], ['product_id', 'value:sum'], ['product_id']):
+                        if g['product_id']:
+                            inv_end_map[g['product_id'][0]] = g['value'] or 0.0
+
+                    sales_map = {}
+                    if rotation_method == 'sales':
+                        for g in self.env['sale.order.line'].sudo().read_group([
+                            ('order_id.state', 'in', ('sale', 'done')),
+                            ('order_id.date_order', '>=', dt_rot_str),
+                            ('order_id.date_order', '<=', dt_today_str),
+                            ('product_id', 'in', product_ids),
+                            ('company_id', '=', self.env.company.id),
+                        ], ['product_id', 'price_subtotal:sum'], ['product_id']):
+                            if g['product_id']:
+                                sales_map[g['product_id'][0]] = g['price_subtotal'] or 0.0
+
+                    for _pid in product_ids:
+                        avg_inv = (inv_start_map.get(_pid, 0.0) + inv_end_map.get(_pid, 0.0)) / 2.0
+                        if avg_inv <= 0:
+                            continue
+                        base = cogs_map.get(_pid, 0.0) if rotation_method == 'cogs' else sales_map.get(_pid, 0.0)
+                        if base > 0:
+                            dio = rotation_period_days * avg_inv / base
+                            rotation_days_map[_pid]   = int(round(dio))
+                            rotation_months_map[_pid] = round(dio / 30.0, 1)
+                except Exception:
+                    pass
 
         # Construir filas sólo con los IDs ya cargados (sin acceder a campos ORM aquí)
         rows = []
@@ -292,6 +348,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'rotation_unit':   rotation_unit,
             'show_rotation':   show_rotation,
             'rotation_months': rotation_months_cfg,
+            'rotation_method': rotation_method,
         }
 
     @api.model

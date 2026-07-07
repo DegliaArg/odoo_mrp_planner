@@ -121,9 +121,19 @@ class MrpRescheduleConfig(models.Model):
         string='Mostrar rotación en quiebres de stock', default=False,
         help='Si está activo, se muestra la columna de rotación de inventario en el widget de quiebres de stock.'
     )
+    stock_break_rotation_method = fields.Selection([
+        ('units', 'Por unidades'),
+        ('cogs',  'Por COGS (a costo)'),
+        ('sales', 'Por ventas (a precio)'),
+    ], string='Método de rotación (quiebres)', default='units',
+       help='Fórmula para calcular la rotación en el widget de quiebres de stock.\n'
+            'Unidades: stock actual ÷ (entregas del período ÷ meses). No requiere valorización.\n'
+            'COGS: días × inventario promedio (a costo) ÷ costo de lo vendido. Requiere valorización activa.\n'
+            'Ventas: días × inventario promedio (a costo) ÷ ventas netas (a precio).'
+    )
     stock_break_rotation_months = fields.Integer(
         string='Período de rotación (meses)', default=3,
-        help='Cantidad de meses de historial de entregas a considerar para calcular la rotación en el widget de quiebres de stock.'
+        help='Cantidad de meses de historial a considerar para calcular la rotación en el widget de quiebres de stock.'
     )
 
     forecast_acc_formula = fields.Selection([

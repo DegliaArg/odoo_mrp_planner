@@ -20,13 +20,14 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 
 const STOCK_COLS = [
-    { key: '_expand',      label: '',          width: 32,  fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
-    { key: 'name',         label: 'Artículo',  width: 200, sortKey: 'name',     title: 'Nombre o código del producto.' },
-    { key: 'product_types',label: 'Tipo',      width: 130, title: 'Tipos de producto asignados en la ficha del artículo.' },
-    { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',    align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
-    { key: 'min_qty',      label: 'Mínimo',    width: 85,  sortKey: 'min_qty',  align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
-    { key: 'qty_forecast', label: 'Pronóstico', width: 95,  sortKey: 'qty_forecast', align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
-    { key: 'status',       label: 'Estado',    width: 100, sortKey: 'status',   align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
+    { key: '_expand',      label: '',           width:  32, fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
+    { key: 'name',         label: 'Artículo',   width: 200, sortKey: 'name',         title: 'Nombre o código del producto.' },
+    { key: 'product_types',label: 'Tipo',       width: 130,                           title: 'Tipos de producto asignados en la ficha del artículo.' },
+    { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',          align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
+    { key: 'min_qty',      label: 'Mínimo',     width:  85, sortKey: 'min_qty',       align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
+    { key: 'qty_forecast', label: 'Pronóstico', width:  95, sortKey: 'qty_forecast',  align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
+    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock actual ÷ (entregas últimos 90 d ÷ 3 meses). Misma unidad que en Forecast.' },
+    { key: 'status',       label: 'Estado',     width: 100, sortKey: 'status',        align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
 ];
 
 class StockBreakWidget extends Component {
@@ -64,6 +65,7 @@ class StockBreakWidget extends Component {
             products:         [],
             locationName:     "",
             totalFiltered:    0,
+            rotation_unit:    'days',
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -121,6 +123,7 @@ class StockBreakWidget extends Component {
                 this.state.products      = d.products;
                 this.state.locationName  = d.location_name;
                 this.state.totalFiltered = d.total_filtered;
+                this.state.rotation_unit = d.rotation_unit || 'days';
             }
         } catch (e) {
             console.error("[StockBreakWidget]", e);
@@ -312,6 +315,23 @@ class StockBreakWidget extends Component {
      */
     fmt(n) {
         return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n || 0);
+    }
+
+    fmtRotation(p) {
+        if (this.state.rotation_unit === 'months') {
+            const v = p.rotation_months;
+            return v !== null && v !== undefined ? `${v} m` : '—';
+        }
+        const v = p.rotation_days;
+        return v !== null && v !== undefined ? `${v} d` : '—';
+    }
+
+    rotClass(p) {
+        const unit = this.state.rotation_unit;
+        const v = unit === 'months' ? p.rotation_months : p.rotation_days;
+        if (v === null || v === undefined) return 'text-muted';
+        const threshold = unit === 'months' ? 3 : 90;
+        return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
     }
 
     /**

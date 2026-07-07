@@ -20,6 +20,7 @@ Relacionado con:
 - mrp_reschedule.stock_location_id: parámetro de sistema con la ubicación por defecto.
 """
 import logging
+from datetime import date as _date, datetime as _datetime, timedelta
 
 from odoo import models, fields, api
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
@@ -136,6 +137,30 @@ class MrpPlannerDashboardStock(models.TransientModel):
         )
         qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
 
+        # Rotación de inventario (últimos 90 días, método unidades)
+        rotation_days_map   = {}
+        rotation_months_map = {}
+        try:
+            d_rot      = _date.today() - timedelta(days=90)
+            dt_rot_str = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
+            for g in self.env['stock.move.line'].read_group([
+                ('state', '=', 'done'),
+                ('product_id', 'in', product_ids),
+                ('date', '>=', dt_rot_str),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('company_id', '=', self.env.company.id),
+            ], ['product_id', 'quantity:sum'], ['product_id']):
+                if g['product_id']:
+                    _pid = g['product_id'][0]
+                    _del = g['quantity'] or 0.0
+                    _avg = _del / 3.0  # 90 días ≈ 3 meses
+                    if _avg > 0:
+                        _sq = qty_map.get(_pid, 0.0)
+                        rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
+                        rotation_months_map[_pid] = round(_sq / _avg, 1)
+        except Exception:
+            pass
+
         # Construir filas sólo con los IDs ya cargados (sin acceder a campos ORM aquí)
         rows = []
         for pid in product_ids_all:
@@ -144,13 +169,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
             has_min = min_qty is not None
             raw_forecast = forecast_map.get(pid)
             rows.append({
-                'id':           pid,
-                'name':         None,   # se rellena sólo para la página (ver SB-02b)
-                'qty':          qty,
-                'min_qty':      min_qty if has_min else None,
-                'has_min':      has_min,
-                'is_broken':    has_min and qty < (min_qty - 0.001),
-                'qty_forecast': round(raw_forecast, 3) if raw_forecast is not None else None,
+                'id':             pid,
+                'name':           None,   # se rellena sólo para la página (ver SB-02b)
+                'qty':            qty,
+                'min_qty':        min_qty if has_min else None,
+                'has_min':        has_min,
+                'is_broken':      has_min and qty < (min_qty - 0.001),
+                'qty_forecast':   round(raw_forecast, 3) if raw_forecast is not None else None,
+                'rotation_days':  rotation_days_map.get(pid),
+                'rotation_months': rotation_months_map.get(pid),
             })
 
         # KPIs sobre el conjunto completo
@@ -186,6 +213,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
         elif sort_field == 'qty_forecast':
             # -999999 empuja los productos sin forecast al final cuando se ordena ascendente
             rows.sort(key=lambda r: r['qty_forecast'] if r['qty_forecast'] is not None else -999999, reverse=_rev)
+        elif sort_field == 'rotation':
+            rows.sort(key=lambda r: r['rotation_days'] if r['rotation_days'] is not None else 999999, reverse=_rev)
         elif sort_field == 'status':
             rows.sort(key=lambda r: (0 if r['is_broken'] else 1 if not r['has_min'] else 2), reverse=_rev)
         else:
@@ -243,6 +272,9 @@ class MrpPlannerDashboardStock(models.TransientModel):
             tmpl_id = prod_to_tmpl.get(r['id'])
             r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        rotation_unit = (cfg.forecast_rotation_unit if cfg else None) or 'days'
+
         return {
             'error':          None,
             'kpis':           kpis,
@@ -251,6 +283,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'location_ids':   locations.ids,
             'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
+            'rotation_unit':  rotation_unit,
         }
 
     @api.model

@@ -200,6 +200,12 @@
                                                    t-esc="fmt(prod.qty_forecast)"/>
                                                 <span t-else="" class="text-muted">—</span>
                                             </t>
+                                            <t t-elif="col.key === 'rotation'">
+                                                <span t-att-class="rotClass(prod)"
+                                                      t-att-title="(prod.rotation_days !== null and prod.rotation_days !== undefined) ? `Rot. = ${fmt(prod.qty)} stock ÷ (entregas 90d ÷ 3 meses) × 30` : 'Sin entregas en los últimos 90 días'">
+                                                    <t t-esc="fmtRotation(prod)"/>
+                                                </span>
+                                            </t>
                                             <t t-elif="col.key === 'status'">
                                                 <span t-if="prod.is_broken"
                                                       class="badge text-bg-danger"

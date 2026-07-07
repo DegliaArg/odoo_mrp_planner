@@ -379,8 +379,6 @@
                                     <group string="Forecast — Visualización">
                                         <field name="forecast_default_months"
                                                help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
-                                        <field name="forecast_rotation_unit"
-                                               help="Unidad en que se muestra la rotación de inventario: días o meses."/>
                                         <field name="forecast_warning_pct"
                                                help="Cobertura por debajo de este % se muestra en amarillo (aviso)."/>
                                         <field name="forecast_critical_pct"
@@ -403,6 +401,9 @@
                                             <b>Por ventas (a precio):</b> días del período × inventario promedio (a costo) ÷ ventas netas (a precio de venta).
                                             Mezcla costo e ingreso — menos precisa, pero más intuitiva para el área comercial.
                                         </div>
+                                        <field name="forecast_rotation_unit"
+                                               help="Unidad en que se muestra la rotación de inventario: días o meses."
+                                               class="mt-2"/>
                                     </group>
                                     <group string="Forecast — Precisión">
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>

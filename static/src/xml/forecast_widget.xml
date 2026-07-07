@@ -372,7 +372,7 @@
                                             t-on-dragover="cols.onDragOver"
                                             t-on-drop="cols.onDrop"
                                             t-on-dragend="cols.onDragEnd"
-                                            t-on-click="() => onColHeaderClick(col)">
+                                            t-on-click="() => this.onColHeaderClick(col)">
                                             <t t-esc="col.label"/>
                                             <i t-att-class="sortIcon(fcSortKeys[col.key])"/>
                                             <div class="o_col_resize_handle"

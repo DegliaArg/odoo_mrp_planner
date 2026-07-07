@@ -21,6 +21,34 @@
                     <h2>Planificador de producción</h2>
                     <notebook>
 
+                        <!-- ══ GENERAL ═══════════════════════════════════════════ -->
+                        <page string="General" name="general">
+                            <div class="row">
+                                <div class="col-6">
+                                    <group string="Alertas — Frecuencia de actualización">
+                                        <label for="cron_interval_number" string="Revisar alertas cada"/>
+                                        <div class="o_row">
+                                            <field name="cron_interval_number" class="o_field_small"
+                                                   help="Frecuencia con que el cron de detección revisa las OFs y OCs para generar o resolver alertas automáticamente."/>
+                                            <field name="cron_interval_type" class="ms-2" nolabel="1"/>
+                                        </div>
+                                    </group>
+                                </div>
+                                <div class="col-6">
+                                    <group string="Depósitos por usuario">
+                                        <div class="text-muted small mb-3">
+                                            Configurá qué depósitos puede ver cada usuario en el Planificador MRP.
+                                            Por defecto todos los usuarios ven todos los depósitos.
+                                        </div>
+                                        <button name="action_open_user_warehouses"
+                                                type="object"
+                                                string="Gestionar depósitos por usuario →"
+                                                class="btn btn-primary"/>
+                                    </group>
+                                </div>
+                            </div>
+                        </page>
+
                         <!-- ══ PRODUCCIÓN ════════════════════════════════════════ -->
                         <page string="Producción" name="production">
                             <div class="row">
@@ -44,12 +72,6 @@
                                 <!-- Columna derecha: alertas y quiebres -->
                                 <div class="col-6">
                                     <group string="Alertas — Órdenes de fabricación">
-                                        <label for="cron_interval_number" string="Revisar alertas cada"/>
-                                        <div class="o_row">
-                                            <field name="cron_interval_number" class="o_field_small"
-                                                   help="Frecuencia con que el cron de detección revisa las OFs y OCs para generar o resolver alertas automáticamente."/>
-                                            <field name="cron_interval_type" class="ms-2" nolabel="1"/>
-                                        </div>
                                         <field name="alert_mo_critical_days"
                                                help="Días de retraso a partir de los cuales una OF pasa a alerta roja."/>
                                         <field name="alert_mo_warning_days"
@@ -399,17 +421,6 @@
                             </div>
                         </page>
 
-                        <!-- ══ USUARIOS ══════════════════════════════════════════ -->
-                        <page string="Usuarios" name="users_tab">
-                            <div class="text-muted small mb-3">
-                                Configurá qué depósitos puede ver cada usuario en el Planificador MRP.
-                                Por defecto todos los usuarios ven todos los depósitos.
-                            </div>
-                            <button name="action_open_user_warehouses"
-                                    type="object"
-                                    string="Gestionar depósitos por usuario →"
-                                    class="btn btn-primary"/>
-                        </page>
 
                     </notebook>
                 </sheet>

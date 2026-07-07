@@ -403,7 +403,7 @@
                                     <th t-if="state.visibleCols.rotation" rowspan="2"
                                         class="text-end align-middle"
                                         style="min-width:65px; padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none;"
-                                        title="Rotación = Stock ÷ (Entregado ÷ N meses). Clic para ordenar."
+                                        t-att-title="rotHeaderTitle"
                                         t-on-click="() => this.setSort('rotation_days')">
                                         Rot. <i t-att-class="sortIcon('rotation_days')"/>
                                     </th>

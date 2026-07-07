@@ -106,6 +106,17 @@ class MrpRescheduleConfig(models.Model):
        help='Determina si la rotación de inventario en el widget de forecast se muestra en días o en meses.'
     )
 
+    forecast_rotation_method = fields.Selection([
+        ('units', 'Por unidades'),
+        ('cogs',  'Por COGS (a costo)'),
+        ('sales', 'Por ventas (a precio)'),
+    ], string='Método de rotación de inventario', default='units',
+       help='Fórmula base para calcular la rotación de inventario.\n'
+            'Unidades: días del período × stock actual ÷ total entregado. No requiere valorización.\n'
+            'COGS: días del período × inventario promedio (a costo) ÷ costo de lo vendido. Requiere valorización de stock activa.\n'
+            'Ventas: días del período × inventario promedio (a costo) ÷ ventas netas (a precio).'
+    )
+
     forecast_acc_formula = fields.Selection([
         ('simple', 'Simple'),
         ('mape',   'MAPE'),

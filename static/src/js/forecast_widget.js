@@ -825,17 +825,41 @@ class ForecastWidget extends Component {
     }
 
     /**
+     * Título dinámico para la cabecera de la columna Rotación, según el método configurado.
+     * @returns {string}
+     */
+    get rotHeaderTitle() {
+        const method = this.state.data && this.state.data.rotation_method;
+        if (method === 'cogs')  return 'Rotación COGS = período (días) × inventario promedio (costo) ÷ costo de ventas. Clic para ordenar.';
+        if (method === 'sales') return 'Rotación Ventas = período (días) × inventario promedio (costo) ÷ ventas netas. Clic para ordenar.';
+        return 'Rotación Unidades = stock actual ÷ (entregado ÷ N meses). Clic para ordenar.';
+    }
+
+    /**
      * Genera el tooltip de rotación de inventario para una fila.
-     * Muestra la fórmula completa, incluyendo el factor x30 para conversión a días.
-     * @param {Object} row - Fila de la tabla con `stock_qty` y `total_delivered`.
+     * Muestra la fórmula según el método configurado (unidades, COGS o ventas).
+     * @param {Object} row - Fila de la tabla.
      * @returns {string} Texto del tooltip.
      */
     rotTooltip(row) {
-        const n = this.state.data ? this.state.data.months.length : 1;
-        if (!row.total_delivered) return 'Sin entregas en el período — rotación no calculable';
-        const unit  = this.state.data && this.state.data.rotation_unit;
-        const val   = this.fmtRotation(row);
-        return `Rotación = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${unit !== 'months' ? ' × 30' : ''} = ${val}`;
+        const method = this.state.data && this.state.data.rotation_method;
+        const unit   = this.state.data && this.state.data.rotation_unit;
+        const val    = this.fmtRotation(row);
+        const n      = this.state.data ? this.state.data.months.length : 1;
+
+        if (!val || val === '—') {
+            if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
+            if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
+            return 'Sin entregas en el período — rotación no calculable';
+        }
+        if (method === 'cogs') {
+            return `COGS: ${n * 30} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
+        }
+        if (method === 'sales') {
+            return `Ventas: ${n * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
+        }
+        const suffix = unit !== 'months' ? ' × 30' : '';
+        return `Unidades: ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${suffix} = ${val}`;
     }
 
     /**

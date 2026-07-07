@@ -128,8 +128,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
         warning_pct    = cfg.forecast_warning_pct    if cfg else 70   # 70 %: umbral de alerta por defecto (cobertura aceptable mínima)
         critical_pct   = cfg.forecast_critical_pct   if cfg else 50   # 50 %: umbral crítico por defecto (cobertura insuficiente)
-        rotation_unit  = (cfg.forecast_rotation_unit if cfg else None) or 'days'
-        acc_formula    = (cfg.forecast_acc_formula   if cfg else None) or 'simple'
+        rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
+        rotation_method = (cfg.forecast_rotation_method if cfg else None) or 'units'
+        acc_formula     = (cfg.forecast_acc_formula     if cfg else None) or 'simple'
 
         # Estados de OF configurados
         mo_states = []
@@ -285,6 +286,61 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             if pid:
                 stock_data[pid] = round(_qg['quantity'] or 0.0, 6)
 
+        # ── Datos de rotación: COGS y ventas (batch, solo si el método lo requiere) ──
+        period_days_rot = n_months * 30  # días comerciales del período (aproximación de mes comercial)
+        cogs_by_pid      = {}
+        inv_start_by_pid = {}
+        inv_end_by_pid   = {}
+        sales_rev_by_pid = {}
+
+        if rotation_method in ('cogs', 'sales') and 'stock.valuation.layer' in self.env:
+            try:
+                SVL = self.env['stock.valuation.layer'].sudo()
+                # COGS: capas con valor negativo (salidas) dentro del período
+                for g in SVL.read_group([
+                    ('product_id', 'in', all_product_ids_list),
+                    ('create_date', '>=', fields.Datetime.to_string(dt_from)),
+                    ('create_date', '<=', fields.Datetime.to_string(dt_to)),
+                    ('value', '<', 0),
+                    ('company_id', '=', self.env.company.id),
+                ], ['product_id', 'value:sum'], ['product_id']):
+                    if g['product_id']:
+                        cogs_by_pid[g['product_id'][0]] = -(g['value'] or 0.0)
+
+                # Inventario valorizado acumulado al inicio del período
+                for g in SVL.read_group([
+                    ('product_id', 'in', all_product_ids_list),
+                    ('create_date', '<', fields.Datetime.to_string(dt_from)),
+                    ('company_id', '=', self.env.company.id),
+                ], ['product_id', 'value:sum'], ['product_id']):
+                    if g['product_id']:
+                        inv_start_by_pid[g['product_id'][0]] = g['value'] or 0.0
+
+                # Inventario valorizado acumulado al fin del período
+                for g in SVL.read_group([
+                    ('product_id', 'in', all_product_ids_list),
+                    ('create_date', '<=', fields.Datetime.to_string(dt_to)),
+                    ('company_id', '=', self.env.company.id),
+                ], ['product_id', 'value:sum'], ['product_id']):
+                    if g['product_id']:
+                        inv_end_by_pid[g['product_id'][0]] = g['value'] or 0.0
+            except Exception:
+                pass
+
+        if rotation_method == 'sales':
+            try:
+                for g in self.env['sale.order.line'].sudo().read_group([
+                    ('order_id.state', 'in', ('sale', 'done')),
+                    ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
+                    ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
+                    ('product_id', 'in', all_product_ids_list),
+                    ('company_id', '=', self.env.company.id),
+                ], ['product_id', 'price_subtotal:sum'], ['product_id']):
+                    if g['product_id']:
+                        sales_rev_by_pid[g['product_id'][0]] = g['price_subtotal'] or 0.0
+            except Exception:
+                pass
+
         # ── Construir filas ────────────────────────────────────────────────────
         rows = []
         # Categorías de venta por product.template
@@ -386,13 +442,24 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             else:
                 tot_acc = round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None
 
-            avg_monthly_del = tot_del / n_months
-            if avg_monthly_del > 0:
-                rot_months = round(stock_qty / avg_monthly_del, 1)
-                rot_days   = int(round(stock_qty / avg_monthly_del * 30))  # 30 días/mes como aproximación de mes comercial
-            else:
-                rot_months = None
-                rot_days   = None
+            rot_months = None
+            rot_days   = None
+            if rotation_method == 'units':
+                avg_monthly_del = tot_del / n_months
+                if avg_monthly_del > 0:
+                    rot_months = round(stock_qty / avg_monthly_del, 1)
+                    rot_days   = int(round(stock_qty / avg_monthly_del * 30))
+            elif rotation_method in ('cogs', 'sales'):
+                inv_s   = inv_start_by_pid.get(pid, 0.0)
+                inv_e   = inv_end_by_pid.get(pid, 0.0)
+                avg_inv = (inv_s + inv_e) / 2.0
+                if avg_inv > 0:
+                    base = cogs_by_pid.get(pid, 0.0) if rotation_method == 'cogs' \
+                           else sales_rev_by_pid.get(pid, 0.0)
+                    if base > 0:
+                        dio        = period_days_rot * avg_inv / base
+                        rot_days   = int(round(dio))
+                        rot_months = round(dio / 30.0, 1)
 
             rows.append({
                 'product_id':         pid,
@@ -547,8 +614,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'rows':          rows,
             'warning_pct':   warning_pct,
             'critical_pct':  critical_pct,
-            'rotation_unit': rotation_unit,
-            'acc_formula':   acc_formula,
+            'rotation_unit':   rotation_unit,
+            'rotation_method': rotation_method,
+            'acc_formula':     acc_formula,
             'mo_states':     mo_states,
         }
 

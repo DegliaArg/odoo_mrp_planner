@@ -386,6 +386,24 @@
                                         <field name="forecast_critical_pct"
                                                help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
                                     </group>
+                                    <group string="Forecast — Método de rotación">
+                                        <field name="forecast_rotation_method" widget="radio" nolabel="1"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_rotation_method != 'units'">
+                                            <b>Por unidades:</b> días del período × stock actual ÷ total entregado.
+                                            No requiere valorización de stock. Ideal para comparar velocidad de rotación entre productos.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_rotation_method != 'cogs'">
+                                            <b>Por COGS (a costo):</b> días del período × inventario promedio (valorizado a costo) ÷ costo de lo vendido en el período.
+                                            La más correcta contablemente. Requiere valorización de stock activa (AVCO o FIFO).
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_rotation_method != 'sales'">
+                                            <b>Por ventas (a precio):</b> días del período × inventario promedio (a costo) ÷ ventas netas (a precio de venta).
+                                            Mezcla costo e ingreso — menos precisa, pero más intuitiva para el área comercial.
+                                        </div>
+                                    </group>
                                     <group string="Forecast — Precisión">
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"

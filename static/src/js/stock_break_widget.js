@@ -26,7 +26,7 @@ const STOCK_COLS = [
     { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',          align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
     { key: 'min_qty',      label: 'Mínimo',     width:  85, sortKey: 'min_qty',       align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
     { key: 'qty_forecast', label: 'Pronóstico', width:  95, sortKey: 'qty_forecast',  align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
-    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock actual ÷ (entregas últimos 90 d ÷ 3 meses). Misma unidad que en Forecast.' },
+    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock actual ÷ promedio mensual de entregas × 30. Período configurable en Ajustes.' },
     { key: 'status',       label: 'Estado',     width: 100, sortKey: 'status',        align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
 ];
 
@@ -66,6 +66,7 @@ class StockBreakWidget extends Component {
             locationName:     "",
             totalFiltered:    0,
             rotation_unit:    'days',
+            show_rotation:    false,
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -124,6 +125,7 @@ class StockBreakWidget extends Component {
                 this.state.locationName  = d.location_name;
                 this.state.totalFiltered = d.total_filtered;
                 this.state.rotation_unit = d.rotation_unit || 'days';
+                this.state.show_rotation = !!d.show_rotation;
             }
         } catch (e) {
             console.error("[StockBreakWidget]", e);
@@ -153,6 +155,13 @@ class StockBreakWidget extends Component {
         const q = this.state.locSearch.toLowerCase();
         if (!q) return this.state.locations;
         return this.state.locations.filter(l => l.name.toLowerCase().includes(q));
+    }
+
+    get visibleStockCols() {
+        return this.colsStock.visibleCols().filter(col => {
+            if (col.key === 'rotation') return this.state.show_rotation;
+            return true;
+        });
     }
 
     /**

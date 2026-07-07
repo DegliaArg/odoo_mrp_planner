@@ -137,12 +137,12 @@
                     <div class="border rounded" style="overflow:auto;">
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
-                                <col t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                <col t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                      t-att-style="colsStock.colGroupStyle(col.key)"/>
                             </colgroup>
                             <thead class="table-light">
                                 <tr class="text-muted">
-                                    <th t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                    <th t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                         t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsStock.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                         style="position:relative; user-select:none;"
                                         t-att-title="col.title || col.label"
@@ -170,7 +170,7 @@
                                         style="cursor:pointer"
                                         t-att-data-product-id="prod.id"
                                         t-on-click="openProductFromRow">
-                                        <td t-foreach="colsStock.visibleCols()" t-as="col" t-key="col.key"
+                                        <td t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                             t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center align-middle p-0' : '')">
                                             <t t-if="col.key === '_expand'">
                                                 <button t-if="prod.mo_count"
@@ -202,7 +202,7 @@
                                             </t>
                                             <t t-elif="col.key === 'rotation'">
                                                 <span t-att-class="rotClass(prod)"
-                                                      t-att-title="(prod.rotation_days !== null and prod.rotation_days !== undefined) ? `Rot. = ${fmt(prod.qty)} stock ÷ (entregas 90d ÷ 3 meses) × 30` : 'Sin entregas en los últimos 90 días'">
+                                                      t-att-title="(prod.rotation_days !== null and prod.rotation_days !== undefined) ? `Rot. = ${fmt(prod.qty)} stock ÷ promedio mensual de entregas × 30` : 'Sin entregas en el período configurado'">
                                                     <t t-esc="fmtRotation(prod)"/>
                                                 </span>
                                             </t>
@@ -227,7 +227,7 @@
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
                                     <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
-                                        <td t-att-colspan="colsStock.visibleCols().length" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        <td t-att-colspan="visibleStockCols.length" class="p-0" style="background:#f8f9fa; border-top:none;">
                                             <div class="px-3 py-2">
 
                                                 <div t-if="state.mosLoading[prod.id]"

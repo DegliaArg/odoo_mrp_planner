@@ -464,6 +464,26 @@
               action="action_mrp_reschedule_config"
               groups="odoo_mrp_planner.group_admin,base.group_system"/>
 
+    <!-- Herencia: agrega toggle de rotación al grupo Quiebres de stock y js_class al form -->
+    <record id="mrp_reschedule_config_form_view_rotation" model="ir.ui.view">
+        <field name="name">mrp.reschedule.config.form.rotation</field>
+        <field name="model">mrp.reschedule.config</field>
+        <field name="inherit_id" ref="mrp_reschedule_config_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="js_class">mrp_planner_config_form</attribute>
+            </xpath>
+            <xpath expr="//field[@name='stock_location_id']" position="after">
+                <field name="stock_break_show_rotation"
+                       widget="boolean_toggle"
+                       help="Muestra la columna de rotación de inventario en la tabla de quiebres de stock."/>
+                <field name="stock_break_rotation_months"
+                       invisible="not stock_break_show_rotation"
+                       help="Cantidad de meses de historial de entregas para calcular la rotación en quiebres de stock."/>
+            </xpath>
+        </field>
+    </record>
+
     <!-- Bloque en Ajustes → Fabricación (mantiene compatibilidad con el menú estándar) -->
     <record id="res_config_settings_view_mrp_reschedule" model="ir.ui.view">
         <field name="name">res.config.settings.view.mrp.reschedule</field>

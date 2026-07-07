@@ -117,6 +117,15 @@ class MrpRescheduleConfig(models.Model):
             'Ventas: días del período × inventario promedio (a costo) ÷ ventas netas (a precio).'
     )
 
+    stock_break_show_rotation = fields.Boolean(
+        string='Mostrar rotación en quiebres de stock', default=False,
+        help='Si está activo, se muestra la columna de rotación de inventario en el widget de quiebres de stock.'
+    )
+    stock_break_rotation_months = fields.Integer(
+        string='Período de rotación (meses)', default=3,
+        help='Cantidad de meses de historial de entregas a considerar para calcular la rotación en el widget de quiebres de stock.'
+    )
+
     forecast_acc_formula = fields.Selection([
         ('simple', 'Simple'),
         ('mape',   'MAPE'),

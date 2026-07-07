@@ -137,29 +137,36 @@ class MrpPlannerDashboardStock(models.TransientModel):
         )
         qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
 
-        # Rotación de inventario (últimos 90 días, método unidades)
+        # Config: rotación en quiebres
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        show_rotation        = (cfg.stock_break_show_rotation if cfg else False)
+        rotation_months_cfg  = (cfg.stock_break_rotation_months if cfg else 3) or 3
+        rotation_period_days = rotation_months_cfg * 30
+
+        # Rotación de inventario (período configurable, método unidades)
         rotation_days_map   = {}
         rotation_months_map = {}
-        try:
-            d_rot      = _date.today() - timedelta(days=90)
-            dt_rot_str = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
-            for g in self.env['stock.move.line'].read_group([
-                ('state', '=', 'done'),
-                ('product_id', 'in', product_ids),
-                ('date', '>=', dt_rot_str),
-                ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                ('company_id', '=', self.env.company.id),
-            ], ['product_id', 'quantity:sum'], ['product_id']):
-                if g['product_id']:
-                    _pid = g['product_id'][0]
-                    _del = g['quantity'] or 0.0
-                    _avg = _del / 3.0  # 90 días ≈ 3 meses
-                    if _avg > 0:
-                        _sq = qty_map.get(_pid, 0.0)
-                        rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
-                        rotation_months_map[_pid] = round(_sq / _avg, 1)
-        except Exception:
-            pass
+        if show_rotation:
+            try:
+                d_rot      = _date.today() - timedelta(days=rotation_period_days)
+                dt_rot_str = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
+                for g in self.env['stock.move.line'].read_group([
+                    ('state', '=', 'done'),
+                    ('product_id', 'in', product_ids),
+                    ('date', '>=', dt_rot_str),
+                    ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                    ('company_id', '=', self.env.company.id),
+                ], ['product_id', 'quantity:sum'], ['product_id']):
+                    if g['product_id']:
+                        _pid = g['product_id'][0]
+                        _del = g['quantity'] or 0.0
+                        _avg = _del / rotation_months_cfg
+                        if _avg > 0:
+                            _sq = qty_map.get(_pid, 0.0)
+                            rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
+                            rotation_months_map[_pid] = round(_sq / _avg, 1)
+            except Exception:
+                pass
 
         # Construir filas sólo con los IDs ya cargados (sin acceder a campos ORM aquí)
         rows = []
@@ -272,7 +279,6 @@ class MrpPlannerDashboardStock(models.TransientModel):
             tmpl_id = prod_to_tmpl.get(r['id'])
             r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
         rotation_unit = (cfg.forecast_rotation_unit if cfg else None) or 'days'
 
         return {
@@ -284,6 +290,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
             'rotation_unit':  rotation_unit,
+            'show_rotation':  show_rotation,
         }
 
     @api.model

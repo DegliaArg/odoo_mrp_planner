@@ -66,6 +66,7 @@ class StockBreakWidget extends Component {
             locationName:     "",
             totalFiltered:    0,
             rotation_unit:    'days',
+            rotation_months:  3,
             show_rotation:    false,
             expandedProducts: {},
             mosByProduct:     {},
@@ -124,8 +125,9 @@ class StockBreakWidget extends Component {
                 this.state.products      = d.products;
                 this.state.locationName  = d.location_name;
                 this.state.totalFiltered = d.total_filtered;
-                this.state.rotation_unit = d.rotation_unit || 'days';
-                this.state.show_rotation = !!d.show_rotation;
+                this.state.rotation_unit   = d.rotation_unit || 'days';
+                this.state.show_rotation   = !!d.show_rotation;
+                this.state.rotation_months = d.rotation_months || 3;
             }
         } catch (e) {
             console.error("[StockBreakWidget]", e);

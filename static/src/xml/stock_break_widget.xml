@@ -202,7 +202,7 @@
                                             </t>
                                             <t t-elif="col.key === 'rotation'">
                                                 <span t-att-class="rotClass(prod)"
-                                                      t-att-title="(prod.rotation_days !== null and prod.rotation_days !== undefined) ? `Rot. = ${fmt(prod.qty)} stock ÷ promedio mensual de entregas × 30` : 'Sin entregas en el período configurado'">
+                                                      t-att-title="(prod.rotation_days !== null and prod.rotation_days !== undefined) ? `Rot. = ${fmt(prod.qty)} stock ÷ (entregas ${state.rotation_months * 30}d ÷ ${state.rotation_months} meses) × 30` : `Sin entregas en los últimos ${state.rotation_months * 30} días`">
                                                     <t t-esc="fmtRotation(prod)"/>
                                                 </span>
                                             </t>

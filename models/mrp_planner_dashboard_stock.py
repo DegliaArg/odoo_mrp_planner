@@ -289,8 +289,9 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'location_ids':   locations.ids,
             'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
-            'rotation_unit':  rotation_unit,
-            'show_rotation':  show_rotation,
+            'rotation_unit':   rotation_unit,
+            'show_rotation':   show_rotation,
+            'rotation_months': rotation_months_cfg,
         }
 
     @api.model

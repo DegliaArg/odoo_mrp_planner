@@ -76,6 +76,7 @@ class StockBreakWidget extends Component {
         this.colsStock = useColManager('stock_break', STOCK_COLS);
 
         this._searchTimer = null;
+        this._loadSeq     = 0;
         this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
 
         onMounted(() => {
@@ -109,6 +110,7 @@ class StockBreakWidget extends Component {
 
     /** @returns {Promise<void>} Carga datos de roturas de stock y actualiza state */
     async _load() {
+        const seq = ++this._loadSeq;
         this.state.loading = true;
         try {
             const d = await this.orm.call(
@@ -118,6 +120,7 @@ class StockBreakWidget extends Component {
                  this.state.sortDir, this.state.page, this.state.pageSize,
                  this.state.search, this.state.locationIds.length ? this.state.locationIds : null],
             );
+            if (seq !== this._loadSeq) return;
             if (d.error === "no_location") {
                 this.state.error = "no_location";
             } else {
@@ -132,9 +135,10 @@ class StockBreakWidget extends Component {
                 this.state.rotation_method = d.rotation_method || 'units';
             }
         } catch (e) {
+            if (seq !== this._loadSeq) return;
             console.error("[StockBreakWidget]", e);
         } finally {
-            this.state.loading = false;
+            if (seq === this._loadSeq) this.state.loading = false;
         }
     }
 
@@ -345,6 +349,22 @@ class StockBreakWidget extends Component {
         if (v === null || v === undefined) return 'text-muted';
         const threshold = unit === 'months' ? 3 : 90;
         return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
+    }
+
+    rotTooltipStock(prod) {
+        const method = this.state.rotation_method;
+        const unit   = this.state.rotation_unit;
+        const months = this.state.rotation_months;
+        const val    = this.fmtRotation(prod);
+        if (!val || val === '—') {
+            if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
+            if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
+            return `Sin salidas en los últimos ${months * 30} días — rotación no calculable`;
+        }
+        if (method === 'cogs')  return `COGS: ${months * 30} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
+        if (method === 'sales') return `Ventas: ${months * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
+        const suffix = unit !== 'months' ? ' × 30' : '';
+        return `Unidades: ${this.fmt(prod.rotation_avg_stock)} stock promedio ÷ (${this.fmt(prod.rotation_period_out)} salidas ÷ ${months} meses)${suffix} = ${val}`;
     }
 
     /**

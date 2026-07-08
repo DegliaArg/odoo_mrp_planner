@@ -144,8 +144,10 @@ class MrpPlannerDashboardStock(models.TransientModel):
         rotation_months_cfg  = (cfg.stock_break_rotation_months if cfg else 3) or 3
         rotation_period_days = rotation_months_cfg * 30
 
-        rotation_days_map   = {}
-        rotation_months_map = {}
+        rotation_days_map    = {}
+        rotation_months_map  = {}
+        rotation_avg_stock_map  = {}  # tooltip units: stock promedio
+        rotation_period_out_map = {}  # tooltip units: salidas del período
         if show_rotation:
             d_rot        = _date.today() - timedelta(days=rotation_period_days)
             dt_rot_str   = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
@@ -189,13 +191,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
                     for _pid in product_ids:
                         stock_start = max(0.0, qty_in_start.get(_pid, 0.0) - qty_out_start.get(_pid, 0.0))
-                        stock_end   = qty_map.get(_pid, 0.0)  # stock actual = stock al fin del período
+                        stock_end   = qty_map.get(_pid, 0.0)
                         avg_stock   = (stock_start + stock_end) / 2.0
                         _out        = period_out.get(_pid, 0.0)
                         _avg_monthly = _out / rotation_months_cfg
                         if _avg_monthly > 0 and avg_stock > 0:
-                            rotation_days_map[_pid]   = int(round(avg_stock / _avg_monthly * 30))
-                            rotation_months_map[_pid] = round(avg_stock / _avg_monthly, 1)
+                            rotation_days_map[_pid]      = int(round(avg_stock / _avg_monthly * 30))
+                            rotation_months_map[_pid]    = round(avg_stock / _avg_monthly, 1)
+                            rotation_avg_stock_map[_pid] = round(avg_stock, 2)
+                            rotation_period_out_map[_pid]= round(_out, 2)
                 except Exception:
                     pass
 
@@ -268,8 +272,10 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 'has_min':        has_min,
                 'is_broken':      has_min and qty < (min_qty - 0.001),
                 'qty_forecast':   round(raw_forecast, 3) if raw_forecast is not None else None,
-                'rotation_days':  rotation_days_map.get(pid),
-                'rotation_months': rotation_months_map.get(pid),
+                'rotation_days':      rotation_days_map.get(pid),
+                'rotation_months':    rotation_months_map.get(pid),
+                'rotation_avg_stock': rotation_avg_stock_map.get(pid),
+                'rotation_period_out':rotation_period_out_map.get(pid),
             })
 
         # KPIs sobre el conjunto completo

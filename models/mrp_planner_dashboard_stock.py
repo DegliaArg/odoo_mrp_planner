@@ -161,9 +161,13 @@ class MrpPlannerDashboardStock(models.TransientModel):
                         ('product_id', 'in', product_ids),
                         ('company_id', '=', self.env.company.id),
                     ]
-                    # Stock al inicio del período: entradas - salidas acumuladas antes de d_rot
+                    # Misma metodología que el forecast: 4 queries para reconstruir
+                    # stock_start (al inicio del período) y stock_end (al final = hoy),
+                    # ambos a nivel empresa (sin filtro de ubicación), para coherencia.
                     qty_in_start  = {}
                     qty_out_start = {}
+                    qty_in_end    = {}
+                    qty_out_end   = {}
                     for g in SM.read_group(_sm_base + [
                         ('date', '<', dt_rot_str),
                         ('location_dest_id.usage', '=', 'internal'),
@@ -178,22 +182,26 @@ class MrpPlannerDashboardStock(models.TransientModel):
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
                             qty_out_start[g['product_id'][0]] = g['product_qty'] or 0.0
-
-                    # Salidas del período (cualquier movimiento desde ubicación interna hacia afuera)
-                    period_out = {}
                     for g in SM.read_group(_sm_base + [
-                        ('date', '>=', dt_rot_str),
+                        ('date', '<=', dt_today_str),
+                        ('location_dest_id.usage', '=', 'internal'),
+                        ('location_id.usage', '!=', 'internal'),
+                    ], ['product_id', 'product_qty:sum'], ['product_id']):
+                        if g['product_id']:
+                            qty_in_end[g['product_id'][0]] = g['product_qty'] or 0.0
+                    for g in SM.read_group(_sm_base + [
+                        ('date', '<=', dt_today_str),
                         ('location_id.usage', '=', 'internal'),
                         ('location_dest_id.usage', '!=', 'internal'),
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
-                            period_out[g['product_id'][0]] = g['product_qty'] or 0.0
+                            qty_out_end[g['product_id'][0]] = g['product_qty'] or 0.0
 
                     for _pid in product_ids:
-                        stock_start = max(0.0, qty_in_start.get(_pid, 0.0) - qty_out_start.get(_pid, 0.0))
-                        stock_end   = qty_map.get(_pid, 0.0)
-                        avg_stock   = (stock_start + stock_end) / 2.0
-                        _out        = period_out.get(_pid, 0.0)
+                        stock_start  = max(0.0, qty_in_start.get(_pid, 0.0) - qty_out_start.get(_pid, 0.0))
+                        stock_end    = max(0.0, qty_in_end.get(_pid, 0.0)   - qty_out_end.get(_pid, 0.0))
+                        avg_stock    = (stock_start + stock_end) / 2.0
+                        _out         = qty_out_end.get(_pid, 0.0) - qty_out_start.get(_pid, 0.0)
                         _avg_monthly = _out / rotation_months_cfg
                         if _avg_monthly > 0 and avg_stock > 0:
                             rotation_days_map[_pid]      = int(round(avg_stock / _avg_monthly * 30))

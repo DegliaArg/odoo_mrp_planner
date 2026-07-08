@@ -212,7 +212,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         # ── Ids de productos con forecast ──────────────────────────────────────
         all_product_ids      = set(fc_data.keys())
         all_product_ids_list = list(all_product_ids)
-        n_months             = len(months) or 1   # Evita división por cero si el rango es inválido
+        # n_months para cálculo de rotación: duración real en meses, no meses de calendario tocados.
+        # Ej: 08/04 → 08/07 = 91 días ≈ 3,03 meses, pero len(months) = 4 (abr, may, jun, jul).
+        _period_days = max(1, (last_day_of_to - d_from).days)
+        n_months     = max(1.0, _period_days / 30.0)
 
         # ── Movimientos de salida completados (entregado) ──────────────────────
         del_line_domain = [
@@ -671,10 +674,11 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'rows':          rows,
             'warning_pct':   warning_pct,
             'critical_pct':  critical_pct,
-            'rotation_unit':   rotation_unit,
-            'rotation_method': rotation_method,
-            'acc_formula':     acc_formula,
-            'mo_states':     mo_states,
+            'rotation_unit':    rotation_unit,
+            'rotation_method':  rotation_method,
+            'rotation_n_months': round(n_months, 2),
+            'acc_formula':      acc_formula,
+            'mo_states':        mo_states,
         }
 
     @api.model

@@ -885,7 +885,8 @@ class ForecastWidget extends Component {
         const method = this.state.data && this.state.data.rotation_method;
         const unit   = this.state.data && this.state.data.rotation_unit;
         const val    = this.fmtRotation(row);
-        const n      = this.state.data ? this.state.data.months.length : 1;
+        const n      = this.state.data ? (this.state.data.rotation_n_months || this.state.data.months.length) : 1;
+        const nLabel = Number.isInteger(n) ? n : n.toFixed(1).replace('.0', '');
 
         if (!val || val === '—') {
             if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
@@ -893,13 +894,13 @@ class ForecastWidget extends Component {
             return 'Sin entregas en el período — rotación no calculable';
         }
         if (method === 'cogs') {
-            return `COGS: ${n * 30} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
+            return `COGS: ${Math.round(n * 30)} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
         }
         if (method === 'sales') {
-            return `Ventas: ${n * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
+            return `Ventas: ${Math.round(n * 30)} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
         }
         const suffix = unit !== 'months' ? ' × 30' : '';
-        return `Unidades: ${this.fmt(row.avg_stock_qty)} stock promedio ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${n} meses)${suffix} = ${val}`;
+        return `Unidades: ${this.fmt(row.avg_stock_qty)} stock promedio ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${nLabel} meses)${suffix} = ${val}`;
     }
 
     /**

@@ -380,12 +380,6 @@ class StockBreakWidget extends Component {
             base = `Unidades: ${this.fmt(prod.rotation_avg_stock)} stock promedio ÷ (${this.fmt(prod.rotation_period_out)} salidas ÷ ${months} meses)${suffix} = ${val}`;
         }
 
-        if (warn !== null || crit !== null) {
-            const parts = [];
-            if (warn !== null) parts.push(`>${warn}d → amarillo`);
-            if (crit !== null) parts.push(`>${crit}d → rojo`);
-            base += ` | ${parts.join(', ')}`;
-        }
         return base;
     }
 

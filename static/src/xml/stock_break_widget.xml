@@ -209,7 +209,8 @@
                                                              and state.rotation_critical_days !== null
                                                              and prod.rotation_days > state.rotation_critical_days"
                                                        class="fa fa-exclamation-triangle ms-1"
-                                                       style="font-size:10px;"/>
+                                                       style="font-size:10px;"
+                                                       t-att-title="`Rotación lenta: supera el umbral crítico de ${state.rotation_critical_days} días`"/>
                                                 </span>
                                             </t>
                                             <t t-elif="col.key === 'status'">

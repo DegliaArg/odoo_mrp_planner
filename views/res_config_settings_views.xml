@@ -496,6 +496,14 @@
                 <field name="stock_break_rotation_months"
                        invisible="not stock_break_show_rotation"
                        help="Cantidad de meses de historial a considerar para calcular la rotación en quiebres de stock."/>
+                <div class="text-muted small mt-2 mb-1 fw-semibold"
+                     invisible="not stock_break_show_rotation">Umbrales de alerta</div>
+                <field name="stock_break_rotation_warn_days"
+                       invisible="not stock_break_show_rotation"
+                       help="Rotación mayor a este valor se muestra en amarillo. 0 = sin umbral."/>
+                <field name="stock_break_rotation_critical_days"
+                       invisible="not stock_break_show_rotation"
+                       help="Rotación mayor a este valor se muestra en rojo con ícono de advertencia. 0 = sin umbral."/>
             </xpath>
         </field>
     </record>

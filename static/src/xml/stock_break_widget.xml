@@ -204,6 +204,12 @@
                                                 <span t-att-class="rotClass(prod)"
                                                       t-att-title="rotTooltipStock(prod)">
                                                     <t t-esc="fmtRotation(prod)"/>
+                                                    <i t-if="prod.rotation_days !== null
+                                                             and prod.rotation_days !== undefined
+                                                             and state.rotation_critical_days > 0
+                                                             and prod.rotation_days > state.rotation_critical_days"
+                                                       class="fa fa-exclamation-triangle ms-1"
+                                                       style="font-size:10px;"/>
                                                 </span>
                                             </t>
                                             <t t-elif="col.key === 'status'">

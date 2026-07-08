@@ -65,10 +65,12 @@ class StockBreakWidget extends Component {
             products:         [],
             locationName:     "",
             totalFiltered:    0,
-            rotation_unit:    'days',
-            rotation_months:  3,
-            rotation_method:  'units',
-            show_rotation:    false,
+            rotation_unit:          'days',
+            rotation_months:        3,
+            rotation_method:        'units',
+            show_rotation:          false,
+            rotation_warn_days:     90,
+            rotation_critical_days: 180,
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -129,10 +131,12 @@ class StockBreakWidget extends Component {
                 this.state.products      = d.products;
                 this.state.locationName  = d.location_name;
                 this.state.totalFiltered = d.total_filtered;
-                this.state.rotation_unit   = d.rotation_unit   || 'days';
-                this.state.show_rotation   = !!d.show_rotation;
-                this.state.rotation_months = d.rotation_months || 3;
-                this.state.rotation_method = d.rotation_method || 'units';
+                this.state.rotation_unit          = d.rotation_unit          || 'days';
+                this.state.show_rotation          = !!d.show_rotation;
+                this.state.rotation_months        = d.rotation_months        || 3;
+                this.state.rotation_method        = d.rotation_method        || 'units';
+                this.state.rotation_warn_days     = d.rotation_warn_days     ?? 90;
+                this.state.rotation_critical_days = d.rotation_critical_days ?? 180;
             }
         } catch (e) {
             if (seq !== this._loadSeq) return;
@@ -344,11 +348,13 @@ class StockBreakWidget extends Component {
     }
 
     rotClass(p) {
-        const unit = this.state.rotation_unit;
-        const v = unit === 'months' ? p.rotation_months : p.rotation_days;
-        if (v === null || v === undefined) return 'text-muted';
-        const threshold = unit === 'months' ? 3 : 90;
-        return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
+        const days = p.rotation_days;
+        if (days === null || days === undefined) return 'text-muted';
+        const warn = this.state.rotation_warn_days;
+        const crit = this.state.rotation_critical_days;
+        if (crit > 0 && days > crit) return 'text-danger';
+        if (warn > 0 && days > warn) return 'text-warning';
+        return 'text-success';
     }
 
     rotTooltipStock(prod) {

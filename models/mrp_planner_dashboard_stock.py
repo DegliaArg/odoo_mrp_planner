@@ -378,7 +378,9 @@ class MrpPlannerDashboardStock(models.TransientModel):
             tmpl_id = prod_to_tmpl.get(r['id'])
             r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
-        rotation_unit = (cfg.forecast_rotation_unit if cfg else None) or 'days'
+        rotation_unit          = (cfg.forecast_rotation_unit             if cfg else None) or 'days'
+        rotation_warn_days     = (cfg.stock_break_rotation_warn_days     if cfg else 90)  or 90
+        rotation_critical_days = (cfg.stock_break_rotation_critical_days if cfg else 180) or 180
 
         return {
             'error':          None,
@@ -388,10 +390,12 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'location_ids':   locations.ids,
             'location_id':    locations[0].id if locations else False,
             'total_filtered': total_filtered,
-            'rotation_unit':   rotation_unit,
-            'show_rotation':   show_rotation,
-            'rotation_months': rotation_months_cfg,
-            'rotation_method': rotation_method,
+            'rotation_unit':          rotation_unit,
+            'show_rotation':          show_rotation,
+            'rotation_months':        rotation_months_cfg,
+            'rotation_method':        rotation_method,
+            'rotation_warn_days':     rotation_warn_days,
+            'rotation_critical_days': rotation_critical_days,
         }
 
     @api.model

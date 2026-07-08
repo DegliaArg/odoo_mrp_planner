@@ -63,6 +63,7 @@ class StockBreakWidget extends Component {
             locSearch:        "",
             kpis:             { total: 0, broken: 0, ok: 0, no_min: 0 },
             products:         [],
+            allProducts:      [],
             locationName:     "",
             totalFiltered:    0,
             rotation_unit:          'days',
@@ -110,7 +111,7 @@ class StockBreakWidget extends Component {
         this.state.locations = locs;
     }
 
-    /** @returns {Promise<void>} Carga datos de roturas de stock y actualiza state */
+    /** @returns {Promise<void>} Carga todos los productos del servidor y aplica sort/filtro/paginación client-side */
     async _load() {
         const seq = ++this._loadSeq;
         this.state.loading = true;
@@ -118,25 +119,26 @@ class StockBreakWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_stock_break_data",
-                [this.state.filterType, this.state.sortField || null,
-                 this.state.sortDir, this.state.page, this.state.pageSize,
-                 this.state.search, this.state.locationIds.length ? this.state.locationIds : null],
+                [this.state.search, this.state.locationIds.length ? this.state.locationIds : null],
             );
             if (seq !== this._loadSeq) return;
             if (d.error === "no_location") {
                 this.state.error = "no_location";
             } else {
-                this.state.error         = null;
-                this.state.kpis          = d.kpis;
-                this.state.products      = d.products;
-                this.state.locationName  = d.location_name;
-                this.state.totalFiltered = d.total_filtered;
+                this.state.error        = null;
+                this.state.kpis         = d.kpis;
+                this.state.locationName = d.location_name;
+                this.state.allProducts  = d.products;
                 this.state.rotation_unit          = d.rotation_unit          || 'days';
                 this.state.show_rotation          = !!d.show_rotation;
                 this.state.rotation_months        = d.rotation_months        || 3;
                 this.state.rotation_method        = d.rotation_method        || 'units';
                 this.state.rotation_warn_days     = d.rotation_warn_days     ?? null;
                 this.state.rotation_critical_days = d.rotation_critical_days ?? null;
+                this.state.expandedProducts = {};
+                this.state.mosByProduct     = {};
+                this.state.mosLoading       = {};
+                this._applyClientSort();
             }
         } catch (e) {
             if (seq !== this._loadSeq) return;
@@ -144,6 +146,66 @@ class StockBreakWidget extends Component {
         } finally {
             if (seq === this._loadSeq) this.state.loading = false;
         }
+    }
+
+    /** Aplica filtro, sort y paginación sobre `state.allProducts` sin ir al servidor */
+    _applyClientSort() {
+        let rows = [...this.state.allProducts];
+
+        // Filtro
+        const f = this.state.filterType;
+        if      (f === 'broken') rows = rows.filter(r => r.is_broken);
+        else if (f === 'ok')     rows = rows.filter(r => r.has_min && !r.is_broken);
+        else if (f === 'no_min') rows = rows.filter(r => !r.has_min);
+
+        this.state.totalFiltered = rows.length;
+
+        // Sort
+        const field = this.state.sortField;
+        const rev   = this.state.sortDir === 'desc';
+        if (field === 'name') {
+            rows.sort((a, b) => {
+                const av = (a.name || '').toLowerCase();
+                const bv = (b.name || '').toLowerCase();
+                return rev ? bv.localeCompare(av) : av.localeCompare(bv);
+            });
+        } else if (field === 'qty') {
+            rows.sort((a, b) => rev ? b.qty - a.qty : a.qty - b.qty);
+        } else if (field === 'min_qty') {
+            rows.sort((a, b) => {
+                const av = a.min_qty !== null ? a.min_qty : -1;
+                const bv = b.min_qty !== null ? b.min_qty : -1;
+                return rev ? bv - av : av - bv;
+            });
+        } else if (field === 'qty_forecast') {
+            rows.sort((a, b) => {
+                const av = a.qty_forecast !== null ? a.qty_forecast : -999999;
+                const bv = b.qty_forecast !== null ? b.qty_forecast : -999999;
+                return rev ? bv - av : av - bv;
+            });
+        } else if (field === 'rotation') {
+            rows.sort((a, b) => {
+                const av = a.rotation_days !== null ? a.rotation_days : 999999;
+                const bv = b.rotation_days !== null ? b.rotation_days : 999999;
+                return rev ? bv - av : av - bv;
+            });
+        } else if (field === 'status') {
+            rows.sort((a, b) => {
+                const av = a.is_broken ? 0 : !a.has_min ? 1 : 2;
+                const bv = b.is_broken ? 0 : !b.has_min ? 1 : 2;
+                return rev ? bv - av : av - bv;
+            });
+        } else {
+            rows.sort((a, b) => {
+                const av = a.is_broken ? 0 : !a.has_min ? 1 : 2;
+                const bv = b.is_broken ? 0 : !b.has_min ? 1 : 2;
+                return av - bv;
+            });
+        }
+
+        // Paginación
+        const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
+        this.state.products = rows.slice(offset, offset + this.state.pageSize);
     }
 
     /**
@@ -258,7 +320,7 @@ class StockBreakWidget extends Component {
         if (this.state.filterType === f) return;
         this.state.filterType = f;
         this.state.page = 1;
-        this._load();
+        this._applyClientSort();
     }
 
     /**
@@ -271,7 +333,7 @@ class StockBreakWidget extends Component {
         if (this.state.filterType === f) return;
         this.state.filterType = f;
         this.state.page = 1;
-        this._load();
+        this._applyClientSort();
     }
 
     /**
@@ -283,7 +345,7 @@ class StockBreakWidget extends Component {
         if (this.state.filterType === f) return;
         this.state.filterType = f;
         this.state.page = 1;
-        this._load();
+        this._applyClientSort();
     }
 
     /**
@@ -300,7 +362,7 @@ class StockBreakWidget extends Component {
             this.state.sortDir   = "asc";
         }
         this.state.page = 1;
-        this._load();
+        this._applyClientSort();
     }
 
     /**
@@ -324,9 +386,9 @@ class StockBreakWidget extends Component {
      * @returns {boolean} */
     get hasPrevPage() { return this.state.page > 1; }
     /** Avanza a la siguiente página y recarga los datos si es posible. */
-    nextPage() { if (this.hasNextPage) { this.state.page++; this._load(); } }
+    nextPage() { if (this.hasNextPage) { this.state.page++; this._applyClientSort(); } }
     /** Retrocede a la página anterior y recarga los datos si es posible. */
-    prevPage() { if (this.hasPrevPage) { this.state.page--; this._load(); } }
+    prevPage() { if (this.hasPrevPage) { this.state.page--; this._applyClientSort(); } }
 
     /**
      * Formatea un número con separador de miles y hasta 2 decimales en locale es-AR.

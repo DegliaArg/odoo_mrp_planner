@@ -34,7 +34,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 
     @api.model
-    def get_stock_break_data(self, filter_type='all', sort_field=None, sort_dir='asc', page=1, page_size=20, search='', location_ids=None):
+    def get_stock_break_data(self, search='', location_ids=None):
         """
         Devuelve KPIs y listado paginado de quiebres de stock para el widget del dashboard.
 
@@ -286,7 +286,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 'rotation_period_out':rotation_period_out_map.get(pid),
             })
 
-        # KPIs sobre el conjunto completo
+        # KPIs sobre el conjunto completo (antes de cualquier filtro)
         kpis = {
             'total':  len(rows),
             'broken': sum(1 for r in rows if r['is_broken']),
@@ -294,103 +294,50 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'no_min': sum(1 for r in rows if not r['has_min']),
         }
 
-        # Filtro
-        if filter_type == 'broken':
-            rows = [r for r in rows if r['is_broken']]
-        elif filter_type == 'ok':
-            rows = [r for r in rows if r['has_min'] and not r['is_broken']]
-        elif filter_type == 'no_min':
-            rows = [r for r in rows if not r['has_min']]
-
-        # Sort — para sort por nombre, cargar display_name de todos los IDs filtrados antes de ordenar
-        # Se invierte la lógica booleana para pasar directamente a reverse= de list.sort()
-        _rev = (sort_dir == 'desc')
-        if sort_field == 'name':
-            _all_pids_for_sort = [r['id'] for r in rows]
-            _name_map_sort = {p['id']: p['display_name'] for p in
-                              self.env['product.product'].browse(_all_pids_for_sort).read(['id', 'display_name'])}
-            for r in rows:
-                r['name'] = _name_map_sort.get(r['id'], '')
-            rows.sort(key=lambda r: (r['name'] or '').lower(), reverse=_rev)
-        elif sort_field == 'qty':
-            rows.sort(key=lambda r: r['qty'], reverse=_rev)
-        elif sort_field == 'min_qty':
-            rows.sort(key=lambda r: (r['min_qty'] if r['min_qty'] is not None else -1), reverse=_rev)
-        elif sort_field == 'qty_forecast':
-            # -999999 empuja los productos sin forecast al final cuando se ordena ascendente
-            rows.sort(key=lambda r: r['qty_forecast'] if r['qty_forecast'] is not None else -999999, reverse=_rev)
-        elif sort_field == 'rotation':
-            rows.sort(key=lambda r: r['rotation_days'] if r['rotation_days'] is not None else 999999, reverse=_rev)
-        elif sort_field == 'status':
-            rows.sort(key=lambda r: (0 if r['is_broken'] else 1 if not r['has_min'] else 2), reverse=_rev)
-        else:
-            # Default: quiebres primero, luego OK, luego sin mínimo; dentro de cada grupo por nombre
-            rows.sort(key=lambda r: (
-                0 if r['is_broken'] else 1 if not r['has_min'] else 2,
-            ))
-
-        total_filtered = len(rows)
-        # max(1, page) protege contra valores de página ≤ 0 enviados desde el cliente
-        offset = (max(1, page) - 1) * page_size
-        page_rows = rows[offset:offset + page_size]
-
-        # Después de paginar, cargar display_name sólo para los IDs de la página (SB-02b)
-        page_pids = [r['id'] for r in page_rows]
-        if page_pids:
-            page_prods_map = {p['id']: p['display_name'] for p in
-                              self.env['product.product'].browse(page_pids).read(['id', 'display_name'])}
-            for r in page_rows:
-                if r['name'] is None:
-                    r['name'] = page_prods_map.get(r['id'], '')
-
-        # Fix 18: calcular no_subcontract_domain UNA vez
+        # Cargar display_name, mo_count y product_types para TODOS los productos en un batch.
+        # Sort, filtro y paginación se hacen client-side — el servidor devuelve el dataset completo.
+        all_pids = [r['id'] for r in rows]
         no_sc_domain = no_subcontract_domain(self.env)
 
-        # Conteo de OFs activas para los productos de esta página
-        if page_pids:
+        if all_pids:
+            name_map = {p['id']: p['display_name'] for p in
+                        self.env['product.product'].browse(all_pids).read(['id', 'display_name'])}
+            for r in rows:
+                r['name'] = name_map.get(r['id'], '')
+
             mo_groups = self.env['mrp.production'].read_group(
-                [('product_id', 'in', page_pids),
+                [('product_id', 'in', all_pids),
                  ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain,
-                ['product_id'],
-                ['product_id'],
+                ['product_id'], ['product_id'],
             )
             mo_count_map = {g['product_id'][0]: g['product_id_count'] for g in mo_groups}
-        else:
-            mo_count_map = {}
-        for r in page_rows:
-            r['mo_count'] = mo_count_map.get(r['id'], 0)
+            for r in rows:
+                r['mo_count'] = mo_count_map.get(r['id'], 0)
 
-        # Tipos de producto para esta página (batch) — Fix 16
-        if page_pids:
-            page_prods = self.env['product.product'].browse(page_pids)
-            page_tmpls = page_prods.mapped('product_tmpl_id')
-            # Forzar prefetch de la M2M en una sola query antes del loop
-            page_tmpls.mapped('x_product_type_ids')  # carga el batch completo
+            all_prods = self.env['product.product'].browse(all_pids)
+            all_tmpls = all_prods.mapped('product_tmpl_id')
+            all_tmpls.mapped('x_product_type_ids')
             tmpl_type_map = {
                 t.id: ', '.join(t.x_product_type_ids.mapped('name'))
-                for t in page_tmpls
+                for t in all_tmpls
             }
-            prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in page_prods}
-        else:
-            tmpl_type_map = {}
-            prod_to_tmpl = {}
-        for r in page_rows:
-            tmpl_id = prod_to_tmpl.get(r['id'])
-            r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
+            prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in all_prods}
+            for r in rows:
+                tmpl_id = prod_to_tmpl.get(r['id'])
+                r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
-        rotation_unit           = (cfg.forecast_rotation_unit if cfg else None) or 'days'
-        alerts_enabled          = cfg.stock_break_rotation_alerts_enabled if cfg else False
-        rotation_warn_days      = (cfg.stock_break_rotation_warn_days     or 90)  if alerts_enabled else None
-        rotation_critical_days  = (cfg.stock_break_rotation_critical_days or 180) if alerts_enabled else None
+        rotation_unit          = (cfg.forecast_rotation_unit if cfg else None) or 'days'
+        alerts_enabled         = cfg.stock_break_rotation_alerts_enabled if cfg else False
+        rotation_warn_days     = (cfg.stock_break_rotation_warn_days     or 90)  if alerts_enabled else None
+        rotation_critical_days = (cfg.stock_break_rotation_critical_days or 180) if alerts_enabled else None
 
         return {
-            'error':          None,
-            'kpis':           kpis,
-            'products':       page_rows,
-            'location_name':  location_name,
-            'location_ids':   locations.ids,
-            'location_id':    locations[0].id if locations else False,
-            'total_filtered': total_filtered,
+            'error':         None,
+            'kpis':          kpis,
+            'products':      rows,
+            'location_name': location_name,
+            'location_ids':  locations.ids,
+            'location_id':   locations[0].id if locations else False,
             'rotation_unit':          rotation_unit,
             'show_rotation':          show_rotation,
             'rotation_months':        rotation_months_cfg,

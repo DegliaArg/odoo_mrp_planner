@@ -153,20 +153,49 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
             if rotation_method == 'units':
                 try:
-                    for g in self.env['stock.move.line'].read_group([
+                    SM = self.env['stock.move'].sudo()
+                    _sm_base = [
                         ('state', '=', 'done'),
                         ('product_id', 'in', product_ids),
-                        ('date', '>=', dt_rot_str),
-                        ('picking_id.picking_type_id.code', '=', 'outgoing'),
                         ('company_id', '=', self.env.company.id),
-                    ], ['product_id', 'quantity:sum'], ['product_id']):
+                    ]
+                    # Stock al inicio del período: entradas - salidas acumuladas antes de d_rot
+                    qty_in_start  = {}
+                    qty_out_start = {}
+                    for g in SM.read_group(_sm_base + [
+                        ('date', '<', dt_rot_str),
+                        ('location_dest_id.usage', '=', 'internal'),
+                        ('location_id.usage', '!=', 'internal'),
+                    ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
-                            _pid = g['product_id'][0]
-                            _avg = (g['quantity'] or 0.0) / rotation_months_cfg
-                            if _avg > 0:
-                                _sq = qty_map.get(_pid, 0.0)
-                                rotation_days_map[_pid]   = int(round(_sq / _avg * 30))
-                                rotation_months_map[_pid] = round(_sq / _avg, 1)
+                            qty_in_start[g['product_id'][0]] = g['product_qty'] or 0.0
+                    for g in SM.read_group(_sm_base + [
+                        ('date', '<', dt_rot_str),
+                        ('location_id.usage', '=', 'internal'),
+                        ('location_dest_id.usage', '!=', 'internal'),
+                    ], ['product_id', 'product_qty:sum'], ['product_id']):
+                        if g['product_id']:
+                            qty_out_start[g['product_id'][0]] = g['product_qty'] or 0.0
+
+                    # Salidas del período (cualquier movimiento desde ubicación interna hacia afuera)
+                    period_out = {}
+                    for g in SM.read_group(_sm_base + [
+                        ('date', '>=', dt_rot_str),
+                        ('location_id.usage', '=', 'internal'),
+                        ('location_dest_id.usage', '!=', 'internal'),
+                    ], ['product_id', 'product_qty:sum'], ['product_id']):
+                        if g['product_id']:
+                            period_out[g['product_id'][0]] = g['product_qty'] or 0.0
+
+                    for _pid in product_ids:
+                        stock_start = max(0.0, qty_in_start.get(_pid, 0.0) - qty_out_start.get(_pid, 0.0))
+                        stock_end   = qty_map.get(_pid, 0.0)  # stock actual = stock al fin del período
+                        avg_stock   = (stock_start + stock_end) / 2.0
+                        _out        = period_out.get(_pid, 0.0)
+                        _avg_monthly = _out / rotation_months_cfg
+                        if _avg_monthly > 0 and avg_stock > 0:
+                            rotation_days_map[_pid]   = int(round(avg_stock / _avg_monthly * 30))
+                            rotation_months_map[_pid] = round(avg_stock / _avg_monthly, 1)
                 except Exception:
                     pass
 

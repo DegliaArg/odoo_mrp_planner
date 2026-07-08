@@ -112,7 +112,7 @@ class MrpRescheduleConfig(models.Model):
         ('sales', 'Por ventas (a precio)'),
     ], string='Método de rotación de inventario', default='units',
        help='Fórmula base para calcular la rotación de inventario.\n'
-            'Unidades: días del período × stock actual ÷ total entregado. No requiere valorización.\n'
+            'Unidades: días del período × stock promedio ÷ total entregado. No requiere valorización.\n'
             'COGS: días del período × inventario promedio (a costo) ÷ costo de lo vendido. Requiere valorización de stock activa.\n'
             'Ventas: días del período × inventario promedio (a costo) ÷ ventas netas (a precio).'
     )
@@ -127,7 +127,7 @@ class MrpRescheduleConfig(models.Model):
         ('sales', 'Por ventas (a precio)'),
     ], string='Método de rotación (quiebres)', default='units',
        help='Fórmula para calcular la rotación en el widget de quiebres de stock.\n'
-            'Unidades: stock actual ÷ (entregas del período ÷ meses). No requiere valorización.\n'
+            'Unidades: stock promedio del período ÷ (salidas del período ÷ meses). No requiere valorización.\n'
             'COGS: días × inventario promedio (a costo) ÷ costo de lo vendido. Requiere valorización activa.\n'
             'Ventas: días × inventario promedio (a costo) ÷ ventas netas (a precio).'
     )

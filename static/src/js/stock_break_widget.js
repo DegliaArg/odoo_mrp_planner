@@ -26,7 +26,7 @@ const STOCK_COLS = [
     { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',          align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
     { key: 'min_qty',      label: 'Mínimo',     width:  85, sortKey: 'min_qty',       align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
     { key: 'qty_forecast', label: 'Pronóstico', width:  95, sortKey: 'qty_forecast',  align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
-    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock actual ÷ promedio mensual de entregas × 30. Período configurable en Ajustes.' },
+    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock promedio del período ÷ promedio mensual de salidas × 30. Período configurable en Ajustes.' },
     { key: 'status',       label: 'Estado',     width: 100, sortKey: 'status',        align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
 ];
 

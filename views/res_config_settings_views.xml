@@ -225,7 +225,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'automatic'">
-                                                        <b>Por rotación de inventario:</b> calcula stock actual ÷ ventas promedio mensual. El resultado en días se compara con los umbrales configurados (ej.: ≤30 d = A, ≤60 d = B…).
+                                                        <b>Por rotación de inventario:</b> calcula stock promedio del período ÷ ventas promedio mensual. El resultado en días se compara con los umbrales configurados (ej.: ≤30 d = A, ≤60 d = B…).
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'demand'">
@@ -388,7 +388,7 @@
                                         <field name="forecast_rotation_method" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_rotation_method != 'units'">
-                                            <b>Por unidades:</b> días del período × stock actual ÷ total entregado.
+                                            <b>Por unidades:</b> días del período × stock promedio ÷ total entregado.
                                             No requiere valorización de stock. Ideal para comparar velocidad de rotación entre productos.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
@@ -480,7 +480,7 @@
                        help="Fórmula base para calcular la rotación en el widget de quiebres de stock."/>
                 <div class="text-muted small border-start border-2 ps-2 mt-1"
                      invisible="not stock_break_show_rotation or stock_break_rotation_method != 'units'">
-                    <b>Por unidades:</b> stock actual ÷ (entregas del período ÷ meses configurados) × 30.
+                    <b>Por unidades:</b> stock promedio del período ÷ (salidas del período ÷ meses configurados) × 30.
                     No requiere valorización de stock. Ideal para medir cuántos días de stock quedan al ritmo de despacho actual.
                 </div>
                 <div class="text-muted small border-start border-2 ps-2 mt-1"

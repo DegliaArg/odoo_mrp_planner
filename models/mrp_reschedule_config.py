@@ -135,13 +135,19 @@ class MrpRescheduleConfig(models.Model):
         string='Período de rotación (meses)', default=3,
         help='Cantidad de meses de historial a considerar para calcular la rotación en el widget de quiebres de stock.'
     )
+    stock_break_rotation_warn_enabled = fields.Boolean(
+        string='Activar alerta amarilla', default=True,
+    )
     stock_break_rotation_warn_days = fields.Integer(
-        string='Alerta rotación lenta (días)', default=90,
-        help='Productos con rotación mayor a este valor se muestran en amarillo. 0 = sin umbral.'
+        string='Umbral amarillo (días)', default=90,
+        help='Productos con rotación mayor a este valor se muestran en amarillo.'
+    )
+    stock_break_rotation_critical_enabled = fields.Boolean(
+        string='Activar alerta roja', default=True,
     )
     stock_break_rotation_critical_days = fields.Integer(
-        string='Alerta rotación crítica (días)', default=180,
-        help='Productos con rotación mayor a este valor se muestran en rojo con ícono de advertencia. 0 = sin umbral.'
+        string='Umbral rojo (días)', default=180,
+        help='Productos con rotación mayor a este valor se muestran en rojo con ícono de advertencia.'
     )
 
     forecast_acc_formula = fields.Selection([

@@ -69,8 +69,8 @@ class StockBreakWidget extends Component {
             rotation_months:        3,
             rotation_method:        'units',
             show_rotation:          false,
-            rotation_warn_days:     90,
-            rotation_critical_days: 180,
+            rotation_warn_days:     null,
+            rotation_critical_days: null,
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -135,8 +135,8 @@ class StockBreakWidget extends Component {
                 this.state.show_rotation          = !!d.show_rotation;
                 this.state.rotation_months        = d.rotation_months        || 3;
                 this.state.rotation_method        = d.rotation_method        || 'units';
-                this.state.rotation_warn_days     = d.rotation_warn_days     ?? 90;
-                this.state.rotation_critical_days = d.rotation_critical_days ?? 180;
+                this.state.rotation_warn_days     = d.rotation_warn_days     ?? null;
+                this.state.rotation_critical_days = d.rotation_critical_days ?? null;
             }
         } catch (e) {
             if (seq !== this._loadSeq) return;
@@ -352,8 +352,8 @@ class StockBreakWidget extends Component {
         if (days === null || days === undefined) return 'text-muted';
         const warn = this.state.rotation_warn_days;
         const crit = this.state.rotation_critical_days;
-        if (crit > 0 && days > crit) return 'text-danger';
-        if (warn > 0 && days > warn) return 'text-warning';
+        if (crit !== null && days > crit) return 'text-danger';
+        if (warn !== null && days > warn) return 'text-warning';
         return 'text-success';
     }
 

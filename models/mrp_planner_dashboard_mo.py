@@ -137,6 +137,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'mo_in_progress': mo_in_progress,
             'qty_mismatch':   cnt('qty_mismatch'),
             'critical':       Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
+            'sc_loc_ids':     sc_loc_ids,
         }
 
     # ── Widget OFs con pestañas ──────────────────────────────────────────────

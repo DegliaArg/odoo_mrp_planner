@@ -12,8 +12,9 @@ class AlertKpiWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
         this.state  = useState({
-            kpis:    { mo_delayed: 0, mo_upcoming: 0, mo_in_progress: 0, qty_mismatch: 0, critical: 0 },
-            loading: true,
+            kpis:      { mo_delayed: 0, mo_upcoming: 0, mo_in_progress: 0, qty_mismatch: 0, critical: 0 },
+            sc_loc_ids: [],
+            loading:   true,
         });
         onMounted(() => this._loadData());
     }
@@ -24,7 +25,8 @@ class AlertKpiWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard", "get_alert_stats", []
             );
-            this.state.kpis = d;
+            this.state.kpis      = d;
+            this.state.sc_loc_ids = d.sc_loc_ids || [];
         } catch (e) {
             console.error("[AlertKpiWidget]", e);
         } finally {
@@ -52,13 +54,17 @@ class AlertKpiWidget extends Component {
     onViewMismatch()   { if (this.state.kpis.qty_mismatch)  this._navigate("Cant. diferentes", "qty_mismatch"); }
     onViewInProgress() {
         if (!this.state.kpis.mo_in_progress) return;
+        const domain = [["state", "in", ["progress", "to_close"]]];
+        if (this.state.sc_loc_ids.length) {
+            domain.push(["location_src_id", "not in", this.state.sc_loc_ids]);
+        }
         this.action.doAction({
             type: "ir.actions.act_window",
             name: "OFs en curso",
             res_model: "mrp.production",
             view_mode: "list,form",
             views: [[false, "list"], [false, "form"]],
-            domain: [["state", "in", ["progress", "to_close"]]],
+            domain,
             target: "current",
         });
     }

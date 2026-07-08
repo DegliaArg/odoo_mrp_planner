@@ -496,25 +496,15 @@
                 <field name="stock_break_rotation_months"
                        invisible="not stock_break_show_rotation"
                        help="Cantidad de meses de historial a considerar para calcular la rotación en quiebres de stock."/>
-                <div class="text-muted small mt-2 mb-1 fw-semibold"
-                     invisible="not stock_break_show_rotation">Umbrales de alerta</div>
+                <field name="stock_break_rotation_alerts_enabled"
+                       widget="boolean_toggle"
+                       invisible="not stock_break_show_rotation"/>
                 <div class="d-flex align-items-center gap-2"
-                     invisible="not stock_break_show_rotation">
-                    <field name="stock_break_rotation_warn_enabled" widget="boolean_toggle"/>
-                    <field name="stock_break_rotation_warn_days"
-                           invisible="not stock_break_rotation_warn_enabled"
-                           help="Rotación mayor a este valor se muestra en amarillo."/>
-                    <span class="text-muted small"
-                          invisible="not stock_break_rotation_warn_enabled">días → amarillo</span>
-                </div>
-                <div class="d-flex align-items-center gap-2"
-                     invisible="not stock_break_show_rotation">
-                    <field name="stock_break_rotation_critical_enabled" widget="boolean_toggle"/>
-                    <field name="stock_break_rotation_critical_days"
-                           invisible="not stock_break_rotation_critical_enabled"
-                           help="Rotación mayor a este valor se muestra en rojo con ícono de advertencia."/>
-                    <span class="text-muted small"
-                          invisible="not stock_break_rotation_critical_enabled">días → rojo ⚠</span>
+                     invisible="not stock_break_show_rotation or not stock_break_rotation_alerts_enabled">
+                    <field name="stock_break_rotation_warn_days"/>
+                    <span class="text-muted small">días → amarillo</span>
+                    <field name="stock_break_rotation_critical_days"/>
+                    <span class="text-muted small">días → rojo ⚠</span>
                 </div>
             </xpath>
         </field>

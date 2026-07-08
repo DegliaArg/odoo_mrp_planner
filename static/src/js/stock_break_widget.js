@@ -352,6 +352,7 @@ class StockBreakWidget extends Component {
         if (days === null || days === undefined) return 'text-muted';
         const warn = this.state.rotation_warn_days;
         const crit = this.state.rotation_critical_days;
+        if (warn === null && crit === null) return '';
         if (crit !== null && days > crit) return 'text-danger';
         if (warn !== null && days > warn) return 'text-warning';
         return 'text-success';
@@ -362,15 +363,30 @@ class StockBreakWidget extends Component {
         const unit   = this.state.rotation_unit;
         const months = this.state.rotation_months;
         const val    = this.fmtRotation(prod);
+        const warn   = this.state.rotation_warn_days;
+        const crit   = this.state.rotation_critical_days;
+
+        let base;
         if (!val || val === '—') {
-            if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
-            if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
-            return `Sin salidas en los últimos ${months * 30} días — rotación no calculable`;
+            if (method === 'cogs')  base = 'Sin inventario promedio valorizado — rotación no calculable';
+            else if (method === 'sales') base = 'Sin ventas o sin inventario valorizado — rotación no calculable';
+            else base = `Sin salidas en los últimos ${months * 30} días — rotación no calculable`;
+        } else if (method === 'cogs') {
+            base = `COGS: ${months * 30} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
+        } else if (method === 'sales') {
+            base = `Ventas: ${months * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
+        } else {
+            const suffix = unit !== 'months' ? ' × 30' : '';
+            base = `Unidades: ${this.fmt(prod.rotation_avg_stock)} stock promedio ÷ (${this.fmt(prod.rotation_period_out)} salidas ÷ ${months} meses)${suffix} = ${val}`;
         }
-        if (method === 'cogs')  return `COGS: ${months * 30} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
-        if (method === 'sales') return `Ventas: ${months * 30} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
-        const suffix = unit !== 'months' ? ' × 30' : '';
-        return `Unidades: ${this.fmt(prod.rotation_avg_stock)} stock promedio ÷ (${this.fmt(prod.rotation_period_out)} salidas ÷ ${months} meses)${suffix} = ${val}`;
+
+        if (warn !== null || crit !== null) {
+            const parts = [];
+            if (warn !== null) parts.push(`>${warn}d → amarillo`);
+            if (crit !== null) parts.push(`>${crit}d → rojo`);
+            base += ` | ${parts.join(', ')}`;
+        }
+        return base;
     }
 
     /**

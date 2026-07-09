@@ -103,7 +103,11 @@ class CustomerAnalysisWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
 
-        // Chart refs para el panel lateral
+        // Chart refs — top + panel lateral
+        this.topChartRef = useRef("topChart");
+        this._topChart   = null;
+        this._topChartKey = '';
+
         this.barRef    = useRef("panelBarCanvas");
         this.donutRef  = useRef("panelDonutCanvas");
         this.lineRef   = useRef("panelLineCanvas");
@@ -133,6 +137,10 @@ class CustomerAnalysisWidget extends Component {
             activeFilter:  null,
             groupBy:       null,
             colsDropdownOpen: false,
+            // Filas expandibles
+            expandedRows:      {},
+            rowOrders:         {},
+            rowOrdersLoading:  {},
             // Panel lateral
             panelOpen:     false,
             panelLoading:  false,
@@ -171,10 +179,12 @@ class CustomerAnalysisWidget extends Component {
         });
 
         onPatched(() => {
-            if (this.state.panelOpen && this.state.panelData && !this.state.panelLoading) {
-                // setTimeout 0 ensures canvas refs are bound before drawing
-                setTimeout(() => this._drawPanelCharts(), 0);
-            }
+            setTimeout(() => {
+                this._drawTopChart();
+                if (this.state.panelOpen && this.state.panelData && !this.state.panelLoading) {
+                    this._drawPanelCharts();
+                }
+            }, 0);
         });
 
         onWillUnmount(() => {
@@ -186,8 +196,11 @@ class CustomerAnalysisWidget extends Component {
     // ── Carga de datos ────────────────────────────────────────────────────────
 
     async _load() {
-        this.state.loading   = true;
-        this.state.loadError = null;
+        this.state.loading         = true;
+        this.state.loadError       = null;
+        this.state.expandedRows    = {};
+        this.state.rowOrders       = {};
+        this.state.rowOrdersLoading = {};
         try {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
@@ -389,9 +402,79 @@ class CustomerAnalysisWidget extends Component {
     // ── Charts del panel ──────────────────────────────────────────────────────
 
     _destroyCharts() {
+        if (this._topChart)   { this._topChart.destroy();   this._topChart   = null; this._topChartKey = ''; }
         if (this._barChart)   { this._barChart.destroy();   this._barChart   = null; }
         if (this._donutChart) { this._donutChart.destroy(); this._donutChart = null; }
         if (this._lineChart)  { this._lineChart.destroy();  this._lineChart  = null; }
+    }
+
+    // ── Gráfico superior ─────────────────────────────────────────────────────
+
+    _drawTopChart() {
+        const el = this.topChartRef.el;
+        if (!el) return;
+        const rows = this.state.allRows.slice(0, 10);
+        if (!rows.length) return;
+        const key = `${rows.length}_${rows[0].total_amount}_${rows[0].partner_id}`;
+        if (key === this._topChartKey) return;
+        this._topChartKey = key;
+        const ChartJs = globalThis.Chart;
+        if (typeof ChartJs === 'undefined') return;
+        if (this._topChart) { this._topChart.destroy(); this._topChart = null; }
+        this._topChart = new ChartJs(el, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.partner_name.length > 18 ? r.partner_name.slice(0, 16) + '…' : r.partner_name),
+                datasets: [{
+                    data:            rows.map(r => r.total_amount),
+                    backgroundColor: CHART_COLORS.bar,
+                    borderRadius:    4,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { ticks: { callback: v => this.fmtK(v), font: { size: 11 } } },
+                    x: { ticks: { maxRotation: 40, minRotation: 20, font: { size: 10 } } },
+                },
+            },
+        });
+    }
+
+    // ── Filas expandibles ─────────────────────────────────────────────────────
+
+    async toggleRow(partnerId) {
+        const isOpen = !!this.state.expandedRows[partnerId];
+        this.state.expandedRows[partnerId] = !isOpen;
+        if (!isOpen && !this.state.rowOrders[partnerId]) {
+            this.state.rowOrdersLoading[partnerId] = true;
+            try {
+                const data = await this.orm.call(
+                    'mrp.planner.dashboard',
+                    'get_customer_detail',
+                    [partnerId, this.state.dateFrom, this.state.dateTo, null]
+                );
+                this.state.rowOrders[partnerId] = data.orders || [];
+            } catch (e) {
+                console.error('[CustomerAnalysis] toggleRow', e);
+                this.state.rowOrders[partnerId] = [];
+            } finally {
+                this.state.rowOrdersLoading[partnerId] = false;
+            }
+        }
+    }
+
+    openCustomer(partnerId) {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            res_model: 'res.partner',
+            res_id:    partnerId,
+            view_mode: 'form',
+            views:     [[false, 'form']],
+            target:    'current',
+        });
     }
 
     _drawPanelCharts() {

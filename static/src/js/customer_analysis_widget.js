@@ -168,9 +168,8 @@ class CustomerAnalysisWidget extends Component {
             rowOrders:         {},
             rowOrdersLoading:  {},
             // Panel lateral
-            panelOpen:     false,
-            panelLoading:  false,
-            panelData:     null,
+            panelLoading:   false,
+            panelData:      null,
             panelPartnerId: null,
             // Columnas visibles
             visibleCols: {
@@ -208,7 +207,7 @@ class CustomerAnalysisWidget extends Component {
             setTimeout(() => {
                 this._drawTopChart();
                 this._drawTopDonut();
-                if (this.state.panelOpen && this.state.panelData && !this.state.panelLoading) {
+                if (this.state.panelPartnerId && this.state.panelData && !this.state.panelLoading) {
                     this._drawPanelCharts();
                 }
             }, 0);
@@ -226,8 +225,11 @@ class CustomerAnalysisWidget extends Component {
         this.state.loading         = true;
         this.state.loadError       = null;
         this.state.expandedRows    = {};
-        this.state.rowOrders       = {};
+        this.state.rowOrders        = {};
         this.state.rowOrdersLoading = {};
+        this.state.panelPartnerId   = null;
+        this.state.panelData        = null;
+        this._destroyPanelCharts();
         try {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
@@ -391,30 +393,29 @@ class CustomerAnalysisWidget extends Component {
 
     // ── Panel lateral ─────────────────────────────────────────────────────────
 
-    async openPanel(partnerId) {
-        this.state.panelOpen      = true;
+    async toggleDetail(partnerId) {
+        if (this.state.panelPartnerId === partnerId) {
+            this.state.panelPartnerId = null;
+            this.state.panelData      = null;
+            this._destroyPanelCharts();
+            return;
+        }
+        this._destroyPanelCharts();
         this.state.panelPartnerId = partnerId;
         this.state.panelData      = null;
         this.state.panelLoading   = true;
-        this._destroyPanelCharts();
         try {
-            const data  = await this.orm.call(
+            const data = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_detail',
                 [partnerId, this.state.dateFrom, this.state.dateTo, null]
             );
             this.state.panelData = data;
         } catch (e) {
-            console.error('[CustomerAnalysis panel]', e);
+            console.error('[CustomerAnalysis] toggleDetail', e);
         } finally {
             this.state.panelLoading = false;
         }
-    }
-
-    closePanel() {
-        this.state.panelOpen  = false;
-        this.state.panelData  = null;
-        this._destroyPanelCharts();
     }
 
     _destroyPanelCharts() {

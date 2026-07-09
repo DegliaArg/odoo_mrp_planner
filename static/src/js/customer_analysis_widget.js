@@ -12,6 +12,7 @@ import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from
 import { registry }  from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 // ── Columnas estáticas (producto del menú de columnas) ────────────────────────
 const CA_STATIC_COLS = [
@@ -112,6 +113,7 @@ const CHART_COLORS = {
 class CustomerAnalysisWidget extends Component {
     static template = "odoo_mrp_planner.CustomerAnalysisWidget";
     static props = { record: { type: Object }, "*": true };
+    static components = { PlannerSearchBar };
 
     setup() {
         this.orm    = useService("orm");
@@ -130,28 +132,29 @@ class CustomerAnalysisWidget extends Component {
 
         const period = defaultPeriod(null);
         this.state = useState({
-            loading:      true,
-            dateFrom:     period.from,
-            dateTo:       period.to,
-            warehouseId:  null,
-            warehouses:   [],
-            allRows:      [],
-            rows:         [],
-            kpis:         { total_customers: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
-            config:       {},
-            sortCol:      'total_amount',
-            sortDir:      'desc',
-            page:         1,
-            pageSize:     50,
+            loading:       true,
+            dateFrom:      period.from,
+            dateTo:        period.to,
+            warehouseId:   null,
+            warehouses:    [],
+            whDropdownOpen: false,
+            allRows:       [],
+            rows:          [],
+            kpis:          { total_customers: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
+            config:        {},
+            sortCol:       'total_amount',
+            sortDir:       'desc',
+            page:          1,
+            pageSize:      50,
             totalFiltered: 0,
-            search:       '',
-            groupBy:      null,
-            colsDropdownOpen:  false,
-            groupDropdownOpen: false,
+            productSearch: '',
+            activeFilter:  null,
+            groupBy:       null,
+            colsDropdownOpen: false,
             // Panel lateral
-            panelOpen:    false,
-            panelLoading: false,
-            panelData:    null,
+            panelOpen:     false,
+            panelLoading:  false,
+            panelData:     null,
             panelPartnerId: null,
             // Columnas visibles
             visibleCols: {
@@ -177,8 +180,8 @@ class CustomerAnalysisWidget extends Component {
         });
 
         this._closeDropdowns = () => {
-            this.state.colsDropdownOpen  = false;
-            this.state.groupDropdownOpen = false;
+            this.state.colsDropdownOpen = false;
+            this.state.whDropdownOpen   = false;
         };
 
         onMounted(async () => {
@@ -239,7 +242,7 @@ class CustomerAnalysisWidget extends Component {
     _applySort() {
         let rows = [...this.state.allRows];
         // Búsqueda de texto
-        const q = this.state.search.trim().toLowerCase();
+        const q = this.state.productSearch.trim().toLowerCase();
         if (q) {
             rows = rows.filter(r =>
                 (r.partner_name   || '').toLowerCase().includes(q) ||
@@ -294,13 +297,44 @@ class CustomerAnalysisWidget extends Component {
             }));
     }
 
-    // ── Handlers de controles (evitan pérdida de contexto `this` en el template) ──
+    // ── Handlers de controles ─────────────────────────────────────────────────
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
-    onWarehouseChange(ev) {
-        this.state.warehouseId = ev.target.value ? parseInt(ev.target.value) : null;
+
+    toggleWhDropdown(ev) {
+        ev.stopPropagation();
+        this.state.whDropdownOpen = !this.state.whDropdownOpen;
+    }
+
+    selectWarehouse(id) {
+        this.state.warehouseId   = id;
+        this.state.whDropdownOpen = false;
         this._load();
+    }
+
+    get selectedWhLabel() {
+        if (!this.state.warehouseId) return 'Todos los depósitos';
+        const wh = this.state.warehouses.find(w => w.id === this.state.warehouseId);
+        return wh ? wh.name : 'Todos los depósitos';
+    }
+
+    toggleColsDropdown(ev) {
+        ev.stopPropagation();
+        this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
+    }
+
+    // PlannerSearchBar callbacks
+    setSearch(text) {
+        this.state.productSearch = text;
+        this.state.page = 1;
+        this._applySort();
+    }
+
+    setGroupBy(key) {
+        this.state.groupBy = key;
+        this.state.page = 1;
+        this._applySort();
     }
 
     // ── Interacciones UI ─────────────────────────────────────────────────────
@@ -325,12 +359,6 @@ class CustomerAnalysisWidget extends Component {
         this.state.visibleCols[key] = !this.state.visibleCols[key];
     }
 
-    setGroupBy(gb) {
-        this.state.groupBy = this.state.groupBy === gb ? null : gb;
-        this.state.page = 1;
-        this._applySort();
-    }
-
     get staticVisibleCols() {
         return this.cols.visibleCols().filter(col => {
             if (col.key === 'partner_name') return true;
@@ -344,12 +372,6 @@ class CustomerAnalysisWidget extends Component {
         return this.state.sortDir === 'asc'
             ? 'fa fa-sort-asc text-primary ms-1'
             : 'fa fa-sort-desc text-primary ms-1';
-    }
-
-    onSearch(ev) {
-        this.state.search = ev.target.value;
-        this.state.page   = 1;
-        this._applySort();
     }
 
     nextPage() {
@@ -619,24 +641,19 @@ class CustomerAnalysisWidget extends Component {
         return titles[col.key] || '';
     }
 
-    get groupByOptions() {
+    get groupByDefs() {
         const base = [
-            { key: 'salesperson',       label: 'Vendedor'              },
-            { key: 'country',           label: 'País'                  },
-            { key: 'province',          label: 'Provincia'             },
-            { key: 'abc_segment',       label: 'Segmento ABC período'  },
-            { key: 'frequency_segment', label: 'Segmento frecuencia'   },
-            { key: 'top_family',        label: 'Familia principal'     },
+            { key: 'salesperson',       label: 'Vendedor'             },
+            { key: 'country',           label: 'País'                 },
+            { key: 'province',          label: 'Provincia'            },
+            { key: 'abc_segment',       label: 'Segmento ABC período' },
+            { key: 'frequency_segment', label: 'Segmento frecuencia'  },
+            { key: 'top_family',        label: 'Familia principal'    },
         ];
         if (this.state.config.show_category) {
             base.unshift({ key: 'customer_category', label: 'Categoría de cliente' });
         }
         return base;
-    }
-
-    get groupByLabel() {
-        const opt = this.groupByOptions.find(o => o.key === this.state.groupBy);
-        return opt ? opt.label : 'Agrupar por';
     }
 }
 

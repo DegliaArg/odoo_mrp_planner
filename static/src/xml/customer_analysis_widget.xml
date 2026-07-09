@@ -2,358 +2,371 @@
 <templates xml:space="preserve">
 
 <t t-name="odoo_mrp_planner.CustomerAnalysisWidget">
-    <div class="o_customer_analysis" t-att-class="state.loading ? 'opacity-50 pe-none' : ''"
-         style="font-size:13px;">
+    <!-- Flex row: main content + aside panel (like native Odoo form + chatter) -->
+    <div class="d-flex align-items-start gap-0"
+         t-att-class="state.loading ? 'opacity-50 pe-none' : ''"
+         style="font-size:13px; min-height:500px;">
 
-        <!-- ── Período ─────────────────────────────────────────────────────── -->
-        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Desde</label>
-                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
-                       t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+        <!-- ══ Main content ══════════════════════════════════════════════════ -->
+        <div class="d-flex flex-column flex-grow-1 min-w-0 overflow-hidden">
+
+            <!-- ── Período ──────────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Hasta</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                </div>
             </div>
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Hasta</label>
-                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
-                       t-att-value="state.dateTo" t-on-change="onDateToChange"/>
-            </div>
-        </div>
 
-        <!-- ── KPI cards ───────────────────────────────────────────────────── -->
-        <div class="row g-2 mb-3">
+            <!-- ── KPI cards ─────────────────────────────────────────────────── -->
+            <div class="row g-2 mb-3">
 
-            <div class="col-6 col-md-3">
-                <div class="card o_planner_card h-100"
-                     title="Clientes con al menos un pedido confirmado en el período.">
-                    <div class="card-body text-center py-3">
-                        <i class="fa fa-users fa-lg text-primary mb-2 d-block"/>
-                        <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
-                        <div class="o_planner_label">Clientes activos</div>
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         title="Clientes con al menos un pedido confirmado en el período.">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-users fa-lg text-primary mb-2 d-block"/>
+                            <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
+                            <div class="o_planner_label">Clientes activos</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-6 col-md-3">
-                <div class="card o_planner_card h-100"
-                     title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
-                    <div class="card-body text-center py-3">
-                        <i class="fa fa-dollar fa-lg text-success mb-2 d-block"/>
-                        <div class="o_planner_number text-success" t-esc="fmtMoney(state.kpis.avg_ticket)"/>
-                        <div class="o_planner_label">Ticket promedio</div>
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-dollar fa-lg text-success mb-2 d-block"/>
+                            <div class="o_planner_number text-success" t-esc="fmtMoney(state.kpis.avg_ticket)"/>
+                            <div class="o_planner_label">Ticket promedio</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-6 col-md-3">
-                <div class="card o_planner_card h-100"
-                     title="Promedio de % entrega entre todos los clientes (qty entregada ÷ qty pedida × 100).">
-                    <div class="card-body text-center py-3">
-                        <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
-                        <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
-                             t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                        <div class="o_planner_label">% Entrega promedio</div>
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         title="Promedio de % entrega entre todos los clientes (qty entregada ÷ qty pedida × 100).">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
+                            <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
+                                 t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
+                            <div class="o_planner_label">% Entrega promedio</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-6 col-md-3">
-                <div class="card o_planner_card h-100"
-                     title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
-                    <div class="card-body text-center py-3">
-                        <i class="fa fa-clock-o fa-lg mb-2 d-block text-secondary"/>
-                        <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
-                             t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
-                        <div class="o_planner_label">% A tiempo promedio</div>
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-clock-o fa-lg mb-2 d-block text-secondary"/>
+                            <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
+                                 t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
+                            <div class="o_planner_label">% A tiempo promedio</div>
+                        </div>
                     </div>
                 </div>
+
             </div>
 
-        </div>
+            <!-- ── Controles ─────────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
 
-        <!-- ── Controles ───────────────────────────────────────────────────── -->
-        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <PlannerSearchBar
+                    widgetKey="'customer_analysis'"
+                    placeholder="'Buscar cliente, producto, familia…'"
+                    t-props="{
+                        search:          state.productSearch,
+                        activeGroupBy:   state.groupBy,
+                        groupByDefs:     groupByDefs,
+                        onSearch:        (t) => this.setSearch(t),
+                        onGroupByChange: (k) => this.setGroupBy(k)
+                    }"/>
 
-            <PlannerSearchBar
-                widgetKey="'customer_analysis'"
-                placeholder="'Buscar cliente, producto, familia…'"
-                t-props="{
-                    search:          state.productSearch,
-                    activeGroupBy:   state.groupBy,
-                    groupByDefs:     groupByDefs,
-                    onSearch:        (t) => this.setSearch(t),
-                    onGroupByChange: (k) => this.setGroupBy(k)
-                }"/>
-
-            <!-- Columnas -->
-            <div class="position-relative" t-on-click.stop="">
-                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                        t-on-click="toggleColsDropdown">
-                    <i class="fa fa-columns"/>
-                    <span>Columnas</span>
-                    <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                </button>
-                <div t-if="state.colsDropdownOpen"
-                     class="dropdown-menu show shadow p-2"
-                     style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                    <p class="small text-muted mb-1 px-1">Cliente</p>
-                    <t t-foreach="[
-                        ['customer_category', 'Categoría de cliente'],
-                        ['abc_segment',       'Segmento ABC período'],
-                        ['salesperson',       'Vendedor'],
-                        ['country',           'País'],
-                        ['province',          'Provincia'],
-                    ]" t-as="col" t-key="col[0]">
-                        <div t-if="col[0] !== 'customer_category' or state.config.show_category"
-                             class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-id="'ca_col_' + col[0]"
-                                   t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => this.toggleCol(col[0])"/>
-                            <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                <t t-esc="col[1]"/>
-                            </label>
-                        </div>
-                    </t>
-                    <div class="dropdown-divider my-1"/>
-                    <p class="small text-muted mb-1 px-1">Compras</p>
-                    <t t-foreach="[
-                        ['order_count',  'Pedidos'],
-                        ['total_amount', 'Monto total'],
-                        ['avg_ticket',   'Ticket promedio'],
-                        ['trend_pct',    'Tendencia vs período anterior'],
-                    ]" t-as="col" t-key="col[0]">
-                        <div class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-id="'ca_col_' + col[0]"
-                                   t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => this.toggleCol(col[0])"/>
-                            <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                <t t-esc="col[1]"/>
-                            </label>
-                        </div>
-                    </t>
-                    <div class="dropdown-divider my-1"/>
-                    <p class="small text-muted mb-1 px-1">Entrega</p>
-                    <t t-foreach="[
-                        ['delivery_pct', '% Entrega'],
-                        ['ontime_pct',   '% A tiempo'],
-                    ]" t-as="col" t-key="col[0]">
-                        <div class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-id="'ca_col_' + col[0]"
-                                   t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => this.toggleCol(col[0])"/>
-                            <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                <t t-esc="col[1]"/>
-                            </label>
-                        </div>
-                    </t>
-                    <div class="dropdown-divider my-1"/>
-                    <p class="small text-muted mb-1 px-1">Frecuencia y productos</p>
-                    <t t-foreach="[
-                        ['avg_days_between',  'Frecuencia (días entre pedidos)'],
-                        ['days_since_last',   'Días sin comprar'],
-                        ['last_order_date',   'Última compra'],
-                        ['frequency_segment', 'Segmento de frecuencia'],
-                        ['distinct_products', 'Productos distintos'],
-                        ['top_product',       'Top producto'],
-                        ['top_family',        'Familia principal'],
-                    ]" t-as="col" t-key="col[0]">
-                        <div class="form-check mb-1">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-id="'ca_col_' + col[0]"
-                                   t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => this.toggleCol(col[0])"/>
-                            <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                <t t-esc="col[1]"/>
-                            </label>
-                        </div>
-                    </t>
-                </div>
-            </div>
-
-            <span class="ms-auto text-muted small">
-                <t t-esc="state.totalFiltered"/> cliente(s)
-            </span>
-        </div>
-
-        <!-- ── Error backend ──────────────────────────────────────────────── -->
-        <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
-            <i class="fa fa-exclamation-triangle me-2"/>
-            Error: <strong><t t-esc="state.loadError"/></strong>
-        </div>
-
-        <!-- ── Tabla ───────────────────────────────────────────────────────── -->
-        <div class="border rounded" style="overflow:auto; max-height:62vh;">
-            <table class="table table-sm table-bordered mb-0 align-middle"
-                   style="min-width:700px; font-size:12px;">
-
-                <thead style="position:sticky; top:0; z-index:3;">
-                    <tr>
-                        <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
-                            <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
-                                t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
-                                t-att-title="colTitle(col)"
-                                t-att-data-col-key="col.key"
-                                t-att-draggable="col.fixed ? 'false' : 'true'"
-                                t-on-dragstart="cols.onDragStart"
-                                t-on-dragover="cols.onDragOver"
-                                t-on-drop="cols.onDrop"
-                                t-on-dragend="cols.onDragEnd"
-                                t-on-click="() => this.onColHeaderClick(col)">
-                                <t t-esc="col.label"/>
-                                <i t-att-class="sortIcon(caSortKeys[col.key])"/>
-                                <div class="o_col_resize_handle"
-                                     t-att-data-col-key="col.key"
-                                     t-on-mousedown.stop="cols.onResizeStart"
-                                     t-on-click.stop="() => {}"/>
-                            </th>
+                <!-- Columnas -->
+                <div class="position-relative" t-on-click.stop="">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns"/>
+                        <span>Columnas</span>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <p class="small text-muted mb-1 px-1">Cliente</p>
+                        <t t-foreach="[
+                            ['customer_category', 'Categoría de cliente'],
+                            ['abc_segment',       'Segmento ABC período'],
+                            ['salesperson',       'Vendedor'],
+                            ['country',           'País'],
+                            ['province',          'Provincia'],
+                        ]" t-as="col" t-key="col[0]">
+                            <div t-if="col[0] !== 'customer_category' or state.config.show_category"
+                                 class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ca_col_' + col[0]"
+                                       t-att-checked="state.visibleCols[col[0]]"
+                                       t-on-change="() => this.toggleCol(col[0])"/>
+                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                    <t t-esc="col[1]"/>
+                                </label>
+                            </div>
                         </t>
-                        <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
-                    </tr>
-                </thead>
+                        <div class="dropdown-divider my-1"/>
+                        <p class="small text-muted mb-1 px-1">Compras</p>
+                        <t t-foreach="[
+                            ['order_count',  'Pedidos'],
+                            ['total_amount', 'Monto total'],
+                            ['avg_ticket',   'Ticket promedio'],
+                            ['trend_pct',    'Tendencia vs período anterior'],
+                        ]" t-as="col" t-key="col[0]">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ca_col_' + col[0]"
+                                       t-att-checked="state.visibleCols[col[0]]"
+                                       t-on-change="() => this.toggleCol(col[0])"/>
+                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                    <t t-esc="col[1]"/>
+                                </label>
+                            </div>
+                        </t>
+                        <div class="dropdown-divider my-1"/>
+                        <p class="small text-muted mb-1 px-1">Entrega</p>
+                        <t t-foreach="[
+                            ['delivery_pct', '% Entrega'],
+                            ['ontime_pct',   '% A tiempo'],
+                        ]" t-as="col" t-key="col[0]">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ca_col_' + col[0]"
+                                       t-att-checked="state.visibleCols[col[0]]"
+                                       t-on-change="() => this.toggleCol(col[0])"/>
+                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                    <t t-esc="col[1]"/>
+                                </label>
+                            </div>
+                        </t>
+                        <div class="dropdown-divider my-1"/>
+                        <p class="small text-muted mb-1 px-1">Frecuencia y productos</p>
+                        <t t-foreach="[
+                            ['avg_days_between',  'Frecuencia (días entre pedidos)'],
+                            ['days_since_last',   'Días sin comprar'],
+                            ['last_order_date',   'Última compra'],
+                            ['frequency_segment', 'Segmento de frecuencia'],
+                            ['distinct_products', 'Productos distintos'],
+                            ['top_product',       'Top producto'],
+                            ['top_family',        'Familia principal'],
+                        ]" t-as="col" t-key="col[0]">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ca_col_' + col[0]"
+                                       t-att-checked="state.visibleCols[col[0]]"
+                                       t-on-change="() => this.toggleCol(col[0])"/>
+                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                    <t t-esc="col[1]"/>
+                                </label>
+                            </div>
+                        </t>
+                    </div>
+                </div>
 
-                <tbody>
-                    <t t-if="state.groupBy">
-                        <t t-foreach="groupedRows" t-as="group" t-key="group.label">
-                            <tr style="background:#e9ecef;">
-                                <td t-att-colspan="staticVisibleCols.length + 1"
-                                    style="padding:4px 8px; font-weight:600;">
-                                    <i class="fa fa-folder-open-o me-1 text-muted"/>
-                                    <t t-esc="group.label"/>
-                                    <span class="text-muted fw-normal ms-2 small">
-                                        <t t-esc="group.items.length"/> clientes ·
-                                        <t t-esc="fmtMoney(group.total_amount)"/>
-                                    </span>
-                                </td>
-                            </tr>
-                            <t t-foreach="group.items" t-as="row" t-key="row.partner_id">
+                <span class="ms-auto text-muted small">
+                    <t t-esc="state.totalFiltered"/> cliente(s)
+                </span>
+            </div>
+
+            <!-- ── Error backend ────────────────────────────────────────────── -->
+            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
+            <!-- ── Tabla ─────────────────────────────────────────────────────── -->
+            <div class="border rounded" style="overflow:auto; max-height:62vh;">
+                <table class="table table-sm table-bordered mb-0 align-middle"
+                       style="min-width:700px; font-size:12px;">
+
+                    <thead style="position:sticky; top:0; z-index:3;">
+                        <tr>
+                            <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                    t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
+                                    t-att-title="colTitle(col)"
+                                    t-att-data-col-key="col.key"
+                                    t-att-draggable="col.fixed ? 'false' : 'true'"
+                                    t-on-dragstart="cols.onDragStart"
+                                    t-on-dragover="cols.onDragOver"
+                                    t-on-drop="cols.onDrop"
+                                    t-on-dragend="cols.onDragEnd"
+                                    t-on-click="() => this.onColHeaderClick(col)">
+                                    <t t-esc="col.label"/>
+                                    <i t-att-class="sortIcon(caSortKeys[col.key])"/>
+                                    <div class="o_col_resize_handle"
+                                         t-att-data-col-key="col.key"
+                                         t-on-mousedown.stop="cols.onResizeStart"
+                                         t-on-click.stop="() => {}"/>
+                                </th>
+                            </t>
+                            <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <t t-if="state.groupBy">
+                            <t t-foreach="groupedRows" t-as="group" t-key="group.label">
+                                <tr style="background:#e9ecef;">
+                                    <td t-att-colspan="staticVisibleCols.length + 1"
+                                        style="padding:4px 8px; font-weight:600;">
+                                        <i class="fa fa-folder-open-o me-1 text-muted"/>
+                                        <t t-esc="group.label"/>
+                                        <span class="text-muted fw-normal ms-2 small">
+                                            <t t-esc="group.items.length"/> clientes ·
+                                            <t t-esc="fmtMoney(group.total_amount)"/>
+                                        </span>
+                                    </td>
+                                </tr>
+                                <t t-foreach="group.items" t-as="row" t-key="row.partner_id">
+                                    <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
+                                </t>
+                            </t>
+                        </t>
+
+                        <t t-else="">
+                            <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
                                 <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
                             </t>
                         </t>
-                    </t>
 
-                    <t t-else="">
-                        <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
-                            <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
-                        </t>
-                    </t>
-
-                    <tr t-if="state.totalFiltered === 0 and !state.loading">
-                        <td t-att-colspan="staticVisibleCols.length + 1"
-                            class="text-center text-muted py-4">
-                            No se encontraron clientes para el período seleccionado.
-                        </td>
-                    </tr>
-                </tbody>
-
-                <tfoot t-if="!state.groupBy and state.allRows.length > 0"
-                       class="fw-bold" style="background:#f8f9fa;">
-                    <tr>
-                        <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
-                            <td style="padding:3px 6px;"
-                                t-att-class="col.align ? 'text-' + col.align : ''">
-                                <t t-if="col.key === 'partner_name'">Total</t>
-                                <t t-elif="col.key === 'order_count'"
-                                   t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
-                                <t t-elif="col.key === 'total_amount'"
-                                   t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
+                        <tr t-if="state.totalFiltered === 0 and !state.loading">
+                            <td t-att-colspan="staticVisibleCols.length + 1"
+                                class="text-center text-muted py-4">
+                                No se encontraron clientes para el período seleccionado.
                             </td>
-                        </t>
-                        <td/>
-                    </tr>
-                </tfoot>
+                        </tr>
+                    </tbody>
 
-            </table>
+                    <tfoot t-if="!state.groupBy and state.allRows.length > 0"
+                           class="fw-bold" style="background:#f8f9fa;">
+                        <tr>
+                            <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                <td style="padding:3px 6px;"
+                                    t-att-class="col.align ? 'text-' + col.align : ''">
+                                    <t t-if="col.key === 'partner_name'">Total</t>
+                                    <t t-elif="col.key === 'order_count'"
+                                       t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
+                                    <t t-elif="col.key === 'total_amount'"
+                                       t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
+                                </td>
+                            </t>
+                            <td/>
+                        </tr>
+                    </tfoot>
+
+                </table>
+            </div>
+
+            <!-- ── Paginación ────────────────────────────────────────────────── -->
+            <div t-if="!state.groupBy and totalPages > 1"
+                 class="d-flex align-items-center justify-content-end gap-2 mt-2">
+                <button class="btn btn-outline-secondary btn-sm"
+                        t-att-disabled="state.page &lt;= 1"
+                        t-on-click="prevPage">‹ Anterior</button>
+                <span class="small text-muted">
+                    Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
+                </span>
+                <button class="btn btn-outline-secondary btn-sm"
+                        t-att-disabled="state.page >= totalPages"
+                        t-on-click="nextPage">Siguiente ›</button>
+            </div>
+
         </div>
+        <!-- ── fin main content ── -->
 
-        <!-- ── Paginación ──────────────────────────────────────────────────── -->
-        <div t-if="!state.groupBy and totalPages > 1"
-             class="d-flex align-items-center justify-content-end gap-2 mt-2">
-            <button class="btn btn-outline-secondary btn-sm"
-                    t-att-disabled="state.page &lt;= 1"
-                    t-on-click="prevPage">‹ Anterior</button>
-            <span class="small text-muted">
-                Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
-            </span>
-            <button class="btn btn-outline-secondary btn-sm"
-                    t-att-disabled="state.page >= totalPages"
-                    t-on-click="nextPage">Siguiente ›</button>
-        </div>
-
-        <!-- ── Panel lateral ──────────────────────────────────────────────── -->
+        <!-- ══ o_aside: panel lateral nativo Odoo ═══════════════════════════ -->
         <div t-if="state.panelOpen"
-             class="position-fixed top-0 end-0 h-100 bg-white shadow-lg"
-             style="width:480px; z-index:1100; overflow-y:auto; border-left:1px solid #dee2e6;">
+             class="o_aside border-start d-flex flex-column flex-shrink-0 ms-3"
+             style="width:400px; overflow-y:auto; max-height:80vh; background:var(--bs-body-bg, #fff);">
 
-            <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom"
-                 style="background:#f8f9fa; position:sticky; top:0; z-index:2;">
+            <!-- Header sticky -->
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom position-sticky top-0"
+                 style="background:var(--bs-body-bg, #fff); z-index:2;">
                 <div>
-                    <div class="fw-bold">
-                        <t t-esc="state.panelData ? state.panelData.partner_name : '...'"/>
+                    <div class="fw-semibold" style="font-size:0.95rem;">
+                        <t t-esc="state.panelData ? state.panelData.partner_name : '…'"/>
                     </div>
-                    <div class="text-muted small">Detalle del período</div>
+                    <div class="text-muted" style="font-size:0.78rem;">Detalle del período</div>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" t-on-click="closePanel">
+                <button class="btn btn-sm btn-link text-muted p-0" title="Cerrar panel"
+                        t-on-click="closePanel">
                     <i class="fa fa-times"/>
                 </button>
             </div>
 
+            <!-- Loading -->
             <t t-if="state.panelLoading">
-                <div class="d-flex justify-content-center py-5">
-                    <div class="spinner-border text-primary" role="status"/>
+                <div class="d-flex justify-content-center align-items-center py-5">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"/>
                 </div>
             </t>
 
+            <!-- Content -->
             <t t-if="!state.panelLoading and state.panelData">
                 <div class="p-3">
 
+                    <!-- Mini KPIs -->
                     <t t-set="panelRow" t-value="state.allRows.find(r => r.partner_id === state.panelPartnerId)"/>
                     <t t-if="panelRow">
                         <div class="row g-2 mb-3">
                             <div class="col-6">
-                                <div class="card o_planner_card h-100" title="Monto total del período.">
+                                <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" style="font-size:1rem;"
+                                        <div class="o_planner_number" style="font-size:0.95rem;"
                                              t-esc="fmtMoney(panelRow.total_amount)"/>
                                         <div class="o_planner_label">Monto total</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6">
-                                <div class="card o_planner_card h-100" title="Ticket promedio del período.">
+                                <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" style="font-size:1rem;"
+                                        <div class="o_planner_number" style="font-size:0.95rem;"
                                              t-esc="fmtMoney(panelRow.avg_ticket)"/>
                                         <div class="o_planner_label">Ticket promedio</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card h-100" title="% de unidades entregadas.">
+                                <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
                                         <div t-att-class="'o_planner_number ' + deliveryClass(panelRow.delivery_pct)"
-                                             style="font-size:1rem;"
+                                             style="font-size:0.95rem;"
                                              t-esc="fmtPct(panelRow.delivery_pct)"/>
                                         <div class="o_planner_label">% Entrega</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card h-100" title="% entregas a tiempo.">
+                                <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
                                         <div t-att-class="'o_planner_number ' + ontimeClass(panelRow.ontime_pct)"
-                                             style="font-size:1rem;"
+                                             style="font-size:0.95rem;"
                                              t-esc="fmtPct(panelRow.ontime_pct)"/>
                                         <div class="o_planner_label">% A tiempo</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card h-100" title="Días desde la última compra.">
+                                <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
                                         <div t-att-class="'o_planner_number ' + riskClass(panelRow.days_since_last)"
-                                             style="font-size:1rem;">
+                                             style="font-size:0.95rem;">
                                             <t t-esc="panelRow.days_since_last"/> d
                                         </div>
                                         <div class="o_planner_label">Sin comprar</div>
@@ -363,36 +376,40 @@
                         </div>
                     </t>
 
+                    <!-- Gráfico: monto mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-bar-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
                         </div>
-                        <div style="height:150px; margin-bottom:16px;">
+                        <div style="height:140px; margin-bottom:16px;">
                             <canvas t-ref="panelBarCanvas"/>
                         </div>
                     </t>
 
+                    <!-- Gráfico: % entrega mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.filter(m => m.delivery_pct !== null).length > 1">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-line-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
                         </div>
-                        <div style="height:130px; margin-bottom:16px;">
+                        <div style="height:120px; margin-bottom:16px;">
                             <canvas t-ref="panelLineCanvas"/>
                         </div>
                     </t>
 
+                    <!-- Gráfico: mix de familias -->
                     <t t-if="state.panelData.family_mix and state.panelData.family_mix.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-pie-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
                         </div>
-                        <div style="height:180px; margin-bottom:16px;">
+                        <div style="height:170px; margin-bottom:16px;">
                             <canvas t-ref="panelDonutCanvas"/>
                         </div>
                     </t>
 
+                    <!-- Pedidos del período -->
                     <t t-if="state.panelData.orders and state.panelData.orders.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-list me-1 text-muted"/>
@@ -410,7 +427,7 @@
                             </thead>
                             <tbody>
                                 <t t-foreach="state.panelData.orders" t-as="ord" t-key="ord.name">
-                                    <tr style="cursor:pointer;" title="Abrir pedido."
+                                    <tr class="cursor-pointer" title="Abrir pedido."
                                         t-on-click="() => this.openOrder(ord.order_id)">
                                         <td style="padding:3px 5px;" class="text-primary">
                                             <t t-esc="ord.name"/>
@@ -430,12 +447,9 @@
 
                 </div>
             </t>
-        </div>
 
-        <div t-if="state.panelOpen"
-             class="position-fixed top-0 start-0 w-100 h-100"
-             style="background:rgba(0,0,0,0.15); z-index:1099;"
-             t-on-click="closePanel"/>
+        </div>
+        <!-- ── fin o_aside ── -->
 
     </div>
 </t>
@@ -557,11 +571,11 @@
         </t>
 
         <td style="padding:3px 4px; text-align:center;">
-            <button class="btn btn-sm btn-outline-primary"
-                    style="padding:1px 6px; font-size:11px; line-height:1.4;"
+            <button class="btn btn-sm btn-link p-0"
+                    style="font-size:11px; line-height:1.4; color:var(--bs-primary);"
                     title="Ver detalle del cliente."
                     t-on-click="() => this.openPanel(row.partner_id)">
-                <i class="fa fa-external-link"/>
+                <i class="fa fa-bar-chart"/>
             </button>
         </td>
 

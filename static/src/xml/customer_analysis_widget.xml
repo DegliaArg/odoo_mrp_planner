@@ -268,7 +268,7 @@
                 </div>
 
                 <!-- Tabla -->
-                <div class="border rounded" style="overflow:auto; max-height:62vh;">
+                <div class="border rounded" style="overflow:auto; max-height:72vh;">
                     <table class="table table-sm table-bordered mb-0 align-middle"
                            style="min-width:700px; font-size:12px;">
 
@@ -576,15 +576,33 @@
                     </div>
                 </div>
 
-                <!-- Gráficos: barras mensuales (flex:3) + donut familias (flex:2) -->
+                <!-- Toggle métrica + sección gráficos -->
                 <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
+
+                    <!-- Barra de controles: $ Monto / # Piezas -->
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="o_planner_section_title" style="margin-bottom:0;">
+                            <i class="fa fa-bar-chart me-1 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución mensual</span>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <button t-att-class="state.panelMetric === 'amount' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelMetric('amount')">
+                                $ Monto
+                            </button>
+                            <button t-att-class="state.panelMetric === 'qty' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelMetric('qty')">
+                                # Piezas
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos: barras agrupadas (flex:3) + donut familias (flex:2) -->
                     <div class="d-flex gap-3 mb-3 align-items-start">
                         <div style="flex:3; min-width:0; overflow:hidden;">
-                            <div class="o_planner_section_title mb-1">
-                                <i class="fa fa-bar-chart me-1 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
-                            </div>
-                            <div style="position:relative; height:180px; width:100%;">
+                            <div style="position:relative; height:190px; width:100%;">
                                 <canvas t-ref="panelBarCanvas"/>
                             </div>
                         </div>
@@ -594,7 +612,7 @@
                                 <i class="fa fa-pie-chart me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
                             </div>
-                            <div style="position:relative; height:180px; width:100%;">
+                            <div style="position:relative; height:190px; width:100%;">
                                 <canvas t-ref="panelDonutCanvas"/>
                             </div>
                         </div>
@@ -607,8 +625,72 @@
                         <i class="fa fa-line-chart me-1 text-muted"/>
                         <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
                     </div>
-                    <div style="position:relative; height:150px; width:100%; overflow:hidden;">
+                    <div style="position:relative; height:140px; width:100%; overflow:hidden;">
                         <canvas t-ref="panelLineCanvas"/>
+                    </div>
+                </t>
+
+                <!-- Top artículos -->
+                <t t-if="state.panelData.top_products and state.panelData.top_products.length">
+                    <div class="d-flex align-items-center gap-2 mt-3 mb-1">
+                        <div class="o_planner_section_title" style="margin-bottom:0;">
+                            <i class="fa fa-cubes me-1 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Top artículos</span>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                                <button t-att-class="state.panelTopN === n ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                        style="font-size:11px; padding:1px 8px;"
+                                        t-on-click="() => this.setPanelTopN(n)">
+                                    <t t-esc="'Top ' + n"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                    <div class="border rounded bg-white" style="overflow:auto; max-height:220px;">
+                        <table class="table table-sm table-hover mb-0" style="font-size:11px;">
+                            <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                                <tr>
+                                    <th style="padding:3px 6px; width:24px;">#</th>
+                                    <th style="padding:3px 8px;">Artículo</th>
+                                    <th class="text-end" style="padding:3px 8px;">Pedido</th>
+                                    <th class="text-end" style="padding:3px 8px;">Entregado</th>
+                                    <th class="text-end" style="padding:3px 8px;">Monto</th>
+                                    <th class="text-end" style="padding:3px 8px;">% Entrega</th>
+                                    <th class="text-end" style="padding:3px 8px;">OVs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="panelTopProducts" t-as="prod" t-key="prod_index">
+                                    <tr>
+                                        <td class="text-muted" style="padding:2px 6px;">
+                                            <t t-esc="prod_index + 1"/>
+                                        </td>
+                                        <td style="padding:2px 8px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                            t-att-title="prod.name">
+                                            <t t-esc="prod.name"/>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
+                                            <t t-esc="fmt(prod.qty_ordered)"/>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
+                                            <t t-esc="fmt(prod.qty_delivered)"/>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
+                                            <t t-esc="fmtMoney(prod.amount)"/>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
+                                            <span t-att-class="deliveryClass(prod.delivery_pct)">
+                                                <t t-esc="fmtPct(prod.delivery_pct)"/>
+                                            </span>
+                                        </td>
+                                        <td class="text-end text-muted" style="padding:2px 8px;">
+                                            <t t-esc="prod.order_count"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
                     </div>
                 </t>
 

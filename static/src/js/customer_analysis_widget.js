@@ -171,6 +171,8 @@ class CustomerAnalysisWidget extends Component {
             panelLoading:   false,
             panelData:      null,
             panelPartnerId: null,
+            panelMetric:    'amount',   // 'amount' | 'qty'
+            panelTopN:      10,
             // Columnas visibles
             visibleCols: {
                 customer_category: true,
@@ -425,6 +427,7 @@ class CustomerAnalysisWidget extends Component {
         if (this._barChart)   { this._barChart.destroy();   this._barChart   = null; }
         if (this._donutChart) { this._donutChart.destroy(); this._donutChart = null; }
         if (this._lineChart)  { this._lineChart.destroy();  this._lineChart  = null; }
+        this._panelChartsKey = '';
     }
 
     openOrder(orderId) {
@@ -458,6 +461,15 @@ class CustomerAnalysisWidget extends Component {
     }
     setChartDonut(d) {
         if (this.state.chartDonut !== d)  { this.state.chartDonut  = d; this._topDonutKey = ''; }
+    }
+
+    setPanelMetric(m) {
+        if (this.state.panelMetric !== m) { this.state.panelMetric = m; this._panelChartsKey = ''; }
+    }
+    setPanelTopN(n) { this.state.panelTopN = n; }
+
+    get panelTopProducts() {
+        return (this.state.panelData?.top_products || []).slice(0, this.state.panelTopN);
     }
 
     _drawTopChart() {
@@ -681,29 +693,76 @@ class CustomerAnalysisWidget extends Component {
         const Chart = globalThis.Chart;
         if (typeof Chart === 'undefined') return;
 
-        // ── Barras: evolución mensual de monto ───────────────────────────────
+        const panelKey = `${this.state.panelPartnerId}_${this.state.panelMetric}`;
+        if (this._panelChartsKey === panelKey) return;
+        this._panelChartsKey = panelKey;
+
+        const isQty   = this.state.panelMetric === 'qty';
+        const fmtTick = isQty
+            ? v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)))
+            : v => this.fmtK(v);
+        const fmtLbl  = isQty
+            ? v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)))
+            : v => this.fmtK(v);
+
+        const barLabelPlugin = {
+            id: 'barLabel',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.data.datasets.forEach((ds, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    if (meta.hidden) return;
+                    meta.data.forEach((bar, idx) => {
+                        const v = ds.data[idx];
+                        if (!v) return;
+                        const label = ds._fmt ? ds._fmt(v) : String(v);
+                        ctx.save();
+                        ctx.fillStyle = '#555';
+                        ctx.font = 'bold 9px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(label, bar.x, bar.y - 2);
+                        ctx.restore();
+                    });
+                });
+            },
+        };
+
+        // ── Barras agrupadas: pedido vs entregado ────────────────────────────
         const barEl = this.barRef.el;
         if (barEl && data.monthly_data && data.monthly_data.length) {
             if (this._barChart) { this._barChart.destroy(); this._barChart = null; }
+            const labels    = data.monthly_data.map(m => monthLabel(m.month));
+            const dsPedido  = {
+                label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
+                data:            data.monthly_data.map(m => isQty ? m.qty_ordered   : m.amount),
+                backgroundColor: 'rgba(13,110,253,0.75)',
+                borderRadius:    3,
+                _fmt:            fmtLbl,
+            };
+            const dsEntrega = {
+                label:           isQty ? 'Entregado (u)' : 'Entregado ($)',
+                data:            data.monthly_data.map(m => isQty ? m.qty_delivered : m.amount_delivered),
+                backgroundColor: 'rgba(25,135,84,0.70)',
+                borderRadius:    3,
+                _fmt:            fmtLbl,
+            };
             this._barChart = new Chart(barEl, {
                 type: 'bar',
-                data: {
-                    labels:   data.monthly_data.map(m => monthLabel(m.month)),
-                    datasets: [{
-                        label:           'Monto',
-                        data:            data.monthly_data.map(m => m.amount),
-                        backgroundColor: CHART_COLORS.bar,
-                        borderRadius:    4,
-                    }],
-                },
+                data: { labels, datasets: [dsPedido, dsEntrega] },
                 options: {
-                    responsive: true,
+                    responsive:          true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
+                        barLabel: {},
+                    },
                     scales: {
-                        y: { ticks: { callback: v => this.fmtK(v) } },
+                        x: { ticks: { font: { size: 10 } } },
+                        y: { ticks: { callback: fmtTick, font: { size: 10 } } },
                     },
                 },
+                plugins: [barLabelPlugin],
             });
         }
 
@@ -722,10 +781,11 @@ class CustomerAnalysisWidget extends Component {
                     }],
                 },
                 options: {
-                    responsive: true,
+                    responsive:          true,
                     maintainAspectRatio: false,
+                    cutout:              '50%',
                     plugins: {
-                        legend: { position: 'right', labels: { font: { size: 11 } } },
+                        legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
                         tooltip: {
                             callbacks: {
                                 label: ctx => {
@@ -742,28 +802,38 @@ class CustomerAnalysisWidget extends Component {
         // ── Línea: % entrega mensual ─────────────────────────────────────────
         const lineEl = this.lineRef.el;
         const withDelivery = (data.monthly_data || []).filter(m => m.delivery_pct !== null);
-        if (lineEl && withDelivery.length) {
+        if (lineEl && withDelivery.length > 1) {
             if (this._lineChart) { this._lineChart.destroy(); this._lineChart = null; }
             this._lineChart = new Chart(lineEl, {
                 type: 'line',
                 data: {
                     labels:   withDelivery.map(m => monthLabel(m.month)),
                     datasets: [{
-                        label:       '% Entrega',
-                        data:        withDelivery.map(m => m.delivery_pct),
-                        borderColor: CHART_COLORS.line,
-                        backgroundColor: 'rgba(25, 135, 84, 0.10)',
-                        fill:        true,
-                        tension:     0.3,
-                        pointRadius: 4,
+                        label:           '% Entrega',
+                        data:            withDelivery.map(m => m.delivery_pct),
+                        borderColor:     CHART_COLORS.line,
+                        backgroundColor: 'rgba(25,135,84,0.10)',
+                        fill:            true,
+                        tension:         0.3,
+                        pointRadius:     4,
+                        pointHoverRadius: 6,
                     }],
                 },
                 options: {
-                    responsive: true,
+                    responsive:          true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { label: ctx => ` ${ctx.parsed.y}%` },
+                        },
+                    },
                     scales: {
-                        y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
+                        x: { ticks: { font: { size: 10 } } },
+                        y: {
+                            min: 0, max: 100,
+                            ticks: { callback: v => v + '%', font: { size: 10 } },
+                        },
                     },
                 },
             });

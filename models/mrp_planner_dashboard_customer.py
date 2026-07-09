@@ -365,11 +365,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         for mk in sorted(monthly.keys()):
             m  = monthly[mk]
             dp = round(m['qty_delivered'] / m['qty_ordered'] * 100, 1) if m['qty_ordered'] > 0 else None
+            amt_del = round(m['amount'] * m['qty_delivered'] / m['qty_ordered'], 2) if m['qty_ordered'] > 0 else 0.0
             monthly_data.append({
-                'month':        mk,
-                'amount':       round(m['amount'], 2),
-                'orders':       m['orders'],
-                'delivery_pct': dp,
+                'month':            mk,
+                'amount':           round(m['amount'], 2),
+                'amount_delivered': amt_del,
+                'qty_ordered':      round(m['qty_ordered'], 1),
+                'qty_delivered':    round(m['qty_delivered'], 1),
+                'orders':           m['orders'],
+                'delivery_pct':     dp,
             })
 
         # Mix de familias
@@ -391,6 +395,32 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             }
             for k, v in fam_amounts.items()
         ], key=lambda x: x['amount'], reverse=True)[:10]
+
+        # Top productos
+        prod_totals = defaultdict(lambda: {'qty_ordered': 0.0, 'qty_delivered': 0.0, 'amount': 0.0, 'orders': set()})
+        prod_names  = {}
+        for l in lines_data:
+            if not l.get('product_id'):
+                continue
+            pid = l['product_id'][0]
+            prod_names[pid] = l['product_id'][1]
+            prod_totals[pid]['qty_ordered']   += l['product_uom_qty'] or 0.0
+            prod_totals[pid]['qty_delivered'] += l['qty_delivered']   or 0.0
+            prod_totals[pid]['amount']        += l['price_subtotal']  or 0.0
+            prod_totals[pid]['orders'].add(l['order_id'][0])
+
+        top_products = sorted([
+            {
+                'name':         prod_names.get(pid, ''),
+                'qty_ordered':  round(v['qty_ordered'],  1),
+                'qty_delivered': round(v['qty_delivered'], 1),
+                'amount':       round(v['amount'], 2),
+                'order_count':  len(v['orders']),
+                'delivery_pct': round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
+                                if v['qty_ordered'] > 0 else None,
+            }
+            for pid, v in prod_totals.items()
+        ], key=lambda x: x['amount'], reverse=True)
 
         # Lista de OVs
         order_list = []
@@ -414,4 +444,5 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'monthly_data': monthly_data,
             'family_mix':   family_mix,
             'orders':       order_list,
+            'top_products': top_products,
         }

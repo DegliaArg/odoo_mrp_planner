@@ -199,7 +199,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             partner_info = {
                 p['id']: p
                 for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
-                    ['id', 'name', 'x_customer_category', 'country_id', 'state_id']
+                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id']
                 )
             }
 
@@ -257,7 +257,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
                 rows.append({
                     'partner_id':        pid,
-                    'partner_name':      pinfo.get('name', ''),
+                    'partner_name':      pinfo.get('display_name') or pinfo.get('name', ''),
                     'customer_category': pinfo.get('x_customer_category') or '',
                     'salesperson':       max(sp_counts, key=sp_counts.get) if sp_counts else '',
                     'country':           (pinfo.get('country_id')  or (0, ''))[1],
@@ -333,7 +333,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         if not orders:
             return {
-                'partner_name': partner.name,
+                'partner_name': partner.display_name or partner.name,
                 'monthly_data': [],
                 'family_mix':   [],
                 'orders':       [],
@@ -410,7 +410,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             })
 
         return {
-            'partner_name': partner.name,
+            'partner_name': partner.display_name or partner.name,
             'monthly_data': monthly_data,
             'family_mix':   family_mix,
             'orders':       order_list,

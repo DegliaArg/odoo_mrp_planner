@@ -567,11 +567,11 @@
                         <div class="small text-muted">Pedidos</div>
                     </div>
                     <div class="d-flex align-items-center px-3 border-start">
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                        <button class="btn btn-sm btn-outline-primary py-0 px-2"
                                 style="font-size:11px; white-space:nowrap;"
-                                title="Abrir ficha del contacto en Odoo"
-                                t-on-click="() => this.openCustomer(row.partner_id)">
-                            <i class="fa fa-external-link me-1"/>Abrir
+                                title="Ver pedidos de este cliente en el período"
+                                t-on-click="() => this.openCustomerOrders(row.partner_id)">
+                            <i class="fa fa-list me-1"/>Pedidos
                         </button>
                     </div>
                 </div>

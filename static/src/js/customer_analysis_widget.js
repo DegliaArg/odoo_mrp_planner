@@ -659,6 +659,22 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    openCustomerOrders(partnerId) {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Pedidos del período',
+            res_model: 'sale.order',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['partner_id', 'child_of', partnerId],
+                ['state', 'in', ['sale', 'done']],
+                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
     _drawPanelCharts() {
         const data = this.state.panelData;
         if (!data) return;

@@ -352,17 +352,21 @@
                 </div>
 
                 <!-- Paginación -->
-                <div t-if="!state.groupBy and totalPages > 1"
-                     class="d-flex align-items-center justify-content-end gap-2 mt-2">
-                    <button class="btn btn-outline-secondary btn-sm"
-                            t-att-disabled="state.page &lt;= 1"
-                            t-on-click="prevPage">‹ Anterior</button>
-                    <span class="small text-muted">
-                        Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
-                    </span>
-                    <button class="btn btn-outline-secondary btn-sm"
-                            t-att-disabled="state.page >= totalPages"
-                            t-on-click="nextPage">Siguiente ›</button>
+                <div t-if="totalPages > 1"
+                     class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                     style="flex-shrink:0;">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <small class="text-muted">
+                        Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                        · <t t-esc="state.totalFiltered"/> registros
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
                 </div>
 
         </div>
@@ -575,22 +579,22 @@
                 <!-- Gráficos: barras mensuales (flex:3) + donut familias (flex:2) -->
                 <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
                     <div class="d-flex gap-3 mb-3 align-items-start">
-                        <div style="flex:3; min-width:0;">
+                        <div style="flex:3; min-width:0; overflow:hidden;">
                             <div class="o_planner_section_title mb-1">
                                 <i class="fa fa-bar-chart me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
                             </div>
-                            <div style="height:180px;">
+                            <div style="position:relative; height:180px; width:100%;">
                                 <canvas t-ref="panelBarCanvas"/>
                             </div>
                         </div>
                         <div t-if="state.panelData.family_mix and state.panelData.family_mix.length"
-                             style="flex:2; min-width:0;">
+                             style="flex:2; min-width:0; overflow:hidden;">
                             <div class="o_planner_section_title mb-1">
                                 <i class="fa fa-pie-chart me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
                             </div>
-                            <div style="height:180px;">
+                            <div style="position:relative; height:180px; width:100%;">
                                 <canvas t-ref="panelDonutCanvas"/>
                             </div>
                         </div>
@@ -603,7 +607,7 @@
                         <i class="fa fa-line-chart me-1 text-muted"/>
                         <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
                     </div>
-                    <div style="height:150px;">
+                    <div style="position:relative; height:150px; width:100%; overflow:hidden;">
                         <canvas t-ref="panelLineCanvas"/>
                     </div>
                 </t>

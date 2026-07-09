@@ -387,6 +387,9 @@ class CustomerAnalysisWidget extends Component {
         return Math.max(1, Math.ceil(this.state.totalFiltered / this.state.pageSize));
     }
 
+    get hasPrevPage() { return this.state.page > 1; }
+    get hasNextPage()  { return this.state.page < this.totalPages; }
+
     get groupedRows() {
         return this._groupedRows || [];
     }

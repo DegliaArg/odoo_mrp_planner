@@ -207,7 +207,7 @@
                         <page string="Ventas" name="sales">
                             <div class="row">
 
-                                <!-- Columna izquierda: categorías de venta y cliente -->
+                                <!-- ── Columna izquierda: categorías ──────────────── -->
                                 <div class="col-6">
 
                                     <group string="Categorías de venta">
@@ -244,7 +244,6 @@
                                                             <span class="text-muted small">meses</span>
                                                         </div>
                                                     </div>
-                                                    <!-- Umbrales rotación -->
                                                     <div invisible="sale_cat_mode != 'automatic'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales — Rotación (días)</span>
                                                         <div class="d-flex align-items-center gap-1 flex-wrap">
@@ -259,7 +258,6 @@
                                                             <span class="text-muted small">E = resto</span>
                                                         </div>
                                                     </div>
-                                                    <!-- Umbrales demanda -->
                                                     <div invisible="sale_cat_mode != 'demand'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales — Demanda (u./mes)</span>
                                                         <div class="d-flex align-items-center gap-1 flex-wrap">
@@ -274,7 +272,6 @@
                                                             <span class="text-muted small">E = resto</span>
                                                         </div>
                                                     </div>
-                                                    <!-- Umbrales participación -->
                                                     <div invisible="sale_cat_mode != 'share'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Métrica</span>
                                                         <field name="sale_cat_share_metric" widget="radio" nolabel="1"/>
@@ -291,7 +288,6 @@
                                                             <span class="text-muted small">E = resto</span>
                                                         </div>
                                                     </div>
-                                                    <!-- Actualización automática -->
                                                     <div invisible="sale_cat_mode == 'manual'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
                                                         <div class="d-flex align-items-center gap-2 mb-2">
@@ -374,36 +370,56 @@
 
                                 </div>
 
-                                <!-- Análisis de clientes -->
-                                <div class="col-12 mt-3">
+                                <!-- ── Columna derecha: análisis de clientes + forecast ── -->
+                                <div class="col-6">
+
                                     <group string="Análisis de clientes">
                                         <div class="row">
                                             <div class="col-6">
+                                                <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Método "entrega a tiempo"</span>
                                                 <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"/>
                                                 <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                     invisible="customer_analysis_ontime_method != 'commitment_date'">
+                                                    Compara la fecha real de entrega con la fecha pactada con el cliente en el pedido de venta (<i>commitment_date</i>). Es la opción más precisa si tu equipo gestiona esa fecha.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                     invisible="customer_analysis_ontime_method != 'scheduled_date'">
+                                                    Usa la fecha programada del picking de salida (<i>scheduled_date</i>). Refleja la planificación logística, independientemente de lo comprometido con el cliente.
+                                                </div>
+                                                <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                      invisible="customer_analysis_ontime_method != 'sla_days'">
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        <span>Entregar en</span>
-                                                        <field name="customer_analysis_sla_days" nolabel="1" class="w-auto"/>
-                                                        <span>días desde la confirmación del pedido.</span>
-                                                    </div>
-                                                </div>
-                                                <div class="mt-3">
-                                                    <b class="small">Segmento ABC del período</b>
+                                                    Considera a tiempo si se entregó dentro de N días desde la confirmación del pedido. Ideal cuando no se usan fechas de compromiso.
                                                     <div class="d-flex align-items-center gap-2 mt-1">
-                                                        <span class="small">A ≤</span>
-                                                        <field name="customer_analysis_abc_a_pct" nolabel="1" class="w-auto"/>
-                                                        <span class="small">% · B ≤</span>
-                                                        <field name="customer_analysis_abc_b_pct" nolabel="1" class="w-auto"/>
-                                                        <span class="small">% (acumulado) · C = resto</span>
-                                                    </div>
-                                                    <div class="text-muted small mt-1">
-                                                        Segmentación calculada sobre el monto total del período seleccionado en el widget (independiente de la categoría de cliente global).
+                                                        <span>Plazo:</span>
+                                                        <field name="customer_analysis_sla_days" nolabel="1" class="w-auto"/>
+                                                        <span>días</span>
                                                     </div>
                                                 </div>
+
+                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Segmento ABC del período</span>
+                                                <div class="d-flex align-items-center gap-2 mt-1">
+                                                    <span class="small">A ≤</span>
+                                                    <field name="customer_analysis_abc_a_pct" nolabel="1" class="w-auto"/>
+                                                    <span class="small">% · B ≤</span>
+                                                    <field name="customer_analysis_abc_b_pct" nolabel="1" class="w-auto"/>
+                                                    <span class="small">% (acumulado) · C = resto</span>
+                                                </div>
+                                                <div class="text-muted small mt-1">
+                                                    Calculado sobre el monto del período seleccionado en el widget, independiente de la categoría de cliente global.
+                                                </div>
+
+                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Cliente en riesgo</span>
+                                                <div class="d-flex align-items-center gap-2 mt-1">
+                                                    <span class="small">Sin comprar hace más de</span>
+                                                    <field name="customer_analysis_risk_days" nolabel="1" class="w-auto"/>
+                                                    <span class="small">días</span>
+                                                </div>
+
+                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Período por defecto al abrir</span>
+                                                <field name="customer_analysis_default_period" nolabel="1"/>
                                             </div>
                                             <div class="col-6">
-                                                <b class="small">Umbrales semáforo — % entrega</b>
+                                                <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales semáforo — % entrega</span>
                                                 <div class="d-flex align-items-center gap-2 mt-1">
                                                     <span class="small text-warning fw-bold">⚠</span>
                                                     <span class="small">Amarillo por debajo de</span>
@@ -416,7 +432,7 @@
                                                     <field name="customer_analysis_delivery_crit_pct" nolabel="1" class="w-auto"/>
                                                     <span class="small">%</span>
                                                 </div>
-                                                <b class="small mt-3 d-block">Umbrales semáforo — % a tiempo</b>
+                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Umbrales semáforo — % a tiempo</span>
                                                 <div class="d-flex align-items-center gap-2 mt-1">
                                                     <span class="small text-warning fw-bold">⚠</span>
                                                     <span class="small">Amarillo por debajo de</span>
@@ -429,21 +445,10 @@
                                                     <field name="customer_analysis_ontime_crit_pct" nolabel="1" class="w-auto"/>
                                                     <span class="small">%</span>
                                                 </div>
-                                                <b class="small mt-3 d-block">Cliente en riesgo</b>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small">Sin comprar hace más de</span>
-                                                    <field name="customer_analysis_risk_days" nolabel="1" class="w-auto"/>
-                                                    <span class="small">días</span>
-                                                </div>
-                                                <b class="small mt-3 d-block">Período por defecto al abrir</b>
-                                                <field name="customer_analysis_default_period" nolabel="1"/>
                                             </div>
                                         </div>
                                     </group>
-                                </div>
 
-                                <!-- Columna derecha: forecast -->
-                                <div class="col-6">
                                     <group string="Forecast — Visualización">
                                         <field name="forecast_default_months"
                                                help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
@@ -452,27 +457,26 @@
                                         <field name="forecast_critical_pct"
                                                help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
                                     </group>
+
                                     <group string="Forecast — Método de rotación">
                                         <field name="forecast_rotation_method" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_rotation_method != 'units'">
-                                            <b>Por unidades:</b> días del período × stock promedio ÷ total entregado.
-                                            No requiere valorización de stock. Ideal para comparar velocidad de rotación entre productos.
+                                            <b>Por unidades:</b> días del período × stock promedio ÷ total entregado. No requiere valorización de stock. Ideal para comparar velocidad de rotación entre productos.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_rotation_method != 'cogs'">
-                                            <b>Por COGS (a costo):</b> días del período × inventario promedio (valorizado a costo) ÷ costo de lo vendido en el período.
-                                            La más correcta contablemente. Requiere valorización de stock activa (AVCO o FIFO).
+                                            <b>Por COGS (a costo):</b> días del período × inventario promedio (valorizado a costo) ÷ costo de lo vendido en el período. La más correcta contablemente. Requiere valorización de stock activa (AVCO o FIFO).
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_rotation_method != 'sales'">
-                                            <b>Por ventas (a precio):</b> días del período × inventario promedio (a costo) ÷ ventas netas (a precio de venta).
-                                            Mezcla costo e ingreso — menos precisa, pero más intuitiva para el área comercial.
+                                            <b>Por ventas (a precio):</b> días del período × inventario promedio (a costo) ÷ ventas netas (a precio de venta). Mezcla costo e ingreso — menos precisa, pero más intuitiva para el área comercial.
                                         </div>
                                         <field name="forecast_rotation_unit"
                                                help="Unidad en que se muestra la rotación de inventario: días o meses."
                                                class="mt-2"/>
                                     </group>
+
                                     <group string="Forecast — Precisión">
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
@@ -496,6 +500,7 @@
                                             <b>Sesgo (Bias):</b> (entregado − forecast) / forecast × 100. Positivo = sobreentrega. Negativo = déficit. Mide dirección sistemática, no magnitud del error.
                                         </div>
                                     </group>
+
                                     <group string="Forecast — OFs incluidas en la cobertura">
                                         <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
                                         <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
@@ -503,6 +508,7 @@
                                         <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
                                         <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
                                     </group>
+
                                 </div>
 
                             </div>

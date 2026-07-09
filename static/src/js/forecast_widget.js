@@ -41,6 +41,7 @@ const FC_STATIC_COLS = [
     { key: 'productTypes', label: 'Tipo',      width: 120, align: 'start' },
     { key: 'stock',        label: 'Stock',     width:  80, align: 'end' },
     { key: 'rotation',     label: 'Rot.',      width:  75, align: 'end' },
+    { key: 'demand',       label: 'Demanda',   width:  90, align: 'end' },
 ];
 
 const FC_SORT_KEYS = {
@@ -50,6 +51,7 @@ const FC_SORT_KEYS = {
     productTypes: 'product_types',
     stock:        'stock_qty',
     rotation:     'rotation_days',
+    demand:       'total_so_demand',
 };
 
 /**
@@ -141,6 +143,7 @@ class ForecastWidget extends Component {
                 saleCategory:  false,
                 productCateg:  false,
                 productTypes:  false,
+                demand:        false,
             },
             sortCol:          'product',
             sortDir:          'asc',
@@ -446,6 +449,7 @@ class ForecastWidget extends Component {
         if (col.key === 'productCateg') return 'Familia de producto (product.template.categ_id). Clic para ordenar.';
         if (col.key === 'productTypes') return 'Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar.';
         if (col.key === 'stock')        return 'Stock disponible en ubicaciones internas. Clic para ordenar.';
+        if (col.key === 'demand')       return 'Demanda del período: cantidad total de pedidos de venta confirmados. Clic para ordenar.';
         return '';
     }
 

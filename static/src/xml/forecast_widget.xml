@@ -267,6 +267,12 @@
                                        t-on-change="() => this.toggleCol('rotation')"/>
                                 <label class="form-check-label small" for="col_rotation">Rotación</label>
                             </div>
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="col_demand"
+                                       t-att-checked="state.visibleCols.demand"
+                                       t-on-change="() => this.toggleCol('demand')"/>
+                                <label class="form-check-label small" for="col_demand">Demanda del período</label>
+                            </div>
                             <div class="dropdown-divider my-1"/>
                             <p class="small text-muted mb-1 px-1">Por mes</p>
                             <div class="form-check mb-1">
@@ -510,6 +516,15 @@
                                                     t-att-title="rotTooltip(row)">
                                                     <t t-esc="fmtRotation(row)"/>
                                                 </td>
+                                                <td t-elif="col.key === 'demand'"
+                                                    class="text-end"
+                                                    style="padding:3px 6px;"
+                                                    title="Demanda total del período (pedidos de venta confirmados).">
+                                                    <t t-if="row.total_so_demand > 0">
+                                                        <t t-esc="fmt(row.total_so_demand)"/>
+                                                    </t>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
                                             </t>
 
                                             <!-- Celdas por mes -->
@@ -673,8 +688,12 @@
                             <tfoot class="fw-bold" style="background:#f8f9fa;">
                                 <tr>
                                     <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
-                                        <td style="padding:3px 6px;">
+                                        <td t-att-class="col.key === 'demand' ? 'text-end' : ''"
+                                            style="padding:3px 6px;">
                                             <t t-if="col.key === 'product'">Total</t>
+                                            <t t-elif="col.key === 'demand'">
+                                                <t t-esc="fmt(state.data.kpis.total_so_demand)"/>
+                                            </t>
                                         </td>
                                     </t>
                                     <t t-foreach="state.data.month_totals" t-as="mt" t-key="'mt_' + mt_index">

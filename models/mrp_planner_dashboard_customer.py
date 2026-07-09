@@ -86,35 +86,32 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         """
         Retorna todas las filas de clientes con sus métricas para el período dado.
         El front carga todo de una vez y gestiona sort/filter/paginación en memoria.
-
-        :param period_from: str 'YYYY-MM-DD' — inicio del período.
-        :param period_to:   str 'YYYY-MM-DD' — fin del período.
-        :param warehouse_ids: list[int] | None — almacenes a incluir; None = todos.
-        :returns: dict con claves 'rows' (list) y 'config' (dict de umbrales).
         """
-        empty_kpis = {'total_customers': 0, 'avg_ticket': 0, 'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None}
+        empty_kpis = {
+            'total_customers': 0, 'avg_ticket': 0,
+            'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None,
+        }
         try:
             cfg = self._ca_config()
         except Exception as e:
             _logger.error('[CustomerAnalysis] _ca_config error: %s', e, exc_info=True)
             cfg = {}
-        today = fields.Date.today()
-
-        d_from_str = period_from + ' 00:00:00'
-        d_to_str   = period_to   + ' 23:59:59'
-        d_from = datetime.strptime(period_from, '%Y-%m-%d')
-        d_to   = datetime.strptime(period_to,   '%Y-%m-%d')
-        wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
         try:
-            # ── 1. Órdenes de venta confirmadas en el período ────────────────────
-            so_domain = [
+            today      = fields.Date.today()
+            d_from_str = period_from + ' 00:00:00'
+            d_to_str   = period_to   + ' 23:59:59'
+            d_from     = datetime.strptime(period_from, '%Y-%m-%d')
+            d_to       = datetime.strptime(period_to,   '%Y-%m-%d')
+            wh_domain  = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
+
+            # ── 1. Órdenes confirmadas en el período ─────────────────────────
+            orders = self.env['sale.order'].sudo().search([
                 ('state', 'in', ['sale', 'done']),
                 ('date_order', '>=', d_from_str),
                 ('date_order', '<=', d_to_str),
-            ] + wh_domain
-            orders = self.env['sale.order'].sudo().search(so_domain)
-            _logger.info('[CustomerAnalysis] period %s – %s → %d orders', period_from, period_to, len(orders))
+            ] + wh_domain)
+            _logger.info('[CustomerAnalysis] %s – %s → %d orders', period_from, period_to, len(orders))
             if not orders:
                 return {'rows': [], 'kpis': empty_kpis, 'config': cfg}
 
@@ -123,209 +120,188 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'amount_untaxed', 'commitment_date', 'user_id', 'state',
             ])
 
-            # ── 2. Líneas: qty pedida, entregada y monto por orden ───────────────
+            # ── 2. Qty pedida / entregada por orden ──────────────────────────
             sol_groups = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)],
                 ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
                 ['order_id'],
             )
-        sol_qty_by_order = {
-            g['order_id'][0]: {
-                'ordered':   g['product_uom_qty'] or 0.0,
-                'delivered': g['qty_delivered']   or 0.0,
+            sol_qty_by_order = {
+                g['order_id'][0]: {
+                    'ordered':   g['product_uom_qty'] or 0.0,
+                    'delivered': g['qty_delivered']   or 0.0,
+                }
+                for g in sol_groups
             }
-            for g in sol_groups
-        }
 
-        # Top producto y familia: necesitamos granularidad por (partner, producto)
-        sol_detail = self.env['sale.order.line'].sudo().read_group(
-            [('order_id', 'in', orders.ids)],
-            ['order_id', 'product_id', 'price_subtotal:sum'],
-            ['order_id', 'product_id'],
-            lazy=False,
-        )
-        order_to_partner = {s['id']: s['partner_id'][0] for s in so_data}
+            # ── 3. Top producto / familia ────────────────────────────────────
+            sol_detail = self.env['sale.order.line'].sudo().read_group(
+                [('order_id', 'in', orders.ids)],
+                ['order_id', 'product_id', 'price_subtotal:sum'],
+                ['order_id', 'product_id'],
+                lazy=False,
+            )
+            order_to_partner = {s['id']: s['partner_id'][0] for s in so_data}
+            prod_ids = list({g['product_id'][0] for g in sol_detail if g.get('product_id')})
+            prod_info = {
+                p['id']: p
+                for p in self.env['product.product'].sudo().browse(prod_ids).read(
+                    ['id', 'product_tmpl_id', 'categ_id']
+                )
+            }
+            partner_prod = defaultdict(lambda: defaultdict(float))
+            partner_fam  = defaultdict(lambda: defaultdict(float))
+            for g in sol_detail:
+                if not g.get('product_id'):
+                    continue
+                pid = order_to_partner.get(g['order_id'][0])
+                if not pid:
+                    continue
+                pi = prod_info.get(g['product_id'][0], {})
+                tmpl  = (pi.get('product_tmpl_id') or (0, ''))[1]
+                categ = (pi.get('categ_id')        or (0, ''))[1]
+                amt   = g.get('price_subtotal') or 0.0
+                if tmpl:
+                    partner_prod[pid][tmpl]  += amt
+                if categ:
+                    partner_fam[pid][categ]  += amt
 
-        prod_ids = list({g['product_id'][0] for g in sol_detail if g.get('product_id')})
-        prod_info_list = self.env['product.product'].sudo().browse(prod_ids).read(
-            ['id', 'product_tmpl_id', 'categ_id']
-        )
-        prod_info = {p['id']: p for p in prod_info_list}
+            # ── 4. Pickings para puntualidad ─────────────────────────────────
+            pickings = self.env['stock.picking'].sudo().search([
+                ('sale_id', 'in', orders.ids),
+                ('state', '=', 'done'),
+                ('picking_type_code', '=', 'outgoing'),
+            ]).read(['id', 'sale_id', 'date_done', 'scheduled_date'])
+            pick_by_so    = defaultdict(list)
+            for p in pickings:
+                pick_by_so[p['sale_id'][0]].append(p)
+            so_commitment = {s['id']: s.get('commitment_date') for s in so_data}
+            so_date_order = {s['id']: s['date_order']          for s in so_data}
 
-        partner_prod  = defaultdict(lambda: defaultdict(float))  # pid → {tmpl_name: amt}
-        partner_fam   = defaultdict(lambda: defaultdict(float))  # pid → {categ_name: amt}
+            # ── 5. Período anterior (tendencia) ──────────────────────────────
+            dur           = max(1, (d_to - d_from).days)
+            d_prev_from   = (d_from - timedelta(days=dur + 1)).strftime('%Y-%m-%d 00:00:00')
+            d_prev_to     = (d_from - timedelta(days=1)).strftime('%Y-%m-%d 23:59:59')
+            prev_groups   = self.env['sale.order'].sudo().read_group(
+                [('state', 'in', ['sale', 'done']),
+                 ('date_order', '>=', d_prev_from),
+                 ('date_order', '<=', d_prev_to)] + wh_domain,
+                ['partner_id', 'amount_untaxed:sum'],
+                ['partner_id'],
+            )
+            prev_amount = {g['partner_id'][0]: (g['amount_untaxed'] or 0.0) for g in prev_groups}
 
-        for g in sol_detail:
-            if not g.get('product_id'):
-                continue
-            oid = g['order_id'][0]
-            pid = order_to_partner.get(oid)
-            if not pid:
-                continue
-            pi = prod_info.get(g['product_id'][0], {})
-            tmpl_name  = (pi.get('product_tmpl_id') or (0, ''))[1]
-            categ_name = (pi.get('categ_id')        or (0, ''))[1]
-            amt = g.get('price_subtotal') or 0.0
-            if tmpl_name:
-                partner_prod[pid][tmpl_name] += amt
-            if categ_name:
-                partner_fam[pid][categ_name] += amt
+            # ── 6. Agrupar por partner ────────────────────────────────────────
+            partner_sos = defaultdict(list)
+            for s in so_data:
+                partner_sos[s['partner_id'][0]].append(s)
 
-        # ── 3. Pickings de salida para cálculo de puntualidad ────────────────
-        pickings = self.env['stock.picking'].sudo().search([
-            ('sale_id', 'in', orders.ids),
-            ('state', '=', 'done'),
-            ('picking_type_code', '=', 'outgoing'),
-        ]).read(['id', 'sale_id', 'date_done', 'scheduled_date'])
-        pick_by_so = defaultdict(list)
-        for p in pickings:
-            pick_by_so[p['sale_id'][0]].append(p)
+            partner_info = {
+                p['id']: p
+                for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
+                    ['id', 'name', 'x_customer_category', 'country_id', 'state_id']
+                )
+            }
 
-        so_commitment = {s['id']: s.get('commitment_date') for s in so_data}
-        so_date_order = {s['id']: s['date_order']          for s in so_data}
+            # ── 7. Construir filas ────────────────────────────────────────────
+            ontime_method = cfg.get('ontime_method', 'commitment_date')
+            sla_days      = cfg.get('sla_days', 5)
+            risk_days     = cfg.get('risk_days', 90)
+            rows = []
 
-        # ── 4. Período anterior para tendencia ───────────────────────────────
-        duration_days   = max(1, (d_to - d_from).days)
-        d_from_prev     = d_from - timedelta(days=duration_days + 1)
-        d_to_prev       = d_from - timedelta(days=1)
-        d_from_prev_str = d_from_prev.strftime('%Y-%m-%d 00:00:00')
-        d_to_prev_str   = d_to_prev.strftime('%Y-%m-%d 23:59:59')
-        prev_groups   = self.env['sale.order'].sudo().read_group(
-            [('state', 'in', ['sale', 'done']),
-             ('date_order', '>=', d_from_prev_str),
-             ('date_order', '<=', d_to_prev_str)] + wh_domain,
-            ['partner_id', 'amount_untaxed:sum'],
-            ['partner_id'],
-        )
-        prev_amount = {g['partner_id'][0]: (g['amount_untaxed'] or 0.0) for g in prev_groups}
+            for pid, sos in partner_sos.items():
+                pinfo       = partner_info.get(pid, {})
+                order_count = len(sos)
+                dates       = sorted(self._to_date(s['date_order']) for s in sos)
+                last_date   = dates[-1]
+                days_since  = (today - last_date).days
 
-        # ── 5. Agrupar SOs por partner ───────────────────────────────────────
-        partner_sos = defaultdict(list)
-        for s in so_data:
-            partner_sos[s['partner_id'][0]].append(s)
+                gaps = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
+                avg_days_between = round(sum(gaps) / len(gaps), 1) if gaps else None
 
-        # Info de partners (bulk)
-        partner_ids = list(partner_sos.keys())
-        partners_read = self.env['res.partner'].sudo().browse(partner_ids).read(
-            ['id', 'name', 'x_customer_category', 'country_id', 'state_id']
-        )
-        partner_info = {p['id']: p for p in partners_read}
+                total_amount  = sum(s['amount_untaxed'] or 0.0 for s in sos)
+                total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
+                total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
+                delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
 
-        # ── 6. Construir filas ───────────────────────────────────────────────
-        ontime_method = cfg['ontime_method']
-        sla_days      = cfg['sla_days']
-        risk_days     = cfg['risk_days']
-        rows = []
-
-        for pid, sos in partner_sos.items():
-            pinfo       = partner_info.get(pid, {})
-            order_count = len(sos)
-            dates       = sorted(self._to_date(s['date_order']) for s in sos)
-            last_date   = dates[-1]
-            days_since  = (today - last_date).days
-
-            if len(dates) > 1:
-                gaps            = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
-                avg_days_between = round(sum(gaps) / len(gaps), 1)
-            else:
-                avg_days_between = None
-
-            total_amount  = sum(s['amount_untaxed'] or 0.0 for s in sos)
-            total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
-            total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
-            delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
-
-            # Puntualidad
-            ot_total = ot_ok = 0
-            for s in sos:
-                for p in pick_by_so.get(s['id'], []):
-                    if not p.get('date_done'):
-                        continue
-                    date_done = self._to_date(p['date_done'])
-                    if ontime_method == 'commitment_date':
-                        raw = so_commitment.get(s['id'])
-                        if not raw:
+                ot_total = ot_ok = 0
+                for s in sos:
+                    for pk in pick_by_so.get(s['id'], []):
+                        if not pk.get('date_done'):
                             continue
-                        deadline = self._to_date(raw)
-                    elif ontime_method == 'scheduled_date':
-                        raw = p.get('scheduled_date')
-                        if not raw:
-                            continue
-                        deadline = self._to_date(raw)
-                    else:  # sla_days
-                        deadline = self._to_date(so_date_order[s['id']]) + timedelta(days=sla_days)
-                    ot_total += 1
-                    if date_done <= deadline:
-                        ot_ok += 1
-            ontime_pct = round(ot_ok / ot_total * 100, 1) if ot_total > 0 else None
+                        date_done = self._to_date(pk['date_done'])
+                        if ontime_method == 'commitment_date':
+                            raw = so_commitment.get(s['id'])
+                            if not raw:
+                                continue
+                            deadline = self._to_date(raw)
+                        elif ontime_method == 'scheduled_date':
+                            raw = pk.get('scheduled_date')
+                            if not raw:
+                                continue
+                            deadline = self._to_date(raw)
+                        else:
+                            deadline = self._to_date(so_date_order[s['id']]) + timedelta(days=sla_days)
+                        ot_total += 1
+                        if date_done <= deadline:
+                            ot_ok += 1
+                ontime_pct = round(ot_ok / ot_total * 100, 1) if ot_total > 0 else None
 
-            prods      = partner_prod.get(pid, {})
-            fams       = partner_fam.get(pid, {})
-            top_product = max(prods, key=prods.get) if prods else ''
-            top_family  = max(fams,  key=fams.get)  if fams  else ''
+                prods      = partner_prod.get(pid, {})
+                fams       = partner_fam.get(pid, {})
+                prev_amt   = prev_amount.get(pid, 0.0)
+                sp_counts  = defaultdict(int)
+                for s in sos:
+                    if s.get('user_id'):
+                        sp_counts[s['user_id'][1]] += 1
 
-            prev_amt  = prev_amount.get(pid, 0.0)
-            trend_pct = round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None
+                rows.append({
+                    'partner_id':        pid,
+                    'partner_name':      pinfo.get('name', ''),
+                    'customer_category': pinfo.get('x_customer_category') or '',
+                    'salesperson':       max(sp_counts, key=sp_counts.get) if sp_counts else '',
+                    'country':           (pinfo.get('country_id')  or (0, ''))[1],
+                    'province':          (pinfo.get('state_id')    or (0, ''))[1],
+                    'order_count':       order_count,
+                    'total_amount':      round(total_amount, 2),
+                    'avg_ticket':        round(total_amount / order_count, 2) if order_count else 0.0,
+                    'delivery_pct':      delivery_pct,
+                    'ontime_pct':        ontime_pct,
+                    'avg_days_between':  avg_days_between,
+                    'days_since_last':   days_since,
+                    'last_order_date':   last_date.isoformat(),
+                    'distinct_products': len(prods),
+                    'top_product':       max(prods, key=prods.get) if prods else '',
+                    'top_family':        max(fams,  key=fams.get)  if fams  else '',
+                    'trend_pct':         round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None,
+                    'abc_segment':       '',
+                    'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
+                })
 
-            sp_counts = defaultdict(int)
-            for s in sos:
-                if s.get('user_id'):
-                    sp_counts[s['user_id'][1]] += 1
-            salesperson = max(sp_counts, key=sp_counts.get) if sp_counts else ''
+            abc_map = self._abc_segments(rows, cfg.get('abc_a_pct', 20), cfg.get('abc_b_pct', 50))
+            for row in rows:
+                row['abc_segment'] = abc_map.get(row['partner_id'], 'C')
 
-            rows.append({
-                'partner_id':        pid,
-                'partner_name':      pinfo.get('name', ''),
-                'customer_category': pinfo.get('x_customer_category') or '',
-                'salesperson':       salesperson,
-                'country':           (pinfo.get('country_id')  or (0, ''))[1],
-                'province':          (pinfo.get('state_id')    or (0, ''))[1],
-                'order_count':       order_count,
-                'total_amount':      round(total_amount, 2),
-                'avg_ticket':        round(total_amount / order_count, 2) if order_count else 0.0,
-                'delivery_pct':      delivery_pct,
-                'ontime_pct':        ontime_pct,
-                'avg_days_between':  avg_days_between,
-                'days_since_last':   days_since,
-                'last_order_date':   last_date.isoformat(),
-                'distinct_products': len(prods),
-                'top_product':       top_product,
-                'top_family':        top_family,
-                'trend_pct':         trend_pct,
-                'abc_segment':       '',   # se asigna abajo
-                'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
-            })
-
-        abc_map = self._abc_segments(rows, cfg['abc_a_pct'], cfg['abc_b_pct'])
-        for row in rows:
-            row['abc_segment'] = abc_map.get(row['partner_id'], 'C')
-
-        # KPIs globales
-        total_customers  = len(rows)
-        avg_ticket_global = round(
-            sum(r['total_amount'] for r in rows) / total_customers, 2
-        ) if total_customers else 0.0
-        delivery_vals = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
-        avg_delivery  = round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None
-        ontime_vals   = [r['ontime_pct'] for r in rows if r['ontime_pct'] is not None]
-        avg_ontime    = round(sum(ontime_vals) / len(ontime_vals), 1) if ontime_vals else None
-        freq_vals     = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]
-        avg_freq      = round(sum(freq_vals) / len(freq_vals), 1) if freq_vals else None
+            total_customers   = len(rows)
+            avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_customers, 2) if total_customers else 0.0
+            delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
+            ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
+            freq_vals         = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]
 
             return {
                 'rows': rows,
                 'kpis': {
                     'total_customers':  total_customers,
                     'avg_ticket':       avg_ticket_global,
-                    'avg_delivery_pct': avg_delivery,
-                    'avg_ontime_pct':   avg_ontime,
-                    'avg_days_between': avg_freq,
+                    'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
+                    'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,
+                    'avg_days_between': round(sum(freq_vals)     / len(freq_vals),     1) if freq_vals     else None,
                 },
                 'config': cfg,
             }
 
         except Exception as e:
-            _logger.error('[CustomerAnalysis] get_customer_analysis_data error: %s', e, exc_info=True)
+            _logger.error('[CustomerAnalysis] error: %s', e, exc_info=True)
             return {'rows': [], 'kpis': empty_kpis, 'config': cfg, 'error': str(e)}
 
     # ── Detalle de un cliente (panel lateral) ────────────────────────────────

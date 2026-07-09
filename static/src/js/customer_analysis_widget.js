@@ -714,6 +714,29 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    openKpiDrilldown(type) {
+        const baseDomain = [
+            ['state', 'in', ['sale', 'done']],
+            ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+            ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+        ];
+        const cfg = {
+            customers: { name: 'Clientes del período',     context: { group_by: ['partner_id'] } },
+            ticket:    { name: 'Pedidos por monto',         context: {} },
+            delivery:  { name: 'Entregas del período',      context: {} },
+            ontime:    { name: 'Cumplimiento de plazos',    context: {} },
+        }[type] || { name: 'Pedidos del período', context: {} };
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      cfg.name,
+            res_model: 'sale.order',
+            views:     [[false, 'list'], [false, 'form']],
+            domain:    baseDomain,
+            context:   cfg.context,
+            target:    'current',
+        });
+    }
+
     _drawPanelCharts() {
         const data = this.state.panelData;
         if (!data) return;
@@ -932,7 +955,7 @@ class CustomerAnalysisWidget extends Component {
 
     fmtMoney(n) {
         if (n === null || n === undefined) return '—';
-        return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+        return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
     }
 
     fmtK(n) {

@@ -373,7 +373,7 @@ class SupplierAnalysisWidget extends Component {
      */
     fmtMoney(n) {
         if (n === null || n === undefined) return '—';
-        return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n);
+        return '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(n);
     }
 
     /**

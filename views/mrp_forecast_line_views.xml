@@ -130,6 +130,29 @@
         </field>
     </record>
 
+    <!-- ── Vista Análisis de Clientes ──────────────────────────────────── -->
+    <record id="mrp_customer_analysis_form" model="ir.ui.view">
+        <field name="name">mrp.customer.analysis.form</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Análisis de Clientes" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-0">
+                        <widget name="customer_analysis_widget"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción de servidor: Análisis de Clientes ──────────────────────── -->
+    <record id="action_mrp_customer_analysis_open" model="ir.actions.server">
+        <field name="name">Análisis de Clientes</field>
+        <field name="model_id" ref="model_mrp_planner_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_customer_analysis()</field>
+    </record>
+
     <!-- ── Acción de servidor para abrir el panel de Ventas ──────────────── -->
     <record id="action_mrp_ventas_dashboard_open" model="ir.actions.server">
         <field name="name">Panel de Ventas</field>
@@ -152,8 +175,15 @@
               action="action_mrp_ventas_dashboard_open"
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
+    <menuitem id="mrp_ventas_customer_analysis_menu"
+              name="Análisis de Clientes"
+              parent="mrp_ventas_menu"
+              sequence="3"
+              action="action_mrp_customer_analysis_open"
+              groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
+
     <menuitem id="mrp_ventas_forecast_lineas_menu"
-              name="Forecast"
+              name="Líneas de Forecast"
               parent="mrp_ventas_menu"
               sequence="5"
               action="action_mrp_forecast_line"

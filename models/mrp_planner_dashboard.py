@@ -425,6 +425,23 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
+    def action_open_customer_analysis(self):
+        """
+        Abre el panel de análisis de clientes.
+        """
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Análisis de Clientes'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_customer_analysis_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    @api.model
     def action_open_compras(self):
         """
         Abre el panel de compras.

@@ -366,6 +366,57 @@ class MrpRescheduleConfig(models.Model):
     ], string='Unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de cliente.')
 
+    # ── Análisis de clientes ─────────────────────────────────────────────────
+    customer_analysis_ontime_method = fields.Selection([
+        ('commitment_date', 'Fecha compromiso del pedido (commitment_date)'),
+        ('scheduled_date',  'Fecha programada del envío (scheduled_date)'),
+        ('sla_days',        'Días desde confirmación del pedido'),
+    ], string='Método "entrega a tiempo"', default='commitment_date',
+       help='Define cómo se calcula si una entrega fue a tiempo.\n'
+            '• Fecha compromiso: compara la fecha real de entrega con la fecha '
+            'pactada con el cliente en el pedido de venta (campo commitment_date).\n'
+            '• Fecha programada del envío: usa la fecha programada del picking de salida.\n'
+            '• Días desde confirmación: considera a tiempo si se entregó dentro de N días '
+            'desde la confirmación del pedido (configurable en "SLA en días").')
+    customer_analysis_sla_days = fields.Integer(
+        string='SLA en días', default=5,
+        help='Solo aplica cuando el método es "Días desde confirmación". '
+             'Define cuántos días tiene la empresa para entregar desde que se confirma el pedido.')
+    customer_analysis_delivery_warn_pct = fields.Integer(
+        string='% entrega — umbral amarillo', default=80,
+        help='Por debajo de este porcentaje de entrega (qty entregada / qty pedida), '
+             'la celda se muestra en amarillo en el análisis de clientes.')
+    customer_analysis_delivery_crit_pct = fields.Integer(
+        string='% entrega — umbral rojo', default=60,
+        help='Por debajo de este porcentaje de entrega (qty entregada / qty pedida), '
+             'la celda se muestra en rojo en el análisis de clientes.')
+    customer_analysis_ontime_warn_pct = fields.Integer(
+        string='% a tiempo — umbral amarillo', default=80,
+        help='Por debajo de este porcentaje de entregas a tiempo, '
+             'la celda se muestra en amarillo.')
+    customer_analysis_ontime_crit_pct = fields.Integer(
+        string='% a tiempo — umbral rojo', default=60,
+        help='Por debajo de este porcentaje de entregas a tiempo, '
+             'la celda se muestra en rojo.')
+    customer_analysis_risk_days = fields.Integer(
+        string='Días sin comprar (riesgo)', default=90,
+        help='Un cliente que no compra hace más de este número de días '
+             'se clasifica como "en riesgo" en la columna de frecuencia.')
+    customer_analysis_default_period = fields.Selection([
+        ('month',   'Mes actual'),
+        ('quarter', 'Trimestre actual'),
+        ('year',    'Año actual'),
+    ], string='Período por defecto', default='quarter',
+       help='Rango de fechas preseleccionado al abrir el análisis de clientes.')
+    customer_analysis_abc_a_pct = fields.Integer(
+        string='Segmento A — % acumulado', default=20,
+        help='Clientes que suman el primer X% del monto total del período se clasifican como A. '
+             'Se ordena de mayor a menor monto antes de acumular.')
+    customer_analysis_abc_b_pct = fields.Integer(
+        string='Segmento B — % acumulado adicional', default=50,
+        help='Del monto restante tras el segmento A, los clientes que suman el siguiente X% '
+             'se clasifican como B. El resto queda en C.')
+
     stock_location_id = fields.Many2one(
         'stock.location',
         string='Ubicación de stock (quiebres)',

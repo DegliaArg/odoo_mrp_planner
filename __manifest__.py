@@ -75,6 +75,8 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/xml/supplier_analysis_widget.xml',
             'odoo_mrp_planner/static/src/js/sales_chart_widget.js',
             'odoo_mrp_planner/static/src/xml/sales_chart_widget.xml',
+            'odoo_mrp_planner/static/src/js/customer_analysis_widget.js',
+            'odoo_mrp_planner/static/src/xml/customer_analysis_widget.xml',
             'odoo_mrp_planner/static/src/js/sheet_selector_widget.js',
             'odoo_mrp_planner/static/src/xml/sheet_selector_widget.xml',
         ],

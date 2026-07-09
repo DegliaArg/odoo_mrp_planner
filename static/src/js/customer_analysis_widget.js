@@ -167,6 +167,10 @@ class CustomerAnalysisWidget extends Component {
             expandedRows:      {},
             rowOrders:         {},
             rowOrdersLoading:  {},
+            // Filtros globales
+            filterCategory: null,
+            filterABC:      null,
+            filterFreq:     null,
             // Panel lateral
             panelLoading:   false,
             panelData:      null,
@@ -269,6 +273,16 @@ class CustomerAnalysisWidget extends Component {
                 (r.salesperson    || '').toLowerCase().includes(q)
             );
         }
+        // Filtros de segmento
+        if (this.state.filterCategory !== null) {
+            rows = rows.filter(r => r.customer_category === this.state.filterCategory);
+        }
+        if (this.state.filterABC !== null) {
+            rows = rows.filter(r => r.abc_segment === this.state.filterABC);
+        }
+        if (this.state.filterFreq !== null) {
+            rows = rows.filter(r => r.frequency_segment === this.state.filterFreq);
+        }
         // Ordenamiento
         const col = this.state.sortCol;
         const dir = this.state.sortDir === 'asc' ? 1 : -1;
@@ -331,6 +345,18 @@ class CustomerAnalysisWidget extends Component {
         this.state.productSearch = text;
         this.state.page = 1;
         this._applySort();
+    }
+
+    setFilterCategory(v) { this.state.filterCategory = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
+    setFilterABC(v)      { this.state.filterABC      = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
+    setFilterFreq(v)     { this.state.filterFreq     = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
+
+    get availableCategories() {
+        const seen = new Set();
+        for (const r of this.state.allRows) {
+            if (r.customer_category) seen.add(r.customer_category);
+        }
+        return [...seen].sort();
     }
 
     setGroupBy(key) {
@@ -475,12 +501,12 @@ class CustomerAnalysisWidget extends Component {
     _drawTopChart() {
         const el = this.topChartRef.el;
         if (!el) return;
-        const metric = this.state.chartMetric;
-        const topN   = this.state.chartTopN || 10;
-        const rows   = this.state.allRows.slice(0, topN);
-        if (!rows.length) return;
+        const metric      = this.state.chartMetric;
+        const topN        = this.state.chartTopN;   // null = todos
+        const allFiltered = this._filteredRows || this.state.allRows;
+        if (!allFiltered.length) return;
 
-        const key = `${rows.length}_${metric}_${rows[0].partner_id}`;
+        const key = `${allFiltered.length}_${metric}_${topN}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
         if (key === this._topChartKey) return;
         this._topChartKey = key;
 
@@ -490,7 +516,8 @@ class CustomerAnalysisWidget extends Component {
 
         const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_ticket' };
         const field    = fieldMap[metric] || 'total_amount';
-        rows.sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
+        const sorted   = [...allFiltered].sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
+        const rows     = topN !== null ? sorted.slice(0, topN) : sorted;
         const isAmt    = metric !== 'pedidos';
         const fmtTip   = isAmt
             ? v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v)
@@ -537,11 +564,11 @@ class CustomerAnalysisWidget extends Component {
     _drawTopDonut() {
         const el = this.topDonutRef.el;
         if (!el) return;
-        const rows = this.state.allRows;
+        const rows = this._filteredRows || this.state.allRows;
         if (!rows.length) return;
 
         const donutType = this.state.chartDonut;
-        const key = `${rows.length}_${donutType}_${rows[0]?.partner_id || 0}`;
+        const key = `${rows.length}_${donutType}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
         if (key === this._topDonutKey) return;
         this._topDonutKey = key;
 

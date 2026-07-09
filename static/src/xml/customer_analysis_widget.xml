@@ -8,26 +8,85 @@
         <!-- ══ Main content ══════════════════════════════════════════════════ -->
         <div class="d-flex flex-column">
 
-            <!-- ── Período ──────────────────────────────────────────────────── -->
+            <!-- ── Barra de filtros unificada ──────────────────────────────── -->
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+                <!-- Período -->
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
                            t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
-            </div>
 
-            <!-- ── Sección: Clientes ────────────────────────────────────────── -->
-            <div class="o_planner_section_title mb-3">
-                <i class="fa fa-users me-2 text-muted"/>
-                <span class="text-uppercase fw-bold text-muted small">Clientes</span>
+                <!-- Categoría de cliente -->
+                <t t-if="availableCategories.length">
+                    <div class="vr" style="height:22px;"/>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="small text-muted fw-semibold" style="white-space:nowrap;">Cat.:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button t-att-class="state.filterCategory === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 7px;"
+                                    t-on-click="() => this.setFilterCategory(null)">Todas</button>
+                            <t t-foreach="availableCategories" t-as="cat" t-key="cat">
+                                <button t-att-class="state.filterCategory === cat ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
+                                        style="font-size:11px; padding:1px 7px;"
+                                        t-on-click="() => this.setFilterCategory(cat)">
+                                    <t t-esc="cat"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Segmento ABC -->
+                <div class="vr" style="height:22px;"/>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="small text-muted fw-semibold">ABC:</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button t-att-class="state.filterABC === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterABC(null)">Todos</button>
+                        <button t-att-class="state.filterABC === 'A' ? 'btn btn-success' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterABC('A')">A</button>
+                        <button t-att-class="state.filterABC === 'B' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterABC('B')">B</button>
+                        <button t-att-class="state.filterABC === 'C' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterABC('C')">C</button>
+                    </div>
+                </div>
+
+                <!-- Frecuencia -->
+                <div class="vr" style="height:22px;"/>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="small text-muted fw-semibold" style="white-space:nowrap;">Frec.:</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button t-att-class="state.filterFreq === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterFreq(null)">Todos</button>
+                        <button t-att-class="state.filterFreq === 'frecuente' ? 'btn btn-success' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterFreq('frecuente')">Frecuente</button>
+                        <button t-att-class="state.filterFreq === 'ocasional' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterFreq('ocasional')">Ocasional</button>
+                        <button t-att-class="state.filterFreq === 'en_riesgo' ? 'btn btn-danger' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterFreq('en_riesgo')">Riesgo</button>
+                        <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-dark' : 'btn btn-outline-secondary'"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setFilterFreq('inactivo')">Inactivo</button>
+                    </div>
+                </div>
+
             </div>
-            <hr class="mt-0 mb-3"/>
 
             <!-- ── Gráficos superiores ───────────────────────────────────────── -->
             <t t-if="!state.loading and state.allRows.length">
@@ -54,6 +113,8 @@
                                 <t t-esc="'Top ' + n"/>
                             </button>
                         </t>
+                        <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-secondary' : 'btn-outline-secondary')"
+                                t-on-click="() => this.setChartTopN(null)">Todos</button>
                     </div>
 
                     <div class="vr" style="height:22px;"/>

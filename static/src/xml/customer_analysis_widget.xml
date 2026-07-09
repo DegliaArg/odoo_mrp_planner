@@ -102,8 +102,8 @@
                          style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
                         <p class="small text-muted mb-1 px-1">Cliente</p>
                         <t t-foreach="[
-                            ['customer_category', 'Categoría de cliente'],
-                            ['abc_segment',       'Segmento ABC período'],
+                            ['customer_category', 'Cat. global (A–E del contacto)'],
+                            ['abc_segment',       'ABC período (ranking dinámico)'],
                             ['salesperson',       'Vendedor'],
                             ['country',           'País'],
                             ['province',          'Provincia'],

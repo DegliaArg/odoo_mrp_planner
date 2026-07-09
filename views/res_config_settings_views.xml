@@ -391,7 +391,11 @@
                                                    help="Cantidad de días desde la confirmación del pedido dentro de los cuales se considera que la entrega fue a tiempo."/>
                                         </group>
 
-                                        <group string="Segmento ABC del período">
+                                        <group string="Ranking ABC del período">
+                                            <div class="text-muted small mb-2">
+                                                Se calcula al vuelo sobre el monto del período seleccionado en el widget.
+                                                Es independiente de la Categoría de cliente global (columna "Cat. global").
+                                            </div>
                                             <field name="customer_analysis_abc_a_pct"
                                                    string="A ≤ % acumulado"
                                                    help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>

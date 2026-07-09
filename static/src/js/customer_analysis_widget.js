@@ -17,8 +17,8 @@ import { PlannerSearchBar } from "./planner_search_bar";
 // ── Columnas estáticas (producto del menú de columnas) ────────────────────────
 const CA_STATIC_COLS = [
     { key: 'partner_name',      label: 'Cliente',          width: 200, fixed: true,  align: 'start'  },
-    { key: 'customer_category', label: 'Cat.',              width:  55, align: 'center' },
-    { key: 'abc_segment',       label: 'ABC',               width:  55, align: 'center' },
+    { key: 'customer_category', label: 'Cat. global',        width:  80, align: 'center' },
+    { key: 'abc_segment',       label: 'ABC período',        width:  80, align: 'center' },
     { key: 'salesperson',       label: 'Vendedor',          width: 130, align: 'start'  },
     { key: 'country',           label: 'País',              width: 110, align: 'start'  },
     { key: 'province',          label: 'Provincia',         width: 120, align: 'start'  },

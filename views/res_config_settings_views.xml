@@ -393,9 +393,11 @@
 
                                         <group string="Segmento ABC del período">
                                             <field name="customer_analysis_abc_a_pct"
+                                                   string="A ≤ % acumulado"
                                                    help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>
                                             <field name="customer_analysis_abc_b_pct"
-                                                   help="Del monto restante tras el segmento A, los clientes que acumulan el siguiente Y% se clasifican como B. El resto queda en C. Ambos porcentajes son acumulados desde el inicio."/>
+                                                   string="B ≤ % acumulado (C = resto)"
+                                                   help="Los clientes que acumulan hasta este % del monto total se clasifican como B. El resto queda en C. Ambos porcentajes son acumulados desde el inicio, incluyendo el segmento A."/>
                                         </group>
 
                                         <group string="Umbrales semáforo — % Entrega">

@@ -368,8 +368,8 @@ class MrpRescheduleConfig(models.Model):
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
     customer_analysis_ontime_method = fields.Selection([
-        ('commitment_date', 'Fecha compromiso del pedido (commitment_date)'),
-        ('scheduled_date',  'Fecha programada del envío (scheduled_date)'),
+        ('commitment_date', 'Fecha compromiso del pedido'),
+        ('scheduled_date',  'Fecha programada del envío'),
         ('sla_days',        'Días desde confirmación del pedido'),
     ], string='Método "entrega a tiempo"', default='commitment_date',
        help='Define cómo se calcula si una entrega fue a tiempo.\n'

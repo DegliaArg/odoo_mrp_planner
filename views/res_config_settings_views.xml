@@ -207,7 +207,7 @@
                         <page string="Ventas" name="sales">
                             <div class="row">
 
-                                <!-- ── Columna izquierda: categorías ──────────────── -->
+                                <!-- ── Columna izquierda: categorías + análisis ───── -->
                                 <div class="col-6">
 
                                     <group string="Categorías de venta">
@@ -368,86 +368,63 @@
                                         </div>
                                     </group>
 
+                                    <!-- ── Análisis de clientes (izquierda, debajo de categorías) ── -->
+                                    <group string="Análisis de clientes">
+
+                                        <group string="Método — Entrega a tiempo">
+                                            <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"
+                                                   help="Define cómo se calcula si una entrega fue a tiempo: comparando con la fecha pactada en el pedido, con la fecha del picking de salida, o con un plazo fijo en días desde la confirmación."/>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="customer_analysis_ontime_method != 'commitment_date'">
+                                                Compara la fecha real de entrega con la fecha pactada con el cliente en el pedido de venta. Es la opción más precisa si tu equipo gestiona esa fecha.
+                                            </div>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="customer_analysis_ontime_method != 'scheduled_date'">
+                                                Usa la fecha programada del picking de salida. Refleja la planificación logística, independientemente de lo comprometido con el cliente.
+                                            </div>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="customer_analysis_ontime_method != 'sla_days'">
+                                                Considera a tiempo si se entregó dentro de N días desde la confirmación del pedido. Ideal cuando no se usan fechas de compromiso.
+                                            </div>
+                                            <field name="customer_analysis_sla_days"
+                                                   invisible="customer_analysis_ontime_method != 'sla_days'"
+                                                   help="Cantidad de días desde la confirmación del pedido dentro de los cuales se considera que la entrega fue a tiempo."/>
+                                        </group>
+
+                                        <group string="Segmento ABC del período">
+                                            <field name="customer_analysis_abc_a_pct"
+                                                   help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>
+                                            <field name="customer_analysis_abc_b_pct"
+                                                   help="Del monto restante tras el segmento A, los clientes que acumulan el siguiente Y% se clasifican como B. El resto queda en C. Ambos porcentajes son acumulados desde el inicio."/>
+                                        </group>
+
+                                        <group string="Umbrales semáforo — % Entrega">
+                                            <field name="customer_analysis_delivery_warn_pct"
+                                                   help="Por debajo de este porcentaje de entrega (qty entregada ÷ qty pedida × 100), la celda se muestra en amarillo en el análisis de clientes."/>
+                                            <field name="customer_analysis_delivery_crit_pct"
+                                                   help="Por debajo de este porcentaje de entrega, la celda se muestra en rojo."/>
+                                        </group>
+
+                                        <group string="Umbrales semáforo — % A tiempo">
+                                            <field name="customer_analysis_ontime_warn_pct"
+                                                   help="Por debajo de este porcentaje de entregas a tiempo, la celda se muestra en amarillo."/>
+                                            <field name="customer_analysis_ontime_crit_pct"
+                                                   help="Por debajo de este porcentaje de entregas a tiempo, la celda se muestra en rojo."/>
+                                        </group>
+
+                                        <group string="General">
+                                            <field name="customer_analysis_risk_days"
+                                                   help="Un cliente que no compra hace más de este número de días se clasifica como &quot;en riesgo&quot; en la columna de segmento de frecuencia."/>
+                                            <field name="customer_analysis_default_period"
+                                                   help="Rango de fechas preseleccionado al abrir el widget de análisis de clientes."/>
+                                        </group>
+
+                                    </group>
+
                                 </div>
 
-                                <!-- ── Columna derecha: análisis de clientes + forecast ── -->
+                                <!-- ── Columna derecha: forecast ──────────────────── -->
                                 <div class="col-6">
-
-                                    <group string="Análisis de clientes">
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Método "entrega a tiempo"</span>
-                                                <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"/>
-                                                <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                     invisible="customer_analysis_ontime_method != 'commitment_date'">
-                                                    Compara la fecha real de entrega con la fecha pactada con el cliente en el pedido de venta (<i>commitment_date</i>). Es la opción más precisa si tu equipo gestiona esa fecha.
-                                                </div>
-                                                <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                     invisible="customer_analysis_ontime_method != 'scheduled_date'">
-                                                    Usa la fecha programada del picking de salida (<i>scheduled_date</i>). Refleja la planificación logística, independientemente de lo comprometido con el cliente.
-                                                </div>
-                                                <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                     invisible="customer_analysis_ontime_method != 'sla_days'">
-                                                    Considera a tiempo si se entregó dentro de N días desde la confirmación del pedido. Ideal cuando no se usan fechas de compromiso.
-                                                    <div class="d-flex align-items-center gap-2 mt-1">
-                                                        <span>Plazo:</span>
-                                                        <field name="customer_analysis_sla_days" nolabel="1" class="w-auto"/>
-                                                        <span>días</span>
-                                                    </div>
-                                                </div>
-
-                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Segmento ABC del período</span>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small">A ≤</span>
-                                                    <field name="customer_analysis_abc_a_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">% · B ≤</span>
-                                                    <field name="customer_analysis_abc_b_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">% (acumulado) · C = resto</span>
-                                                </div>
-                                                <div class="text-muted small mt-1">
-                                                    Calculado sobre el monto del período seleccionado en el widget, independiente de la categoría de cliente global.
-                                                </div>
-
-                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Cliente en riesgo</span>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small">Sin comprar hace más de</span>
-                                                    <field name="customer_analysis_risk_days" nolabel="1" class="w-auto"/>
-                                                    <span class="small">días</span>
-                                                </div>
-
-                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Período por defecto al abrir</span>
-                                                <field name="customer_analysis_default_period" nolabel="1"/>
-                                            </div>
-                                            <div class="col-6">
-                                                <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales semáforo — % entrega</span>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small text-warning fw-bold">⚠</span>
-                                                    <span class="small">Amarillo por debajo de</span>
-                                                    <field name="customer_analysis_delivery_warn_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">%</span>
-                                                </div>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small text-danger fw-bold">✕</span>
-                                                    <span class="small">Rojo por debajo de</span>
-                                                    <field name="customer_analysis_delivery_crit_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">%</span>
-                                                </div>
-                                                <span class="fw-semibold d-block mb-1 mt-3" style="font-size:0.85rem; color:#6c757d;">Umbrales semáforo — % a tiempo</span>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small text-warning fw-bold">⚠</span>
-                                                    <span class="small">Amarillo por debajo de</span>
-                                                    <field name="customer_analysis_ontime_warn_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">%</span>
-                                                </div>
-                                                <div class="d-flex align-items-center gap-2 mt-1">
-                                                    <span class="small text-danger fw-bold">✕</span>
-                                                    <span class="small">Rojo por debajo de</span>
-                                                    <field name="customer_analysis_ontime_crit_pct" nolabel="1" class="w-auto"/>
-                                                    <span class="small">%</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </group>
 
                                     <group string="Forecast — Visualización">
                                         <field name="forecast_default_months"

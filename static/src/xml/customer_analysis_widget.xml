@@ -23,6 +23,72 @@
                 </div>
             </div>
 
+            <!-- ── Gráficos superiores ───────────────────────────────────────── -->
+            <t t-if="!state.loading and state.allRows.length">
+
+                <!-- Filtros de gráficos (misma estética que panel de ventas) -->
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+
+                    <div class="btn-group btn-group-sm" role="group">
+                        <t t-foreach="[['pxq','PxQ'],['pedidos','Pedidos'],['ticket','Ticket']]"
+                           t-as="m" t-key="m[0]">
+                            <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-info' : 'btn-outline-secondary')"
+                                    t-on-click="() => this.setChartMetric(m[0])">
+                                <t t-esc="m[1]"/>
+                            </button>
+                        </t>
+                    </div>
+
+                    <div class="vr" style="height:22px;"/>
+
+                    <div class="btn-group btn-group-sm" role="group">
+                        <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                            <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    t-on-click="() => this.setChartTopN(n)">
+                                Top <t t-esc="n"/>
+                            </button>
+                        </t>
+                    </div>
+
+                    <div class="vr" style="height:22px;"/>
+
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="small text-muted fw-semibold">Torta:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <t t-foreach="[['abc','ABC período'],['cat','Cat. global'],['freq','Frecuencia']]"
+                               t-as="d" t-key="d[0]">
+                                <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
+                                        t-on-click="() => this.setChartDonut(d[0])">
+                                    <t t-esc="d[1]"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Torta (flex:1 ≈ 30%) + Barras (flex:2 ≈ 70%) -->
+                <div class="d-flex gap-3 align-items-start mb-4">
+
+                    <div style="flex:1; min-width:0;">
+                        <p class="text-center small text-muted fw-semibold mb-1" style="font-size:11px;">
+                            <t t-if="state.chartDonut === 'abc'">Distribución por ABC período</t>
+                            <t t-elif="state.chartDonut === 'cat'">Distribución por Cat. global</t>
+                            <t t-else="">Distribución por frecuencia</t>
+                        </p>
+                        <div style="position:relative; height:300px;">
+                            <canvas t-ref="topDonut"/>
+                        </div>
+                    </div>
+
+                    <div style="flex:2; min-width:0; position:relative; height:320px;">
+                        <canvas t-ref="topChart"/>
+                    </div>
+
+                </div>
+
+            </t>
+
             <!-- ── KPI cards ─────────────────────────────────────────────────── -->
             <div class="row g-2 mb-3">
                 <div class="col-6 col-md-3">
@@ -68,17 +134,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- ── Gráfico top clientes ──────────────────────────────────────── -->
-            <t t-if="!state.loading and state.allRows.length">
-                <div class="o_planner_section_title mb-2">
-                    <i class="fa fa-bar-chart me-1 text-muted"/>
-                    <span class="text-uppercase fw-bold text-muted small">Top 10 clientes por monto</span>
-                </div>
-                <div class="border rounded mb-3" style="height:190px; padding:8px 4px 4px 4px;">
-                    <canvas t-ref="topChart"/>
-                </div>
-            </t>
 
             <!-- ── Controles ─────────────────────────────────────────────────── -->
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">

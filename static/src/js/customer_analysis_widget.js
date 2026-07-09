@@ -571,7 +571,7 @@ class CustomerAnalysisWidget extends Component {
         const titles = {
             partner_name:      'Nombre del cliente. Clic para ordenar.',
             customer_category: 'Categoría de cliente (A–E) calculada globalmente por el módulo según el método configurado en Ajustes.',
-            abc_segment:       'Segmento ABC calculado para el período seleccionado: A = top clientes por monto acumulado, B = siguiente segmento, C = resto. Los umbrales se configuran en Ajustes.',
+            abc_segment:       'Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto. Los umbrales se configuran en Ajustes.',
             salesperson:       'Vendedor más frecuente en los pedidos del período.',
             country:           'País del cliente. Clic para ordenar.',
             province:          'Provincia del cliente. Clic para ordenar.',

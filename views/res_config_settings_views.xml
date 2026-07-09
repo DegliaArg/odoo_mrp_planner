@@ -393,8 +393,7 @@
 
                                         <group string="Ranking ABC del período">
                                             <div class="text-muted small mb-2">
-                                                Se calcula al vuelo sobre el monto del período seleccionado en el widget.
-                                                Es independiente de la Categoría de cliente global (columna "Cat. global").
+                                                Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto.
                                             </div>
                                             <field name="customer_analysis_abc_a_pct"
                                                    string="A ≤ % acumulado"

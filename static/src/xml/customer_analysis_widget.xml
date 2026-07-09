@@ -8,7 +8,7 @@
          style="font-size:13px; min-height:500px;">
 
         <!-- ══ Main content ══════════════════════════════════════════════════ -->
-        <div class="d-flex flex-column flex-grow-1 min-w-0 overflow-hidden">
+        <div class="d-flex flex-column flex-grow-1 min-w-0">
 
             <!-- ── Período ──────────────────────────────────────────────────── -->
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">

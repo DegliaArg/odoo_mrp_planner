@@ -281,6 +281,7 @@ class CustomerAnalysisWidget extends Component {
         });
 
         this.state.totalFiltered = rows.length;
+        this._filteredRows = rows;
 
         // Agrupamiento (sólo afecta la vista, no el orden interno del grupo)
         if (this.state.groupBy) {
@@ -466,6 +467,7 @@ class CustomerAnalysisWidget extends Component {
 
         const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_ticket' };
         const field    = fieldMap[metric] || 'total_amount';
+        rows.sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
         const isAmt    = metric !== 'pedidos';
         const fmtTip   = isAmt
             ? v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v)
@@ -739,6 +741,62 @@ class CustomerAnalysisWidget extends Component {
                 },
             });
         }
+    }
+
+    // ── Exportar Excel ───────────────────────────────────────────────────────
+
+    exportToExcel() {
+        const cols = this.staticVisibleCols;
+        const rows = this._filteredRows || this.state.allRows;
+
+        const cellVal = (row, key) => {
+            const v = row[key];
+            if (v === null || v === undefined) return '';
+            if (['delivery_pct', 'ontime_pct', 'trend_pct'].includes(key))
+                return v.toFixed(1) + '%';
+            if (['avg_days_between', 'days_since_last'].includes(key) && v !== null)
+                return v + ' d';
+            return v;
+        };
+
+        let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="Clientes">
+  <Table>
+   <Row>`;
+        cols.forEach(c => {
+            xml += `<Cell><Data ss:Type="String">${this._escXml(c.label)}</Data></Cell>`;
+        });
+        xml += '</Row>';
+        rows.forEach(row => {
+            xml += '<Row>';
+            cols.forEach(c => {
+                const v = cellVal(row, c.key);
+                const type = typeof v === 'number' ? 'Number' : 'String';
+                xml += `<Cell><Data ss:Type="${type}">${this._escXml(String(v))}</Data></Cell>`;
+            });
+            xml += '</Row>';
+        });
+        xml += `  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `clientes_${this.state.dateFrom}_${this.state.dateTo}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    _escXml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     // ── Formateo y semáforos ──────────────────────────────────────────────────

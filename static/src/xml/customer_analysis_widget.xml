@@ -2,12 +2,11 @@
 <templates xml:space="preserve">
 
 <t t-name="odoo_mrp_planner.CustomerAnalysisWidget">
-    <div class="d-flex align-items-start gap-0"
-         t-att-class="state.loading ? 'opacity-50 pe-none' : ''"
+    <div t-att-class="state.loading ? 'opacity-50 pe-none' : ''"
          style="font-size:13px; min-height:500px;">
 
         <!-- ══ Main content ══════════════════════════════════════════════════ -->
-        <div class="d-flex flex-column flex-grow-1 min-w-0">
+        <div class="d-flex flex-column">
 
             <!-- ── Período ──────────────────────────────────────────────────── -->
             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
@@ -370,37 +369,51 @@
         </div>
         <!-- ── fin main content ── -->
 
-        <!-- ══ o_aside: panel lateral ════════════════════════════════════════ -->
-        <div t-if="state.panelOpen"
-             class="o_aside border-start d-flex flex-column flex-shrink-0 ms-3"
-             style="width:400px; overflow-y:auto; max-height:80vh; background:var(--bs-body-bg, #fff);">
+        <!-- ══ Backdrop ══════════════════════════════════════════════════════ -->
+        <div t-att-class="'offcanvas-backdrop fade' + (state.panelOpen ? ' show' : '')"
+             t-att-style="state.panelOpen ? 'opacity:0.5;' : 'opacity:0; pointer-events:none;'"
+             style="z-index:1044; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; transition:opacity 0.3s;"
+             t-on-click="closePanel"/>
 
-            <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom position-sticky top-0"
-                 style="background:var(--bs-body-bg, #fff); z-index:2;">
+        <!-- ══ Offcanvas ══════════════════════════════════════════════════════ -->
+        <div t-att-class="'offcanvas offcanvas-end' + (state.panelOpen ? ' show' : '')"
+             style="width:520px; z-index:1045;">
+
+            <!-- Header -->
+            <div class="offcanvas-header border-bottom py-2">
                 <div>
-                    <div class="fw-semibold" style="font-size:0.95rem;">
+                    <h6 class="offcanvas-title mb-0 fw-semibold" style="font-size:0.95rem;">
                         <t t-esc="state.panelData ? state.panelData.partner_name : '…'"/>
-                    </div>
-                    <div class="text-muted" style="font-size:0.78rem;">Detalle del período</div>
+                    </h6>
+                    <small class="text-muted">Detalle del período</small>
                 </div>
-                <button class="btn btn-sm btn-link text-muted p-0" title="Cerrar panel"
-                        t-on-click="closePanel">
-                    <i class="fa fa-times"/>
-                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <button t-if="state.panelPartnerId"
+                            class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            style="font-size:11px;"
+                            title="Abrir ficha del contacto"
+                            t-on-click="() => this.openCustomer(state.panelPartnerId)">
+                        <i class="fa fa-external-link me-1"/>Abrir
+                    </button>
+                    <button class="btn-close" title="Cerrar" t-on-click="closePanel"/>
+                </div>
             </div>
 
-            <t t-if="state.panelLoading">
-                <div class="d-flex justify-content-center align-items-center py-5">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status"/>
-                </div>
-            </t>
+            <!-- Body -->
+            <div class="offcanvas-body p-3">
 
-            <t t-if="!state.panelLoading and state.panelData">
-                <div class="p-3">
+                <t t-if="state.panelLoading">
+                    <div class="d-flex justify-content-center align-items-center py-5">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"/>
+                    </div>
+                </t>
 
+                <t t-if="!state.panelLoading and state.panelData">
+
+                    <!-- KPIs del cliente -->
                     <t t-set="panelRow" t-value="state.allRows.find(r => r.partner_id === state.panelPartnerId)"/>
                     <t t-if="panelRow">
-                        <div class="row g-2 mb-3">
+                        <div class="row g-2 mb-4">
                             <div class="col-6">
                                 <div class="card o_planner_card h-100">
                                     <div class="card-body text-center py-2">
@@ -453,39 +466,42 @@
                         </div>
                     </t>
 
+                    <!-- Gráfico: monto mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-bar-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
                         </div>
-                        <div style="height:140px; margin-bottom:16px;">
+                        <div style="height:160px; margin-bottom:20px;">
                             <canvas t-ref="panelBarCanvas"/>
                         </div>
                     </t>
 
+                    <!-- Gráfico: % entrega mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.filter(m => m.delivery_pct !== null).length > 1">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-line-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
                         </div>
-                        <div style="height:120px; margin-bottom:16px;">
+                        <div style="height:140px; margin-bottom:20px;">
                             <canvas t-ref="panelLineCanvas"/>
                         </div>
                     </t>
 
+                    <!-- Gráfico: mix de familias -->
                     <t t-if="state.panelData.family_mix and state.panelData.family_mix.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-pie-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
                         </div>
-                        <div style="height:170px; margin-bottom:8px;">
+                        <div style="height:220px; margin-bottom:8px;">
                             <canvas t-ref="panelDonutCanvas"/>
                         </div>
                     </t>
 
-                </div>
-            </t>
+                </t>
 
+            </div>
         </div>
 
     </div>

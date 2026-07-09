@@ -396,7 +396,7 @@ class CustomerAnalysisWidget extends Component {
         this.state.panelPartnerId = partnerId;
         this.state.panelData      = null;
         this.state.panelLoading   = true;
-        this._destroyCharts();
+        this._destroyPanelCharts();
         try {
             const data  = await this.orm.call(
                 'mrp.planner.dashboard',
@@ -412,8 +412,15 @@ class CustomerAnalysisWidget extends Component {
     }
 
     closePanel() {
-        this.state.panelOpen = false;
-        this._destroyCharts();
+        this.state.panelOpen  = false;
+        this.state.panelData  = null;
+        this._destroyPanelCharts();
+    }
+
+    _destroyPanelCharts() {
+        if (this._barChart)   { this._barChart.destroy();   this._barChart   = null; }
+        if (this._donutChart) { this._donutChart.destroy(); this._donutChart = null; }
+        if (this._lineChart)  { this._lineChart.destroy();  this._lineChart  = null; }
     }
 
     openOrder(orderId) {

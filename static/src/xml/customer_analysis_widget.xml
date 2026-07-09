@@ -204,6 +204,12 @@
             </span>
         </div>
 
+        <!-- ── Error backend ──────────────────────────────────────────────── -->
+        <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+            <i class="fa fa-exclamation-triangle me-2"/>
+            Error al cargar datos: <strong><t t-esc="state.loadError"/></strong>
+        </div>
+
         <!-- ── Tabla ───────────────────────────────────────────────────────── -->
         <div class="table-responsive" style="max-height:60vh; overflow-y:auto;">
             <table class="table table-sm table-hover mb-0 align-middle"
@@ -212,9 +218,8 @@
                 <thead style="position:sticky; top:0; z-index:3;">
                     <tr>
                         <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
-                            <th rowspan="1"
-                                t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
-                                t-att-style="'padding:4px 6px; background:#f8f9fa; cursor:pointer; user-select:none; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
+                            <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
                                 t-att-title="colTitle(col)"
                                 t-att-data-col-key="col.key"
                                 t-att-draggable="col.fixed ? 'false' : 'true'"
@@ -222,7 +227,7 @@
                                 t-on-dragover="cols.onDragOver"
                                 t-on-drop="cols.onDrop"
                                 t-on-dragend="cols.onDragEnd"
-                                t-on-click="() => onColHeaderClick(col)">
+                                t-on-click="() => this.onColHeaderClick(col)">
                                 <t t-esc="col.label"/>
                                 <i t-att-class="sortIcon(caSortKeys[col.key])"/>
                                 <div class="o_col_resize_handle"
@@ -231,7 +236,7 @@
                                      t-on-click.stop="() => {}"/>
                             </th>
                         </t>
-                        <th style="padding:4px 6px; background:#f8f9fa; width:36px;"/>
+                        <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
                     </tr>
                 </thead>
 

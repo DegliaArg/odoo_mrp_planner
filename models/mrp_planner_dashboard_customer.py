@@ -92,7 +92,12 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         :param warehouse_ids: list[int] | None — almacenes a incluir; None = todos.
         :returns: dict con claves 'rows' (list) y 'config' (dict de umbrales).
         """
-        cfg = self._ca_config()
+        empty_kpis = {'total_customers': 0, 'avg_ticket': 0, 'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None}
+        try:
+            cfg = self._ca_config()
+        except Exception as e:
+            _logger.error('[CustomerAnalysis] _ca_config error: %s', e, exc_info=True)
+            cfg = {}
         today = fields.Date.today()
 
         d_from_str = period_from + ' 00:00:00'
@@ -101,28 +106,29 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         d_to   = datetime.strptime(period_to,   '%Y-%m-%d')
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
-        # ── 1. Órdenes de venta confirmadas en el período ────────────────────
-        so_domain = [
-            ('state', 'in', ['sale', 'done']),
-            ('date_order', '>=', d_from_str),
-            ('date_order', '<=', d_to_str),
-        ] + wh_domain
-        orders = self.env['sale.order'].search(so_domain)
-        _logger.info('[CustomerAnalysis] period %s – %s → %d orders', period_from, period_to, len(orders))
-        if not orders:
-            return {'rows': [], 'kpis': {'total_customers': 0, 'avg_ticket': 0, 'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None}, 'config': cfg}
+        try:
+            # ── 1. Órdenes de venta confirmadas en el período ────────────────────
+            so_domain = [
+                ('state', 'in', ['sale', 'done']),
+                ('date_order', '>=', d_from_str),
+                ('date_order', '<=', d_to_str),
+            ] + wh_domain
+            orders = self.env['sale.order'].sudo().search(so_domain)
+            _logger.info('[CustomerAnalysis] period %s – %s → %d orders', period_from, period_to, len(orders))
+            if not orders:
+                return {'rows': [], 'kpis': empty_kpis, 'config': cfg}
 
-        so_data = orders.read([
-            'id', 'name', 'partner_id', 'date_order',
-            'amount_untaxed', 'commitment_date', 'user_id', 'state',
-        ])
+            so_data = orders.read([
+                'id', 'name', 'partner_id', 'date_order',
+                'amount_untaxed', 'commitment_date', 'user_id', 'state',
+            ])
 
-        # ── 2. Líneas: qty pedida, entregada y monto por orden ───────────────
-        sol_groups = self.env['sale.order.line'].read_group(
-            [('order_id', 'in', orders.ids)],
-            ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
-            ['order_id'],
-        )
+            # ── 2. Líneas: qty pedida, entregada y monto por orden ───────────────
+            sol_groups = self.env['sale.order.line'].sudo().read_group(
+                [('order_id', 'in', orders.ids)],
+                ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
+                ['order_id'],
+            )
         sol_qty_by_order = {
             g['order_id'][0]: {
                 'ordered':   g['product_uom_qty'] or 0.0,
@@ -132,7 +138,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         }
 
         # Top producto y familia: necesitamos granularidad por (partner, producto)
-        sol_detail = self.env['sale.order.line'].read_group(
+        sol_detail = self.env['sale.order.line'].sudo().read_group(
             [('order_id', 'in', orders.ids)],
             ['order_id', 'product_id', 'price_subtotal:sum'],
             ['order_id', 'product_id'],
@@ -141,7 +147,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         order_to_partner = {s['id']: s['partner_id'][0] for s in so_data}
 
         prod_ids = list({g['product_id'][0] for g in sol_detail if g.get('product_id')})
-        prod_info_list = self.env['product.product'].browse(prod_ids).read(
+        prod_info_list = self.env['product.product'].sudo().browse(prod_ids).read(
             ['id', 'product_tmpl_id', 'categ_id']
         )
         prod_info = {p['id']: p for p in prod_info_list}
@@ -166,7 +172,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 partner_fam[pid][categ_name] += amt
 
         # ── 3. Pickings de salida para cálculo de puntualidad ────────────────
-        pickings = self.env['stock.picking'].search([
+        pickings = self.env['stock.picking'].sudo().search([
             ('sale_id', 'in', orders.ids),
             ('state', '=', 'done'),
             ('picking_type_code', '=', 'outgoing'),
@@ -179,13 +185,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         so_date_order = {s['id']: s['date_order']          for s in so_data}
 
         # ── 4. Período anterior para tendencia ───────────────────────────────
-        duration_days = max(1, (d_to - d_from).days)
-        d_from_prev   = d_from - timedelta(days=duration_days + 1)
-        d_to_prev     = d_from - timedelta(days=1)
-        prev_groups   = self.env['sale.order'].read_group(
+        duration_days   = max(1, (d_to - d_from).days)
+        d_from_prev     = d_from - timedelta(days=duration_days + 1)
+        d_to_prev       = d_from - timedelta(days=1)
+        d_from_prev_str = d_from_prev.strftime('%Y-%m-%d 00:00:00')
+        d_to_prev_str   = d_to_prev.strftime('%Y-%m-%d 23:59:59')
+        prev_groups   = self.env['sale.order'].sudo().read_group(
             [('state', 'in', ['sale', 'done']),
-             ('date_order', '>=', d_from_prev),
-             ('date_order', '<=', d_to_prev)] + wh_domain,
+             ('date_order', '>=', d_from_prev_str),
+             ('date_order', '<=', d_to_prev_str)] + wh_domain,
             ['partner_id', 'amount_untaxed:sum'],
             ['partner_id'],
         )
@@ -198,7 +206,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         # Info de partners (bulk)
         partner_ids = list(partner_sos.keys())
-        partners_read = self.env['res.partner'].browse(partner_ids).read(
+        partners_read = self.env['res.partner'].sudo().browse(partner_ids).read(
             ['id', 'name', 'x_customer_category', 'country_id', 'state_id']
         )
         partner_info = {p['id']: p for p in partners_read}
@@ -304,17 +312,21 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         freq_vals     = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]
         avg_freq      = round(sum(freq_vals) / len(freq_vals), 1) if freq_vals else None
 
-        return {
-            'rows': rows,
-            'kpis': {
-                'total_customers':  total_customers,
-                'avg_ticket':       avg_ticket_global,
-                'avg_delivery_pct': avg_delivery,
-                'avg_ontime_pct':   avg_ontime,
-                'avg_days_between': avg_freq,
-            },
-            'config': cfg,
-        }
+            return {
+                'rows': rows,
+                'kpis': {
+                    'total_customers':  total_customers,
+                    'avg_ticket':       avg_ticket_global,
+                    'avg_delivery_pct': avg_delivery,
+                    'avg_ontime_pct':   avg_ontime,
+                    'avg_days_between': avg_freq,
+                },
+                'config': cfg,
+            }
+
+        except Exception as e:
+            _logger.error('[CustomerAnalysis] get_customer_analysis_data error: %s', e, exc_info=True)
+            return {'rows': [], 'kpis': empty_kpis, 'config': cfg, 'error': str(e)}
 
     # ── Detalle de un cliente (panel lateral) ────────────────────────────────
 

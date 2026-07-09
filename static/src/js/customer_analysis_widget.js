@@ -117,6 +117,7 @@ class CustomerAnalysisWidget extends Component {
         const period = defaultPeriod();
         this.state = useState({
             loading:       true,
+            loadError:     null,
             dateFrom:      period.from,
             dateTo:        period.to,
             allRows:       [],
@@ -184,23 +185,28 @@ class CustomerAnalysisWidget extends Component {
     // ── Carga de datos ────────────────────────────────────────────────────────
 
     async _load() {
-        this.state.loading = true;
+        this.state.loading   = true;
+        this.state.loadError = null;
         try {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
                 [this.state.dateFrom, this.state.dateTo, null]
             );
+            if (res.error) {
+                this.state.loadError = res.error;
+                console.error('[CustomerAnalysis] backend error:', res.error);
+            }
             this.state.allRows = res.rows || [];
             this.state.kpis    = res.kpis  || {};
             this.state.config  = res.config || {};
-            // Ocultar columna categoría si está deshabilitada en config
-            if (!res.config.show_category) {
+            if (res.config && !res.config.show_category) {
                 this.state.visibleCols.customer_category = false;
             }
             this._applySort();
         } catch (e) {
             console.error('[CustomerAnalysis]', e);
+            this.state.loadError = e?.message || String(e);
         } finally {
             this.state.loading = false;
         }

@@ -99,36 +99,6 @@
         <!-- ── Barra de controles ──────────────────────────────────────────── -->
         <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
 
-            <!-- Depósito dropdown -->
-            <div t-if="state.warehouses.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
-                <label class="form-label mb-0 small text-muted">Depósito</label>
-                <div class="position-relative">
-                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                            style="min-width:140px;"
-                            t-on-click="toggleWhDropdown">
-                        <span class="text-truncate" style="max-width:110px;"><t t-esc="selectedWhLabel"/></span>
-                        <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                    </button>
-                    <div t-if="state.whDropdownOpen"
-                         class="dropdown-menu show shadow p-2"
-                         style="min-width:180px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                        <div t-att-class="'o_planner_search_item' + (!state.warehouseId ? ' active' : '')"
-                             t-on-click.stop="() => selectWarehouse(null)">
-                            <i t-att-class="'fa fa-fw ' + (!state.warehouseId ? 'fa-check' : '')"/>
-                            <span class="fw-semibold">Todos</span>
-                        </div>
-                        <div class="dropdown-divider my-1"/>
-                        <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
-                            <div t-att-class="'o_planner_search_item' + (state.warehouseId === wh.id ? ' active' : '')"
-                                 t-on-click.stop="() => selectWarehouse(wh.id)">
-                                <i t-att-class="'fa fa-fw ' + (state.warehouseId === wh.id ? 'fa-check' : '')"/>
-                                <t t-esc="wh.name"/>
-                            </div>
-                        </t>
-                    </div>
-                </div>
-            </div>
-
             <!-- Barra de búsqueda + filtros + agrupamiento -->
             <PlannerSearchBar
                 widgetKey="'customer_analysis'"

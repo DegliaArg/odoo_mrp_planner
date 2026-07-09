@@ -65,27 +65,11 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function defaultPeriod(cfg) {
+function defaultPeriod() {
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    if ((cfg && cfg.default_period) === 'month') {
-        return {
-            from: toDateStr(new Date(y, m, 1)),
-            to:   toDateStr(new Date(y, m + 1, 0)),
-        };
-    }
-    if ((cfg && cfg.default_period) === 'year') {
-        return {
-            from: toDateStr(new Date(y, 0, 1)),
-            to:   toDateStr(new Date(y, 11, 31)),
-        };
-    }
-    // quarter (default)
-    const q = Math.floor(m / 3);
-    return {
-        from: toDateStr(new Date(y, q * 3, 1)),
-        to:   toDateStr(new Date(y, q * 3 + 3, 0)),
-    };
+    const from = new Date(now);
+    from.setDate(from.getDate() - 90);
+    return { from: toDateStr(from), to: toDateStr(now) };
 }
 
 function monthLabel(ym) {
@@ -130,14 +114,11 @@ class CustomerAnalysisWidget extends Component {
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
         this.caSortKeys = CA_SORT_KEYS;
 
-        const period = defaultPeriod(null);
+        const period = defaultPeriod();
         this.state = useState({
             loading:       true,
             dateFrom:      period.from,
             dateTo:        period.to,
-            warehouseId:   null,
-            warehouses:    [],
-            whDropdownOpen: false,
             allRows:       [],
             rows:          [],
             kpis:          { total_customers: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
@@ -181,12 +162,10 @@ class CustomerAnalysisWidget extends Component {
 
         this._closeDropdowns = () => {
             this.state.colsDropdownOpen = false;
-            this.state.whDropdownOpen   = false;
         };
 
         onMounted(async () => {
             document.addEventListener('click', this._closeDropdowns);
-            await this._loadWarehouses();
             await this._load();
         });
 
@@ -204,25 +183,13 @@ class CustomerAnalysisWidget extends Component {
 
     // ── Carga de datos ────────────────────────────────────────────────────────
 
-    async _loadWarehouses() {
-        try {
-            const whs = await this.orm.searchRead(
-                'stock.warehouse', [], ['id', 'name'], { order: 'name asc' }
-            );
-            this.state.warehouses = whs;
-        } catch (e) {
-            console.error('[CustomerAnalysis] warehouses', e);
-        }
-    }
-
     async _load() {
         this.state.loading = true;
         try {
-            const whIds = this.state.warehouseId ? [this.state.warehouseId] : null;
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
-                [this.state.dateFrom, this.state.dateTo, whIds]
+                [this.state.dateFrom, this.state.dateTo, null]
             );
             this.state.allRows = res.rows || [];
             this.state.kpis    = res.kpis  || {};
@@ -301,23 +268,6 @@ class CustomerAnalysisWidget extends Component {
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
-
-    toggleWhDropdown(ev) {
-        ev.stopPropagation();
-        this.state.whDropdownOpen = !this.state.whDropdownOpen;
-    }
-
-    selectWarehouse(id) {
-        this.state.warehouseId   = id;
-        this.state.whDropdownOpen = false;
-        this._load();
-    }
-
-    get selectedWhLabel() {
-        if (!this.state.warehouseId) return 'Todos los depósitos';
-        const wh = this.state.warehouses.find(w => w.id === this.state.warehouseId);
-        return wh ? wh.name : 'Todos los depósitos';
-    }
 
     toggleColsDropdown(ev) {
         ev.stopPropagation();
@@ -400,11 +350,10 @@ class CustomerAnalysisWidget extends Component {
         this.state.panelLoading   = true;
         this._destroyCharts();
         try {
-            const whIds = this.state.warehouseId ? [this.state.warehouseId] : null;
             const data  = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_detail',
-                [partnerId, this.state.dateFrom, this.state.dateTo, whIds]
+                [partnerId, this.state.dateFrom, this.state.dateTo, null]
             );
             this.state.panelData = data;
         } catch (e) {

@@ -102,306 +102,311 @@
             </div>
             <hr class="mt-0 mb-3"/>
 
-            <!-- ── KPI cards ─────────────────────────────────────────────────── -->
-            <div class="row g-2 mb-3">
-                <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         title="Clientes con al menos un pedido confirmado en el período.">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-users fa-lg text-primary mb-2 d-block"/>
-                            <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
-                            <div class="o_planner_label">Clientes activos</div>
+            <!-- ════════════════════════════════════════════════════════════════
+                 Vista tabla (default) vs. detalle de cliente
+            ════════════════════════════════════════════════════════════════ -->
+
+            <!-- ── Vista: tabla ─────────────────────────────────────────────── -->
+            <t t-if="!state.panelOpen">
+
+                <!-- KPI cards globales -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100"
+                             title="Clientes con al menos un pedido confirmado en el período.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-users fa-lg text-primary mb-2 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
+                                <div class="o_planner_label">Clientes activos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100"
+                             title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-dollar fa-lg text-success mb-2 d-block"/>
+                                <div class="o_planner_number text-success" t-esc="fmtMoney(state.kpis.avg_ticket)"/>
+                                <div class="o_planner_label">Ticket promedio</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100"
+                             title="Promedio de % entrega entre todos los clientes.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
+                                     t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
+                                <div class="o_planner_label">% Entrega promedio</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card o_planner_card h-100"
+                             title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-clock-o fa-lg mb-2 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
+                                     t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
+                                <div class="o_planner_label">% A tiempo promedio</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-dollar fa-lg text-success mb-2 d-block"/>
-                            <div class="o_planner_number text-success" t-esc="fmtMoney(state.kpis.avg_ticket)"/>
-                            <div class="o_planner_label">Ticket promedio</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         title="Promedio de % entrega entre todos los clientes.">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
-                            <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
-                                 t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                            <div class="o_planner_label">% Entrega promedio</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-clock-o fa-lg mb-2 d-block text-secondary"/>
-                            <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
-                                 t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
-                            <div class="o_planner_label">% A tiempo promedio</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- ── Controles ─────────────────────────────────────────────────── -->
-            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                <!-- Controles -->
+                <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
 
-                <PlannerSearchBar
-                    widgetKey="'customer_analysis'"
-                    placeholder="'Buscar cliente, producto, familia…'"
-                    t-props="{
-                        search:          state.productSearch,
-                        activeGroupBy:   state.groupBy,
-                        groupByDefs:     groupByDefs,
-                        onSearch:        (t) => this.setSearch(t),
-                        onGroupByChange: (k) => this.setGroupBy(k)
-                    }"/>
+                    <PlannerSearchBar
+                        widgetKey="'customer_analysis'"
+                        placeholder="'Buscar cliente, producto, familia…'"
+                        t-props="{
+                            search:          state.productSearch,
+                            activeGroupBy:   state.groupBy,
+                            groupByDefs:     groupByDefs,
+                            onSearch:        (t) => this.setSearch(t),
+                            onGroupByChange: (k) => this.setGroupBy(k)
+                        }"/>
 
-                <div class="position-relative" t-on-click.stop="">
-                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                            t-on-click="toggleColsDropdown">
-                        <i class="fa fa-columns"/>
-                        <span>Columnas</span>
-                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                    </button>
-                    <div t-if="state.colsDropdownOpen"
-                         class="dropdown-menu show shadow p-2"
-                         style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
-                        <p class="small text-muted mb-1 px-1">Cliente</p>
-                        <t t-foreach="[
-                            ['customer_category', 'Cat. global (A–E del contacto)'],
-                            ['abc_segment',       'ABC período (ranking dinámico)'],
-                            ['salesperson',       'Vendedor'],
-                            ['country',           'País'],
-                            ['province',          'Provincia'],
-                        ]" t-as="col" t-key="col[0]">
-                            <div t-if="col[0] !== 'customer_category' or state.config.show_category"
-                                 class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'ca_col_' + col[0]"
-                                       t-att-checked="state.visibleCols[col[0]]"
-                                       t-on-change="() => this.toggleCol(col[0])"/>
-                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                    <t t-esc="col[1]"/>
-                                </label>
-                            </div>
-                        </t>
-                        <div class="dropdown-divider my-1"/>
-                        <p class="small text-muted mb-1 px-1">Compras</p>
-                        <t t-foreach="[
-                            ['order_count',  'Pedidos'],
-                            ['total_amount', 'Monto total'],
-                            ['avg_ticket',   'Ticket promedio'],
-                            ['trend_pct',    'Tendencia vs período anterior'],
-                        ]" t-as="col" t-key="col[0]">
-                            <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'ca_col_' + col[0]"
-                                       t-att-checked="state.visibleCols[col[0]]"
-                                       t-on-change="() => this.toggleCol(col[0])"/>
-                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                    <t t-esc="col[1]"/>
-                                </label>
-                            </div>
-                        </t>
-                        <div class="dropdown-divider my-1"/>
-                        <p class="small text-muted mb-1 px-1">Entrega</p>
-                        <t t-foreach="[
-                            ['delivery_pct', '% Entrega'],
-                            ['ontime_pct',   '% A tiempo'],
-                        ]" t-as="col" t-key="col[0]">
-                            <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'ca_col_' + col[0]"
-                                       t-att-checked="state.visibleCols[col[0]]"
-                                       t-on-change="() => this.toggleCol(col[0])"/>
-                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                    <t t-esc="col[1]"/>
-                                </label>
-                            </div>
-                        </t>
-                        <div class="dropdown-divider my-1"/>
-                        <p class="small text-muted mb-1 px-1">Frecuencia y productos</p>
-                        <t t-foreach="[
-                            ['avg_days_between',  'Frecuencia (días entre pedidos)'],
-                            ['days_since_last',   'Días sin comprar'],
-                            ['last_order_date',   'Última compra'],
-                            ['frequency_segment', 'Segmento de frecuencia'],
-                            ['distinct_products', 'Productos distintos'],
-                            ['top_product',       'Top producto'],
-                            ['top_family',        'Familia principal'],
-                        ]" t-as="col" t-key="col[0]">
-                            <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'ca_col_' + col[0]"
-                                       t-att-checked="state.visibleCols[col[0]]"
-                                       t-on-change="() => this.toggleCol(col[0])"/>
-                                <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
-                                    <t t-esc="col[1]"/>
-                                </label>
-                            </div>
-                        </t>
-                    </div>
-                </div>
-
-                <span class="ms-auto text-muted small">
-                    <t t-esc="state.totalFiltered"/> cliente(s)
-                </span>
-
-                <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
-                        title="Exportar tabla a Excel (.xls) con las columnas visibles"
-                        t-on-click="exportToExcel">
-                    <i class="fa fa-download"/>
-                    <span>Exportar</span>
-                </button>
-            </div>
-
-            <!-- ── Error backend ────────────────────────────────────────────── -->
-            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
-                <i class="fa fa-exclamation-triangle me-2"/>
-                Error: <strong><t t-esc="state.loadError"/></strong>
-            </div>
-
-            <!-- ── Tabla ─────────────────────────────────────────────────────── -->
-            <div class="border rounded" style="overflow:auto; max-height:62vh;">
-                <table class="table table-sm table-bordered mb-0 align-middle"
-                       style="min-width:700px; font-size:12px;">
-
-                    <thead style="position:sticky; top:0; z-index:3;">
-                        <tr>
-                            <!-- Toggle column -->
-                            <th style="padding:4px 4px; background:#f8f9fa; width:28px;"/>
-                            <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
-                                <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
-                                    t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
-                                    t-att-title="colTitle(col)"
-                                    t-att-data-col-key="col.key"
-                                    t-att-draggable="col.fixed ? 'false' : 'true'"
-                                    t-on-dragstart="cols.onDragStart"
-                                    t-on-dragover="cols.onDragOver"
-                                    t-on-drop="cols.onDrop"
-                                    t-on-dragend="cols.onDragEnd"
-                                    t-on-click="() => this.onColHeaderClick(col)">
-                                    <t t-esc="col.label"/>
-                                    <i t-att-class="sortIcon(caSortKeys[col.key])"/>
-                                    <div class="o_col_resize_handle"
-                                         t-att-data-col-key="col.key"
-                                         t-on-mousedown.stop="cols.onResizeStart"
-                                         t-on-click.stop="() => {}"/>
-                                </th>
+                    <div class="position-relative" t-on-click.stop="">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                t-on-click="toggleColsDropdown">
+                            <i class="fa fa-columns"/>
+                            <span>Columnas</span>
+                            <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.colsDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <p class="small text-muted mb-1 px-1">Cliente</p>
+                            <t t-foreach="[
+                                ['customer_category', 'Cat. global (A–E del contacto)'],
+                                ['abc_segment',       'ABC período (ranking dinámico)'],
+                                ['salesperson',       'Vendedor'],
+                                ['country',           'País'],
+                                ['province',          'Provincia'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div t-if="col[0] !== 'customer_category' or state.config.show_category"
+                                     class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
                             </t>
-                            <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
-                        </tr>
-                    </thead>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Compras</p>
+                            <t t-foreach="[
+                                ['order_count',  'Pedidos'],
+                                ['total_amount', 'Monto total'],
+                                ['avg_ticket',   'Ticket promedio'],
+                                ['trend_pct',    'Tendencia vs período anterior'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Entrega</p>
+                            <t t-foreach="[
+                                ['delivery_pct', '% Entrega'],
+                                ['ontime_pct',   '% A tiempo'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Frecuencia y productos</p>
+                            <t t-foreach="[
+                                ['avg_days_between',  'Frecuencia (días entre pedidos)'],
+                                ['days_since_last',   'Días sin comprar'],
+                                ['last_order_date',   'Última compra'],
+                                ['frequency_segment', 'Segmento de frecuencia'],
+                                ['distinct_products', 'Productos distintos'],
+                                ['top_product',       'Top producto'],
+                                ['top_family',        'Familia principal'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
 
-                    <tbody>
-                        <t t-if="state.groupBy">
-                            <t t-foreach="groupedRows" t-as="group" t-key="group.label">
-                                <tr style="background:#e9ecef;">
-                                    <td t-att-colspan="staticVisibleCols.length + 2"
-                                        style="padding:4px 8px; font-weight:600;">
-                                        <i class="fa fa-folder-open-o me-1 text-muted"/>
-                                        <t t-esc="group.label"/>
-                                        <span class="text-muted fw-normal ms-2 small">
-                                            <t t-esc="group.items.length"/> clientes ·
-                                            <t t-esc="fmtMoney(group.total_amount)"/>
-                                        </span>
-                                    </td>
-                                </tr>
-                                <t t-foreach="group.items" t-as="row" t-key="row.partner_id">
+                    <span class="ms-auto text-muted small">
+                        <t t-esc="state.totalFiltered"/> cliente(s)
+                    </span>
+
+                    <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                            title="Exportar tabla a Excel (.xls) con las columnas visibles"
+                            t-on-click="exportToExcel">
+                        <i class="fa fa-download"/>
+                        <span>Exportar</span>
+                    </button>
+                </div>
+
+                <!-- Error backend -->
+                <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    Error: <strong><t t-esc="state.loadError"/></strong>
+                </div>
+
+                <!-- Tabla -->
+                <div class="border rounded" style="overflow:auto; max-height:62vh;">
+                    <table class="table table-sm table-bordered mb-0 align-middle"
+                           style="min-width:700px; font-size:12px;">
+
+                        <thead style="position:sticky; top:0; z-index:3;">
+                            <tr>
+                                <th style="padding:4px 4px; background:#f8f9fa; width:28px;"/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                    <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                        t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-title="colTitle(col)"
+                                        t-att-data-col-key="col.key"
+                                        t-att-draggable="col.fixed ? 'false' : 'true'"
+                                        t-on-dragstart="cols.onDragStart"
+                                        t-on-dragover="cols.onDragOver"
+                                        t-on-drop="cols.onDrop"
+                                        t-on-dragend="cols.onDragEnd"
+                                        t-on-click="() => this.onColHeaderClick(col)">
+                                        <t t-esc="col.label"/>
+                                        <i t-att-class="sortIcon(caSortKeys[col.key])"/>
+                                        <div class="o_col_resize_handle"
+                                             t-att-data-col-key="col.key"
+                                             t-on-mousedown.stop="cols.onResizeStart"
+                                             t-on-click.stop="() => {}"/>
+                                    </th>
+                                </t>
+                                <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <t t-if="state.groupBy">
+                                <t t-foreach="groupedRows" t-as="group" t-key="group.label">
+                                    <tr style="background:#e9ecef;">
+                                        <td t-att-colspan="staticVisibleCols.length + 2"
+                                            style="padding:4px 8px; font-weight:600;">
+                                            <i class="fa fa-folder-open-o me-1 text-muted"/>
+                                            <t t-esc="group.label"/>
+                                            <span class="text-muted fw-normal ms-2 small">
+                                                <t t-esc="group.items.length"/> clientes ·
+                                                <t t-esc="fmtMoney(group.total_amount)"/>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <t t-foreach="group.items" t-as="row" t-key="row.partner_id">
+                                        <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
+                                    </t>
+                                </t>
+                            </t>
+                            <t t-else="">
+                                <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
                                     <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
                                 </t>
                             </t>
-                        </t>
-                        <t t-else="">
-                            <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
-                                <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
-                            </t>
-                        </t>
-                        <tr t-if="state.totalFiltered === 0 and !state.loading">
-                            <td t-att-colspan="staticVisibleCols.length + 2"
-                                class="text-center text-muted py-4">
-                                No se encontraron clientes para el período seleccionado.
-                            </td>
-                        </tr>
-                    </tbody>
-
-                    <tfoot t-if="!state.groupBy and state.allRows.length > 0"
-                           class="fw-bold" style="background:#f8f9fa;">
-                        <tr>
-                            <td/>
-                            <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
-                                <td style="padding:3px 6px;"
-                                    t-att-class="col.align ? 'text-' + col.align : ''">
-                                    <t t-if="col.key === 'partner_name'">Total</t>
-                                    <t t-elif="col.key === 'order_count'"
-                                       t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
-                                    <t t-elif="col.key === 'total_amount'"
-                                       t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
+                            <tr t-if="state.totalFiltered === 0 and !state.loading">
+                                <td t-att-colspan="staticVisibleCols.length + 2"
+                                    class="text-center text-muted py-4">
+                                    No se encontraron clientes para el período seleccionado.
                                 </td>
-                            </t>
-                            <td/>
-                        </tr>
-                    </tfoot>
+                            </tr>
+                        </tbody>
 
-                </table>
-            </div>
+                        <tfoot t-if="!state.groupBy and state.allRows.length > 0"
+                               class="fw-bold" style="background:#f8f9fa;">
+                            <tr>
+                                <td/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                    <td style="padding:3px 6px;"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'partner_name'">Total</t>
+                                        <t t-elif="col.key === 'order_count'"
+                                           t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
+                                        <t t-elif="col.key === 'total_amount'"
+                                           t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
+                                    </td>
+                                </t>
+                                <td/>
+                            </tr>
+                        </tfoot>
 
-            <!-- ── Paginación ────────────────────────────────────────────────── -->
-            <div t-if="!state.groupBy and totalPages > 1"
-                 class="d-flex align-items-center justify-content-end gap-2 mt-2">
-                <button class="btn btn-outline-secondary btn-sm"
-                        t-att-disabled="state.page &lt;= 1"
-                        t-on-click="prevPage">‹ Anterior</button>
-                <span class="small text-muted">
-                    Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
-                </span>
-                <button class="btn btn-outline-secondary btn-sm"
-                        t-att-disabled="state.page >= totalPages"
-                        t-on-click="nextPage">Siguiente ›</button>
-            </div>
-
-        </div>
-        <!-- ── fin main content ── -->
-
-        <!-- ══ Backdrop ══════════════════════════════════════════════════════ -->
-        <div t-att-class="'offcanvas-backdrop fade' + (state.panelOpen ? ' show' : '')"
-             t-att-style="state.panelOpen ? 'opacity:0.5;' : 'opacity:0; pointer-events:none;'"
-             style="z-index:1044; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; transition:opacity 0.3s;"
-             t-on-click="closePanel"/>
-
-        <!-- ══ Offcanvas ══════════════════════════════════════════════════════ -->
-        <div t-att-class="'offcanvas offcanvas-end' + (state.panelOpen ? ' show' : '')"
-             style="width:520px; z-index:1045;">
-
-            <!-- Header -->
-            <div class="offcanvas-header border-bottom py-2">
-                <div>
-                    <h6 class="offcanvas-title mb-0 fw-semibold" style="font-size:0.95rem;">
-                        <t t-esc="state.panelData ? state.panelData.partner_name : '…'"/>
-                    </h6>
-                    <small class="text-muted">Detalle del período</small>
+                    </table>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button t-if="state.panelPartnerId"
-                            class="btn btn-sm btn-outline-secondary py-0 px-2"
-                            style="font-size:11px;"
-                            title="Abrir ficha del contacto"
-                            t-on-click="() => this.openCustomer(state.panelPartnerId)">
-                        <i class="fa fa-external-link me-1"/>Abrir
+
+                <!-- Paginación -->
+                <div t-if="!state.groupBy and totalPages > 1"
+                     class="d-flex align-items-center justify-content-end gap-2 mt-2">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            t-att-disabled="state.page &lt;= 1"
+                            t-on-click="prevPage">‹ Anterior</button>
+                    <span class="small text-muted">
+                        Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
+                    </span>
+                    <button class="btn btn-outline-secondary btn-sm"
+                            t-att-disabled="state.page >= totalPages"
+                            t-on-click="nextPage">Siguiente ›</button>
+                </div>
+
+            </t>
+            <!-- ── fin vista tabla ── -->
+
+            <!-- ── Vista: detalle de cliente ────────────────────────────────── -->
+            <t t-else="">
+                <t t-set="panelRow" t-value="state.allRows.find(r => r.partner_id === state.panelPartnerId)"/>
+
+                <!-- Barra de navegación -->
+                <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                    <button class="btn btn-sm btn-link p-0 text-muted d-flex align-items-center gap-1"
+                            t-on-click="closePanel">
+                        <i class="fa fa-arrow-left"/>
+                        <span>Volver</span>
                     </button>
-                    <button class="btn-close" title="Cerrar" t-on-click="closePanel"/>
+                    <div class="vr" style="height:18px;"/>
+                    <span class="fw-semibold" style="font-size:0.95rem;">
+                        <t t-esc="state.panelData ? state.panelData.partner_name : '…'"/>
+                    </span>
+                    <t t-if="panelRow and panelRow.abc_segment">
+                        <span t-att-class="'badge ms-1 ' + abcBadgeClass(panelRow.abc_segment)"
+                              t-esc="panelRow.abc_segment"/>
+                    </t>
+                    <t t-if="panelRow and panelRow.customer_category and state.config.show_category">
+                        <span t-att-class="'badge ' + catBadgeClass(panelRow.customer_category)"
+                              t-esc="panelRow.customer_category"/>
+                    </t>
+                    <button class="ms-auto btn btn-sm btn-outline-secondary py-0 px-2"
+                            style="font-size:11px;"
+                            title="Abrir ficha del contacto en Odoo"
+                            t-on-click="() => this.openCustomer(state.panelPartnerId)">
+                        <i class="fa fa-external-link me-1"/>Abrir contacto
+                    </button>
                 </div>
-            </div>
 
-            <!-- Body -->
-            <div class="offcanvas-body p-3">
-
+                <!-- Loading -->
                 <t t-if="state.panelLoading">
                     <div class="d-flex justify-content-center align-items-center py-5">
                         <div class="spinner-border spinner-border-sm text-primary" role="status"/>
@@ -410,99 +415,92 @@
 
                 <t t-if="!state.panelLoading and state.panelData">
 
-                    <!-- KPIs del cliente -->
-                    <t t-set="panelRow" t-value="state.allRows.find(r => r.partner_id === state.panelPartnerId)"/>
+                    <!-- KPI strip horizontal -->
                     <t t-if="panelRow">
-                        <div class="row g-2 mb-4">
-                            <div class="col-6">
-                                <div class="card o_planner_card h-100">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" style="font-size:0.95rem;"
-                                             t-esc="fmtMoney(panelRow.total_amount)"/>
-                                        <div class="o_planner_label">Monto total</div>
-                                    </div>
-                                </div>
+                        <div class="d-flex border rounded mb-4" style="overflow:hidden;">
+                            <div class="text-center px-3 py-3 flex-fill">
+                                <div class="fw-bold" style="font-size:1.05rem;"
+                                     t-esc="fmtMoney(panelRow.total_amount)"/>
+                                <div class="small text-muted">Monto total</div>
                             </div>
-                            <div class="col-6">
-                                <div class="card o_planner_card h-100">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" style="font-size:0.95rem;"
-                                             t-esc="fmtMoney(panelRow.avg_ticket)"/>
-                                        <div class="o_planner_label">Ticket promedio</div>
-                                    </div>
-                                </div>
+                            <div class="text-center px-3 py-3 flex-fill border-start">
+                                <div class="fw-bold" style="font-size:1.05rem;"
+                                     t-esc="fmtMoney(panelRow.avg_ticket)"/>
+                                <div class="small text-muted">Ticket promedio</div>
                             </div>
-                            <div class="col-4">
-                                <div class="card o_planner_card h-100">
-                                    <div class="card-body text-center py-2">
-                                        <div t-att-class="'o_planner_number ' + deliveryClass(panelRow.delivery_pct)"
-                                             style="font-size:0.95rem;"
-                                             t-esc="fmtPct(panelRow.delivery_pct)"/>
-                                        <div class="o_planner_label">% Entrega</div>
-                                    </div>
-                                </div>
+                            <div class="text-center px-3 py-3 flex-fill border-start">
+                                <div t-att-class="'fw-bold ' + deliveryClass(panelRow.delivery_pct)"
+                                     style="font-size:1.05rem;"
+                                     t-esc="fmtPct(panelRow.delivery_pct)"/>
+                                <div class="small text-muted">% Entrega</div>
                             </div>
-                            <div class="col-4">
-                                <div class="card o_planner_card h-100">
-                                    <div class="card-body text-center py-2">
-                                        <div t-att-class="'o_planner_number ' + ontimeClass(panelRow.ontime_pct)"
-                                             style="font-size:0.95rem;"
-                                             t-esc="fmtPct(panelRow.ontime_pct)"/>
-                                        <div class="o_planner_label">% A tiempo</div>
-                                    </div>
-                                </div>
+                            <div class="text-center px-3 py-3 flex-fill border-start">
+                                <div t-att-class="'fw-bold ' + ontimeClass(panelRow.ontime_pct)"
+                                     style="font-size:1.05rem;"
+                                     t-esc="fmtPct(panelRow.ontime_pct)"/>
+                                <div class="small text-muted">% A tiempo</div>
                             </div>
-                            <div class="col-4">
-                                <div class="card o_planner_card h-100">
-                                    <div class="card-body text-center py-2">
-                                        <div t-att-class="'o_planner_number ' + riskClass(panelRow.days_since_last)"
-                                             style="font-size:0.95rem;">
-                                            <t t-esc="panelRow.days_since_last"/> d
-                                        </div>
-                                        <div class="o_planner_label">Sin comprar</div>
-                                    </div>
+                            <div class="text-center px-3 py-3 flex-fill border-start">
+                                <div t-att-class="'fw-bold ' + riskClass(panelRow.days_since_last)"
+                                     style="font-size:1.05rem;">
+                                    <t t-esc="panelRow.days_since_last"/> d
                                 </div>
+                                <div class="small text-muted">Sin comprar</div>
+                            </div>
+                            <div class="text-center px-3 py-3 flex-fill border-start">
+                                <div class="fw-bold" style="font-size:1.05rem;"
+                                     t-esc="fmt(panelRow.order_count)"/>
+                                <div class="small text-muted">Pedidos</div>
                             </div>
                         </div>
                     </t>
 
-                    <!-- Gráfico: monto mensual -->
+                    <!-- Fila de gráficos: barras mensuales (flex:3) + donut familias (flex:2) -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
-                        <div class="o_planner_section_title mb-2">
-                            <i class="fa fa-bar-chart me-1 text-muted"/>
-                            <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
-                        </div>
-                        <div style="height:160px; margin-bottom:20px;">
-                            <canvas t-ref="panelBarCanvas"/>
+                        <div class="d-flex gap-3 mb-4 align-items-start">
+
+                            <div style="flex:3; min-width:0;">
+                                <div class="o_planner_section_title mb-2">
+                                    <i class="fa fa-bar-chart me-1 text-muted"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Monto mensual</span>
+                                </div>
+                                <div style="height:200px;">
+                                    <canvas t-ref="panelBarCanvas"/>
+                                </div>
+                            </div>
+
+                            <div t-if="state.panelData.family_mix and state.panelData.family_mix.length"
+                                 style="flex:2; min-width:0;">
+                                <div class="o_planner_section_title mb-2">
+                                    <i class="fa fa-pie-chart me-1 text-muted"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
+                                </div>
+                                <div style="height:200px;">
+                                    <canvas t-ref="panelDonutCanvas"/>
+                                </div>
+                            </div>
+
                         </div>
                     </t>
 
-                    <!-- Gráfico: % entrega mensual -->
+                    <!-- Línea % entrega — ancho completo -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.filter(m => m.delivery_pct !== null).length > 1">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-line-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
                         </div>
-                        <div style="height:140px; margin-bottom:20px;">
+                        <div style="height:160px;">
                             <canvas t-ref="panelLineCanvas"/>
-                        </div>
-                    </t>
-
-                    <!-- Gráfico: mix de familias -->
-                    <t t-if="state.panelData.family_mix and state.panelData.family_mix.length">
-                        <div class="o_planner_section_title mb-2">
-                            <i class="fa fa-pie-chart me-1 text-muted"/>
-                            <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
-                        </div>
-                        <div style="height:220px; margin-bottom:8px;">
-                            <canvas t-ref="panelDonutCanvas"/>
                         </div>
                     </t>
 
                 </t>
 
-            </div>
+            </t>
+            <!-- ── fin vista detalle ── -->
+
         </div>
+        <!-- ── fin main content ── -->
 
     </div>
 </t>

@@ -172,7 +172,8 @@ class CustomerAnalysisWidget extends Component {
 
         onPatched(() => {
             if (this.state.panelOpen && this.state.panelData && !this.state.panelLoading) {
-                this._drawPanelCharts();
+                // setTimeout 0 ensures canvas refs are bound before drawing
+                setTimeout(() => this._drawPanelCharts(), 0);
             }
         });
 
@@ -396,8 +397,8 @@ class CustomerAnalysisWidget extends Component {
     _drawPanelCharts() {
         const data = this.state.panelData;
         if (!data) return;
-        const Chart = window.Chart;
-        if (!Chart) return;
+        const Chart = globalThis.Chart;
+        if (typeof Chart === 'undefined') return;
 
         // ── Barras: evolución mensual de monto ───────────────────────────────
         const barEl = this.barRef.el;
@@ -546,29 +547,24 @@ class CustomerAnalysisWidget extends Component {
         return pct >= 0 ? 'text-success' : 'text-danger';
     }
 
-    abcClass(seg) {
-        const map = { A: 'text-success fw-bold', B: 'text-primary fw-bold', C: 'text-muted' };
-        return map[seg] || '';
+    catBadgeClass(cat) {
+        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-warning text-dark', D: 'text-bg-secondary', E: 'text-bg-danger' };
+        return map[cat] || 'text-bg-secondary';
     }
 
-    freqClass(seg) {
-        const map = { frecuente: 'text-success', ocasional: 'text-warning', inactivo: 'text-muted', en_riesgo: 'text-danger fw-semibold' };
-        return map[seg] || '';
+    abcBadgeClass(seg) {
+        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-secondary' };
+        return map[seg] || 'text-bg-secondary';
+    }
+
+    freqBadgeClass(seg) {
+        const map = { frecuente: 'text-bg-success', ocasional: 'text-bg-warning text-dark', inactivo: 'text-bg-secondary', en_riesgo: 'text-bg-danger' };
+        return map[seg] || 'text-bg-secondary';
     }
 
     freqLabel(seg) {
         const map = { frecuente: 'Frecuente', ocasional: 'Ocasional', inactivo: 'Inactivo', en_riesgo: 'En riesgo' };
         return map[seg] || seg;
-    }
-
-    catLabel(cat) {
-        const map = { A: 'A', B: 'B', C: 'C', D: 'D', E: 'E' };
-        return map[cat] || cat || '—';
-    }
-
-    catClass(cat) {
-        const map = { A: 'text-success fw-bold', B: 'text-primary', C: 'text-warning', D: 'text-secondary', E: 'text-muted' };
-        return map[cat] || 'text-muted';
     }
 
     colTitle(col) {

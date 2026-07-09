@@ -9,31 +9,25 @@
         <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
             <div class="d-flex align-items-center gap-1">
                 <label class="form-label mb-0 small text-muted">Desde</label>
-                <input type="date" class="form-control form-control-sm"
-                       style="max-width:150px;"
-                       t-att-value="state.dateFrom"
-                       t-on-change="onDateFromChange"/>
+                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                       t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
             </div>
             <div class="d-flex align-items-center gap-1">
                 <label class="form-label mb-0 small text-muted">Hasta</label>
-                <input type="date" class="form-control form-control-sm"
-                       style="max-width:150px;"
-                       t-att-value="state.dateTo"
-                       t-on-change="onDateToChange"/>
+                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
+                       t-att-value="state.dateTo" t-on-change="onDateToChange"/>
             </div>
         </div>
 
         <!-- ── KPI cards ───────────────────────────────────────────────────── -->
-        <div class="row g-2 mb-2">
+        <div class="row g-2 mb-3">
 
             <div class="col-6 col-md-3">
                 <div class="card o_planner_card h-100"
-                     title="Cantidad de clientes con al menos un pedido confirmado en el período.">
-                    <div class="card-body text-center py-2">
-                        <i class="fa fa-users fa-lg text-primary mb-1 d-block"/>
-                        <div class="o_planner_number">
-                            <t t-esc="fmt(state.kpis.total_customers)"/>
-                        </div>
+                     title="Clientes con al menos un pedido confirmado en el período.">
+                    <div class="card-body text-center py-3">
+                        <i class="fa fa-users fa-lg text-primary mb-2 d-block"/>
+                        <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
                         <div class="o_planner_label">Clientes activos</div>
                     </div>
                 </div>
@@ -41,12 +35,10 @@
 
             <div class="col-6 col-md-3">
                 <div class="card o_planner_card h-100"
-                     title="Monto neto promedio por pedido de venta en el período (monto total ÷ cantidad de pedidos).">
-                    <div class="card-body text-center py-2">
-                        <i class="fa fa-ticket fa-lg mb-1 d-block" style="color:#7952b3;"/>
-                        <div class="o_planner_number" style="color:#7952b3;">
-                            <t t-esc="fmtMoney(state.kpis.avg_ticket)"/>
-                        </div>
+                     title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
+                    <div class="card-body text-center py-3">
+                        <i class="fa fa-dollar fa-lg text-success mb-2 d-block"/>
+                        <div class="o_planner_number text-success" t-esc="fmtMoney(state.kpis.avg_ticket)"/>
                         <div class="o_planner_label">Ticket promedio</div>
                     </div>
                 </div>
@@ -54,12 +46,11 @@
 
             <div class="col-6 col-md-3">
                 <div class="card o_planner_card h-100"
-                     title="Promedio de % de entrega entre todos los clientes (qty entregada ÷ qty pedida × 100, promediado por cliente).">
-                    <div class="card-body text-center py-2">
-                        <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
-                        <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)">
-                            <t t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                        </div>
+                     title="Promedio de % entrega entre todos los clientes (qty entregada ÷ qty pedida × 100).">
+                    <div class="card-body text-center py-3">
+                        <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
+                        <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
+                             t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
                         <div class="o_planner_label">% Entrega promedio</div>
                     </div>
                 </div>
@@ -67,39 +58,21 @@
 
             <div class="col-6 col-md-3">
                 <div class="card o_planner_card h-100"
-                     title="Promedio de % de entregas a tiempo entre todos los clientes con datos disponibles. El criterio de 'a tiempo' se configura en Ajustes.">
-                    <div class="card-body text-center py-2">
-                        <i class="fa fa-clock-o fa-lg mb-1 d-block text-secondary"/>
-                        <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)">
-                            <t t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
-                        </div>
+                     title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
+                    <div class="card-body text-center py-3">
+                        <i class="fa fa-clock-o fa-lg mb-2 d-block text-secondary"/>
+                        <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
+                             t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
                         <div class="o_planner_label">% A tiempo promedio</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-6 col-md-3">
-                <div class="card o_planner_card h-100"
-                     title="Promedio de días entre pedidos consecutivos del cliente, promediado entre todos los clientes con más de un pedido en el período.">
-                    <div class="card-body text-center py-2">
-                        <i class="fa fa-refresh fa-lg mb-1 d-block text-secondary"/>
-                        <div class="o_planner_number">
-                            <t t-if="state.kpis.avg_days_between !== null and state.kpis.avg_days_between !== undefined">
-                                <t t-esc="state.kpis.avg_days_between"/> d
-                            </t>
-                            <t t-else="">—</t>
-                        </div>
-                        <div class="o_planner_label">Frecuencia media</div>
                     </div>
                 </div>
             </div>
 
         </div>
 
-        <!-- ── Barra de controles ──────────────────────────────────────────── -->
+        <!-- ── Controles ───────────────────────────────────────────────────── -->
         <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
 
-            <!-- Barra de búsqueda + filtros + agrupamiento -->
             <PlannerSearchBar
                 widgetKey="'customer_analysis'"
                 placeholder="'Buscar cliente, producto, familia…'"
@@ -111,7 +84,7 @@
                     onGroupByChange: (k) => this.setGroupBy(k)
                 }"/>
 
-            <!-- Columnas dropdown -->
+            <!-- Columnas -->
             <div class="position-relative" t-on-click.stop="">
                 <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                         t-on-click="toggleColsDropdown">
@@ -135,7 +108,7 @@
                             <input type="checkbox" class="form-check-input"
                                    t-att-id="'ca_col_' + col[0]"
                                    t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => toggleCol(col[0])"/>
+                                   t-on-change="() => this.toggleCol(col[0])"/>
                             <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
                                 <t t-esc="col[1]"/>
                             </label>
@@ -153,7 +126,7 @@
                             <input type="checkbox" class="form-check-input"
                                    t-att-id="'ca_col_' + col[0]"
                                    t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => toggleCol(col[0])"/>
+                                   t-on-change="() => this.toggleCol(col[0])"/>
                             <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
                                 <t t-esc="col[1]"/>
                             </label>
@@ -169,7 +142,7 @@
                             <input type="checkbox" class="form-check-input"
                                    t-att-id="'ca_col_' + col[0]"
                                    t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => toggleCol(col[0])"/>
+                                   t-on-change="() => this.toggleCol(col[0])"/>
                             <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
                                 <t t-esc="col[1]"/>
                             </label>
@@ -190,7 +163,7 @@
                             <input type="checkbox" class="form-check-input"
                                    t-att-id="'ca_col_' + col[0]"
                                    t-att-checked="state.visibleCols[col[0]]"
-                                   t-on-change="() => toggleCol(col[0])"/>
+                                   t-on-change="() => this.toggleCol(col[0])"/>
                             <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
                                 <t t-esc="col[1]"/>
                             </label>
@@ -207,12 +180,12 @@
         <!-- ── Error backend ──────────────────────────────────────────────── -->
         <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
             <i class="fa fa-exclamation-triangle me-2"/>
-            Error al cargar datos: <strong><t t-esc="state.loadError"/></strong>
+            Error: <strong><t t-esc="state.loadError"/></strong>
         </div>
 
         <!-- ── Tabla ───────────────────────────────────────────────────────── -->
-        <div class="table-responsive" style="max-height:60vh; overflow-y:auto;">
-            <table class="table table-sm table-hover mb-0 align-middle"
+        <div class="border rounded" style="overflow:auto; max-height:62vh;">
+            <table class="table table-sm table-bordered mb-0 align-middle"
                    style="min-width:700px; font-size:12px;">
 
                 <thead style="position:sticky; top:0; z-index:3;">
@@ -241,7 +214,6 @@
                 </thead>
 
                 <tbody>
-                    <!-- Vista agrupada -->
                     <t t-if="state.groupBy">
                         <t t-foreach="groupedRows" t-as="group" t-key="group.label">
                             <tr style="background:#e9ecef;">
@@ -261,14 +233,12 @@
                         </t>
                     </t>
 
-                    <!-- Vista plana paginada -->
                     <t t-else="">
                         <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
                             <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
                         </t>
                     </t>
 
-                    <!-- Sin resultados -->
                     <tr t-if="state.totalFiltered === 0 and !state.loading">
                         <td t-att-colspan="staticVisibleCols.length + 1"
                             class="text-center text-muted py-4">
@@ -277,19 +247,17 @@
                     </tr>
                 </tbody>
 
-                <!-- Totales -->
-                <tfoot t-if="!state.groupBy and state.allRows.length > 0" class="fw-bold" style="background:#f8f9fa;">
+                <tfoot t-if="!state.groupBy and state.allRows.length > 0"
+                       class="fw-bold" style="background:#f8f9fa;">
                     <tr>
                         <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                             <td style="padding:3px 6px;"
                                 t-att-class="col.align ? 'text-' + col.align : ''">
                                 <t t-if="col.key === 'partner_name'">Total</t>
-                                <t t-elif="col.key === 'order_count'">
-                                    <t t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
-                                </t>
-                                <t t-elif="col.key === 'total_amount'">
-                                    <t t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
-                                </t>
+                                <t t-elif="col.key === 'order_count'"
+                                   t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
+                                <t t-elif="col.key === 'total_amount'"
+                                   t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
                             </td>
                         </t>
                         <td/>
@@ -340,62 +308,61 @@
             <t t-if="!state.panelLoading and state.panelData">
                 <div class="p-3">
 
-                    <!-- KPIs rápidos -->
                     <t t-set="panelRow" t-value="state.allRows.find(r => r.partner_id === state.panelPartnerId)"/>
                     <t t-if="panelRow">
                         <div class="row g-2 mb-3">
                             <div class="col-6">
-                                <div class="card o_planner_card px-2 py-2 text-center"
-                                     title="Monto total neto de pedidos confirmados en el período.">
-                                    <div class="o_planner_number" style="font-size:1rem;">
-                                        <t t-esc="fmtMoney(panelRow.total_amount)"/>
+                                <div class="card o_planner_card h-100" title="Monto total del período.">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" style="font-size:1rem;"
+                                             t-esc="fmtMoney(panelRow.total_amount)"/>
+                                        <div class="o_planner_label">Monto total</div>
                                     </div>
-                                    <div class="o_planner_label">Monto total</div>
                                 </div>
                             </div>
                             <div class="col-6">
-                                <div class="card o_planner_card px-2 py-2 text-center"
-                                     title="Monto promedio por pedido de venta en el período.">
-                                    <div class="o_planner_number" style="font-size:1rem;">
-                                        <t t-esc="fmtMoney(panelRow.avg_ticket)"/>
+                                <div class="card o_planner_card h-100" title="Ticket promedio del período.">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" style="font-size:1rem;"
+                                             t-esc="fmtMoney(panelRow.avg_ticket)"/>
+                                        <div class="o_planner_label">Ticket promedio</div>
                                     </div>
-                                    <div class="o_planner_label">Ticket promedio</div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card px-2 py-2 text-center"
-                                     t-att-title="'% de unidades entregadas sobre las pedidas.'">
-                                    <div t-att-class="'o_planner_number ' + deliveryClass(panelRow.delivery_pct)"
-                                         style="font-size:1rem;">
-                                        <t t-esc="fmtPct(panelRow.delivery_pct)"/>
+                                <div class="card o_planner_card h-100" title="% de unidades entregadas.">
+                                    <div class="card-body text-center py-2">
+                                        <div t-att-class="'o_planner_number ' + deliveryClass(panelRow.delivery_pct)"
+                                             style="font-size:1rem;"
+                                             t-esc="fmtPct(panelRow.delivery_pct)"/>
+                                        <div class="o_planner_label">% Entrega</div>
                                     </div>
-                                    <div class="o_planner_label">% Entrega</div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card px-2 py-2 text-center"
-                                     title="Porcentaje de entregas realizadas dentro del plazo.">
-                                    <div t-att-class="'o_planner_number ' + ontimeClass(panelRow.ontime_pct)"
-                                         style="font-size:1rem;">
-                                        <t t-esc="fmtPct(panelRow.ontime_pct)"/>
+                                <div class="card o_planner_card h-100" title="% entregas a tiempo.">
+                                    <div class="card-body text-center py-2">
+                                        <div t-att-class="'o_planner_number ' + ontimeClass(panelRow.ontime_pct)"
+                                             style="font-size:1rem;"
+                                             t-esc="fmtPct(panelRow.ontime_pct)"/>
+                                        <div class="o_planner_label">% A tiempo</div>
                                     </div>
-                                    <div class="o_planner_label">% A tiempo</div>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <div class="card o_planner_card px-2 py-2 text-center"
-                                     title="Días desde el último pedido hasta hoy.">
-                                    <div t-att-class="'o_planner_number ' + riskClass(panelRow.days_since_last)"
-                                         style="font-size:1rem;">
-                                        <t t-esc="panelRow.days_since_last"/> d
+                                <div class="card o_planner_card h-100" title="Días desde la última compra.">
+                                    <div class="card-body text-center py-2">
+                                        <div t-att-class="'o_planner_number ' + riskClass(panelRow.days_since_last)"
+                                             style="font-size:1rem;">
+                                            <t t-esc="panelRow.days_since_last"/> d
+                                        </div>
+                                        <div class="o_planner_label">Sin comprar</div>
                                     </div>
-                                    <div class="o_planner_label">Sin comprar</div>
                                 </div>
                             </div>
                         </div>
                     </t>
 
-                    <!-- Barras: monto mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-bar-chart me-1 text-muted"/>
@@ -406,7 +373,6 @@
                         </div>
                     </t>
 
-                    <!-- Línea: % entrega mensual -->
                     <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.filter(m => m.delivery_pct !== null).length > 1">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-line-chart me-1 text-muted"/>
@@ -417,7 +383,6 @@
                         </div>
                     </t>
 
-                    <!-- Donut: mix de familias -->
                     <t t-if="state.panelData.family_mix and state.panelData.family_mix.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-pie-chart me-1 text-muted"/>
@@ -428,13 +393,12 @@
                         </div>
                     </t>
 
-                    <!-- Lista de pedidos -->
                     <t t-if="state.panelData.orders and state.panelData.orders.length">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-list me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Pedidos del período</span>
                         </div>
-                        <table class="table table-sm table-hover" style="font-size:11px;">
+                        <table class="table table-sm table-bordered" style="font-size:11px;">
                             <thead>
                                 <tr>
                                     <th style="padding:3px 5px;">Pedido</th>
@@ -446,9 +410,8 @@
                             </thead>
                             <tbody>
                                 <t t-foreach="state.panelData.orders" t-as="ord" t-key="ord.name">
-                                    <tr style="cursor:pointer;"
-                                        t-on-click="() => openOrder(ord.order_id)"
-                                        title="Abrir pedido de venta.">
+                                    <tr style="cursor:pointer;" title="Abrir pedido."
+                                        t-on-click="() => this.openOrder(ord.order_id)">
                                         <td style="padding:3px 5px;" class="text-primary">
                                             <t t-esc="ord.name"/>
                                         </td>
@@ -457,9 +420,7 @@
                                             <t t-esc="fmtMoney(ord.amount)"/>
                                         </td>
                                         <td t-att-class="'text-end ' + deliveryClass(ord.delivery_pct)"
-                                            style="padding:3px 5px;">
-                                            <t t-esc="fmtPct(ord.delivery_pct)"/>
-                                        </td>
+                                            style="padding:3px 5px;" t-esc="fmtPct(ord.delivery_pct)"/>
                                         <td style="padding:3px 5px;"><t t-esc="ord.state"/></td>
                                     </tr>
                                 </t>
@@ -471,7 +432,6 @@
             </t>
         </div>
 
-        <!-- Overlay -->
         <div t-if="state.panelOpen"
              class="position-fixed top-0 start-0 w-100 h-100"
              style="background:rgba(0,0,0,0.15); z-index:1099;"
@@ -480,66 +440,72 @@
     </div>
 </t>
 
-<!-- ── Sub-template: fila de cliente ──────────────────────────────────────── -->
+<!-- ── Sub-template: fila ─────────────────────────────────────────────────── -->
 <t t-name="odoo_mrp_planner.CustomerAnalysisRow">
     <tr>
         <t t-foreach="staticVisibleCols" t-as="col" t-key="'td_' + col.key + '_' + row.partner_id">
 
             <td t-if="col.key === 'partner_name'"
-                style="padding:3px 6px; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis;"
-                t-att-title="row.partner_name">
-                <t t-esc="row.partner_name"/>
-            </td>
+                style="padding:3px 8px; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis;"
+                t-att-title="row.partner_name" t-esc="row.partner_name"/>
 
             <td t-elif="col.key === 'customer_category'"
-                t-att-class="'text-center ' + catClass(row.customer_category)"
-                style="padding:3px 6px;"
+                class="text-center" style="padding:3px 6px;"
                 t-att-title="'Categoría global de cliente: ' + (row.customer_category || '—')">
-                <t t-esc="catLabel(row.customer_category) || '—'"/>
+                <span t-if="row.customer_category"
+                      t-att-class="'badge ' + catBadgeClass(row.customer_category)"
+                      t-esc="row.customer_category"/>
+                <span t-else="" class="text-muted">—</span>
             </td>
 
             <td t-elif="col.key === 'abc_segment'"
-                t-att-class="'text-center ' + abcClass(row.abc_segment)"
-                style="padding:3px 6px;"
-                title="Segmento ABC calculado para el período seleccionado.">
-                <t t-esc="row.abc_segment || '—'"/>
+                class="text-center" style="padding:3px 6px;"
+                title="Segmento ABC calculado para el período.">
+                <span t-if="row.abc_segment"
+                      t-att-class="'badge ' + abcBadgeClass(row.abc_segment)"
+                      t-esc="row.abc_segment"/>
+                <span t-else="" class="text-muted">—</span>
             </td>
+
+            <td t-elif="col.key === 'salesperson'"
+                style="padding:3px 8px;" t-esc="row.salesperson || '—'"/>
+
+            <td t-elif="col.key === 'country'"
+                style="padding:3px 8px;" t-esc="row.country || '—'"/>
+
+            <td t-elif="col.key === 'province'"
+                style="padding:3px 8px;" t-esc="row.province || '—'"/>
 
             <td t-elif="col.key === 'order_count'"
-                class="text-end" style="padding:3px 6px;"
-                title="Cantidad de pedidos de venta confirmados en el período.">
-                <t t-esc="fmt(row.order_count)"/>
-            </td>
+                class="text-end" style="padding:3px 8px;"
+                title="Pedidos confirmados en el período."
+                t-esc="fmt(row.order_count)"/>
 
             <td t-elif="col.key === 'total_amount'"
-                class="text-end" style="padding:3px 6px;"
-                title="Monto total neto de pedidos confirmados en el período.">
-                <t t-esc="fmtMoney(row.total_amount)"/>
-            </td>
+                class="text-end" style="padding:3px 8px;"
+                title="Monto total neto del período."
+                t-esc="fmtMoney(row.total_amount)"/>
 
             <td t-elif="col.key === 'avg_ticket'"
-                class="text-end" style="padding:3px 6px;"
-                title="Monto total ÷ cantidad de pedidos del período.">
-                <t t-esc="fmtMoney(row.avg_ticket)"/>
-            </td>
+                class="text-end" style="padding:3px 8px;"
+                title="Monto total ÷ cantidad de pedidos."
+                t-esc="fmtMoney(row.avg_ticket)"/>
 
             <td t-elif="col.key === 'delivery_pct'"
                 t-att-class="'text-end ' + deliveryClass(row.delivery_pct)"
-                style="padding:3px 6px;"
-                t-att-title="'% Entrega: ' + fmtPct(row.delivery_pct) + '. Calculado como qty entregada ÷ qty pedida × 100.'">
-                <t t-esc="fmtPct(row.delivery_pct)"/>
-            </td>
+                style="padding:3px 8px;"
+                t-att-title="'% Entrega: qty entregada ÷ qty pedida × 100.'"
+                t-esc="fmtPct(row.delivery_pct)"/>
 
             <td t-elif="col.key === 'ontime_pct'"
                 t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"
-                style="padding:3px 6px;"
-                t-att-title="'% A tiempo: ' + fmtPct(row.ontime_pct) + '. Porcentaje de envíos dentro del plazo configurado.'">
-                <t t-esc="fmtPct(row.ontime_pct)"/>
-            </td>
+                style="padding:3px 8px;"
+                title="% entregas dentro del plazo configurado."
+                t-esc="fmtPct(row.ontime_pct)"/>
 
             <td t-elif="col.key === 'avg_days_between'"
-                class="text-end" style="padding:3px 6px;"
-                title="Días promedio entre pedidos consecutivos del cliente en el período.">
+                class="text-end" style="padding:3px 8px;"
+                title="Días promedio entre pedidos consecutivos.">
                 <t t-if="row.avg_days_between !== null and row.avg_days_between !== undefined">
                     <t t-esc="row.avg_days_between"/> d
                 </t>
@@ -548,63 +514,53 @@
 
             <td t-elif="col.key === 'days_since_last'"
                 t-att-class="'text-end ' + riskClass(row.days_since_last)"
-                style="padding:3px 6px;"
-                t-att-title="'Días sin comprar: ' + row.days_since_last + ' d. Se resalta en rojo si supera el umbral de riesgo (' + (state.config.risk_days || 90) + ' días).'">
+                style="padding:3px 8px;"
+                t-att-title="'Días sin comprar. Umbral de riesgo: ' + (state.config.risk_days || 90) + ' días.'">
                 <t t-esc="row.days_since_last"/> d
             </td>
 
             <td t-elif="col.key === 'last_order_date'"
-                class="text-end" style="padding:3px 6px;"
-                title="Fecha del último pedido de venta confirmado.">
-                <t t-esc="row.last_order_date || '—'"/>
-            </td>
+                class="text-end" style="padding:3px 8px;"
+                title="Fecha del último pedido confirmado."
+                t-esc="row.last_order_date || '—'"/>
 
             <td t-elif="col.key === 'distinct_products'"
-                class="text-end" style="padding:3px 6px;"
-                title="Cantidad de variantes de producto distintas compradas en el período.">
-                <t t-esc="fmt(row.distinct_products)"/>
-            </td>
+                class="text-end" style="padding:3px 8px;"
+                title="Productos distintos comprados en el período."
+                t-esc="fmt(row.distinct_products)"/>
 
             <td t-elif="col.key === 'top_product'"
-                style="padding:3px 6px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                t-att-title="'Producto con mayor monto: ' + row.top_product">
-                <t t-esc="row.top_product || '—'"/>
-            </td>
+                style="padding:3px 8px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                t-att-title="row.top_product" t-esc="row.top_product || '—'"/>
 
             <td t-elif="col.key === 'top_family'"
-                style="padding:3px 6px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                t-att-title="'Familia con mayor monto: ' + row.top_family">
-                <t t-esc="row.top_family || '—'"/>
-            </td>
+                style="padding:3px 8px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                t-att-title="row.top_family" t-esc="row.top_family || '—'"/>
 
             <td t-elif="col.key === 'trend_pct'"
                 t-att-class="'text-end ' + trendClass(row.trend_pct)"
-                style="padding:3px 6px;"
-                t-att-title="'Tendencia: variación del monto vs el período anterior de igual duración.'">
-                <t t-esc="fmtTrend(row.trend_pct)"/>
-            </td>
+                style="padding:3px 8px;"
+                title="Variación del monto vs período anterior de igual duración."
+                t-esc="fmtTrend(row.trend_pct)"/>
 
             <td t-elif="col.key === 'frequency_segment'"
                 class="text-center" style="padding:3px 6px;"
-                t-att-title="'Frecuente: &lt;=30 d entre pedidos · Ocasional: 31–90 d · Inactivo: >90 d · En riesgo: sin comprar más de ' + (state.config.risk_days || 90) + ' días.'">
-                <span t-att-class="'badge ' + (row.frequency_segment === 'frecuente' ? 'bg-success' : row.frequency_segment === 'ocasional' ? 'bg-warning text-dark' : row.frequency_segment === 'en_riesgo' ? 'bg-danger' : 'bg-secondary')">
-                    <t t-esc="freqLabel(row.frequency_segment)"/>
-                </span>
+                t-att-title="'Frecuente: &lt;=30 d · Ocasional: 31–90 d · Inactivo: >90 d · En riesgo: sin comprar más del umbral configurado.'">
+                <span t-att-class="'badge ' + freqBadgeClass(row.frequency_segment)"
+                      t-esc="freqLabel(row.frequency_segment)"/>
             </td>
 
-            <td t-else="" style="padding:3px 6px;"
-                t-att-title="row[col.key]">
+            <td t-else="" style="padding:3px 8px;">
                 <t t-esc="row[col.key] !== null and row[col.key] !== undefined ? row[col.key] : '—'"/>
             </td>
 
         </t>
 
-        <!-- Botón Ver detalle -->
         <td style="padding:3px 4px; text-align:center;">
             <button class="btn btn-sm btn-outline-primary"
                     style="padding:1px 6px; font-size:11px; line-height:1.4;"
-                    title="Ver detalle: evolución mensual, mix de familias y pedidos del período."
-                    t-on-click="() => openPanel(row.partner_id)">
+                    title="Ver detalle del cliente."
+                    t-on-click="() => this.openPanel(row.partner_id)">
                 <i class="fa fa-external-link"/>
             </button>
         </td>

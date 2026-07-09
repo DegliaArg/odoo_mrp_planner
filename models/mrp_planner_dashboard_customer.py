@@ -95,19 +95,22 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         cfg = self._ca_config()
         today = fields.Date.today()
 
+        d_from_str = period_from + ' 00:00:00'
+        d_to_str   = period_to   + ' 23:59:59'
         d_from = datetime.strptime(period_from, '%Y-%m-%d')
-        d_to = datetime.strptime(period_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        d_to   = datetime.strptime(period_to,   '%Y-%m-%d')
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
         # ── 1. Órdenes de venta confirmadas en el período ────────────────────
         so_domain = [
             ('state', 'in', ['sale', 'done']),
-            ('date_order', '>=', d_from),
-            ('date_order', '<=', d_to),
+            ('date_order', '>=', d_from_str),
+            ('date_order', '<=', d_to_str),
         ] + wh_domain
         orders = self.env['sale.order'].search(so_domain)
+        _logger.info('[CustomerAnalysis] period %s – %s → %d orders', period_from, period_to, len(orders))
         if not orders:
-            return {'rows': [], 'config': cfg}
+            return {'rows': [], 'kpis': {'total_customers': 0, 'avg_ticket': 0, 'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None}, 'config': cfg}
 
         so_data = orders.read([
             'id', 'name', 'partner_id', 'date_order',
@@ -176,7 +179,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         so_date_order = {s['id']: s['date_order']          for s in so_data}
 
         # ── 4. Período anterior para tendencia ───────────────────────────────
-        duration_days = max(1, (d_to.date() - d_from.date()).days)
+        duration_days = max(1, (d_to - d_from).days)
         d_from_prev   = d_from - timedelta(days=duration_days + 1)
         d_to_prev     = d_from - timedelta(days=1)
         prev_groups   = self.env['sale.order'].read_group(
@@ -327,15 +330,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         :param warehouse_ids: list[int] | None.
         :returns: dict con claves 'partner_name', 'monthly_data', 'family_mix', 'orders'.
         """
-        d_from = datetime.strptime(period_from, '%Y-%m-%d')
-        d_to = datetime.strptime(period_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        d_from_str = period_from + ' 00:00:00'
+        d_to_str   = period_to   + ' 23:59:59'
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
         orders = self.env['sale.order'].search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['sale', 'done']),
-            ('date_order', '>=', d_from),
-            ('date_order', '<=', d_to),
+            ('date_order', '>=', d_from_str),
+            ('date_order', '<=', d_to_str),
         ] + wh_domain)
 
         partner = self.env['res.partner'].browse(partner_id)

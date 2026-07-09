@@ -324,7 +324,7 @@
             <div t-if="!state.groupBy and totalPages > 1"
                  class="d-flex align-items-center justify-content-end gap-2 mt-2">
                 <button class="btn btn-outline-secondary btn-sm"
-                        t-att-disabled="state.page <= 1"
+                        t-att-disabled="state.page &lt;= 1"
                         t-on-click="prevPage">‹ Anterior</button>
                 <span class="small text-muted">
                     Página <t t-esc="state.page"/> de <t t-esc="totalPages"/>

@@ -294,6 +294,15 @@ class CustomerAnalysisWidget extends Component {
             }));
     }
 
+    // ── Handlers de controles (evitan pérdida de contexto `this` en el template) ──
+
+    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
+    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
+    onWarehouseChange(ev) {
+        this.state.warehouseId = ev.target.value ? parseInt(ev.target.value) : null;
+        this._load();
+    }
+
     // ── Interacciones UI ─────────────────────────────────────────────────────
 
     setSort(col) {

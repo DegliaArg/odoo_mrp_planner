@@ -18,18 +18,18 @@
                 <input type="date" class="form-control form-control-sm"
                        style="width:140px;"
                        t-att-value="state.dateFrom"
-                       t-on-change="ev => { state.dateFrom = ev.target.value; _load(); }"/>
+                       t-on-change="onDateFromChange"/>
             </div>
             <div class="d-flex align-items-center gap-1">
                 <span class="text-muted small">Hasta</span>
                 <input type="date" class="form-control form-control-sm"
                        style="width:140px;"
                        t-att-value="state.dateTo"
-                       t-on-change="ev => { state.dateTo = ev.target.value; _load(); }"/>
+                       t-on-change="onDateToChange"/>
             </div>
             <t t-if="state.warehouses.length > 1">
                 <select class="form-select form-select-sm" style="width:160px;"
-                        t-on-change="ev => { state.warehouseId = ev.target.value ? parseInt(ev.target.value) : null; _load(); }">
+                        t-on-change="onWarehouseChange">
                     <option value="">Todos los almacenes</option>
                     <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
                         <option t-att-value="wh.id" t-att-selected="state.warehouseId === wh.id">

@@ -38,6 +38,18 @@ class MrpRescheduleConfig(models.Model):
     _rec_name = 'name'
 
     name = fields.Char(compute='_compute_name', string='Nombre')
+
+    # ── Programación / Reprogramación ────────────────────────────────────────
+
+    enable_scheduling = fields.Boolean(
+        string='Habilitar funciones de programación y reprogramación',
+        default=True,
+        help='Cuando está activo, los usuarios internos ven los menús de reprogramación, '
+             'los botones en las OFs y las KPIs de "Para reprogramar" en el panel de producción. '
+             'Al desactivar se quita a todos los usuarios del grupo de programación; '
+             'los administradores del módulo siempre conservan acceso.'
+    )
+
     wc_fallback = fields.Selection([
         ('ldm', 'Usar operaciones de la Lista de Materiales'),
         ('none', 'Sin centro de trabajo'),
@@ -546,6 +558,17 @@ class MrpRescheduleConfig(models.Model):
             'target':    'current',
         }
 
+    def _sync_scheduling_group(self, enabled):
+        """Añade o quita usuarios internos del grupo group_scheduling según el toggle."""
+        group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
+        if not group:
+            return
+        if enabled:
+            users = self.env['res.users'].search([('share', '=', False), ('active', '=', True)])
+            group.sudo().write({'users': [(4, uid) for uid in users.ids]})
+        else:
+            group.sudo().write({'users': [(5,)]})
+
     def write(self, vals):
         """
         Guarda los cambios y propaga la configuración a ir.config_parameter y a los ir.cron del módulo.
@@ -560,6 +583,8 @@ class MrpRescheduleConfig(models.Model):
         :returns: bool — resultado del super().write().
         """
         res = super().write(vals)
+        if 'enable_scheduling' in vals:
+            self._sync_scheduling_group(vals['enable_scheduling'])
         sp = self.env['ir.config_parameter'].sudo()
         if 'wc_fallback' in vals:
             sp.set_param('mrp_reschedule.wc_fallback', vals['wc_fallback'])
@@ -639,6 +664,9 @@ class MrpRescheduleConfig(models.Model):
                 'Editá el registro existente en lugar de crear uno nuevo.'
             ))
         records = super().create(vals_list)
+        for rec in records:
+            if rec.enable_scheduling:
+                rec._sync_scheduling_group(True)
         sp = self.env['ir.config_parameter'].sudo()
         for rec in records:
             sp.set_param('mrp_reschedule.wc_fallback', rec.wc_fallback)

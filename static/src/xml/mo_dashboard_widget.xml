@@ -103,7 +103,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-6">
+                            <div t-if="state.enable_scheduling" class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReschedule"
                                      title="OFs con 'Requiere reprogramación' activado. Se marcan automáticamente por alertas o manualmente.">
@@ -267,7 +267,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-6">
+                            <div t-if="state.enable_scheduling" class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReqReschedule"
                                      title="Solicitudes con al menos una OF marcada como 'requiere reprogramación' (x_reschedule_needed = Sí)">

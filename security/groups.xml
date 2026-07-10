@@ -50,4 +50,12 @@
         <field name="users" eval="[]"/>
     </record>
 
+    <!-- Programación: habilita menús, botones y KPIs de programación/reprogramación.
+         El toggle en Ajustes → Programación añade/quita usuarios internos de este grupo. -->
+    <record id="group_scheduling" model="res.groups">
+        <field name="name">Programación y Reprogramación</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="users" eval="[]"/>
+    </record>
+
 </odoo>

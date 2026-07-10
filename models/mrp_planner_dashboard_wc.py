@@ -48,11 +48,16 @@ class MrpPlannerDashboardWc(models.TransientModel):
         active_tag_ids = set(
             Wc.search([('active', '=', True)]).mapped('tag_ids').ids
         )
-        return [
-            {'id': tag.id, 'name': tag.name}
-            for tag in Tag.search([])
-            if tag.id in active_tag_ids
-        ]
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        enable_scheduling = bool(cfg.enable_scheduling) if cfg else True
+        return {
+            'tags': [
+                {'id': tag.id, 'name': tag.name}
+                for tag in Tag.search([])
+                if tag.id in active_tag_ids
+            ],
+            'enable_scheduling': enable_scheduling,
+        }
 
     @api.model
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):

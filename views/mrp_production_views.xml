@@ -8,6 +8,7 @@
         <field name="binding_model_id" ref="mrp.model_mrp_production"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
+        <field name="groups_id" eval="[(4, ref('odoo_mrp_planner.group_scheduling')), (4, ref('odoo_mrp_planner.group_admin'))]"/>
         <field name="code">
 action = records.action_open_reschedule_plan()
         </field>
@@ -41,7 +42,8 @@ action = records.action_open_reschedule_plan()
                         type="object"
                         class="oe_stat_button"
                         icon="fa-calendar"
-                        invisible="reschedule_plan_count == 0">
+                        invisible="reschedule_plan_count == 0"
+                        groups="odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin">
                     <div class="o_stat_info">
                         <span class="o_stat_value">
                             <field name="reschedule_plan_count"/>
@@ -53,7 +55,8 @@ action = records.action_open_reschedule_plan()
                         type="object"
                         class="oe_stat_button"
                         icon="fa-calendar-check-o"
-                        invisible="not x_reschedule_needed">
+                        invisible="not x_reschedule_needed"
+                        groups="odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Reprogramar</span>
                         <span class="o_stat_text">sugerido</span>

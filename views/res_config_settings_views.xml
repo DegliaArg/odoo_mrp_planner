@@ -53,23 +53,7 @@
                         <page string="Producción" name="production">
                             <div class="row">
 
-                                <!-- Columna izquierda: reprogramación -->
-                                <div class="col-6">
-                                    <group string="Reprogramación — Centro de trabajo sin configurar">
-                                        <field name="wc_fallback" widget="radio" nolabel="1"
-                                               help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>
-                                    </group>
-                                    <group string="Reprogramación — Criterio de prioridad">
-                                        <field name="priority" widget="radio" nolabel="1"
-                                               help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. Cronológico: prioriza la OF con fecha de inicio más próxima. SPT (más cortas primero): minimiza el tiempo de espera promedio. Manual: el operador arrastra y ordena las OFs en el wizard de reprogramación."/>
-                                    </group>
-                                    <group string="Reprogramación — Opciones avanzadas">
-                                        <field name="include_wc_heuristic" widget="boolean_toggle"
-                                               help="Incluye OFs que comparten centros de trabajo con el pivot como dependientes. Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs."/>
-                                    </group>
-                                </div>
-
-                                <!-- Columna derecha: alertas y quiebres -->
+                                <!-- Columna única: alertas y quiebres -->
                                 <div class="col-6">
                                     <group string="Alertas — Órdenes de fabricación">
                                         <field name="alert_mo_critical_days"
@@ -82,6 +66,38 @@
                                     <group string="Quiebres de stock">
                                         <field name="stock_location_id"
                                                help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
+                                    </group>
+                                </div>
+
+                            </div>
+                        </page>
+
+                        <!-- ══ PROGRAMACIÓN ═════════════════════════════════════ -->
+                        <page string="Programación" name="scheduling">
+                            <div class="row">
+
+                                <div class="col-12 mb-3">
+                                    <group string="Habilitar programación y reprogramación">
+                                        <field name="enable_scheduling" widget="boolean_toggle"
+                                               help="Activa o desactiva todas las funciones de programación y reprogramación: menús, botones en OFs y KPIs en el panel de producción. Al desactivar, los usuarios internos dejan de ver estas opciones; los administradores del módulo siempre conservan acceso."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1">
+                                            Cuando está <b>desactivado</b>: se ocultan el menú de Reprogramación, los botones de reprogramación en las OFs y las tarjetas KPI "Para reprogramar" y "Con reprogramación" del panel de producción.
+                                        </div>
+                                    </group>
+                                </div>
+
+                                <div class="col-6" invisible="not enable_scheduling">
+                                    <group string="Reprogramación — Centro de trabajo sin configurar">
+                                        <field name="wc_fallback" widget="radio" nolabel="1"
+                                               help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>
+                                    </group>
+                                    <group string="Reprogramación — Criterio de prioridad">
+                                        <field name="priority" widget="radio" nolabel="1"
+                                               help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. Cronológico: prioriza la OF con fecha de inicio más próxima. SPT (más cortas primero): minimiza el tiempo de espera promedio. Manual: el operador arrastra y ordena las OFs en el wizard de reprogramación."/>
+                                    </group>
+                                    <group string="Reprogramación — Opciones avanzadas">
+                                        <field name="include_wc_heuristic" widget="boolean_toggle"
+                                               help="Incluye OFs que comparten centros de trabajo con el pivot como dependientes. Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs."/>
                                     </group>
                                 </div>
 

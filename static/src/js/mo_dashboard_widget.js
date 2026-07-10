@@ -85,6 +85,7 @@ class MoDashboardWidget extends Component {
             sortDir:        "asc",
             page:           1,
             pageSize:       50,
+            enable_scheduling: true,
             // OFs
             ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0, done: 0, partial: 0 },
             mos:         [],
@@ -104,9 +105,11 @@ class MoDashboardWidget extends Component {
         onPatched(() => requestAnimationFrame(() => this._syncH()));
     }
 
-    /** @returns {Promise<void>} Carga las etiquetas/sectores de centros de trabajo */
+    /** @returns {Promise<void>} Carga las etiquetas/sectores de centros de trabajo y config */
     async _loadTags() {
-        this.state.tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
+        const res = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
+        this.state.tags = res.tags;
+        this.state.enable_scheduling = res.enable_scheduling;
     }
 
     /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */

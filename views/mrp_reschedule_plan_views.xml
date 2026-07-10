@@ -362,6 +362,7 @@
               name="Reprogramación"
               parent="mrp_produccion_menu"
               sequence="20"
-              action="action_mrp_reschedule_plan"/>
+              action="action_mrp_reschedule_plan"
+              groups="odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin"/>
 
 </odoo>

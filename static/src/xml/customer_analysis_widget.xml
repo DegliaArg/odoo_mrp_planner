@@ -337,9 +337,9 @@
                 </div>
 
                 <!-- Tabla -->
-                <div class="border rounded" style="overflow:auto; max-height:72vh;">
+                <div class="border rounded" style="max-height:72vh; overflow-y:auto;">
                     <table class="table table-sm table-bordered mb-0 align-middle"
-                           style="min-width:700px; font-size:12px;">
+                           style="font-size:12px; width:100%; table-layout:fixed;">
 
                         <thead style="position:sticky; top:0; z-index:3;">
                             <tr>

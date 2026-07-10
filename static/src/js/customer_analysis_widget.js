@@ -179,7 +179,7 @@ class CustomerAnalysisWidget extends Component {
             panelTopN:      10,
             // Columnas visibles
             visibleCols: {
-                customer_category: true,
+                customer_category: false,
                 abc_segment:       true,
                 salesperson:       false,
                 country:           false,
@@ -188,14 +188,14 @@ class CustomerAnalysisWidget extends Component {
                 total_amount:      true,
                 avg_ticket:        true,
                 delivery_pct:      true,
-                ontime_pct:        true,
-                avg_days_between:  true,
-                days_since_last:   true,
+                ontime_pct:        false,
+                avg_days_between:  false,
+                days_since_last:   false,
                 last_order_date:   false,
                 distinct_products: false,
                 top_product:       false,
-                top_family:        true,
-                trend_pct:         true,
+                top_family:        false,
+                trend_pct:         false,
                 frequency_segment: true,
             },
         });

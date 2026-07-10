@@ -110,6 +110,9 @@ class MoDashboardWidget extends Component {
         const res = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
         this.state.tags = res.tags;
         this.state.enable_scheduling = res.enable_scheduling;
+        if (!res.enable_scheduling && this.state.tab === 'requests') {
+            this.state.tab = 'ofs';
+        }
     }
 
     /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */

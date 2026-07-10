@@ -12,7 +12,7 @@
                         <i class="fa fa-industry me-1"/>OFs
                     </button>
                 </li>
-                <li class="nav-item">
+                <li t-if="state.enable_scheduling" class="nav-item">
                     <button t-att-class="'nav-link' + (state.tab === 'requests' ? ' active' : '')"
                             t-on-click="() => this.setTab('requests')">
                         <i class="fa fa-calendar me-1"/>Programaciones

@@ -198,14 +198,16 @@ class MrpPlannerDashboard(models.TransientModel):
         can_prod  = is_admin or has_prod_r or has_prod or no_groups
         can_pur   = is_admin or has_pur
         can_sales = is_admin or has_sales_r or has_sales
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        scheduling_on = bool(cfg.enable_scheduling) if cfg else True
         for rec in self:
             rec.can_see_alerts       = can_prod or can_pur
             rec.can_see_mo           = can_prod
             rec.can_see_po           = can_pur
             rec.can_see_stock_breaks = can_prod
             rec.can_see_forecast     = can_sales
-            rec.can_schedule         = is_admin or has_prod
-            rec.can_reschedule       = is_admin or has_prod
+            rec.can_schedule         = scheduling_on and (is_admin or has_prod)
+            rec.can_reschedule       = scheduling_on and (is_admin or has_prod)
             rec.can_edit_forecast    = is_admin or has_sales
 
     @api.depends()

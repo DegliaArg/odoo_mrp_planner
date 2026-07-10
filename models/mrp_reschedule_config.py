@@ -561,17 +561,26 @@ class MrpRescheduleConfig(models.Model):
     def _sync_scheduling_group(self, enabled):
         """Activa/desactiva los menús y el grupo de scheduling según el toggle.
 
-        Usa active en ir.ui.menu (funciona para todos los usuarios, incluido superadmin)
-        y además gestiona el grupo para controlar la visibilidad de botones en vistas.
+        Usa SQL directo en ir_ui_menu para garantizar que el cambio llegue a la
+        base de datos incluso si env.ref() falla por caché o estado del registry.
+        Invalida el caché ORM del modelo después del UPDATE para que la sesión
+        actual no devuelva datos obsoletos.
         """
-        menu_refs = [
-            'odoo_mrp_planner.mrp_reschedule_menu_plans',
-            'odoo_mrp_planner.mrp_reschedule_menu_request',
+        cr = self.env.cr
+        menu_xmlids = [
+            ('odoo_mrp_planner', 'mrp_reschedule_menu_plans'),
+            ('odoo_mrp_planner', 'mrp_reschedule_menu_request'),
         ]
-        for ref in menu_refs:
-            menu = self.env.ref(ref, raise_if_not_found=False)
-            if menu:
-                menu.sudo().write({'active': enabled})
+        for module, name in menu_xmlids:
+            cr.execute(
+                "SELECT res_id FROM ir_model_data WHERE module=%s AND name=%s LIMIT 1",
+                (module, name),
+            )
+            row = cr.fetchone()
+            if row:
+                cr.execute("UPDATE ir_ui_menu SET active=%s WHERE id=%s", (enabled, row[0]))
+        self.env['ir.ui.menu'].invalidate_model(['active'])
+
         group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
         if not group:
             return

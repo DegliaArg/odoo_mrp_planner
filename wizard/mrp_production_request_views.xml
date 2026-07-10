@@ -311,6 +311,7 @@
               name="Programaciones"
               parent="mrp_produccion_menu"
               sequence="10"
-              action="action_mrp_production_request"/>
+              action="action_mrp_production_request"
+              groups="odoo_mrp_planner.group_scheduling"/>
 
 </odoo>

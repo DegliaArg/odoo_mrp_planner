@@ -559,7 +559,19 @@ class MrpRescheduleConfig(models.Model):
         }
 
     def _sync_scheduling_group(self, enabled):
-        """Añade o quita usuarios internos del grupo group_scheduling según el toggle."""
+        """Activa/desactiva los menús y el grupo de scheduling según el toggle.
+
+        Usa active en ir.ui.menu (funciona para todos los usuarios, incluido superadmin)
+        y además gestiona el grupo para controlar la visibilidad de botones en vistas.
+        """
+        menu_refs = [
+            'odoo_mrp_planner.mrp_reschedule_menu_plans',
+            'odoo_mrp_planner.mrp_reschedule_menu_request',
+        ]
+        for ref in menu_refs:
+            menu = self.env.ref(ref, raise_if_not_found=False)
+            if menu:
+                menu.sudo().write({'active': enabled})
         group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
         if not group:
             return

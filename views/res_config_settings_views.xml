@@ -33,6 +33,13 @@
                                             <field name="cron_interval_type" class="ms-2" nolabel="1"/>
                                         </div>
                                     </group>
+                                    <group string="Programación y reprogramación">
+                                        <field name="enable_scheduling" widget="boolean_toggle"
+                                               help="Activa o desactiva todas las funciones de programación y reprogramación: menús, botones en OFs y KPIs en el panel de producción. Al desactivar, los usuarios dejan de ver estas opciones."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1">
+                                            Cuando está <b>desactivado</b> se ocultan el menú de Reprogramación, los botones de reprogramación en las OFs y las tarjetas KPI "Para reprogramar" y "Con reprogramación" del panel de producción.
+                                        </div>
+                                    </group>
                                 </div>
                                 <div class="col-6">
                                     <group string="Depósitos por usuario">
@@ -73,20 +80,10 @@
                         </page>
 
                         <!-- ══ PROGRAMACIÓN ═════════════════════════════════════ -->
-                        <page string="Programación" name="scheduling">
+                        <page string="Programación" name="scheduling" invisible="not enable_scheduling">
                             <div class="row">
 
-                                <div class="col-12 mb-3">
-                                    <group string="Habilitar programación y reprogramación">
-                                        <field name="enable_scheduling" widget="boolean_toggle"
-                                               help="Activa o desactiva todas las funciones de programación y reprogramación: menús, botones en OFs y KPIs en el panel de producción. Al desactivar, los usuarios internos dejan de ver estas opciones; los administradores del módulo siempre conservan acceso."/>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1">
-                                            Cuando está <b>desactivado</b>: se ocultan el menú de Reprogramación, los botones de reprogramación en las OFs y las tarjetas KPI "Para reprogramar" y "Con reprogramación" del panel de producción.
-                                        </div>
-                                    </group>
-                                </div>
-
-                                <div class="col-6" invisible="not enable_scheduling">
+                                <div class="col-6">
                                     <group string="Reprogramación — Centro de trabajo sin configurar">
                                         <field name="wc_fallback" widget="radio" nolabel="1"
                                                help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>

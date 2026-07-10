@@ -21,7 +21,7 @@
                         <div class="card o_planner_card h-100"
                              title="Suma del monto total de todas las OCs confirmadas en el período.">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-dollar fa-lg text-primary mb-2 d-block" title="Monto comprado"/>
+                                <i class="fa fa-money fa-lg text-primary mb-2 d-block" title="Monto comprado"/>
                                 <div class="o_planner_number"><t t-esc="fmtMoney(state.data.kpis.total_amount)"/></div>
                                 <div class="o_planner_label">Monto comprado</div>
                             </div>

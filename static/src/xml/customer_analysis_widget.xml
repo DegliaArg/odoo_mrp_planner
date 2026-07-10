@@ -117,32 +117,25 @@
                                 t-on-click="() => this.setChartTopN(null)">Todos</button>
                     </div>
 
-                    <div class="vr" style="height:22px;"/>
-
-                    <div class="d-flex align-items-center gap-1">
-                        <span class="small text-muted fw-semibold">Torta:</span>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <t t-foreach="[['abc','ABC período'],['cat','Cat. global'],['freq','Frecuencia']]"
-                               t-as="d" t-key="d[0]">
-                                <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
-                                        t-on-click="() => this.setChartDonut(d[0])">
-                                    <t t-esc="d[1]"/>
-                                </button>
-                            </t>
-                        </div>
-                    </div>
-
                 </div>
 
                 <!-- Torta (flex:1 ≈ 30%) + Barras (flex:2 ≈ 70%) -->
                 <div class="d-flex gap-3 align-items-start mb-4">
 
                     <div style="flex:1; min-width:0;">
-                        <p class="text-center small text-muted fw-semibold mb-1" style="font-size:11px;">
-                            <t t-if="state.chartDonut === 'abc'">Distribución por ABC período</t>
-                            <t t-elif="state.chartDonut === 'cat'">Distribución por Cat. global</t>
-                            <t t-else="">Distribución por frecuencia</t>
-                        </p>
+                        <!-- Selector de vista del donut — local al gráfico -->
+                        <div class="d-flex justify-content-center mb-1">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <t t-foreach="[['abc','Segmento'],['cat','Categoría'],['freq','Frecuencia']]"
+                                   t-as="d" t-key="d[0]">
+                                    <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
+                                            style="font-size:10px; padding:1px 7px;"
+                                            t-on-click="() => this.setChartDonut(d[0])">
+                                        <t t-esc="d[1]"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
                         <div style="position:relative; height:300px;">
                             <canvas t-ref="topDonut"/>
                         </div>
@@ -183,7 +176,7 @@
                         <div class="card o_planner_card h-100"
                              title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
-                                <i class="fa fa-dollar fa-lg text-success mb-1 d-block"/>
+                                <i class="fa fa-tag fa-lg text-success mb-1 d-block"/>
                                 <div class="o_planner_number text-success flex-grow-1 d-flex align-items-center"
                                      style="white-space:nowrap;"
                                      t-esc="fmtMoney(state.kpis.avg_ticket)"/>

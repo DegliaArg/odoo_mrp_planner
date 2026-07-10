@@ -776,13 +776,72 @@ class ForecastWidget extends Component {
      * @param {Object|null} cell - Objeto de celda mensual con `forecast` y `pct`.
      * @returns {string} Clase CSS.
      */
-    cellClass(cell) {
-        if (!cell || cell.forecast === 0) return '';
+    /**
+     * Calcula el % efectivo de cobertura de OFs según el denominador configurado.
+     * @param {number} mos - OFs del período.
+     * @param {number} forecast - Forecast del período.
+     * @param {number} so_demand - Demanda SO del período.
+     * @returns {number}
+     */
+    moCovPct(mos, forecast, so_demand) {
+        const denom = this.state.data && this.state.data.mo_coverage_denominator;
+        if (denom === 'so_demand') {
+            return so_demand > 0 ? Math.round(mos / so_demand * 1000) / 10 : 0.0;
+        }
+        return forecast > 0 ? Math.round(mos / forecast * 1000) / 10 : 0.0;
+    }
+
+    /** Pct efectivo para una celda mensual. */
+    moCovPctCell(cell) {
+        return this.moCovPct(cell.mos, cell.forecast, cell.so_demand);
+    }
+
+    /** Pct efectivo para el total de una fila. */
+    moCovPctRow(row) {
+        return this.moCovPct(row.total_mos, row.total_forecast, row.total_so_demand);
+    }
+
+    /**
+     * Clase CSS de cobertura de OFs basada en un pct y los umbrales configurados.
+     * @param {number} forecast
+     * @param {number} pct
+     * @returns {string}
+     */
+    cellClassForPct(forecast, pct) {
+        if (!forecast) return '';
         const d = this.state.data;
         if (!d) return '';
-        if (cell.pct >= 100) return 'forecast-ok';
-        if (cell.pct >= d.warning_pct) return 'forecast-warning';
+        if (pct >= 100) return 'forecast-ok';
+        if (pct >= d.warning_pct) return 'forecast-warning';
         return 'forecast-critical';
+    }
+
+    /**
+     * Clase CSS para una celda mensual.
+     * Respeta el alcance de color (solo totales vs mensual+total).
+     * @param {Object} cell
+     * @returns {string}
+     */
+    cellClassMonthly(cell) {
+        const d = this.state.data;
+        if (!d) return '';
+        if (d.mo_coverage_color_scope === 'total_only') return '';
+        return this.cellClassForPct(cell.forecast, this.moCovPctCell(cell));
+    }
+
+    /**
+     * Clase CSS para la celda de total de OFs de una fila.
+     * Siempre se colorea independientemente del alcance configurado.
+     * @param {Object} row
+     * @returns {string}
+     */
+    cellClassTotal(row) {
+        return this.cellClassForPct(row.total_forecast, this.moCovPctRow(row));
+    }
+
+    cellClass(cell) {
+        if (!cell || cell.forecast === 0) return '';
+        return this.cellClassForPct(cell.forecast, this.moCovPctCell(cell));
     }
 
     /**
@@ -857,7 +916,12 @@ class ForecastWidget extends Component {
      */
     moTooltip(cell) {
         if (!cell || cell.forecast === 0) return '';
-        return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(cell.pct)}`;
+        const denom = this.state.data && this.state.data.mo_coverage_denominator;
+        const pct = this.moCovPctCell(cell);
+        if (denom === 'so_demand') {
+            return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.so_demand)} demanda SO × 100 = ${this.fmtPct(pct)}`;
+        }
+        return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(pct)}`;
     }
 
     /**
@@ -953,18 +1017,35 @@ class ForecastWidget extends Component {
     covTooltip(row) {
         const d = this.state.data;
         const val = this.fmtCoverage(row);
-        if (!val || val === '—') return 'Sin forecast en el período — cobertura no calculable';
+        if (!val || val === '—') return 'Sin datos de demanda en el período — cobertura no calculable';
         const n = d ? (d.rotation_n_months || d.months.length) : 1;
         const periodDays = Math.round(n * 30);
-        return `Cobertura = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_forecast)} forecast ÷ ${periodDays} días) = ${val}`;
+        const source = d && d.coverage_demand_source;
+        let demLabel, demQty;
+        if (source === 'so_demand') {
+            demLabel = 'demanda SO';
+            demQty   = row.total_so_demand;
+        } else if (source === 'delivered') {
+            demLabel = 'entregado';
+            demQty   = row.total_delivered;
+        } else {
+            demLabel = 'forecast';
+            demQty   = row.total_forecast;
+        }
+        return `Cobertura = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(demQty)} ${demLabel} ÷ ${periodDays} días) = ${val}`;
     }
 
     /**
-     * Título para la cabecera de la columna Cobertura.
+     * Título para la cabecera de la columna Cobertura, menciona la fuente activa.
      * @returns {string}
      */
     get covHeaderTitle() {
-        return 'Cobertura de inventario: días (o meses) que cubre el stock actual a la tasa de demanda del forecast planificado. Clic para ordenar.';
+        const d = this.state.data;
+        const source = d && d.coverage_demand_source;
+        const label = source === 'so_demand' ? 'demanda SO (pedidos confirmados)'
+                    : source === 'delivered' ? 'historial de entregas'
+                    : 'forecast planificado';
+        return `Cobertura de inventario: días (o meses) que cubre el stock actual a la tasa de ${label}. Clic para ordenar.`;
     }
 
     /**

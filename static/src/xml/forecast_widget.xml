@@ -545,7 +545,7 @@
                                                 <td t-if="state.visibleCols.forecast"
                                                     class="text-end"
                                                     style="padding:3px 5px;"
-                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClassMonthly(cell) : ''"
                                                     title="Cantidad planificada en el forecast para este mes.">
                                                     <t t-if="cell.forecast > 0">
                                                         <t t-esc="fmt(cell.forecast)"/>
@@ -556,13 +556,14 @@
                                                 <td t-if="state.visibleCols.mos"
                                                     class="text-end"
                                                     style="padding:3px 5px;"
-                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClass(cell) : ''"
+                                                    t-att-class="cell.forecast > 0 ? 'forecast-cell ' + cellClassMonthly(cell) : ''"
                                                     t-att-title="moTooltip(cell)">
                                                     <t t-if="cell.forecast > 0">
                                                         <t t-esc="fmt(cell.mos)"/>
-                                                        <span t-att-class="'ms-1 ' + (cellClass(cell) === 'forecast-ok' ? 'text-success' : cellClass(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                        <span t-if="state.data.mo_coverage_show_pct"
+                                                              t-att-class="'ms-1 ' + (cellClassMonthly(cell) === 'forecast-ok' ? 'text-success' : cellClassMonthly(cell) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
                                                               style="font-size:10px;">
-                                                            <t t-esc="fmtPct(cell.pct)"/>
+                                                            <t t-esc="fmtPct(moCovPctCell(cell))"/>
                                                         </span>
                                                     </t>
                                                     <span t-else="" class="text-muted">—</span>
@@ -594,13 +595,14 @@
                                                     <t t-esc="fmt(row.total_forecast)"/>
                                                 </td>
                                                 <td t-if="state.visibleCols.mos"
-                                                    t-att-class="'text-end fw-semibold ' + cellClass({forecast: row.total_forecast, pct: row.total_pct})"
+                                                    t-att-class="'text-end fw-semibold ' + cellClassTotal(row)"
                                                     style="padding:3px 5px;"
-                                                    t-att-title="'Cobertura total = ' + fmt(row.total_mos) + ' OFs ÷ ' + fmt(row.total_forecast) + ' forecast × 100 = ' + fmtPct(row.total_pct)">
+                                                    t-att-title="moTooltip({mos: row.total_mos, forecast: row.total_forecast, so_demand: row.total_so_demand, pct: row.total_pct})">
                                                     <t t-esc="fmt(row.total_mos)"/>
-                                                    <span t-att-class="'ms-1 ' + (cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-ok' ? 'text-success' : cellClass({forecast: row.total_forecast, pct: row.total_pct}) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
+                                                    <span t-if="state.data.mo_coverage_show_pct"
+                                                          t-att-class="'ms-1 ' + (cellClassTotal(row) === 'forecast-ok' ? 'text-success' : cellClassTotal(row) === 'forecast-warning' ? 'text-warning' : 'text-danger')"
                                                           style="font-size:10px;">
-                                                        <t t-esc="fmtPct(row.total_pct)"/>
+                                                        <t t-esc="fmtPct(moCovPctRow(row))"/>
                                                     </span>
                                                 </td>
                                                 <td t-if="state.visibleCols.delivered"

@@ -124,6 +124,17 @@ class MrpRescheduleConfig(models.Model):
        help='Determina si la cobertura de inventario en el forecast se muestra en días o en meses.'
     )
 
+    forecast_coverage_demand_source = fields.Selection([
+        ('forecast',  'Forecast planificado'),
+        ('so_demand', 'Demanda real (pedidos SO)'),
+        ('delivered', 'Entregado histórico'),
+    ], string='Fuente de demanda para cobertura', default='forecast',
+       help='Denominador para calcular cuántos días dura el stock:\n'
+            'Forecast: stock ÷ (forecast ÷ días). Usa lo planeado. Ideal si el forecast es confiable.\n'
+            'Demanda SO: stock ÷ (pedidos confirmados ÷ días). Usa la demanda real del período. Más conservador si la demanda supera el plan.\n'
+            'Entregado: stock ÷ (entregado ÷ días). Usa el historial de entregas. Refleja la velocidad real de salida de stock.'
+    )
+
     forecast_coverage_alerts_enabled = fields.Boolean(
         string='Mostrar alertas de cobertura', default=False,
         help='Activa colores en la columna de cobertura según los umbrales configurados. '
@@ -140,6 +151,30 @@ class MrpRescheduleConfig(models.Model):
         string='Umbral rojo (días)', default=15,
         help='Cobertura menor a este valor se muestra en rojo (crítico). '
              'Si la unidad es meses, se convierte internamente a días (× 30).'
+    )
+
+    forecast_mo_coverage_show_pct = fields.Boolean(
+        string='Mostrar % de cobertura junto a las OFs', default=True,
+        help='Muestra el porcentaje de cobertura (ej. "500 (83%)") al lado de las cantidades de '
+             'órdenes de fabricación en la tabla del forecast.'
+    )
+
+    forecast_mo_coverage_denominator = fields.Selection([
+        ('forecast',  'Forecast planificado'),
+        ('so_demand', 'Demanda real (pedidos SO)'),
+    ], string='Divisor del % de cobertura de OFs', default='forecast',
+       help='Denominador para calcular el % que aparece junto a las OFs:\n'
+            'Forecast: OFs ÷ forecast × 100. Mide si la producción cubre lo planeado.\n'
+            'Demanda SO: OFs ÷ pedidos confirmados × 100. Mide si la producción cubre lo que realmente pidieron los clientes.'
+    )
+
+    forecast_mo_coverage_color_scope = fields.Selection([
+        ('both',       'Celdas mensuales y total'),
+        ('total_only', 'Solo columna de totales'),
+    ], string='Alcance del color de cobertura', default='both',
+       help='Controla en qué celdas se aplican los colores verde/amarillo/rojo de cobertura de OFs:\n'
+            'Celdas mensuales y total: color en cada mes y en la columna de total del período.\n'
+            'Solo columna de totales: los meses individuales se muestran sin color; el total del período sí se colorea.'
     )
 
     stock_break_show_rotation = fields.Boolean(

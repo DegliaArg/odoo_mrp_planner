@@ -459,6 +459,28 @@
                                                class="mt-2"/>
                                     </group>
 
+                                    <group string="Forecast — Cobertura de inventario">
+                                        <field name="forecast_coverage_unit"
+                                               help="Unidad en que se muestra la cobertura de inventario: días o meses."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2">
+                                            <b>Fórmula:</b> stock disponible ÷ (forecast total del período ÷ días del período).
+                                            Responde: <i>¿cuántos días (o meses) alcanza el stock actual si la demanda sigue el plan?</i>
+                                        </div>
+                                        <field name="forecast_coverage_alerts_enabled"
+                                               widget="boolean_toggle"
+                                               help="Activa colores en la columna Cob. del forecast según los umbrales configurados. Verde: cobertura suficiente. Amarillo: ajustada. Rojo: crítica."/>
+                                        <field name="forecast_coverage_warn_days"
+                                               invisible="not forecast_coverage_alerts_enabled"
+                                               help="Cobertura menor a este valor se muestra en amarillo. Se expresa siempre en días, independientemente de la unidad de visualización."/>
+                                        <field name="forecast_coverage_critical_days"
+                                               invisible="not forecast_coverage_alerts_enabled"
+                                               help="Cobertura menor a este valor se muestra en rojo. Debe ser menor que el umbral amarillo."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="not forecast_coverage_alerts_enabled">
+                                            <b>Ejemplo:</b> con umbral rojo = 15 días y amarillo = 30 días: un producto con 10 días de cobertura aparece en rojo; con 25 días, en amarillo; con más de 30, en verde.
+                                        </div>
+                                    </group>
+
                                     <group string="Forecast — Precisión">
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"

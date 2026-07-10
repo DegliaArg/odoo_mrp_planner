@@ -268,6 +268,12 @@
                                 <label class="form-check-label small" for="col_rotation">Rotación</label>
                             </div>
                             <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="col_coverage"
+                                       t-att-checked="state.visibleCols.coverage"
+                                       t-on-change="() => this.toggleCol('coverage')"/>
+                                <label class="form-check-label small" for="col_coverage">Cobertura</label>
+                            </div>
+                            <div class="form-check mb-1">
                                 <input type="checkbox" class="form-check-input" id="col_demand"
                                        t-att-checked="state.visibleCols.demand"
                                        t-on-change="() => this.toggleCol('demand')"/>
@@ -515,6 +521,12 @@
                                                     style="padding:3px 6px;"
                                                     t-att-title="rotTooltip(row)">
                                                     <t t-esc="fmtRotation(row)"/>
+                                                </td>
+                                                <td t-elif="col.key === 'coverage'"
+                                                    t-att-class="'text-end ' + covClass(row)"
+                                                    style="padding:3px 6px;"
+                                                    t-att-title="covTooltip(row)">
+                                                    <t t-esc="fmtCoverage(row)"/>
                                                 </td>
                                                 <td t-elif="col.key === 'demand'"
                                                     class="text-end"

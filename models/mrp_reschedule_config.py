@@ -117,6 +117,31 @@ class MrpRescheduleConfig(models.Model):
             'Ventas: días del período × inventario promedio (a costo) ÷ ventas netas (a precio).'
     )
 
+    forecast_coverage_unit = fields.Selection([
+        ('days',   'Días'),
+        ('months', 'Meses'),
+    ], string='Unidad de cobertura de inventario', default='days',
+       help='Determina si la cobertura de inventario en el forecast se muestra en días o en meses.'
+    )
+
+    forecast_coverage_alerts_enabled = fields.Boolean(
+        string='Mostrar alertas de cobertura', default=False,
+        help='Activa colores en la columna de cobertura según los umbrales configurados. '
+             'Verde: cobertura suficiente. Amarillo: cobertura ajustada. Rojo: cobertura crítica.'
+    )
+
+    forecast_coverage_warn_days = fields.Integer(
+        string='Umbral amarillo (días)', default=30,
+        help='Cobertura menor a este valor se muestra en amarillo (aviso). '
+             'Si la unidad es meses, se convierte internamente a días (× 30).'
+    )
+
+    forecast_coverage_critical_days = fields.Integer(
+        string='Umbral rojo (días)', default=15,
+        help='Cobertura menor a este valor se muestra en rojo (crítico). '
+             'Si la unidad es meses, se convierte internamente a días (× 30).'
+    )
+
     stock_break_show_rotation = fields.Boolean(
         string='Mostrar rotación en quiebres de stock', default=False,
         help='Si está activo, se muestra la columna de rotación de inventario en el widget de quiebres de stock.'

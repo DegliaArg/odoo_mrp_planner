@@ -131,6 +131,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
         rotation_method = (cfg.forecast_rotation_method if cfg else None) or 'units'
         acc_formula     = (cfg.forecast_acc_formula     if cfg else None) or 'simple'
+        coverage_unit            = (cfg.forecast_coverage_unit            if cfg else None) or 'days'
+        coverage_alerts_enabled  = bool(cfg.forecast_coverage_alerts_enabled) if cfg else False
+        coverage_warn_days       = (cfg.forecast_coverage_warn_days       if cfg else None) or 30
+        coverage_critical_days   = (cfg.forecast_coverage_critical_days   if cfg else None) or 15
 
         # Estados de OF configurados
         mo_states = []
@@ -529,6 +533,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'avg_stock_qty':      round(avg_stock_qty, 2),
                 'rotation_days':      rot_days,
                 'rotation_months':    rot_months,
+                'coverage_days':      round(stock_qty * _period_days / tot_fc, 1) if tot_fc > 0 else None,
+                'coverage_months':    round(stock_qty * _period_days / tot_fc / 30, 1) if tot_fc > 0 else None,
                 'total_forecast':     round(tot_fc,  2),
                 'total_mos':          round(tot_mos, 2),
                 'total_pct':          tot_pct,
@@ -679,6 +685,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'rotation_n_months': round(n_months, 2),
             'acc_formula':      acc_formula,
             'mo_states':        mo_states,
+            'coverage_unit':            coverage_unit,
+            'coverage_alerts_enabled':  coverage_alerts_enabled,
+            'coverage_warn_days':       coverage_warn_days,
+            'coverage_critical_days':   coverage_critical_days,
         }
 
     @api.model

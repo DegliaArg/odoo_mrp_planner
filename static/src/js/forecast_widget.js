@@ -41,6 +41,7 @@ const FC_STATIC_COLS = [
     { key: 'productTypes', label: 'Tipo',      width: 120, align: 'start' },
     { key: 'stock',        label: 'Stock',     width:  80, align: 'end' },
     { key: 'rotation',     label: 'Rot.',      width:  75, align: 'end' },
+    { key: 'coverage',     label: 'Cob.',      width:  75, align: 'end' },
     { key: 'demand',       label: 'Demanda',   width:  90, align: 'end' },
 ];
 
@@ -51,6 +52,7 @@ const FC_SORT_KEYS = {
     productTypes: 'product_types',
     stock:        'stock_qty',
     rotation:     'rotation_days',
+    coverage:     'coverage_days',
     demand:       'total_so_demand',
 };
 
@@ -139,6 +141,7 @@ class ForecastWidget extends Component {
                 delivered:     true,
                 stock:         true,
                 rotation:      true,
+                coverage:      true,
                 total:         true,
                 saleCategory:  false,
                 productCateg:  false,
@@ -444,6 +447,7 @@ class ForecastWidget extends Component {
 
     colTitle(col) {
         if (col.key === 'rotation')     return this.rotHeaderTitle;
+        if (col.key === 'coverage')     return this.covHeaderTitle;
         if (col.key === 'product')      return 'Ordenar por nombre de artículo';
         if (col.key === 'saleCategory') return 'Categoría de venta (A=alta rotación, E=baja). Clic para ordenar.';
         if (col.key === 'productCateg') return 'Familia de producto (product.template.categ_id). Clic para ordenar.';
@@ -905,6 +909,62 @@ class ForecastWidget extends Component {
         }
         const suffix = unit !== 'months' ? ' × 30' : '';
         return `Unidades: ${this.fmt(row.avg_stock_qty)} stock promedio ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${nLabel} meses)${suffix} = ${val}`;
+    }
+
+    /**
+     * Formatea el valor de cobertura de inventario de una fila.
+     * @param {Object} row
+     * @returns {string} P. ej. "45 d" o "1.5 m" o "—".
+     */
+    fmtCoverage(row) {
+        const unit = this.state.data && this.state.data.coverage_unit;
+        if (unit === 'months') {
+            const v = row.coverage_months;
+            return v !== null && v !== undefined ? `${v} m` : '—';
+        }
+        const v = row.coverage_days;
+        return v !== null && v !== undefined ? `${v} d` : '—';
+    }
+
+    /**
+     * Clase CSS para la celda de cobertura de inventario.
+     * Verde si cubre bien, amarillo si está ajustado, rojo si es crítico.
+     * Respeta el flag coverage_alerts_enabled del config.
+     * @param {Object} row
+     * @returns {string}
+     */
+    covClass(row) {
+        const d = this.state.data;
+        if (!d || !d.coverage_alerts_enabled) return 'text-muted';
+        const v = row.coverage_days;
+        if (v === null || v === undefined) return 'text-muted';
+        const warn = d.coverage_warn_days || 30;
+        const crit = d.coverage_critical_days || 15;
+        if (v <= crit) return 'text-danger fw-bold';
+        if (v <= warn) return 'text-warning fw-semibold';
+        return 'text-success';
+    }
+
+    /**
+     * Tooltip de cobertura de inventario: muestra la fórmula con los valores reales.
+     * @param {Object} row
+     * @returns {string}
+     */
+    covTooltip(row) {
+        const d = this.state.data;
+        const val = this.fmtCoverage(row);
+        if (!val || val === '—') return 'Sin forecast en el período — cobertura no calculable';
+        const n = d ? (d.rotation_n_months || d.months.length) : 1;
+        const periodDays = Math.round(n * 30);
+        return `Cobertura = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(row.total_forecast)} forecast ÷ ${periodDays} días) = ${val}`;
+    }
+
+    /**
+     * Título para la cabecera de la columna Cobertura.
+     * @returns {string}
+     */
+    get covHeaderTitle() {
+        return 'Cobertura de inventario: días (o meses) que cubre el stock actual a la tasa de demanda del forecast planificado. Clic para ordenar.';
     }
 
     /**

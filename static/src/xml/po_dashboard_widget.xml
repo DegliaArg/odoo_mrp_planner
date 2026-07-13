@@ -66,11 +66,13 @@
                             <div class="card o_planner_card o_planner_card_info h-100"
                                  style="cursor:pointer" t-on-click="onClickRfqs"
                                  t-att-title="poKpiTooltip('rfq')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
                                     <div class="o_planner_number text-info" t-esc="fmt(state.kpis.rfq)"/>
-                                    <div class="o_planner_label mb-1">Cotizaciones</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0 text-info" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">Cotizaciones</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-info" t-on-click.stop="onClickRfqs">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -79,11 +81,13 @@
                             <div class="card o_planner_card o_planner_card_warning h-100"
                                  style="cursor:pointer" t-on-click="onClickToApprove"
                                  t-att-title="poKpiTooltip('to_approve')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
                                     <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.to_approve)"/>
-                                    <div class="o_planner_label mb-1">Por aprobar</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0 text-warning" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">Por aprobar</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-warning" t-on-click.stop="onClickToApprove">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -92,11 +96,13 @@
                             <div class="card o_planner_card h-100"
                                  style="cursor:pointer" t-on-click="onClickAll"
                                  t-att-title="poKpiTooltip('total')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                     <div class="o_planner_number" t-esc="fmt(state.kpis.total)"/>
-                                    <div class="o_planner_label mb-1">Aprobadas</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">Aprobadas</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickAll">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -105,11 +111,13 @@
                             <div class="card o_planner_card o_planner_card_success h-100"
                                  style="cursor:pointer" t-on-click="onClickPending"
                                  t-att-title="poKpiTooltip('pending')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
                                     <div class="o_planner_number text-success" t-esc="fmt(state.kpis.pending)"/>
-                                    <div class="o_planner_label mb-1">A tiempo</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0 text-success" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">A tiempo</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-success" t-on-click.stop="onClickPending">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -118,11 +126,13 @@
                             <div class="card o_planner_card o_planner_card_danger h-100"
                                  style="cursor:pointer" t-on-click="onClickOverdue"
                                  t-att-title="poKpiTooltip('overdue')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue)"/>
-                                    <div class="o_planner_label mb-1">Vencidas</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0 text-danger" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">Vencidas</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickOverdue">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -131,11 +141,13 @@
                             <div class="card o_planner_card o_planner_card_danger h-100"
                                  style="cursor:pointer" t-on-click="onClickOverdue"
                                  t-att-title="poKpiTooltip('overdue_critical')">
-                                <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue_critical)"/>
-                                    <div class="o_planner_label mb-1">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
-                                    <button class="btn btn-link btn-sm py-0 px-0 text-danger" style="font-size:11px; line-height:1.2;">Ver →</button>
+                                    <div class="o_planner_label">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickOverdue">Ver →</button>
                                 </div>
                             </div>
                         </div>

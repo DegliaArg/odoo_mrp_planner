@@ -5,7 +5,7 @@
         <div class="o_sales_chart_widget">
 
             <!-- Fila única de filtros -->
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <div class="d-flex flex-nowrap align-items-center gap-2 mb-3" style="overflow-x:auto;">
 
                 <!-- Período -->
                 <div class="btn-group btn-group-sm" role="group">
@@ -80,7 +80,7 @@
 
                 <!-- Categoría de producto -->
                 <div t-if="state.productCategs.length" class="d-flex align-items-center gap-1">
-                    <span class="small text-muted fw-semibold">Prod.:</span>
+                    <span class="small text-muted fw-semibold">Cat.:</span>
                     <select class="form-select form-select-sm" style="min-width:140px; font-size:11px;"
                             title="Filtrar por familia de producto"
                             t-on-change="setProductCat">

@@ -86,56 +86,59 @@
                     </div>
                 </div>
 
+                <div class="vr" style="height:22px;"/>
+
+                <!-- Métrica del gráfico -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[['pxq','PxQ'],['pedidos','Pedidos'],['ticket','Ticket']]"
+                       t-as="m" t-key="m[0]">
+                        <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-info' : 'btn-outline-secondary')"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setChartMetric(m[0])">
+                            <t t-esc="m[1]"/>
+                        </button>
+                    </t>
+                </div>
+
+                <div class="vr" style="height:22px;"/>
+
+                <!-- Top N -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                        <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-secondary' : 'btn-outline-secondary')"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setChartTopN(n)">
+                            <t t-esc="'Top ' + n"/>
+                        </button>
+                    </t>
+                    <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-secondary' : 'btn-outline-secondary')"
+                            style="font-size:11px; padding:1px 7px;"
+                            t-on-click="() => this.setChartTopN(null)">Todos</button>
+                </div>
+
+                <div class="vr" style="height:22px;"/>
+
+                <!-- Segmento del donut -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[['abc','Segmento'],['cat','Cat.'],['freq','Frec.']]"
+                       t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
+                                style="font-size:11px; padding:1px 7px;"
+                                t-on-click="() => this.setChartDonut(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+
             </div>
 
             <!-- ── Gráficos superiores ───────────────────────────────────────── -->
             <t t-if="!state.loading and state.allRows.length">
 
-                <!-- Filtros de gráficos (misma estética que panel de ventas) -->
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-
-                    <div class="btn-group btn-group-sm" role="group">
-                        <t t-foreach="[['pxq','PxQ'],['pedidos','Pedidos'],['ticket','Ticket']]"
-                           t-as="m" t-key="m[0]">
-                            <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-info' : 'btn-outline-secondary')"
-                                    t-on-click="() => this.setChartMetric(m[0])">
-                                <t t-esc="m[1]"/>
-                            </button>
-                        </t>
-                    </div>
-
-                    <div class="vr" style="height:22px;"/>
-
-                    <div class="btn-group btn-group-sm" role="group">
-                        <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
-                            <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-secondary' : 'btn-outline-secondary')"
-                                    t-on-click="() => this.setChartTopN(n)">
-                                <t t-esc="'Top ' + n"/>
-                            </button>
-                        </t>
-                        <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-secondary' : 'btn-outline-secondary')"
-                                t-on-click="() => this.setChartTopN(null)">Todos</button>
-                    </div>
-
-                </div>
-
                 <!-- Torta (flex:1 ≈ 30%) + Barras (flex:2 ≈ 70%) -->
                 <div class="d-flex gap-3 align-items-start mb-4">
 
                     <div style="flex:1; min-width:0;">
-                        <!-- Selector de vista del donut — local al gráfico -->
-                        <div class="d-flex justify-content-center mb-1">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <t t-foreach="[['abc','Segmento'],['cat','Categoría'],['freq','Frecuencia']]"
-                                   t-as="d" t-key="d[0]">
-                                    <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
-                                            style="font-size:10px; padding:1px 7px;"
-                                            t-on-click="() => this.setChartDonut(d[0])">
-                                        <t t-esc="d[1]"/>
-                                    </button>
-                                </t>
-                            </div>
-                        </div>
                         <div style="position:relative; height:300px;">
                             <canvas t-ref="topDonut"/>
                         </div>

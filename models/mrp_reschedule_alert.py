@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
+from .const import DEFAULT_PO_CRITICAL_DAYS
 
 _logger = logging.getLogger(__name__)
 
@@ -458,7 +459,7 @@ class MrpRescheduleAlert(models.Model):
         """Detecta OCs con fecha de entrega vencida y sin recepción completa; crea/actualiza alertas po_delayed."""
         cfg = self._get_config()
         # 5 días es el umbral crítico por defecto para OCs si no hay configuración activa
-        crit_days = cfg.alert_po_critical_days if cfg else 5
+        crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         pos = self.env['purchase.order'].search([
             ('state', 'in', ('purchase', 'done')),
             ('date_planned', '<', now),

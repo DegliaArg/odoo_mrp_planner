@@ -5,3 +5,5 @@ SALE_CAT_SELECTION = [
     ('D', 'D'),
     ('E', 'E — Baja rotación'),
 ]
+
+DEFAULT_PO_CRITICAL_DAYS = 5

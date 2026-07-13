@@ -1,6 +1,6 @@
 # Planificador de producción
 
-**Odoo 18 Enterprise · Fabricación · v18.0.42.0.0**  
+**Odoo 18 Enterprise · Fabricación · v18.0.46.0.0**  
 Desarrollado por [Deglia](https://deglia.xyz)
 
 Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y monitoreo en tiempo real de órdenes de fabricación, compra y stock.

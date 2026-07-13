@@ -29,6 +29,7 @@ from datetime import datetime
 from collections import deque
 
 from odoo import models, fields, api, _
+from .const import DEFAULT_PO_CRITICAL_DAYS
 
 _logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         # Leer umbral crítico OC desde config
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        po_crit_days = cfg.alert_po_critical_days if cfg else 5
+        po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
 
         def _po_dict(po):
             return {

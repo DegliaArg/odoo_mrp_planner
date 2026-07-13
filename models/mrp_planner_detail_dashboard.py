@@ -1,5 +1,6 @@
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
+from .const import DEFAULT_PO_CRITICAL_DAYS
 
 
 class MrpPlannerDetailDashboard(models.TransientModel):
@@ -72,7 +73,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             if cat == 'pos':
                 # FIX [FASE-3]: umbral crítico de días leído de config (antes hardcodeado en 5)
                 cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-                po_crit_days = cfg.alert_po_critical_days if cfg else 5
+                po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
                 active_pos = PO.search([('state', '=', 'purchase')])
                 overdue = active_pos.filtered(lambda p: p.date_planned and p.date_planned < now)
                 rec.po_total            = len(active_pos)
@@ -198,7 +199,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
     def action_view_critical_pos(self):
         now = fields.Datetime.now()
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        po_crit_days = cfg.alert_po_critical_days if cfg else 5
+        po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         from datetime import timedelta
         crit_threshold = now - timedelta(days=po_crit_days)
         return {

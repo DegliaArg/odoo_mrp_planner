@@ -1247,9 +1247,18 @@ class ForecastWidget extends Component {
      * @returns {{ dateFrom: string, dateTo: string }} Rango con formato "YYYY-MM-DD HH:MM:SS".
      */
     _periodDateRange() {
+        // Odoo's ORM treats bare datetime strings as UTC.  Build the boundaries
+        // in local time and then shift them to UTC so the domain window matches
+        // the user's calendar day, regardless of server/client timezone offset.
+        const toUtcStr = (localIso) => {
+            const d = new Date(localIso);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+                   `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+        };
         return {
-            dateFrom: `${this.state.periodFrom} 00:00:00`,
-            dateTo:   `${this.state.periodTo} 23:59:59`,
+            dateFrom: toUtcStr(`${this.state.periodFrom}T00:00:00`),
+            dateTo:   toUtcStr(`${this.state.periodTo}T23:59:59`),
         };
     }
 

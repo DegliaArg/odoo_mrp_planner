@@ -106,6 +106,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             wh_domain  = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
             # ── 1. Órdenes confirmadas en el período ─────────────────────────
+            # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
             orders = self.env['sale.order'].sudo().search([
                 ('state', 'in', ['sale', 'done']),
                 ('date_order', '>=', d_from_str),
@@ -121,6 +122,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ])
 
             # ── 2. Qty pedida / entregada por orden ──────────────────────────
+            # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_groups = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)],
                 ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
@@ -135,6 +137,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             }
 
             # ── 3. Top producto / familia ────────────────────────────────────
+            # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_detail = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)],
                 ['order_id', 'product_id', 'price_subtotal:sum'],
@@ -145,6 +148,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             prod_ids = list({g['product_id'][0] for g in sol_detail if g.get('product_id')})
             prod_info = {
                 p['id']: p
+                # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
                 for p in self.env['product.product'].sudo().browse(prod_ids).read(
                     ['id', 'product_tmpl_id', 'categ_id']
                 )
@@ -167,6 +171,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     partner_fam[pid][categ]  += amt
 
             # ── 4. Pickings para puntualidad ─────────────────────────────────
+            # sudo(): usuario no tiene acceso directo a stock.picking; se lee sólo el agregado para el dashboard
             pickings = self.env['stock.picking'].sudo().search([
                 ('sale_id', 'in', orders.ids),
                 ('state', '=', 'done'),
@@ -182,6 +187,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             dur           = max(1, (d_to - d_from).days)
             d_prev_from   = (d_from - timedelta(days=dur + 1)).strftime('%Y-%m-%d 00:00:00')
             d_prev_to     = (d_from - timedelta(days=1)).strftime('%Y-%m-%d 23:59:59')
+            # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
             prev_groups   = self.env['sale.order'].sudo().read_group(
                 [('state', 'in', ['sale', 'done']),
                  ('date_order', '>=', d_prev_from),
@@ -198,6 +204,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
             partner_info = {
                 p['id']: p
+                # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
                 for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
                     ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id']
                 )
@@ -333,6 +340,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         d_to_str   = period_to   + ' 23:59:59'
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
+        # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
         orders = self.env['sale.order'].sudo().search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['sale', 'done']),
@@ -340,6 +348,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ('date_order', '<=', d_to_str),
         ] + wh_domain)
 
+        # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
         partner = self.env['res.partner'].sudo().browse(partner_id)
 
         if not orders:
@@ -351,10 +360,12 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             }
 
         so_data   = orders.read(['id', 'name', 'date_order', 'amount_untaxed', 'state'])
+        # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
         lines     = self.env['sale.order.line'].sudo().search([('order_id', 'in', orders.ids)])
         lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'])
 
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
+        # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
         prods     = self.env['product.product'].sudo().browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
         categ_by_prod = {p['id']: (p.get('categ_id') or (0, 'Sin familia'))[1] for p in prods}
         tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}

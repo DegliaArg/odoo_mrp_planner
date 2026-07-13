@@ -176,8 +176,8 @@
                        decoration-danger="days_late >= 3"
                        decoration-warning="days_late > 0 and days_late &lt; 3"/>
                 <field name="production_id" string="OF"       optional="show"/>
-                <field name="purchase_id"   string="OC"       optional="show"/>
-                <field name="picking_id"    string="Recepción" optional="show"/>
+                <field name="purchase_id"   string="OC"       optional="hide"/>
+                <field name="picking_id"    string="Recepción" optional="hide"/>
                 <field name="product_id"    string="Producto"  optional="show"/>
                 <field name="expected_qty"  string="Planificado" optional="hide"/>
                 <field name="actual_qty"    string="Real"        optional="hide"/>

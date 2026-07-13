@@ -25,6 +25,7 @@ from datetime import datetime
 
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
+from .const import DEFAULT_PO_CRITICAL_DAYS
 
 _logger = logging.getLogger(__name__)
 
@@ -304,7 +305,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ))
             rec.po_overdue          = len(overdue)
             cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-            crit_days = cfg.alert_po_critical_days if cfg else 5
+            crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
             rec.po_overdue_critical = len(overdue.filtered(
                 lambda p: (now - p.date_planned).days >= crit_days
             ))
@@ -548,10 +549,6 @@ class MrpPlannerDashboard(models.TransientModel):
         """Navega a la lista de alertas activas con severidad crítica."""
         return self._open_alerts([('severity', '=', 'critical')])
 
-    def action_view_warning(self):
-        """Navega a la lista de alertas activas con severidad advertencia."""
-        return self._open_alerts([('severity', '=', 'warning')])
-
     def action_view_mo_delayed_alerts(self):
         """Navega a las alertas de tipo 'OF atrasada' (mo_delayed)."""
         return self._open_alerts([('alert_type', '=', 'mo_delayed')])
@@ -609,14 +606,6 @@ class MrpPlannerDashboard(models.TransientModel):
             _('OFs activas'),
         )
 
-    def action_view_in_progress_mos(self):
-        """Navega a las OFs en estado 'en progreso' o 'por cerrar'."""
-        no_sc = no_subcontract_domain(self.env)
-        return self._open_mos(
-            [('state', 'in', ('progress', 'to_close'))] + no_sc,
-            _('OFs en progreso'),
-        )
-
     def action_view_delayed_mos(self):
         """Navega a las OFs activas cuya fecha de finalización planificada ya pasó."""
         now = fields.Datetime.now()
@@ -628,25 +617,6 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('date_finished', '!=', False),
             ] + no_sc,
             _('OFs atrasadas'),
-        )
-
-    def action_view_reschedule_needed(self):
-        """Navega a las OFs activas marcadas con reprogramación pendiente (x_reschedule_needed)."""
-        no_sc = no_subcontract_domain(self.env)
-        return self._open_mos(
-            [
-                ('state', 'not in', ('done', 'cancel')),
-                ('x_reschedule_needed', '=', True),
-            ] + no_sc,
-            _('OFs para reprogramar'),
-        )
-
-    def action_view_done_mos(self):
-        """Navega a todas las OFs completadas (estado done), excluyendo subcontratación."""
-        no_sc = no_subcontract_domain(self.env)
-        return self._open_mos(
-            [('state', '=', 'done')] + no_sc,
-            _('OFs completadas'),
         )
 
     # ── Navegación — OCs ─────────────────────────────────────────────────────

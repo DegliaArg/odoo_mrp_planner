@@ -44,7 +44,6 @@ Panel en tiempo real
         'views/mrp_reschedule_plan_views.xml',
         'views/mrp_production_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',
-        'views/purchase_order_views.xml',
         'views/mrp_forecast_line_views.xml',
         'views/res_users_views.xml',
         'wizard/mrp_production_request_views.xml',

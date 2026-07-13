@@ -36,7 +36,12 @@ class MrpRescheduleConfig(models.Model):
     _name = 'mrp.reschedule.config'
     _description = 'Configuración del planificador de producción'
     _rec_name = 'name'
+    _sql_constraints = [
+        ('singleton', 'UNIQUE(singleton_check)',
+         'Solo puede existir una configuración del planificador.'),
+    ]
 
+    singleton_check = fields.Boolean(default=True, string='Singleton')
     name = fields.Char(compute='_compute_name', string='Nombre')
 
     # ── Programación / Reprogramación ────────────────────────────────────────
@@ -59,7 +64,12 @@ class MrpRescheduleConfig(models.Model):
         ('chronological', 'Orden cronológico (fecha actual)'),
         ('shortest_first', 'Más cortas primero (SPT)'),
         ('manual', 'Secuencia manual en el wizard'),
-    ], string='Criterio de prioridad al reprogramar', default='chronological', required=True)
+    ], string='Criterio de prioridad al reprogramar', default='chronological', required=True,
+       help='Orden en que se programan las OFs cuando compiten por el mismo centro de trabajo. '
+            'Cronológico: respeta las fechas actuales. '
+            'SPT (más cortas primero): minimiza el tiempo de espera promedio. '
+            'Manual: el operador define el orden en el wizard.'
+    )
 
     cron_interval_number = fields.Integer(string='Cada', default=30,
         help='Frecuencia con que el cron de detección revisa las OFs y OCs '
@@ -100,16 +110,15 @@ class MrpRescheduleConfig(models.Model):
 
     # Estados de OF a incluir en la comparativa forecast
     forecast_mo_state_draft     = fields.Boolean(string='Borrador',          default=False,
-        help='Incluir OFs en estado Borrador al calcular la producción planificada en el forecast.')
+        help='OFs en borrador incluidas en el cálculo de cobertura de producción.')
     forecast_mo_state_confirmed = fields.Boolean(string='Confirmada',        default=True,
-        help='Incluir OFs en estado Confirmada al calcular la producción planificada en el forecast.')
+        help='OFs confirmadas incluidas en el cálculo de cobertura de producción.')
     forecast_mo_state_progress  = fields.Boolean(string='En progreso',       default=True,
-        help='Incluir OFs en estado En progreso al calcular la producción planificada en el forecast.')
+        help='OFs en progreso (ya iniciadas) incluidas en el cálculo de cobertura de producción.')
     forecast_mo_state_to_close  = fields.Boolean(string='Por cerrar',        default=True,
-        help='Incluir OFs en estado Por cerrar al calcular la producción planificada en el forecast.')
+        help='OFs pendientes de cierre incluidas en el cálculo de cobertura de producción.')
     forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False,
-        help='Incluir OFs en estado Terminada al calcular la producción planificada en el forecast. '
-             'Útil para verificar producción ya completada dentro del período.')
+        help='OFs terminadas incluidas en el cálculo de cobertura de producción.')
 
     forecast_rotation_unit = fields.Selection([
         ('days',   'Días'),

@@ -76,6 +76,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
         if location_ids:
             locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
         else:
+            # sudo(): usuario no tiene acceso directo a ir.config_parameter; se lee sólo el agregado para el dashboard
             loc_param = self.env['ir.config_parameter'].sudo().get_param(
                 'mrp_reschedule.stock_location_id')
             try:
@@ -157,6 +158,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
             if rotation_method == 'units':
                 try:
+                    # sudo(): usuario no tiene acceso directo a stock.move; se lee sólo el agregado para el dashboard
                     SM = self.env['stock.move'].sudo()
                     _sm_base = [
                         ('state', '=', 'done'),
@@ -215,6 +217,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
             elif rotation_method in ('cogs', 'sales') and 'stock.valuation.layer' in self.env:
                 try:
+                    # sudo(): usuario no tiene acceso directo a stock.valuation.layer; se lee sólo el agregado para el dashboard
                     SVL = self.env['stock.valuation.layer'].sudo()
                     cogs_map      = {}
                     inv_start_map = {}
@@ -245,6 +248,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
                     sales_map = {}
                     if rotation_method == 'sales':
+                        # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
                         for g in self.env['sale.order.line'].sudo().read_group([
                             ('order_id.state', 'in', ('sale', 'done')),
                             ('order_id.date_order', '>=', dt_rot_str),

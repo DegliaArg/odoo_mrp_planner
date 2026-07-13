@@ -316,6 +316,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
         if rotation_method == 'units' and all_product_ids_list:
             try:
+                # sudo(): usuario no tiene acceso directo a stock.move; se lee sólo el agregado para el dashboard
                 SM = self.env['stock.move'].sudo()
                 _sm_base = [
                     ('state', '=', 'done'),
@@ -363,6 +364,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
         if rotation_method in ('cogs', 'sales') and 'stock.valuation.layer' in self.env:
             try:
+                # sudo(): usuario no tiene acceso directo a stock.valuation.layer; se lee sólo el agregado para el dashboard
                 SVL = self.env['stock.valuation.layer'].sudo()
                 # COGS: capas con valor negativo (salidas) dentro del período
                 for g in SVL.read_group([
@@ -397,6 +399,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
         if rotation_method == 'sales':
             try:
+                # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
                 for g in self.env['sale.order.line'].sudo().read_group([
                     ('order_id.state', 'in', ('sale', 'done')),
                     ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),

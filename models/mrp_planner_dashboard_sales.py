@@ -23,12 +23,29 @@ Relacionado con:
 - purchase.order / stock.picking / account.move: fuentes de datos para el
   análisis de proveedores.
 """
+import calendar
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from odoo import models, fields, api
 
 _logger = logging.getLogger(__name__)
+
+
+def _parse_date(s, last_day=False):
+    """Convierte 'YYYY-MM' o 'YYYY-MM-DD' a un objeto date.
+
+    :param s: str — fecha en formato ``'YYYY-MM'`` o ``'YYYY-MM-DD'``.
+    :param last_day: bool — si True, devuelve el último día del mes cuando no
+        se especifica día explícito.
+    :returns: date o None si el string no se puede parsear.
+    """
+    parts = s.split('-')
+    y, m = int(parts[0]), int(parts[1])
+    if len(parts) >= 3:
+        return date(y, m, int(parts[2]))
+    # Sin día explícito: primer o último día del mes según last_day
+    return date(y, m, calendar.monthrange(y, m)[1] if last_day else 1)
 
 
 class MrpPlannerDashboardSales(models.TransientModel):
@@ -232,18 +249,6 @@ class MrpPlannerDashboardSales(models.TransientModel):
             Ante error de parseo de fechas devuelve
             ``{'rows': [], 'kpis': {…vacío}, 'has_invoices': False}``.
         """
-        import calendar as _cal
-        from datetime import date as _date
-
-        def _parse_date(s, last_day=False):
-            """Convierte 'YYYY-MM' o 'YYYY-MM-DD' a un objeto date."""
-            parts = s.split('-')
-            y, m = int(parts[0]), int(parts[1])
-            if len(parts) >= 3:
-                return _date(y, m, int(parts[2]))
-            # Sin día explícito: primer o último día del mes según last_day
-            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
-
         try:
             d_from = _parse_date(period_from)
             d_to   = _parse_date(period_to, last_day=True)
@@ -515,17 +520,6 @@ class MrpPlannerDashboardSales(models.TransientModel):
             ``product_count`` y ``receipt_status``, ordenada por fecha de orden
             descendente. Devuelve ``[]`` si las fechas no se pueden parsear.
         """
-        import calendar as _cal
-        from datetime import date as _date
-        def _parse_date(s, last_day=False):
-            """Convierte 'YYYY-MM' o 'YYYY-MM-DD' a un objeto date."""
-            parts = s.split('-')
-            y, m = int(parts[0]), int(parts[1])
-            if len(parts) >= 3:
-                return _date(y, m, int(parts[2]))
-            # Sin día explícito: primer o último día del mes según last_day
-            return _date(y, m, _cal.monthrange(y, m)[1] if last_day else 1)
-
         try:
             d_from = _parse_date(period_from)
             d_to   = _parse_date(period_to, last_day=True)

@@ -96,22 +96,3 @@ class MrpForecastLine(models.Model):
                 rec.period_display = f"{_MONTHS_ES[rec.period.month - 1]} {rec.period.year}"
             else:
                 rec.period_display = ''
-
-    @api.model
-    def _period_from_str(self, period_str):
-        """
-        Convierte una cadena 'YYYY-MM' a un objeto date representando el primer día del mes.
-
-        Usado internamente para normalizar strings de período provenientes de vistas
-        o importaciones antes de escribirlos en el campo period (tipo Date).
-
-        :param period_str: str con formato 'YYYY-MM' (ej. '2025-07').
-        :returns: date — primer día del mes indicado, o None si el formato es inválido.
-        """
-        parts = period_str.split('-')
-        if len(parts) != 2:
-            return None
-        try:
-            return date(int(parts[0]), int(parts[1]), 1)
-        except (ValueError, TypeError):
-            return None

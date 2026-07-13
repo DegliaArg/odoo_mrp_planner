@@ -1175,6 +1175,60 @@ class CustomerAnalysisWidget extends Component {
         return map[seg] || seg;
     }
 
+    kpiTooltip(key) {
+        const k  = this.state.kpis;
+        const m  = v => this.fmtMoney(v);
+        const f  = v => this.fmt(v);
+        const p  = v => this.fmtPct(v);
+        switch (key) {
+            case 'total_customers':
+                return `Clientes únicos con al menos 1 pedido confirmado en el período.\nTotal: ${f(k.total_customers)} clientes`;
+            case 'total_orders':
+                return `Pedidos confirmados (estado: Confirmado o Hecho) en el período.\nTotal: ${f(k.total_orders)} pedidos`;
+            case 'total_amount':
+                return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos`;
+            case 'avg_ticket':
+                return `Monto total ÷ Total pedidos\n→ ${m(k.total_amount)} ÷ ${f(k.total_orders)} = ${m(k.avg_ticket)}`;
+            case 'avg_delivery_pct':
+                return `Promedio de % Entrega entre ${f(k.delivery_n)} clientes con entregas.\nFórmula por cliente: qty entregada ÷ qty pedida × 100\nResultado: ${p(k.avg_delivery_pct)}`;
+            case 'avg_ontime_pct':
+                return `Promedio de % A tiempo entre ${f(k.ontime_n)} clientes con pickings realizados.\nCriterio: fecha entrega ≤ fecha compromiso (configurable en Ajustes)\nResultado: ${p(k.avg_ontime_pct)}`;
+            case 'avg_days_between':
+                return `Promedio de días entre pedidos consecutivos del cliente, promediado entre todos los clientes con más de 1 pedido.\nResultado: ${k.avg_days_between != null ? k.avg_days_between + ' días' : '—'}`;
+            default:
+                return '';
+        }
+    }
+
+    cellTooltip(key, row) {
+        if (!row) return '';
+        const m = v => this.fmtMoney(v);
+        const f = v => this.fmt(v);
+        const n = v => v != null ? new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v) : '—';
+        switch (key) {
+            case 'delivery_pct':
+                return `Qty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+            case 'ontime_pct':
+                return `Entregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
+            case 'avg_ticket':
+                return `Monto total ÷ Pedidos\n→ ${m(row.total_amount)} ÷ ${row.order_count} = ${m(row.avg_ticket)}`;
+            case 'trend_pct':
+                return `Variación del monto vs período anterior de igual duración.\nActual: ${m(row.total_amount)}  |  Anterior: ${m(row.prev_amount)}\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
+            case 'days_since_last':
+                return `Días desde el último pedido (${row.last_order_date || '?'}) hasta hoy.\nUmbral de riesgo: ${this.state.config.risk_days || 90} días`;
+            case 'avg_days_between':
+                return `Promedio de días entre pedidos consecutivos en el período.\n${row.order_count > 1 ? row.order_count + ' pedidos → ' + row.order_count - 1 + ' intervalos' : 'Solo 1 pedido en el período'}`;
+            default:
+                return '';
+        }
+    }
+
+    prodCellTooltip(prod) {
+        if (!prod || prod.qty_ordered == null) return '';
+        const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
+        return `Qty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
+    }
+
     colTitle(col) {
         const titles = {
             partner_name:      'Nombre del cliente. Clic para ordenar.',

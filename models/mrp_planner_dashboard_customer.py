@@ -265,7 +265,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'order_count':       order_count,
                     'total_amount':      round(total_amount, 2),
                     'avg_ticket':        round(total_amount / order_count, 2) if order_count else 0.0,
+                    'qty_ordered':       round(total_ordered, 1),
+                    'qty_delivered':     round(total_deliv, 1),
                     'delivery_pct':      delivery_pct,
+                    'ontime_ok':         ot_ok,
+                    'ontime_total':      ot_total,
                     'ontime_pct':        ontime_pct,
                     'avg_days_between':  avg_days_between,
                     'days_since_last':   days_since,
@@ -274,6 +278,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'top_product':       max(prods, key=prods.get) if prods else '',
                     'top_family':        max(fams,  key=fams.get)  if fams  else '',
                     'trend_pct':         round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None,
+                    'prev_amount':       round(prev_amt, 2),
                     'abc_segment':       '',
                     'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
                 })
@@ -289,15 +294,19 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
             freq_vals         = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]
 
+            total_amount_global = round(sum(r['total_amount'] for r in rows), 2)
             return {
                 'rows': rows,
                 'kpis': {
                     'total_customers':  total_customers,
                     'total_orders':     total_orders,
+                    'total_amount':     total_amount_global,
                     'avg_ticket':       avg_ticket_global,
                     'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
                     'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,
                     'avg_days_between': round(sum(freq_vals)     / len(freq_vals),     1) if freq_vals     else None,
+                    'delivery_n':       len(delivery_vals),
+                    'ontime_n':         len(ontime_vals),
                 },
                 'config': cfg,
             }

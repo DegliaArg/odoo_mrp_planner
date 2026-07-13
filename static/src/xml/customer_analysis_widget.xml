@@ -160,7 +160,7 @@
                 <div class="row g-2 mb-3">
                     <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
-                             title="Clientes con al menos un pedido confirmado en el período.">
+                             t-att-title="kpiTooltip('total_customers')">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-users fa-lg text-primary mb-1 d-block"/>
                                 <div class="o_planner_number flex-grow-1 d-flex align-items-center"
@@ -174,7 +174,7 @@
                     </div>
                     <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
-                             title="Total de pedidos confirmados (sale + done) de todos los clientes en el período.">
+                             t-att-title="kpiTooltip('total_orders')">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-shopping-cart fa-lg text-warning mb-1 d-block"/>
                                 <div class="o_planner_number text-warning flex-grow-1 d-flex align-items-center"
@@ -185,7 +185,7 @@
                     </div>
                     <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
-                             title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
+                             t-att-title="kpiTooltip('avg_ticket')">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-tag fa-lg text-success mb-1 d-block"/>
                                 <div class="o_planner_number text-success flex-grow-1 d-flex align-items-center"
@@ -200,7 +200,7 @@
                     </div>
                     <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
-                             title="Promedio de % entrega entre todos los clientes.">
+                             t-att-title="kpiTooltip('avg_delivery_pct')">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number flex-grow-1 d-flex align-items-center ' + deliveryClass(state.kpis.avg_delivery_pct)"
@@ -214,7 +214,7 @@
                     </div>
                     <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
-                             title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
+                             t-att-title="kpiTooltip('avg_ontime_pct')">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-clock-o fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number flex-grow-1 d-flex align-items-center ' + ontimeClass(state.kpis.avg_ontime_pct)"
@@ -518,24 +518,24 @@
 
             <td t-elif="col.key === 'avg_ticket'"
                 class="text-end" style="padding:3px 8px;"
-                title="Monto total ÷ cantidad de pedidos."
+                t-att-title="cellTooltip('avg_ticket', row)"
                 t-esc="fmtMoney(row.avg_ticket)"/>
 
             <td t-elif="col.key === 'delivery_pct'"
                 t-att-class="'text-end ' + deliveryClass(row.delivery_pct)"
                 style="padding:3px 8px;"
-                title="% Entrega: qty entregada ÷ qty pedida × 100."
+                t-att-title="cellTooltip('delivery_pct', row)"
                 t-esc="fmtPct(row.delivery_pct)"/>
 
             <td t-elif="col.key === 'ontime_pct'"
                 t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"
                 style="padding:3px 8px;"
-                title="% entregas dentro del plazo configurado."
+                t-att-title="cellTooltip('ontime_pct', row)"
                 t-esc="fmtPct(row.ontime_pct)"/>
 
             <td t-elif="col.key === 'avg_days_between'"
                 class="text-end" style="padding:3px 8px;"
-                title="Días promedio entre pedidos consecutivos.">
+                t-att-title="cellTooltip('avg_days_between', row)">
                 <t t-if="row.avg_days_between !== null and row.avg_days_between !== undefined">
                     <t t-esc="row.avg_days_between"/> d
                 </t>
@@ -545,7 +545,7 @@
             <td t-elif="col.key === 'days_since_last'"
                 t-att-class="'text-end ' + riskClass(row.days_since_last)"
                 style="padding:3px 8px;"
-                t-att-title="'Días sin comprar. Umbral de riesgo: ' + (state.config.risk_days || 90) + ' días.'">
+                t-att-title="cellTooltip('days_since_last', row)">
                 <t t-esc="row.days_since_last"/> d
             </td>
 
@@ -570,7 +570,7 @@
             <td t-elif="col.key === 'trend_pct'"
                 t-att-class="'text-end ' + trendClass(row.trend_pct)"
                 style="padding:3px 8px;"
-                title="Variación del monto vs período anterior de igual duración."
+                t-att-title="cellTooltip('trend_pct', row)"
                 t-esc="fmtTrend(row.trend_pct)"/>
 
             <td t-elif="col.key === 'frequency_segment'"
@@ -615,36 +615,43 @@
 
                 <!-- KPI strip -->
                 <div class="d-flex border rounded mb-3 bg-white" style="overflow:hidden;">
-                    <div class="text-center px-3 py-2 flex-fill">
+                    <div class="text-center px-3 py-2 flex-fill"
+                         title="Total de unidades pedidas en el período (suma de qty de todas las líneas).">
                         <div class="fw-bold" style="font-size:1rem;"
                              t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
                         <div class="small text-muted">Piezas</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         title="Suma del importe sin impuestos de todos los pedidos del cliente en el período.">
                         <div class="fw-bold" style="font-size:1rem;"
                              t-esc="fmtMoney(row.total_amount)"/>
                         <div class="small text-muted">Monto total</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         title="Pedidos confirmados del cliente en el período.">
                         <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
                         <div class="small text-muted">Pedidos</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         t-att-title="cellTooltip('avg_ticket', row)">
                         <div class="fw-bold" style="font-size:1rem;"
                              t-esc="fmtMoney(row.avg_ticket)"/>
                         <div class="small text-muted">Ticket promedio</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         t-att-title="cellTooltip('delivery_pct', row)">
                         <div t-att-class="'fw-bold ' + deliveryClass(row.delivery_pct)"
                              style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
                         <div class="small text-muted">% Entrega</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         t-att-title="cellTooltip('ontime_pct', row)">
                         <div t-att-class="'fw-bold ' + ontimeClass(row.ontime_pct)"
                              style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
                         <div class="small text-muted">% A tiempo</div>
                     </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start">
+                    <div class="text-center px-3 py-2 flex-fill border-start"
+                         t-att-title="cellTooltip('days_since_last', row)">
                         <div t-att-class="'fw-bold ' + riskClass(row.days_since_last)"
                              style="font-size:1rem;">
                             <t t-esc="row.days_since_last"/> d
@@ -753,14 +760,15 @@
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
                                     <t t-foreach="[
-                                        {key:'name',         label:'Artículo',   cls:''},
-                                        {key:'qty_ordered',  label:'Pedido',     cls:'text-end'},
-                                        {key:'qty_delivered',label:'Entregado',  cls:'text-end'},
-                                        {key:'amount',       label:'Monto',      cls:'text-end'},
-                                        {key:'delivery_pct', label:'% Entrega',  cls:'text-end'},
-                                        {key:'order_count',  label:'OVs',        cls:'text-end'},
+                                        {key:'name',         label:'Artículo',   cls:'',         tip:'Nombre del artículo (variante de producto). Clic para abrir ficha.'},
+                                        {key:'qty_ordered',  label:'Pedido',     cls:'text-end', tip:'Total de unidades pedidas del artículo en el período.'},
+                                        {key:'qty_delivered',label:'Entregado',  cls:'text-end', tip:'Total de unidades entregadas (qty_delivered) en el período.'},
+                                        {key:'amount',       label:'Monto',      cls:'text-end', tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
+                                        {key:'delivery_pct', label:'% Entrega',  cls:'text-end', tip:'Entregado ÷ Pedido × 100. Semáforo configurable en Ajustes.'},
+                                        {key:'order_count',  label:'OVs',        cls:'text-end', tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
                                     ]" t-as="col" t-key="col.key">
                                         <th t-att-class="col.cls + ' user-select-none'"
+                                            t-att-title="col.tip"
                                             style="padding:3px 8px; cursor:pointer; white-space:nowrap;"
                                             t-on-click="() => this.sortPanelProds(col.key)">
                                             <t t-esc="col.label"/>
@@ -795,12 +803,14 @@
                                         <td class="text-end" style="padding:2px 8px;">
                                             <t t-esc="fmtMoney(prod.amount)"/>
                                         </td>
-                                        <td class="text-end" style="padding:2px 8px;">
+                                        <td class="text-end" style="padding:2px 8px;"
+                                            t-att-title="prodCellTooltip(prod)">
                                             <span t-att-class="deliveryClass(prod.delivery_pct)">
                                                 <t t-esc="fmtPct(prod.delivery_pct)"/>
                                             </span>
                                         </td>
-                                        <td class="text-end text-muted" style="padding:2px 8px;">
+                                        <td class="text-end text-muted" style="padding:2px 8px;"
+                                            title="Cantidad de OVs que incluyen este artículo en el período.">
                                             <t t-esc="prod.order_count"/>
                                         </td>
                                     </tr>
@@ -832,13 +842,14 @@
                     <thead>
                         <tr style="background:#e2e6ea;">
                             <t t-foreach="[
-                                {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px'},
-                                {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px'},
-                                {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px'},
-                                {key:'delivery_pct', label:'% Entrega',  cls:'text-end', pad:'3px 8px'},
-                                {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px'},
+                                {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px', tip:'Número de la orden de venta. Clic para abrir.'},
+                                {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px',          tip:'Fecha de confirmación de la orden.'},
+                                {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px',          tip:'Importe sin impuestos del pedido.'},
+                                {key:'delivery_pct', label:'% Entrega',  cls:'text-end', pad:'3px 8px',          tip:'Qty entregada ÷ Qty pedida × 100 de este pedido.'},
+                                {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px',          tip:'Estado actual de la orden de venta.'},
                             ]" t-as="col" t-key="col.key">
                                 <th t-att-class="col.cls + ' user-select-none'"
+                                    t-att-title="col.tip"
                                     t-att-style="'padding:' + col.pad + '; cursor:pointer; white-space:nowrap;'"
                                     t-on-click="() => this.sortRowOrders(col.key)">
                                     <t t-esc="col.label"/>

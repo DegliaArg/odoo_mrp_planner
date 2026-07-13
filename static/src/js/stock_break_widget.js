@@ -550,6 +550,33 @@ class StockBreakWidget extends Component {
     async openConfig() {
         await this.action.doAction('odoo_mrp_planner.action_mrp_reschedule_config');
     }
+
+    stockKpiTooltip(key) {
+        const k = this.state.kpis;
+        const f = n => this.fmt(n);
+        switch (key) {
+            case 'total':
+                return `Artículos con venta habilitada en los tipos de producto configurados\n→ ${f(k.total)} productos vendibles`;
+            case 'broken':
+                return `Productos con stock actual menor que la cantidad mínima del punto de reorden con ruta Fabricación\n→ ${f(k.broken)} de ${f(k.total - k.no_min)} con reorden`;
+            case 'ok':
+                return `Productos con punto de reorden activo y stock actual mayor o igual al mínimo configurado\n→ ${f(k.ok)} de ${f(k.total - k.no_min)} con reorden`;
+            case 'no_min':
+                return `Artículos vendibles sin punto de reorden configurado con ruta Fabricación\n→ ${f(k.no_min)} de ${f(k.total)} productos sin mínimo`;
+        }
+        return '';
+    }
+
+    statusTooltip(prod) {
+        const f = n => this.fmt(n);
+        if (prod.qty < prod.min_qty) {
+            return `Stock disponible menor que el mínimo del punto de reorden\n→ Stock: ${f(prod.qty)} | Mínimo: ${f(prod.min_qty)}`;
+        }
+        if (prod.min_qty !== null && prod.min_qty !== undefined) {
+            return `Stock disponible mayor o igual al mínimo del punto de reorden\n→ Stock: ${f(prod.qty)} | Mínimo: ${f(prod.min_qty)}`;
+        }
+        return 'Sin punto de reorden con ruta Fabricación';
+    }
 }
 
 registry.category("view_widgets").add("stock_break_widget", {

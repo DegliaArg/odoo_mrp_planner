@@ -70,6 +70,22 @@ class AlertKpiWidget extends Component {
     }
 
     fmt(n) { return new Intl.NumberFormat("es-AR").format(n || 0); }
+
+    alertKpiTooltip(key) {
+        const k = this.state.kpis;
+        const f = n => this.fmt(n);
+        switch (key) {
+            case 'mo_delayed':
+                return `OFs activas cuya fecha de fin planificada ya superó la fecha actual. Indica retrasos que requieren acción inmediata.\n→ ${f(k.mo_delayed)} OFs atrasadas`;
+            case 'mo_upcoming':
+                return `OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado.\n→ ${f(k.mo_upcoming)} OFs por vencer`;
+            case 'mo_in_progress':
+                return `OFs actualmente en producción (en progreso o listas para cerrar).\n→ ${f(k.mo_in_progress)} OFs en curso`;
+            case 'qty_mismatch':
+                return `OFs completadas donde la cantidad producida difiere de la planificada más allá de la tolerancia configurada.\n→ ${f(k.qty_mismatch)} OFs con cant. diferente`;
+        }
+        return '';
+    }
 }
 
 registry.category("view_widgets").add("alert_kpi_widget", { component: AlertKpiWidget });

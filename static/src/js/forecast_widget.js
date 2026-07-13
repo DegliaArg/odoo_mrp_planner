@@ -919,9 +919,9 @@ class ForecastWidget extends Component {
         const denom = this.state.data && this.state.data.mo_coverage_denominator;
         const pct = this.moCovPctCell(cell);
         if (denom === 'so_demand') {
-            return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.so_demand)} demanda SO × 100 = ${this.fmtPct(pct)}`;
+            return `Cobertura de OFs planificadas respecto a la demanda real de pedidos de venta\nOFs ÷ demanda SO × 100\n→ ${this.fmt(cell.mos)} ÷ ${this.fmt(cell.so_demand)} × 100 = ${this.fmtPct(pct)}`;
         }
-        return `Cobertura OF = ${this.fmt(cell.mos)} OFs ÷ ${this.fmt(cell.forecast)} forecast × 100 = ${this.fmtPct(pct)}`;
+        return `Cobertura de OFs planificadas respecto al forecast del período\nOFs ÷ forecast × 100\n→ ${this.fmt(cell.mos)} ÷ ${this.fmt(cell.forecast)} × 100 = ${this.fmtPct(pct)}`;
     }
 
     /**
@@ -933,7 +933,7 @@ class ForecastWidget extends Component {
     svcTooltip(cell) {
         if (cell.service_rate === null || cell.service_rate === undefined)
             return 'Sin pedidos de venta confirmados en el período';
-        return `Tasa de servicio = ${this.fmt(cell.delivered)} entregado ÷ ${this.fmt(cell.so_demand)} pedidos × 100 = ${this.fmtPct(cell.service_rate)}`;
+        return `Porcentaje de la demanda real entregada efectivamente al cliente\nTotal entregado ÷ Total pedidos de venta × 100\n→ ${this.fmt(cell.delivered)} ÷ ${this.fmt(cell.so_demand)} × 100 = ${this.fmtPct(cell.service_rate)}`;
     }
 
     /**
@@ -966,13 +966,13 @@ class ForecastWidget extends Component {
             return 'Sin entregas en el período — rotación no calculable';
         }
         if (method === 'cogs') {
-            return `COGS: ${Math.round(n * 30)} días × inventario promedio (costo) ÷ costo de lo vendido = ${val}`;
+            return `Días cubiertos por el inventario valorizado al ritmo del costo de ventas\nPeríodo (días) × inventario promedio (costo) ÷ costo de lo vendido\n→ ${Math.round(n * 30)} d × inv. promedio ÷ COGS = ${val}`;
         }
         if (method === 'sales') {
-            return `Ventas: ${Math.round(n * 30)} días × inventario promedio (costo) ÷ ventas netas = ${val}`;
+            return `Días cubiertos por el inventario valorizado al ritmo de las ventas netas\nPeríodo (días) × inventario promedio (costo) ÷ ventas netas\n→ ${Math.round(n * 30)} d × inv. promedio ÷ ventas = ${val}`;
         }
         const suffix = unit !== 'months' ? ' × 30' : '';
-        return `Unidades: ${this.fmt(row.avg_stock_qty)} stock promedio ÷ (${this.fmt(row.total_delivered)} entregado ÷ ${nLabel} meses)${suffix} = ${val}`;
+        return `Tiempo que dura el inventario al ritmo de salidas del período\nStock promedio ÷ (entregado ÷ meses)${suffix}\n→ ${this.fmt(row.avg_stock_qty)} ÷ (${this.fmt(row.total_delivered)} ÷ ${nLabel} meses)${suffix} = ${val}`;
     }
 
     /**
@@ -1032,7 +1032,7 @@ class ForecastWidget extends Component {
             demLabel = 'forecast';
             demQty   = row.total_forecast;
         }
-        return `Cobertura = ${this.fmt(row.stock_qty)} stock ÷ (${this.fmt(demQty)} ${demLabel} ÷ ${periodDays} días) = ${val}`;
+        return `Días que cubre el stock actual al ritmo de ${demLabel} del período\nStock disponible ÷ (${demLabel} ÷ período)\n→ ${this.fmt(row.stock_qty)} ÷ (${this.fmt(demQty)} ${demLabel} ÷ ${periodDays} d) = ${val}`;
     }
 
     /**
@@ -1060,14 +1060,14 @@ class ForecastWidget extends Component {
         const dem = this.fmt(d.kpis.total_so_demand), fc = this.fmt(d.kpis.total_forecast);
         const val = this.fmtPct(d.kpis.overall_forecast_acc);
         if (formula === 'mape')
-            return `MAPE global = promedio de precisiones por artículo (vs demanda real) = ${val}`;
+            return `Precisión promedio por artículo (sensible a artículos de bajo volumen)\nPromedio de precisiones individuales vs demanda real por artículo\n→ promedio global = ${val}`;
         if (formula === 'wape')
-            return `WAPE global = 100 − (Σ|errores| ÷ ${dem} demanda real × 100) = ${val}`;
+            return `Precisión ponderada por volumen de demanda real (menos sensible a bajo volumen)\n100 − (Σ|errores| ÷ demanda real × 100)\n→ 100 − (Σ|errores| ÷ ${dem} × 100) = ${val}`;
         if (formula === 'wmape')
-            return `WMAPE global = 100 − (Σ|errores| ÷ ${fc} forecast × 100) = ${val}`;
+            return `Precisión ponderada por volumen de forecast\n100 − (Σ|errores| ÷ Σforecast × 100)\n→ 100 − (Σ|errores| ÷ ${fc} × 100) = ${val}`;
         if (formula === 'bias')
-            return `Sesgo global = (${dem} demanda real − ${fc}) ÷ ${fc} × 100 = ${val}`;
-        return `Precisión global = ${dem} demanda real ÷ ${fc} forecast × 100 = ${val}`;
+            return `Sesgo del forecast: mide si se sobreestima o subestima la demanda real\n(demanda real − forecast) ÷ forecast × 100\n→ (${dem} − ${fc}) ÷ ${fc} × 100 = ${val}`;
+        return `Porcentaje de la demanda real cubierta por el forecast (puede superar 100%)\ndemanda real ÷ forecast × 100\n→ ${dem} ÷ ${fc} × 100 = ${val}`;
     }
 
     /**
@@ -1096,6 +1096,41 @@ class ForecastWidget extends Component {
      * como pills secundarios en la sección de KPIs.
      * @returns {Array<{key: string, label: string, value: number|null}>}
      */
+    fcKpiTooltip(key) {
+        const d = this.state.data;
+        if (!d) return '';
+        const k = d.kpis;
+        switch (key) {
+            case 'forecast':
+                return `Unidades planificadas en líneas de forecast activas para el período seleccionado\n→ ${this.fmt(k.total_forecast)} u`;
+            case 'so_demand':
+                return `Unidades pedidas en órdenes de venta confirmadas de productos con línea de forecast\n→ ${this.fmt(k.total_so_demand)} u en el período`;
+            case 'mos':
+                return `Unidades en OFs activas con fecha de fin en el período, de productos con línea de forecast\n→ ${this.fmt(k.total_mos)} u planificadas`;
+            case 'delivered':
+                return `Unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast\n→ ${this.fmt(k.total_delivered)} u entregadas`;
+            case 'svc':
+                return `Porcentaje de la demanda real que fue efectivamente entregada al cliente en el período\nTotal entregado ÷ Total pedidos de venta × 100\n→ ${this.fmt(k.total_delivered)} ÷ ${this.fmt(k.total_so_demand)} × 100 = ${this.fmtPct(k.overall_service_rate)}`;
+        }
+        return '';
+    }
+
+    demandGapTooltip() {
+        const d = this.state.data;
+        if (!d) return '';
+        const dem = this.fmt(d.kpis.total_so_demand), fc = this.fmt(d.kpis.total_forecast);
+        const val = this.fmtGapPct(d.kpis.demand_gap_pct);
+        return `Variación de la demanda real respecto al forecast. Positivo: se demandó más de lo planeado.\n(demanda real − forecast) ÷ forecast × 100\n→ (${dem} − ${fc}) ÷ ${fc} × 100 = ${val}`;
+    }
+
+    mosGapTooltip() {
+        const d = this.state.data;
+        if (!d) return '';
+        const mos = this.fmt(d.kpis.total_mos), fc = this.fmt(d.kpis.total_forecast);
+        const val = this.fmtGapPct(d.kpis.mos_gap_pct);
+        return `Cobertura de OFs planificadas respecto al forecast. Positivo: producción cubre el plan. Negativo: déficit.\n(OFs − forecast) ÷ forecast × 100\n→ (${mos} − ${fc}) ÷ ${fc} × 100 = ${val}`;
+    }
+
     accSecondaryPills() {
         const d = this.state.data;
         if (!d || !d.kpis.acc_all) return [];

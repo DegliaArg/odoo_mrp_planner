@@ -33,7 +33,7 @@
                 <div class="row g-2 mb-2">
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades planificadas en líneas de forecast activas para el período seleccionado. Clic para ver líneas."
+                             t-att-title="fcKpiTooltip('forecast')"
                              t-on-click="openDrillForecast">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-bar-chart fa-lg text-primary mb-1 d-block"/>
@@ -44,7 +44,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades pedidas en SOs confirmadas (productos con línea de forecast). Clic para ver órdenes de venta."
+                             t-att-title="fcKpiTooltip('so_demand')"
                              t-on-click="openDrillSoDemand">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-shopping-cart fa-lg text-purple mb-1 d-block" style="color:#7952b3;"/>
@@ -61,7 +61,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades en OFs activas (según estados configurados) con fecha de fin en el período (productos con línea de forecast). Clic para ver órdenes de fabricación."
+                             t-att-title="fcKpiTooltip('mos')"
                              t-on-click="openDrillMos">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
@@ -78,7 +78,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Total de unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast. Clic para ver movimientos."
+                             t-att-title="fcKpiTooltip('delivered')"
                              t-on-click="openDrillDelivered">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-truck fa-lg text-info mb-1 d-block"/>
@@ -119,7 +119,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="'Brecha demanda real vs forecast = (demanda real − forecast) ÷ forecast × 100. Positivo: se demandó más de lo planeado. Negativo: demanda por debajo del plan. Demanda real: ' + fmt(state.data.kpis.total_so_demand) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de venta.'"
+                             t-att-title="demandGapTooltip()"
                              t-on-click="openDrillSoDemand">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-arrows-h fa-lg mb-1 d-block text-secondary"/>
@@ -132,7 +132,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="'Brecha OF vs forecast = (producción planificada − forecast) ÷ forecast × 100. Positivo: producción cubre el plan. Negativo: déficit de producción. OFs: ' + fmt(state.data.kpis.total_mos) + ' | Forecast: ' + fmt(state.data.kpis.total_forecast) + '. Clic para ver órdenes de fabricación.'"
+                             t-att-title="mosGapTooltip()"
                              t-on-click="openDrillMos">
                             <div class="card-body text-center py-2">
                                 <i t-att-class="'fa fa-lg mb-1 d-block ' + (state.data.kpis.mos_gap_pct >= 0 ? 'fa-check-circle text-success' : 'fa-exclamation-triangle text-danger')"/>
@@ -145,7 +145,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             title="Tasa de servicio = Total entregado ÷ Total pedidos de venta confirmados × 100. Clic para ver movimientos de entrega."
+                             t-att-title="fcKpiTooltip('svc')"
                              t-on-click="openDrillDelivered">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-handshake-o fa-lg mb-1 d-block text-secondary"/>

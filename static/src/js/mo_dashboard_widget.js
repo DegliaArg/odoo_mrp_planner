@@ -460,11 +460,11 @@ class MoDashboardWidget extends Component {
                 case 'total':
                     return `OFs confirmadas, en progreso o por cerrar con fecha de fin en el período\nEstados incluidos: Confirmada · En progreso · Por cerrar\n→ ${f(k.total)} OFs activas`;
                 case 'in_progress':
-                    return `OFs cuya producción fue iniciada formalmente en el sistema\nEstados: En progreso · Por cerrar\n→ ${f(k.in_progress)} de ${f(k.total)} activas${pct(k.in_progress, k.total)}`;
+                    return `OFs cuya producción fue iniciada formalmente en el sistema\nEstados: En progreso · Por cerrar\nOFs en progreso ÷ OFs activas × 100\n→ ${f(k.in_progress)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.in_progress / k.total * 100) : 0}%`;
                 case 'delayed':
-                    return `OFs activas con fecha_fin < hoy\nCondición: scheduled_date_finished < fecha actual y estado activo\n→ ${f(k.delayed)} de ${f(k.total)} activas${pct(k.delayed, k.total)}`;
+                    return `OFs activas con fecha_fin < hoy\nCondición: scheduled_date_finished < fecha actual y estado activo\nOFs atrasadas ÷ OFs activas × 100\n→ ${f(k.delayed)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.delayed / k.total * 100) : 0}%`;
                 case 'reschedule':
-                    return `OFs con campo "Requiere reprogramación" activado (x_reschedule_needed = Sí)\nSe marca automáticamente por alertas o manualmente\n→ ${f(k.reschedule)} de ${f(k.total)} activas${pct(k.reschedule, k.total)}`;
+                    return `OFs con campo "Requiere reprogramación" activado (x_reschedule_needed = Sí)\nSe marca automáticamente por alertas o manualmente\nOFs a reprogramar ÷ OFs activas × 100\n→ ${f(k.reschedule)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.reschedule / k.total * 100) : 0}%`;
                 case 'done':
                     return `OFs con estado Completada (done) cerradas formalmente en el período\nFecha fin dentro del rango seleccionado\n→ ${f(k.done)} OFs finalizadas`;
                 case 'partial':
@@ -477,7 +477,7 @@ class MoDashboardWidget extends Component {
                 case 'active':
                     return `Solicitudes de programación confirmadas con OFs generadas\nEstado de la solicitud: Confirmada\n→ ${f(k.active)} solicitudes activas`;
                 case 'calculated':
-                    return `Solicitudes que pasaron por el cálculo de fechas y capacidad de CTs\nEstado: Calculada\n→ ${f(k.calculated)} de ${f(k.active)} solicitudes${pct(k.calculated, k.active)}`;
+                    return `Solicitudes que pasaron por el cálculo de fechas y capacidad de CTs\nEstado: Calculada\nSolicitudes calculadas ÷ Solicitudes activas × 100\n→ ${f(k.calculated)} ÷ ${f(k.active)} × 100 = ${k.active > 0 ? Math.round(k.calculated / k.active * 100) : 0}%`;
                 case 'reschedule':
                     return `Solicitudes con al menos una OF marcada como "requiere reprogramación"\nCampo x_reschedule_needed = Sí en alguna OF asociada\n→ ${f(k.reschedule)} solicitudes`;
                 case 'mos_delayed':
@@ -493,7 +493,7 @@ class MoDashboardWidget extends Component {
                 case 'produced':
                     return `Suma de qty_produced de las OFs con estado Completada (done) en el período\n→ ${f2(k.produced)} u producidas de ${f2(k.planned)} u planificadas`;
                 case 'pct':
-                    return `Producido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
                 case 'ofs_done':
                     return `OFs con estado Completada (done) finalizadas dentro del período\n→ ${f(k.ofs_done)} OFs completadas`;
             }
@@ -503,7 +503,7 @@ class MoDashboardWidget extends Component {
 
     cmpRowTooltip(item) {
         const f = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
-        return `Producido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+        return `Relación entre producido y programado para este artículo en el período\nProducido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
     }
 
     /**

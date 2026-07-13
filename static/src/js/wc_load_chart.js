@@ -219,13 +219,13 @@ class WcLoadChartWidget extends Component {
             case 'planificado':
                 return `Suma de horas asignadas en órdenes de trabajo confirmadas o en progreso\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
-                return `Planificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 80% | Amarillo 80–100% | Rojo > 100%`;
+                return `Porcentaje de capacidad utilizada respecto al total disponible en los centros de trabajo\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 80% | Amarillo 80–100% | Rojo > 100%`;
             case 'ejecutado':
                 return `Horas efectivamente trabajadas y registradas en órdenes de trabajo completadas\n→ ${h(k.ejecutado)} ejecutadas de ${h(k.planificado)} planificadas`;
             case 'pendiente':
-                return `Planificado − Ejecutado\n→ ${h(k.planificado)} − ${h(k.ejecutado)} = ${h(k.pendiente)} pendientes`;
+                return `Horas asignadas en órdenes de trabajo que aún no han sido ejecutadas ni registradas\nPlanificado − Ejecutado\n→ ${h(k.planificado)} − ${h(k.ejecutado)} = ${h(k.pendiente)} pendientes`;
             case 'tiempo_libre':
-                return `Disponible − Planificado\n→ ${h(k.disponible)} − ${h(k.planificado)} = ${h(k.tiempo_libre)} sin asignar`;
+                return `Horas disponibles en el período sin ninguna orden de trabajo asignada\nDisponible − Planificado\n→ ${h(k.disponible)} − ${h(k.planificado)} = ${h(k.tiempo_libre)} sin asignar`;
         }
         return '';
     }

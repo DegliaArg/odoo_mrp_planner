@@ -1188,13 +1188,13 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos`;
             case 'avg_ticket':
-                return `Monto total ÷ Total pedidos\n→ ${m(k.total_amount)} ÷ ${f(k.total_orders)} = ${m(k.avg_ticket)}`;
+                return `Importe promedio por pedido del período\nMonto total ÷ Total pedidos\n→ ${m(k.total_amount)} ÷ ${f(k.total_orders)} = ${m(k.avg_ticket)}`;
             case 'avg_delivery_pct':
-                return `Promedio de % Entrega entre ${f(k.delivery_n)} clientes con entregas.\nFórmula por cliente: qty entregada ÷ qty pedida × 100\nResultado: ${p(k.avg_delivery_pct)}`;
+                return `Promedio de % Entrega entre ${f(k.delivery_n)} clientes con entregas en el período\nQty entregada ÷ Qty pedida × 100 (por cliente, luego promediado)\n→ ${p(k.avg_delivery_pct)}`;
             case 'avg_ontime_pct':
-                return `Promedio de % A tiempo entre ${f(k.ontime_n)} clientes con pickings realizados.\nCriterio: fecha entrega ≤ fecha compromiso (configurable en Ajustes)\nResultado: ${p(k.avg_ontime_pct)}`;
+                return `Promedio de % A tiempo entre ${f(k.ontime_n)} clientes con pickings realizados. Criterio: fecha entrega ≤ fecha compromiso (configurable en Ajustes)\nEntregas a tiempo ÷ Total entregas × 100 (por cliente, luego promediado)\n→ ${p(k.avg_ontime_pct)}`;
             case 'avg_days_between':
-                return `Promedio de días entre pedidos consecutivos del cliente, promediado entre todos los clientes con más de 1 pedido.\nResultado: ${k.avg_days_between != null ? k.avg_days_between + ' días' : '—'}`;
+                return `Promedio de días entre pedidos consecutivos, calculado entre todos los clientes con más de 1 pedido\n→ ${k.avg_days_between != null ? k.avg_days_between + ' días promedio' : '—'}`;
             default:
                 return '';
         }
@@ -1213,11 +1213,11 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}`;
             case 'delivery_pct':
-                return `Qty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+                return `Cantidad entregada del cliente respecto a lo pedido en el período\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
             case 'ontime_pct':
-                return `Entregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
+                return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_ticket':
-                return `Monto total ÷ Pedidos\n→ ${m(row.total_amount)} ÷ ${row.order_count} = ${m(row.avg_ticket)}`;
+                return `Importe promedio por pedido del cliente en el período\nMonto total ÷ Pedidos\n→ ${m(row.total_amount)} ÷ ${row.order_count} = ${m(row.avg_ticket)}`;
             case 'trend_pct':
                 return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
@@ -1238,7 +1238,7 @@ class CustomerAnalysisWidget extends Component {
     prodCellTooltip(prod) {
         if (!prod || prod.qty_ordered == null) return '';
         const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
-        return `Qty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
+        return `Cantidad entregada respecto a lo pedido para este artículo en el período\nQty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
     }
 
     colTitle(col) {

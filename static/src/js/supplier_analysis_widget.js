@@ -512,6 +512,43 @@ class SupplierAnalysisWidget extends Component {
                         ['date_approve', '<=', `${this.state.periodTo} 23:59:59`]],
         });
     }
+
+    supplierKpiTooltip(key) {
+        const k = this.state.data && this.state.data.kpis;
+        if (!k) return '';
+        const cfg = this._cfg();
+        switch (key) {
+            case 'suppliers':
+                return `Proveedores distintos con al menos una OC confirmada en el período\n→ ${k.supplier_count} proveedores`;
+            case 'amount':
+                return `Monto total neto de todas las OCs confirmadas en el período\n→ ${this.fmtMoney(k.total_amount)} en ${k.total_orders} OCs`;
+            case 'orders':
+                return `Cantidad de OCs confirmadas en el período\n→ ${k.total_orders} OCs`;
+            case 'on_time':
+                return `% de recepciones completadas antes o en la fecha planificada, promediado entre proveedores\nRecepciones a tiempo ÷ Total recepciones × 100\n→ ${k.avg_on_time_pct !== null ? k.avg_on_time_pct + '%' : '—'} promedio general\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
+            case 'lead_time':
+                return `Días promedio entre aprobación de OC y validación de recepción, promediado entre proveedores\n→ ${k.avg_lead_time_days !== null ? k.avg_lead_time_days + ' días' : '—'} promedio general`;
+            case 'price_var':
+                return `Variación porcentual promedio entre precio de OC y costo estándar del artículo\n(Precio OC − Costo estándar) ÷ Costo estándar × 100\n→ ${k.avg_price_var_pct !== null ? this.fmtPct(k.avg_price_var_pct) : '—'} promedio general\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+        }
+        return '';
+    }
+
+    supplierCellTooltip(key, row) {
+        const cfg = this._cfg();
+        switch (key) {
+            case 'on_time_pct':
+                if (!row.pick_count) return 'Sin recepciones en el período';
+                return `Recepciones completadas en fecha respecto al total del proveedor\nRecepciones a tiempo ÷ Total recepciones × 100\n→ ${row.on_time_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
+            case 'complete_pct':
+                if (!row.pick_count) return 'Sin recepciones en el período';
+                return `Recepciones recibidas completamente sin backorder respecto al total\nRecepciones completas ÷ Total recepciones × 100\n→ ${row.complete_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_complete_green ?? 95}% | Amarillo ≥ ${cfg.sup_complete_yellow ?? 80}% | Rojo < ${cfg.sup_complete_yellow ?? 80}%`;
+            case 'avg_price_var_pct':
+                if (row.avg_price_var_pct === null || row.avg_price_var_pct === undefined) return 'Sin datos de precio';
+                return `Diferencia promedio entre precio de OC y costo estándar del artículo\n(Precio OC − Costo estándar) ÷ Costo estándar × 100\n→ ${row.avg_price_var_pct > 0 ? '+' : ''}${row.avg_price_var_pct}%\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+        }
+        return '';
+    }
 }
 
 registry.category("view_widgets").add("supplier_analysis_widget", {

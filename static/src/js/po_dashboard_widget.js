@@ -450,11 +450,11 @@ class PoDashboardWidget extends Component {
             case 'total':
                 return `OCs aprobadas con recepción pendiente o parcial en el período\nEstado: Aprobada, recepción pendiente o parcial\n→ ${f(k.total)} OCs aprobadas`;
             case 'pending':
-                return `OCs aprobadas cuya fecha de entrega aún no venció\nCondición: fecha_entrega >= hoy y estado Aprobada\n→ ${f(k.pending)} en plazo de ${f(k.total)} aprobadas${pct(k.pending, k.total)}`;
+                return `OCs aprobadas cuya fecha de entrega aún no venció\nCondición: fecha_entrega >= hoy y estado Aprobada\nOCs en plazo ÷ OCs aprobadas × 100\n→ ${f(k.pending)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.pending / k.total * 100) : 0}%`;
             case 'overdue':
-                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nCondición: fecha_entrega < hoy y sin recepción completa\n→ ${f(k.overdue)} vencidas de ${f(k.total)} aprobadas${pct(k.overdue, k.total)}`;
+                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nCondición: fecha_entrega < hoy y sin recepción completa\nOCs vencidas ÷ OCs aprobadas × 100\n→ ${f(k.overdue)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.overdue / k.total * 100) : 0}%`;
             case 'overdue_critical':
-                return `OCs vencidas con más de ${k.po_critical_days || 5} días de retraso (umbral configurable en Ajustes)\nCondición: días_retraso > umbral_crítico\n→ ${f(k.overdue_critical)} críticas de ${f(k.overdue)} vencidas${pct(k.overdue_critical, k.overdue)}`;
+                return `OCs vencidas con más de ${k.po_critical_days || 5} días de retraso (umbral configurable en Ajustes)\nCondición: días_retraso > umbral_crítico\nOCs críticas ÷ OCs vencidas × 100\n→ ${f(k.overdue_critical)} ÷ ${f(k.overdue)} × 100 = ${k.overdue > 0 ? Math.round(k.overdue_critical / k.overdue * 100) : 0}%`;
         }
         return '';
     }

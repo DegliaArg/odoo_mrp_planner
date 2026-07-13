@@ -25,7 +25,7 @@
                 <div class="row g-2 mb-3">
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100" style="cursor:pointer"
-                             title="Total de productos activos con venta habilitada (sale_ok = Sí)."
+                             t-att-title="stockKpiTooltip('total')"
                              t-on-click="() => this.setFilter('all')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
@@ -36,7 +36,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card o_planner_card_danger h-100" style="cursor:pointer"
-                             title="Productos con stock actual &lt; cantidad mínima del punto de reorden con ruta Fabricación."
+                             t-att-title="stockKpiTooltip('broken')"
                              t-on-click="() => this.setFilter('broken')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
@@ -47,7 +47,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card o_planner_card_success h-100" style="cursor:pointer"
-                             title="Productos con punto de reorden activo y stock actual ≥ cantidad mínima configurada."
+                             t-att-title="stockKpiTooltip('ok')"
                              t-on-click="() => this.setFilter('ok')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
@@ -58,7 +58,7 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="card o_planner_card h-100" style="cursor:pointer"
-                             title="Productos vendibles sin punto de reorden configurado con ruta Fabricación."
+                             t-att-title="stockKpiTooltip('no_min')"
                              t-on-click="() => this.setFilter('no_min')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-minus-circle fa-lg text-muted mb-2 d-block"/>
@@ -216,12 +216,12 @@
                                             <t t-elif="col.key === 'status'">
                                                 <span t-if="prod.is_broken"
                                                       class="badge text-bg-danger"
-                                                      t-att-title="`Stock ${fmt(prod.qty)} menor que mínimo ${fmt(prod.min_qty)}`">
+                                                      t-att-title="statusTooltip(prod)">
                                                     Quiebre
                                                 </span>
                                                 <span t-elif="prod.has_min"
                                                       class="badge text-bg-success"
-                                                      title="Stock sobre el mínimo configurado">
+                                                      t-att-title="statusTooltip(prod)">
                                                     OK
                                                 </span>
                                                 <span t-else=""

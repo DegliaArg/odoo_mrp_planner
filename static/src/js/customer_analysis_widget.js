@@ -14,6 +14,7 @@ import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { destroyPanelCharts, destroyCharts, drawTopChart, drawTopDonut } from "./customer_analysis_charts";
 
 // ── Columnas estáticas (producto del menú de columnas) ────────────────────────
 const CA_STATIC_COLS = [
@@ -484,12 +485,7 @@ class CustomerAnalysisWidget extends Component {
         }
     }
 
-    _destroyPanelCharts() {
-        if (this._barChart)   { this._barChart.destroy();   this._barChart   = null; }
-        if (this._donutChart) { this._donutChart.destroy(); this._donutChart = null; }
-        if (this._lineChart)  { this._lineChart.destroy();  this._lineChart  = null; }
-        this._panelChartsKey = '';
-    }
+    _destroyPanelCharts() { destroyPanelCharts(this); }
 
     openOrder(orderId) {
         this.action.doAction({
@@ -504,13 +500,7 @@ class CustomerAnalysisWidget extends Component {
 
     // ── Charts del panel ──────────────────────────────────────────────────────
 
-    _destroyCharts() {
-        if (this._topChart)      { this._topChart.destroy();      this._topChart      = null; this._topChartKey  = ''; }
-        if (this._topDonutChart) { this._topDonutChart.destroy(); this._topDonutChart = null; this._topDonutKey  = ''; }
-        if (this._barChart)      { this._barChart.destroy();      this._barChart      = null; }
-        if (this._donutChart)    { this._donutChart.destroy();    this._donutChart    = null; }
-        if (this._lineChart)     { this._lineChart.destroy();     this._lineChart     = null; }
-    }
+    _destroyCharts() { destroyCharts(this); }
 
     // ── Gráficos superiores ───────────────────────────────────────────────────
 
@@ -597,171 +587,9 @@ class CustomerAnalysisWidget extends Component {
         return sorted.slice(0, this.state.panelTopN);
     }
 
-    _drawTopChart() {
-        const el = this.topChartRef.el;
-        if (!el) return;
-        const metric      = this.state.chartMetric;
-        const topN        = this.state.chartTopN;   // null = todos
-        const allFiltered = this._filteredRows || this.state.allRows;
-        if (!allFiltered.length) return;
+    _drawTopChart() { drawTopChart(this); }
 
-        const key = `${this.state.dateFrom}_${this.state.dateTo}_${allFiltered.length}_${metric}_${topN}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
-        if (key === this._topChartKey) return;
-        this._topChartKey = key;
-
-        const ChartJs = globalThis.Chart;
-        if (typeof ChartJs === 'undefined') return;
-        if (this._topChart) { this._topChart.destroy(); this._topChart = null; }
-
-        const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_ticket' };
-        const field    = fieldMap[metric] || 'total_amount';
-        const sorted   = [...allFiltered].sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
-        const rows     = topN !== null ? sorted.slice(0, topN) : sorted;
-        const isAmt    = metric !== 'pedidos';
-        const fmtTip   = isAmt
-            ? v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v)
-            : v => new Intl.NumberFormat('es-AR').format(v) + ' ped.';
-
-        this._topChart = new ChartJs(el, {
-            type: 'bar',
-            data: {
-                labels: rows.map(r => r.partner_name.length > 18 ? r.partner_name.slice(0, 16) + '…' : r.partner_name),
-                datasets: [{
-                    label:           metric === 'pxq' ? 'PxQ' : metric === 'pedidos' ? 'Pedidos' : 'Ticket prom.',
-                    data:            rows.map(r => r[field]),
-                    backgroundColor: rows.map(r => CAT_COLORS[r.abc_segment] ?? CAT_COLORS['']),
-                    borderRadius:    3,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            title: items => rows[items[0].dataIndex].partner_name,
-                            label: ctx  => fmtTip(ctx.raw),
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        grid:  { display: false },
-                        ticks: { font: { size: 11 }, maxRotation: 45 },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid:  { color: 'rgba(0,0,0,0.06)' },
-                        ticks: { callback: v => this.fmtK(v), font: { size: 11 } },
-                    },
-                },
-            },
-        });
-    }
-
-    _drawTopDonut() {
-        const el = this.topDonutRef.el;
-        if (!el) return;
-        const rows = this._filteredRows || this.state.allRows;
-        if (!rows.length) return;
-
-        const donutType = this.state.chartDonut;
-        const key = `${this.state.dateFrom}_${this.state.dateTo}_${rows.length}_${donutType}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
-        if (key === this._topDonutKey) return;
-        this._topDonutKey = key;
-
-        const ChartJs = globalThis.Chart;
-        if (typeof ChartJs === 'undefined') return;
-        if (this._topDonutChart) { this._topDonutChart.destroy(); this._topDonutChart = null; }
-
-        let groupField, colorMap, nameMap, order;
-        if (donutType === 'abc') {
-            groupField = 'abc_segment';
-            colorMap   = CAT_COLORS;
-            nameMap    = { A: 'Seg. A', B: 'Seg. B', C: 'Seg. C', '': 'Sin seg.' };
-            order      = ['A', 'B', 'C', ''];
-        } else if (donutType === 'cat') {
-            groupField = 'customer_category';
-            colorMap   = CAT_COLORS;
-            nameMap    = { A: 'Cat. A', B: 'Cat. B', C: 'Cat. C', D: 'Cat. D', E: 'Cat. E', '': 'Sin cat.' };
-            order      = ['A', 'B', 'C', 'D', 'E', ''];
-        } else {
-            groupField = 'frequency_segment';
-            colorMap   = FREQ_COLORS;
-            nameMap    = { frecuente: 'Frecuente', ocasional: 'Ocasional', en_riesgo: 'En riesgo', inactivo: 'Inactivo', '': 'Sin datos' };
-            order      = ['frecuente', 'ocasional', 'en_riesgo', 'inactivo', ''];
-        }
-
-        const byGroup = {};
-        for (const r of rows) {
-            const k = r[groupField] || '';
-            if (!byGroup[k]) byGroup[k] = { count: 0, amount: 0 };
-            byGroup[k].count++;
-            byGroup[k].amount += r.total_amount || 0;
-        }
-        const cats  = order.filter(c => byGroup[c]);
-        const total = cats.reduce((s, c) => s + byGroup[c].count, 0);
-        const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
-
-        const pieLabelPlugin = {
-            id: 'pieLabelsTop',
-            afterDatasetsDraw(chart) {
-                const { ctx, data } = chart;
-                const ds  = data.datasets[0];
-                const ttl = ds.data.reduce((a, b) => a + b, 0);
-                chart.getDatasetMeta(0).data.forEach((arc, i) => {
-                    const pct = ttl ? Math.round(ds.data[i] / ttl * 100) : 0;
-                    if (pct < 5) return;
-                    const { x, y } = arc.getCenterPoint();
-                    ctx.save();
-                    ctx.fillStyle    = '#fff';
-                    ctx.font         = 'bold 11px sans-serif';
-                    ctx.textAlign    = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-                    ctx.shadowBlur   = 3;
-                    ctx.fillText(`${pct}%`, x, y);
-                    ctx.restore();
-                });
-            },
-        };
-
-        this._topDonutChart = new ChartJs(el, {
-            type: 'doughnut',
-            data: {
-                labels:   cats.map(c => nameMap[c] || c),
-                datasets: [{
-                    data:            cats.map(c => byGroup[c].count),
-                    backgroundColor: cats.map(c => colorMap[c] ?? CAT_COLORS['']),
-                    borderWidth:  1,
-                    borderColor:  '#fff',
-                }],
-            },
-            plugins: [pieLabelPlugin],
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '48%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6, boxWidth: 14 } },
-                    tooltip: {
-                        callbacks: {
-                            title: items => nameMap[cats[items[0].dataIndex]] || cats[items[0].dataIndex],
-                            label: ctx => {
-                                const d   = byGroup[cats[ctx.dataIndex]];
-                                const pct = total ? Math.round(d.count / total * 100) : 0;
-                                return [
-                                    `  ${d.count} clientes (${pct}%)`,
-                                    `  Monto: ${fmtAmt(d.amount)}`,
-                                ];
-                            },
-                        },
-                    },
-                },
-            },
-        });
-    }
+    _drawTopDonut() { drawTopDonut(this); }
 
     // ── Filas expandibles ─────────────────────────────────────────────────────
 

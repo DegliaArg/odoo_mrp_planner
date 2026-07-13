@@ -101,9 +101,9 @@ class MrpPlannerDashboardSales(models.TransientModel):
                     tid = pp.product_tmpl_id.id
                     tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
                     tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
-            except Exception:
-                # El módulo sale puede no estar instalado; devolvemos lista vacía
-                return []
+            except Exception as e:
+                _logger.error('[SalesChart] Error al leer sale.order.line: %s', e, exc_info=True)
+                raise
         else:
             domain = [
                 ('state', '=', 'done'),

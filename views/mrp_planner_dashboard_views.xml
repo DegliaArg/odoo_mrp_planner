@@ -228,14 +228,14 @@
               name="Planificación"
               parent="mrp_planner_menu_root"
               sequence="10"
-              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- Grupo Producción (contenedor bajo Planificación) -->
     <menuitem id="mrp_produccion_menu"
               name="Producción"
               parent="mrp_planeacion_menu"
               sequence="10"
-              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_produccion_panel_menu"
               name="Panel de Producción"

@@ -13,13 +13,41 @@ Relacionado con:
 - stock.warehouse: depósitos que el usuario tiene permitido consultar en el
   Planificador MRP
 """
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class ResUsers(models.Model):
     """Extensión de res.users con preferencias de visibilidad del Planificador MRP."""
 
     _inherit = 'res.users'
+
+    mrp_scheduling_enabled = fields.Boolean(
+        compute='_compute_mrp_scheduling_enabled',
+        string='Programación MRP habilitada',
+    )
+
+    def _compute_mrp_scheduling_enabled(self):
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        enabled = bool(cfg.enable_scheduling) if cfg else False
+        for user in self:
+            user.mrp_scheduling_enabled = enabled
+
+    @api.constrains('groups_id')
+    def _check_scheduling_group_assignment(self):
+        scheduling_group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
+        if not scheduling_group:
+            return
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        if not cfg or cfg.enable_scheduling:
+            return
+        for user in self:
+            if scheduling_group in user.groups_id:
+                raise ValidationError(
+                    'No se puede asignar el permiso "Programación" porque la '
+                    'programación está deshabilitada. Habilítela primero desde '
+                    'Configuración → Planificador MRP → Programación y reprogramación.'
+                )
 
     mrp_planner_all_warehouses = fields.Boolean(
         string='Todos los depósitos',

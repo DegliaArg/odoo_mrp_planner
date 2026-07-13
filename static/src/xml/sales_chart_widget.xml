@@ -105,6 +105,12 @@
                 <i class="fa fa-spinner fa-spin fa-2x"/>
             </div>
 
+            <!-- Error de backend -->
+            <div t-elif="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar ventas: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
             <!-- Sin datos -->
             <div t-elif="!state.rows.length" class="text-center text-muted py-5">
                 <i class="fa fa-bar-chart fa-3x mb-3 d-block opacity-50"/>

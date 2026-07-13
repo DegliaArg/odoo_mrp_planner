@@ -80,6 +80,7 @@ class SalesChartWidget extends Component {
             productCategs:   [],
             rows:            [],
             docType:         "sales",
+            loadError:       null,
         });
 
         onMounted(async () => {
@@ -128,7 +129,8 @@ class SalesChartWidget extends Component {
      * @returns {Promise<void>}
      */
     async _load() {
-        this.state.loading = true;
+        this.state.loading   = true;
+        this.state.loadError = null;
         if (this._chart) { this._chart.destroy(); this._chart = null; }
         if (this._pie)   { this._pie.destroy();   this._pie   = null; }
         try {
@@ -141,7 +143,8 @@ class SalesChartWidget extends Component {
             this.state.rows = rows || [];
         } catch (e) {
             console.error("[SalesChartWidget]", e);
-            this.state.rows = [];
+            this.state.rows      = [];
+            this.state.loadError = e?.data?.message || e?.message || String(e);
         } finally {
             this.state.loading = false;
         }

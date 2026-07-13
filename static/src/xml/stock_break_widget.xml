@@ -32,6 +32,9 @@
                                 <div class="o_planner_number"><t t-esc="state.kpis.total"/></div>
                                 <div class="o_planner_label">Vendibles</div>
                             </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="() => this.setFilter('all')">Ver →</button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
@@ -42,6 +45,9 @@
                                 <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
                                 <div class="o_planner_number text-danger"><t t-esc="state.kpis.broken"/></div>
                                 <div class="o_planner_label">Quiebres</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="() => this.setFilter('broken')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -54,6 +60,9 @@
                                 <div class="o_planner_number text-success"><t t-esc="state.kpis.ok"/></div>
                                 <div class="o_planner_label">Stock OK</div>
                             </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1 text-success" t-on-click.stop="() => this.setFilter('ok')">Ver →</button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
@@ -64,6 +73,9 @@
                                 <i class="fa fa-minus-circle fa-lg text-muted mb-2 d-block"/>
                                 <div class="o_planner_number text-muted"><t t-esc="state.kpis.no_min"/></div>
                                 <div class="o_planner_label">Sin mínimo</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="() => this.setFilter('no_min')">Ver →</button>
                             </div>
                         </div>
                     </div>

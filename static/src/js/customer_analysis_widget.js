@@ -192,6 +192,8 @@ class CustomerAnalysisWidget extends Component {
             panelTopN:      10,
             panelProdSort:  'amount',   // columna de sort en top artículos
             panelProdDir:   'desc',
+            rowOrderSort:   'date',     // columna de sort en tabla de pedidos inline
+            rowOrderDir:    'desc',
             // Columnas visibles
             visibleCols: {
                 customer_category: false,
@@ -544,6 +546,36 @@ class CustomerAnalysisWidget extends Component {
             views:     [[false, 'form']],
             target:    'current',
         });
+    }
+
+    sortRowOrders(key) {
+        if (this.state.rowOrderSort === key) {
+            this.state.rowOrderDir = this.state.rowOrderDir === 'desc' ? 'asc' : 'desc';
+        } else {
+            this.state.rowOrderSort = key;
+            this.state.rowOrderDir  = 'desc';
+        }
+    }
+
+    getSortedOrders(partnerId) {
+        const orders = this.state.rowOrders[partnerId] || [];
+        const key    = this.state.rowOrderSort;
+        const dir    = this.state.rowOrderDir === 'desc' ? -1 : 1;
+        return [...orders].sort((a, b) => {
+            const va = a[key] ?? -Infinity;
+            const vb = b[key] ?? -Infinity;
+            if (typeof va === 'string') return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
+            return dir * (va - vb);
+        });
+    }
+
+    orderStateBadgeClass(state) {
+        return {
+            'Confirmado': 'badge text-bg-primary',
+            'Hecho':      'badge text-bg-success',
+            'Cancelado':  'badge text-bg-danger',
+            'Borrador':   'badge text-bg-secondary',
+        }[state] || 'badge text-bg-secondary';
     }
 
     get panelTopProducts() {

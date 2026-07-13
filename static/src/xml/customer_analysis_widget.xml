@@ -831,15 +831,27 @@
                 <table class="table table-sm mb-0" style="font-size:11px;">
                     <thead>
                         <tr style="background:#e2e6ea;">
-                            <th style="padding:3px 8px 3px 40px; width:140px;">Pedido</th>
-                            <th style="padding:3px 8px;">Fecha</th>
-                            <th class="text-end" style="padding:3px 8px;">Monto</th>
-                            <th class="text-end" style="padding:3px 8px;">% Entrega</th>
-                            <th style="padding:3px 8px;">Estado</th>
+                            <t t-foreach="[
+                                {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px'},
+                                {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px'},
+                                {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px'},
+                                {key:'delivery_pct', label:'% Entrega',  cls:'text-end', pad:'3px 8px'},
+                                {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px'},
+                            ]" t-as="col" t-key="col.key">
+                                <th t-att-class="col.cls + ' user-select-none'"
+                                    t-att-style="'padding:' + col.pad + '; cursor:pointer; white-space:nowrap;'"
+                                    t-on-click="() => this.sortRowOrders(col.key)">
+                                    <t t-esc="col.label"/>
+                                    <t t-if="state.rowOrderSort === col.key">
+                                        <i t-att-class="state.rowOrderDir === 'desc' ? 'fa fa-sort-desc ms-1' : 'fa fa-sort-asc ms-1'"/>
+                                    </t>
+                                    <t t-else=""><i class="fa fa-sort ms-1 text-muted" style="opacity:0.35;"/></t>
+                                </th>
+                            </t>
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="state.rowOrders[row.partner_id]" t-as="ord" t-key="ord.name">
+                        <t t-foreach="getSortedOrders(row.partner_id)" t-as="ord" t-key="ord.name">
                             <tr style="cursor:pointer;" title="Abrir pedido."
                                 t-on-click="() => this.openOrder(ord.order_id)">
                                 <td style="padding:3px 8px 3px 40px;" class="text-primary fw-semibold">
@@ -851,7 +863,10 @@
                                 </td>
                                 <td t-att-class="'text-end ' + deliveryClass(ord.delivery_pct)"
                                     style="padding:3px 8px;" t-esc="fmtPct(ord.delivery_pct)"/>
-                                <td style="padding:3px 8px; color:#6c757d;"><t t-esc="ord.state"/></td>
+                                <td style="padding:3px 8px;">
+                                    <span t-att-class="orderStateBadgeClass(ord.state)"
+                                          style="font-size:10px;" t-esc="ord.state"/>
+                                </td>
                             </tr>
                         </t>
                     </tbody>

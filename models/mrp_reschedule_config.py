@@ -584,10 +584,7 @@ class MrpRescheduleConfig(models.Model):
         group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
         if not group:
             return
-        if enabled:
-            users = self.env['res.users'].search([('share', '=', False), ('active', '=', True)])
-            group.sudo().write({'users': [(4, uid) for uid in users.ids]})
-        else:
+        if not enabled:
             group.sudo().write({'users': [(5,)]})
 
     def write(self, vals):

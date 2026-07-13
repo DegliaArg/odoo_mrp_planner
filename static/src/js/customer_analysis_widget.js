@@ -11,6 +11,7 @@
 import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
 import { registry }  from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { loadBundle } from "@web/core/assets";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 
@@ -224,6 +225,7 @@ class CustomerAnalysisWidget extends Component {
         onMounted(async () => {
             try {
                 document.addEventListener('click', this._closeDropdowns);
+                await loadBundle("web.chartjs_lib");
                 await this._load();
             } catch (e) {
                 if (e.message !== "Component is destroyed") throw e;

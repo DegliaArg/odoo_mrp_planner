@@ -20,6 +20,7 @@
 import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
 import { registry }  from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { loadBundle } from "@web/core/assets";
 
 /**
  * Paleta de colores RGBA asignada a cada categoría ABC de venta.
@@ -85,6 +86,7 @@ class SalesChartWidget extends Component {
 
         onMounted(async () => {
             try {
+                await loadBundle("web.chartjs_lib");
                 // Paralelizar: get_product_categories_for_chart y _load() son RPCs independientes
                 const [cats] = await Promise.all([
                     this.orm.call("mrp.planner.dashboard", "get_product_categories_for_chart", []),

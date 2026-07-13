@@ -35,7 +35,7 @@
                                         </div>
                                     </group>
                                     <group string="Programación y reprogramación">
-                                        <field name="enable_scheduling" widget="boolean_toggle"
+                                        <field name="enable_scheduling" widget="scheduling_toggle"
                                                help="Activa o desactiva todas las funciones de programación y reprogramación: menús, botones en OFs y KPIs en el panel de producción. Al desactivar, los usuarios dejan de ver estas opciones."/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1">
                                             Cuando está <b>desactivado</b> se ocultan el menú de Reprogramación, los botones de reprogramación en las OFs y las tarjetas KPI "Para reprogramar" y "Con reprogramación" del panel de producción.

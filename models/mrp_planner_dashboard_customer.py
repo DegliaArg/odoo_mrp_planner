@@ -284,7 +284,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)
-            avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_customers, 2) if total_customers else 0.0
+            avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_orders, 2) if total_orders else 0.0
             delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
             freq_vals         = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]

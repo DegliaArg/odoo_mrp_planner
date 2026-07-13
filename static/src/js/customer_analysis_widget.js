@@ -435,6 +435,10 @@ class CustomerAnalysisWidget extends Component {
         this.state.panelPartnerId = partnerId;
         this.state.panelData      = null;
         this.state.panelLoading   = true;
+        // Si se abre el panel, cerrar la fila expandida del mismo cliente
+        if (this.state.expandedRows[partnerId]) {
+            this.state.expandedRows[partnerId] = false;
+        }
         try {
             const data = await this.orm.call(
                 'mrp.planner.dashboard',
@@ -669,6 +673,12 @@ class CustomerAnalysisWidget extends Component {
     async toggleRow(partnerId) {
         const isOpen = !!this.state.expandedRows[partnerId];
         this.state.expandedRows[partnerId] = !isOpen;
+        // Si se abre la fila de pedidos, cerrar el panel de análisis del mismo cliente
+        if (!isOpen && this.state.panelPartnerId === partnerId) {
+            this.state.panelPartnerId = null;
+            this.state.panelData      = null;
+            this._destroyPanelCharts();
+        }
         if (!isOpen && !this.state.rowOrders[partnerId]) {
             this.state.rowOrdersLoading[partnerId] = true;
             try {

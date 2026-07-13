@@ -457,6 +457,19 @@ class SupplierAnalysisWidget extends Component {
 
     // ── Navegación ────────────────────────────────────────────────────────────
 
+    openKpiList() {
+        this.action.doAction({
+            type:    'ir.actions.act_window',
+            name:    'Órdenes de compra',
+            res_model: 'purchase.order',
+            views:   [[false, 'list'], [false, 'form']],
+            target:  'current',
+            domain:  [['state', 'in', ['purchase', 'done']],
+                      ['date_approve', '>=', `${this.state.periodFrom} 00:00:00`],
+                      ['date_approve', '<=', `${this.state.periodTo} 23:59:59`]],
+        });
+    }
+
     /**
      * Navega al formulario del proveedor en res.partner.
      * Detiene la propagación del evento para no disparar el toggleAccordion

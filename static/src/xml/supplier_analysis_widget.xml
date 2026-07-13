@@ -10,37 +10,40 @@
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('suppliers')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-users fa-lg text-secondary mb-2 d-block" title="Proveedores"/>
                                 <div class="o_planner_number"><t t-esc="state.data.kpis.supplier_count"/></div>
-                                <div class="o_planner_label">Proveedores</div>
+                                <div class="o_planner_label mb-1">Proveedores</div>
+                                <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('amount')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-money fa-lg text-primary mb-2 d-block" title="Monto comprado"/>
                                 <div class="o_planner_number"><t t-esc="fmtMoney(state.data.kpis.total_amount)"/></div>
-                                <div class="o_planner_label">Monto comprado</div>
+                                <div class="o_planner_label mb-1">Monto comprado</div>
+                                <button class="btn btn-link btn-sm py-0 px-0 text-primary" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('orders')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-file-text fa-lg text-secondary mb-2 d-block" title="Órdenes"/>
                                 <div class="o_planner_number"><t t-esc="state.data.kpis.total_orders"/></div>
-                                <div class="o_planner_label">Órdenes</div>
+                                <div class="o_planner_label mb-1">Órdenes</div>
+                                <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('on_time')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block" title="A tiempo"/>
                                 <div t-att-class="'o_planner_number ' + onTimeCls(state.data.kpis.avg_on_time_pct)">
                                     <t t-if="state.data.kpis.avg_on_time_pct !== null">
@@ -48,14 +51,15 @@
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">A tiempo</div>
+                                <div class="o_planner_label mb-1">A tiempo</div>
+                                <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('lead_time')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block" title="Lead time"/>
                                 <div class="o_planner_number">
                                     <t t-if="state.data.kpis.avg_lead_time_days !== null">
@@ -63,14 +67,15 @@
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">Lead time</div>
+                                <div class="o_planner_label mb-1">Lead time</div>
+                                <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('price_var')">
-                            <div class="card-body text-center py-3">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                 <i class="fa fa-tag fa-lg text-secondary mb-2 d-block" title="Variación precio"/>
                                 <div t-att-class="'o_planner_number ' + priceVarCls(state.data.kpis.avg_price_var_pct)">
                                     <t t-if="state.data.kpis.avg_price_var_pct !== null">
@@ -78,7 +83,8 @@
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">Var. precio</div>
+                                <div class="o_planner_label mb-1">Var. precio</div>
+                                <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;" t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>

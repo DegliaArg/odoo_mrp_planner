@@ -9,7 +9,7 @@
         <div class="d-flex flex-column">
 
             <!-- ── Barra de filtros unificada ──────────────────────────────── -->
-            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <div class="d-flex align-items-center gap-2 mb-3 flex-nowrap" style="overflow-x:auto;">
 
                 <!-- Período -->
                 <div class="d-flex align-items-center gap-1">

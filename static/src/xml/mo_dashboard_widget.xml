@@ -71,10 +71,11 @@
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickTotal"
                                      t-att-title="moKpiTooltip('ofs', 'total')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.total)"/>
-                                        <div class="o_planner_label">Activas</div>
+                                        <div class="o_planner_label mb-1">Activas</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -83,10 +84,11 @@
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickInProgress"
                                      t-att-title="moKpiTooltip('ofs', 'in_progress')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.ofs_kpis.in_progress)"/>
-                                        <div class="o_planner_label">En progreso</div>
+                                        <div class="o_planner_label mb-1">En progreso</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-info" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -95,10 +97,11 @@
                                 <div class="card o_planner_card o_planner_card_danger h-100"
                                      style="cursor:pointer" t-on-click="onClickDelayed"
                                      t-att-title="moKpiTooltip('ofs', 'delayed')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
                                         <div class="o_planner_number text-danger" t-esc="fmt(state.ofs_kpis.delayed)"/>
-                                        <div class="o_planner_label">Atrasadas</div>
+                                        <div class="o_planner_label mb-1">Atrasadas</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-danger" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -107,10 +110,11 @@
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReschedule"
                                      t-att-title="moKpiTooltip('ofs', 'reschedule')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.ofs_kpis.reschedule)"/>
-                                        <div class="o_planner_label">Para reprogramar</div>
+                                        <div class="o_planner_label mb-1">Para reprogramar</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-warning" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -119,10 +123,11 @@
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickDone"
                                      t-att-title="moKpiTooltip('ofs', 'done')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.ofs_kpis.done)"/>
-                                        <div class="o_planner_label">Finalizadas</div>
+                                        <div class="o_planner_label mb-1">Finalizadas</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-success" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -131,10 +136,11 @@
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickPartial"
                                      t-att-title="moKpiTooltip('ofs', 'partial')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number text-secondary" t-esc="fmt(state.ofs_kpis.partial)"/>
-                                        <div class="o_planner_label">Por cerrar</div>
+                                        <div class="o_planner_label mb-1">Por cerrar</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -247,10 +253,11 @@
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickReqActive"
                                      t-att-title="moKpiTooltip('req', 'active')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.req_kpis.active)"/>
-                                        <div class="o_planner_label">OFs creadas</div>
+                                        <div class="o_planner_label mb-1">OFs creadas</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-success" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -259,10 +266,11 @@
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickReqCalc"
                                      t-att-title="moKpiTooltip('req', 'calculated')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.req_kpis.calculated)"/>
-                                        <div class="o_planner_label">Calculadas</div>
+                                        <div class="o_planner_label mb-1">Calculadas</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-info" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -271,10 +279,11 @@
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReqReschedule"
                                      t-att-title="moKpiTooltip('req', 'reschedule')">
-                                    <div class="card-body text-center py-3">
+                                    <div class="card-body text-center py-2 d-flex flex-column align-items-center">
                                         <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.req_kpis.reschedule)"/>
-                                        <div class="o_planner_label">Con reprogramación</div>
+                                        <div class="o_planner_label mb-1">Con reprogramación</div>
+                                        <button class="btn btn-link btn-sm py-0 px-0 text-warning" style="font-size:11px; line-height:1.2;">Ver →</button>
                                     </div>
                                 </div>
                             </div>

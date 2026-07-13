@@ -70,7 +70,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickTotal"
-                                     title="OFs confirmadas, en progreso o por cerrar, con fecha de fin en el período seleccionado. Estados: Confirmada · En progreso · Por cerrar">
+                                     t-att-title="moKpiTooltip('ofs', 'total')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.total)"/>
@@ -82,7 +82,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickInProgress"
-                                     title="OFs cuya producción ya fue iniciada formalmente en el sistema. Estados: En progreso · Por cerrar">
+                                     t-att-title="moKpiTooltip('ofs', 'in_progress')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.ofs_kpis.in_progress)"/>
@@ -94,7 +94,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_danger h-100"
                                      style="cursor:pointer" t-on-click="onClickDelayed"
-                                     title="OFs activas cuya fecha de fin planificada ya superó la fecha actual. Condición: fecha_fin &lt; hoy y estado activo">
+                                     t-att-title="moKpiTooltip('ofs', 'delayed')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-warning fa-lg text-danger mb-2 d-block"/>
                                         <div class="o_planner_number text-danger" t-esc="fmt(state.ofs_kpis.delayed)"/>
@@ -106,7 +106,7 @@
                             <div t-if="state.enable_scheduling" class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReschedule"
-                                     title="OFs con 'Requiere reprogramación' activado. Se marcan automáticamente por alertas o manualmente.">
+                                     t-att-title="moKpiTooltip('ofs', 'reschedule')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-refresh fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.ofs_kpis.reschedule)"/>
@@ -118,7 +118,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickDone"
-                                     title="OFs cerradas formalmente durante el período. Estado: Completada. Fecha fin dentro del rango.">
+                                     t-att-title="moKpiTooltip('ofs', 'done')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.ofs_kpis.done)"/>
@@ -130,7 +130,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
                                      style="cursor:pointer" t-on-click="onClickPartial"
-                                     title="OFs con producción completa pendientes de cierre formal en Odoo. Estado: Por cerrar (to_close)">
+                                     t-att-title="moKpiTooltip('ofs', 'partial')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number text-secondary" t-esc="fmt(state.ofs_kpis.partial)"/>
@@ -246,7 +246,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
                                      style="cursor:pointer" t-on-click="onClickReqActive"
-                                     title="Solicitudes de programación confirmadas con OFs generadas. Estado de la solicitud: Confirmada">
+                                     t-att-title="moKpiTooltip('req', 'active')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.req_kpis.active)"/>
@@ -258,7 +258,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
                                      style="cursor:pointer" t-on-click="onClickReqCalc"
-                                     title="Solicitudes que pasaron por el cálculo de fechas y capacidad de centros de trabajo. Estado: Calculada">
+                                     t-att-title="moKpiTooltip('req', 'calculated')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.req_kpis.calculated)"/>
@@ -270,7 +270,7 @@
                             <div t-if="state.enable_scheduling" class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickReqReschedule"
-                                     title="Solicitudes con al menos una OF marcada como 'requiere reprogramación' (x_reschedule_needed = Sí)">
+                                     t-att-title="moKpiTooltip('req', 'reschedule')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-random fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.req_kpis.reschedule)"/>
@@ -281,7 +281,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_danger h-100"
-                                     title="Total de OFs atrasadas asociadas a las solicitudes activas. Condición: fecha_fin &lt; hoy y estado activo">
+                                     t-att-title="moKpiTooltip('req', 'mos_delayed')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block"/>
                                         <div class="o_planner_number text-danger" t-esc="fmt(state.req_kpis.mos_delayed)"/>
@@ -390,7 +390,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
-                                     title="Total de unidades planificadas en OFs del período. Fuente: product_qty de las OFs en el rango de fechas">
+                                     t-att-title="moKpiTooltip('cmp', 'planned')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
                                         <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.planned)"/>
@@ -401,7 +401,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_success h-100"
-                                     title="Total de unidades producidas y registradas. Fuente: qty_produced de las OFs con estado Completada (done)">
+                                     t-att-title="moKpiTooltip('cmp', 'produced')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
                                         <div class="o_planner_number text-success" t-esc="fmt(state.cmp_kpis.produced)"/>
@@ -412,7 +412,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card h-100"
-                                     title="Fórmula: Producido ÷ Programado × 100. Verde ≥ 90% | Amarillo ≥ 50% | Rojo &lt; 50%">
+                                     t-att-title="moKpiTooltip('cmp', 'pct')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-pie-chart fa-lg text-secondary mb-2 d-block"/>
                                         <div t-att-class="'o_planner_number ' + pctClass(state.cmp_kpis.pct)"
@@ -424,7 +424,7 @@
 
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_info h-100"
-                                     title="OFs formalmente finalizadas dentro del período seleccionado. Estado: Completada (done)">
+                                     t-att-title="moKpiTooltip('cmp', 'ofs_done')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-flag-checkered fa-lg text-info mb-2 d-block"/>
                                         <div class="o_planner_number text-info" t-esc="fmt(state.cmp_kpis.ofs_done)"/>

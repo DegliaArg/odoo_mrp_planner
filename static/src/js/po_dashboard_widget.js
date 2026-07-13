@@ -437,6 +437,28 @@ class PoDashboardWidget extends Component {
      * @returns {string} Número formateado (ej: "1.234")
      */
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
+
+    poKpiTooltip(key) {
+        const k   = this.state.kpis;
+        const f   = n => this.fmt(n);
+        const pct = (a, b) => b > 0 ? ` (${Math.round(a / b * 100)}%)` : '';
+        switch (key) {
+            case 'rfq':
+                return `OCs en estado Borrador o Enviada al proveedor, aún no aprobadas\nEstados: Borrador · Enviada al proveedor\n→ ${f(k.rfq)} OCs en cotización`;
+            case 'to_approve':
+                return `OCs que requieren aprobación adicional antes de ser confirmadas\nEstado: Por aprobar (to approve)\n→ ${f(k.to_approve)} OCs por aprobar`;
+            case 'total':
+                return `OCs aprobadas con recepción pendiente o parcial en el período\nEstado: Aprobada, recepción pendiente o parcial\n→ ${f(k.total)} OCs aprobadas`;
+            case 'pending':
+                return `OCs aprobadas cuya fecha de entrega aún no venció\nCondición: fecha_entrega >= hoy y estado Aprobada\n→ ${f(k.pending)} en plazo de ${f(k.total)} aprobadas${pct(k.pending, k.total)}`;
+            case 'overdue':
+                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nCondición: fecha_entrega < hoy y sin recepción completa\n→ ${f(k.overdue)} vencidas de ${f(k.total)} aprobadas${pct(k.overdue, k.total)}`;
+            case 'overdue_critical':
+                return `OCs vencidas con más de ${k.po_critical_days || 5} días de retraso (umbral configurable en Ajustes)\nCondición: días_retraso > umbral_crítico\n→ ${f(k.overdue_critical)} críticas de ${f(k.overdue)} vencidas${pct(k.overdue_critical, k.overdue)}`;
+        }
+        return '';
+    }
+
     /**
      * Formatea un importe monetario con dos decimales en locale es-AR.
      * @param {number} n - Importe a formatear

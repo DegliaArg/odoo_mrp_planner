@@ -508,12 +508,12 @@
 
             <td t-elif="col.key === 'order_count'"
                 class="text-end" style="padding:3px 8px;"
-                title="Pedidos confirmados en el período."
+                t-att-title="cellTooltip('order_count', row)"
                 t-esc="fmt(row.order_count)"/>
 
             <td t-elif="col.key === 'total_amount'"
                 class="text-end" style="padding:3px 8px;"
-                title="Monto total neto del período."
+                t-att-title="cellTooltip('total_amount', row)"
                 t-esc="fmtMoney(row.total_amount)"/>
 
             <td t-elif="col.key === 'avg_ticket'"
@@ -551,12 +551,12 @@
 
             <td t-elif="col.key === 'last_order_date'"
                 class="text-end" style="padding:3px 8px;"
-                title="Fecha del último pedido confirmado."
+                t-att-title="cellTooltip('last_order_date', row)"
                 t-esc="row.last_order_date || '—'"/>
 
             <td t-elif="col.key === 'distinct_products'"
                 class="text-end" style="padding:3px 8px;"
-                title="Productos distintos comprados en el período."
+                t-att-title="cellTooltip('distinct_products', row)"
                 t-esc="fmt(row.distinct_products)"/>
 
             <td t-elif="col.key === 'top_product'"
@@ -575,7 +575,7 @@
 
             <td t-elif="col.key === 'frequency_segment'"
                 class="text-center" style="padding:3px 6px;"
-                title="Frecuente: ≤30 d · Ocasional: 31–90 d · Inactivo: >90 d · En riesgo: sin comprar más del umbral configurado.">
+                t-att-title="cellTooltip('frequency_segment', row)">
                 <span t-att-class="'badge ' + freqBadgeClass(row.frequency_segment)"
                       t-esc="freqLabel(row.frequency_segment)"/>
             </td>

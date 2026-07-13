@@ -1202,10 +1202,16 @@ class CustomerAnalysisWidget extends Component {
 
     cellTooltip(key, row) {
         if (!row) return '';
-        const m = v => this.fmtMoney(v);
-        const f = v => this.fmt(v);
-        const n = v => v != null ? new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v) : '—';
+        const m  = v => this.fmtMoney(v);
+        const f  = v => this.fmt(v);
+        const n  = v => v != null ? new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v) : '—';
+        const k  = this.state.kpis;
+        const pct = (a, b) => b > 0 ? ` (${((a / b) * 100).toFixed(1)}% del total)` : '';
         switch (key) {
+            case 'order_count':
+                return `Pedidos confirmados del cliente en el período\n→ ${f(row.order_count)} pedidos de ${f(k.total_orders)} totales${pct(row.order_count, k.total_orders)}`;
+            case 'total_amount':
+                return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}`;
             case 'delivery_pct':
                 return `Qty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
             case 'ontime_pct':
@@ -1213,11 +1219,17 @@ class CustomerAnalysisWidget extends Component {
             case 'avg_ticket':
                 return `Monto total ÷ Pedidos\n→ ${m(row.total_amount)} ÷ ${row.order_count} = ${m(row.avg_ticket)}`;
             case 'trend_pct':
-                return `Variación del monto vs período anterior de igual duración.\nActual: ${m(row.total_amount)}  |  Anterior: ${m(row.prev_amount)}\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
+                return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
-                return `Días desde el último pedido (${row.last_order_date || '?'}) hasta hoy.\nUmbral de riesgo: ${this.state.config.risk_days || 90} días`;
+                return `Días transcurridos desde el último pedido hasta hoy\n→ Último pedido: ${row.last_order_date || '?'} (${row.days_since_last} días)\nUmbral de riesgo: ${this.state.config.risk_days || 90} días`;
             case 'avg_days_between':
-                return `Promedio de días entre pedidos consecutivos en el período.\n${row.order_count > 1 ? row.order_count + ' pedidos → ' + row.order_count - 1 + ' intervalos' : 'Solo 1 pedido en el período'}`;
+                return `Promedio de días entre pedidos consecutivos del cliente en el período\n→ ${row.order_count} pedido${row.order_count !== 1 ? 's' : ''} → ${Math.max(0, row.order_count - 1)} intervalo${row.order_count > 2 ? 's' : ''} = ${row.avg_days_between != null ? row.avg_days_between + ' días promedio' : 'sin datos (1 solo pedido)'}`;
+            case 'last_order_date':
+                return `Fecha del último pedido confirmado del cliente en el período\n→ ${row.last_order_date || '—'} (hace ${row.days_since_last} días)`;
+            case 'distinct_products':
+                return `Artículos distintos (variantes de producto) comprados en el período\n→ ${f(row.distinct_products)} artículo${row.distinct_products !== 1 ? 's' : ''} distintos en ${row.order_count} pedido${row.order_count !== 1 ? 's' : ''}`;
+            case 'frequency_segment':
+                return `Segmento de frecuencia basado en días entre pedidos y días sin comprar\nFrecuente: días_entre ≤ 30 | Ocasional: 31–90 d | Inactivo: > 90 d | En riesgo: sin comprar > ${this.state.config.risk_days || 90} días\n→ Días entre pedidos: ${row.avg_days_between != null ? row.avg_days_between + ' d' : '—'}  |  Sin comprar: ${row.days_since_last} d  →  ${row.frequency_segment}`;
             default:
                 return '';
         }

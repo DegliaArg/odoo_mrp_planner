@@ -451,6 +451,56 @@ class MoDashboardWidget extends Component {
      */
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
 
+    moKpiTooltip(section, key) {
+        const f = n => this.fmt(n);
+        const pct = (a, b) => b > 0 ? ` (${Math.round(a / b * 100)}%)` : '';
+        if (section === 'ofs') {
+            const k = this.state.ofs_kpis;
+            switch (key) {
+                case 'total':
+                    return `OFs confirmadas, en progreso o por cerrar con fecha de fin en el período\nEstados incluidos: Confirmada · En progreso · Por cerrar\n→ ${f(k.total)} OFs activas`;
+                case 'in_progress':
+                    return `OFs cuya producción fue iniciada formalmente en el sistema\nEstados: En progreso · Por cerrar\n→ ${f(k.in_progress)} de ${f(k.total)} activas${pct(k.in_progress, k.total)}`;
+                case 'delayed':
+                    return `OFs activas con fecha_fin < hoy\nCondición: scheduled_date_finished < fecha actual y estado activo\n→ ${f(k.delayed)} de ${f(k.total)} activas${pct(k.delayed, k.total)}`;
+                case 'reschedule':
+                    return `OFs con campo "Requiere reprogramación" activado (x_reschedule_needed = Sí)\nSe marca automáticamente por alertas o manualmente\n→ ${f(k.reschedule)} de ${f(k.total)} activas${pct(k.reschedule, k.total)}`;
+                case 'done':
+                    return `OFs con estado Completada (done) cerradas formalmente en el período\nFecha fin dentro del rango seleccionado\n→ ${f(k.done)} OFs finalizadas`;
+                case 'partial':
+                    return `OFs con producción completa pendientes de cierre formal en Odoo\nEstado: Por cerrar (to_close) — qty_produced >= product_qty pero sin validación final\n→ ${f(k.partial)} OFs por cerrar`;
+            }
+        }
+        if (section === 'req') {
+            const k = this.state.req_kpis;
+            switch (key) {
+                case 'active':
+                    return `Solicitudes de programación confirmadas con OFs generadas\nEstado de la solicitud: Confirmada\n→ ${f(k.active)} solicitudes activas`;
+                case 'calculated':
+                    return `Solicitudes que pasaron por el cálculo de fechas y capacidad de CTs\nEstado: Calculada\n→ ${f(k.calculated)} de ${f(k.active)} solicitudes${pct(k.calculated, k.active)}`;
+                case 'reschedule':
+                    return `Solicitudes con al menos una OF marcada como "requiere reprogramación"\nCampo x_reschedule_needed = Sí en alguna OF asociada\n→ ${f(k.reschedule)} solicitudes`;
+                case 'mos_delayed':
+                    return `OFs atrasadas (fecha_fin < hoy y estado activo) asociadas a solicitudes activas\n→ ${f(k.mos_delayed)} OFs atrasadas`;
+            }
+        }
+        if (section === 'cmp') {
+            const k = this.state.cmp_kpis;
+            const f2 = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
+            switch (key) {
+                case 'planned':
+                    return `Suma de product_qty de las OFs en el período seleccionado\n→ ${f2(k.planned)} unidades planificadas`;
+                case 'produced':
+                    return `Suma de qty_produced de las OFs con estado Completada (done) en el período\n→ ${f2(k.produced)} u producidas de ${f2(k.planned)} u planificadas`;
+                case 'pct':
+                    return `Producido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+                case 'ofs_done':
+                    return `OFs con estado Completada (done) finalizadas dentro del período\n→ ${f(k.ofs_done)} OFs completadas`;
+            }
+        }
+        return '';
+    }
+
     /**
      * Formatea un número decimal con exactamente 2 decimales en locale es-AR.
      * @param {number} n - Número a formatear.

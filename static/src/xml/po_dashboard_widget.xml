@@ -65,7 +65,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_info h-100"
                                  style="cursor:pointer" t-on-click="onClickRfqs"
-                                 title="OCs en estado de solicitud de cotización, aún no aprobadas. Estados: Borrador · Enviada al proveedor">
+                                 t-att-title="poKpiTooltip('rfq')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
                                     <div class="o_planner_number text-info" t-esc="fmt(state.kpis.rfq)"/>
@@ -77,7 +77,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_warning h-100"
                                  style="cursor:pointer" t-on-click="onClickToApprove"
-                                 title="OCs que requieren aprobación adicional antes de ser confirmadas. Estado: Por aprobar (to approve)">
+                                 t-att-title="poKpiTooltip('to_approve')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
                                     <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.to_approve)"/>
@@ -89,7 +89,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card h-100"
                                  style="cursor:pointer" t-on-click="onClickAll"
-                                 title="OCs aprobadas con recepción pendiente dentro del período. Estado: Aprobada, recepción pendiente o parcial">
+                                 t-att-title="poKpiTooltip('total')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
                                     <div class="o_planner_number" t-esc="fmt(state.kpis.total)"/>
@@ -101,7 +101,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_success h-100"
                                  style="cursor:pointer" t-on-click="onClickPending"
-                                 title="OCs aprobadas cuya fecha de entrega aún no venció. Condición: fecha_entrega &gt;= hoy y estado Aprobada">
+                                 t-att-title="poKpiTooltip('pending')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
                                     <div class="o_planner_number text-success" t-esc="fmt(state.kpis.pending)"/>
@@ -113,7 +113,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_danger h-100"
                                  style="cursor:pointer" t-on-click="onClickOverdue"
-                                 title="OCs aprobadas cuya fecha de entrega ya venció. Condición: fecha_entrega &lt; hoy, sin recepción total">
+                                 t-att-title="poKpiTooltip('overdue')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue)"/>
@@ -125,7 +125,7 @@
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_danger h-100"
                                  style="cursor:pointer" t-on-click="onClickOverdue"
-                                 title="OCs vencidas con más días de retraso que el umbral configurado. Requieren atención inmediata.">
+                                 t-att-title="poKpiTooltip('overdue_critical')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue_critical)"/>

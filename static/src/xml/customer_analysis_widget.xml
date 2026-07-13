@@ -768,7 +768,9 @@
                                         </td>
                                         <td style="padding:2px 8px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                                             t-att-title="prod.name">
-                                            <t t-esc="prod.name"/>
+                                            <a href="#" class="text-decoration-none"
+                                               t-on-click.prevent="() => this.openProduct(prod.tmpl_id)"
+                                               t-esc="prod.name"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;">
                                             <t t-esc="fmt(prod.qty_ordered)"/>

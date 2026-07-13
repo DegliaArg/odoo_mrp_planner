@@ -346,8 +346,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'])
 
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
-        prods     = self.env['product.product'].browse(prod_ids).read(['id', 'categ_id'])
+        prods     = self.env['product.product'].browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
         categ_by_prod = {p['id']: (p.get('categ_id') or (0, 'Sin familia'))[1] for p in prods}
+        tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}
 
         sol_by_order = defaultdict(list)
         for l in lines_data:
@@ -419,6 +420,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         top_products = sorted([
             {
+                'product_id':   pid,
+                'tmpl_id':      tmpl_by_prod.get(pid, 0),
                 'name':         prod_names.get(pid, ''),
                 'qty_ordered':  round(v['qty_ordered'],  1),
                 'qty_delivered': round(v['qty_delivered'], 1),

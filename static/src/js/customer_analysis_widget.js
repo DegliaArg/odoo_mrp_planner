@@ -519,6 +519,17 @@ class CustomerAnalysisWidget extends Component {
     }
     setPanelTopN(n) { this.state.panelTopN = n; }
 
+    openProduct(tmplId) {
+        if (!tmplId) return;
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            res_model: 'product.template',
+            res_id:    tmplId,
+            views:     [[false, 'form']],
+            target:    'current',
+        });
+    }
+
     get panelTopProducts() {
         return (this.state.panelData?.top_products || []).slice(0, this.state.panelTopN);
     }

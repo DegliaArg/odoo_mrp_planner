@@ -65,11 +65,24 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+const CA_DATE_KEY = 'odoo_mrp_planner.ca_period';
+
 function defaultPeriod() {
+    try {
+        const saved = localStorage.getItem(CA_DATE_KEY);
+        if (saved) {
+            const { from, to } = JSON.parse(saved);
+            if (from && to) return { from, to };
+        }
+    } catch (e) {}
     const now = new Date();
     const from = new Date(now);
     from.setDate(from.getDate() - 90);
     return { from: toDateStr(from), to: toDateStr(now) };
+}
+
+function savePeriod(from, to) {
+    try { localStorage.setItem(CA_DATE_KEY, JSON.stringify({ from, to })); } catch (e) {}
 }
 
 function monthLabel(ym) {
@@ -332,8 +345,16 @@ class CustomerAnalysisWidget extends Component {
 
     // ── Handlers de controles ─────────────────────────────────────────────────
 
-    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this._load(); }
-    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this._load(); }
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value;
+        savePeriod(this.state.dateFrom, this.state.dateTo);
+        this._load();
+    }
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value;
+        savePeriod(this.state.dateFrom, this.state.dateTo);
+        this._load();
+    }
 
     toggleColsDropdown(ev) {
         ev.stopPropagation();

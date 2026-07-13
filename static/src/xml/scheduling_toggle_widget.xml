@@ -2,7 +2,8 @@
 <templates>
     <t t-name="odoo_mrp_planner.SchedulingToggleField">
         <div class="o_field_boolean_toggle form-check form-switch ms-1">
-            <input class="form-check-input"
+            <input t-ref="checkbox"
+                   class="form-check-input"
                    type="checkbox"
                    role="switch"
                    t-att-checked="value"

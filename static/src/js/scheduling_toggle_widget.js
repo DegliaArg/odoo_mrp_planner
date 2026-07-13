@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
@@ -10,6 +10,7 @@ class SchedulingToggleField extends Component {
     static props = { "*": true };
 
     setup() {
+        this.checkboxRef = useRef("checkbox");
         this.dialogService = useService("dialog");
     }
 
@@ -25,10 +26,16 @@ class SchedulingToggleField extends Component {
             this.dialogService.add(ConfirmationDialog, {
                 title: "Desactivar programación",
                 body: "Al desactivar la programación se eliminarán los permisos de Programación de todos los usuarios. ¿Confirmar?",
+                confirmLabel: "Desactivar",
+                cancelLabel: "Cancelar",
                 confirm: () => {
                     this.props.record.update({ [this.props.name]: false });
                 },
-                cancel: () => {},
+                cancel: () => {
+                    if (this.checkboxRef.el) {
+                        this.checkboxRef.el.checked = true;
+                    }
+                },
             });
         } else {
             this.props.record.update({ [this.props.name]: newVal });

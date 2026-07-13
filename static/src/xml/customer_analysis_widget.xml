@@ -158,7 +158,7 @@
 
             <!-- ── KPI cards globales ───────────────────────────────────────── -->
                 <div class="row g-2 mb-3">
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
                              title="Clientes con al menos un pedido confirmado en el período.">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
@@ -172,7 +172,18 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md">
+                        <div class="card o_planner_card h-100"
+                             title="Total de pedidos confirmados (sale + done) de todos los clientes en el período.">
+                            <div class="card-body text-center py-2 d-flex flex-column align-items-center">
+                                <i class="fa fa-shopping-cart fa-lg text-warning mb-1 d-block"/>
+                                <div class="o_planner_number text-warning flex-grow-1 d-flex align-items-center"
+                                     t-esc="fmt(state.kpis.total_orders)"/>
+                                <div class="o_planner_label mb-1">Total pedidos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
                              title="Monto neto promedio por pedido (monto total ÷ cantidad de pedidos).">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
@@ -187,7 +198,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
                              title="Promedio de % entrega entre todos los clientes.">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">
@@ -201,7 +212,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md">
                         <div class="card o_planner_card h-100"
                              title="Promedio de % entregas a tiempo. El criterio se configura en Ajustes.">
                             <div class="card-body text-center py-2 d-flex flex-column align-items-center">

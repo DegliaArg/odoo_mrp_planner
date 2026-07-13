@@ -283,6 +283,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 row['abc_segment'] = abc_map.get(row['partner_id'], 'C')
 
             total_customers   = len(rows)
+            total_orders      = sum(r['order_count'] for r in rows)
             avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_customers, 2) if total_customers else 0.0
             delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
@@ -292,6 +293,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'rows': rows,
                 'kpis': {
                     'total_customers':  total_customers,
+                    'total_orders':     total_orders,
                     'avg_ticket':       avg_ticket_global,
                     'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
                     'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,

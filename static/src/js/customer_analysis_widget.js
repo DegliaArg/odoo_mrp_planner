@@ -148,7 +148,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
+            kpis:          { total_customers: 0, total_orders: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -506,7 +506,7 @@ class CustomerAnalysisWidget extends Component {
         const allFiltered = this._filteredRows || this.state.allRows;
         if (!allFiltered.length) return;
 
-        const key = `${allFiltered.length}_${metric}_${topN}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
+        const key = `${this.state.dateFrom}_${this.state.dateTo}_${allFiltered.length}_${metric}_${topN}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
         if (key === this._topChartKey) return;
         this._topChartKey = key;
 
@@ -568,7 +568,7 @@ class CustomerAnalysisWidget extends Component {
         if (!rows.length) return;
 
         const donutType = this.state.chartDonut;
-        const key = `${rows.length}_${donutType}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
+        const key = `${this.state.dateFrom}_${this.state.dateTo}_${rows.length}_${donutType}_${this.state.filterCategory}_${this.state.filterABC}_${this.state.filterFreq}`;
         if (key === this._topDonutKey) return;
         this._topDonutKey = key;
 
@@ -743,7 +743,7 @@ class CustomerAnalysisWidget extends Component {
         const Chart = globalThis.Chart;
         if (typeof Chart === 'undefined') return;
 
-        const panelKey = `${this.state.panelPartnerId}_${this.state.panelMetric}`;
+        const panelKey = `${this.state.panelPartnerId}_${this.state.panelMetric}_${this.state.dateFrom}_${this.state.dateTo}`;
         if (this._panelChartsKey === panelKey) return;
         this._panelChartsKey = panelKey;
 

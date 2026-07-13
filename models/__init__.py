@@ -10,7 +10,10 @@ from . import mrp_partner_category
 from . import mrp_reschedule_user_permission
 from . import mrp_reschedule_alert
 from . import mrp_production
+from . import mrp_reschedule_cascade_mixin
 from . import mrp_reschedule_plan
+from . import mrp_reschedule_plan_line
+from . import mrp_reschedule_plan_wc_line
 from . import mrp_planner_dashboard
 from . import mrp_planner_dashboard_wc
 from . import mrp_planner_dashboard_po

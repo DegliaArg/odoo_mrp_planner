@@ -643,27 +643,5 @@
         </field>
     </record>
 
-    <!-- Bloque en Ajustes → Fabricación (mantiene compatibilidad con el menú estándar) -->
-    <record id="res_config_settings_view_mrp_reschedule" model="ir.ui.view">
-        <field name="name">res.config.settings.view.mrp.reschedule</field>
-        <field name="model">res.config.settings</field>
-        <field name="inherit_id" ref="mrp.res_config_settings_view_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//app[@name='mrp']" position="inside">
-                <block title="Planificador de producción" name="mrp_reschedule_block">
-                    <setting
-                        string="Centro de trabajo sin configurar"
-                        help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles definidos.">
-                        <field name="mrp_reschedule_wc_fallback"/>
-                    </setting>
-                    <setting
-                        string="Criterio de prioridad"
-                        help="Orden en que se programan las OFs cuando compiten por el mismo WC.">
-                        <field name="mrp_reschedule_priority"/>
-                    </setting>
-                </block>
-            </xpath>
-        </field>
-    </record>
 
 </odoo>

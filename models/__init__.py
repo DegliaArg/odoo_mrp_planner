@@ -20,7 +20,6 @@ from . import mrp_planner_dashboard_stock
 from . import mrp_planner_dashboard_sales
 from . import mrp_planner_dashboard_customer
 from . import mrp_planner_detail_dashboard
-from . import res_config_settings
 from . import purchase_order
 from . import stock_picking
 from . import res_partner

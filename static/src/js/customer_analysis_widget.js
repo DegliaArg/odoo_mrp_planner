@@ -830,6 +830,28 @@ class CustomerAnalysisWidget extends Component {
         const donutEl = this.donutRef.el;
         if (donutEl && data.family_mix && data.family_mix.length) {
             if (this._donutChart) { this._donutChart.destroy(); this._donutChart = null; }
+            const panelPieLabelPlugin = {
+                id: 'panelPieLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx, data: cData } = chart;
+                    const ds  = cData.datasets[0];
+                    const ttl = ds.data.reduce((a, b) => a + b, 0);
+                    chart.getDatasetMeta(0).data.forEach((arc, i) => {
+                        const pct = ttl ? Math.round(ds.data[i] / ttl * 100) : 0;
+                        if (pct < 5) return;
+                        const { x, y } = arc.getCenterPoint();
+                        ctx.save();
+                        ctx.fillStyle    = '#fff';
+                        ctx.font         = 'bold 11px sans-serif';
+                        ctx.textAlign    = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+                        ctx.shadowBlur   = 3;
+                        ctx.fillText(`${pct}%`, x, y);
+                        ctx.restore();
+                    });
+                },
+            };
             this._donutChart = new Chart(donutEl, {
                 type: 'doughnut',
                 data: {
@@ -840,6 +862,7 @@ class CustomerAnalysisWidget extends Component {
                         borderWidth:     2,
                     }],
                 },
+                plugins: [panelPieLabelPlugin],
                 options: {
                     responsive:          true,
                     maintainAspectRatio: false,
@@ -859,40 +882,67 @@ class CustomerAnalysisWidget extends Component {
             });
         }
 
-        // ── Línea: % entrega mensual ─────────────────────────────────────────
+        // ── Línea + barras: % entrega mensual y pedido mensual ───────────────
         const lineEl = this.lineRef.el;
-        const withDelivery = (data.monthly_data || []).filter(m => m.delivery_pct !== null);
-        if (lineEl && withDelivery.length > 1) {
+        const allMonths = data.monthly_data || [];
+        if (lineEl && allMonths.length > 0) {
             if (this._lineChart) { this._lineChart.destroy(); this._lineChart = null; }
+            const dsAmount = {
+                type:            'bar',
+                label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
+                data:            allMonths.map(m => isQty ? m.qty_ordered : m.amount),
+                backgroundColor: 'rgba(13,110,253,0.30)',
+                borderRadius:    3,
+                yAxisID:         'yAmt',
+                _fmt:            fmtLbl,
+            };
+            const dsDelivery = {
+                type:             'line',
+                label:            '% Entrega',
+                data:             allMonths.map(m => m.delivery_pct),
+                borderColor:      CHART_COLORS.line,
+                backgroundColor:  'rgba(25,135,84,0.10)',
+                fill:             false,
+                tension:          0.3,
+                pointRadius:      3,
+                pointHoverRadius: 5,
+                spanGaps:         false,
+                yAxisID:          'yPct',
+            };
             this._lineChart = new Chart(lineEl, {
-                type: 'line',
+                type: 'bar',
                 data: {
-                    labels:   withDelivery.map(m => monthLabel(m.month)),
-                    datasets: [{
-                        label:           '% Entrega',
-                        data:            withDelivery.map(m => m.delivery_pct),
-                        borderColor:     CHART_COLORS.line,
-                        backgroundColor: 'rgba(25,135,84,0.10)',
-                        fill:            true,
-                        tension:         0.3,
-                        pointRadius:     4,
-                        pointHoverRadius: 6,
-                    }],
+                    labels:   allMonths.map(m => monthLabel(m.month)),
+                    datasets: [dsAmount, dsDelivery],
                 },
                 options: {
                     responsive:          true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
                         tooltip: {
-                            callbacks: { label: ctx => ` ${ctx.parsed.y}%` },
+                            callbacks: {
+                                label: ctx => ctx.dataset.yAxisID === 'yPct'
+                                    ? ` % Entrega: ${ctx.parsed.y !== null ? ctx.parsed.y + '%' : '-'}`
+                                    : ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`,
+                            },
                         },
                     },
                     scales: {
                         x: { ticks: { font: { size: 10 } } },
-                        y: {
+                        yAmt: {
+                            type:        'linear',
+                            position:    'left',
+                            beginAtZero: true,
+                            ticks:       { callback: fmtTick, font: { size: 10 } },
+                            grid:        { color: 'rgba(0,0,0,0.06)' },
+                        },
+                        yPct: {
+                            type:     'linear',
+                            position: 'right',
                             min: 0, max: 100,
-                            ticks: { callback: v => v + '%', font: { size: 10 } },
+                            ticks:    { callback: v => v + '%', font: { size: 10 } },
+                            grid:     { drawOnChartArea: false },
                         },
                     },
                 },

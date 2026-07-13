@@ -31,6 +31,10 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { useColManager } from "./column_manager";
+import {
+    moStateBadge, saleCatBadge, moCovPct, moCovPctCell, moCovPctRow,
+    cellClassForPct, cellClassMonthly, cellClassTotal, cellClass, svcClass,
+} from "./forecast_formatters";
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -734,33 +738,14 @@ class ForecastWidget extends Component {
      * @param {string} state - Estado de la OF: 'draft', 'confirmed', 'progress', 'to_close', 'done', 'cancel'.
      * @returns {string} Clases Bootstrap del badge.
      */
-    moStateBadge(state) {
-        const map = {
-            draft:     'bg-secondary',
-            confirmed: 'bg-info text-dark',
-            progress:  'bg-primary',
-            to_close:  'bg-warning text-dark',
-            done:      'bg-success',
-            cancel:    'bg-light text-muted',
-        };
-        return `badge ${map[state] || 'bg-secondary'}`;
-    }
+    moStateBadge(state) { return moStateBadge(state); }
 
     /**
      * Devuelve la clase CSS del badge de categoría ABC de ventas.
      * @param {string} cat - Categoría ABC: 'A', 'B', 'C', 'D' o 'E'.
      * @returns {string} Clases Bootstrap del badge.
      */
-    saleCatBadge(cat) {
-        const map = {
-            A: 'bg-success text-white',
-            B: 'bg-info text-dark',
-            C: 'bg-warning text-dark',
-            D: 'bg-secondary text-white',
-            E: 'bg-light text-muted border',
-        };
-        return `badge ${map[cat] || 'bg-light text-muted'}`;
-    }
+    saleCatBadge(cat) { return saleCatBadge(cat); }
 
     // ── Formateo / clases ─────────────────────────────────────────────────────
 
@@ -789,20 +774,19 @@ class ForecastWidget extends Component {
      */
     moCovPct(mos, forecast, so_demand) {
         const denom = this.state.data && this.state.data.mo_coverage_denominator;
-        if (denom === 'so_demand') {
-            return so_demand > 0 ? Math.round(mos / so_demand * 1000) / 10 : 0.0;
-        }
-        return forecast > 0 ? Math.round(mos / forecast * 1000) / 10 : 0.0;
+        return moCovPct(mos, forecast, so_demand, denom);
     }
 
     /** Pct efectivo para una celda mensual. */
     moCovPctCell(cell) {
-        return this.moCovPct(cell.mos, cell.forecast, cell.so_demand);
+        const denom = this.state.data && this.state.data.mo_coverage_denominator;
+        return moCovPctCell(cell, denom);
     }
 
     /** Pct efectivo para el total de una fila. */
     moCovPctRow(row) {
-        return this.moCovPct(row.total_mos, row.total_forecast, row.total_so_demand);
+        const denom = this.state.data && this.state.data.mo_coverage_denominator;
+        return moCovPctRow(row, denom);
     }
 
     /**
@@ -812,12 +796,9 @@ class ForecastWidget extends Component {
      * @returns {string}
      */
     cellClassForPct(forecast, pct) {
-        if (!forecast) return '';
         const d = this.state.data;
         if (!d) return '';
-        if (pct >= 100) return 'forecast-ok';
-        if (pct >= d.warning_pct) return 'forecast-warning';
-        return 'forecast-critical';
+        return cellClassForPct(forecast, pct, d.warning_pct);
     }
 
     /**
@@ -829,8 +810,7 @@ class ForecastWidget extends Component {
     cellClassMonthly(cell) {
         const d = this.state.data;
         if (!d) return '';
-        if (d.mo_coverage_color_scope === 'total_only') return '';
-        return this.cellClassForPct(cell.forecast, this.moCovPctCell(cell));
+        return cellClassMonthly(cell, d.mo_coverage_color_scope, d.warning_pct, d.mo_coverage_denominator);
     }
 
     /**
@@ -840,12 +820,15 @@ class ForecastWidget extends Component {
      * @returns {string}
      */
     cellClassTotal(row) {
-        return this.cellClassForPct(row.total_forecast, this.moCovPctRow(row));
+        const d = this.state.data;
+        if (!d) return '';
+        return cellClassTotal(row, d.warning_pct, d.mo_coverage_denominator);
     }
 
     cellClass(cell) {
-        if (!cell || cell.forecast === 0) return '';
-        return this.cellClassForPct(cell.forecast, this.moCovPctCell(cell));
+        const d = this.state.data;
+        if (!d) return '';
+        return cellClass(cell, d.warning_pct, d.mo_coverage_denominator);
     }
 
     /**
@@ -854,12 +837,7 @@ class ForecastWidget extends Component {
      * @param {number|null} rate - Tasa de servicio en porcentaje.
      * @returns {string} Clase Bootstrap de color.
      */
-    svcClass(rate) {
-        if (rate === null || rate === undefined) return 'text-muted';
-        if (rate >= 95) return 'text-success';
-        if (rate >= 80) return 'text-warning';
-        return 'text-danger';
-    }
+    svcClass(rate) { return svcClass(rate); }
 
     /**
      * Clase CSS para el indicador de precisión de forecast de una fila.

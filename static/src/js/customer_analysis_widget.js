@@ -912,20 +912,20 @@ class CustomerAnalysisWidget extends Component {
         const allMonths = data.monthly_data || [];
         if (lineEl && allMonths.length > 0) {
             if (this._lineChart) { this._lineChart.destroy(); this._lineChart = null; }
-            const dsAmount = {
+            const dsPedido = {
                 label:            isQty ? 'Pedido (u)' : 'Pedido ($)',
-                data:             allMonths.map(m => isQty ? m.qty_ordered : m.amount),
+                data:             allMonths.map(m => isQty ? m.qty_ordered   : m.amount),
                 borderColor:      'rgba(13,110,253,0.85)',
                 backgroundColor:  'rgba(13,110,253,0.10)',
                 fill:             true,
                 tension:          0.3,
                 pointRadius:      3,
                 pointHoverRadius: 5,
-                yAxisID:          'yAmt',
+                yAxisID:          'y',
             };
-            const dsDelivery = {
-                label:            '% Entrega',
-                data:             allMonths.map(m => m.delivery_pct),
+            const dsEntregado = {
+                label:            isQty ? 'Entregado (u)' : 'Entregado ($)',
+                data:             allMonths.map(m => isQty ? m.qty_delivered : m.amount_delivered),
                 borderColor:      CHART_COLORS.line,
                 backgroundColor:  'transparent',
                 fill:             false,
@@ -933,13 +933,13 @@ class CustomerAnalysisWidget extends Component {
                 pointRadius:      3,
                 pointHoverRadius: 5,
                 spanGaps:         false,
-                yAxisID:          'yPct',
+                yAxisID:          'y',
             };
             this._lineChart = new Chart(lineEl, {
                 type: 'line',
                 data: {
                     labels:   allMonths.map(m => monthLabel(m.month)),
-                    datasets: [dsAmount, dsDelivery],
+                    datasets: [dsPedido, dsEntregado],
                 },
                 options: {
                     responsive:          true,
@@ -948,27 +948,18 @@ class CustomerAnalysisWidget extends Component {
                         legend: { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
                         tooltip: {
                             callbacks: {
-                                label: ctx => ctx.dataset.yAxisID === 'yPct'
-                                    ? ` % Entrega: ${ctx.parsed.y !== null ? ctx.parsed.y + '%' : '-'}`
-                                    : ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`,
+                                label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`,
                             },
                         },
                     },
                     scales: {
                         x: { ticks: { font: { size: 10 } } },
-                        yAmt: {
+                        y: {
                             type:        'linear',
                             position:    'left',
                             beginAtZero: true,
                             ticks:       { callback: fmtTick, font: { size: 10 } },
                             grid:        { color: 'rgba(0,0,0,0.06)' },
-                        },
-                        yPct: {
-                            type:     'linear',
-                            position: 'right',
-                            min: 0, max: 100,
-                            ticks:    { callback: v => v + '%', font: { size: 10 } },
-                            grid:     { drawOnChartArea: false },
                         },
                     },
                 },

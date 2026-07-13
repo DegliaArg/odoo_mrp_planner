@@ -8,53 +8,67 @@
         <field name="description">Permisos para el módulo Planificador de producción (Deglia).</field>
     </record>
 
-    <!-- Producción – Lectura: ve panel de producción y alertas de OFs -->
+    <!-- Producción – Lectura -->
     <record id="group_prod_read" model="res.groups">
         <field name="name">Producción - Lectura</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de producción, las alertas de OFs, los quiebres de stock y la carga de centros de trabajo. No puede modificar configuraciones.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Producción – Planificar: puede crear solicitudes y aplicar reprogramaciones -->
+    <!-- Producción – Administrador -->
     <record id="group_prod" model="res.groups">
-        <field name="name">Producción - Planificar</field>
+        <field name="name">Producción - Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de producción y puede modificar la configuración de alertas y quiebres de stock del módulo.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Compras: ve panel de compras y alertas de OCs/recepciones -->
+    <!-- Compras – Lectura -->
     <record id="group_purchase" model="res.groups">
-        <field name="name">Compras</field>
+        <field name="name">Compras - Lectura</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de compras: alertas de OCs y recepciones, órdenes de compra y análisis de proveedores. No puede modificar configuraciones.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Ventas – Lectura: ve el forecast -->
+    <!-- Compras – Administrador -->
+    <record id="group_purchase_admin" model="res.groups">
+        <field name="name">Compras - Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de compras y puede modificar la configuración de alertas, análisis de proveedores y categorías de proveedor.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Ventas – Lectura -->
     <record id="group_sales_read" model="res.groups">
         <field name="name">Ventas - Lectura</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de ventas, el gráfico de productos más vendidos, el forecast y el análisis de clientes. No puede editar ni importar datos.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Ventas – Administrador: puede editar e importar forecast -->
+    <!-- Ventas – Administrador -->
     <record id="group_sales" model="res.groups">
         <field name="name">Ventas - Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve y edita el panel de ventas y el forecast. Puede importar líneas de forecast y modificar la configuración de categorías de venta, análisis de clientes y parámetros de forecast.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Administrador: accede a Configuración del módulo; tiene todos los permisos -->
+    <!-- Administrador -->
     <record id="group_admin" model="res.groups">
         <field name="name">Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Acceso completo al módulo: todos los paneles, todas las configuraciones y todas las funciones de programación y reprogramación.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Programación: habilita menús, botones y KPIs de programación/reprogramación.
-         El toggle en Ajustes → Programación añade/quita usuarios internos de este grupo. -->
+    <!-- Programación -->
     <record id="group_scheduling" model="res.groups">
-        <field name="name">Programación y Reprogramación</field>
+        <field name="name">Programación</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Habilita las funciones de programación y reprogramación: pestaña Programaciones en el panel de producción, botones de reprogramación en OFs y KPIs asociados. También permite modificar la configuración de reprogramación.</field>
         <field name="users" eval="[]"/>
     </record>
 

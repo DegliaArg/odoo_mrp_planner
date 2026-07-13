@@ -89,7 +89,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 sol_domain.append(('product_id.categ_id', '=', int(product_categ_id)))
             try:
                 # read_group en lugar de search+loop para evitar N queries ORM
-                groups = self.env['sale.order.line'].read_group(
+                groups = self.env['sale.order.line'].sudo().read_group(
                     sol_domain,
                     ['product_id', 'product_uom_qty:sum', 'price_subtotal:sum'],
                     ['product_id'],
@@ -97,7 +97,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 for g in groups:
                     if not g['product_id']:
                         continue
-                    pp = self.env['product.product'].browse(g['product_id'][0])
+                    pp = self.env['product.product'].sudo().browse(g['product_id'][0])
                     tid = pp.product_tmpl_id.id
                     tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
                     tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
@@ -115,7 +115,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
             ]
             if product_categ_id:
                 domain.append(('product_id.categ_id', '=', int(product_categ_id)))
-            groups = self.env['stock.move.line'].read_group(
+            groups = self.env['stock.move.line'].sudo().read_group(
                 domain,
                 ['product_id', 'quantity:sum'],
                 ['product_id'],
@@ -123,7 +123,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
             for g in groups:
                 if not g['product_id']:
                     continue
-                pp = self.env['product.product'].browse(g['product_id'][0])
+                pp = self.env['product.product'].sudo().browse(g['product_id'][0])
                 tid = pp.product_tmpl_id.id
                 tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
 
@@ -131,7 +131,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
             return []
 
         if sale_category is not None and sale_category != '':
-            tmpls_all = self.env['product.template'].browse(list(tmpl_qty.keys()))
+            tmpls_all = self.env['product.template'].sudo().browse(list(tmpl_qty.keys()))
             tmpl_by_id_f = {t.id: t for t in tmpls_all}
             if sale_category == '__none__':
                 keep = {tid for tid in tmpl_qty
@@ -145,7 +145,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 return []
 
         all_ids    = list(tmpl_qty.keys())
-        templates  = self.env['product.template'].browse(all_ids)
+        templates  = self.env['product.template'].sudo().browse(all_ids)
         tmpl_by_id = {t.id: t for t in templates}
 
         rows = []
@@ -178,13 +178,13 @@ class MrpPlannerDashboardSales(models.TransientModel):
         Usa una sola read_group para obtener los categ_id activos, evitando el
         N+1 original (un search_count por categoría).
         """
-        groups = self.env['product.template'].read_group(
+        groups = self.env['product.template'].sudo().read_group(
             [('sale_ok', '=', True)],
             ['categ_id'],
             ['categ_id'],
         )
         active_categ_ids = {g['categ_id'][0] for g in groups if g.get('categ_id')}
-        cats = self.env['product.category'].search([('id', 'in', list(active_categ_ids))])
+        cats = self.env['product.category'].sudo().search([('id', 'in', list(active_categ_ids))])
         return sorted(
             [{'id': c.id, 'name': c.complete_name} for c in cats],
             key=lambda x: x['name'],

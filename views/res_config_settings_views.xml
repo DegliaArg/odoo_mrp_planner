@@ -22,7 +22,8 @@
                     <notebook>
 
                         <!-- ══ GENERAL ═══════════════════════════════════════════ -->
-                        <page string="General" name="general">
+                        <page string="General" name="general"
+                              groups="odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
                                 <div class="col-6">
                                     <group string="Alertas — Frecuencia de actualización">
@@ -57,7 +58,8 @@
                         </page>
 
                         <!-- ══ PRODUCCIÓN ════════════════════════════════════════ -->
-                        <page string="Producción" name="production">
+                        <page string="Producción" name="production"
+                              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
 
                                 <!-- Columna única: alertas y quiebres -->
@@ -80,7 +82,8 @@
                         </page>
 
                         <!-- ══ PROGRAMACIÓN ═════════════════════════════════════ -->
-                        <page string="Programación" name="scheduling" invisible="not enable_scheduling">
+                        <page string="Programación" name="scheduling" invisible="not enable_scheduling"
+                              groups="odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
 
                                 <div class="col-6">
@@ -102,7 +105,8 @@
                         </page>
 
                         <!-- ══ COMPRAS ══════════════════════════════════════════ -->
-                        <page string="Compras" name="purchases">
+                        <page string="Compras" name="purchases"
+                              groups="odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
 
                                 <!-- Columna izquierda: alertas + panel + umbrales análisis -->
@@ -217,7 +221,8 @@
                         </page>
 
                         <!-- ══ VENTAS ════════════════════════════════════════════ -->
-                        <page string="Ventas" name="sales">
+                        <page string="Ventas" name="sales"
+                              groups="odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
 
                                 <!-- ── Columna izquierda: categorías + análisis ───── -->
@@ -590,7 +595,7 @@
               parent="mrp_planner_menu_root"
               sequence="99"
               action="action_mrp_reschedule_config"
-              groups="odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_scheduling,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- Herencia: agrega toggle de rotación al grupo Quiebres de stock -->
     <record id="mrp_reschedule_config_form_view_rotation" model="ir.ui.view">

@@ -333,14 +333,14 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         d_to_str   = period_to   + ' 23:59:59'
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
-        orders = self.env['sale.order'].search([
+        orders = self.env['sale.order'].sudo().search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['sale', 'done']),
             ('date_order', '>=', d_from_str),
             ('date_order', '<=', d_to_str),
         ] + wh_domain)
 
-        partner = self.env['res.partner'].browse(partner_id)
+        partner = self.env['res.partner'].sudo().browse(partner_id)
 
         if not orders:
             return {
@@ -351,11 +351,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             }
 
         so_data   = orders.read(['id', 'name', 'date_order', 'amount_untaxed', 'state'])
-        lines     = self.env['sale.order.line'].search([('order_id', 'in', orders.ids)])
+        lines     = self.env['sale.order.line'].sudo().search([('order_id', 'in', orders.ids)])
         lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'])
 
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
-        prods     = self.env['product.product'].browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
+        prods     = self.env['product.product'].sudo().browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
         categ_by_prod = {p['id']: (p.get('categ_id') or (0, 'Sin familia'))[1] for p in prods}
         tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}
 

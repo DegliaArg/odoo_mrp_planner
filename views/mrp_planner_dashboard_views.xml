@@ -39,14 +39,6 @@
                                 <h4 class="mb-0 fw-bold">Panel de Producción</h4>
                             </div>
                             <div class="col-auto d-flex gap-2">
-                                <button name="action_new_request" type="object"
-                                        string="+ Nueva programación"
-                                        class="btn btn-primary btn-sm"
-                                        invisible="not can_schedule"/>
-                                <button name="action_new_plan" type="object"
-                                        string="+ Reprogramar OF"
-                                        class="btn btn-outline-secondary btn-sm"
-                                        invisible="not can_reschedule"/>
                                 <button name="action_refresh" type="object"
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
@@ -55,8 +47,6 @@
                             <field name="can_see_alerts"       invisible="1"/>
                             <field name="can_see_mo"           invisible="1"/>
                             <field name="can_see_stock_breaks" invisible="1"/>
-                            <field name="can_schedule"         invisible="1"/>
-                            <field name="can_reschedule"       invisible="1"/>
                         </div>
 
                         <!-- ALERTAS — solo OFs -->
@@ -238,7 +228,7 @@
               name="Planificación"
               parent="mrp_planner_menu_root"
               sequence="10"
-              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- Grupo Producción (contenedor bajo Planificación) -->
     <menuitem id="mrp_produccion_menu"
@@ -259,13 +249,13 @@
               name="Compras"
               parent="mrp_planeacion_menu"
               sequence="20"
-              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_compras_panel_menu"
               name="Panel de Compras"
               parent="mrp_compras_menu"
               sequence="1"
               action="action_mrp_planner_compras_open"
-              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
 </odoo>

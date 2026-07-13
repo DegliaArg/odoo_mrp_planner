@@ -49,7 +49,13 @@ class MrpPlannerDashboardWc(models.TransientModel):
             Wc.search([('active', '=', True)]).mapped('tag_ids').ids
         )
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
-        enable_scheduling = bool(cfg.enable_scheduling) if cfg else True
+        u = self.env.user
+        has_scheduling = (
+            u.has_group('odoo_mrp_planner.group_scheduling') or
+            u.has_group('odoo_mrp_planner.group_admin') or
+            u.has_group('base.group_system')
+        )
+        enable_scheduling = bool(cfg.enable_scheduling) and has_scheduling if cfg else has_scheduling
         return {
             'tags': [
                 {'id': tag.id, 'name': tag.name}

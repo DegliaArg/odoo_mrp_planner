@@ -15,11 +15,13 @@
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Desde</label>
                     <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
+                           title="Fecha de inicio del período analizado"
                            t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Hasta</label>
                     <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
+                           title="Fecha de cierre del período analizado"
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
@@ -31,10 +33,12 @@
                         <div class="btn-group btn-group-sm" role="group">
                             <button t-att-class="state.filterCategory === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
                                     style="font-size:10px; padding:1px 5px;"
+                                    title="Ver clientes de todas las categorías"
                                     t-on-click="() => this.setFilterCategory(null)">Todas</button>
                             <t t-foreach="availableCategories" t-as="cat" t-key="cat">
                                 <button t-att-class="state.filterCategory === cat ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
                                         style="font-size:10px; padding:1px 5px;"
+                                        t-att-title="'Filtrar clientes de categoría: ' + cat"
                                         t-on-click="() => this.setFilterCategory(cat)">
                                     <t t-esc="cat"/>
                                 </button>
@@ -50,15 +54,19 @@
                     <div class="btn-group btn-group-sm" role="group">
                         <button t-att-class="state.filterABC === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
+                                title="Ver todos los segmentos ABC"
                                 t-on-click="() => this.setFilterABC(null)">Todos</button>
                         <button t-att-class="state.filterABC === 'A' ? 'btn btn-success' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
+                                title="Segmento A: clientes de alto valor (top 20% de facturación)"
                                 t-on-click="() => this.setFilterABC('A')">A</button>
                         <button t-att-class="state.filterABC === 'B' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
+                                title="Segmento B: clientes de valor medio"
                                 t-on-click="() => this.setFilterABC('B')">B</button>
                         <button t-att-class="state.filterABC === 'C' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
+                                title="Segmento C: clientes de menor volumen"
                                 t-on-click="() => this.setFilterABC('C')">C</button>
                     </div>
                 </div>
@@ -70,22 +78,23 @@
                     <div class="btn-group btn-group-sm" role="group">
                         <button t-att-class="state.filterFreq === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
+                                title="Ver todas las frecuencias de compra"
                                 t-on-click="() => this.setFilterFreq(null)">Todos</button>
                         <button t-att-class="state.filterFreq === 'frecuente' ? 'btn btn-success' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Frecuente"
+                                title="Frecuente: clientes con compras regulares y recientes"
                                 t-on-click="() => this.setFilterFreq('frecuente')">Frec.</button>
                         <button t-att-class="state.filterFreq === 'ocasional' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Ocasional"
+                                title="Ocasional: clientes que compran con baja frecuencia"
                                 t-on-click="() => this.setFilterFreq('ocasional')">Ocas.</button>
                         <button t-att-class="state.filterFreq === 'en_riesgo' ? 'btn btn-danger' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="En riesgo"
+                                title="En riesgo: clientes que solían comprar pero llevan tiempo sin hacerlo"
                                 t-on-click="() => this.setFilterFreq('en_riesgo')">Riesgo</button>
                         <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-dark' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Inactivo"
+                                title="Inactivo: sin compras en el último año"
                                 t-on-click="() => this.setFilterFreq('inactivo')">Inact.</button>
                     </div>
                 </div>
@@ -94,10 +103,11 @@
 
                 <!-- Métrica del gráfico -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <t t-foreach="[['pxq','PxQ'],['pedidos','Pedidos'],['ticket','Ticket']]"
+                    <t t-foreach="[['pxq','PxQ','Importe total (precio × cantidad vendida)'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','Ticket','Ticket promedio por cliente']]"
                        t-as="m" t-key="m[0]">
                         <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-info' : 'btn-outline-secondary')"
                                 style="font-size:10px; padding:1px 5px;"
+                                t-att-title="m[2]"
                                 t-on-click="() => this.setChartMetric(m[0])">
                             <t t-esc="m[1]"/>
                         </button>
@@ -111,12 +121,14 @@
                     <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
                         <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-secondary' : 'btn-outline-secondary')"
                                 style="font-size:10px; padding:1px 5px;"
+                                t-att-title="'Mostrar sólo los top ' + n + ' clientes por volumen'"
                                 t-on-click="() => this.setChartTopN(n)">
                             <t t-esc="'Top ' + n"/>
                         </button>
                     </t>
                     <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-secondary' : 'btn-outline-secondary')"
                             style="font-size:10px; padding:1px 5px;"
+                            title="Mostrar todos los clientes en el gráfico"
                             t-on-click="() => this.setChartTopN(null)">Todos</button>
                 </div>
 
@@ -124,10 +136,11 @@
 
                 <!-- Segmento del donut -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <t t-foreach="[['abc','Segmento'],['cat','Cat.'],['freq','Frec.']]"
+                    <t t-foreach="[['abc','Segmento','Distribuir la dona por segmento ABC (A/B/C)'],['cat','Cat.','Distribuir la dona por categoría de cliente'],['freq','Frec.','Distribuir la dona por frecuencia de compra']]"
                        t-as="d" t-key="d[0]">
                         <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
                                 style="font-size:10px; padding:1px 5px;"
+                                t-att-title="d[2]"
                                 t-on-click="() => this.setChartDonut(d[0])">
                             <t t-esc="d[1]"/>
                         </button>
@@ -185,6 +198,9 @@
                                 <i class="fa fa-shopping-cart fa-lg text-warning mb-1 d-block"/>
                                 <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.total_orders)"/>
                                 <div class="o_planner_label">Total pedidos</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1 text-warning" t-on-click="() => this.openKpiDrilldown('orders')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -618,57 +634,85 @@
             <t t-if="!state.panelLoading and state.panelData">
 
                 <!-- KPI strip -->
-                <div class="d-flex border rounded mb-3 bg-white" style="overflow:hidden;">
-                    <div class="text-center px-3 py-2 flex-fill"
-                         title="Total de unidades pedidas en el período (suma de qty de todas las líneas).">
-                        <div class="fw-bold" style="font-size:1rem;"
-                             t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
-                        <div class="small text-muted">Piezas</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         title="Suma del importe sin impuestos de todos los pedidos del cliente en el período.">
-                        <div class="fw-bold" style="font-size:1rem;"
-                             t-esc="fmtMoney(row.total_amount)"/>
-                        <div class="small text-muted">Monto total</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         title="Pedidos confirmados del cliente en el período.">
-                        <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
-                        <div class="small text-muted">Pedidos</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         t-att-title="cellTooltip('avg_ticket', row)">
-                        <div class="fw-bold" style="font-size:1rem;"
-                             t-esc="fmtMoney(row.avg_ticket)"/>
-                        <div class="small text-muted">Ticket promedio</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         t-att-title="cellTooltip('delivery_pct', row)">
-                        <div t-att-class="'fw-bold ' + deliveryClass(row.delivery_pct)"
-                             style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
-                        <div class="small text-muted">% Entrega</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         t-att-title="cellTooltip('ontime_pct', row)">
-                        <div t-att-class="'fw-bold ' + ontimeClass(row.ontime_pct)"
-                             style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
-                        <div class="small text-muted">% A tiempo</div>
-                    </div>
-                    <div class="text-center px-3 py-2 flex-fill border-start"
-                         t-att-title="cellTooltip('days_since_last', row)">
-                        <div t-att-class="'fw-bold ' + riskClass(row.days_since_last)"
-                             style="font-size:1rem;">
-                            <t t-esc="row.days_since_last"/> d
+                <div class="row g-2 mb-3">
+                    <div class="col">
+                        <div class="card h-100" title="Total de unidades pedidas en el período (suma de qty de todas las líneas).">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
+                                <div class="small text-muted">Piezas</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
                         </div>
-                        <div class="small text-muted">Sin comprar</div>
                     </div>
-                    <div class="d-flex align-items-center px-3 border-start">
-                        <button class="btn btn-sm btn-outline-primary py-0 px-2"
-                                style="font-size:11px; white-space:nowrap;"
-                                title="Ver pedidos de este cliente en el período"
-                                t-on-click="() => this.openCustomerOrders(row.partner_id)">
-                            <i class="fa fa-list me-1"/>Pedidos
-                        </button>
+                    <div class="col">
+                        <div class="card h-100" title="Suma del importe sin impuestos de todos los pedidos del cliente en el período.">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmtMoney(row.total_amount)"/>
+                                <div class="small text-muted">Monto total</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100" title="Pedidos confirmados del cliente en el período.">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
+                                <div class="small text-muted">Pedidos</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100" t-att-title="cellTooltip('avg_ticket', row)">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmtMoney(row.avg_ticket)"/>
+                                <div class="small text-muted">Ticket promedio</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100" t-att-title="cellTooltip('delivery_pct', row)">
+                            <div class="card-body text-center py-2">
+                                <div t-att-class="'fw-bold ' + deliveryClass(row.delivery_pct)" style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
+                                <div class="small text-muted">% Entrega</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100" t-att-title="cellTooltip('ontime_pct', row)">
+                            <div class="card-body text-center py-2">
+                                <div t-att-class="'fw-bold ' + ontimeClass(row.ontime_pct)" style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
+                                <div class="small text-muted">% A tiempo</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100" t-att-title="cellTooltip('days_since_last', row)">
+                            <div class="card-body text-center py-2">
+                                <div t-att-class="'fw-bold ' + riskClass(row.days_since_last)" style="font-size:1rem;">
+                                    <t t-esc="row.days_since_last"/> d
+                                </div>
+                                <div class="small text-muted">Sin comprar</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

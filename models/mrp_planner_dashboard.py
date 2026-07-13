@@ -187,16 +187,19 @@ class MrpPlannerDashboard(models.TransientModel):
         Depende de: grupos de seguridad del usuario (res.groups vía has_group).
         """
         u = self.env.user
-        is_admin    = u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')
-        has_prod_r  = u.has_group('odoo_mrp_planner.group_prod_read')
-        has_prod    = u.has_group('odoo_mrp_planner.group_prod')
-        has_pur     = u.has_group('odoo_mrp_planner.group_purchase')
-        has_sales_r = u.has_group('odoo_mrp_planner.group_sales_read')
-        has_sales   = u.has_group('odoo_mrp_planner.group_sales')
+        is_admin      = u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')
+        has_prod_r    = u.has_group('odoo_mrp_planner.group_prod_read')
+        has_prod      = u.has_group('odoo_mrp_planner.group_prod')
+        has_pur       = u.has_group('odoo_mrp_planner.group_purchase')
+        has_pur_admin = u.has_group('odoo_mrp_planner.group_purchase_admin')
+        has_sales_r   = u.has_group('odoo_mrp_planner.group_sales_read')
+        has_sales     = u.has_group('odoo_mrp_planner.group_sales')
+        has_scheduling = u.has_group('odoo_mrp_planner.group_scheduling')
         # Sin ningún grupo del módulo → mínimo = prod lectura (no schedule, no compras, no ventas)
-        no_groups = not any([is_admin, has_prod_r, has_prod, has_pur, has_sales_r, has_sales])
+        no_groups = not any([is_admin, has_prod_r, has_prod, has_pur, has_pur_admin,
+                             has_sales_r, has_sales, has_scheduling])
         can_prod  = is_admin or has_prod_r or has_prod or no_groups
-        can_pur   = is_admin or has_pur
+        can_pur   = is_admin or has_pur or has_pur_admin
         can_sales = is_admin or has_sales_r or has_sales
         cfg = self.env['mrp.reschedule.config'].search([], limit=1)
         scheduling_on = bool(cfg.enable_scheduling) if cfg else True
@@ -206,8 +209,8 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.can_see_po           = can_pur
             rec.can_see_stock_breaks = can_prod
             rec.can_see_forecast     = can_sales
-            rec.can_schedule         = scheduling_on and (is_admin or has_prod)
-            rec.can_reschedule       = scheduling_on and (is_admin or has_prod)
+            rec.can_schedule         = scheduling_on and (is_admin or has_scheduling)
+            rec.can_reschedule       = scheduling_on and (is_admin or has_scheduling)
             rec.can_edit_forecast    = is_admin or has_sales
 
     @api.depends()

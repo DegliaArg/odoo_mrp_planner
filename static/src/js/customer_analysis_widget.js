@@ -868,12 +868,16 @@ class CustomerAnalysisWidget extends Component {
                     maintainAspectRatio: false,
                     cutout:              '50%',
                     plugins: {
-                        legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                        legend: { display: false },
                         tooltip: {
                             callbacks: {
+                                title: items => data.family_mix[items[0].dataIndex].name,
                                 label: ctx => {
                                     const f = data.family_mix[ctx.dataIndex];
-                                    return ` ${f.name}: ${f.pct}%`;
+                                    return [
+                                        ` ${f.pct}% del monto`,
+                                        ` ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u. pedidas`,
+                                    ];
                                 },
                             },
                         },
@@ -1004,6 +1008,13 @@ class CustomerAnalysisWidget extends Component {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    donutColor(idx) { return CHART_COLORS.donut[idx % CHART_COLORS.donut.length]; }
+
+    fmtQty(v) {
+        if (v == null) return '—';
+        return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
     }
 
     // ── Formateo y semáforos ──────────────────────────────────────────────────

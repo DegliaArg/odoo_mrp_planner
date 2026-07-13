@@ -380,23 +380,29 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         # Mix de familias
         fam_amounts = defaultdict(float)
+        fam_qty     = defaultdict(float)
         total_fam   = 0.0
         for l in lines_data:
             if not l.get('product_id'):
                 continue
             categ = categ_by_prod.get(l['product_id'][0], 'Sin familia')
             amt   = l['price_subtotal'] or 0.0
+            qty   = l['product_uom_qty'] or 0.0
             fam_amounts[categ] += amt
+            fam_qty[categ]     += qty
             total_fam          += amt
 
         family_mix = sorted([
             {
                 'name':   k,
                 'amount': round(v, 2),
+                'qty':    round(fam_qty[k], 1),
                 'pct':    round(v / total_fam * 100, 1) if total_fam else 0.0,
             }
             for k, v in fam_amounts.items()
         ], key=lambda x: x['amount'], reverse=True)[:10]
+
+        total_qty_ordered = round(sum(l['product_uom_qty'] or 0.0 for l in lines_data), 1)
 
         # Top productos
         prod_totals = defaultdict(lambda: {'qty_ordered': 0.0, 'qty_delivered': 0.0, 'amount': 0.0, 'orders': set()})
@@ -442,9 +448,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             })
 
         return {
-            'partner_name': partner.display_name or partner.name,
-            'monthly_data': monthly_data,
-            'family_mix':   family_mix,
-            'orders':       order_list,
-            'top_products': top_products,
+            'partner_name':      partner.display_name or partner.name,
+            'monthly_data':      monthly_data,
+            'family_mix':        family_mix,
+            'orders':            order_list,
+            'top_products':      top_products,
+            'total_qty_ordered': total_qty_ordered,
         }

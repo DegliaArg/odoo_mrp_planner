@@ -646,6 +646,11 @@
                         <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
                         <div class="small text-muted">Pedidos</div>
                     </div>
+                    <div class="text-center px-3 py-2 flex-fill border-start">
+                        <div class="fw-bold" style="font-size:1rem;"
+                             t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
+                        <div class="small text-muted">Artículos</div>
+                    </div>
                     <div class="d-flex align-items-center px-3 border-start">
                         <button class="btn btn-sm btn-outline-primary py-0 px-2"
                                 style="font-size:11px; white-space:nowrap;"
@@ -692,8 +697,23 @@
                                 <i class="fa fa-pie-chart me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
                             </div>
-                            <div style="position:relative; height:190px; width:100%;">
-                                <canvas t-ref="panelDonutCanvas"/>
+                            <div class="d-flex gap-2" style="height:190px;">
+                                <!-- Chart sin leyenda -->
+                                <div style="flex:0 0 140px; position:relative;">
+                                    <canvas t-ref="panelDonutCanvas"/>
+                                </div>
+                                <!-- Leyenda HTML: una sola columna, scrollable -->
+                                <div style="flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px;">
+                                    <t t-foreach="state.panelData.family_mix" t-as="f" t-key="f_index">
+                                        <div class="d-flex align-items-center gap-1" style="min-width:0;">
+                                            <span t-att-style="'flex-shrink:0; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + donutColor(f_index)"/>
+                                            <span class="small text-truncate" style="flex:1; min-width:0; font-size:11px;"
+                                                  t-esc="f.name"/>
+                                            <span class="small text-muted ms-1" style="flex-shrink:0; font-size:11px;"
+                                                  t-esc="f.pct + '%'"/>
+                                        </div>
+                                    </t>
+                                </div>
                             </div>
                         </div>
                     </div>

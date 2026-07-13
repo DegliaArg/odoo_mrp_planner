@@ -29,4 +29,4 @@ class SchedulingToggleField extends Component {
     }
 }
 
-registry.category("fields").add("scheduling_toggle", SchedulingToggleField);
+registry.category("fields").add("scheduling_toggle", { component: SchedulingToggleField });

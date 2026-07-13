@@ -1,34 +1,30 @@
 /** @odoo-module **/
 
+import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { BooleanToggleField } from "@web/views/fields/boolean_toggle/boolean_toggle_field";
-import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 
-class SchedulingToggleField extends BooleanToggleField {
-    setup() {
-        super.setup();
-        this.dialog = useService("dialog");
+class SchedulingToggleField extends Component {
+    static template = "odoo_mrp_planner.SchedulingToggleField";
+    static props = { "*": true };
+
+    get value() {
+        return this.props.record.data[this.props.name];
     }
 
     onChange(ev) {
         const newVal = ev.target.checked;
-        if (!newVal && this.props.record.data[this.props.name]) {
-            // Desactivando → pedir confirmación antes de guardar
+        if (!newVal && this.value) {
             ev.preventDefault();
             ev.stopPropagation();
-            this.dialog.add(ConfirmationDialog, {
-                title: "Desactivar programación",
-                body: "Al desactivar la programación se eliminarán los permisos de Programación de todos los usuarios. ¿Confirmar?",
-                confirmLabel: "Sí, desactivar",
-                cancelLabel: "Cancelar",
-                confirm: () => {
-                    this.props.record.update({ [this.props.name]: false });
-                },
-                cancel: () => {},
-            });
+            const ok = window.confirm(
+                "Al desactivar la programación se eliminarán los permisos de " +
+                "Programación de todos los usuarios.\n\n¿Confirmar?"
+            );
+            if (ok) {
+                this.props.record.update({ [this.props.name]: false });
+            }
         } else {
-            super.onChange(ev);
+            this.props.record.update({ [this.props.name]: newVal });
         }
     }
 }

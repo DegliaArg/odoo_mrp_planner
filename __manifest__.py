@@ -80,6 +80,7 @@ Panel en tiempo real
             'odoo_mrp_planner/static/src/js/sheet_selector_widget.js',
             'odoo_mrp_planner/static/src/xml/sheet_selector_widget.xml',
             'odoo_mrp_planner/static/src/js/scheduling_toggle_widget.js',
+            'odoo_mrp_planner/static/src/xml/scheduling_toggle_widget.xml',
         ],
     },
     'installable': True,

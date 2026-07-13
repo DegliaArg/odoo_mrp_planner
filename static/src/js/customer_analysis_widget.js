@@ -857,7 +857,7 @@ class CustomerAnalysisWidget extends Component {
                 data: {
                     labels:   data.family_mix.map(f => f.name),
                     datasets: [{
-                        data:            data.family_mix.map(f => f.amount),
+                        data:            data.family_mix.map(f => f.qty),
                         backgroundColor: CHART_COLORS.donut,
                         borderWidth:     2,
                     }],
@@ -886,26 +886,27 @@ class CustomerAnalysisWidget extends Component {
             });
         }
 
-        // ── Línea + barras: % entrega mensual y pedido mensual ───────────────
+        // ── Dos líneas: pedido mensual (eje izq.) + % entrega (eje der.) ────────
         const lineEl = this.lineRef.el;
         const allMonths = data.monthly_data || [];
         if (lineEl && allMonths.length > 0) {
             if (this._lineChart) { this._lineChart.destroy(); this._lineChart = null; }
             const dsAmount = {
-                type:            'bar',
-                label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
-                data:            allMonths.map(m => isQty ? m.qty_ordered : m.amount),
-                backgroundColor: 'rgba(13,110,253,0.30)',
-                borderRadius:    3,
-                yAxisID:         'yAmt',
-                _fmt:            fmtLbl,
+                label:            isQty ? 'Pedido (u)' : 'Pedido ($)',
+                data:             allMonths.map(m => isQty ? m.qty_ordered : m.amount),
+                borderColor:      'rgba(13,110,253,0.85)',
+                backgroundColor:  'rgba(13,110,253,0.10)',
+                fill:             true,
+                tension:          0.3,
+                pointRadius:      3,
+                pointHoverRadius: 5,
+                yAxisID:          'yAmt',
             };
             const dsDelivery = {
-                type:             'line',
                 label:            '% Entrega',
                 data:             allMonths.map(m => m.delivery_pct),
                 borderColor:      CHART_COLORS.line,
-                backgroundColor:  'rgba(25,135,84,0.10)',
+                backgroundColor:  'transparent',
                 fill:             false,
                 tension:          0.3,
                 pointRadius:      3,
@@ -914,7 +915,7 @@ class CustomerAnalysisWidget extends Component {
                 yAxisID:          'yPct',
             };
             this._lineChart = new Chart(lineEl, {
-                type: 'bar',
+                type: 'line',
                 data: {
                     labels:   allMonths.map(m => monthLabel(m.month)),
                     datasets: [dsAmount, dsDelivery],

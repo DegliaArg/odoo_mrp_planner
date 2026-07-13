@@ -493,7 +493,9 @@
                                                     <t t-elif="col.key === 'planned_qty'"><t t-esc="fmt(item.planned_qty)"/></t>
                                                     <t t-elif="col.key === 'produced_qty'"><t t-esc="fmt(item.produced_qty)"/></t>
                                                     <t t-elif="col.key === 'pct'">
-                                                        <span t-att-class="pctClass(item.pct)" t-esc="item.pct + '%'"/>
+                                                        <span t-att-class="pctClass(item.pct)"
+                                                              t-att-title="cmpRowTooltip(item)"
+                                                              t-esc="item.pct + '%'"/>
                                                     </t>
                                                 </td>
                                             </tr>

@@ -210,6 +210,26 @@ class WcLoadChartWidget extends Component {
 
     fmtH(n) { return (n || 0).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'h'; }
 
+    wcKpiTooltip(key) {
+        const k = this.state.kpis;
+        const h = v => this.fmtH(v);
+        switch (key) {
+            case 'disponible':
+                return `Horas calendario disponibles según el horario de trabajo configurado en cada CT\n→ ${h(k.disponible)} disponibles en el período`;
+            case 'planificado':
+                return `Suma de horas asignadas en órdenes de trabajo confirmadas o en progreso\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+            case 'carga_pct':
+                return `Planificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 80% | Amarillo 80–100% | Rojo > 100%`;
+            case 'ejecutado':
+                return `Horas efectivamente trabajadas y registradas en órdenes de trabajo completadas\n→ ${h(k.ejecutado)} ejecutadas de ${h(k.planificado)} planificadas`;
+            case 'pendiente':
+                return `Planificado − Ejecutado\n→ ${h(k.planificado)} − ${h(k.ejecutado)} = ${h(k.pendiente)} pendientes`;
+            case 'tiempo_libre':
+                return `Disponible − Planificado\n→ ${h(k.disponible)} − ${h(k.planificado)} = ${h(k.tiempo_libre)} sin asignar`;
+        }
+        return '';
+    }
+
     cargaClass(pct) {
         if (pct >= 90) return "text-danger fw-bold";
         if (pct >= 70) return "text-warning fw-bold";

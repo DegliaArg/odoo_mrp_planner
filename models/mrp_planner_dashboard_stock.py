@@ -148,6 +148,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
         rotation_months_map  = {}
         rotation_avg_stock_map  = {}  # tooltip units: stock promedio
         rotation_period_out_map = {}  # tooltip units: salidas del período
+        rotation_avg_inv_map    = {}  # tooltip cogs/sales: inventario promedio valorizado
+        rotation_base_map       = {}  # tooltip cogs/sales: cogs o ventas netas
         if show_rotation:
             d_rot        = _date.today() - timedelta(days=rotation_period_days)
             dt_rot_str   = fields.Datetime.to_string(_datetime(d_rot.year, d_rot.month, d_rot.day))
@@ -262,6 +264,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
                             dio = rotation_period_days * avg_inv / base
                             rotation_days_map[_pid]   = int(round(dio))
                             rotation_months_map[_pid] = round(dio / 30.0, 1)
+                            rotation_avg_inv_map[_pid] = round(avg_inv, 2)
+                            rotation_base_map[_pid]    = round(base, 2)
                 except Exception:
                     pass
 
@@ -284,6 +288,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 'rotation_months':    rotation_months_map.get(pid),
                 'rotation_avg_stock': rotation_avg_stock_map.get(pid),
                 'rotation_period_out':rotation_period_out_map.get(pid),
+                'rotation_avg_inv':   rotation_avg_inv_map.get(pid),
+                'rotation_base':      rotation_base_map.get(pid),
             })
 
         # KPIs sobre el conjunto completo (antes de cualquier filtro)

@@ -501,6 +501,11 @@ class MoDashboardWidget extends Component {
         return '';
     }
 
+    cmpRowTooltip(item) {
+        const f = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
+        return `Producido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+    }
+
     /**
      * Formatea un número decimal con exactamente 2 decimales en locale es-AR.
      * @param {number} n - Número a formatear.

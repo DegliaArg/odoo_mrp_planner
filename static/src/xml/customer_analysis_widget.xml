@@ -9,32 +9,32 @@
         <div class="d-flex flex-column">
 
             <!-- ── Barra de filtros unificada ──────────────────────────────── -->
-            <div class="d-flex align-items-center gap-2 mb-3 flex-nowrap" style="overflow-x:auto;">
+            <div class="d-flex align-items-center gap-1 mb-3 flex-nowrap">
 
                 <!-- Período -->
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                    <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
                            t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                    <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
                 <!-- Categoría de cliente -->
                 <t t-if="availableCategories.length">
-                    <div class="vr" style="height:22px;"/>
+                    <div class="vr" style="height:20px;"/>
                     <div class="d-flex align-items-center gap-1">
-                        <span class="small text-muted fw-semibold" style="white-space:nowrap;">Cat.:</span>
+                        <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Cat.:</span>
                         <div class="btn-group btn-group-sm" role="group">
                             <button t-att-class="state.filterCategory === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
-                                    style="font-size:11px; padding:1px 7px;"
+                                    style="font-size:10px; padding:1px 5px;"
                                     t-on-click="() => this.setFilterCategory(null)">Todas</button>
                             <t t-foreach="availableCategories" t-as="cat" t-key="cat">
                                 <button t-att-class="state.filterCategory === cat ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
-                                        style="font-size:11px; padding:1px 7px;"
+                                        style="font-size:10px; padding:1px 5px;"
                                         t-on-click="() => this.setFilterCategory(cat)">
                                     <t t-esc="cat"/>
                                 </button>
@@ -44,86 +44,90 @@
                 </t>
 
                 <!-- Segmento ABC -->
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
                 <div class="d-flex align-items-center gap-1">
-                    <span class="small text-muted fw-semibold">ABC:</span>
+                    <span style="font-size:10px;" class="text-muted fw-semibold">ABC:</span>
                     <div class="btn-group btn-group-sm" role="group">
                         <button t-att-class="state.filterABC === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setFilterABC(null)">Todos</button>
                         <button t-att-class="state.filterABC === 'A' ? 'btn btn-success' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setFilterABC('A')">A</button>
                         <button t-att-class="state.filterABC === 'B' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setFilterABC('B')">B</button>
                         <button t-att-class="state.filterABC === 'C' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setFilterABC('C')">C</button>
                     </div>
                 </div>
 
                 <!-- Frecuencia -->
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
                 <div class="d-flex align-items-center gap-1">
-                    <span class="small text-muted fw-semibold" style="white-space:nowrap;">Frec.:</span>
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Frec.:</span>
                     <div class="btn-group btn-group-sm" role="group">
                         <button t-att-class="state.filterFreq === null ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setFilterFreq(null)">Todos</button>
                         <button t-att-class="state.filterFreq === 'frecuente' ? 'btn btn-success' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
-                                t-on-click="() => this.setFilterFreq('frecuente')">Frecuente</button>
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Frecuente"
+                                t-on-click="() => this.setFilterFreq('frecuente')">Frec.</button>
                         <button t-att-class="state.filterFreq === 'ocasional' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
-                                t-on-click="() => this.setFilterFreq('ocasional')">Ocasional</button>
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Ocasional"
+                                t-on-click="() => this.setFilterFreq('ocasional')">Ocas.</button>
                         <button t-att-class="state.filterFreq === 'en_riesgo' ? 'btn btn-danger' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="En riesgo"
                                 t-on-click="() => this.setFilterFreq('en_riesgo')">Riesgo</button>
                         <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-dark' : 'btn btn-outline-secondary'"
-                                style="font-size:11px; padding:1px 7px;"
-                                t-on-click="() => this.setFilterFreq('inactivo')">Inactivo</button>
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Inactivo"
+                                t-on-click="() => this.setFilterFreq('inactivo')">Inact.</button>
                     </div>
                 </div>
 
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
 
                 <!-- Métrica del gráfico -->
                 <div class="btn-group btn-group-sm" role="group">
                     <t t-foreach="[['pxq','PxQ'],['pedidos','Pedidos'],['ticket','Ticket']]"
                        t-as="m" t-key="m[0]">
                         <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-info' : 'btn-outline-secondary')"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setChartMetric(m[0])">
                             <t t-esc="m[1]"/>
                         </button>
                     </t>
                 </div>
 
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
 
                 <!-- Top N -->
                 <div class="btn-group btn-group-sm" role="group">
                     <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
                         <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-secondary' : 'btn-outline-secondary')"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setChartTopN(n)">
                             <t t-esc="'Top ' + n"/>
                         </button>
                     </t>
                     <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-secondary' : 'btn-outline-secondary')"
-                            style="font-size:11px; padding:1px 7px;"
+                            style="font-size:10px; padding:1px 5px;"
                             t-on-click="() => this.setChartTopN(null)">Todos</button>
                 </div>
 
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
 
                 <!-- Segmento del donut -->
                 <div class="btn-group btn-group-sm" role="group">
                     <t t-foreach="[['abc','Segmento'],['cat','Cat.'],['freq','Frec.']]"
                        t-as="d" t-key="d[0]">
                         <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-dark' : 'btn-outline-secondary')"
-                                style="font-size:11px; padding:1px 7px;"
+                                style="font-size:10px; padding:1px 5px;"
                                 t-on-click="() => this.setChartDonut(d[0])">
                             <t t-esc="d[1]"/>
                         </button>

@@ -84,12 +84,16 @@ class SalesChartWidget extends Component {
         });
 
         onMounted(async () => {
-            // Paralelizar: get_product_categories_for_chart y _load() son RPCs independientes
-            const [cats] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_product_categories_for_chart", []),
-                this._load(),
-            ]);
-            this.state.productCategs = cats || [];
+            try {
+                // Paralelizar: get_product_categories_for_chart y _load() son RPCs independientes
+                const [cats] = await Promise.all([
+                    this.orm.call("mrp.planner.dashboard", "get_product_categories_for_chart", []),
+                    this._load(),
+                ]);
+                this.state.productCategs = cats || [];
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
         });
 
         onPatched(() => {

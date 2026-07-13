@@ -222,8 +222,12 @@ class CustomerAnalysisWidget extends Component {
         };
 
         onMounted(async () => {
-            document.addEventListener('click', this._closeDropdowns);
-            await this._load();
+            try {
+                document.addEventListener('click', this._closeDropdowns);
+                await this._load();
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
         });
 
         onPatched(() => {

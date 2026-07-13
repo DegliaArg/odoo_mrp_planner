@@ -30,8 +30,12 @@ class MoListWidget extends Component {
         });
 
         onMounted(async () => {
-            // Paralelizar: get_wc_tags y get_filtered_mos son RPCs independientes
-            await Promise.all([this._loadTags(), this._loadMos()]);
+            try {
+                // Paralelizar: get_wc_tags y get_filtered_mos son RPCs independientes
+                await Promise.all([this._loadTags(), this._loadMos()]);
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
         });
     }
 

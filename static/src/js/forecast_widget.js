@@ -189,14 +189,18 @@ class ForecastWidget extends Component {
      * @returns {Promise<void>}
      */
     async _init() {
-        const [whs] = await Promise.all([
-            this.orm.call("mrp.planner.dashboard", "get_warehouses_for_forecast", []),
-            this._load(),
-        ]);
-        this.state.warehouses = whs;
-        const rec = this.props.record;
-        if (rec && rec.data) {
-            this.state.canEdit = rec.data.can_edit_forecast;
+        try {
+            const [whs] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_warehouses_for_forecast", []),
+                this._load(),
+            ]);
+            this.state.warehouses = whs;
+            const rec = this.props.record;
+            if (rec && rec.data) {
+                this.state.canEdit = rec.data.can_edit_forecast;
+            }
+        } catch (e) {
+            if (e.message !== "Component is destroyed") throw e;
         }
     }
 

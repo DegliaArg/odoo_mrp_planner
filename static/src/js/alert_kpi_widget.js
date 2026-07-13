@@ -16,7 +16,13 @@ class AlertKpiWidget extends Component {
             sc_loc_ids: [],
             loading:   true,
         });
-        onMounted(() => this._loadData());
+        onMounted(async () => {
+            try {
+                await this._loadData();
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
+        });
     }
 
     async _loadData() {

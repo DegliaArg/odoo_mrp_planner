@@ -104,11 +104,15 @@ class StockBreakWidget extends Component {
 
     /** @returns {Promise<void>} Carga ubicaciones y datos iniciales en paralelo */
     async _init() {
-        const [locs] = await Promise.all([
-            this.orm.call("mrp.planner.dashboard", "get_internal_locations", []),
-            this._load(),
-        ]);
-        this.state.locations = locs;
+        try {
+            const [locs] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_internal_locations", []),
+                this._load(),
+            ]);
+            this.state.locations = locs;
+        } catch (e) {
+            if (e.message !== "Component is destroyed") throw e;
+        }
     }
 
     /** @returns {Promise<void>} Carga todos los productos del servidor y aplica sort/filtro/paginación client-side */

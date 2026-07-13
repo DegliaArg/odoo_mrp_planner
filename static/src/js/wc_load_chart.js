@@ -47,8 +47,14 @@ class WcLoadChartWidget extends Component {
     }
 
     async _loadTags() {
-        const tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
-        this.state.tags = tags;
+        try {
+            const res = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
+            this.state.tags = res.tags || [];
+        } catch (e) {
+            if (e.message !== "Component is destroyed") {
+                console.error("[WcLoadChart] Error al cargar tags:", e);
+            }
+        }
     }
 
     async _loadChart() {
@@ -69,7 +75,9 @@ class WcLoadChartWidget extends Component {
             this.state.empty = !chartData.labels.length;
             if (chartData.totals) this.state.kpis = chartData.totals;
         } catch (e) {
-            console.error("[WcLoadChart] Error al obtener datos:", e);
+            if (e.message !== "Component is destroyed") {
+                console.error("[WcLoadChart] Error al obtener datos:", e);
+            }
             this.state.empty = true;
         } finally {
             this.state.loading = false;

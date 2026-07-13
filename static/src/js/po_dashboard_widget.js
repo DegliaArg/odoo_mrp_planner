@@ -117,8 +117,12 @@ class PoDashboardWidget extends Component {
         });
 
         onMounted(async () => {
-            await this._load();
-            this._rafId = requestAnimationFrame(() => this._syncH());
+            try {
+                await this._load();
+                this._rafId = requestAnimationFrame(() => this._syncH());
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
         });
 
         onWillUnmount(() => {

@@ -90,7 +90,13 @@ class SupplierAnalysisWidget extends Component {
             this._loadDebounceTimer = setTimeout(() => this._load(), 400);
         };
 
-        onMounted(() => this._load());
+        onMounted(async () => {
+            try {
+                await this._load();
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
+        });
         onWillUnmount(() => {
             this.colsSup.cancelResize();
             clearTimeout(this._loadDebounceTimer);

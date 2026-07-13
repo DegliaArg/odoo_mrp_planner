@@ -98,9 +98,13 @@ class MoDashboardWidget extends Component {
         });
 
         onMounted(async () => {
-            // Paralelizar: get_wc_tags y get_mo_widget_data son RPCs independientes
-            await Promise.all([this._loadTags(), this._loadData()]);
-            requestAnimationFrame(() => this._syncH());
+            try {
+                // Paralelizar: get_wc_tags y get_mo_widget_data son RPCs independientes
+                await Promise.all([this._loadTags(), this._loadData()]);
+                requestAnimationFrame(() => this._syncH());
+            } catch (e) {
+                if (e.message !== "Component is destroyed") throw e;
+            }
         });
         onPatched(() => requestAnimationFrame(() => this._syncH()));
     }

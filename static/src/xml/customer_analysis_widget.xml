@@ -710,7 +710,7 @@
                                             <span class="small text-truncate" style="flex:1; min-width:0; font-size:11px;"
                                                   t-esc="f.name"/>
                                             <span class="small text-muted ms-1" style="flex-shrink:0; font-size:11px;"
-                                                  t-esc="f.pct + '%'"/>
+                                                  t-esc="(state.panelMetric === 'qty' ? f.pct : f.pct_amount) + '%'"/>
                                         </div>
                                     </t>
                                 </div>
@@ -752,12 +752,26 @@
                             <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
-                                    <th style="padding:3px 8px;">Artículo</th>
-                                    <th class="text-end" style="padding:3px 8px;">Pedido</th>
-                                    <th class="text-end" style="padding:3px 8px;">Entregado</th>
-                                    <th class="text-end" style="padding:3px 8px;">Monto</th>
-                                    <th class="text-end" style="padding:3px 8px;">% Entrega</th>
-                                    <th class="text-end" style="padding:3px 8px;">OVs</th>
+                                    <t t-foreach="[
+                                        {key:'name',         label:'Artículo',   cls:''},
+                                        {key:'qty_ordered',  label:'Pedido',     cls:'text-end'},
+                                        {key:'qty_delivered',label:'Entregado',  cls:'text-end'},
+                                        {key:'amount',       label:'Monto',      cls:'text-end'},
+                                        {key:'delivery_pct', label:'% Entrega',  cls:'text-end'},
+                                        {key:'order_count',  label:'OVs',        cls:'text-end'},
+                                    ]" t-as="col" t-key="col.key">
+                                        <th t-att-class="col.cls + ' user-select-none'"
+                                            style="padding:3px 8px; cursor:pointer; white-space:nowrap;"
+                                            t-on-click="() => this.sortPanelProds(col.key)">
+                                            <t t-esc="col.label"/>
+                                            <t t-if="state.panelProdSort === col.key">
+                                                <i t-att-class="state.panelProdDir === 'desc' ? 'fa fa-sort-desc ms-1' : 'fa fa-sort-asc ms-1'"/>
+                                            </t>
+                                            <t t-else="">
+                                                <i class="fa fa-sort ms-1 text-muted" style="opacity:0.35;"/>
+                                            </t>
+                                        </th>
+                                    </t>
                                 </tr>
                             </thead>
                             <tbody>

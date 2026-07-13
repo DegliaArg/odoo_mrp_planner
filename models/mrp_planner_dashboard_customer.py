@@ -393,12 +393,14 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             fam_qty[categ]     += qty
             total_fam_qty      += qty
 
+        total_fam_amount = sum(fam_amounts.values())
         family_mix = sorted([
             {
-                'name':   k,
-                'amount': round(fam_amounts[k], 2),
-                'qty':    round(v, 1),
-                'pct':    round(v / total_fam_qty * 100, 1) if total_fam_qty else 0.0,
+                'name':       k,
+                'amount':     round(fam_amounts[k], 2),
+                'qty':        round(v, 1),
+                'pct':        round(v / total_fam_qty * 100, 1) if total_fam_qty else 0.0,
+                'pct_amount': round(fam_amounts[k] / total_fam_amount * 100, 1) if total_fam_amount else 0.0,
             }
             for k, v in fam_qty.items()
         ], key=lambda x: x['qty'], reverse=True)[:10]

@@ -190,6 +190,8 @@ class CustomerAnalysisWidget extends Component {
             panelPartnerId: null,
             panelMetric:    'amount',   // 'amount' | 'qty'
             panelTopN:      10,
+            panelProdSort:  'amount',   // columna de sort en top artículos
+            panelProdDir:   'desc',
             // Columnas visibles
             visibleCols: {
                 customer_category: false,
@@ -515,9 +517,23 @@ class CustomerAnalysisWidget extends Component {
     }
 
     setPanelMetric(m) {
-        if (this.state.panelMetric !== m) { this.state.panelMetric = m; this._panelChartsKey = ''; }
+        if (this.state.panelMetric !== m) {
+            this.state.panelMetric   = m;
+            this.state.panelProdSort = m === 'qty' ? 'qty_ordered' : 'amount';
+            this.state.panelProdDir  = 'desc';
+            this._panelChartsKey     = '';
+        }
     }
     setPanelTopN(n) { this.state.panelTopN = n; }
+
+    sortPanelProds(key) {
+        if (this.state.panelProdSort === key) {
+            this.state.panelProdDir = this.state.panelProdDir === 'desc' ? 'asc' : 'desc';
+        } else {
+            this.state.panelProdSort = key;
+            this.state.panelProdDir  = 'desc';
+        }
+    }
 
     openProduct(tmplId) {
         if (!tmplId) return;
@@ -531,7 +547,16 @@ class CustomerAnalysisWidget extends Component {
     }
 
     get panelTopProducts() {
-        return (this.state.panelData?.top_products || []).slice(0, this.state.panelTopN);
+        const all = this.state.panelData?.top_products || [];
+        const key = this.state.panelProdSort;
+        const dir = this.state.panelProdDir === 'desc' ? -1 : 1;
+        const sorted = [...all].sort((a, b) => {
+            const va = a[key] ?? (typeof a[key] === 'string' ? '' : -Infinity);
+            const vb = b[key] ?? (typeof b[key] === 'string' ? '' : -Infinity);
+            if (typeof va === 'string') return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
+            return dir * (va - vb);
+        });
+        return sorted.slice(0, this.state.panelTopN);
     }
 
     _drawTopChart() {
@@ -889,7 +914,7 @@ class CustomerAnalysisWidget extends Component {
                 data: {
                     labels:   data.family_mix.map(f => f.name),
                     datasets: [{
-                        data:            data.family_mix.map(f => f.qty),
+                        data:            data.family_mix.map(f => isQty ? f.qty : f.amount),
                         backgroundColor: CHART_COLORS.donut,
                         borderWidth:     2,
                     }],
@@ -906,10 +931,9 @@ class CustomerAnalysisWidget extends Component {
                                 title: items => data.family_mix[items[0].dataIndex].name,
                                 label: ctx => {
                                     const f = data.family_mix[ctx.dataIndex];
-                                    return [
-                                        ` ${f.pct}% del monto`,
-                                        ` ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u. pedidas`,
-                                    ];
+                                    return isQty
+                                        ? [` ${f.pct}%`, ` ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u.`]
+                                        : [` ${f.pct_amount}%`, ` ${this.fmtMoney(f.amount)}`];
                                 },
                             },
                         },

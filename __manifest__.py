@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción',
-    'version': '18.0.46.0.0',
+    'version': '18.0.1.0.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -25,9 +25,20 @@ Panel en tiempo real
 - KPIs de OFs, OCs, centros de trabajo y quiebres de stock.
 - Widgets interactivos con filtros, paginación y drill-down.
 - Permisos por usuario: secciones visibles y acciones habilitadas.
+
+Análisis de proveedores y clientes
+- Scorecard de cumplimiento por proveedor: % a tiempo, lead time real, variación de precio.
+- Clasificación A–E automática de proveedores y clientes por volumen, frecuencia,
+  RFM, % entregas a tiempo, varianza de precio o calidad de cantidad.
+- Panel de ventas: gráfico de productos más vendidos y análisis de clientes A–E.
+
+Forecast
+- Tabla mensual comparativa: forecast, OFs planificadas, entregas y stock.
+- Métricas de precisión configurables: Simple, MAPE, WAPE, WMAPE y Sesgo.
+- Exportación a Excel y edición directa de valores en celda.
     """,
     'author': 'Deglia',
-    'website': 'https://www.deglia.xyz',
+    'website': 'https://deglia.xyz',
     'license': 'OPL-1',
     'currency': 'USD',
     'category': 'Manufacturing',

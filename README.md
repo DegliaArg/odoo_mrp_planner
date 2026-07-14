@@ -1,6 +1,6 @@
 # Planificador de producción
 
-**Odoo 18 Enterprise · Fabricación · v18.0.46.0.0**  
+**Odoo 18 Enterprise · Fabricación · v18.0.1.0.0**  
 Desarrollado por [Deglia](https://deglia.xyz)
 
 Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
@@ -21,6 +21,7 @@ Panel de control centralizado para la gestión operativa de producción: program
   - [Forecast](#forecast)
   - [Análisis de proveedores](#análisis-de-proveedores)
   - [Gráfico de ventas](#gráfico-de-ventas)
+  - [Análisis de clientes](#análisis-de-clientes)
 - [Programación desde demanda](#programación-desde-demanda)
 - [Reprogramación en cascada](#reprogramación-en-cascada)
 - [Sistema de alertas](#sistema-de-alertas)
@@ -41,6 +42,7 @@ Panel de control centralizado para la gestión operativa de producción: program
 | **Forecast** | Comparativo mensual entre plan de ventas, producción, entregas y stock con semáforo de cobertura |
 | **Análisis de proveedores** | Scorecard de cumplimiento: % a tiempo, retraso promedio, lead time real y variación de precio |
 | **Categorización de ventas** | Clasificación A–E de artículos por rotación, demanda o participación acumulada (Pareto) |
+| **Análisis de clientes** | Clasificación A–E de clientes por volumen, frecuencia o RFM con drill-down a sus pedidos |
 | **Permisos granulares** | Control por usuario de qué secciones ve y qué acciones puede ejecutar |
 
 ---
@@ -263,6 +265,27 @@ Gráfico de barras de ventas por producto con clasificación por categoría (A�
 - **Top N**: muestra los N productos más vendidos (configurable)
 - **Filtros**: por categoría de venta (A–E) y por categoría de producto
 - Las barras se colorean según la categoría de venta: A (verde), B (azul), C (amarillo), D (gris), E (gris claro)
+
+### Análisis de clientes
+
+Clasificación A–E de clientes con drill-down a sus pedidos de venta del período.
+
+- **Filtros**: período desde/hasta, búsqueda por nombre de cliente
+- **Método de clasificación**: Pareto por volumen o importe, frecuencia de compra, o RFM (Recencia, Frecuencia, Monetario)
+- **Ordenamiento**: por cualquier columna, ascendente/descendente
+- **Drill-down**: expandir un cliente muestra sus pedidos de venta del período con importe y estado
+
+| Columna | Descripción |
+|---|---|
+| Cliente | Nombre del cliente |
+| Categoría | Clasificación A–E calculada automáticamente |
+| OVs | Cantidad de pedidos de venta en el período |
+| Artículos | Productos distintos comprados |
+| Monto | Importe total de pedidos confirmados |
+| Última compra | Días desde el último pedido de venta |
+| Puntaje RFM | Puntos de Recencia + Frecuencia + Monetario (solo en modo RFM) |
+
+Los umbrales de Pareto y los criterios de RFM se configuran en la pestaña Análisis de proveedores de Configuración (aplican también a clientes).
 
 ---
 

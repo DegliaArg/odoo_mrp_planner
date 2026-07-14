@@ -76,15 +76,22 @@ class MrpPlannerDashboardStock(models.TransientModel):
         if location_ids:
             locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
         else:
-            # sudo(): usuario no tiene acceso directo a ir.config_parameter; se lee sólo el agregado para el dashboard
-            loc_param = self.env['ir.config_parameter'].sudo().get_param(
-                'mrp_reschedule.stock_location_id')
-            try:
-                loc_id = int(loc_param) if loc_param else False
-            except (ValueError, TypeError):
-                loc_id = False
-            loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
-            locations = loc if loc_id and loc.exists() else self.env['stock.location']
+            allowed_ids = self._get_allowed_wh_ids()
+            if allowed_ids is not None:
+                # Usuario con depósitos restringidos: usar ubicaciones principales de sus depósitos
+                whs = self.env['stock.warehouse'].browse(allowed_ids)
+                locations = whs.mapped('lot_stock_id').filtered(lambda l: l.exists())
+            else:
+                # Sin restricción: usar parámetro de sistema
+                # sudo(): usuario no tiene acceso directo a ir.config_parameter; se lee sólo el agregado para el dashboard
+                loc_param = self.env['ir.config_parameter'].sudo().get_param(
+                    'mrp_reschedule.stock_location_id')
+                try:
+                    loc_id = int(loc_param) if loc_param else False
+                except (ValueError, TypeError):
+                    loc_id = False
+                loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
+                locations = loc if loc_id and loc.exists() else self.env['stock.location']
 
         if not locations:
             return {'error': 'no_location', 'kpis': _empty_kpis,
@@ -377,10 +384,11 @@ class MrpPlannerDashboardStock(models.TransientModel):
             - 'date_finished': str — fecha de fin planificada en formato dd/mm/YYYY o '—'.
         """
         # limit=50 evita cargar acordeones excesivamente largos para productos con muchas OFs
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         mos = self.env['mrp.production'].search([
             ('product_id', '=', product_id),
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
-        ] + no_subcontract_domain(self.env), limit=50, order='date_finished asc')
+        ] + no_subcontract_domain(self.env) + wh_mo, limit=50, order='date_finished asc')
         state_labels = {
             'confirmed': 'Confirmada',
             'progress':  'En progreso',

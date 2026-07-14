@@ -57,6 +57,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
 
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         domain = [
             ('state', 'not in', ('done', 'cancel')),
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
@@ -65,7 +66,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             '&',
             ('date_finished', '=', False),
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc
+        ] + no_sc + wh_mo
 
         mos = self.env['mrp.production'].search(domain, order='date_finished asc')
 
@@ -123,12 +124,14 @@ class MrpPlannerDashboardMo(models.TransientModel):
         # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
+        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
+        wh_mo    = self._wh_domain_mo(self._get_allowed_wh_ids())
 
         def cnt(alert_type):
-            return Alert.search_count(base + no_sc + [('alert_type', '=', alert_type)])
+            return Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', alert_type)])
 
         mo_in_progress = self.env['mrp.production'].search_count(
-            [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env)
+            [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env) + wh_mo
         )
 
         return {
@@ -136,7 +139,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'mo_upcoming':    cnt('mo_upcoming'),
             'mo_in_progress': mo_in_progress,
             'qty_mismatch':   cnt('qty_mismatch'),
-            'critical':       Alert.search_count(base + no_sc + [('severity', '=', 'critical')]),
+            'critical':       Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'critical')]),
             'sc_loc_ids':     sc_loc_ids,
         }
 
@@ -181,6 +184,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
         active_states = [s for s in (states or []) if s != 'done'] if states else []
         state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
@@ -191,7 +195,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             '&',
             ('date_finished', '=', False),
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc
+        ] + no_sc + wh_mo
 
         mos = self.env['mrp.production'].search(domain, order=mo_order)
 
@@ -208,7 +212,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             ('state', '=', 'done'),
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
             ('date_finished', '<=', fields.Datetime.to_string(last_day)),
-        ] + no_sc
+        ] + no_sc + wh_mo
         done_mos = self.env['mrp.production'].search(done_domain)
         if tag_id:
             done_mos = done_mos.filtered(tag_filter)
@@ -279,6 +283,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         now   = fields.Datetime.now()
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         dFrom = date_from + ' 00:00:00'
         dTo   = date_to   + ' 23:59:59'
         date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
@@ -298,12 +303,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 return MO.search_count(domain)
 
         return {
-            'total':       _cnt(active + date_d + no_sc),
-            'in_progress': _cnt([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc),
-            'delayed':     _cnt(active + [('date_finished', '<', now_s)] + date_d + no_sc),
-            'reschedule':  _cnt(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc),
-            'done':        _cnt([('state', '=', 'done')] + date_d + no_sc),
-            'partial':     _cnt([('state', '=', 'to_close')] + date_d + no_sc),
+            'total':       _cnt(active + date_d + no_sc + wh_mo),
+            'in_progress': _cnt([('state', 'in', ('progress', 'to_close'))] + date_d + no_sc + wh_mo),
+            'delayed':     _cnt(active + [('date_finished', '<', now_s)] + date_d + no_sc + wh_mo),
+            'reschedule':  _cnt(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc + wh_mo),
+            'done':        _cnt([('state', '=', 'done')] + date_d + no_sc + wh_mo),
+            'partial':     _cnt([('state', '=', 'to_close')] + date_d + no_sc + wh_mo),
         }
 
     @api.model
@@ -396,12 +401,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
 
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
 
         done_mos = self.env['mrp.production'].search([
             ('state', '=', 'done'),
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
             ('date_finished', '<=', fields.Datetime.to_string(last_day)),
-        ] + no_sc)
+        ] + no_sc + wh_mo)
 
         active_mos = self.env['mrp.production'].search([
             ('state', 'not in', ('done', 'cancel')),
@@ -411,7 +417,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             '&',
             ('date_finished', '=', False),
             ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc)
+        ] + no_sc + wh_mo)
 
         all_mos = done_mos | active_mos
 

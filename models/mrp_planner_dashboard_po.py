@@ -91,6 +91,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
         pick_order = f'{pick_f} {_sd}'
         offset     = (max(1, page) - 1) * page_size
 
+        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+
         sc_domain = []
         if filter_type == 'purchase':
             sc_domain = [('subcontract_production_ids', '=', False)]
@@ -109,10 +111,10 @@ class MrpPlannerDashboardPo(models.TransientModel):
         if date_to:
             sched_domain.append(('scheduled_date', '<=', date_to + ' 23:59:59'))
 
-        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain
-        approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain
+        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain + wh_po
+        approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain + wh_po
         # state='done' = OC bloqueada/cerrada — no es accionable, no va en vencidas ni pendientes
-        approved_dom = [('state', '=', 'purchase')] + sc_domain + date_domain
+        approved_dom = [('state', '=', 'purchase')] + sc_domain + date_domain + wh_po
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
@@ -350,7 +352,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
             ('return_id', '=', False),
-        ] + receipt_sc, order=pick_order)
+        ] + receipt_sc + wh_po, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
 
@@ -361,7 +363,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
         deliveries = Picking.search([
             ('state', '!=', 'cancel'),
             ('location_dest_id.is_subcontracting_location', '=', True),
-        ] + sched_domain, order=pick_order)
+        ] + sched_domain + wh_po, order=pick_order)
 
         # Prefetch para evitar N+1 en sort y en _pick_dict
         (receipts | deliveries).mapped('move_ids')

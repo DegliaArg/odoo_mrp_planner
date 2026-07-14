@@ -160,22 +160,23 @@ class MrpPlannerDashboard(models.TransientModel):
         # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
+        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
         for rec in self:
-            rec.alert_total           = Alert.search_count(base + no_sc)
-            rec.alert_critical        = Alert.search_count(base + no_sc + [('severity', '=', 'critical')])
-            rec.alert_warning         = Alert.search_count(base + no_sc + [('severity', '=', 'warning')])
-            rec.alert_mo_delayed      = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_delayed')])
-            rec.alert_mo_upcoming     = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_upcoming')])
-            rec.alert_po_delayed      = Alert.search_count(base + [('alert_type', '=', 'po_delayed')])
-            rec.alert_po_upcoming     = Alert.search_count(base + [('alert_type', '=', 'po_upcoming')])
-            rec.alert_po_cancelled    = Alert.search_count(base + [('alert_type', '=', 'po_cancelled')])
-            rec.alert_receipt_delayed = Alert.search_count(base + [
+            rec.alert_total           = Alert.search_count(base + no_sc + wh_alert)
+            rec.alert_critical        = Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'critical')])
+            rec.alert_warning         = Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'warning')])
+            rec.alert_mo_delayed      = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_delayed')])
+            rec.alert_mo_upcoming     = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_upcoming')])
+            rec.alert_po_delayed      = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_delayed')])
+            rec.alert_po_upcoming     = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_upcoming')])
+            rec.alert_po_cancelled    = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_cancelled')])
+            rec.alert_receipt_delayed = Alert.search_count(base + wh_alert + [
                 ('alert_type', '=', 'receipt_delayed'),
                 ('picking_id.purchase_id', '!=', False),
                 ('picking_id.return_id', '=', False),
             ])
-            rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + [('alert_type', '=', 'qty_mismatch')])
-            rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + [('alert_type', '=', 'mo_cancelled')])
+            rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'qty_mismatch')])
+            rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_cancelled')])
 
     @api.depends()
     def _compute_user_permissions(self):
@@ -214,6 +215,45 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.can_reschedule       = scheduling_on and (is_admin or has_scheduling)
             rec.can_edit_forecast    = is_admin or has_sales
 
+    # ── Permisos por depósito ────────────────────────────────────────────────
+
+    def _get_allowed_wh_ids(self):
+        """Retorna None si el usuario ve todos los depósitos, o lista de IDs si está restringido."""
+        u = self.env.user
+        if u.mrp_planner_all_warehouses:
+            return None
+        return u.mrp_planner_warehouse_ids.ids
+
+    def _wh_domain_mo(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre mrp.production."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        return [('picking_type_id.warehouse_id', 'in', allowed_ids)]
+
+    def _wh_domain_po(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre purchase.order y stock.picking."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        return [('picking_type_id.warehouse_id', 'in', allowed_ids)]
+
+    def _wh_domain_alert(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre mrp.reschedule.alert."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        # Incluir alertas del depósito: via production_id, via picking_id (sin production), o sin ninguno
+        return [
+            '|', ('production_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '|', '&', ('production_id', '=', False),
+                 ('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '&', ('production_id', '=', False), ('picking_id', '=', False),
+        ]
+
     @api.depends()
     def _compute_inline_alerts(self):
         """
@@ -223,9 +263,10 @@ class MrpPlannerDashboard(models.TransientModel):
         ordenadas por ID descendente (más recientes primero).
         Depende de: mrp.reschedule.alert (resolved, severity).
         """
+        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
         for rec in self:
             rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
-                [('resolved', '=', False), ('severity', '=', 'critical')],
+                [('resolved', '=', False), ('severity', '=', 'critical')] + wh_alert,
                 order='id desc',
                 limit=8,
             )
@@ -244,11 +285,12 @@ class MrpPlannerDashboard(models.TransientModel):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         for rec in self:
-            active = MO.search([('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc)
+            active = MO.search([('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc + wh_mo)
             rec.mo_total             = len(active)
             rec.mo_in_progress       = len(active.filtered(lambda m: m.state in ('progress', 'to_close')))
-            rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc)
+            rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc + wh_mo)
             rec.mo_delayed           = len(active.filtered(
                 lambda m: m.date_finished and m.date_finished < now
             ))
@@ -268,16 +310,17 @@ class MrpPlannerDashboard(models.TransientModel):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         for rec in self:
             rec.delayed_mo_ids = MO.search([
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
                 ('date_finished', '<', now),
                 ('date_finished', '!=', False),
-            ] + no_sc, order='date_finished asc', limit=4)
+            ] + no_sc + wh_mo, order='date_finished asc', limit=4)
             rec.reschedule_mo_ids = MO.search([
                 ('state', 'not in', ('done', 'cancel')),
                 ('x_reschedule_needed', '=', True),
-            ] + no_sc, order='date_start asc', limit=4)
+            ] + no_sc + wh_mo, order='date_start asc', limit=4)
 
     @api.depends()
     def _compute_po_stats(self):
@@ -293,11 +336,12 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
+        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
         for rec in self:
-            rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))])
-            rec.po_to_approve = PO.search_count([('state', '=', 'to approve')])
+            rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))] + wh_po)
+            rec.po_to_approve = PO.search_count([('state', '=', 'to approve')] + wh_po)
             # Approved (purchase + done), not fully received
-            active = PO.search([('state', 'in', ('purchase', 'done')), ('receipt_status', '!=', 'full')])
+            active = PO.search([('state', 'in', ('purchase', 'done')), ('receipt_status', '!=', 'full')] + wh_po)
             overdue = active.filtered(lambda p: p.date_planned and p.date_planned < now)
             rec.po_total            = len(active)
             rec.po_pending          = len(active.filtered(
@@ -322,18 +366,19 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
+        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
         for rec in self:
             rec.rfq_ids = PO.search([
                 ('state', 'in', ('draft', 'sent')),
-            ], order='date_planned asc', limit=4)
+            ] + wh_po, order='date_planned asc', limit=4)
             rec.to_approve_ids = PO.search([
                 ('state', '=', 'to approve'),
-            ], order='date_planned asc', limit=3)
+            ] + wh_po, order='date_planned asc', limit=3)
             rec.overdue_po_ids = PO.search([
                 ('state', 'in', ('purchase', 'done')),
                 ('date_planned', '<', now),
                 ('receipt_status', 'not in', ['full']),
-            ], order='date_planned asc', limit=5)
+            ] + wh_po, order='date_planned asc', limit=5)
 
     @api.depends()
     def _compute_request_stats(self):
@@ -727,10 +772,17 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_internal_locations(self):
-        """Devuelve todas las ubicaciones internas activas para el selector del widget."""
-        locations = self.env['stock.location'].search(
-            [('usage', '=', 'internal'), ('active', '=', True)],
-            order='complete_name',
-        )
+        """Devuelve ubicaciones internas activas para el selector del widget, filtradas por depósito permitido."""
+        allowed_ids = self._get_allowed_wh_ids()
+        if allowed_ids is not None and not allowed_ids:
+            return []
+        if allowed_ids is not None:
+            whs = self.env['stock.warehouse'].browse(allowed_ids)
+            parent_locs = whs.mapped('view_location_id')
+            domain = [('usage', '=', 'internal'), ('active', '=', True),
+                      ('id', 'child_of', parent_locs.ids)]
+        else:
+            domain = [('usage', '=', 'internal'), ('active', '=', True)]
+        locations = self.env['stock.location'].search(domain, order='complete_name')
         return [{'id': l.id, 'name': l.complete_name} for l in locations]
 

@@ -1354,7 +1354,14 @@ class ForecastWidget extends Component {
                 "get_forecast_export",
                 [this.state.periodFrom, this.state.periodTo, this.state.warehouseIds],
             );
-            if (res && res.url) window.open(res.url, '_blank');
+            if (res && res.url) {
+                const a = document.createElement('a');
+                a.href = res.url;
+                a.download = '';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
         } catch (e) {
             console.error("[ForecastWidget] export error", e);
         }

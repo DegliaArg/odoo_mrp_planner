@@ -95,6 +95,7 @@ class MoDashboardWidget extends Component {
             // Comparativo
             cmp_kpis:    { planned: 0, produced: 0, pct: 0, ofs_done: 0 },
             comparison:  [],
+            cmp_total:   0,
         });
 
         onMounted(async () => {
@@ -156,9 +157,14 @@ class MoDashboardWidget extends Component {
                     this.state.dateFrom,
                     this.state.dateTo,
                     this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                    this.state.page,
+                    this.state.pageSize,
+                    this.state.sortField || null,
+                    this.state.sortDir,
                 ]);
                 this.state.cmp_kpis   = d.kpis;
                 this.state.comparison = d.items;
+                this.state.cmp_total  = d.total || 0;
             }
         } catch (e) {
             console.error("[MoDashboardWidget]", e);
@@ -418,9 +424,9 @@ class MoDashboardWidget extends Component {
      * @returns {number}
      */
     get activeCount() {
-        if (this.state.tab === 'ofs')      return this.state.ofs_kpis.total || 0;
-        if (this.state.tab === 'requests') return this.state.req_kpis.total || 0;
-        return this.state.comparison.length;
+        if (this.state.tab === 'ofs')        return this.state.ofs_kpis.total || 0;
+        if (this.state.tab === 'requests')   return this.state.req_kpis.total || 0;
+        return this.state.cmp_total;
     }
 
     /**
@@ -609,7 +615,7 @@ class MoDashboardWidget extends Component {
      * ya que los datos son resultado de una agregación y no tienen orden de BD propio.
      * @returns {Array<Object>}
      */
-    get sortedComparison() { return this._sortList(this.state.comparison,  null); }  // client-side always (aggregated)
+    get sortedComparison() { return this.state.comparison; }  // server-sorted and paginated
 }
 
 registry.category("view_widgets").add("mo_dashboard_widget", {

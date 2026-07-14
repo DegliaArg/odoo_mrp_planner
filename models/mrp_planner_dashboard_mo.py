@@ -379,7 +379,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
-    def get_comparison_data(self, date_from, date_to, tag_id=None):
+    def get_comparison_data(self, date_from, date_to, tag_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc'):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
 
@@ -458,6 +458,23 @@ class MrpPlannerDashboardMo(models.TransientModel):
         total_produced = sum(x['produced_qty'] for x in items)
         pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
 
+        # Ordenamiento por campo solicitado
+        _sort_map = {'product': 'product', 'planned_qty': 'planned_qty',
+                     'produced_qty': 'produced_qty', 'pct': 'pct'}
+        sf = _sort_map.get(sort_field)
+        if sf:
+            reverse = sort_dir != 'asc'
+            if sf == 'product':
+                items = sorted(items, key=lambda x: (x.get('product') or '').lower(), reverse=reverse)
+            else:
+                items = sorted(items, key=lambda x: x.get(sf) or 0, reverse=reverse)
+
+        # Paginación
+        total = len(items)
+        page      = max(1, int(page))
+        page_size = min(200, max(1, int(page_size)))
+        offset    = (page - 1) * page_size
+
         filtered_done = all_mos.filtered(lambda m: m.state == 'done')
         return {
             'kpis': {
@@ -466,7 +483,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 'pct':      pct,
                 'ofs_done': len(filtered_done),
             },
-            'items': items[:20],
+            'items': items[offset:offset + page_size],
+            'total': total,
         }
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────

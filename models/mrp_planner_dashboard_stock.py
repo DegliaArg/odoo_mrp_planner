@@ -154,6 +154,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
         rotation_method      = (cfg.stock_break_rotation_method if cfg else None) or 'units'
         rotation_months_cfg  = (cfg.stock_break_rotation_months if cfg else 3) or 3
         rotation_period_days = rotation_months_cfg * 30
+        show_sale_cat        = bool(cfg and cfg.enable_sale_categories)
 
         rotation_days_map    = {}
         rotation_months_map  = {}
@@ -346,6 +347,20 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 tmpl_id = prod_to_tmpl.get(r['id'])
                 r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
 
+            # Categoría de venta (x_sale_category, solo si está habilitada en config)
+            sale_cat_map = {}
+            if show_sale_cat:
+                for t in all_tmpls:
+                    sale_cat_map[t.id] = t.x_sale_category or ''
+            for r in rows:
+                tmpl_id = prod_to_tmpl.get(r['id'])
+                r['sale_category'] = sale_cat_map.get(tmpl_id, '') if tmpl_id else ''
+
+            # Categoría de producto (categ_id)
+            categ_map = {p.id: (p.categ_id.name or '') for p in all_prods}
+            for r in rows:
+                r['categ_name'] = categ_map.get(r['id'], '')
+
         rotation_unit          = (cfg.forecast_rotation_unit if cfg else None) or 'days'
         alerts_enabled         = cfg.stock_break_rotation_alerts_enabled if cfg else False
         rotation_warn_days     = (cfg.stock_break_rotation_warn_days     or 90)  if alerts_enabled else None
@@ -364,6 +379,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'rotation_method':        rotation_method,
             'rotation_warn_days':     rotation_warn_days,
             'rotation_critical_days': rotation_critical_days,
+            'show_sale_cat':          show_sale_cat,
         }
 
     @api.model

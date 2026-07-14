@@ -127,7 +127,7 @@ class SupplierAnalysisWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_supplier_analysis_data",
-                [this.state.periodFrom, this.state.periodTo, '', this.state.poType],
+                [this.state.periodFrom, this.state.periodTo, this.state.search || '', this.state.poType],
             );
             this.state.data = d;
             this.state.page = 1;
@@ -178,6 +178,7 @@ class SupplierAnalysisWidget extends Component {
     onSearchInput(ev) {
         this.state.search = ev.target.value;
         this.state.page   = 1;
+        this._loadDebounced();
     }
 
     /**

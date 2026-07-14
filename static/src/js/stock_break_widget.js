@@ -20,14 +20,16 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 
 const STOCK_COLS = [
-    { key: '_expand',      label: '',           width:  32, fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
-    { key: 'name',         label: 'Artículo',   width: 200, sortKey: 'name',         title: 'Nombre o código del producto.' },
-    { key: 'product_types',label: 'Tipo',       width: 130,                           title: 'Tipos de producto asignados en la ficha del artículo.' },
-    { key: 'qty',          label: 'Stock actual', width: 95, sortKey: 'qty',          align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
-    { key: 'min_qty',      label: 'Mínimo',     width:  85, sortKey: 'min_qty',       align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
-    { key: 'qty_forecast', label: 'Pronóstico', width:  95, sortKey: 'qty_forecast',  align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
-    { key: 'rotation',     label: 'Rot.',       width:  75, sortKey: 'rotation',      align: 'end', title: 'Rotación = stock promedio del período ÷ promedio mensual de salidas × 30. Período configurable en Ajustes.' },
-    { key: 'status',       label: 'Estado',     width: 100, sortKey: 'status',        align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
+    { key: '_expand',      label: '',             width:  32, fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
+    { key: 'name',         label: 'Artículo',     width: 200, sortKey: 'name',           title: 'Nombre o código del producto.' },
+    { key: 'product_types',label: 'Tipo',         width: 130,                             title: 'Tipos de producto asignados en la ficha del artículo.' },
+    { key: 'sale_category',label: 'Cat. venta',   width:  75, sortKey: 'sale_category',   align: 'center', title: 'Categoría de venta A–E asignada al artículo.' },
+    { key: 'categ_name',   label: 'Categoría',    width: 120, sortKey: 'categ_name',      title: 'Categoría de producto de Odoo.' },
+    { key: 'qty',          label: 'Stock actual', width:  95, sortKey: 'qty',             align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
+    { key: 'min_qty',      label: 'Mínimo',       width:  85, sortKey: 'min_qty',         align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
+    { key: 'qty_forecast', label: 'Pronóstico',   width:  95, sortKey: 'qty_forecast',    align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
+    { key: 'rotation',     label: 'Rot.',         width:  75, sortKey: 'rotation',        align: 'end', title: 'Rotación = stock promedio del período ÷ promedio mensual de salidas × 30. Período configurable en Ajustes.' },
+    { key: 'status',       label: 'Estado',       width: 100, sortKey: 'status',          align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
 ];
 
 class StockBreakWidget extends Component {
@@ -70,8 +72,11 @@ class StockBreakWidget extends Component {
             rotation_months:        3,
             rotation_method:        'units',
             show_rotation:          false,
+            show_sale_cat:          false,
             rotation_warn_days:     null,
             rotation_critical_days: null,
+            groupBy:                null,
+            groupedProducts:        null,
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -135,6 +140,7 @@ class StockBreakWidget extends Component {
                 this.state.allProducts  = d.products;
                 this.state.rotation_unit          = d.rotation_unit          || 'days';
                 this.state.show_rotation          = !!d.show_rotation;
+                this.state.show_sale_cat          = !!d.show_sale_cat;
                 this.state.rotation_months        = d.rotation_months        || 3;
                 this.state.rotation_method        = d.rotation_method        || 'units';
                 this.state.rotation_warn_days     = d.rotation_warn_days     ?? null;
@@ -199,6 +205,12 @@ class StockBreakWidget extends Component {
                 const bv = b.is_broken ? 0 : !b.has_min ? 1 : 2;
                 return rev ? bv - av : av - bv;
             });
+        } else if (field === 'sale_category' || field === 'categ_name') {
+            rows.sort((a, b) => {
+                const av = (a[field] || '').toLowerCase();
+                const bv = (b[field] || '').toLowerCase();
+                return rev ? bv.localeCompare(av, 'es') : av.localeCompare(bv, 'es');
+            });
         } else {
             rows.sort((a, b) => {
                 const av = a.is_broken ? 0 : !a.has_min ? 1 : 2;
@@ -207,9 +219,24 @@ class StockBreakWidget extends Component {
             });
         }
 
-        // Paginación
-        const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
-        this.state.products = rows.slice(offset, offset + this.state.pageSize);
+        // Agrupamiento o paginación
+        if (this.state.groupBy) {
+            const gf = this.state.groupBy;
+            const groups = {};
+            rows.forEach(r => {
+                const key = r[gf] || '';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(r);
+            });
+            this.state.groupedProducts = Object.entries(groups)
+                .sort(([a], [b]) => (a || '').localeCompare(b || '', 'es'))
+                .map(([key, items]) => ({ key, label: key || '(Sin categoría)', items }));
+            this.state.products = [];
+        } else {
+            this.state.groupedProducts = null;
+            const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
+            this.state.products = rows.slice(offset, offset + this.state.pageSize);
+        }
     }
 
     /**
@@ -237,9 +264,16 @@ class StockBreakWidget extends Component {
 
     get visibleStockCols() {
         return this.colsStock.visibleCols().filter(col => {
-            if (col.key === 'rotation') return this.state.show_rotation;
+            if (col.key === 'rotation')     return this.state.show_rotation;
+            if (col.key === 'sale_category') return this.state.show_sale_cat;
             return true;
         });
+    }
+
+    setGroupBy(field) {
+        this.state.groupBy = this.state.groupBy === field ? null : field;
+        this.state.page = 1;
+        this._applyClientSort();
     }
 
     /**

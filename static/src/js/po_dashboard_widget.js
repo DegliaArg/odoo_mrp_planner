@@ -468,7 +468,7 @@ class PoDashboardWidget extends Component {
      * @param {number} n - Importe a formatear
      * @returns {string} Importe formateado (ej: "1.234,56")
      */
-    fmtAmt(n) { return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
+    fmtAmt(n) { return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0); }
 
     // ── Ordenamiento ─────────────────────────────────────────────────────────
 

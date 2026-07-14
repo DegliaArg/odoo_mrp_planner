@@ -327,6 +327,13 @@ class MoDashboardWidget extends Component {
     /** Navega a todas las solicitudes de programación sin filtro de estado. */
     onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
 
+    onClickAllComparison() {
+        this._navigate("Producido vs Programado", [
+            ["state", "not in", ["cancel"]],
+            ...this._dateDomain(),
+        ]);
+    }
+
     /**
      * Abre la vista lista/form de mrp.production.request con el dominio indicado.
      * @param {string} name - Título de la ventana de acción.

@@ -1343,28 +1343,69 @@ class ForecastWidget extends Component {
     }
 
     /**
-     * Solicita al servidor la URL de exportación Excel del forecast y la abre
-     * en una nueva pestaña del navegador.
-     * @returns {Promise<void>}
+     * Genera y descarga el forecast como Excel SpreadsheetML usando los datos ya cargados
+     * en el widget (respeta los filtros activos de búsqueda, filtro rápido y grupo).
      */
-    async downloadExport() {
-        try {
-            const res = await this.orm.call(
-                "mrp.planner.dashboard",
-                "get_forecast_export",
-                [this.state.periodFrom, this.state.periodTo, this.state.warehouseIds],
-            );
-            if (res && res.url) {
-                const a = document.createElement('a');
-                a.href = res.url;
-                a.download = '';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            }
-        } catch (e) {
-            console.error("[ForecastWidget] export error", e);
-        }
+    downloadExport() {
+        const d = this.state.data;
+        if (!d || !d.rows || !d.months) return;
+        const rows   = this.baseFilteredRows;
+        const months = d.months;
+        const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+        const esc = s => String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="Forecast">
+  <Table>
+   <Row>`;
+
+        xml += `<Cell><Data ss:Type="String">Artículo</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="String">Cat. venta</Data></Cell>`;
+        months.forEach(ym => {
+            const [y, m] = ym.split('-');
+            const label = `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
+            xml += `<Cell><Data ss:Type="String">${esc(label)} - Forecast</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="String">${esc(label)} - OFs</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="String">${esc(label)} - %</Data></Cell>`;
+        });
+        xml += `<Cell><Data ss:Type="String">Total Forecast</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="String">Total OFs</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="String">% Cumplimiento</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="String">Stock</Data></Cell>`;
+        xml += '</Row>';
+
+        rows.forEach(row => {
+            xml += '<Row>';
+            xml += `<Cell><Data ss:Type="String">${esc(row.product)}</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="String">${esc(row.sale_category || '')}</Data></Cell>`;
+            months.forEach(ym => {
+                const cell = (row.cells || []).find(c => c.month === ym) || {};
+                xml += `<Cell><Data ss:Type="Number">${cell.forecast || 0}</Data></Cell>`;
+                xml += `<Cell><Data ss:Type="Number">${cell.mos || 0}</Data></Cell>`;
+                xml += `<Cell><Data ss:Type="Number">${cell.pct || 0}</Data></Cell>`;
+            });
+            xml += `<Cell><Data ss:Type="Number">${row.total_forecast || 0}</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="Number">${row.total_mos || 0}</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="Number">${row.total_pct || 0}</Data></Cell>`;
+            xml += `<Cell><Data ss:Type="Number">${row.stock_qty || 0}</Data></Cell>`;
+            xml += '</Row>';
+        });
+
+        xml += `  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `forecast_${this.state.periodFrom}_${this.state.periodTo}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 }
 

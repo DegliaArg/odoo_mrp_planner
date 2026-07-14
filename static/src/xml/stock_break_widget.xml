@@ -90,13 +90,16 @@
                         t-props="{
                             search:        state.search,
                             activeFilter:  state.filterType !== 'all' ? state.filterType : null,
+                            activeGroupBy: state.groupBy,
                             filterDefs: [
                                 { key: 'broken', label: 'Quiebres',  icon: 'fa-exclamation-triangle' },
                                 { key: 'ok',     label: 'OK',        icon: 'fa-check-circle' },
                                 { key: 'no_min', label: 'Sin mínimo',icon: 'fa-minus-circle' }
                             ],
+                            groupByDefs:    stockGroupByDefs,
                             onSearch:       (t) => this.setSearch(t),
-                            onFilterChange: (k) => this.setFilterDirect(k)
+                            onFilterChange: (k) => this.setFilterDirect(k),
+                            onGroupByChange:(k) => this.onGroupByChange(k)
                         }"/>
                     <div t-if="state.locations.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
                         <label class="form-label mb-0 small text-muted">Ubicación</label>
@@ -136,25 +139,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Selector de agrupamiento -->
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <label class="form-label mb-0 small text-muted">Agrupar por</label>
-                    <button t-att-class="'btn btn-sm ' + (state.groupBy === 'categ_name' ? 'btn-secondary' : 'btn-outline-secondary')"
-                            t-on-click="() => this.setGroupBy('categ_name')">
-                        Categoría
-                    </button>
-                    <button t-if="state.show_sale_cat"
-                            t-att-class="'btn btn-sm ' + (state.groupBy === 'sale_category' ? 'btn-secondary' : 'btn-outline-secondary')"
-                            t-on-click="() => this.setGroupBy('sale_category')">
-                        Cat. venta
-                    </button>
-                    <button t-if="state.groupBy"
-                            class="btn btn-sm btn-link text-secondary p-0 small"
-                            t-on-click="() => this.setGroupBy(state.groupBy)">
-                        <i class="fa fa-times me-1"/>Sin agrupar
-                    </button>
                 </div>
 
                 <!-- Tabla -->

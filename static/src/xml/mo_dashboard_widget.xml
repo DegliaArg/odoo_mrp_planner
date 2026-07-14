@@ -561,6 +561,9 @@
                 <button t-elif="state.tab === 'requests'"
                         class="btn btn-sm btn-link text-secondary p-0 small"
                         t-on-click="onClickAllRequests">Ver todas →</button>
+                <button t-elif="state.tab === 'comparison'"
+                        class="btn btn-sm btn-link text-secondary p-0 small"
+                        t-on-click="onClickAllComparison">Ver todas →</button>
             </div>
         </div>
     </t>

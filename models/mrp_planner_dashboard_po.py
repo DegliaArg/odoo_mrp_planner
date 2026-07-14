@@ -287,7 +287,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
                     'reserved': (getattr(m, 'quantity', 0) or 0) if (is_incoming and p.state == 'done')
                                 else (0 if is_incoming else _move_qty(m)),
                     'uom':      m.product_uom.name if m.product_uom else '',
-                } for m in p.move_ids if m.product_id and m.state not in ('done', 'cancel')]
+                } for m in p.move_ids if m.product_id and m.state != 'cancel'
+                  and (p.state == 'done' or m.state != 'done')]
             return result
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)

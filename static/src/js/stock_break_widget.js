@@ -276,6 +276,18 @@ class StockBreakWidget extends Component {
         this._applyClientSort();
     }
 
+    get stockGroupByDefs() {
+        const defs = [{ key: 'categ_name', label: 'Categoría' }];
+        if (this.state.show_sale_cat) defs.push({ key: 'sale_category', label: 'Cat. venta' });
+        return defs;
+    }
+
+    onGroupByChange(k) {
+        this.state.groupBy = k;
+        this.state.page = 1;
+        this._applyClientSort();
+    }
+
     /**
      * Agrega o quita una ubicación del filtro activo según el checkbox marcado.
      * Lee el id desde `data-loc-id` del elemento disparador. Resetea la página a 1

@@ -390,9 +390,26 @@ Archivos documentados (38 de 41 — 3 fallaron por rate limit y se retomaron man
 
 | # | Área | Descripción |
 |---|------|-------------|
-| D-01 | Seguridad | **Enforcement de depósitos por usuario sin `ir.rule`** (`res.users.mrp_planner_warehouse_ids`): los campos existen pero no hay record rule ni override `_search`. Cada método RPC del dashboard filtra manualmente; cualquier omisión expone datos de otros depósitos. Decidir: (a) agregar record rules por modelo, o (b) documentar que el filtrado es responsabilidad del desarrollador en cada RPC. |
 | D-02 | Performance | **N+1 en `get_sales_chart_data`** (`mrp_planner_dashboard_sales.py`): `browse(g['product_id'][0])` individual dentro del loop de `read_group` — un `browse` por fila de resultado. Pre-cargar con `browse(list_of_ids)` antes del loop. |
 | D-03 | Performance | **N+1 en `_build_lines` (BFS de cascada)** (`mrp_reschedule_cascade_mixin.py`): `_get_pos_for_mo(mo)` y `_get_child_mos(mo)` emiten búsquedas individuales por OF dentro del BFS. Con cascadas de N órdenes genera hasta 4N queries. Pre-cargar en batch antes del bucle. |
 | D-04 | UX | **Banner crítico en formulario de alerta** (`mrp_reschedule_alert_views.xml`): el form muestra colores de fila en lista pero no tiene banner `alert-danger` cuando `severity='critical'` y `resolved=False`. Hay `decoration-danger` en listas pero no panel de advertencia en el form. |
 | D-05 | XML | **`feasibility_summary` declarado dos veces** en el mismo form de solicitud de programación (`mrp_production_request_views.xml`, líneas 111 y 116). Patrón `invisible` mutuamente exclusivo; puede generar binding conflicts en OWL. Refactorizar a un único `<field>` con clase dinámica. |
 | D-06 | XML | **`result_message` declarado dos veces** en el wizard de importación de forecast (líneas 33–39): dos `<div>` con `invisible` excluyentes (uno para éxito, otro para error). Mismo patrón que D-05. |
+
+---
+
+## Revisión v47 — Filtrado por depósito y visibilidad de secciones
+
+**Fecha:** 2026-07-14
+**Alcance:** Fix bug `_wh_domain_alert` (rama `purchase_id` faltante), filtrado warehouse completo en todos los RPCs, feature de secciones visibles por usuario.
+
+---
+
+### Issues resueltos en esta ronda
+
+| # | Área | Descripción | Commits |
+|---|------|-------------|---------|
+| R-01 | Seguridad/Datos | **D-01 cerrado** — Implementada opción (b): helpers `_wh_domain_mo`, `_wh_domain_po`, `_wh_domain_alert` en `mrp.planner.dashboard` (TransientModel base); aplicados en los 7 archivos de dashboard. Cada RPC filtra por `allowed_ids = _get_allowed_wh_ids()` antes de cualquier búsqueda. El filtrado es responsabilidad explícita del desarrollador en cada punto de acceso — no hay `ir.rule`, por diseño. | `30b6fc1` |
+| R-02 | Bug | **`_wh_domain_alert` rama `purchase_id` faltante** — Alertas `po_delayed`/`po_upcoming`/`po_cancelled` tienen `production_id=False` y `picking_id=False`; el dominio original las hacía caer en la rama "ninguno → siempre incluir", mostrando alertas de todos los depósitos sin filtrar (manifestado: 911 OCs vencidas en header vs 2 en widget). Fix: dominio de 4 ramas con `production_id`, `purchase_id`, `picking_id`, y vacío. | `30b6fc1` |
+| R-03 | Bug | **`get_stock_break_data` — `allowed_ids` fuera de scope** — `allowed_ids` se calculaba dentro del branch `else` de resolución de ubicaciones, quedando fuera de alcance para orderpoints y `mo_groups`. Izando el cómputo al tope del método. | `30b6fc1` |
+| R-04 | Feature | **Visibilidad de secciones por usuario** — 10 campos `mrp_planner_show_*` en `res.users` (default `True`); campos computed `show_*_sec` en TransientModel; `invisible` combinado `"not can_see_* or not show_*_sec"` en los 4 paneles; vista unificada `view_users_mrp_warehouse_list` con toggle columns para depósitos y secciones; botón único en configuración. | `30b6fc1`, `32990d0` |

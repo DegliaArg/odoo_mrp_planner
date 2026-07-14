@@ -28,7 +28,7 @@
 |--------|---------|-----------------|-----------------|
 | `mrp.reschedule.config` | `mrp_reschedule_config.py` | Singleton de configuración global: umbrales de alerta, opciones de scheduling, categorías, forecast. Sincroniza `wc_fallback`/`priority` en `ir.config_parameter`. | `ir.cron`, `res.users` |
 | `mrp.reschedule.user.permission` | `mrp_reschedule_user_permission.py` | Depósitos visibles por usuario en el planificador | `res.users`, `stock.warehouse` |
-| `res.users` _(inherit)_ | `res_users.py` | Agrega `mrp_planner_all_warehouses` / `mrp_planner_warehouse_ids` y constraint de grupo scheduling | `mrp.reschedule.config` |
+| `res.users` _(inherit)_ | `res_users.py` | Agrega `mrp_planner_all_warehouses` / `mrp_planner_warehouse_ids`, 10 campos `mrp_planner_show_*` de visibilidad de secciones por panel, y constraint de grupo scheduling | `mrp.reschedule.config` |
 
 ### Alertas
 

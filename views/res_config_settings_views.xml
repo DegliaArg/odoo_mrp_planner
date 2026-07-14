@@ -126,6 +126,8 @@
                                                help="Campo de fecha que se usa para filtrar OCs en el análisis de proveedores."/>
                                     </group>
                                     <group string="Análisis de proveedores — Umbrales de color">
+                                        <field name="supplier_price_var_method"
+                                               help="Precio de referencia para calcular la variación en el análisis de proveedores. 'Lista de precio del proveedor' usa el precio configurado en product.supplierinfo; si no hay precio, queda sin variación."/>
                                         <field name="sup_on_time_green_pct"   help="% entregas a tiempo ≥ este valor → verde."/>
                                         <field name="sup_on_time_yellow_pct"  help="% entregas a tiempo ≥ este valor (y menor que verde) → amarillo."/>
                                         <field name="sup_delay_green_days"    help="Retraso promedio ≤ este valor → verde."/>
@@ -247,7 +249,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'demand'">
-                                                        <b>Por volumen de demanda:</b> promedia las unidades entregadas por mes en el período de análisis y compara con los umbrales mínimos A/B/C/D (ej.: ≥100 u/mes = A, ≥50 = B…).
+                                                        <b>Por volumen de demanda:</b> promedia las unidades demandadas (órdenes de venta confirmadas) por mes en el período de análisis y compara con los umbrales mínimos A/B/C/D (ej.: ≥100 u/mes = A, ≥50 = B…).
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'share'">

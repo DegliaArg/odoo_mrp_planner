@@ -339,13 +339,33 @@ class MrpPlannerDashboardSales(models.TransientModel):
             ['order_id', 'product_id', 'price_unit'],
         )
         all_prod_ids = list({ln['product_id'][0] for ln in po_line_data if ln['product_id']})
+
+        price_method = (cfg and cfg.supplier_price_var_method) or 'standard'
+
+        std_map = {}
         if all_prod_ids:
-            # Una sola query para obtener los costos estándar de todos los productos
             std_map = {r['id']: r['standard_price']
                        for r in self.env['product.product'].search_read(
                            [('id', 'in', all_prod_ids)], ['id', 'standard_price'])}
-        else:
-            std_map = {}
+
+        # Listas de precio del proveedor: (partner_id, product_tmpl_id) → precio mínimo
+        si_tmpl_map = {}
+        prod_tmpl_map = {}
+        if price_method == 'pricelist' and all_prod_ids:
+            prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                             for r in self.env['product.product'].sudo().search_read(
+                                 [('id', 'in', all_prod_ids)], ['id', 'product_tmpl_id'])}
+            all_tmpl_ids = list(set(prod_tmpl_map.values()))
+            partner_ids  = list(partner_data.keys())
+            for si in self.env['product.supplierinfo'].sudo().search_read(
+                [('partner_id', 'in', partner_ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
+                ['partner_id', 'product_tmpl_id', 'price'],
+            ):
+                if not si['partner_id'] or not si['product_tmpl_id']:
+                    continue
+                key = (si['partner_id'][0], si['product_tmpl_id'][0])
+                if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
+                    si_tmpl_map[key] = si['price']
 
         for ln in po_line_data:
             po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
@@ -355,9 +375,13 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 continue
             pd = partner_data[partner_id]
             pd['products'].add(prod_id)
-            std = std_map.get(prod_id, 0.0)
-            if std > 0 and ln['price_unit'] > 0:
-                pd['pvar_sum']   += (ln['price_unit'] - std) / std * 100
+            if price_method == 'pricelist':
+                tmpl_id = prod_tmpl_map.get(prod_id)
+                ref = si_tmpl_map.get((partner_id, tmpl_id), 0.0) if tmpl_id else 0.0
+            else:
+                ref = std_map.get(prod_id, 0.0)
+            if ref > 0 and ln['price_unit'] > 0:
+                pd['pvar_sum']   += (ln['price_unit'] - ref) / ref * 100
                 pd['pvar_count'] += 1
 
         # Solo recepciones completadas de tipo entrante para calcular cumplimiento

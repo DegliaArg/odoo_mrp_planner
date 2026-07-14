@@ -48,13 +48,13 @@ class MrpPartnerCategory(models.Model):
         Asigna categorías de venta A–E a todos los productos con sale_ok=True.
 
         Soporta tres modos configurables en sale_cat_mode:
-        - 'demand': umbrales absolutos de cantidad mensual promedio entregada.
-        - 'share': Pareto acumulado sobre unidades (units) o valor (pxq = precio × cantidad).
-        - 'automatic' (por defecto): días de cobertura de inventario (rotación),
-          donde menor cobertura implica mayor demanda relativa → categoría A.
+        - 'demand': umbrales absolutos de cantidad mensual promedio demandada
+          (unidades en órdenes de venta confirmadas del período).
+        - 'share': Pareto acumulado sobre unidades entregadas (units) o valor (pxq = precio × cantidad).
+        - 'automatic' (por defecto): días de cobertura usando stock promedio del período
+          dividido por promedio mensual de entregas. Menor cobertura → categoría A.
 
-        El horizonte de análisis es sale_cat_lookback_months (por defecto 3 meses)
-        usando movimientos de stock de tipo outgoing en estado 'done'.
+        El horizonte de análisis es sale_cat_lookback_months (por defecto 3 meses).
 
         Requiere permiso de Administrador: escribe en product.template.x_sale_category.
 
@@ -68,24 +68,43 @@ class MrpPartnerCategory(models.Model):
         if not config:
             return
 
-        months = config.sale_cat_lookback_months or 3
-        end    = date.today()
-        start  = end - timedelta(days=months * 30)
+        months   = config.sale_cat_lookback_months or 3
+        end      = date.today()
+        start    = end - timedelta(days=months * 30)
+        start_dt = fields.Datetime.to_datetime(str(start))
+        end_dt   = fields.Datetime.to_datetime(str(end))
 
-        moves = self.env['stock.move.line'].search([
+        # ── Entregas outgoing del período (para modos rotation y share) ───────
+        del_groups = self.env['stock.move.line'].read_group([
             ('state', '=', 'done'),
             ('picking_id.picking_type_code', '=', 'outgoing'),
-            ('date', '>=', fields.Datetime.to_datetime(str(start))),
-            ('date', '<=', fields.Datetime.to_datetime(str(end))),
+            ('date', '>=', start_dt),
+            ('date', '<=', end_dt),
             ('product_id', '!=', False),
-        ])
-        del_by_tmpl = {}
-        for ml in moves:
-            tid = ml.product_id.product_tmpl_id.id
-            del_by_tmpl[tid] = del_by_tmpl.get(tid, 0.0) + ml.quantity
+        ], ['product_id', 'quantity:sum'], ['product_id'])
+        del_by_pid = {g['product_id'][0]: (g['quantity'] or 0.0)
+                      for g in del_groups if g['product_id']}
+
+        # ── Demanda OVs confirmadas del período (para modo demand) ────────────
+        so_groups = self.env['sale.order.line'].sudo().read_group([
+            ('order_id.state', 'in', ('sale', 'done')),
+            ('order_id.date_order', '>=', str(start)),
+            ('order_id.date_order', '<=', str(end)),
+            ('product_id', '!=', False),
+        ], ['product_id', 'product_uom_qty:sum'], ['product_id'])
+        demand_by_pid = {g['product_id'][0]: (g['product_uom_qty'] or 0.0)
+                         for g in so_groups if g['product_id']}
 
         templates = self.env['product.template'].search([('sale_ok', '=', True)])
-        updated = 0
+        updated   = 0
+
+        # Agrega cantidades por variante a nivel de plantilla
+        del_by_tmpl    = {}
+        demand_by_tmpl = {}
+        for tmpl in templates:
+            for v in tmpl.product_variant_ids:
+                del_by_tmpl[tmpl.id]    = del_by_tmpl.get(tmpl.id,    0.0) + del_by_pid.get(v.id,    0.0)
+                demand_by_tmpl[tmpl.id] = demand_by_tmpl.get(tmpl.id, 0.0) + demand_by_pid.get(v.id, 0.0)
 
         if config.sale_cat_mode == 'demand':
             a_q = config.sale_cat_demand_a_qty
@@ -93,7 +112,7 @@ class MrpPartnerCategory(models.Model):
             c_q = config.sale_cat_demand_c_qty
             d_q = config.sale_cat_demand_d_qty
             for tmpl in templates:
-                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / months
+                avg_monthly = demand_by_tmpl.get(tmpl.id, 0.0) / months
                 if   avg_monthly >= a_q: cat = 'A'
                 elif avg_monthly >= b_q: cat = 'B'
                 elif avg_monthly >= c_q: cat = 'C'
@@ -132,24 +151,44 @@ class MrpPartnerCategory(models.Model):
                     tmpl.x_sale_category = cat
                     updated += 1
 
-        else:  # automatic (rotation)
+        else:  # automatic (rotation) — usa stock promedio del período
             a_d = config.sale_cat_a_days
             b_d = config.sale_cat_b_days
             c_d = config.sale_cat_c_days
             d_d = config.sale_cat_d_days
+
+            # Stock actual (snapshot al cierre del período)
             quants = self.env['stock.quant'].read_group(
                 [('location_id.usage', '=', 'internal'), ('product_id', '!=', False)],
                 ['product_id', 'quantity:sum'],
                 ['product_id'],
             )
-            stock_by_pid = {g['product_id'][0]: g['quantity'] for g in quants}
+            stock_now_by_pid = {g['product_id'][0]: (g['quantity'] or 0.0) for g in quants}
+
+            # Ingresos del período para reconstruir stock de inicio
+            in_groups = self.env['stock.move.line'].read_group([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_code', '=', 'incoming'),
+                ('date', '>=', start_dt),
+                ('date', '<=', end_dt),
+                ('product_id', '!=', False),
+            ], ['product_id', 'quantity:sum'], ['product_id'])
+            qty_in_pid = {g['product_id'][0]: (g['quantity'] or 0.0)
+                          for g in in_groups if g['product_id']}
+
             for tmpl in templates:
-                stock       = sum(stock_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
+                stock_now   = sum(stock_now_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
+                qty_in      = sum(qty_in_pid.get(v.id,        0.0) for v in tmpl.product_variant_ids)
+                qty_out     = sum(del_by_pid.get(v.id,         0.0) for v in tmpl.product_variant_ids)
+                # Deshace los movimientos del período para obtener stock al inicio
+                stock_start = max(0.0, stock_now - qty_in + qty_out)
+                avg_stock   = (stock_start + stock_now) / 2.0
+
                 avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / months
                 if avg_monthly <= 0:
                     cat = 'E'
                 else:
-                    rot = round(stock / avg_monthly * 30)
+                    rot = round(avg_stock / avg_monthly * 30)
                     if   rot <= a_d: cat = 'A'
                     elif rot <= b_d: cat = 'B'
                     elif rot <= c_d: cat = 'C'

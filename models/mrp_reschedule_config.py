@@ -256,8 +256,8 @@ class MrpRescheduleConfig(models.Model):
         ('share',     'Automática por participación acumulada (Pareto)'),
     ], string='Modo de asignación', default='manual',
        help='Manual: cada artículo se categoriza desde su ficha. '
-            'Rotación: calcula stock ÷ ventas y asigna A–E por días de cobertura. '
-            'Demanda: asigna A–E por unidades vendidas promedio por mes. '
+            'Rotación: calcula stock promedio ÷ entregas y asigna A–E por días de cobertura. '
+            'Demanda: asigna A–E por unidades demandadas (OVs confirmadas) promedio por mes. '
             'Participación: ordena por métrica y clasifica por % acumulado del total.')
 
     sale_cat_lookback_months = fields.Integer(
@@ -356,6 +356,14 @@ class MrpRescheduleConfig(models.Model):
         help='Variación de precio aceptable: |desviación| ≤ este % respecto al costo estándar se muestra en verde.')
     sup_price_var_yellow_pct = fields.Float( string='Var. precio — amarillo (|%| ≤)', default=10.0,
         help='Variación de precio tolerable: entre el umbral verde y este % se muestra en amarillo; por encima en rojo.')
+    supplier_price_var_method = fields.Selection([
+        ('standard',   'Costo estándar del producto'),
+        ('pricelist',  'Lista de precio del proveedor'),
+    ], string='Referencia para variación de precio', default='standard',
+       help='Precio de referencia para calcular la variación en el análisis de proveedores.\n'
+            'Costo estándar: compara precio OC vs. standard_price del producto.\n'
+            'Lista de precio del proveedor: compara precio OC vs. precio en product.supplierinfo. '
+            'Si el proveedor no tiene precio configurado para ese producto, queda sin variación.')
 
     # ── Auto-actualización categoría de venta ─────────────────────────────────
     sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False,

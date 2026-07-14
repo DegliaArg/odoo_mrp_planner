@@ -25,13 +25,13 @@
                 <!-- Métrica -->
                 <div class="btn-group btn-group-sm" role="group">
                     <button t-att-class="'btn ' + (state.metric === 'qty' ? 'btn-info' : 'btn-outline-secondary')"
-                            title="Graficar por unidades vendidas (cantidad)"
+                            title="Mostrar cantidad (Q): unidades demandadas o entregadas según la fuente seleccionada"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
-                            t-on-click="() => this.setMetric('qty')">Unid.</button>
+                            t-on-click="() => this.setMetric('qty')">Unidades</button>
                     <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-info' : 'btn-outline-secondary')"
-                            title="Graficar por importe total en pesos"
+                            title="Mostrar PxQ: precio × cantidad. Para demandadas usa el precio real de venta; para entregadas usa el precio de lista."
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
-                            t-on-click="() => this.setMetric('amount')">$</button>
+                            t-on-click="() => this.setMetric('amount')">PxQ</button>
                 </div>
 
                 <div class="vr" style="height:20px;"/>
@@ -56,15 +56,14 @@
 
                 <!-- Fuente -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <t t-foreach="[['sales','OVs'],['rfq','Cotiz.'],['all','Ambas'],['deliveries','Entrega']]"
-                       t-as="d" t-key="d[0]">
-                        <button t-att-class="'btn ' + (state.docType === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
-                                t-att-title="d[0] === 'sales' ? 'Órdenes de venta confirmadas' : d[0] === 'rfq' ? 'Cotizaciones pendientes de confirmar' : d[0] === 'all' ? 'Órdenes y cotizaciones combinadas' : 'Remitos y entregas físicas'"
-                                style="font-size:10px; padding:1px 5px; white-space:nowrap;"
-                                t-on-click="() => this.setDocType(d[0])">
-                            <t t-esc="d[1]"/>
-                        </button>
-                    </t>
+                    <button t-att-class="'btn ' + (state.docType === 'sales' ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Demandadas: unidades en órdenes de venta confirmadas del período. PxQ = precio real de venta × cantidad."
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            t-on-click="() => this.setDocType('sales')">Demandadas</button>
+                    <button t-att-class="'btn ' + (state.docType === 'delivery' ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Entregadas: unidades en movimientos de salida completados del período. PxQ = precio de lista × cantidad."
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            t-on-click="() => this.setDocType('delivery')">Entregadas</button>
                 </div>
 
                 <div class="vr" style="height:20px;"/>

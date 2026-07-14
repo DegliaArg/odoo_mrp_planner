@@ -29,7 +29,7 @@
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('qty')">Unidades</button>
                     <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-info' : 'btn-outline-secondary')"
-                            title="Mostrar PxQ: precio × cantidad. Para demandadas usa el precio real de venta; para entregadas usa el precio de lista."
+                            title="Mostrar PxQ: precio de lista × cantidad (importe estimado). La clasificación por participación (Pareto) usa la misma referencia."
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('amount')">PxQ</button>
                 </div>

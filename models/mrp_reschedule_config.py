@@ -236,12 +236,19 @@ class MrpRescheduleConfig(models.Model):
         ('wmape',  'WMAPE'),
         ('bias',   'Sesgo'),
     ], string='Fórmula de precisión forecast', default='simple',
-       help='Simple: entregado ÷ forecast × 100, puede superar 100%.\n'
-            'MAPE: promedio aritmético de precisiones por período (100 − |error/real|×100); sensible a períodos de bajo volumen.\n'
-            'WAPE: 100 − Σ|error|/Σentregado×100; pondera por volumen real, robusto con ceros en forecast.\n'
+       help='Simple: real ÷ forecast × 100, puede superar 100%.\n'
+            'MAPE: precisión media por período (100 − |error/real|×100); sensible a períodos de bajo volumen.\n'
+            'WAPE: 100 − Σ|error|/Σreal×100; pondera por volumen real, robusto ante ceros en la demanda real.\n'
             'WMAPE: 100 − Σ|error|/Σforecast×100; pondera por volumen planificado, estándar supply chain.\n'
-            'Sesgo: (entregado − forecast)/forecast×100; positivo = sobreentrega, negativo = déficit.'
+            'Sesgo: (real − forecast)/forecast×100; positivo = sobre-demanda, negativo = déficit.'
     )
+    forecast_precision_source = fields.Selection([
+        ('demand',   'Demanda confirmada (órdenes de venta)'),
+        ('delivery', 'Entregas completadas'),
+    ], string='Fuente del "real" para precisión', default='demand',
+       help='Dato usado como volumen real al calcular la precisión del forecast.\n'
+            'Demanda: unidades en órdenes de venta confirmadas (state sale/done).\n'
+            'Entregas: movimientos de salida completados del período.')
 
     # ── Categoría de venta ────────────────────────────────────────────────────
     enable_sale_categories = fields.Boolean(
@@ -264,6 +271,13 @@ class MrpRescheduleConfig(models.Model):
         string='Período de análisis (meses)', default=3,
         help='Cantidad de meses hacia atrás que se analizan las entregas para calcular '
              'la demanda, rotación o participación. Por defecto 3 meses.')
+    sale_cat_rotation_source = fields.Selection([
+        ('delivery', 'Entregas completadas'),
+        ('demand',   'Demanda confirmada (OVs)'),
+    ], string='Fuente — denominador de rotación', default='delivery',
+       help='Datos usados como denominador para calcular días de cobertura en el modo automático.\n'
+            'Entregas: movimientos de salida completados del período.\n'
+            'Demanda: unidades en órdenes de venta confirmadas del período.')
 
     # ── Umbrales por rotación (modo automatic) ────────────────────────────────
     sale_cat_a_days = fields.Integer(

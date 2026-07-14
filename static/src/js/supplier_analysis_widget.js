@@ -31,7 +31,7 @@ const SUP_COLS = [
     { key: 'avg_delay_days',   label: 'Retraso (d)',   width: 80,  sortKey: 'avg_delay_days',    align: 'center', title: 'Promedio de días de retraso en recepciones tardías.' },
     { key: 'complete_pct',     label: '% Completas',   width: 85,  sortKey: 'complete_pct',      align: 'center', title: '% recepciones completadas sin backorder.' },
     { key: 'avg_lead_time',    label: 'Lead time (d)', width: 80,  sortKey: 'avg_lead_time',     align: 'center', title: 'Lead time real promedio: días entre aprobación y recepción.' },
-    { key: 'avg_price_var_pct',label: 'Var. precio',   width: 80,  sortKey: 'avg_price_var_pct', align: 'center', title: 'Variación promedio de precio OC vs costo estándar.' },
+    { key: 'avg_price_var_pct',label: 'Var. precio',   width: 80,  sortKey: 'avg_price_var_pct', align: 'center', title: 'Variación promedio de precio OC vs el precio de referencia configurado (costo estándar o lista de proveedor).' },
     { key: 'pending_inv',      label: 'Fact. pend.',   width: 100, sortKey: 'pending_inv',       align: 'end', title: 'Facturas de proveedor pendientes de pago.' },
 ];
 
@@ -322,10 +322,11 @@ class SupplierAnalysisWidget extends Component {
         if (!wasOpen && !this.state.posBySupplier[pid]) {
             this.state.posLoading = { ...this.state.posLoading, [pid]: true };
             try {
+                const dateField = (this.state.data && this.state.data.config && this.state.data.config.date_field) || 'date_order';
                 const pos = await this.orm.call(
                     'mrp.planner.dashboard',
                     'get_supplier_pos_for_analysis',
-                    [pid, this.state.periodFrom, this.state.periodTo],
+                    [pid, this.state.periodFrom, this.state.periodTo, dateField],
                 );
                 this.state.posBySupplier = { ...this.state.posBySupplier, [pid]: pos };
             } catch(e) {

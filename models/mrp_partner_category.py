@@ -184,7 +184,10 @@ class MrpPartnerCategory(models.Model):
                 stock_start = max(0.0, stock_now - qty_in + qty_out)
                 avg_stock   = (stock_start + stock_now) / 2.0
 
-                avg_monthly = del_by_tmpl.get(tmpl.id, 0.0) / months
+                avg_monthly_base = demand_by_tmpl.get(tmpl.id, 0.0) \
+                    if config.sale_cat_rotation_source == 'demand' \
+                    else del_by_tmpl.get(tmpl.id, 0.0)
+                avg_monthly = avg_monthly_base / months
                 if avg_monthly <= 0:
                     cat = 'E'
                 else:
@@ -346,17 +349,39 @@ class MrpPartnerCategory(models.Model):
                 ('order_id.partner_id', 'in', suppliers.ids),
                 ('product_id', '!=', False),
             ])
-            prod_ids = list({ln.product_id.id for ln in po_lines})
+            prod_ids     = list({ln.product_id.id for ln in po_lines})
+            price_method = config.supplier_price_var_method or 'standard'
             std_map = {r['id']: r['standard_price']
                        for r in self.env['product.product'].search_read(
                            [('id', 'in', prod_ids)], ['id', 'standard_price']
                        )} if prod_ids else {}
+            si_tmpl_map   = {}
+            prod_tmpl_map = {}
+            if price_method == 'pricelist' and prod_ids:
+                prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                                 for r in self.env['product.product'].sudo().search_read(
+                                     [('id', 'in', prod_ids)], ['id', 'product_tmpl_id'])}
+                all_tmpl_ids = list(set(prod_tmpl_map.values()))
+                for si in self.env['product.supplierinfo'].sudo().search_read(
+                    [('partner_id', 'in', suppliers.ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
+                    ['partner_id', 'product_tmpl_id', 'price'],
+                ):
+                    if not si['partner_id'] or not si['product_tmpl_id']:
+                        continue
+                    key = (si['partner_id'][0], si['product_tmpl_id'][0])
+                    if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
+                        si_tmpl_map[key] = si['price']
             pvar_data = {}
             for ln in po_lines:
-                pid = ln.order_id.partner_id.id
-                std = std_map.get(ln.product_id.id, 0.0)
-                if std > 0 and ln.price_unit > 0:
-                    var = abs((ln.price_unit - std) / std * 100)
+                pid     = ln.order_id.partner_id.id
+                prod_id = ln.product_id.id
+                if price_method == 'pricelist':
+                    tmpl_id = prod_tmpl_map.get(prod_id)
+                    ref = si_tmpl_map.get((pid, tmpl_id), 0.0) if tmpl_id else 0.0
+                else:
+                    ref = std_map.get(prod_id, 0.0)
+                if ref > 0 and ln.price_unit > 0:
+                    var = abs((ln.price_unit - ref) / ref * 100)
                     if pid not in pvar_data:
                         pvar_data[pid] = {'sum': 0.0, 'count': 0}
                     pvar_data[pid]['sum'] += var

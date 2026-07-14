@@ -511,6 +511,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
             'sup_complete_yellow': cfg.sup_complete_yellow_pct if cfg else 80,
             'sup_price_var_green':  cfg.sup_price_var_green_pct  if cfg else 3.0,
             'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
+            'date_field': cfg.supplier_analysis_date_field if cfg else 'date_order',
         }
 
         return {
@@ -519,7 +520,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
         }
 
     @api.model
-    def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to):
+    def get_supplier_pos_for_analysis(self, partner_id, period_from, period_to, date_field='date_order'):
         """
         Devuelve las órdenes de compra de un proveedor para el acordeón del widget de análisis.
 
@@ -553,11 +554,12 @@ class MrpPlannerDashboardSales(models.TransientModel):
         dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
+        _date_field = date_field if date_field in ('date_order', 'date_approve', 'date_planned') else 'date_order'
         pos = self.env['purchase.order'].search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['purchase', 'done']),
-            ('date_order', '>=', dt_from),
-            ('date_order', '<=', dt_to),
+            (_date_field, '>=', dt_from),
+            (_date_field, '<=', dt_to),
             ('company_id', '=', self.env.company.id),
         ], order='date_order desc')
 

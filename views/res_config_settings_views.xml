@@ -164,7 +164,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_rfm'">
-                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 OCs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, &lt;3 = E.
+                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 OCs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, sin datos = E.
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_delivery_pct'">
@@ -245,7 +245,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'automatic'">
-                                                        <b>Por rotación de inventario:</b> calcula stock promedio del período ÷ ventas promedio mensual. El resultado en días se compara con los umbrales configurados (ej.: ≤30 d = A, ≤60 d = B…).
+                                                        <b>Por rotación de inventario:</b> calcula stock promedio del período ÷ promedio mensual de entregas o demanda (configurable). El resultado en días se compara con los umbrales (ej.: ≤30 d = A, ≤60 d = B…).
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'demand'">
@@ -253,7 +253,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="sale_cat_mode != 'share'">
-                                                        <b>Por participación acumulada (Pareto):</b> ordena todos los artículos por la métrica elegida y asigna categoría por % acumulado del total. Los que generan el primer X% = A, siguiente tramo = B, etc.
+                                                        <b>Por participación acumulada (Pareto):</b> ordena todos los artículos por la métrica elegida y asigna categoría por % acumulado del total. Los que generan el primer X% = A, siguiente tramo = B, etc. Fuente: entregas completadas del período. Para PxQ usa precio de lista del artículo.
                                                     </div>
                                                 </div>
                                                 <div class="col-5">
@@ -263,6 +263,10 @@
                                                             <field name="sale_cat_lookback_months" nolabel="1"/>
                                                             <span class="text-muted small">meses</span>
                                                         </div>
+                                                    </div>
+                                                    <div invisible="sale_cat_mode != 'automatic'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Fuente del denominador</span>
+                                                        <field name="sale_cat_rotation_source" widget="radio" nolabel="1"/>
                                                     </div>
                                                     <div invisible="sale_cat_mode != 'automatic'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Umbrales — Rotación (días)</span>
@@ -351,7 +355,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="customer_cat_method != 'abc_rfm'">
-                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 SOs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, &lt;3 = E.
+                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 SOs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, sin datos = E.
                                                     </div>
                                                 </div>
                                                 <div class="col-5">
@@ -539,26 +543,28 @@
                                     </group>
 
                                     <group string="Forecast — Precisión">
+                                        <field name="forecast_precision_source" widget="radio" nolabel="1"
+                                               help="Dato usado como 'real' al calcular la precisión. Demanda: OVs confirmadas. Entregas: movimientos de salida completados."/>
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'simple'">
-                                            <b>Simple:</b> entregado ÷ forecast × 100. Fácil de interpretar pero puede superar 100% si se sobre-entrega.
+                                            <b>Simple:</b> real ÷ forecast × 100. Fácil de interpretar pero puede superar 100%.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'mape'">
-                                            <b>MAPE — Error porcentual absoluto medio:</b> promedia los errores porcentuales por período. Muy sensible a períodos con volumen real bajo o cero.
+                                            <b>MAPE — Precisión media por período:</b> promedia la precisión de cada mes (100 − |error/real| × 100). Sensible a meses con volumen real bajo o cero.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'wape'">
-                                            <b>WAPE — Error porcentual absoluto ponderado:</b> pondera por volumen real; robusto cuando hay ceros en el forecast. Recomendado para demanda intermitente.
+                                            <b>WAPE — Precisión ponderada por volumen real:</b> 100 − Σ|error|/Σreal × 100. Robusto cuando hay ceros en la demanda real. Recomendado para demanda intermitente.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'wmape'">
-                                            <b>WMAPE — Error ponderado por forecast:</b> pondera por el volumen planificado. Estándar en supply chain cuando los planes son el punto de referencia.
+                                            <b>WMAPE — Precisión ponderada por forecast:</b> 100 − Σ|error|/Σforecast × 100. Pondera por el volumen planificado. Estándar supply chain cuando el forecast es el punto de referencia.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'bias'">
-                                            <b>Sesgo (Bias):</b> (entregado − forecast) / forecast × 100. Positivo = sobreentrega. Negativo = déficit. Mide dirección sistemática, no magnitud del error.
+                                            <b>Sesgo (Bias):</b> (real − forecast) / forecast × 100. Positivo = sobre-demanda. Negativo = déficit. Mide dirección sistemática, no magnitud del error.
                                         </div>
                                     </group>
 

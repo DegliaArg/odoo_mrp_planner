@@ -130,7 +130,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         critical_pct   = cfg.forecast_critical_pct   if cfg else 50   # 50 %: umbral crítico por defecto (cobertura insuficiente)
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
         rotation_method = (cfg.forecast_rotation_method if cfg else None) or 'units'
-        acc_formula     = (cfg.forecast_acc_formula     if cfg else None) or 'simple'
+        acc_formula      = (cfg.forecast_acc_formula      if cfg else None) or 'simple'
+        precision_source = (cfg.forecast_precision_source if cfg else None) or 'demand'
         coverage_unit            = (cfg.forecast_coverage_unit            if cfg else None) or 'days'
         coverage_demand_source   = (cfg.forecast_coverage_demand_source   if cfg else None) or 'forecast'
         coverage_alerts_enabled  = bool(cfg.forecast_coverage_alerts_enabled) if cfg else False
@@ -464,23 +465,23 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 pct      = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
                 svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
 
-                abs_err = abs(so_qty - fc_qty)
-                # Precisión calculada vs demanda real (so_qty), no entregado
-                if so_qty > 0:
-                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / so_qty * 100)
+                actual  = del_qty if precision_source == 'delivery' else so_qty
+                abs_err = abs(actual - fc_qty)
+                if actual > 0:
+                    _mape_acc_sum   += max(0.0, 100.0 - abs_err / actual * 100)
                     _mape_acc_count += 1
                     _wape_abs_err   += abs_err
                 if fc_qty > 0:
                     _wmape_abs_err  += abs_err
                 # Valor de celda solo para la fórmula configurada
                 if acc_formula in ('mape', 'wape'):
-                    fc_acc = round(max(0.0, 100.0 - abs_err / so_qty * 100), 1) if so_qty > 0 else None
+                    fc_acc = round(max(0.0, 100.0 - abs_err / actual * 100), 1) if actual > 0 else None
                 elif acc_formula == 'wmape':
                     fc_acc = round(max(0.0, 100.0 - abs_err / fc_qty * 100), 1) if fc_qty > 0 else None
                 elif acc_formula == 'bias':
-                    fc_acc = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
+                    fc_acc = round((actual - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
                 else:  # simple
-                    fc_acc = round(so_qty / fc_qty * 100, 1) if fc_qty > 0 else None
+                    fc_acc = round(actual / fc_qty * 100, 1) if fc_qty > 0 else None
 
                 demand_gap_pct = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
 
@@ -655,12 +656,13 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         _all_wape_err   = sum(r['_wape_abs_err']   for r in rows)
         _all_wmape_err  = sum(r['_wmape_abs_err']  for r in rows)
         _total_fc_wmape = sum(r['total_forecast']  for r in rows if r['total_forecast'] > 0)
+        total_actual = total_del if precision_source == 'delivery' else total_so
         acc_all = {
-            'simple': round(total_so / total_fc * 100, 1) if total_fc > 0 else None,
+            'simple': round(total_actual / total_fc * 100, 1) if total_fc > 0 else None,
             'mape':   round(_all_mape_sum / _all_mape_count, 1) if _all_mape_count > 0 else None,
-            'wape':   round(max(0.0, 100.0 - _all_wape_err / total_so * 100), 1) if total_so > 0 else None,
+            'wape':   round(max(0.0, 100.0 - _all_wape_err / total_actual * 100), 1) if total_actual > 0 else None,
             'wmape':  round(max(0.0, 100.0 - _all_wmape_err / _total_fc_wmape * 100), 1) if _total_fc_wmape > 0 else None,
-            'bias':   round((total_so - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
+            'bias':   round((total_actual - total_fc) / total_fc * 100, 1) if total_fc > 0 else None,
         }
         ovr_acc = acc_all[acc_formula]
 

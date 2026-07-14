@@ -172,7 +172,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_price_var'">
-                                                        <b>Pareto invertido por variación de precio:</b> promedio de |precio OC − costo estándar| / costo estándar × 100 por proveedor. Menor variación = mejor categoría (A).
+                                                        <b>Pareto invertido por variación de precio:</b> promedio de |precio OC − precio de referencia| / referencia × 100 por proveedor. El precio de referencia usa la misma lógica que el análisis de proveedores (costo estándar o lista de proveedor, según la configuración de "Referencia para variación de precio"). Menor variación = mejor categoría (A).
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_quality_qty'">

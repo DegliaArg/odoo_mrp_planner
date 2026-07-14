@@ -548,8 +548,10 @@ class SupplierAnalysisWidget extends Component {
                 return `% de recepciones completadas antes o en la fecha planificada, promediado entre proveedores\nRecepciones a tiempo ÷ Total recepciones × 100\n→ ${k.avg_on_time_pct !== null ? k.avg_on_time_pct + '%' : '—'} promedio general\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
             case 'lead_time':
                 return `Días promedio entre aprobación de OC y validación de recepción, promediado entre proveedores\n→ ${k.avg_lead_time_days !== null ? k.avg_lead_time_days + ' días' : '—'} promedio general`;
-            case 'price_var':
-                return `Variación porcentual promedio entre precio de OC y costo estándar del artículo\n(Precio OC − Costo estándar) ÷ Costo estándar × 100\n→ ${k.avg_price_var_pct !== null ? this.fmtPct(k.avg_price_var_pct) : '—'} promedio general\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+            case 'price_var': {
+                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor' : 'costo estándar';
+                return `Variación porcentual promedio entre precio de OC y ${ref}\n(Precio OC − Referencia) ÷ Referencia × 100\n→ ${k.avg_price_var_pct !== null ? this.fmtPct(k.avg_price_var_pct) : '—'} promedio general\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+            }
         }
         return '';
     }
@@ -563,9 +565,11 @@ class SupplierAnalysisWidget extends Component {
             case 'complete_pct':
                 if (!row.pick_count) return 'Sin recepciones en el período';
                 return `Recepciones recibidas completamente sin backorder respecto al total\nRecepciones completas ÷ Total recepciones × 100\n→ ${row.complete_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_complete_green ?? 95}% | Amarillo ≥ ${cfg.sup_complete_yellow ?? 80}% | Rojo < ${cfg.sup_complete_yellow ?? 80}%`;
-            case 'avg_price_var_pct':
+            case 'avg_price_var_pct': {
                 if (row.avg_price_var_pct === null || row.avg_price_var_pct === undefined) return 'Sin datos de precio';
-                return `Diferencia promedio entre precio de OC y costo estándar del artículo\n(Precio OC − Costo estándar) ÷ Costo estándar × 100\n→ ${row.avg_price_var_pct > 0 ? '+' : ''}${row.avg_price_var_pct}%\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor' : 'costo estándar';
+                return `Diferencia promedio entre precio de OC y ${ref}\n(Precio OC − Referencia) ÷ Referencia × 100\n→ ${row.avg_price_var_pct > 0 ? '+' : ''}${row.avg_price_var_pct}%\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
+            }
         }
         return '';
     }

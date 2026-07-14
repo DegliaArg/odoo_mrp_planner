@@ -556,7 +556,7 @@
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'wape'">
-                                            <b>WAPE — Precisión ponderada por volumen real:</b> 100 − Σ|error|/Σreal × 100. Robusto cuando hay ceros en la demanda real. Recomendado para demanda intermitente.
+                                            <b>WAPE — Precisión ponderada por volumen real:</b> 100 − Σ|error|/Σreal × 100. Los períodos con demanda real = 0 se excluyen del cálculo (no suman error). Robusto para demanda intermitente.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="forecast_acc_formula != 'wmape'">

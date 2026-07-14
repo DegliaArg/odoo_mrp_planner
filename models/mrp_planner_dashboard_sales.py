@@ -511,7 +511,8 @@ class MrpPlannerDashboardSales(models.TransientModel):
             'sup_complete_yellow': cfg.sup_complete_yellow_pct if cfg else 80,
             'sup_price_var_green':  cfg.sup_price_var_green_pct  if cfg else 3.0,
             'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
-            'date_field': cfg.supplier_analysis_date_field if cfg else 'date_order',
+            'date_field':       cfg.supplier_analysis_date_field  if cfg else 'date_order',
+            'price_var_method': cfg.supplier_price_var_method      if cfg else 'standard',
         }
 
         return {

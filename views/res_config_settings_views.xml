@@ -43,24 +43,14 @@
                                     </group>
                                 </div>
                                 <div class="col-6">
-                                    <group string="Depósitos por usuario">
+                                    <group string="Preferencias por usuario">
                                         <div class="text-muted small mb-3">
-                                            Configurá qué depósitos puede ver cada usuario en el Planificador MRP.
-                                            Por defecto todos los usuarios ven todos los depósitos.
+                                            Configurá qué depósitos puede ver cada usuario y qué secciones
+                                            se muestran en cada panel del Planificador MRP.
                                         </div>
                                         <button name="action_open_user_warehouses"
                                                 type="object"
-                                                string="Gestionar depósitos por usuario →"
-                                                class="btn btn-primary"/>
-                                    </group>
-                                    <group string="Secciones por usuario">
-                                        <div class="text-muted small mb-3">
-                                            Configurá qué secciones ve cada usuario en cada panel del Planificador MRP.
-                                            Por defecto todas las secciones están visibles.
-                                        </div>
-                                        <button name="action_open_user_sections"
-                                                type="object"
-                                                string="Gestionar secciones por usuario →"
+                                                string="Gestionar preferencias por usuario →"
                                                 class="btn btn-primary"/>
                                     </group>
                                 </div>

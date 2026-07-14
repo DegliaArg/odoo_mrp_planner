@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Lista editable de usuarios para gestión de depósitos desde el config del módulo -->
+    <!-- Lista unificada: depósitos y secciones visibles por usuario -->
     <record id="view_users_mrp_warehouse_list" model="ir.ui.view">
         <field name="name">res.users.mrp.warehouse.list</field>
         <field name="model">res.users</field>
         <field name="arch" type="xml">
-            <list string="Depósitos por usuario" editable="top">
-                <field name="name"   string="Usuario" readonly="1"/>
-                <field name="login"  string="Login"   readonly="1"/>
+            <list string="Preferencias por usuario" editable="top">
+                <field name="name"  string="Usuario" readonly="1"/>
+                <field name="login" string="Login"   readonly="1"/>
+                <!-- Depósitos -->
                 <field name="mrp_planner_all_warehouses"
                        widget="boolean_toggle"
                        string="Todos los depósitos"/>
@@ -17,33 +18,20 @@
                        string="Depósitos permitidos"
                        invisible="mrp_planner_all_warehouses"
                        options="{'no_create': True}"/>
-            </list>
-        </field>
-    </record>
-
-
-    <!-- Lista editable de usuarios para gestión de secciones visibles -->
-    <record id="view_users_mrp_sections_list" model="ir.ui.view">
-        <field name="name">res.users.mrp.sections.list</field>
-        <field name="model">res.users</field>
-        <field name="arch" type="xml">
-            <list string="Secciones por usuario" editable="top">
-                <field name="name"  string="Usuario" readonly="1"/>
-                <field name="login" string="Login"   readonly="1"/>
                 <!-- Producción -->
-                <field name="mrp_planner_show_prod_alerts"       widget="boolean_toggle" string="Alertas prod."/>
-                <field name="mrp_planner_show_prod_mos"          widget="boolean_toggle" string="OFs"/>
-                <field name="mrp_planner_show_prod_wc"           widget="boolean_toggle" string="Carga WC"/>
-                <field name="mrp_planner_show_stock_breaks"      widget="boolean_toggle" string="Quiebres"/>
+                <field name="mrp_planner_show_prod_alerts"       widget="boolean_toggle" string="Alertas prod."  optional="show"/>
+                <field name="mrp_planner_show_prod_mos"          widget="boolean_toggle" string="OFs"            optional="show"/>
+                <field name="mrp_planner_show_prod_wc"           widget="boolean_toggle" string="Carga WC"       optional="show"/>
+                <field name="mrp_planner_show_stock_breaks"      widget="boolean_toggle" string="Quiebres"       optional="show"/>
                 <!-- Compras -->
-                <field name="mrp_planner_show_po_alerts"         widget="boolean_toggle" string="Alertas comp."/>
-                <field name="mrp_planner_show_po_widget"         widget="boolean_toggle" string="OCs"/>
-                <field name="mrp_planner_show_supplier_analysis" widget="boolean_toggle" string="Prov."/>
+                <field name="mrp_planner_show_po_alerts"         widget="boolean_toggle" string="Alertas comp."  optional="show"/>
+                <field name="mrp_planner_show_po_widget"         widget="boolean_toggle" string="OCs"            optional="show"/>
+                <field name="mrp_planner_show_supplier_analysis" widget="boolean_toggle" string="Proveedores"    optional="show"/>
                 <!-- Ventas -->
-                <field name="mrp_planner_show_sales_chart"       widget="boolean_toggle" string="Gráfico vtas."/>
-                <field name="mrp_planner_show_forecast"          widget="boolean_toggle" string="Forecast"/>
+                <field name="mrp_planner_show_sales_chart"       widget="boolean_toggle" string="Gráfico vtas."  optional="show"/>
+                <field name="mrp_planner_show_forecast"          widget="boolean_toggle" string="Forecast"       optional="show"/>
                 <!-- Clientes -->
-                <field name="mrp_planner_show_customer_analysis" widget="boolean_toggle" string="Clientes"/>
+                <field name="mrp_planner_show_customer_analysis" widget="boolean_toggle" string="Clientes"       optional="show"/>
             </list>
         </field>
     </record>

@@ -573,7 +573,7 @@ class MrpRescheduleConfig(models.Model):
 
     def action_open_user_warehouses(self):
         """
-        Abre la lista de usuarios internos con su asignación de depósitos MRP.
+        Abre la lista unificada de usuarios con depósitos y secciones visibles del Planificador MRP.
 
         :returns: dict — acción de ventana (ir.actions.act_window) que muestra
                   res.users con la vista personalizada view_users_mrp_warehouse_list,
@@ -581,28 +581,10 @@ class MrpRescheduleConfig(models.Model):
         """
         return {
             'type':      'ir.actions.act_window',
-            'name':      'Depósitos por usuario',
+            'name':      'Preferencias por usuario',
             'res_model': 'res.users',
             'view_mode': 'list',
             'view_id':   self.env.ref('odoo_mrp_planner.view_users_mrp_warehouse_list').id,
-            'domain':    [('share', '=', False), ('active', '=', True)],
-            'target':    'current',
-        }
-
-    def action_open_user_sections(self):
-        """
-        Abre la lista de usuarios internos con su configuración de secciones visibles por panel.
-
-        :returns: dict — acción de ventana (ir.actions.act_window) que muestra
-                  res.users con la vista personalizada view_users_mrp_sections_list,
-                  filtrando solo usuarios activos no compartidos (internos).
-        """
-        return {
-            'type':      'ir.actions.act_window',
-            'name':      'Secciones por usuario',
-            'res_model': 'res.users',
-            'view_mode': 'list',
-            'view_id':   self.env.ref('odoo_mrp_planner.view_users_mrp_sections_list').id,
             'domain':    [('share', '=', False), ('active', '=', True)],
             'target':    'current',
         }

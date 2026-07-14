@@ -78,6 +78,12 @@ Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por wid
 | `mrp_planner_dashboard_customer.py` | Análisis de clientes |
 | `mrp_planner_detail_dashboard.py` | Dashboard detalle por OF/producto (drill-down) |
 
+### Clasificación ABC (extensión de mrp.reschedule.config)
+
+| Modelo | Archivo | Responsabilidad | Se relaciona con |
+|--------|---------|-----------------|-----------------|
+| `mrp.reschedule.config` _(extend)_ | `mrp_partner_category.py` | Clasificación A–E automática de `product.template` (venta) y `res.partner` (proveedores y clientes) por múltiples métodos: volumen, frecuencia, RFM, % entrega a tiempo, varianza de precio, calidad de cantidad, rotación de inventario. Expone métodos de cron y acciones manuales. Usa helpers de `mrp_abc_helpers.py`. | `product.template`, `res.partner`, `stock.move.line`, `purchase.order`, `sale.order` |
+
 ### Modelos extendidos (inherit)
 
 | Modelo base | Archivo | Qué agrega |

@@ -357,3 +357,42 @@ Archivos documentados (38 de 41 — 3 fallaron por rate limit y se retomaron man
 **Baja prioridad**
 
 **F07 — `mrp.reschedule.user.permission`:** Modelo de permisos por usuario sin enforcement automático (mismo patrón que I-13). Revisar si tiene record rules o si la lógica de filtrado está dispersa en los métodos RPC.
+
+---
+
+## Revisión de cierre v46 — auditoría final + split de archivos
+
+**Fecha:** 2026-07-07
+**Alcance:** Resolución de ítems pendientes de la auditoría anterior, split de archivos monolíticos, extracción de helpers JS, creación de ARQUITECTURA.md.
+
+---
+
+### Issues resueltos en esta ronda
+
+| # | Área | Descripción | Commit |
+|---|------|-------------|--------|
+| R-01 | Python | Constraint SQL singleton en `mrp.reschedule.config`: `UNIQUE(singleton_check)` + campo `singleton_check = fields.Boolean(default=True)` — protege contra concurrencia en `create()` | `51762ad` |
+| R-02 | Python | Comentarios de justificación en todos los `sudo()` de los TransientModels de dashboard (lectura cross-empresa de stock/ventas/compras sin acceso directo del usuario) | `51762ad` |
+| R-03 | JS | Fix UTC en `_periodDateRange()` de `forecast_widget.js`: construía strings de datetime en hora local; el ORM Odoo los interpreta como UTC, causando corrimiento de mes para usuarios UTC-3. Corregido con conversión explícita a UTC | `51762ad` |
+| R-04 | Python | Constante `DEFAULT_PO_CRITICAL_DAYS = 5` extraída a `models/const.py`; reemplaza magic number en 5 archivos | `51762ad` |
+| R-05 | Python | `_parse_date` deduplicada: era función anidada repetida en dos métodos de `mrp_planner_dashboard_sales.py`; extraída a nivel de módulo | `51762ad` |
+| R-06 | Python | Eliminados 6 métodos muertos: `get_wc_load_data`, `_period_from_str`, `action_view_warning`, `action_view_in_progress_mos`, `action_view_reschedule_needed`, `action_view_done_mos` — confirmado con grep que no tenían callers | `51762ad` |
+| R-07 | XML | `purchase_order_views.xml` eliminado del manifest (archivo vacío) | `51762ad` |
+| R-08 | XML | Columnas `purchase_id` y `picking_id` en lista de alertas pasadas a `optional="hide"` (estaban en `optional="show"`; para la mayoría de alertas siempre están vacías) | `51762ad` |
+| R-09 | Estructura | `mrp_reschedule_plan.py` (1246 líneas, 3 clases) dividido en 4 archivos: `mrp_reschedule_cascade_mixin.py` (590 líneas), `mrp_reschedule_plan.py` reducido (409 líneas), `mrp_reschedule_plan_line.py` (210 líneas), `mrp_reschedule_plan_wc_line.py` (92 líneas) | `87f983e` |
+| R-10 | Estructura | `mrp_production_request.py` (1147 líneas, 4 clases) dividido en 3 archivos: `mrp_demand_expansion_mixin.py` (343 líneas), `mrp_demand_scheduling_mixin.py` (358 líneas), `mrp_production_request.py` reducido (509 líneas) | `813abd5` |
+| R-11 | JS | `forecast_widget.js` (1388 líneas): funciones de formato puras extraídas a `forecast_formatters.js`; funciones de gráficos a `customer_analysis_charts.js` | `84107cc`, `8213802` |
+| R-12 | Docs | `ARQUITECTURA.md` creado: mapa de carpetas, tablas de modelos por área, 3 flujos principales con rutas de archivos, diagrama ASCII de dependencias | `5f13b5e` |
+
+---
+
+### Decisiones pendientes (aún abiertas)
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-01 | Seguridad | **Enforcement de depósitos por usuario sin `ir.rule`** (`res.users.mrp_planner_warehouse_ids`): los campos existen pero no hay record rule ni override `_search`. Cada método RPC del dashboard filtra manualmente; cualquier omisión expone datos de otros depósitos. Decidir: (a) agregar record rules por modelo, o (b) documentar que el filtrado es responsabilidad del desarrollador en cada RPC. |
+| D-02 | Performance | **N+1 en `get_sales_chart_data`** (`mrp_planner_dashboard_sales.py`): `browse(g['product_id'][0])` individual dentro del loop de `read_group` — un `browse` por fila de resultado. Pre-cargar con `browse(list_of_ids)` antes del loop. |
+| D-03 | Performance | **N+1 en `_build_lines` (BFS de cascada)** (`mrp_reschedule_cascade_mixin.py`): `_get_pos_for_mo(mo)` y `_get_child_mos(mo)` emiten búsquedas individuales por OF dentro del BFS. Con cascadas de N órdenes genera hasta 4N queries. Pre-cargar en batch antes del bucle. |
+| D-04 | UX | **Banner crítico en formulario de alerta** (`mrp_reschedule_alert_views.xml`): el form muestra colores de fila en lista pero no tiene banner `alert-danger` cuando `severity='critical'` y `resolved=False`. Hay `decoration-danger` en listas pero no panel de advertencia en el form. |
+| D-05 | XML | **`feasibility_summary` declarado dos veces** en el mismo form de solicitud de programación (`mrp_production_request_views.xml`, líneas 111 y 116). Patrón `invisible` mutuamente exclusivo; puede generar binding conflicts en OWL. Refactorizar a un único `<field>` con clase dinámica. |
+| D-06 | XML | **`result_message` declarado dos veces** en el wizard de importación de forecast (líneas 33–39): dos `<div>` con `invisible` excluyentes (uno para éxito, otro para error). Mismo patrón que D-05. |

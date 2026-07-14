@@ -21,4 +21,31 @@
         </field>
     </record>
 
+
+    <!-- Lista editable de usuarios para gestión de secciones visibles -->
+    <record id="view_users_mrp_sections_list" model="ir.ui.view">
+        <field name="name">res.users.mrp.sections.list</field>
+        <field name="model">res.users</field>
+        <field name="arch" type="xml">
+            <list string="Secciones por usuario" editable="top">
+                <field name="name"  string="Usuario" readonly="1"/>
+                <field name="login" string="Login"   readonly="1"/>
+                <!-- Producción -->
+                <field name="mrp_planner_show_prod_alerts"       widget="boolean_toggle" string="Alertas prod."/>
+                <field name="mrp_planner_show_prod_mos"          widget="boolean_toggle" string="OFs"/>
+                <field name="mrp_planner_show_prod_wc"           widget="boolean_toggle" string="Carga WC"/>
+                <field name="mrp_planner_show_stock_breaks"      widget="boolean_toggle" string="Quiebres"/>
+                <!-- Compras -->
+                <field name="mrp_planner_show_po_alerts"         widget="boolean_toggle" string="Alertas comp."/>
+                <field name="mrp_planner_show_po_widget"         widget="boolean_toggle" string="OCs"/>
+                <field name="mrp_planner_show_supplier_analysis" widget="boolean_toggle" string="Prov."/>
+                <!-- Ventas -->
+                <field name="mrp_planner_show_sales_chart"       widget="boolean_toggle" string="Gráfico vtas."/>
+                <field name="mrp_planner_show_forecast"          widget="boolean_toggle" string="Forecast"/>
+                <!-- Clientes -->
+                <field name="mrp_planner_show_customer_analysis" widget="boolean_toggle" string="Clientes"/>
+            </list>
+        </field>
+    </record>
+
 </odoo>

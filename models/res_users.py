@@ -65,3 +65,46 @@ class ResUsers(models.Model):
         help='Depósitos que el usuario puede ver en el Planificador MRP '
              'cuando "Todos los depósitos" está desactivado.',
     )
+
+    # ── Visibilidad de secciones por panel ───────────────────────────────────
+
+    mrp_planner_show_prod_alerts = fields.Boolean(
+        string='Alertas producción', default=True,
+        help='Muestra la sección de alertas de OFs en el panel de producción.',
+    )
+    mrp_planner_show_prod_mos = fields.Boolean(
+        string='OFs', default=True,
+        help='Muestra el widget de órdenes de fabricación en el panel de producción.',
+    )
+    mrp_planner_show_prod_wc = fields.Boolean(
+        string='Carga WC', default=True,
+        help='Muestra el widget de carga de centros de trabajo en el panel de producción.',
+    )
+    mrp_planner_show_stock_breaks = fields.Boolean(
+        string='Quiebres de stock', default=True,
+        help='Muestra el widget de quiebres de stock en el panel de producción.',
+    )
+    mrp_planner_show_po_alerts = fields.Boolean(
+        string='Alertas compras', default=True,
+        help='Muestra la sección de alertas de OCs/recepciones en el panel de compras.',
+    )
+    mrp_planner_show_po_widget = fields.Boolean(
+        string='OCs', default=True,
+        help='Muestra el widget de órdenes de compra en el panel de compras.',
+    )
+    mrp_planner_show_supplier_analysis = fields.Boolean(
+        string='Análisis proveedores', default=True,
+        help='Muestra el widget de análisis de proveedores en el panel de compras.',
+    )
+    mrp_planner_show_sales_chart = fields.Boolean(
+        string='Gráfico ventas', default=True,
+        help='Muestra el widget de productos más vendidos en el panel de ventas.',
+    )
+    mrp_planner_show_forecast = fields.Boolean(
+        string='Forecast', default=True,
+        help='Muestra el widget de forecast en el panel de ventas.',
+    )
+    mrp_planner_show_customer_analysis = fields.Boolean(
+        string='Análisis clientes', default=True,
+        help='Muestra el widget de análisis de clientes.',
+    )

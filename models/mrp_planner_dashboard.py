@@ -61,6 +61,19 @@ class MrpPlannerDashboard(models.TransientModel):
     can_reschedule       = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ejecutar reprogramaciones en cascada.')
     can_edit_forecast    = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede editar datos de forecast de ventas.')
 
+    # ── Visibilidad de secciones (preferencias por usuario) ──────────────────
+
+    show_prod_alerts_sec        = fields.Boolean(compute='_compute_section_visibility')
+    show_prod_mos_sec           = fields.Boolean(compute='_compute_section_visibility')
+    show_prod_wc_sec            = fields.Boolean(compute='_compute_section_visibility')
+    show_stock_breaks_sec       = fields.Boolean(compute='_compute_section_visibility')
+    show_po_alerts_sec          = fields.Boolean(compute='_compute_section_visibility')
+    show_po_widget_sec          = fields.Boolean(compute='_compute_section_visibility')
+    show_supplier_analysis_sec  = fields.Boolean(compute='_compute_section_visibility')
+    show_sales_chart_sec        = fields.Boolean(compute='_compute_section_visibility')
+    show_forecast_sec           = fields.Boolean(compute='_compute_section_visibility')
+    show_customer_analysis_sec  = fields.Boolean(compute='_compute_section_visibility')
+
     # ── Alertas — lista inline ───────────────────────────────────────────────
 
     urgent_alert_ids = fields.Many2many(
@@ -215,6 +228,22 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.can_reschedule       = scheduling_on and (is_admin or has_scheduling)
             rec.can_edit_forecast    = is_admin or has_sales
 
+    @api.depends()
+    def _compute_section_visibility(self):
+        """Lee las preferencias de secciones del usuario actual y las expone como campos del panel."""
+        u = self.env.user
+        for rec in self:
+            rec.show_prod_alerts_sec       = u.mrp_planner_show_prod_alerts
+            rec.show_prod_mos_sec          = u.mrp_planner_show_prod_mos
+            rec.show_prod_wc_sec           = u.mrp_planner_show_prod_wc
+            rec.show_stock_breaks_sec      = u.mrp_planner_show_stock_breaks
+            rec.show_po_alerts_sec         = u.mrp_planner_show_po_alerts
+            rec.show_po_widget_sec         = u.mrp_planner_show_po_widget
+            rec.show_supplier_analysis_sec = u.mrp_planner_show_supplier_analysis
+            rec.show_sales_chart_sec       = u.mrp_planner_show_sales_chart
+            rec.show_forecast_sec          = u.mrp_planner_show_forecast
+            rec.show_customer_analysis_sec = u.mrp_planner_show_customer_analysis
+
     # ── Permisos por depósito ────────────────────────────────────────────────
 
     def _get_allowed_wh_ids(self):
@@ -246,12 +275,16 @@ class MrpPlannerDashboard(models.TransientModel):
             return []
         if not allowed_ids:
             return [('id', '=', False)]
-        # Incluir alertas del depósito: via production_id, via picking_id (sin production), o sin ninguno
+        # Incluir alertas del depósito: via production_id (OF), purchase_id (OC),
+        # picking_id sin OC/OF (recepción suelta), o sin ninguno de los tres.
         return [
             '|', ('production_id.picking_type_id.warehouse_id', 'in', allowed_ids),
             '|', '&', ('production_id', '=', False),
+                 ('purchase_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '|', '&', '&', ('production_id', '=', False), ('purchase_id', '=', False),
                  ('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids),
-            '&', ('production_id', '=', False), ('picking_id', '=', False),
+            '&', '&', ('production_id', '=', False), ('purchase_id', '=', False),
+                 ('picking_id', '=', False),
         ]
 
     @api.depends()

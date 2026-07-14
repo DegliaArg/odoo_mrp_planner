@@ -43,14 +43,18 @@
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
                             </div>
-                            <!-- Campos de permisos (ocultos) -->
+                            <!-- Campos de permisos y preferencias de sección (ocultos) -->
                             <field name="can_see_alerts"       invisible="1"/>
                             <field name="can_see_mo"           invisible="1"/>
                             <field name="can_see_stock_breaks" invisible="1"/>
+                            <field name="show_prod_alerts_sec"  invisible="1"/>
+                            <field name="show_prod_mos_sec"     invisible="1"/>
+                            <field name="show_prod_wc_sec"      invisible="1"/>
+                            <field name="show_stock_breaks_sec" invisible="1"/>
                         </div>
 
                         <!-- ALERTAS — solo OFs -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_alerts">
+                        <div class="o_planner_section mb-4" invisible="not can_see_alerts or not show_prod_alerts_sec">
                             <div class="o_planner_section_title mb-3 gap-2">
                                 <i class="fa fa-bell me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Alertas de producción</span>
@@ -59,7 +63,7 @@
                         </div>
 
                         <!-- ÓRDENES DE FABRICACIÓN -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_mo">
+                        <div class="o_planner_section mb-4" invisible="not can_see_mo or not show_prod_mos_sec">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-industry me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de fabricación</span>
@@ -68,7 +72,7 @@
                         </div>
 
                         <!-- CARGA DE CENTROS DE TRABAJO -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_mo">
+                        <div class="o_planner_section mb-4" invisible="not can_see_mo or not show_prod_wc_sec">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-tachometer me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Carga de centros de trabajo</span>
@@ -77,7 +81,7 @@
                         </div>
 
                         <!-- QUIEBRES DE STOCK -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_stock_breaks">
+                        <div class="o_planner_section mb-4" invisible="not can_see_stock_breaks or not show_stock_breaks_sec">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-exclamation-triangle me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Quiebres de stock</span>
@@ -113,14 +117,17 @@
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
                             </div>
-                            <!-- Campos de permisos (ocultos) -->
-                            <field name="can_see_alerts"    invisible="1"/>
-                            <field name="can_see_po"        invisible="1"/>
-                            <field name="alert_po_upcoming" invisible="1"/>
+                            <!-- Campos de permisos y preferencias de sección (ocultos) -->
+                            <field name="can_see_alerts"           invisible="1"/>
+                            <field name="can_see_po"               invisible="1"/>
+                            <field name="alert_po_upcoming"        invisible="1"/>
+                            <field name="show_po_alerts_sec"       invisible="1"/>
+                            <field name="show_po_widget_sec"       invisible="1"/>
+                            <field name="show_supplier_analysis_sec" invisible="1"/>
                         </div>
 
                         <!-- ALERTAS — solo OCs y recepciones -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_alerts">
+                        <div class="o_planner_section mb-4" invisible="not can_see_alerts or not show_po_alerts_sec">
                             <div class="o_planner_section_title mb-3 gap-2">
                                 <i class="fa fa-bell me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Alertas de compras</span>
@@ -190,7 +197,7 @@
                         </div>
 
                         <!-- ÓRDENES DE COMPRA -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_po">
+                        <div class="o_planner_section mb-4" invisible="not can_see_po or not show_po_widget_sec">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-shopping-cart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Órdenes de compra</span>
@@ -199,7 +206,7 @@
                         </div>
 
                         <!-- ANÁLISIS DE PROVEEDORES -->
-                        <div class="o_planner_section mb-4" invisible="not can_see_po">
+                        <div class="o_planner_section mb-4" invisible="not can_see_po or not show_supplier_analysis_sec">
                             <div class="o_planner_section_title mb-3">
                                 <i class="fa fa-bar-chart me-2 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Análisis de proveedores</span>

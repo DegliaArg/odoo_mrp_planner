@@ -73,25 +73,26 @@ class MrpPlannerDashboardStock(models.TransientModel):
         elif not location_ids:
             location_ids = []
 
+        # Resolver allowed_ids una vez; se reutiliza para ubicaciones, orderpoints y mo_groups
+        allowed_ids = self._get_allowed_wh_ids()
+
         if location_ids:
             locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
+        elif allowed_ids is not None:
+            # Usuario con depósitos restringidos: usar ubicaciones principales de sus depósitos
+            whs = self.env['stock.warehouse'].browse(allowed_ids)
+            locations = whs.mapped('lot_stock_id').filtered(lambda l: l.exists())
         else:
-            allowed_ids = self._get_allowed_wh_ids()
-            if allowed_ids is not None:
-                # Usuario con depósitos restringidos: usar ubicaciones principales de sus depósitos
-                whs = self.env['stock.warehouse'].browse(allowed_ids)
-                locations = whs.mapped('lot_stock_id').filtered(lambda l: l.exists())
-            else:
-                # Sin restricción: usar parámetro de sistema
-                # sudo(): usuario no tiene acceso directo a ir.config_parameter; se lee sólo el agregado para el dashboard
-                loc_param = self.env['ir.config_parameter'].sudo().get_param(
-                    'mrp_reschedule.stock_location_id')
-                try:
-                    loc_id = int(loc_param) if loc_param else False
-                except (ValueError, TypeError):
-                    loc_id = False
-                loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
-                locations = loc if loc_id and loc.exists() else self.env['stock.location']
+            # Sin restricción: usar parámetro de sistema
+            # sudo(): usuario no tiene acceso directo a ir.config_parameter; se lee sólo el agregado para el dashboard
+            loc_param = self.env['ir.config_parameter'].sudo().get_param(
+                'mrp_reschedule.stock_location_id')
+            try:
+                loc_id = int(loc_param) if loc_param else False
+            except (ValueError, TypeError):
+                loc_id = False
+            loc = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
+            locations = loc if loc_id and loc.exists() else self.env['stock.location']
 
         if not locations:
             return {'error': 'no_location', 'kpis': _empty_kpis,
@@ -124,6 +125,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
         op_domain = [('product_id', 'in', product_ids)]
         if mfg_route:
             op_domain.append(('route_id', '=', mfg_route.id))
+        if allowed_ids is not None and allowed_ids:
+            op_domain.append(('warehouse_id', 'in', allowed_ids))
         orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
         min_qty_map = {}
         forecast_map = {}
@@ -324,7 +327,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
             mo_groups = self.env['mrp.production'].read_group(
                 [('product_id', 'in', all_pids),
-                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain,
+                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain + self._wh_domain_mo(allowed_ids),
                 ['product_id'], ['product_id'],
             )
             mo_count_map = {g['product_id'][0]: g['product_id_count'] for g in mo_groups}

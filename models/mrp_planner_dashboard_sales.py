@@ -265,12 +265,13 @@ class MrpPlannerDashboardSales(models.TransientModel):
         # Nota: reemplazar todas las referencias posteriores a cfg_sa por cfg,
         # y eliminar la segunda búsqueda en línea 2510 (cfg = self.env[...].search(...)).
 
+        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
         po_domain = [
             ('state', 'in', ['purchase', 'done']),
             (date_field, '>=', dt_from),
             (date_field, '<=', dt_to),
             ('company_id', '=', self.env.company.id),
-        ]
+        ] + wh_po
         if search:
             po_domain.append(('partner_id.name', 'ilike', search))
 
@@ -556,13 +557,14 @@ class MrpPlannerDashboardSales(models.TransientModel):
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
         _date_field = date_field if date_field in ('date_order', 'date_approve', 'date_planned') else 'date_order'
+        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
         pos = self.env['purchase.order'].search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['purchase', 'done']),
             (_date_field, '>=', dt_from),
             (_date_field, '<=', dt_to),
             ('company_id', '=', self.env.company.id),
-        ], order='date_order desc')
+        ] + wh_po, order='date_order desc')
 
         rows = []
         for po in pos:

@@ -76,6 +76,22 @@
                                         <field name="stock_location_id"
                                                help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
                                     </group>
+                                    <group string="Comparativa Producido vs. Programado">
+                                        <field name="comparison_date_mode" widget="radio" nolabel="1"
+                                               help="Controla cómo se asignan las órdenes de fabricación a un período en la comparativa y en el forecast. Afecta tanto las cantidades planificadas como las producidas."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="comparison_date_mode != 'finish_date'">
+                                            <b>Por fecha de cierre:</b> solo se incluyen las OFs cuya fecha de fin planificada cae dentro del período seleccionado. Es el criterio más estricto: una OF que cierra en agosto no aparece en julio aunque haya empezado en junio.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="comparison_date_mode != 'overlap'">
+                                            <b>Por solapamiento:</b> se incluye toda OF que esté activa en algún momento del período, con su cantidad completa. Una misma OF puede contarse en varios períodos si su duración los abarca.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="comparison_date_mode != 'proportional'">
+                                            <b>Proporcional por duración:</b> la cantidad planificada se distribuye en proporción al tiempo que la OF solapa el período (ej: una OF de 100 unidades que cubre 15 de 30 días aporta 50 unidades). El producido usa los movimientos de stock reales con fecha en el período, no una estimación.
+                                        </div>
+                                    </group>
                                 </div>
 
                             </div>
@@ -574,9 +590,6 @@
                                         <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
                                         <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
                                         <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
-                                    </group>
-                                    <group string="Criterio de OFs por período">
-                                        <field name="comparison_date_mode" widget="radio" nolabel="1"/>
                                     </group>
 
                                 </div>

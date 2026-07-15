@@ -413,3 +413,45 @@ Archivos documentados (38 de 41 — 3 fallaron por rate limit y se retomaron man
 | R-02 | Bug | **`_wh_domain_alert` rama `purchase_id` faltante** — Alertas `po_delayed`/`po_upcoming`/`po_cancelled` tienen `production_id=False` y `picking_id=False`; el dominio original las hacía caer en la rama "ninguno → siempre incluir", mostrando alertas de todos los depósitos sin filtrar (manifestado: 911 OCs vencidas en header vs 2 en widget). Fix: dominio de 4 ramas con `production_id`, `purchase_id`, `picking_id`, y vacío. | `30b6fc1` |
 | R-03 | Bug | **`get_stock_break_data` — `allowed_ids` fuera de scope** — `allowed_ids` se calculaba dentro del branch `else` de resolución de ubicaciones, quedando fuera de alcance para orderpoints y `mo_groups`. Izando el cómputo al tope del método. | `30b6fc1` |
 | R-04 | Feature | **Visibilidad de secciones por usuario** — 10 campos `mrp_planner_show_*` en `res.users` (default `True`); campos computed `show_*_sec` en TransientModel; `invisible` combinado `"not can_see_* or not show_*_sec"` en los 4 paneles; vista unificada `view_users_mrp_warehouse_list` con toggle columns para depósitos y secciones; botón único en configuración. | `30b6fc1`, `32990d0` |
+
+---
+
+## Revisión v48 — Auditoría de configuraciones y completitud de docs.md
+
+**Fecha:** 2026-07-14
+**Alcance:** Relevamiento exhaustivo de todos los campos `Selection` que cambian metodología de cálculo; adición de 9 gaps identificados a `docs.md`.
+
+---
+
+### Issues resueltos en esta ronda
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-01 docs | Documentación | **Tabla de configuraciones** — agregada sección "Guía rápida: configuraciones que cambian metodología" al inicio de `docs.md` con 14 subtablas (una por campo `Selection` relevado). |
+| D-02 docs | Documentación | **Rotación COGS/ventas** — solo existía la variante "por unidades"; agregadas variantes `cogs` y `sales` en el widget de Forecast y en el widget de Quiebres de stock. |
+| D-03 docs | Documentación | **Rotación en quiebres de stock** — sección nueva con las 3 fórmulas (units/cogs/sales) y variable `D = rotation_months_cfg × 30`. |
+| D-04 docs | Documentación | **Cobertura de inventario — fuente de demanda** — sección nueva "Cobertura de inventario (columna por producto)" con las 3 variantes de `forecast_coverage_demand_source`. |
+| D-05 docs | Documentación | **% Cobertura OFs — denominador so_demand** — columna "% Cobertura" actualizada con la tabla de `forecast_mo_coverage_denominator`. |
+| D-06 docs | Documentación | **Precisión de forecast — fuente delivery** — reemplazado blockquote "todas usan demanda OV" por sección "fuente del «real»" con variantes `demand`/`delivery`. |
+| D-07 docs | Documentación | **Rotación de venta — denominador demand** — tabla de `sale_cat_rotation_source` añadida en el Modo Rotación de categorías de venta. |
+| D-08 docs | Documentación | **Variación de precio — referencia pricelist** — columna actualizada con tabla de variantes `standard`/`pricelist` y nota sobre líneas sin `product.supplierinfo`. |
+| D-09 docs | Documentación | **Análisis de clientes — sección completa nueva** — el panel no tenía ninguna fórmula documentada. Agregadas: % entrega, % a tiempo (3 variantes de `customer_analysis_ontime_method`), intervalos entre pedidos, ticket promedio, tendencia de ventas, ABC del período, segmento de frecuencia. |
+| D-10 docs | Documentación | **Criterio de prioridad al reprogramar** — sección nueva en "Reprogramación en cascada" documentando `chronological`/`shortest_first`/`manual`. |
+
+---
+
+## Revisión v49 — Agrupamiento de quiebres, filtros de almacén, nombres hoja y criterio OFs por período
+
+**Fecha:** 2026-07-14
+**Alcance:** Cuatro cambios de código documentados: nuevo criterio de OFs por período (`comparison_date_mode`), agrupamiento por tabs en quiebres de stock, filtros de almacén en 4 endpoints, y cambio de `complete_name`/`display_name` a `name` en categorías y ubicaciones.
+
+---
+
+### Cambios aplicados en esta ronda
+
+| # | Área | Archivos afectados | Descripción |
+|---|------|--------------------|-------------|
+| C-01 | Feature | `models/mrp_reschedule_config.py`, `models/mrp_planner_dashboard_mo.py`, `models/mrp_planner_dashboard_forecast.py` | **Nuevo campo `comparison_date_mode`** en `mrp.reschedule.config` con 3 opciones: `finish_date` (por fecha de cierre), `overlap` (solapamiento completo), `proportional` (proporcional por duración). Aplica en `get_comparison_data` y `get_forecast_dashboard_data`. Default `finish_date` para no romper comportamiento existente. |
+| C-02 | UI | `static/src/js/stock_break_widget.js`, `static/src/xml/stock_break_widget.xml` | **Agrupamiento por nav-tabs en quiebres de stock** — reescrito para usar nav-tabs encima de la tabla (igual que el widget de Forecast), en lugar de filas de encabezado de grupo dentro del `tbody`. Criterios disponibles: Categoría y Cat. venta (si habilitada). |
+| C-03 | Seguridad/Datos | `models/mrp_planner_dashboard_forecast.py`, `models/mrp_planner_dashboard_sales.py`, `models/mrp_planner_dashboard_wc.py`, `models/mrp_planner_dashboard_customer.py` | **Filtros de almacén faltantes** — aplicado `_get_allowed_wh_ids()` en 4 endpoints que no lo tenían: `get_forecast_dashboard_data` (filtro `picking_type_id.warehouse_id` en OFs), `get_sales_chart_data` (sale.order y stock.move.line), `get_wc_chart_data` (mrp.workorder), `get_customer_analysis_data` / `get_customer_detail` (validación server-side de warehouse_ids). |
+| C-04 | UI | `models/mrp_planner_dashboard_forecast.py`, `models/mrp_planner_dashboard_sales.py`, `models/mrp_planner_dashboard.py`, `models/mrp_planner_dashboard_stock.py` | **`name` en lugar de `complete_name`/`display_name`** — columna Familia y tabs del forecast, dropdown de familias en ventas, dropdown de ubicaciones en quiebres, y título del panel de quiebres ahora muestran solo el nodo hoja de la jerarquía. |

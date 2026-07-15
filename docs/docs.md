@@ -2,6 +2,169 @@
 
 ---
 
+## Guía rápida: configuraciones que cambian metodología
+
+Las configuraciones de esta tabla seleccionan entre **fórmulas o algoritmos distintos** — no solo cambian un umbral numérico. Para cada opción se indica qué método aplica y en qué sección se detalla.
+
+### Reprogramación en cascada — criterio de prioridad
+
+| Valor en Ajustes | Algoritmo |
+|---|---|
+| Orden cronológico (fecha actual) | Las OFs se ordenan por su fecha de inicio actual, de la más próxima a la más lejana |
+| Más cortas primero (SPT) | Las OFs se ordenan por duración calculada, de menor a mayor (*Shortest Processing Time*) |
+| Secuencia manual en el wizard | El operador define el orden arrastrando las OFs antes de ejecutar |
+
+→ Ver *Criterio de prioridad al reprogramar*
+
+### Comparativa y Forecast — criterio de OFs por período
+
+| Valor en Ajustes | Qué OFs entran en el período | Cómo se calcula la cantidad |
+|---|---|---|
+| Por fecha de cierre (default) | Solo OFs cuya `date_finished` cae dentro del período | Se usa `product_qty` completa |
+| Por solapamiento completo | Toda OF activa durante el período (inicio ≤ fin período y fin ≥ inicio período) | Se usa `product_qty` completa; puede aparecer en varios períodos |
+| Proporcional por duración | Toda OF activa durante el período | `product_qty × (segundos solapados ÷ duración total)`; el producido usa `move_finished_ids` con fecha en el período |
+
+Se configura en Ajustes → Producción → "Comparativa Producido vs. Programado" (`mrp.reschedule.config.comparison_date_mode`). Aplica tanto en el widget de comparativa como en la columna OFs del forecast.
+
+→ Ver *Tabla Producido vs Programado — columnas calculadas* y *Tabla forecast — columnas calculadas*
+
+### Quiebres de stock — método de rotación
+
+| Valor en Ajustes | Fórmula |
+|---|---|
+| Por unidades | stock promedio (unidades) ÷ promedio mensual de salidas × 30 |
+| Por COGS (a costo) | días del período × inventario promedio valorizado ÷ costo de lo vendido |
+| Por ventas (a precio) | días del período × inventario promedio valorizado ÷ ventas netas (precio de lista) |
+
+→ Ver *Rotación en quiebres de stock*
+
+### Forecast — método de rotación de inventario
+
+Mismas tres fórmulas que en Quiebres de stock; el período es el rango del forecast seleccionado.
+
+→ Ver *Rotación de inventario (columna por producto)*
+
+### Forecast — fuente de demanda para cobertura de inventario
+
+| Valor en Ajustes | Denominador |
+|---|---|
+| Forecast planificado | total de forecast del período |
+| Demanda real (pedidos SO) | total de unidades en OVs confirmadas del período |
+| Entregado histórico | total de unidades entregadas (salidas completadas) del período |
+
+→ Ver *Cobertura de inventario (columna por producto)*
+
+### Forecast — divisor del % de cobertura de OFs
+
+| Valor en Ajustes | Fórmula |
+|---|---|
+| Forecast planificado | OFs ÷ forecast × 100 |
+| Demanda real (pedidos SO) | OFs ÷ unidades en OVs confirmadas × 100 |
+
+→ Ver *Tabla forecast — columnas calculadas* (columna % Cobertura)
+
+### Forecast — fórmula de precisión
+
+| Valor en Ajustes | Método |
+|---|---|
+| Simple | real ÷ forecast × 100 |
+| MAPE | promedio de (100 − \|error\|/real × 100) por período |
+| WAPE | 100 − Σ\|error\| / Σreal × 100 (global, pondera por volumen real) |
+| WMAPE | 100 − Σ\|error\| / Σforecast × 100 (global, pondera por volumen planificado) |
+| Sesgo | (real − forecast) / forecast × 100 |
+
+→ Ver *Fórmulas de precisión de forecast*
+
+### Forecast — fuente del «real» para precisión
+
+| Valor en Ajustes | Qué se usa como volumen real en las 5 fórmulas anteriores |
+|---|---|
+| Demanda confirmada (órdenes de venta) | unidades en OVs confirmadas o cerradas del período |
+| Entregas completadas | unidades entregadas (salidas de stock completadas) del período |
+
+→ Ver *Fórmulas de precisión de forecast — fuente del «real»*
+
+### Categorías de venta — modo de asignación
+
+| Valor en Ajustes | Método |
+|---|---|
+| Manual | El usuario asigna desde la ficha del artículo |
+| Automática por rotación de inventario | Días de cobertura calculados a partir de stock ÷ (salidas o demanda ÷ meses); compara contra umbrales en días |
+| Automática por demanda | Promedio mensual de unidades demandadas; compara contra umbrales en u./mes |
+| Automática por participación acumulada (Pareto) | Pareto acumulado por unidades o por importe; compara contra umbrales en % acumulado |
+
+→ Ver *Categorías de venta (A / B / C / D / E)*
+
+### Categorías de venta — fuente del denominador de rotación
+
+*(aplica solo cuando el modo es «Automática por rotación de inventario»)*
+
+| Valor en Ajustes | Denominador |
+|---|---|
+| Entregas completadas | movimientos de salida completados en el período |
+| Demanda confirmada (OVs) | unidades en OVs confirmadas del período |
+
+→ Ver *Modo Rotación de inventario — fuente del denominador*
+
+### Categorías de venta — métrica de participación acumulada
+
+*(aplica solo cuando el modo es «Automática por participación acumulada (Pareto)»)*
+
+| Valor en Ajustes | Ponderación |
+|---|---|
+| Unidades entregadas | ordena por unidades vendidas en el período |
+| Importe (precio de lista × cantidad) | ordena por precio de lista × unidades vendidas |
+
+→ Ver *Modo Participación acumulada — Pareto*
+
+### Análisis de proveedores — referencia para variación de precio
+
+| Valor en Ajustes | Precio de referencia |
+|---|---|
+| Costo estándar del producto | costo estándar del catálogo del producto |
+| Lista de precio del proveedor | precio configurado en la lista de precios del proveedor para ese artículo; si no está, la variación queda sin valor |
+
+→ Ver *Tabla de métricas — columna Variación de precio*
+
+### Categorías de proveedor — método
+
+| Valor en Ajustes | Algoritmo |
+|---|---|
+| Manual | Asignación directa desde la ficha del proveedor |
+| ABC por volumen (importe OCs) | Pareto por importe total de OCs del último año |
+| ABC por frecuencia (cantidad de OCs) | Pareto por cantidad de OCs del último año |
+| ABC por RFM | Scoring R + F + M (1–3 pts c/u); A = 8–9 pts, B = 6–7, C = 4–5, D = 3, E = sin datos |
+| ABC por % de entrega a tiempo | Pareto descendente por % de recepciones llegadas en fecha |
+| ABC por variación de precio | Pareto ascendente (invertido) por \|var precio\| respecto al precio de referencia |
+| ABC por calidad — diferencia de cantidad | Pareto descendente por % de movimientos recibidos con cantidad exacta |
+| ABC por calidad — devoluciones | Pareto ascendente (invertido) por cantidad de recepciones revertidas |
+| ABC por calidad — combinado | Pareto descendente por promedio de % a tiempo y % sin diferencia de cantidad |
+
+→ Ver *Categorías de proveedor — métodos automáticos*
+
+### Categorías de cliente — método
+
+| Valor en Ajustes | Algoritmo |
+|---|---|
+| Manual | Asignación directa desde la ficha del cliente |
+| ABC por volumen (importe SOs) | Pareto por importe total de SOs confirmadas del último año |
+| ABC por frecuencia (cantidad de SOs) | Pareto por cantidad de SOs del último año |
+| ABC por RFM | Scoring R + F + M (1–3 pts c/u); mismos umbrales que categorías de proveedor |
+
+→ Ver *Categorías de cliente — métodos automáticos*
+
+### Análisis de clientes — método «entrega a tiempo»
+
+| Valor en Ajustes | Definición de «a tiempo» |
+|---|---|
+| Fecha compromiso del pedido | Entrega a tiempo si fecha_entrega ≤ fecha_compromiso de la OV |
+| Fecha programada del envío | Entrega a tiempo si fecha_entrega ≤ fecha_programada del envío saliente |
+| Días desde confirmación del pedido | Entrega a tiempo si fecha_entrega ≤ fecha_confirmación + N días (SLA configurable) |
+
+→ Ver *Análisis de clientes — % a tiempo*
+
+---
+
 ## Panel de Producción
 
 ### Alertas de producción
@@ -182,13 +345,13 @@ Las OFs mostradas son las que solapan con el rango de fechas seleccionado y no e
 
 #### Tabla Producido vs Programado — columnas calculadas
 
-Agrupa todas las OFs del período (activas y terminadas) por producto.
+Agrupa las OFs del período por producto. El criterio que determina qué OFs entran en el período se configura en `mrp.reschedule.config.comparison_date_mode` (ver *Comparativa y Forecast — criterio de OFs por período* en la Guía rápida).
 
 | Columna        | Fórmula en español                                                                     | Campo Odoo                               |
 | -------------- | -------------------------------------------------------------------------------------- | ---------------------------------------- |
 | Producto       | Nombre del producto                                                                    | `mrp.production.product_id.display_name` |
-| Programado     | Suma de cantidades planificadas de todas las OFs del período para ese producto         | `mrp.production.product_qty`             |
-| Producido      | Suma de cantidades ya producidas de todas las OFs del período para ese producto        | `mrp.production.qty_produced`            |
+| Programado     | Suma de cantidades planificadas de las OFs del período para ese producto (puede ser fracción en modo proporcional) | `mrp.production.product_qty` (o fracción proporcional) |
+| Producido      | Suma de cantidades producidas de las OFs del período. En modo proporcional, solo los movimientos reales con fecha en el período | `mrp.production.qty_produced` o `move_finished_ids` filtrados por fecha |
 | % Cumplimiento | (producido ÷ programado) × 100, redondeado a 1 decimal. Cero si no hay nada programado | Calculado                                |
 
 **Colores del % de cumplimiento**
@@ -328,6 +491,21 @@ El gráfico muestra dos stacks por cada centro de trabajo:
 
 ---
 
+#### Agrupamiento por tabs en quiebres
+
+El widget permite agrupar la tabla mediante nav-tabs (pestañas encima de la tabla), igual que el widget de Forecast. Los criterios de agrupamiento disponibles son:
+
+| Criterio | Campo de agrupamiento | Condición de disponibilidad |
+|---|---|---|
+| Categoría | `product.template.categ_id.name` | Siempre disponible |
+| Cat. venta | `product.template.x_sale_category` | Solo cuando las categorías de venta están habilitadas en configuración |
+
+Al activar un agrupamiento, los tabs muestran cada grupo con su conteo de productos. El tab activo filtra la tabla al grupo seleccionado; el paginado se reinicia al cambiar de tab.
+
+El nombre de la categoría mostrado en los tabs y en el dropdown de ubicaciones corresponde al nodo hoja (`name`), no al nombre completo de la jerarquía (`complete_name`). Lo mismo aplica para la columna Familia en el forecast y el dropdown de familias en ventas.
+
+---
+
 #### Tabla de quiebres — columnas calculadas
 
 | Columna      | Fórmula en español                                     | Campo Odoo                                   |
@@ -350,6 +528,54 @@ Al expandir un producto, se muestran sus OFs activas:
 | **Filtro** | OFs del producto en estado Confirmada, En progreso o Por cerrar, excluyendo subcontratación |
 | **Orden**  | Por fecha fin ascendente                                                                    |
 | **Límite** | 50 OFs como máximo                                                                          |
+
+---
+
+#### Rotación en quiebres de stock
+
+El widget calcula los días de inventario (DIO) usando el mismo método configurado en `mrp.reschedule.config.stock_break_rotation_method`. El período es `rotation_months_cfg × 30` días.
+
+**Por unidades (`stock_break_rotation_method = 'units'`)**
+
+```
+S_avg = (stock_inicio + stock_fin) / 2           [unidades]
+DIO   = S_avg / (salidas_periodo / n_meses) × 30
+```
+
+| Variable | Detalle |
+|---|---|
+| `stock_inicio` | Stock al inicio del período (snapshot de `stock.quant`) |
+| `stock_fin` | Stock al final del período (snapshot de `stock.quant`) |
+| `salidas_periodo` | Suma de cantidades de movimientos de salida completados en el período |
+| `n_meses` | Número de meses del período configurado |
+
+**Por COGS — a costo (`stock_break_rotation_method = 'cogs'`)**
+
+```
+S_avg_val = (inv_inicio_costo + inv_fin_costo) / 2    [valor monetario]
+DIO       = D × S_avg_val / COGS
+```
+
+| Variable | Detalle |
+|---|---|
+| `inv_inicio_costo` | Stock inicial × costo estándar del producto |
+| `inv_fin_costo` | Stock final × costo estándar del producto |
+| `COGS` | Suma de `price_unit × quantity` de los movimientos de salida completados |
+| `D` | Días del período (`rotation_months_cfg × 30`) |
+
+**Por ventas — a precio de venta (`stock_break_rotation_method = 'sales'`)**
+
+```
+S_avg_val = (inv_inicio_precio + inv_fin_precio) / 2  [valor monetario]
+DIO       = D × S_avg_val / V_net
+```
+
+| Variable | Detalle |
+|---|---|
+| `inv_inicio_precio` | Stock inicial × precio de lista del producto |
+| `inv_fin_precio` | Stock final × precio de lista del producto |
+| `V_net` | Suma de `price_unit × quantity` de los movimientos de salida (valorados a precio de lista) |
+| `D` | Días del período |
 
 ---
 
@@ -388,6 +614,20 @@ Si se ajusta la duración total de la OF, cada operación se escala proporcional
 | -------------------------------- | ----------------------------------------------------------------- | --------------------------------- |
 | Factor de escala                 | duración total ajustada ÷ suma de duraciones esperadas originales | `mrp.workorder.duration_expected` |
 | Nueva duración de cada operación | duración esperada original × factor de escala                     | Calculado                         |
+
+---
+
+#### Criterio de prioridad al reprogramar
+
+Configurable en `mrp.reschedule.config.priority`. Determina en qué orden se colocan las OFs en el plan antes de ejecutar la reprogramación en cascada.
+
+| Valor (`priority`) | Algoritmo | Criterio de ordenación |
+|---|---|---|
+| `chronological` | Orden cronológico | `date_start` ascendente — primero las OFs con inicio más próximo |
+| `shortest_first` | Más cortas primero (SPT) | `duration_hours` ascendente — minimiza el tiempo promedio de espera (Shortest Processing Time) |
+| `manual` | Secuencia manual | El operador reordena las OFs en el wizard de reprogramación antes de ejecutar; el sistema respeta ese orden |
+
+> **Nota SPT:** La duración se calcula según la prioridad descripta en *Duración de una OF* (operaciones → fechas → fallback 8 h).
 
 ---
 
@@ -532,10 +772,19 @@ La fuente son las recepciones (`stock.picking`) con estado Hecho y tipo Entrante
 | Retraso promedio (días)   | Promedio de días de atraso, solo sobre las recepciones que llegaron tarde         | `Σ(date_done − scheduled_date).días / count` donde `date_done > scheduled_date`   |
 | % Completas               | Recepciones sin backorder ÷ total de recepciones × 100                            | `complete_count / pick_count × 100` donde el picking no generó backorder          |
 | Lead time promedio (días) | Promedio de días desde la aprobación de la OC hasta el cierre de la recepción     | `Σ(stock.picking.date_done − purchase.order.date_approve).días / count`           |
-| Variación de precio (%)   | Promedio firmado de la diferencia entre precio pagado y costo estándar, por línea | `Σ((price_unit − standard_price) / standard_price × 100) / count`                 |
+| Variación de precio (%)   | Promedio firmado de la diferencia entre precio pagado y precio de referencia, por línea | Fórmula dependiente de `supplier_price_var_method` (ver abajo) |
 | Facturas pendientes       | Suma de saldos pendientes de pago de facturas del proveedor                       | `Σ account.move.amount_residual` donde `payment_state not in ('paid','reversed')` |
 
-> La variación de precio puede ser negativa si el precio pagado fue menor al costo estándar. La clasificación ABC usa el valor absoluto.
+**Variación de precio — precio de referencia (`supplier_price_var_method`)**
+
+| Valor | Precio de referencia | Fórmula de la columna |
+|---|---|---|
+| `standard` (por defecto) | Costo estándar del producto (`product.template.standard_price`) | `Σ((price_unit − standard_price) / standard_price × 100) / count` |
+| `pricelist` | Precio configurado para ese proveedor en `product.supplierinfo` | `Σ((price_unit − pricelist_price) / pricelist_price × 100) / count` |
+
+> Si para un artículo no hay precio de proveedor configurado (`product.supplierinfo` vacío) y el método es `pricelist`, esa línea no aporta al promedio (se ignora).
+
+> La variación de precio puede ser negativa si el precio pagado fue menor al de referencia. La clasificación ABC usa el valor absoluto.
 
 **KPI global de % a tiempo (ponderado, no promedio de promedios)**
 
@@ -708,10 +957,17 @@ El resultado se guarda en `product.template.x_sale_category`. La fuente son sali
 
 | Concepto            | Fórmula en español                                                        | Campo Odoo                                       |
 | ------------------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| Salidas del período | Suma de unidades entregadas en el período, por producto base              | `Σ stock.move.line.quantity` salidas completadas |
-| Promedio mensual    | Salidas del período ÷ cantidad de meses del período                       | —                                                |
+| Denominador período | Volumen del período (según `sale_cat_rotation_source`, ver abajo)         | Ver tabla inferior                               |
+| Promedio mensual    | Denominador período ÷ cantidad de meses del período                       | —                                                |
 | Stock actual        | Suma de cantidades en ubicaciones internas, por producto base             | `Σ stock.quant.quantity`                         |
 | Días de rotación    | (stock actual ÷ promedio mensual) × 30, redondeado. Si no hay ventas: 999 | Calculado                                        |
+
+**Fuente del denominador de rotación (`sale_cat_rotation_source`)**
+
+| Valor | Denominador |
+|---|---|
+| `delivery` (por defecto) | Suma de unidades entregadas (salidas completadas) del período: `Σ stock.move.line.quantity` |
+| `demand` | Suma de unidades en OVs confirmadas del período: `Σ sale.order.line.product_uom_qty` |
 
 | Categoría | Condición                                            |
 | --------- | ---------------------------------------------------- |
@@ -765,7 +1021,7 @@ El resultado se guarda en `product.template.x_sale_category`. La fuente son sali
 | KPI                 | Fórmula en español                                                                           | Campos Odoo                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Forecast total      | Suma de todas las cantidades de forecast del período                                         | `Σ mrp.forecast.line.forecast_qty`                                                |
-| OFs planificadas    | Suma de cantidades planificadas de OFs en estados habilitados con fecha fin en el período    | `Σ mrp.production.product_qty`                                                    |
+| OFs planificadas    | Suma de cantidades de OFs en estados habilitados asignadas al período. El criterio de asignación depende de `comparison_date_mode` | `Σ mrp.production.product_qty` (o fracción proporcional)                          |
 | Gap OFs             | OFs planificadas − forecast total (negativo = déficit de cobertura)                          | Calculado                                                                         |
 | Cobertura %         | OFs planificadas ÷ forecast total × 100, redondeado a 1 decimal                              | Calculado                                                                         |
 | Productos en riesgo | Cantidad de productos con cobertura por debajo del umbral de aviso                           | `cobertura_% < forecast_warning_pct` (def: 70 %)                                  |
@@ -807,12 +1063,19 @@ Para cada celda (un producto en un mes específico):
 | Columna          | Fórmula en español                                                                    | Campos Odoo                         |
 | ---------------- | ------------------------------------------------------------------------------------- | ----------------------------------- |
 | Forecast         | Suma de líneas de forecast del producto para ese mes                                  | `Σ mrp.forecast.line.forecast_qty`  |
-| OFs              | Suma de cantidades planificadas de OFs del producto en ese mes (estados habilitados)  | `Σ mrp.production.product_qty`      |
-| % Cobertura      | OFs del mes ÷ forecast del mes × 100, redondeado a 1 decimal. Cero si no hay forecast | Calculado                           |
+| OFs              | Suma de cantidades de OFs del producto asignadas al mes. El criterio de asignación depende de `comparison_date_mode` (ver Guía rápida): por fecha de fin, por solapamiento completo, o proporcional por duración | `Σ mrp.production.product_qty` (o fracción proporcional) |
+| % Cobertura      | OFs del mes ÷ denominador del mes × 100, redondeado a 1 decimal. Cero si el denominador es cero. Denominador según `forecast_mo_coverage_denominator` (ver abajo) | Calculado |
 | Entregado        | Suma de unidades de salidas completadas del producto en ese mes                       | `Σ stock.move.line.quantity`        |
 | Demanda real     | Suma de cantidades pedidas en OVs confirmadas del producto en ese mes                 | `Σ sale.order.line.product_uom_qty` |
 | Tasa de servicio | entregado ÷ demanda real × 100, redondeado a 1 decimal                                | Calculado                           |
 | Gap de demanda   | (demanda real − forecast) ÷ forecast × 100, redondeado a 1 decimal                    | Calculado                           |
+
+**% Cobertura OFs — denominador configurable (`forecast_mo_coverage_denominator`)**
+
+| Valor | Denominador de la columna % Cobertura |
+|---|---|
+| `forecast` (por defecto) | Forecast planificado del mes (`Σ mrp.forecast.line.forecast_qty`) |
+| `so_demand` | Unidades en OVs confirmadas del mes (`Σ sale.order.line.product_uom_qty`) |
 
 **Colores de cobertura por celda**
 
@@ -837,6 +1100,10 @@ Para cada celda (un producto en un mes específico):
 
 #### Rotación de inventario (columna por producto)
 
+El método se configura en `mrp.reschedule.config.forecast_rotation_method`. El período es el rango del forecast seleccionado.
+
+**Por unidades (`forecast_rotation_method = 'units'`)**
+
 | Concepto                   | Fórmula en español                                             | Campo Odoo                                       |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------ |
 | Promedio mensual entregado | Total de unidades entregadas en el período ÷ cantidad de meses | `Σ stock.move.line.quantity` salidas completadas |
@@ -845,7 +1112,36 @@ Para cada celda (un producto en un mes específico):
 | Rotación en días           | stock actual ÷ promedio mensual × 30, redondeado a entero      | Calculado                                        |
 | Unidad de visualización    | Configurable: días o meses                                     | `mrp.reschedule.config.forecast_rotation_unit`   |
 
-**Colores de rotación**
+**Por COGS — a costo (`forecast_rotation_method = 'cogs'`)**
+
+```
+S_avg_val = (inv_inicio_costo + inv_fin_costo) / 2    [valor monetario]
+DIO       = D × S_avg_val / COGS
+```
+
+| Variable | Detalle |
+|---|---|
+| `inv_inicio_costo` | Stock al inicio del período × costo estándar (`product.template.standard_price`) |
+| `inv_fin_costo` | Stock al final del período × costo estándar |
+| `COGS` | Suma de `price_unit × quantity` de los movimientos de salida completados en el período |
+| `D` | Días del período (rango del forecast) |
+| `DIO` | Días de inventario (equivale a la columna "Rotación en días") |
+
+**Por ventas — a precio de venta (`forecast_rotation_method = 'sales'`)**
+
+```
+S_avg_val = (inv_inicio_precio + inv_fin_precio) / 2  [valor monetario]
+DIO       = D × S_avg_val / V_net
+```
+
+| Variable | Detalle |
+|---|---|
+| `inv_inicio_precio` | Stock al inicio del período × precio de lista (`product.template.list_price`) |
+| `inv_fin_precio` | Stock al final del período × precio de lista |
+| `V_net` | Suma de ventas netas en el período (movimientos de salida valorados a precio de lista) |
+| `D` | Días del período |
+
+**Colores de rotación** (comunes a los tres métodos)
 
 | Unidad | Verde     | Amarillo            | Gris (sin color) |
 | ------ | --------- | ------------------- | ---------------- |
@@ -854,17 +1150,46 @@ Para cada celda (un producto en un mes específico):
 
 ---
 
+#### Cobertura de inventario (columna por producto)
+
+Calcula los **días de stock disponible** a partir del inventario actual y una demanda de referencia configurable. El resultado es distinto de la columna "% Cobertura OFs" (que mide cuánto de la demanda planificada ya tiene una OF asignada).
+
+```
+cobertura_dias = stock_actual × D / demand_fuente
+```
+
+La fuente de demanda se configura en `mrp.reschedule.config.forecast_coverage_demand_source`:
+
+| Valor | `demand_fuente` |
+|---|---|
+| `forecast` (por defecto) | Total de forecast planificado del período (`Σ mrp.forecast.line.forecast_qty`) |
+| `so_demand` | Total de unidades en OVs confirmadas del período (`Σ sale.order.line.product_uom_qty`) |
+| `delivered` | Total de unidades entregadas (salidas completadas) del período (`Σ stock.move.line.quantity`) |
+
+> Si la fuente de demanda es cero para un producto, la cobertura se reporta como indefinida (no se muestra).
+
+---
+
 #### Fórmulas de precisión de forecast
 
-> Todas las fórmulas usan **demanda OV** (`so_demand`) como referencia real: suma de `sale.order.line.product_uom_qty` de OVs confirmadas o cerradas del período. No son unidades entregadas físicamente.
+Las 5 fórmulas usan el mismo concepto de **«real»**, cuya fuente es configurable mediante `mrp.reschedule.config.forecast_precision_source`:
+
+#### Fórmulas de precisión de forecast — fuente del «real»
+
+| Valor | `real` en las 5 fórmulas | Campo Odoo |
+|---|---|---|
+| `demand` (por defecto) | Unidades en OVs confirmadas o cerradas del período | `Σ sale.order.line.product_uom_qty` donde `order.state in ('sale','done')` |
+| `delivery` | Unidades entregadas (salidas de stock completadas) del período | `Σ stock.move.line.quantity` donde `state = 'done'` y `picking_type_code = 'outgoing'` |
+
+> Elegir `delivery` hace que la precisión mida qué tan bien el forecast anticipó los despachos reales en lugar de los pedidos colocados. Útil cuando la demanda confirmada y la entregada difieren significativamente.
 
 Valores de base para cada período y producto:
 
 | Variable         | Descripción                                   | Campo Odoo                          |
 | ---------------- | --------------------------------------------- | ----------------------------------- |
 | `forecast_qty`   | Cantidad planificada en el forecast del mes   | `mrp.forecast.line.forecast_qty`    |
-| `so_demand`      | Demanda real de OVs confirmadas en el período | `Σ sale.order.line.product_uom_qty` |
-| `error_absoluto` | Valor absoluto de (demanda real − forecast)   | Calculado                           |
+| `real`           | Volumen real del período (según `precision_source` arriba) | Ver tabla superior |
+| `error_absoluto` | Valor absoluto de (real − forecast)           | Calculado                           |
 
 ---
 
@@ -950,3 +1275,119 @@ El resultado se guarda en `res.partner.x_customer_category`. El período de aná
 | 4 o 5                             | C         |
 | 3                                 | D         |
 | Sin datos (sin OVs en el período) | E         |
+
+---
+
+## Panel de Ventas — Análisis de clientes
+
+El widget de análisis de clientes calcula métricas por cliente a partir de órdenes de venta y sus entregas. El período de análisis es el rango seleccionado en el panel.
+
+---
+
+### % de entrega
+
+Mide qué porcentaje de las unidades pedidas en OVs confirmadas del período fueron efectivamente entregadas.
+
+| Concepto | Fórmula | Campo Odoo |
+|---|---|---|
+| Cantidad pedida | Suma de unidades en líneas de OVs confirmadas del período | `Σ sale.order.line.product_uom_qty` donde `order.state in ('sale','done')` |
+| Cantidad entregada | Suma de unidades en movimientos de salida completados del período | `Σ stock.move.line.quantity` donde `state = 'done'` y `picking_type_code = 'outgoing'` |
+| % de entrega | cantidad_entregada ÷ cantidad_pedida × 100 | Calculado |
+
+---
+
+### Análisis de clientes — % a tiempo
+
+Mide el porcentaje de envíos (pickings) que llegaron antes de la fecha límite definida por la configuración `customer_analysis_ontime_method`.
+
+```
+ontime_pct = pickings_a_tiempo / total_pickings × 100
+```
+
+**Definición de "a tiempo" según `customer_analysis_ontime_method`**
+
+| Valor | Condición para considerar un envío "a tiempo" | Campo Odoo |
+|---|---|---|
+| `commitment_date` (por defecto) | `date_done ≤ commitment_date` de la orden de venta asociada | `sale.order.commitment_date` |
+| `scheduled_date` | `date_done ≤ scheduled_date` del envío saliente | `stock.picking.scheduled_date` |
+| `sla_days` | `date_done ≤ date_order + N días` (N = `customer_sla_days` configurable) | `sale.order.date_order + timedelta(days=sla_days)` |
+
+> Si un picking no tiene la fecha de referencia configurada (por ejemplo, `commitment_date` vacío), ese picking no se incluye en el cómputo de `ot_total`.
+
+---
+
+### Intervalos entre pedidos
+
+Mide la regularidad de compra de un cliente.
+
+| Concepto | Fórmula | Campo Odoo |
+|---|---|---|
+| Lista de fechas | Fechas de confirmación de todas las OVs del cliente en el período, ordenadas | `sale.order.date_order` |
+| Gaps | Diferencia en días entre cada par de pedidos consecutivos | `date_i+1 − date_i` |
+| Promedio de intervalos | Suma de gaps ÷ (cantidad de gaps) | `Σ gaps / len(gaps)` |
+
+> Si el cliente tiene solo 1 pedido en el período, el promedio de intervalos es indefinido (no se muestra).
+
+---
+
+### Ticket promedio
+
+```
+ticket_promedio = importe_total_periodo / cantidad_de_pedidos
+```
+
+| Variable | Campo Odoo |
+|---|---|
+| `importe_total_periodo` | `Σ sale.order.amount_total` del período |
+| `cantidad_de_pedidos` | `count(sale.order)` del período |
+
+---
+
+### Tendencia de ventas
+
+Compara el importe del período actual con el mismo período del año anterior.
+
+```
+trend_pct = (total_actual − total_anterior) / total_anterior × 100
+```
+
+| Variable | Detalle |
+|---|---|
+| `total_actual` | Importe total de OVs del período seleccionado |
+| `total_anterior` | Importe total de OVs del mismo rango de fechas, desplazado 1 año hacia atrás |
+
+> Si el período anterior tiene importe cero (cliente sin histórico), la tendencia no se muestra.
+
+---
+
+### ABC del período
+
+Clasifica los clientes activos en el período según su participación acumulada en el importe total de ventas. Usa los mismos umbrales Pareto que el resto del módulo (`abc_pct_a`, `abc_pct_b`).
+
+```
+participacion_i   = importe_cliente_i / importe_total_todos × 100
+acumulado_i       = Σ participacion (ordenado de mayor a menor)
+```
+
+| Condición | Categoría del período |
+|---|---|
+| `acumulado ≤ abc_a_pct` (def: 20 %) | A |
+| `acumulado ≤ abc_a_pct + abc_b_pct` (def: 20 % + 30 % = 50 %) | B |
+| resto | C |
+
+> Esta clasificación ABC del período es calculada sobre la marcha para el widget; es independiente de la categoría permanente `x_customer_category` asignada por el cron.
+
+---
+
+### Segmento de frecuencia
+
+Clasifica cada cliente según la regularidad y recencia de sus pedidos.
+
+| Condición (evaluada en orden) | Segmento |
+|---|---|
+| Días desde último pedido > `customer_risk_days` (def: 90 días) | En riesgo |
+| Promedio de intervalos ≤ 30 días | Frecuente |
+| Promedio de intervalos ≤ 90 días | Ocasional |
+| Promedio de intervalos > 90 días | Inactivo |
+
+> La condición "En riesgo" tiene precedencia sobre las demás: un cliente con intervalos frecuentes pero que no compra desde hace más de `customer_risk_days` días se clasifica como "En riesgo".

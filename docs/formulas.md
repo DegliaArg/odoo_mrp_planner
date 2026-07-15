@@ -80,6 +80,27 @@ VARIABLES:
 FORMULA: CumpGlobal = (Q_prod_tot / Q_prog_tot) * 100
 LABEL: % Cumplimiento global (0 si Q_prog_tot = 0)
 
+### 1.3c Prorrateo de OF al período — modo proporcional
+DESCRIPCION: Cuando el criterio de OFs es "Proporcional por duración", la cantidad planificada
+de cada OF se distribuye en función del tiempo que solapa el período. El producido usa los
+movimientos de stock reales con fecha dentro del período (no una estimación).
+VARIABLES:
+- Q_plan = Cantidad planificada total de la OF (product_qty)
+- T_ini = Fecha de inicio de la OF
+- T_fin = Fecha de fin planificada de la OF
+- T_per_ini = Inicio del período analizado
+- T_per_fin = Fin del período analizado
+- Q_real_per = Suma de cantidades de movimientos de stock terminados con fecha en el período
+FORMULA:
+  solapamiento = max(0, min(T_fin, T_per_fin) - max(T_ini, T_per_ini))
+  duracion_total = T_fin - T_ini
+  Q_prog_per = Q_plan * (solapamiento / duracion_total)
+  Q_prod_per = Q_real_per
+LABEL: Cantidad planificada proporcional al período
+CONDICIONES:
+- Si T_ini o T_fin no están definidas → se usa Q_plan completo (fallback a fecha de cierre)
+- Si solapamiento = 0 → la OF no aporta cantidad al período
+
 ### 1.4 Horas disponibles en un centro de trabajo
 DESCRIPCION: Capacidad real del centro de trabajo en el período, ajustada por su eficiencia.
 Cuando el calendario no puede calcularse directamente, se estima en proporción a las horas

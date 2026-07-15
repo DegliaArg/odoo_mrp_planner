@@ -210,7 +210,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
         active_categ_ids = {g['categ_id'][0] for g in groups if g.get('categ_id')}
         cats = self.env['product.category'].sudo().search([('id', 'in', list(active_categ_ids))])
         return sorted(
-            [{'id': c.id, 'name': c.complete_name} for c in cats],
+            [{'id': c.id, 'name': c.name} for c in cats],
             key=lambda x: x['name'],
         )
 

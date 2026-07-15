@@ -817,5 +817,5 @@ class MrpPlannerDashboard(models.TransientModel):
         else:
             domain = [('usage', '=', 'internal'), ('active', '=', True)]
         locations = self.env['stock.location'].search(domain, order='complete_name')
-        return [{'id': l.id, 'name': l.complete_name} for l in locations]
+        return [{'id': l.id, 'name': l.name} for l in locations]
 

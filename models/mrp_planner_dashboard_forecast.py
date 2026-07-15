@@ -427,8 +427,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             )
             # Precarga nombres de categorías en un solo SELECT
             _categ_ids = list({r['categ_id'][0] for r in _tmpl_rows if r['categ_id']})
-            _categ_names = {c['id']: c['display_name'] for c in
-                            self.env['product.category'].browse(_categ_ids).read(['id', 'display_name'])}
+            _categ_names = {c['id']: c['name'] for c in
+                            self.env['product.category'].browse(_categ_ids).read(['id', 'name'])}
             # Precarga nombres de tipos de producto
             _type_ids_all = list({tid for r in _tmpl_rows for tid in (r['x_product_type_ids'] or [])})
             _type_names = {tp['id']: tp['name'] for tp in

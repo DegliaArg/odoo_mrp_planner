@@ -99,7 +99,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
                     'products': [], 'location_name': '', 'location_ids': [],
                     'location_id': False, 'total_filtered': 0}
 
-        location_name = ' + '.join(locations.mapped('complete_name'))
+        location_name = ' + '.join(locations.mapped('name'))
 
         # Ruta fabricación: primero por xmlid, fallback por nombre
         mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)

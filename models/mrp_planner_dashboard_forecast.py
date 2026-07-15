@@ -832,10 +832,20 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         cfg     = self.env['mrp.reschedule.config'].search([], limit=1)
         mo_mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
+        mo_states = []
+        if cfg:
+            if cfg.forecast_mo_state_draft:     mo_states.append('draft')
+            if cfg.forecast_mo_state_confirmed: mo_states.append('confirmed')
+            if cfg.forecast_mo_state_progress:  mo_states.append('progress')
+            if cfg.forecast_mo_state_to_close:  mo_states.append('to_close')
+            if cfg.forecast_mo_state_done:      mo_states.append('done')
+        if not mo_states:
+            mo_states = ['confirmed', 'progress', 'to_close']
+
         dt_from_s = fields.Datetime.to_string(dt_from)
         dt_to_s   = fields.Datetime.to_string(dt_to)
 
-        base_domain = [('product_id', '=', product_id), ('state', 'not in', ['cancel'])] \
+        base_domain = [('product_id', '=', product_id), ('state', 'in', mo_states)] \
                       + no_subcontract_domain(self.env)
 
         if warehouse_ids:

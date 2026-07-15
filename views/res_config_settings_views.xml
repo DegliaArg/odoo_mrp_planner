@@ -81,19 +81,35 @@
                                                help="Controla cómo se asignan las órdenes de fabricación a un período en la comparativa y en el forecast. Afecta tanto las cantidades planificadas como las producidas."/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'finish_date'">
-                                            <b>Por fecha de cierre:</b> solo se incluyen las OFs cuya fecha de fin planificada cae dentro del período. Una OF que cierra en agosto no aparece en julio aunque haya empezado en junio.
+                                            <b>Por fecha de cierre</b> — entra una OF si su fecha de fin planificada cae dentro del período.<br/>
+                                            · <b>Programado:</b> cantidad total de la OF.<br/>
+                                            · <b>Producido:</b> cantidad producida acumulada hasta hoy.<br/>
+                                            · <i>Ejemplo: OF de 100 uds que arranca el 15/Jun y cierra el 20/Jul → aparece en julio con 100 programadas. Si cierra el 5/Ago, no aparece en julio.</i><br/>
+                                            · <i>Ideal para medir cumplimiento de compromisos de entrega.</i>
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'start_date'">
-                                            <b>Por fecha de inicio:</b> solo se incluyen las OFs cuya fecha de inicio cae dentro del período. Útil para medir la carga de planificación: cuántas OFs se lanzaron a producción en el mes, independientemente de cuándo cierren.
+                                            <b>Por fecha de inicio</b> — entra una OF si su fecha de inicio cae dentro del período.<br/>
+                                            · <b>Programado:</b> cantidad total de la OF.<br/>
+                                            · <b>Producido:</b> cantidad producida acumulada hasta hoy.<br/>
+                                            · <i>Ejemplo: OF de 100 uds que arranca el 10/Jul y cierra el 5/Ago → aparece en julio con 100 programadas. Una OF que arrancó en junio no aparece aunque cierre en julio.</i><br/>
+                                            · <i>Ideal para ver cuánto trabajo se lanzó a producción en el mes.</i>
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'overlap'">
-                                            <b>Por solapamiento:</b> se incluye toda OF que esté activa en algún momento del período, con su cantidad completa. Una misma OF puede contarse en varios períodos si su duración los abarca.
+                                            <b>Por solapamiento</b> — entra una OF si estuvo activa en algún momento del período, con su cantidad completa.<br/>
+                                            · <b>Programado:</b> cantidad total de la OF (sin fraccionar).<br/>
+                                            · <b>Producido:</b> cantidad producida acumulada hasta hoy.<br/>
+                                            · <i>Ejemplo: OF de 100 uds que va del 15/Jun al 10/Ago → aparece en junio, julio y agosto, cada mes con 100 programadas.</i><br/>
+                                            · <i>Atención: una OF larga puede inflar los totales al contarse en varios períodos a la vez.</i>
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'proportional'">
-                                            <b>Proporcional por duración:</b> la cantidad planificada se distribuye en proporción al tiempo que la OF solapa el período (ej: una OF de 100 unidades que cubre 15 de 30 días aporta 50 unidades). El producido usa los movimientos de stock reales con fecha en el período, no una estimación.
+                                            <b>Proporcional por duración</b> — entra una OF si solapa el período; la cantidad se reparte según los días que toca.<br/>
+                                            · <b>Programado:</b> cantidad × (días que solapa el período ÷ duración total de la OF).<br/>
+                                            · <b>Producido:</b> movimientos de stock reales con fecha dentro del período (no una estimación).<br/>
+                                            · <i>Ejemplo: OF de 120 uds del 1/Jul al 31/Ago (62 días). En julio (31 días) aporta 120 × 31/62 = 60 uds programadas, y el producido es lo que realmente ingresó al stock en julio.</i><br/>
+                                            · <i>El método más preciso para OFs que cruzan meses.</i>
                                         </div>
                                         <!-- Opción futura: visible solo si scheduling está activo, no clickeable -->
                                         <div class="d-flex align-items-center gap-2 mt-2 ps-1"

@@ -286,9 +286,18 @@ class MrpPlannerDashboardMo(models.TransientModel):
         wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
         dFrom = date_from + ' 00:00:00'
         dTo   = date_to   + ' 23:59:59'
-        date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
         now_s  = fields.Datetime.to_string(now)
+
+        cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
+        mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
+        if mode == 'start_date':
+            date_d = [('date_start', '>=', dFrom), ('date_start', '<=', dTo)]
+        elif mode in ('overlap', 'proportional'):
+            date_d = [('date_start', '<=', dTo), '|',
+                      ('date_finished', '>=', dFrom), ('date_finished', '=', False)]
+        else:
+            date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
 
         if tag_id:
             tag_id = int(tag_id)
@@ -526,16 +535,26 @@ class MrpPlannerDashboardMo(models.TransientModel):
         page_size = min(200, max(1, int(page_size)))
         offset    = (page - 1) * page_size
 
-        filtered_done = all_mos.filtered(lambda m: m.state == 'done')
+        # ofs_done siempre por date_finished en rango, independiente del modo,
+        # porque es el KPI "terminadas en el período" que tiene sentido operativo.
+        ofs_done = self.env['mrp.production'].search_count([
+            ('state', '=', 'done'),
+            ('date_finished', '>=', first_day_str),
+            ('date_finished', '<=', last_day_str),
+        ] + no_sc + wh_mo)
+
+        allowed_ids = self._get_allowed_wh_ids()
         return {
             'kpis': {
                 'planned':  round(total_planned,  2),
                 'produced': round(total_produced, 2),
                 'pct':      pct,
-                'ofs_done': len(filtered_done),
+                'ofs_done': ofs_done,
             },
-            'items': items[offset:offset + page_size],
-            'total': total,
+            'items':         items[offset:offset + page_size],
+            'total':         total,
+            'mo_mode':       mode,
+            'allowed_wh_ids': allowed_ids,
         }
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────

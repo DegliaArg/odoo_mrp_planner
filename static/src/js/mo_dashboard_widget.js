@@ -93,9 +93,11 @@ class MoDashboardWidget extends Component {
             req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0 },
             requests:    [],
             // Comparativo
-            cmp_kpis:    { planned: 0, produced: 0, pct: 0, ofs_done: 0 },
-            comparison:  [],
-            cmp_total:   0,
+            cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0 },
+            comparison:    [],
+            cmp_total:     0,
+            cmp_mode:      'finish_date',
+            cmp_wh_ids:    null,
         });
 
         onMounted(async () => {
@@ -165,6 +167,8 @@ class MoDashboardWidget extends Component {
                 this.state.cmp_kpis   = d.kpis;
                 this.state.comparison = d.items;
                 this.state.cmp_total  = d.total || 0;
+                this.state.cmp_mode   = d.mo_mode || 'finish_date';
+                this.state.cmp_wh_ids = d.allowed_wh_ids ?? null;
             }
         } catch (e) {
             console.error("[MoDashboardWidget]", e);
@@ -328,10 +332,23 @@ class MoDashboardWidget extends Component {
     onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
 
     onClickAllComparison() {
-        this._navigate("Producido vs Programado", [
-            ["state", "not in", ["cancel"]],
-            ...this._dateDomain(),
-        ]);
+        const mode     = this.state.cmp_mode || 'finish_date';
+        const dateFrom = this.state.dateFrom + ' 00:00:00';
+        const dateTo   = this.state.dateTo   + ' 23:59:59';
+        const domain   = [["state", "not in", ["cancel"]]];
+        if (mode === 'start_date') {
+            domain.push(["date_start", ">=", dateFrom], ["date_start", "<=", dateTo]);
+        } else if (mode === 'overlap' || mode === 'proportional') {
+            domain.push(["date_start", "<=", dateTo], "|",
+                        ["date_finished", ">=", dateFrom], ["date_finished", "=", false]);
+        } else {
+            domain.push(["date_finished", ">=", dateFrom], ["date_finished", "<=", dateTo]);
+        }
+        const wh = this.state.cmp_wh_ids;
+        if (wh && wh.length) {
+            domain.push(["picking_type_id.warehouse_id", "in", wh]);
+        }
+        this._navigate("Producido vs Programado", domain);
     }
 
     /**

@@ -788,6 +788,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'mo_coverage_show_pct':     mo_coverage_show_pct,
             'mo_coverage_denominator':  mo_coverage_denominator,
             'mo_coverage_color_scope':  mo_coverage_color_scope,
+            'mo_mode':                  mo_mode,
         }
 
     @api.model
@@ -828,19 +829,48 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             datetime.combine(last_day, datetime.max.time())
         ).astimezone(pytz.utc).replace(tzinfo=None)
 
-        domain = [
-            ('product_id', '=', product_id),
-            ('state', 'not in', ['cancel']),
-            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
-            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
-        ] + no_subcontract_domain(self.env)
+        cfg     = self.env['mrp.reschedule.config'].search([], limit=1)
+        mo_mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
+
+        dt_from_s = fields.Datetime.to_string(dt_from)
+        dt_to_s   = fields.Datetime.to_string(dt_to)
+
+        base_domain = [('product_id', '=', product_id), ('state', 'not in', ['cancel'])] \
+                      + no_subcontract_domain(self.env)
+
         if warehouse_ids:
             wh_recs = self.env['stock.warehouse'].browse(warehouse_ids)
             loc_ids = wh_recs.mapped('lot_stock_id').ids
             if loc_ids:
-                domain.append(('location_dest_id', 'in', loc_ids))
+                base_domain.append(('location_dest_id', 'in', loc_ids))
 
-        mos = self.env['mrp.production'].search(domain, limit=100, order='date_finished asc')  # limit=100 para evitar payload excesivo en el acordeón
+        if mo_mode == 'finish_date':
+            domain = base_domain + [
+                ('date_finished', '>=', dt_from_s),
+                ('date_finished', '<=', dt_to_s),
+            ]
+            order = 'date_finished asc'
+        elif mo_mode == 'start_date':
+            domain = base_domain + [
+                ('date_start', '>=', dt_from_s),
+                ('date_start', '<=', dt_to_s),
+            ]
+            order = 'date_start asc'
+        else:
+            # overlap y proportional: OFs que solapan el período
+            domain = base_domain + [
+                ('date_start', '<=', dt_to_s),
+                '|',
+                ('date_finished', '>=', dt_from_s),
+                ('date_finished', '=', False),
+            ]
+            order = 'date_start asc'
+
+        mos = self.env['mrp.production'].search(domain, limit=100, order=order)
+
+        if mo_mode == 'proportional':
+            mos.mapped('move_finished_ids')  # prefetch
+
         state_labels = {
             'draft':     'Borrador',
             'confirmed': 'Confirmada',
@@ -849,17 +879,49 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'done':      'Hecha',
             'cancel':    'Cancelada',
         }
-        return [{
-            'id':           mo.id,
-            'name':         mo.name,
-            'state':        mo.state,
-            'state_label':  state_labels.get(mo.state, mo.state),
-            'product_qty':  round(mo.product_qty, 2),
-            'qty_produced': round(mo.qty_produced, 2),
-            'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
-            'date_start':   mo.date_start.strftime('%Y-%m-%d')    if mo.date_start    else None,
-            'date_finished': mo.date_finished.strftime('%Y-%m-%d') if mo.date_finished else None,
-        } for mo in mos]
+        result = []
+        for mo in mos:
+            if mo_mode == 'proportional':
+                mo_start = mo.date_start
+                mo_end   = mo.date_finished
+                if mo_start and mo_end and mo_start < mo_end:
+                    total_secs   = (mo_end - mo_start).total_seconds()
+                    ov_start     = max(mo_start, dt_from)
+                    ov_end       = min(mo_end, dt_to)
+                    overlap_secs = max(0.0, (ov_end - ov_start).total_seconds())
+                    qty_period   = mo.product_qty * (overlap_secs / total_secs)
+                else:
+                    qty_period = mo.product_qty
+                done_in_period = mo.move_finished_ids.filtered(
+                    lambda m, p=mo.product_id: (
+                        m.state == 'done'
+                        and m.product_id == p
+                        and m.date >= dt_from
+                        and m.date <= dt_to
+                    )
+                )
+                qty_produced_period = sum(
+                    getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
+                    for m in done_in_period
+                )
+            else:
+                qty_period          = mo.product_qty
+                qty_produced_period = mo.qty_produced
+
+            result.append({
+                'id':                 mo.id,
+                'name':               mo.name,
+                'state':              mo.state,
+                'state_label':        state_labels.get(mo.state, mo.state),
+                'product_qty':        round(mo.product_qty, 2),
+                'qty_produced':       round(mo.qty_produced, 2),
+                'qty_period':         round(qty_period, 2),
+                'qty_produced_period': round(qty_produced_period, 2),
+                'uom':                mo.product_uom_id.name if mo.product_uom_id else '',
+                'date_start':         mo.date_start.strftime('%Y-%m-%d')    if mo.date_start    else None,
+                'date_finished':      mo.date_finished.strftime('%Y-%m-%d') if mo.date_finished else None,
+            })
+        return result
 
     @api.model
     def get_forecast_export(self, period_from, period_to, warehouse_ids=None):

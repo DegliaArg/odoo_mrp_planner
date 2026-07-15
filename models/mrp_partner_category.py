@@ -64,7 +64,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('base.group_system')):
             raise UserError(_('Esta acción está restringida a administradores del planificador.'))
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config:
             return
 
@@ -214,7 +214,7 @@ class MrpPartnerCategory(models.Model):
     def _cron_auto_assign_sale_categories(self):
         """Punto de entrada del cron para recategorización automática de artículos de venta."""
         _logger.info('MRP Planner cron: inicio actualización categorías de venta')
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
             _logger.info('MRP Planner cron: categorías de venta omitidas (desactivado o modo manual)')
             return
@@ -248,7 +248,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('base.group_system')):
             raise UserError(_('Esta acción está restringida a administradores del planificador.'))
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config or config.supplier_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del proveedor.', 'type': 'warning'}}
@@ -483,7 +483,7 @@ class MrpPartnerCategory(models.Model):
     def _cron_compute_supplier_categories(self):
         """Punto de entrada del cron para recategorización automática de proveedores."""
         _logger.info('MRP Planner cron: inicio actualización categorías de proveedor')
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
             _logger.info('MRP Planner cron: categorías de proveedor omitidas (desactivado o modo manual)')
             return
@@ -511,7 +511,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('base.group_system')):
             raise UserError(_('Esta acción está restringida a administradores del planificador.'))
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config or config.customer_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del cliente.', 'type': 'warning'}}
@@ -589,7 +589,7 @@ class MrpPartnerCategory(models.Model):
     def _cron_compute_customer_categories(self):
         """Punto de entrada del cron para recategorización automática de clientes."""
         _logger.info('MRP Planner cron: inicio actualización categorías de cliente')
-        config = self.search([], limit=1)
+        config = self.get_config()
         if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
             _logger.info('MRP Planner cron: categorías de cliente omitidas (desactivado o modo manual)')
             return

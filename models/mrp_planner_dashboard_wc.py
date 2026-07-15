@@ -42,7 +42,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             whs = self.env['stock.warehouse']
         else:
             whs = self.env['stock.warehouse'].browse(allowed)
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         u = self.env.user
         has_scheduling = (
             u.has_group('odoo_mrp_planner.group_scheduling') or
@@ -71,7 +71,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         active_tag_ids = set(
             Wc.search([('active', '=', True)]).mapped('tag_ids').ids
         )
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         u = self.env.user
         has_scheduling = (
             u.has_group('odoo_mrp_planner.group_scheduling') or

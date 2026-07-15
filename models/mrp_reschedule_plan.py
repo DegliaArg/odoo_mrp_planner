@@ -51,6 +51,14 @@ class MrpReschedulePlan(MrpRescheduleCascadeMixin, models.Model):
 
     active = fields.Boolean(default=True, string='Activo')
 
+    company_id = fields.Many2one(
+        'res.company',
+        string='Empresa',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
+
     production_id = fields.Many2one(
         'mrp.production', string='Orden pivot',
         help='Orden de referencia. Dejar vacío para reprogramar globalmente '

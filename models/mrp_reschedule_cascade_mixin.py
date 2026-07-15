@@ -120,7 +120,7 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             result |= level2
 
         # Level 3: WC-shared (only if config.include_wc_heuristic = True)
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         if cfg and cfg.include_wc_heuristic:
             wc_ids = pivot.workorder_ids.mapped('workcenter_id').ids
             if wc_ids and pivot.date_start:

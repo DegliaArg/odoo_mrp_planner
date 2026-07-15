@@ -184,6 +184,7 @@
                 <field name="impact_mo_count" string="OFs afect." optional="show"/>
                 <field name="message"       string="Detalle"    optional="show"/>
                 <field name="plan_id"       string="Plan"       optional="show"/>
+                <field name="company_id"    string="Empresa"     optional="hide" groups="base.group_multi_company"/>
                 <field name="resolved"      string="Resuelta"/>
                 <field name="resolve_date"  string="Resuelta el" optional="hide"/>
                 <button name="action_view_impact_mos"

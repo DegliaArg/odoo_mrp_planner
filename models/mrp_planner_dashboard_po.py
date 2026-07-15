@@ -121,7 +121,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
         pending  = approved.filtered(lambda p: not p.date_planned or p.date_planned >= now)
 
         # Leer umbral crítico OC desde config
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
 
         def _po_dict(po):

@@ -1,12 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Restringe la visibilidad de mrp.forecast.line a la empresa propia del usuario.
-         Sin esta regla, en instalaciones multi-empresa un usuario ve forecasts de todas
-         las empresas aunque no tenga acceso a ellas. -->
+    <!-- Restringe la visibilidad de mrp.forecast.line a la empresa propia del usuario. -->
     <record id="rule_forecast_line_company" model="ir.rule">
         <field name="name">Forecast Line: solo empresa propia</field>
         <field name="model_id" ref="model_mrp_forecast_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.config — cada empresa solo ve su propia configuración del planificador. -->
+    <record id="rule_reschedule_config_company" model="ir.rule">
+        <field name="name">Reschedule Config: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.plan — planes de reprogramación por empresa. -->
+    <record id="rule_reschedule_plan_company" model="ir.rule">
+        <field name="name">Reschedule Plan: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_plan"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.plan.line — líneas de plan por empresa (heredada del plan). -->
+    <record id="rule_reschedule_plan_line_company" model="ir.rule">
+        <field name="name">Reschedule Plan Line: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_plan_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.plan.wc.line — carga de WC por empresa (heredada del plan). -->
+    <record id="rule_reschedule_plan_wc_line_company" model="ir.rule">
+        <field name="name">Reschedule Plan WC Line: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_plan_wc_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.alert — alertas de planificación por empresa. -->
+    <record id="rule_reschedule_alert_company" model="ir.rule">
+        <field name="name">Reschedule Alert: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_alert"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.user.permission — permisos por usuario, filtrados por empresa. -->
+    <record id="rule_reschedule_user_permission_company" model="ir.rule">
+        <field name="name">Reschedule User Permission: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_user_permission"/>
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>

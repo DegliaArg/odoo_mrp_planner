@@ -30,6 +30,7 @@ class MrpReschedulePlanWcLine(models.Model):
 
     plan_id       = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade', string='Plan',
                                     help='Plan de reprogramación al que pertenece esta línea de WC.')
+    company_id    = fields.Many2one(related='plan_id.company_id', store=True, index=True)
     production_id = fields.Many2one('mrp.production', string='Orden de fabricación',
                                     help='MO a la que pertenece la operación.')
     workorder_id  = fields.Many2one('mrp.workorder',  string='Operación',

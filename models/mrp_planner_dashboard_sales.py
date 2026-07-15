@@ -265,7 +265,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
         dt_from = fields.Datetime.to_string(datetime.combine(d_from, datetime.min.time()))
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # date_field determina qué campo de fecha usa el filtro principal de OCs;
         # 'date_approve' es el campo estándar de Odoo para la fecha de confirmación.
         date_field = (cfg and cfg.supplier_analysis_date_field) or 'date_approve'

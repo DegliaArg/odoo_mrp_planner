@@ -125,7 +125,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
         months = _months_between(d_from, d_to)
 
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         warning_pct    = cfg.forecast_warning_pct    if cfg else 70   # 70 %: umbral de alerta por defecto (cobertura aceptable mínima)
         critical_pct   = cfg.forecast_critical_pct   if cfg else 50   # 50 %: umbral crítico por defecto (cobertura insuficiente)
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
@@ -829,7 +829,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             datetime.combine(last_day, datetime.max.time())
         ).astimezone(pytz.utc).replace(tzinfo=None)
 
-        cfg     = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg     = self.env['mrp.reschedule.config'].get_config()
         mo_mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
         mo_states = []

@@ -38,6 +38,14 @@ class MrpRescheduleAlert(models.Model):
     _description = 'Alerta de planificación de producción'
     _order = 'resolved asc, severity desc, id desc'
 
+    company_id = fields.Many2one(
+        'res.company',
+        string='Empresa',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
+
     name = fields.Char(compute='_compute_name', store=True,
                        help='Etiqueta legible generada automáticamente: tipo de alerta + referencia del documento.')
 
@@ -359,7 +367,17 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def _cron_check_delays(self):
-        """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas."""
+        """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas (una vez por empresa activa)."""
+        companies = self.env['res.company'].sudo().search([])
+        for company in companies:
+            _logger.info('MRP Planner cron: chequeo desvíos — empresa %s', company.name)
+            try:
+                self.with_company(company)._cron_check_delays_for_company()
+            except Exception as e:
+                _logger.warning('MRP Planner cron: error en empresa %s: %s', company.name, e)
+
+    def _cron_check_delays_for_company(self):
+        """Detecta desvíos para la empresa activa en self.env.company."""
         _logger.info('MRP Planner cron: inicio chequeo de desvíos de producción')
         now = datetime.utcnow()
         impact_cache = {}
@@ -381,7 +399,7 @@ class MrpRescheduleAlert(models.Model):
 
     def _get_config(self):
         """Retorna el primer registro de configuración del planificador, o None si no existe."""
-        return self.env['mrp.reschedule.config'].search([], limit=1)
+        return self.env['mrp.reschedule.config'].get_config()
 
     @api.model
     def _check_delayed_mos(self, now):
@@ -398,7 +416,7 @@ class MrpRescheduleAlert(models.Model):
         # Preload all open mo_delayed alerts indexed by production_id
         by_mo = {
             a.production_id.id: a
-            for a in self.search([('alert_type', '=', 'mo_delayed'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'mo_delayed'), ('resolved', '=', False)])
         }
 
         to_create = []
@@ -435,7 +453,7 @@ class MrpRescheduleAlert(models.Model):
 
         by_mo = {
             a.production_id.id: a
-            for a in self.search([('alert_type', '=', 'mo_upcoming'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'mo_upcoming'), ('resolved', '=', False)])
         }
 
         to_create = []
@@ -469,7 +487,7 @@ class MrpRescheduleAlert(models.Model):
         # Preload all open po_delayed alerts indexed by purchase_id
         by_po = {
             a.purchase_id.id: a
-            for a in self.search([('alert_type', '=', 'po_delayed'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'po_delayed'), ('resolved', '=', False)])
         }
 
         # Batch-read qty_available for ALL products across ALL POs in one shot
@@ -526,7 +544,7 @@ class MrpRescheduleAlert(models.Model):
 
         by_po = {
             a.purchase_id.id: a
-            for a in self.search([('alert_type', '=', 'po_upcoming'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'po_upcoming'), ('resolved', '=', False)])
         }
 
         to_create = []
@@ -562,7 +580,7 @@ class MrpRescheduleAlert(models.Model):
         # Preload all open receipt_delayed alerts indexed by picking_id
         by_picking = {
             a.picking_id.id: a
-            for a in self.search([('alert_type', '=', 'receipt_delayed'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'receipt_delayed'), ('resolved', '=', False)])
         }
 
         # Batch-read qty_available for ALL products across ALL pickings in one shot
@@ -628,7 +646,7 @@ class MrpRescheduleAlert(models.Model):
         # Preload all open qty_mismatch alerts indexed by production_id
         by_mo = {
             a.production_id.id: a
-            for a in self.search([('alert_type', '=', 'qty_mismatch'), ('resolved', '=', False)])
+            for a in self.search([('company_id', '=', self.env.company.id), ('alert_type', '=', 'qty_mismatch'), ('resolved', '=', False)])
         }
 
         # Prefetch all finished moves in one query
@@ -710,6 +728,7 @@ class MrpRescheduleAlert(models.Model):
         # Limpiar alertas de OFs subcontratadas — no deben generar alertas de producción
         # Usamos is_subcontracting_location porque las OFs SBC suelen tener bom_id=False
         stale_sc = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', 'in', ('mo_delayed', 'mo_upcoming', 'mo_cancelled', 'qty_mismatch')),
             ('resolved', '=', False),
             ('production_id.location_src_id.is_subcontracting_location', '=', True),
@@ -719,6 +738,7 @@ class MrpRescheduleAlert(models.Model):
 
         # mo_delayed y qty_mismatch: se resuelven cuando la OF termina o se cancela
         stale_mo = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', 'in', ('mo_delayed', 'qty_mismatch')),
             ('resolved', '=', False),
             ('production_id.state', 'in', ('done', 'cancel')),
@@ -728,6 +748,7 @@ class MrpRescheduleAlert(models.Model):
 
         # mo_delayed: también se resuelve si la OF ya no está atrasada
         stale_mo_on_time = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', '=', 'mo_delayed'),
             ('resolved', '=', False),
             ('production_id.date_finished', '>', now),
@@ -737,6 +758,7 @@ class MrpRescheduleAlert(models.Model):
 
         # mo_upcoming: se resuelve cuando la OF ya venció (pasa a mo_delayed) o termina/cancela
         stale_upcoming_mo = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', '=', 'mo_upcoming'),
             ('resolved', '=', False),
             '|',
@@ -748,6 +770,7 @@ class MrpRescheduleAlert(models.Model):
 
         # po_upcoming: se resuelve cuando la OC ya venció (pasa a po_delayed) o se cancela/completa
         stale_upcoming_po = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', '=', 'po_upcoming'),
             ('resolved', '=', False),
             '|',
@@ -758,6 +781,7 @@ class MrpRescheduleAlert(models.Model):
             stale_upcoming_po.write({'resolved': True, 'resolve_date': now})
 
         stale_po = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', 'in', ('po_delayed', 'po_cancelled')),
             ('resolved', '=', False),
             '|',
@@ -768,6 +792,7 @@ class MrpRescheduleAlert(models.Model):
             stale_po.write({'resolved': True, 'resolve_date': now})
 
         stale_pick = self.search([
+            ('company_id', '=', self.env.company.id),
             ('alert_type', '=', 'receipt_delayed'),
             ('resolved', '=', False),
             ('picking_id.state', 'in', ('done', 'cancel')),

@@ -28,7 +28,7 @@ class ResUsers(models.Model):
     )
 
     def _compute_mrp_scheduling_enabled(self):
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         enabled = bool(cfg.enable_scheduling) if cfg else False
         for user in self:
             user.mrp_scheduling_enabled = enabled
@@ -38,7 +38,7 @@ class ResUsers(models.Model):
         scheduling_group = self.env.ref('odoo_mrp_planner.group_scheduling', raise_if_not_found=False)
         if not scheduling_group:
             return
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         if not cfg or cfg.enable_scheduling:
             return
         for user in self:

@@ -52,6 +52,7 @@
                        decoration-warning="state == 'calculated'"
                        decoration-success="state == 'applied'"
                        decoration-danger="state == 'cancelled'"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
                 <field name="create_uid" optional="hide"/>
                 <field name="create_date" optional="hide"/>
             </list>

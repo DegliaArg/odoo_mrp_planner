@@ -72,7 +72,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             # ── OCs ──────────────────────────────────────────────────────────
             if cat == 'pos':
                 # FIX [FASE-3]: umbral crítico de días leído de config (antes hardcodeado en 5)
-                cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+                cfg = self.env['mrp.reschedule.config'].get_config()
                 po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
                 active_pos = PO.search([('state', '=', 'purchase')])
                 overdue = active_pos.filtered(lambda p: p.date_planned and p.date_planned < now)
@@ -198,7 +198,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
 
     def action_view_critical_pos(self):
         now = fields.Datetime.now()
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         from datetime import timedelta
         crit_threshold = now - timedelta(days=po_crit_days)

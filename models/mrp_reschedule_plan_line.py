@@ -20,6 +20,7 @@ class MrpReschedulePlanLine(models.Model):
 
     plan_id  = fields.Many2one('mrp.reschedule.plan', required=True, ondelete='cascade',
                                string='Plan', help='Plan de reprogramación al que pertenece esta línea.')
+    company_id = fields.Many2one(related='plan_id.company_id', store=True, index=True)
     sequence = fields.Integer(default=10,
                               help='Orden interno de creación usado como fallback de visualización.')
     reschedule_sequence = fields.Integer(

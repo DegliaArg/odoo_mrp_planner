@@ -17,6 +17,7 @@ class MrpRescheduleUserPermission(models.Model):
         required=True,
         ondelete='cascade',
     )
+    company_id = fields.Many2one(related='config_id.company_id', store=True, index=True)
     user_id = fields.Many2one(
         'res.users',
         string='Usuario',

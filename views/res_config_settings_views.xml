@@ -18,6 +18,9 @@
         <field name="arch" type="xml">
             <form string="Configuración del planificador" create="false" delete="false">
                 <sheet>
+                    <div class="oe_title" groups="base.group_multi_company">
+                        <h1><field name="company_id" readonly="1"/></h1>
+                    </div>
                     <h2>Planificador de producción</h2>
                     <notebook>
 

@@ -37,11 +37,18 @@ class MrpRescheduleConfig(models.Model):
     _description = 'Configuración del planificador de producción'
     _rec_name = 'name'
     _sql_constraints = [
-        ('singleton', 'UNIQUE(singleton_check)',
-         'Solo puede existir una configuración del planificador.'),
+        ('singleton', 'UNIQUE(singleton_check, company_id)',
+         'Solo puede existir una configuración del planificador por empresa.'),
     ]
 
     singleton_check = fields.Boolean(default=True, string='Singleton')
+    company_id = fields.Many2one(
+        'res.company',
+        string='Empresa',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
     name = fields.Char(compute='_compute_name', string='Nombre')
 
     # ── Programación / Reprogramación ────────────────────────────────────────
@@ -543,6 +550,36 @@ class MrpRescheduleConfig(models.Model):
         help='Ubicación interna desde la cual se lee el stock actual en el widget de quiebres de stock.',
     )
 
+    def _auto_init(self):
+        cr = self.env.cr
+        # Drop the old single-column constraint so super() can create the new (singleton_check, company_id) one
+        cr.execute("SAVEPOINT drop_old_singleton_constraint")
+        try:
+            cr.execute(
+                "ALTER TABLE mrp_reschedule_config "
+                "DROP CONSTRAINT IF EXISTS mrp_reschedule_config_singleton"
+            )
+            cr.execute("RELEASE SAVEPOINT drop_old_singleton_constraint")
+        except Exception:
+            cr.execute("ROLLBACK TO SAVEPOINT drop_old_singleton_constraint")
+        super()._auto_init()
+        # Fill company_id for records that existed before multi-company support
+        cr.execute("SAVEPOINT fill_config_company_id")
+        try:
+            cr.execute("""
+                UPDATE mrp_reschedule_config
+                SET company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
+                WHERE company_id IS NULL
+            """)
+            cr.execute("RELEASE SAVEPOINT fill_config_company_id")
+        except Exception:
+            cr.execute("ROLLBACK TO SAVEPOINT fill_config_company_id")
+
+    @api.model
+    def get_config(self):
+        """Retorna la configuración de la empresa actual; None si no existe."""
+        return self.search([('company_id', '=', self.env.company.id)], limit=1)
+
     @api.depends()
     def _compute_stock_location_id(self):
         """
@@ -755,14 +792,16 @@ class MrpRescheduleConfig(models.Model):
         :returns: dict — acción ir.actions.act_window con res_id del singleton o
                   False si aún no fue creado.
         """
-        config = self.search([], limit=1)
+        config = self.search([('company_id', '=', self.env.company.id)], limit=1)
+        if not config:
+            config = self.sudo().create({'company_id': self.env.company.id})
         return {
             'type': 'ir.actions.act_window',
             'name': 'Configuración del planificador',
             'res_model': self._name,
             'view_mode': 'form',
             'view_id': self.env.ref('odoo_mrp_planner.mrp_reschedule_config_form_view').id,
-            'res_id': config.id if config else False,
+            'res_id': config.id,
             'target': 'current',
             'flags': {'no_pager': True},
         }

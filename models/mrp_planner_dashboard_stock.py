@@ -150,7 +150,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
         qty_map = {g['product_id'][0]: g['quantity'] for g in quant_groups}
 
         # Config: rotación en quiebres
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         show_rotation        = (cfg.stock_break_show_rotation   if cfg else False)
         rotation_method      = (cfg.stock_break_rotation_method if cfg else None) or 'units'
         rotation_months_cfg  = (cfg.stock_break_rotation_months if cfg else 3) or 3

@@ -216,7 +216,7 @@ class MrpPlannerDashboard(models.TransientModel):
         can_prod  = is_admin or has_prod_r or has_prod or no_groups
         can_pur   = is_admin or has_pur or has_pur_admin
         can_sales = is_admin or has_sales_r or has_sales
-        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg = self.env['mrp.reschedule.config'].get_config()
         scheduling_on = bool(cfg.enable_scheduling) if cfg else True
         for rec in self:
             rec.can_see_alerts       = can_prod or can_pur
@@ -247,11 +247,18 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Permisos por depósito ────────────────────────────────────────────────
 
     def _get_allowed_wh_ids(self):
-        """Retorna None si el usuario ve todos los depósitos, o lista de IDs si está restringido."""
+        """Retorna None si el usuario ve todos los depósitos, o lista de IDs si está restringido.
+        Cuando hay restricción, filtra a los depósitos de la empresa activa."""
         u = self.env.user
         if u.mrp_planner_all_warehouses:
-            return None
-        return u.mrp_planner_warehouse_ids.ids
+            return None  # sin restricción; los callers filtran por empresa al buscar en stock.warehouse
+        # Filtrar los depósitos del usuario a solo los que pertenecen a la empresa activa
+        company_wh_ids = set(
+            self.env['stock.warehouse'].search(
+                [('company_id', '=', self.env.company.id)]
+            ).ids
+        )
+        return [wh_id for wh_id in u.mrp_planner_warehouse_ids.ids if wh_id in company_wh_ids]
 
     def _wh_domain_mo(self, allowed_ids):
         """Dominio de filtro por depósito para búsquedas sobre mrp.production."""
@@ -381,7 +388,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 lambda p: not p.date_planned or p.date_planned >= now
             ))
             rec.po_overdue          = len(overdue)
-            cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+            cfg = self.env['mrp.reschedule.config'].get_config()
             crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
             rec.po_overdue_critical = len(overdue.filtered(
                 lambda p: (now - p.date_planned).days >= crit_days

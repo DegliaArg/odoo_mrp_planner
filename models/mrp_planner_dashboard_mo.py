@@ -260,7 +260,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
         now_s  = fields.Datetime.to_string(now)
 
-        cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg  = self.env['mrp.reschedule.config'].get_config()
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
         if mode == 'start_date':
             date_d = [('date_start', '>=', dFrom), ('date_start', '<=', dTo)]
@@ -369,7 +369,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         no_sc = no_subcontract_domain(self.env)
         wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
 
-        cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
+        cfg  = self.env['mrp.reschedule.config'].get_config()
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
         mo_states = []

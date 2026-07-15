@@ -63,7 +63,7 @@ class ResPartner(models.Model):
         Depende de: contexto de compañía (company); los cambios en
         mrp.reschedule.config invalidan el caché vía depends_context.
         """
-        config = self.env['mrp.reschedule.config'].sudo().search([], limit=1)
+        config = self.env['mrp.reschedule.config'].sudo().get_config()
         enable_sup  = config.enable_supplier_categories if config else False
         enable_cust = config.enable_customer_categories if config else False
         for rec in self:

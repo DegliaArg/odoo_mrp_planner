@@ -110,15 +110,15 @@ class MrpRescheduleConfig(models.Model):
 
     # Estados de OF a incluir en la comparativa forecast
     forecast_mo_state_draft     = fields.Boolean(string='Borrador',          default=False,
-        help='OFs en borrador incluidas en el cálculo de cobertura de producción.')
+        help='Incluye OFs en borrador en el cálculo de Programado (comparativa y forecast).')
     forecast_mo_state_confirmed = fields.Boolean(string='Confirmada',        default=True,
-        help='OFs confirmadas incluidas en el cálculo de cobertura de producción.')
+        help='Incluye OFs confirmadas en el cálculo de Programado (comparativa y forecast).')
     forecast_mo_state_progress  = fields.Boolean(string='En progreso',       default=True,
-        help='OFs en progreso (ya iniciadas) incluidas en el cálculo de cobertura de producción.')
+        help='Incluye OFs en progreso en el cálculo de Programado (comparativa y forecast).')
     forecast_mo_state_to_close  = fields.Boolean(string='Por cerrar',        default=True,
-        help='OFs pendientes de cierre incluidas en el cálculo de cobertura de producción.')
+        help='Incluye OFs por cerrar en el cálculo de Programado (comparativa y forecast).')
     forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False,
-        help='OFs terminadas incluidas en el cálculo de cobertura de producción.')
+        help='Incluye OFs terminadas en el cálculo de Programado (comparativa y forecast).')
 
     comparison_date_mode = fields.Selection([
         ('finish_date',  'Por fecha de cierre'),

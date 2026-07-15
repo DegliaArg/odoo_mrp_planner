@@ -76,6 +76,31 @@
                                         <field name="stock_location_id"
                                                help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
                                     </group>
+                                    <group string="OFs incluidas en comparativa y forecast">
+                                        <div class="text-muted small border-start border-2 ps-2 mb-2">
+                                            Define qué estados de OF se suman como <b>Programado</b> tanto en <i>Producido vs. Programado</i> como en el <i>Forecast</i>. Las OFs canceladas nunca se incluyen.
+                                        </div>
+                                        <field name="forecast_mo_state_draft"
+                                               string="Borrador"
+                                               widget="boolean_toggle"
+                                               help="Incluye OFs en borrador (aún no confirmadas) en el cálculo de Programado."/>
+                                        <field name="forecast_mo_state_confirmed"
+                                               string="Confirmada"
+                                               widget="boolean_toggle"
+                                               help="Incluye OFs confirmadas (lanzadas pero no iniciadas) en el cálculo de Programado."/>
+                                        <field name="forecast_mo_state_progress"
+                                               string="En progreso"
+                                               widget="boolean_toggle"
+                                               help="Incluye OFs en curso (ya iniciadas) en el cálculo de Programado."/>
+                                        <field name="forecast_mo_state_to_close"
+                                               string="Por cerrar"
+                                               widget="boolean_toggle"
+                                               help="Incluye OFs con producción terminada pero pendientes de cierre formal en el cálculo de Programado."/>
+                                        <field name="forecast_mo_state_done"
+                                               string="Terminada"
+                                               widget="boolean_toggle"
+                                               help="Incluye OFs ya cerradas en el cálculo de Programado. Útil para validar lo ejecutado contra lo planificado."/>
+                                    </group>
                                     <group string="Comparativa Producido vs. Programado">
                                         <field name="comparison_date_mode" widget="radio" nolabel="1"
                                                help="Controla cómo se asignan las órdenes de fabricación a un período en la comparativa y en el forecast. Afecta tanto las cantidades planificadas como las producidas."/>
@@ -611,14 +636,6 @@
                                              invisible="forecast_acc_formula != 'bias'">
                                             <b>Sesgo (Bias):</b> (real − forecast) / forecast × 100. Positivo = sobre-demanda. Negativo = déficit. Mide dirección sistemática, no magnitud del error.
                                         </div>
-                                    </group>
-
-                                    <group string="Forecast — OFs incluidas en la cobertura">
-                                        <field name="forecast_mo_state_draft"     widget="boolean_toggle"/>
-                                        <field name="forecast_mo_state_confirmed" widget="boolean_toggle"/>
-                                        <field name="forecast_mo_state_progress"  widget="boolean_toggle"/>
-                                        <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
-                                        <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
                                     </group>
 
                                 </div>

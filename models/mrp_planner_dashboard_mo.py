@@ -39,17 +39,16 @@ class MrpPlannerDashboardMo(models.TransientModel):
     # ── Widget OFs filtrable ─────────────────────────────────────────────────
 
     @api.model
-    def get_filtered_mos(self, date_from, date_to, tag_id=None):
+    def get_filtered_mos(self, date_from, date_to, warehouse_id=None):
         """
         Retorna OFs activas que solapan con el rango de fechas, excluyendo subcontratadas.
 
         Usado por el widget simplificado de OFs del dashboard (sin paginación ni KPIs).
-        Si se especifica tag_id, filtra solo las OFs que contienen al menos una operación
-        cuyo centro de trabajo pertenezca al sector (tag) indicado.
+        Si se especifica warehouse_id, filtra solo las OFs de ese almacén.
 
         :param date_from: str con formato 'YYYY-MM-DD', inicio del rango.
         :param date_to: str con formato 'YYYY-MM-DD', fin del rango (se extiende a 23:59:59).
-        :param tag_id: int o str con el ID del tag de centro de trabajo a filtrar; None para todos.
+        :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
         :returns: list[dict] con campos id, name, product, qty, date_finished, state,
                   delayed (bool) y reschedule (bool) por cada OF encontrada.
         """
@@ -57,7 +56,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
         domain = [
             ('state', 'not in', ('done', 'cancel')),
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
@@ -69,16 +68,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
         ] + no_sc + wh_mo
 
         mos = self.env['mrp.production'].search(domain, order='date_finished asc')
-
-        if tag_id:
-            tag_id = int(tag_id)
-            mos = mos.filtered(
-                lambda m: any(
-                    tag_id in w.workcenter_id.tag_ids.ids
-                    for w in m.workorder_ids
-                    if w.workcenter_id
-                )
-            )
 
         now = fields.Datetime.now()
         result = []
@@ -146,7 +135,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_mo_widget_data(self, date_from, date_to, tag_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None):
+    def get_mo_widget_data(self, date_from, date_to, warehouse_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None):
         """
         Retorna KPIs de OFs y la página de registros solicitada para el widget principal de OFs.
 
@@ -159,7 +148,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
 
         :param date_from: str 'YYYY-MM-DD', inicio del rango.
         :param date_to: str 'YYYY-MM-DD', fin del rango.
-        :param tag_id: int|str|None — ID del tag de centro de trabajo para filtrar por sector.
+        :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
         :param sort_field: str|None — campo lógico de ordenamiento
                            ('name', 'product', 'qty', 'date_finished', 'state', 'delayed', 'reschedule').
         :param sort_dir: 'asc' o 'desc'.
@@ -184,7 +173,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
         # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
         active_states = [s for s in (states or []) if s != 'done'] if states else []
         state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
@@ -199,14 +188,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
 
         mos = self.env['mrp.production'].search(domain, order=mo_order)
 
-        if tag_id:
-            tag_id = int(tag_id)
-            tag_filter = lambda m: any(
-                tag_id in w.workcenter_id.tag_ids.ids
-                for w in m.workorder_ids if w.workcenter_id
-            )
-            mos = mos.filtered(tag_filter)
-
         # OFs finalizadas en el mismo rango de fechas
         done_domain = [
             ('state', '=', 'done'),
@@ -214,8 +195,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
             ('date_finished', '<=', fields.Datetime.to_string(last_day)),
         ] + no_sc + wh_mo
         done_mos = self.env['mrp.production'].search(done_domain)
-        if tag_id:
-            done_mos = done_mos.filtered(tag_filter)
 
         offset   = (max(1, page) - 1) * page_size
         mos_page = mos[offset:offset + page_size]
@@ -263,27 +242,19 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
-    def get_mo_kpi_counts(self, date_from, date_to, tag_id=None):
+    def get_mo_kpi_counts(self, date_from, date_to, warehouse_id=None):
         """
         Retorna contadores de KPIs usando los mismos dominios que los botones de navegación del frontend.
 
-        Esto garantiza que el número mostrado en cada tarjeta KPI coincida exactamente con la
-        cantidad de registros que aparecen al hacer click en ella. Los dominios replican la
-        lógica del JS para evitar discrepancias por estados intermedios o zonas horarias.
-
-        Cuando se filtra por tag_id, se usa search + filtered en Python porque Odoo no permite
-        filtrar por campos relacionados en cadena (workcenter -> tags) directamente en el dominio
-        ORM sin un campo stored.
-
         :param date_from: str 'YYYY-MM-DD', inicio del rango.
         :param date_to: str 'YYYY-MM-DD', fin del rango.
-        :param tag_id: int|str|None — ID del tag de centro de trabajo; None para no filtrar.
+        :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
         :returns: dict con claves total, in_progress, delayed, reschedule, done, partial (int cada una).
         """
         now   = fields.Datetime.now()
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
         dFrom = date_from + ' 00:00:00'
         dTo   = date_to   + ' 23:59:59'
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
@@ -299,17 +270,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
         else:
             date_d = [('date_finished', '>=', dFrom), ('date_finished', '<=', dTo)]
 
-        if tag_id:
-            tag_id = int(tag_id)
-            tag_filter = lambda m: any(
-                tag_id in w.workcenter_id.tag_ids.ids
-                for w in m.workorder_ids if w.workcenter_id
-            )
-            def _cnt(domain):
-                return len(MO.search(domain).filtered(tag_filter))
-        else:
-            def _cnt(domain):
-                return MO.search_count(domain)
+        def _cnt(domain):
+            return MO.search_count(domain)
 
         return {
             'total':       _cnt(active + date_d + no_sc + wh_mo),
@@ -388,18 +350,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
-    def get_comparison_data(self, date_from, date_to, tag_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc'):
+    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc'):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
 
-        Consolida en un solo diccionario por producto las cantidades planificadas (product_qty)
-        y producidas (qty_produced) de todas las OFs del rango, tanto activas como finalizadas.
-        Los resultados se ordenan por cantidad planificada descendente y se limitan a los 20
-        productos con mayor volumen para mantener el widget legible.
-
         :param date_from: str 'YYYY-MM-DD', inicio del rango.
         :param date_to: str 'YYYY-MM-DD', fin del rango.
-        :param tag_id: int|str|None — ID del tag de centro de trabajo; None para no filtrar.
+        :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
         :returns: dict con:
                   - kpis (dict): planned (float), produced (float), pct (float, % de cumplimiento),
                     ofs_done (int).
@@ -410,7 +367,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
 
         cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
@@ -439,15 +396,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 ('date_finished', '>=', first_day_str),
                 ('date_finished', '=', False),
             ] + no_sc + wh_mo)
-
-        if tag_id:
-            tag_id = int(tag_id)
-            all_mos = all_mos.filtered(
-                lambda m: any(
-                    tag_id in w.workcenter_id.tag_ids.ids
-                    for w in m.workorder_ids if w.workcenter_id
-                )
-            )
 
         product_data = {}
 
@@ -543,7 +491,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
             ('date_finished', '<=', last_day_str),
         ] + no_sc + wh_mo)
 
-        allowed_ids = self._get_allowed_wh_ids()
         return {
             'kpis': {
                 'planned':  round(total_planned,  2),
@@ -554,7 +501,6 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'items':         items[offset:offset + page_size],
             'total':         total,
             'mo_mode':       mode,
-            'allowed_wh_ids': allowed_ids,
         }
 
     # ── Backwards compat (paneles de detalle) ─────────────────────────────────

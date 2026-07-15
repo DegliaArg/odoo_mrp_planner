@@ -33,6 +33,29 @@ class MrpPlannerDashboardWc(models.TransientModel):
     # ── Filtros de sector (WC tags) — usados por widgets de OFs ────────────
 
     @api.model
+    def get_mo_warehouses(self):
+        """Devuelve almacenes disponibles para el widget de OFs y flag de programación."""
+        allowed = self._get_allowed_wh_ids()
+        if allowed is None:
+            whs = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)])
+        elif not allowed:
+            whs = self.env['stock.warehouse']
+        else:
+            whs = self.env['stock.warehouse'].browse(allowed)
+        cfg = self.env['mrp.reschedule.config'].search([], limit=1)
+        u = self.env.user
+        has_scheduling = (
+            u.has_group('odoo_mrp_planner.group_scheduling') or
+            u.has_group('odoo_mrp_planner.group_admin') or
+            u.has_group('base.group_system')
+        )
+        enable_scheduling = bool(cfg.enable_scheduling) and has_scheduling if cfg else has_scheduling
+        return {
+            'warehouses': [{'id': wh.id, 'name': wh.name} for wh in whs.sorted('name')],
+            'enable_scheduling': enable_scheduling,
+        }
+
+    @api.model
     def get_wc_tags(self):
         """Devuelve la lista de tags de CTs que tienen al menos un centro de trabajo activo.
 

@@ -10,8 +10,8 @@
  *   @returns {{ kpis: {active,calculated,reschedule,mos_delayed}, requests: ReqRow[] }}
  * @fires RPC mrp.planner.dashboard.get_comparison_data — comparativo plan vs producido
  *   @returns {{ kpis: {planned,produced,pct,ofs_done}, items: CmpRow[] }}
- * @fires RPC mrp.planner.dashboard.get_wc_tags — lista de sectores/categorías de WC
- * @listens onMounted — carga tags y datos iniciales
+ * @fires RPC mrp.planner.dashboard.get_mo_warehouses — lista de almacenes disponibles
+ * @listens onMounted — carga almacenes y datos iniciales
  * @listens onPatched — resincroniza altura de paneles
  */
 
@@ -76,8 +76,8 @@ class MoDashboardWidget extends Component {
 
         this.state = useState({
             tab:            "ofs",     // "ofs" | "requests" | "comparison"
-            tags:           [],
-            selectedTag:    "",
+            warehouses:          [],
+            selectedWarehouseId: null,
             dateFrom:    toDateStr(firstOfMonth),
             dateTo:         toDateStr(lastOfMonth),
             loading:        true,
@@ -97,13 +97,11 @@ class MoDashboardWidget extends Component {
             comparison:    [],
             cmp_total:     0,
             cmp_mode:      'finish_date',
-            cmp_wh_ids:    null,
         });
 
         onMounted(async () => {
             try {
-                // Paralelizar: get_wc_tags y get_mo_widget_data son RPCs independientes
-                await Promise.all([this._loadTags(), this._loadData()]);
+                await Promise.all([this._loadWarehouses(), this._loadData()]);
                 requestAnimationFrame(() => this._syncH());
             } catch (e) {
                 if (e.message !== "Component is destroyed") throw e;
@@ -112,10 +110,10 @@ class MoDashboardWidget extends Component {
         onPatched(() => requestAnimationFrame(() => this._syncH()));
     }
 
-    /** @returns {Promise<void>} Carga las etiquetas/sectores de centros de trabajo y config */
-    async _loadTags() {
-        const res = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
-        this.state.tags = res.tags;
+    /** @returns {Promise<void>} Carga almacenes disponibles y flag de programación */
+    async _loadWarehouses() {
+        const res = await this.orm.call("mrp.planner.dashboard", "get_mo_warehouses", []);
+        this.state.warehouses = res.warehouses;
         this.state.enable_scheduling = res.enable_scheduling;
         if (!res.enable_scheduling && this.state.tab === 'requests') {
             this.state.tab = 'ofs';
@@ -131,7 +129,7 @@ class MoDashboardWidget extends Component {
                     this.orm.call("mrp.planner.dashboard", "get_mo_widget_data", [
                         this.state.dateFrom,
                         this.state.dateTo,
-                        this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                        this.state.selectedWarehouseId || null,
                         this.state.sortField || null,
                         this.state.sortDir,
                         this.state.page,
@@ -140,7 +138,7 @@ class MoDashboardWidget extends Component {
                     this.orm.call("mrp.planner.dashboard", "get_mo_kpi_counts", [
                         this.state.dateFrom,
                         this.state.dateTo,
-                        this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                        this.state.selectedWarehouseId || null,
                     ]),
                 ]);
                 this.state.ofs_kpis = kpis;
@@ -158,7 +156,7 @@ class MoDashboardWidget extends Component {
                 const d = await this.orm.call("mrp.planner.dashboard", "get_comparison_data", [
                     this.state.dateFrom,
                     this.state.dateTo,
-                    this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                    this.state.selectedWarehouseId || null,
                     this.state.page,
                     this.state.pageSize,
                     this.state.sortField || null,
@@ -168,7 +166,6 @@ class MoDashboardWidget extends Component {
                 this.state.comparison = d.items;
                 this.state.cmp_total  = d.total || 0;
                 this.state.cmp_mode   = d.mo_mode || 'finish_date';
-                this.state.cmp_wh_ids = d.allowed_wh_ids ?? null;
             }
         } catch (e) {
             console.error("[MoDashboardWidget]", e);
@@ -220,7 +217,7 @@ class MoDashboardWidget extends Component {
      * Actualiza el filtro de sector/tag y recarga datos desde la página 1.
      * @param {Event} ev - Evento change del select de categorías de WC.
      */
-    onTagChange(ev)      { this.state.selectedTag = ev.target.value; this.state.page = 1; this._loadData(); }
+    onWarehouseChange(ev) { this.state.selectedWarehouseId = ev.target.value || null; this.state.page = 1; this._loadData(); }
 
     /**
      * Indica si se deben mostrar los filtros de fecha y sector.
@@ -240,8 +237,8 @@ class MoDashboardWidget extends Component {
      */
     _navigate(name, domain) {
         const baseDomain = [...domain, ["location_src_id.is_subcontracting_location", "!=", true]];
-        if (this.state.selectedTag) {
-            baseDomain.push(["workorder_ids.workcenter_id.tag_ids", "in", [parseInt(this.state.selectedTag)]]);
+        if (this.state.selectedWarehouseId) {
+            baseDomain.push(["picking_type_id.warehouse_id", "=", parseInt(this.state.selectedWarehouseId)]);
         }
         this.action.doAction({
             type: "ir.actions.act_window", name,

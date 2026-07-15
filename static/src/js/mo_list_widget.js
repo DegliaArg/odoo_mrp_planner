@@ -21,27 +21,26 @@ class MoListWidget extends Component {
         const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         this.state = useState({
-            tags:        [],
-            selectedTag: "",
-            dateFrom:    toDateStr(firstOfMonth),
-            dateTo:      toDateStr(lastOfMonth),
-            loading:     false,
-            mos:         [],
+            warehouses:          [],
+            selectedWarehouseId: null,
+            dateFrom:            toDateStr(firstOfMonth),
+            dateTo:              toDateStr(lastOfMonth),
+            loading:             false,
+            mos:                 [],
         });
 
         onMounted(async () => {
             try {
-                // Paralelizar: get_wc_tags y get_filtered_mos son RPCs independientes
-                await Promise.all([this._loadTags(), this._loadMos()]);
+                await Promise.all([this._loadWarehouses(), this._loadMos()]);
             } catch (e) {
                 if (e.message !== "Component is destroyed") throw e;
             }
         });
     }
 
-    async _loadTags() {
-        const tags = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
-        this.state.tags = tags;
+    async _loadWarehouses() {
+        const res = await this.orm.call("mrp.planner.dashboard", "get_mo_warehouses", []);
+        this.state.warehouses = res.warehouses;
     }
 
     async _loadMos() {
@@ -54,7 +53,7 @@ class MoListWidget extends Component {
                 [
                     this.state.dateFrom,
                     this.state.dateTo,
-                    this.state.selectedTag ? parseInt(this.state.selectedTag) : null,
+                    this.state.selectedWarehouseId || null,
                 ],
             );
         } catch (e) {
@@ -75,8 +74,8 @@ class MoListWidget extends Component {
         this._loadMos();
     }
 
-    onTagChange(ev) {
-        this.state.selectedTag = ev.target.value;
+    onWarehouseChange(ev) {
+        this.state.selectedWarehouseId = ev.target.value || null;
         this._loadMos();
     }
 

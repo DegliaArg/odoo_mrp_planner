@@ -42,16 +42,16 @@
                            t-att-value="state.dateTo"
                            t-on-change="onDateToChange"/>
                 </div>
-                <div class="col-auto" t-if="state.tags.length > 0">
-                    <label class="col-form-label col-form-label-sm me-1">Sector</label>
+                <div class="col-auto" t-if="state.warehouses.length > 1">
+                    <label class="col-form-label col-form-label-sm me-1">Depósito</label>
                     <select class="form-select form-select-sm d-inline-block"
                             style="width:auto"
-                            t-on-change="onTagChange">
+                            t-on-change="onWarehouseChange">
                         <option value="">Todos</option>
-                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                            <option t-att-value="tag.id"
-                                    t-att-selected="state.selectedTag == tag.id"
-                                    t-esc="tag.name"/>
+                        <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
+                            <option t-att-value="wh.id"
+                                    t-att-selected="state.selectedWarehouseId == wh.id"
+                                    t-esc="wh.name"/>
                         </t>
                     </select>
                 </div>

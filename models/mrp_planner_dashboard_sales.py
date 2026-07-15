@@ -86,6 +86,9 @@ class MrpPlannerDashboardSales(models.TransientModel):
         """
         tmpl_qty = {}
         tmpl_amount = {}
+        allowed_ids = self._get_allowed_wh_ids()
+        if allowed_ids is not None and not allowed_ids:
+            return []
 
         if doc_type in ('sales', 'rfq', 'all'):
             so_states = []
@@ -102,6 +105,8 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 ('product_id', '!=', False),
                 ('product_id.sale_ok', '=', True),
             ]
+            if allowed_ids is not None:
+                sol_domain.append(('order_id.warehouse_id', 'in', allowed_ids))
             if product_categ_id:
                 sol_domain.append(('product_id.categ_id', '=', int(product_categ_id)))
             try:
@@ -130,6 +135,8 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 ('product_id', '!=', False),
                 ('product_id.sale_ok', '=', True),
             ]
+            if allowed_ids is not None:
+                domain.append(('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids))
             if product_categ_id:
                 domain.append(('product_id.categ_id', '=', int(product_categ_id)))
             groups = self.env['stock.move.line'].sudo().read_group(

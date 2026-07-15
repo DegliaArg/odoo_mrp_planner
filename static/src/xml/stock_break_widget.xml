@@ -141,14 +141,36 @@
                     </div>
                 </div>
 
-                <!-- Tabla -->
+                <!-- Tabs de agrupamiento -->
+                <t t-if="state.groupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-if="state.groupBy === 'sale_category'">
+                                        <span t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[g.key] || 'secondary')"
+                                              style="font-size:10px; padding:1px 6px; margin-right:4px;">
+                                            <t t-esc="g.label"/>
+                                        </span>
+                                    </t>
+                                    <t t-else=""><t t-esc="g.label"/></t>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+
+                <!-- Estado vacío (solo cuando no hay agrupamiento activo) -->
                 <div t-if="!state.groupBy and state.products.length === 0"
                      class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-check-circle fa-2x text-success mb-2 d-block"/>
                     No hay productos en esta categoría.
                 </div>
 
-                <t t-if="state.groupBy or state.products.length">
+                <t t-if="(state.groupBy and allGroupsForTabs and allGroupsForTabs.length) or state.products.length">
                     <div class="border rounded" style="overflow:auto;">
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
@@ -179,67 +201,6 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Modo agrupado -->
-                                <t t-if="state.groupBy and state.groupedProducts">
-                                    <t t-foreach="state.groupedProducts" t-as="group" t-key="group.key">
-                                        <tr class="table-secondary">
-                                            <td t-att-colspan="visibleStockCols.length"
-                                                class="fw-semibold small py-1 px-2">
-                                                <i class="fa fa-folder-o me-1 text-muted"/>
-                                                <t t-esc="group.label"/>
-                                                <span class="text-muted fw-normal ms-1">(<t t-esc="group.items.length"/>)</span>
-                                            </td>
-                                        </tr>
-                                        <t t-foreach="group.items" t-as="prod" t-key="prod.id">
-                                            <tr t-att-class="prod.is_broken ? 'table-danger' : ''"
-                                                style="cursor:pointer"
-                                                t-att-data-product-id="prod.id"
-                                                t-on-click="openProductFromRow">
-                                                <td t-foreach="visibleStockCols" t-as="col" t-key="col.key"
-                                                    t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center align-middle p-0' : '')">
-                                                    <t t-if="col.key === '_expand'">
-                                                        <button t-if="prod.mo_count"
-                                                                class="btn btn-sm btn-link p-0 px-1 text-muted"
-                                                                t-att-title="state.expandedProducts[prod.id] ? 'Cerrar OFs' : 'Ver OFs activas'"
-                                                                t-on-click.stop="(ev) => this.toggleAccordion(prod, ev)">
-                                                            <i t-att-class="'fa fa-fw ' + (state.expandedProducts[prod.id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                                                        </button>
-                                                    </t>
-                                                    <t t-elif="col.key === 'name'"><span class="fw-semibold text-truncate d-block" t-esc="prod.name"/></t>
-                                                    <t t-elif="col.key === 'product_types'"><span class="text-truncate text-muted small d-block" t-att-title="prod.product_types || ''" t-esc="prod.product_types || '—'"/></t>
-                                                    <t t-elif="col.key === 'sale_category'">
-                                                        <span t-if="prod.sale_category" t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[prod.sale_category] || 'secondary')" t-esc="prod.sale_category"/>
-                                                        <span t-else="" class="text-muted">—</span>
-                                                    </t>
-                                                    <t t-elif="col.key === 'categ_name'"><span class="text-truncate small d-block" t-att-title="prod.categ_name || ''" t-esc="prod.categ_name || '—'"/></t>
-                                                    <t t-elif="col.key === 'qty'"><t t-esc="fmt(prod.qty)"/></t>
-                                                    <t t-elif="col.key === 'min_qty'">
-                                                        <t t-if="prod.has_min" t-esc="fmt(prod.min_qty)"/>
-                                                        <span t-else="" class="text-muted">—</span>
-                                                    </t>
-                                                    <t t-elif="col.key === 'qty_forecast'">
-                                                        <t t-if="prod.qty_forecast !== null and prod.qty_forecast !== undefined" t-esc="fmt(prod.qty_forecast)"/>
-                                                        <span t-else="" class="text-muted">—</span>
-                                                    </t>
-                                                    <t t-elif="col.key === 'rotation'">
-                                                        <span t-att-class="rotClass(prod)" t-att-title="rotTooltipStock(prod)">
-                                                            <t t-esc="fmtRotation(prod)"/>
-                                                            <i t-if="prod.rotation_days !== null and prod.rotation_days !== undefined and state.rotation_critical_days !== null and prod.rotation_days > state.rotation_critical_days"
-                                                               class="fa fa-exclamation-triangle ms-1" style="font-size:10px;"/>
-                                                        </span>
-                                                    </t>
-                                                    <t t-elif="col.key === 'status'">
-                                                        <span t-if="prod.is_broken" class="badge text-bg-danger" t-att-title="statusTooltip(prod)">Quiebre</span>
-                                                        <span t-elif="prod.has_min" class="badge text-bg-success" t-att-title="statusTooltip(prod)">OK</span>
-                                                        <span t-else="" class="text-muted fst-italic small" title="Sin punto de reorden con ruta Fabricación">Sin mínimo</span>
-                                                    </t>
-                                                </td>
-                                            </tr>
-                                        </t>
-                                    </t>
-                                </t>
-                                <!-- Modo plano (paginado) -->
-                                <t t-else="">
                                 <t t-foreach="state.products" t-as="prod" t-key="prod.id">
                                     <!-- Fila principal -->
                                     <tr t-att-class="prod.is_broken ? 'table-danger' : ''"
@@ -380,13 +341,12 @@
                                         </td>
                                     </tr>
                                 </t>
-                                </t> <!-- cierre t-else modo plano -->
                             </tbody>
                         </table>
                     </div>
 
-                    <!-- Paginación (solo en modo plano) -->
-                    <div t-if="!state.groupBy and totalPages > 1"
+                    <!-- Paginación -->
+                    <div t-if="totalPages > 1"
                          class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
                          style="flex-shrink:0;">
                         <button class="btn btn-sm btn-outline-secondary py-0 px-2"

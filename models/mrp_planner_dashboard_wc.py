@@ -161,7 +161,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
             return (wo.duration_expected or 0.0) / 60.0 * proportion
 
         # Fix 19: cargar todos los workorders en 1 query batch antes del loop
-        all_wos = self.env['mrp.workorder'].search([
+        allowed_ids = self._get_allowed_wh_ids()
+        wos_domain = [
             ('workcenter_id', 'in', workcenters.ids),
             ('state', 'not in', ('cancel',)),
             ('date_start', '!=', False),
@@ -170,7 +171,13 @@ class MrpPlannerDashboardWc(models.TransientModel):
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
             ('date_finished', '=', False),
             ('production_id.location_src_id.is_subcontracting_location', '!=', True),
-        ])
+        ]
+        if allowed_ids is not None:
+            if not allowed_ids:
+                wos_domain.append(('id', '=', False))
+            else:
+                wos_domain.append(('production_id.picking_type_id.warehouse_id', 'in', allowed_ids))
+        all_wos = self.env['mrp.workorder'].search(wos_domain)
         wos_by_wc = defaultdict(list)
         for wo in all_wos:
             wos_by_wc[wo.workcenter_id.id].append(wo)

@@ -103,6 +103,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             d_to_str   = period_to   + ' 23:59:59'
             d_from     = datetime.strptime(period_from, '%Y-%m-%d')
             d_to       = datetime.strptime(period_to,   '%Y-%m-%d')
+            allowed    = self._get_allowed_wh_ids()
+            if allowed is not None:
+                allowed_set = set(allowed)
+                warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
             wh_domain  = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
             # ── 1. Órdenes confirmadas en el período ─────────────────────────
@@ -338,6 +342,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         """
         d_from_str = period_from + ' 00:00:00'
         d_to_str   = period_to   + ' 23:59:59'
+        allowed = self._get_allowed_wh_ids()
+        if allowed is not None:
+            allowed_set = set(allowed)
+            warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
 
         # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard

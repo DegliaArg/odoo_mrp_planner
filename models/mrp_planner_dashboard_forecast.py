@@ -202,6 +202,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
             ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
         ] + no_subcontract_domain(self.env)
+        if warehouse_ids:
+            mo_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
         mos = self.env['mrp.production'].search(mo_domain)
 
         # Estructura: {product_id: {month_str: qty}}

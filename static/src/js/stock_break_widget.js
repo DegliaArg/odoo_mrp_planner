@@ -76,7 +76,7 @@ class StockBreakWidget extends Component {
             rotation_warn_days:     null,
             rotation_critical_days: null,
             groupBy:                null,
-            groupedProducts:        null,
+            selectedGroup:          null,
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
@@ -158,17 +158,15 @@ class StockBreakWidget extends Component {
         }
     }
 
-    /** Aplica filtro, sort y paginación sobre `state.allProducts` sin ir al servidor */
+    /** Aplica filtro de tipo, sort, filtro de tab activo y paginación sobre `state.allProducts` */
     _applyClientSort() {
         let rows = [...this.state.allProducts];
 
-        // Filtro
+        // Filtro de tipo
         const f = this.state.filterType;
         if      (f === 'broken') rows = rows.filter(r => r.is_broken);
         else if (f === 'ok')     rows = rows.filter(r => r.has_min && !r.is_broken);
         else if (f === 'no_min') rows = rows.filter(r => !r.has_min);
-
-        this.state.totalFiltered = rows.length;
 
         // Sort
         const field = this.state.sortField;
@@ -219,24 +217,17 @@ class StockBreakWidget extends Component {
             });
         }
 
-        // Agrupamiento o paginación
-        if (this.state.groupBy) {
-            const gf = this.state.groupBy;
-            const groups = {};
-            rows.forEach(r => {
-                const key = r[gf] || '';
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(r);
-            });
-            this.state.groupedProducts = Object.entries(groups)
-                .sort(([a], [b]) => (a || '').localeCompare(b || '', 'es'))
-                .map(([key, items]) => ({ key, label: key || '(Sin categoría)', items }));
-            this.state.products = [];
-        } else {
-            this.state.groupedProducts = null;
-            const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
-            this.state.products = rows.slice(offset, offset + this.state.pageSize);
+        // Filtro de tab activo (cuando groupBy está en uso)
+        if (this.state.groupBy && this.state.selectedGroup !== null) {
+            const gb = this.state.groupBy;
+            rows = rows.filter(r => (r[gb] || '') === this.state.selectedGroup);
         }
+
+        this.state.totalFiltered = rows.length;
+
+        // Paginación
+        const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
+        this.state.products = rows.slice(offset, offset + this.state.pageSize);
     }
 
     /**
@@ -270,12 +261,6 @@ class StockBreakWidget extends Component {
         });
     }
 
-    setGroupBy(field) {
-        this.state.groupBy = this.state.groupBy === field ? null : field;
-        this.state.page = 1;
-        this._applyClientSort();
-    }
-
     get stockGroupByDefs() {
         const defs = [{ key: 'categ_name', label: 'Categoría' }];
         if (this.state.show_sale_cat) defs.push({ key: 'sale_category', label: 'Cat. venta' });
@@ -285,7 +270,50 @@ class StockBreakWidget extends Component {
     onGroupByChange(k) {
         this.state.groupBy = k;
         this.state.page = 1;
+        if (k) {
+            const groups = this.allGroupsForTabs;
+            this.state.selectedGroup = groups && groups.length ? groups[0].key : null;
+        } else {
+            this.state.selectedGroup = null;
+        }
         this._applyClientSort();
+    }
+
+    setGroup(key) {
+        this.state.selectedGroup = key;
+        this.state.page = 1;
+        this._applyClientSort();
+    }
+
+    get baseFilteredForGroups() {
+        let rows = [...this.state.allProducts];
+        const f = this.state.filterType;
+        if      (f === 'broken') rows = rows.filter(r => r.is_broken);
+        else if (f === 'ok')     rows = rows.filter(r => r.has_min && !r.is_broken);
+        else if (f === 'no_min') rows = rows.filter(r => !r.has_min);
+        return rows;
+    }
+
+    get allGroupsForTabs() {
+        const gb = this.state.groupBy;
+        if (!gb) return null;
+        const counts = new Map();
+        for (const row of this.baseFilteredForGroups) {
+            const key = row[gb] || '';
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        const entries = [...counts.entries()];
+        if (gb === 'sale_category') {
+            const ORDER = ['A', 'B', 'C', 'D', 'E', ''];
+            entries.sort((a, b) => {
+                const ia = ORDER.indexOf(a[0]);
+                const ib = ORDER.indexOf(b[0]);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+        } else {
+            entries.sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
+        }
+        return entries.map(([key, count]) => ({ key, label: key || 'Sin categoría', count }));
     }
 
     /**

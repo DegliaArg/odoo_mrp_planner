@@ -239,11 +239,15 @@ class MoDashboardWidget extends Component {
      * @param {Array} domain - Dominio Odoo adicional para filtrar las OFs.
      */
     _navigate(name, domain) {
+        const baseDomain = [...domain, ["location_src_id.is_subcontracting_location", "!=", true]];
+        if (this.state.selectedTag) {
+            baseDomain.push(["workorder_ids.workcenter_id.tag_ids", "in", [parseInt(this.state.selectedTag)]]);
+        }
         this.action.doAction({
             type: "ir.actions.act_window", name,
             res_model: "mrp.production", view_mode: "list,form",
             views: [[false, "list"], [false, "form"]],
-            domain: [...domain, ["location_src_id.is_subcontracting_location", "!=", true]],
+            domain: baseDomain,
             target: "current",
         });
     }

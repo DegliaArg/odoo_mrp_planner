@@ -222,6 +222,24 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 if pid not in mo_data:
                     mo_data[pid] = {}
                 mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
+        elif mo_mode == 'start_date':
+            mo_domain = [
+                ('state', 'in', mo_states),
+                ('date_start', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_start', '<=', fields.Datetime.to_string(dt_to)),
+            ] + no_sc_domain + wh_filter
+            mos = self.env['mrp.production'].search(mo_domain)
+            for _mo in mos.read(['product_id', 'date_start', 'product_qty']):
+                pid = _mo['product_id'][0] if _mo['product_id'] else False
+                ds  = _mo['date_start']
+                if not pid or not ds:
+                    continue
+                ym = _dt_ym(ds)
+                if ym not in months:
+                    continue
+                if pid not in mo_data:
+                    mo_data[pid] = {}
+                mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
         else:
             # overlap y proportional: OFs que solapan el rango completo
             mo_domain_wide = [

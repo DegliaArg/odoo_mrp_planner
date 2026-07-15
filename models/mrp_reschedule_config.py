@@ -122,11 +122,13 @@ class MrpRescheduleConfig(models.Model):
 
     comparison_date_mode = fields.Selection([
         ('finish_date',  'Por fecha de cierre'),
+        ('start_date',   'Por fecha de inicio'),
         ('overlap',      'Por solapamiento completo'),
         ('proportional', 'Proporcional por duración'),
     ], string='Criterio de OFs en comparativa y forecast', default='finish_date',
        help='Define cómo se asignan las OFs a un período en la comparativa y el forecast.\n'
             'Por fecha de cierre: solo OFs cuya fecha de fin cae dentro del período.\n'
+            'Por fecha de inicio: solo OFs cuya fecha de inicio cae dentro del período.\n'
             'Por solapamiento: toda OF activa durante el período (puede aparecer en varios).\n'
             'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
             'el producido usa los movimientos reales de stock con fecha en el período.')

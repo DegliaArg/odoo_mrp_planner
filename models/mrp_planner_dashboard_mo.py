@@ -415,6 +415,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 ('date_finished', '>=', first_day_str),
                 ('date_finished', '<=', last_day_str),
             ] + no_sc + wh_mo)
+        elif mode == 'start_date':
+            all_mos = self.env['mrp.production'].search([
+                ('state', 'not in', ('cancel',)),
+                ('date_start', '>=', first_day_str),
+                ('date_start', '<=', last_day_str),
+            ] + no_sc + wh_mo)
         else:
             # overlap y proportional: toda OF que solape el período
             all_mos = self.env['mrp.production'].search([

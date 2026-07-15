@@ -81,7 +81,11 @@
                                                help="Controla cómo se asignan las órdenes de fabricación a un período en la comparativa y en el forecast. Afecta tanto las cantidades planificadas como las producidas."/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'finish_date'">
-                                            <b>Por fecha de cierre:</b> solo se incluyen las OFs cuya fecha de fin planificada cae dentro del período seleccionado. Es el criterio más estricto: una OF que cierra en agosto no aparece en julio aunque haya empezado en junio.
+                                            <b>Por fecha de cierre:</b> solo se incluyen las OFs cuya fecha de fin planificada cae dentro del período. Una OF que cierra en agosto no aparece en julio aunque haya empezado en junio.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="comparison_date_mode != 'start_date'">
+                                            <b>Por fecha de inicio:</b> solo se incluyen las OFs cuya fecha de inicio cae dentro del período. Útil para medir la carga de planificación: cuántas OFs se lanzaron a producción en el mes, independientemente de cuándo cierren.
                                         </div>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'overlap'">
@@ -90,6 +94,15 @@
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="comparison_date_mode != 'proportional'">
                                             <b>Proporcional por duración:</b> la cantidad planificada se distribuye en proporción al tiempo que la OF solapa el período (ej: una OF de 100 unidades que cubre 15 de 30 días aporta 50 unidades). El producido usa los movimientos de stock reales con fecha en el período, no una estimación.
+                                        </div>
+                                        <!-- Opción futura: visible solo si scheduling está activo, no clickeable -->
+                                        <div class="d-flex align-items-center gap-2 mt-2 ps-1"
+                                             invisible="not enable_scheduling"
+                                             style="cursor: not-allowed; opacity: 0.45; pointer-events: none; user-select: none;">
+                                            <input type="radio" disabled="disabled" style="cursor:not-allowed;"/>
+                                            <span class="small">Por operaciones programadas
+                                                <span class="badge text-bg-secondary ms-1" style="font-size:10px;">Próximamente</span>
+                                            </span>
                                         </div>
                                     </group>
                                 </div>

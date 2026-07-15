@@ -241,10 +241,7 @@ class MoDashboardWidget extends Component {
     _navigate(name, domain) {
         const baseDomain = [...domain, ["location_src_id.is_subcontracting_location", "!=", true]];
         if (this.state.selectedTag) {
-            baseDomain.push("|",
-                ["workorder_ids", "=", false],
-                ["workorder_ids.workcenter_id.tag_ids", "in", [parseInt(this.state.selectedTag)]]
-            );
+            baseDomain.push(["workorder_ids.workcenter_id.tag_ids", "in", [parseInt(this.state.selectedTag)]]);
         }
         this.action.doAction({
             type: "ir.actions.act_window", name,

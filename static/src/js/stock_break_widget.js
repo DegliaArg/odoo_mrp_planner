@@ -28,7 +28,7 @@ const STOCK_COLS = [
     { key: 'qty',          label: 'Stock actual', width:  95, sortKey: 'qty',             align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
     { key: 'min_qty',      label: 'Mínimo',       width:  85, sortKey: 'min_qty',         align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
     { key: 'qty_forecast', label: 'Pronóstico',   width:  95, sortKey: 'qty_forecast',    align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
-    { key: 'bom_lead',     label: 'Plazo fab.',   width:  85, sortKey: 'bom_lead',        align: 'end', title: 'Plazo total de fabricación según BoM de manufactura: produce_delay + days_to_prepare_mo. Tiempo estimado para reponer stock por producción.' },
+    { key: 'bom_lead',     label: 'Plazo fab.',   width:  85, sortKey: 'bom_lead',        align: 'end', title: 'Plazo total de fabricación según BoM de manufactura (fabricación + preparación de componentes). Tiempo estimado para reponer stock por producción.' },
     { key: 'rotation',     label: 'Rot.',         width:  75, sortKey: 'rotation',        align: 'end', title: 'Rotación = stock promedio del período ÷ promedio mensual de salidas × 30. Período configurable en Ajustes.' },
     { key: 'status',       label: 'Estado',       width: 115, sortKey: 'status',          align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado. Los días en quiebre se estiman a partir del historial de movimientos de salida.' },
 ];
@@ -662,7 +662,7 @@ class StockBreakWidget extends Component {
         if (prod.bom_lead_days === null || prod.bom_lead_days === undefined) {
             return 'Sin BoM';
         }
-        return `Plazo total de fabricación según BoM de manufactura\n→ ${prod.bom_lead_days} d (produce_delay + days_to_prepare_mo)`;
+        return `Plazo total de fabricación según BoM de manufactura\n→ ${prod.bom_lead_days} d (fabricación + preparación de componentes)`;
     }
 
     statusTooltip(prod) {

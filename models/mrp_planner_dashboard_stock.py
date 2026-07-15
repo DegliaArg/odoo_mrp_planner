@@ -364,12 +364,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
             for r in rows:
                 r['categ_name'] = categ_map.get(r['id'], '')
 
-            # Plazo de fabricación: produce_delay + days_to_prepare_mo de la BoM de manufactura
+            # Plazo de fabricación: produce_delay + days_to_prepare_bom de la BoM de manufactura
             bom_lead_map = {}
             tmpl_ids_list = list({v for v in prod_to_tmpl.values()})
             if tmpl_ids_list:
                 try:
-                    boms = self.env['mrp.bom'].search_read([
+                    BomModel = self.env['mrp.bom']
+                    # Detectar nombre del campo según versión de Odoo
+                    prep_field = 'days_to_prepare_bom' if 'days_to_prepare_bom' in BomModel._fields else 'days_to_prepare_mo'
+                    boms = BomModel.search_read([
                         ('type', '=', 'normal'),
                         ('active', '=', True),
                         '|',
@@ -377,23 +380,31 @@ class MrpPlannerDashboardStock(models.TransientModel):
                         '&',
                         ('product_id', '=', False),
                         ('product_tmpl_id', 'in', tmpl_ids_list),
-                    ], ['product_id', 'product_tmpl_id', 'produce_delay', 'days_to_prepare_mo'],
-                       order='product_id desc, sequence asc')
+                    ], ['product_id', 'product_tmpl_id', 'produce_delay', prep_field],
+                       order='sequence asc')
                     tmpl_to_pids_map = defaultdict(list)
                     for pid_v, tmpl_id in prod_to_tmpl.items():
                         tmpl_to_pids_map[tmpl_id].append(pid_v)
+                    # Dos pasadas: variante específica tiene prioridad sobre plantilla
+                    bom_variant = {}
+                    bom_tmpl    = {}
                     for bom in boms:
-                        lead = round((bom['produce_delay'] or 0.0) + (bom['days_to_prepare_mo'] or 0.0), 1)
+                        lead = round((bom['produce_delay'] or 0.0) + (bom[prep_field] or 0.0), 1)
                         if bom['product_id']:
                             pid_v = bom['product_id'][0]
-                            if pid_v not in bom_lead_map:
-                                bom_lead_map[pid_v] = lead
+                            if pid_v not in bom_variant:
+                                bom_variant[pid_v] = lead
                         else:
                             tmpl_id = bom['product_tmpl_id'][0] if bom['product_tmpl_id'] else None
-                            if tmpl_id:
-                                for pid_v in tmpl_to_pids_map.get(tmpl_id, []):
-                                    if pid_v not in bom_lead_map:
-                                        bom_lead_map[pid_v] = lead
+                            if tmpl_id and tmpl_id not in bom_tmpl:
+                                bom_tmpl[tmpl_id] = lead
+                    for pid_v in all_pids:
+                        if pid_v in bom_variant:
+                            bom_lead_map[pid_v] = bom_variant[pid_v]
+                        else:
+                            tmpl_id = prod_to_tmpl.get(pid_v)
+                            if tmpl_id and tmpl_id in bom_tmpl:
+                                bom_lead_map[pid_v] = bom_tmpl[tmpl_id]
                 except Exception:
                     _logger.exception("Error calculando bom_lead_days en get_stock_break_data")
             for r in rows:

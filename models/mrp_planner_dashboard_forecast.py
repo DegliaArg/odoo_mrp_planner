@@ -28,7 +28,7 @@ import logging
 import pytz
 import io
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from odoo import models, fields, api
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
@@ -197,28 +197,86 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             fc_data[pid][ym] = fc_data[pid].get(ym, 0.0) + line.forecast_qty
 
         # ── ÓFs planificadas ──────────────────────────────────────────────────
-        mo_domain = [
-            ('state', 'in', mo_states),
-            ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
-            ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
-        ] + no_subcontract_domain(self.env)
-        if warehouse_ids:
-            mo_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
-        mos = self.env['mrp.production'].search(mo_domain)
+        mo_mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
-        # Estructura: {product_id: {month_str: qty}}
-        mo_data = {}
-        for _mo in mos.read(['product_id', 'date_finished', 'product_qty']):
-            pid = _mo['product_id'][0] if _mo['product_id'] else False
-            df  = _mo['date_finished']
-            if not pid or not df:
-                continue
-            ym  = _dt_ym(df)
-            if ym not in months:
-                continue
-            if pid not in mo_data:
-                mo_data[pid] = {}
-            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
+        no_sc_domain = no_subcontract_domain(self.env)
+        wh_filter = [('picking_type_id.warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
+
+        mo_data = {}  # {product_id: {month_str: qty}}
+
+        if mo_mode == 'finish_date':
+            mo_domain = [
+                ('state', 'in', mo_states),
+                ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_finished', '<=', fields.Datetime.to_string(dt_to)),
+            ] + no_sc_domain + wh_filter
+            mos = self.env['mrp.production'].search(mo_domain)
+            for _mo in mos.read(['product_id', 'date_finished', 'product_qty']):
+                pid = _mo['product_id'][0] if _mo['product_id'] else False
+                df  = _mo['date_finished']
+                if not pid or not df:
+                    continue
+                ym = _dt_ym(df)
+                if ym not in months:
+                    continue
+                if pid not in mo_data:
+                    mo_data[pid] = {}
+                mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + _mo['product_qty']
+        else:
+            # overlap y proportional: OFs que solapan el rango completo
+            mo_domain_wide = [
+                ('state', 'in', mo_states),
+                ('date_start', '<=', fields.Datetime.to_string(dt_to)),
+                '|',
+                ('date_finished', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_finished', '=', False),
+            ] + no_sc_domain + wh_filter
+            mos_wide = self.env['mrp.production'].search(mo_domain_wide)
+
+            # Límites UTC de cada mes para cálculo de solapamiento
+            def _month_bounds_utc(ym_str):
+                y, m = int(ym_str[:4]), int(ym_str[5:])
+                m_start = _to_utc(datetime(y, m, 1, 0, 0, 0))
+                if m == 12:
+                    m_end = _to_utc(datetime(y + 1, 1, 1, 0, 0, 0)) - timedelta(seconds=1)
+                else:
+                    m_end = _to_utc(datetime(y, m + 1, 1, 0, 0, 0)) - timedelta(seconds=1)
+                return m_start, m_end
+
+            month_bounds = {ym: _month_bounds_utc(ym) for ym in months}
+
+            for _mo in mos_wide.read(['product_id', 'date_start', 'date_finished', 'product_qty']):
+                pid = _mo['product_id'][0] if _mo['product_id'] else False
+                if not pid:
+                    continue
+                mo_start = _mo['date_start']
+                mo_end   = _mo['date_finished']
+                qty      = _mo['product_qty']
+
+                if mo_mode == 'overlap':
+                    for ym, (m_start, m_end) in month_bounds.items():
+                        if mo_start and mo_start <= m_end and (not mo_end or mo_end >= m_start):
+                            if pid not in mo_data:
+                                mo_data[pid] = {}
+                            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + qty
+                else:  # proportional
+                    if mo_start and mo_end and mo_start < mo_end:
+                        total_secs = (mo_end - mo_start).total_seconds()
+                        for ym, (m_start, m_end) in month_bounds.items():
+                            ov_start = max(mo_start, m_start)
+                            ov_end   = min(mo_end, m_end)
+                            overlap_secs = max(0.0, (ov_end - ov_start).total_seconds())
+                            if overlap_secs > 0:
+                                if pid not in mo_data:
+                                    mo_data[pid] = {}
+                                mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + qty * (overlap_secs / total_secs)
+                    elif mo_end:
+                        # sin date_start: fallback a mes de cierre
+                        ym = _dt_ym(mo_end)
+                        if ym in months:
+                            if pid not in mo_data:
+                                mo_data[pid] = {}
+                            mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + qty
 
         def _cov_days(stock, period_days, demand):
             return round(stock * period_days / demand, 1) if demand > 0 else None

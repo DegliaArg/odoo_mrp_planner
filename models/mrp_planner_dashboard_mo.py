@@ -403,23 +403,27 @@ class MrpPlannerDashboardMo(models.TransientModel):
         no_sc = no_subcontract_domain(self.env)
         wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
 
-        done_mos = self.env['mrp.production'].search([
-            ('state', '=', 'done'),
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            ('date_finished', '<=', fields.Datetime.to_string(last_day)),
-        ] + no_sc + wh_mo)
+        cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
+        mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
-        active_mos = self.env['mrp.production'].search([
-            ('state', 'not in', ('done', 'cancel')),
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            '&',
-            ('date_finished', '=', False),
-            ('date_start', '>=', fields.Datetime.to_string(first_day)),
-        ] + no_sc + wh_mo)
+        first_day_str = fields.Datetime.to_string(first_day)
+        last_day_str  = fields.Datetime.to_string(last_day)
 
-        all_mos = done_mos | active_mos
+        if mode == 'finish_date':
+            all_mos = self.env['mrp.production'].search([
+                ('state', 'not in', ('cancel',)),
+                ('date_finished', '>=', first_day_str),
+                ('date_finished', '<=', last_day_str),
+            ] + no_sc + wh_mo)
+        else:
+            # overlap y proportional: toda OF que solape el período
+            all_mos = self.env['mrp.production'].search([
+                ('state', 'not in', ('cancel',)),
+                ('date_start', '<=', last_day_str),
+                '|',
+                ('date_finished', '>=', first_day_str),
+                ('date_finished', '=', False),
+            ] + no_sc + wh_mo)
 
         if tag_id:
             tag_id = int(tag_id)
@@ -431,20 +435,61 @@ class MrpPlannerDashboardMo(models.TransientModel):
             )
 
         product_data = {}
-        for mo in all_mos:
-            pid = mo.product_id.id
-            if not pid:
-                continue
-            if pid not in product_data:
-                product_data[pid] = {
-                    'product_id':   pid,
-                    'product':      mo.product_id.display_name,
-                    'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
-                    'planned_qty':  0.0,
-                    'produced_qty': 0.0,
-                }
-            product_data[pid]['planned_qty']  += mo.product_qty
-            product_data[pid]['produced_qty'] += mo.qty_produced
+
+        if mode == 'proportional':
+            all_mos.mapped('move_finished_ids')  # prefetch en un batch
+            for mo in all_mos:
+                pid = mo.product_id.id
+                if not pid:
+                    continue
+                mo_start = mo.date_start
+                mo_end   = mo.date_finished
+                if mo_start and mo_end and mo_start < mo_end:
+                    total_secs   = (mo_end - mo_start).total_seconds()
+                    ov_start     = max(mo_start, first_day)
+                    ov_end       = min(mo_end, last_day)
+                    overlap_secs = max(0.0, (ov_end - ov_start).total_seconds())
+                    planned_qty  = mo.product_qty * (overlap_secs / total_secs)
+                else:
+                    planned_qty = mo.product_qty
+                # Producido real: movimientos de salida del producto principal con fecha en el período
+                done_in_period = mo.move_finished_ids.filtered(
+                    lambda m, p=mo.product_id: (
+                        m.state == 'done'
+                        and m.product_id == p
+                        and m.date >= first_day
+                        and m.date <= last_day
+                    )
+                )
+                produced_qty = sum(
+                    getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
+                    for m in done_in_period
+                )
+                if pid not in product_data:
+                    product_data[pid] = {
+                        'product_id':   pid,
+                        'product':      mo.product_id.display_name,
+                        'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+                        'planned_qty':  0.0,
+                        'produced_qty': 0.0,
+                    }
+                product_data[pid]['planned_qty']  += planned_qty
+                product_data[pid]['produced_qty'] += produced_qty
+        else:
+            for mo in all_mos:
+                pid = mo.product_id.id
+                if not pid:
+                    continue
+                if pid not in product_data:
+                    product_data[pid] = {
+                        'product_id':   pid,
+                        'product':      mo.product_id.display_name,
+                        'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+                        'planned_qty':  0.0,
+                        'produced_qty': 0.0,
+                    }
+                product_data[pid]['planned_qty']  += mo.product_qty
+                product_data[pid]['produced_qty'] += mo.qty_produced
 
         items = sorted(product_data.values(), key=lambda x: x['planned_qty'], reverse=True)
         for item in items:

@@ -575,6 +575,9 @@
                                         <field name="forecast_mo_state_to_close"  widget="boolean_toggle"/>
                                         <field name="forecast_mo_state_done"      widget="boolean_toggle"/>
                                     </group>
+                                    <group string="Criterio de OFs por período">
+                                        <field name="comparison_date_mode" widget="radio" nolabel="1"/>
+                                    </group>
 
                                 </div>
 

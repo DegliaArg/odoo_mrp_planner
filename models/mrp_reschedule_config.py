@@ -120,6 +120,17 @@ class MrpRescheduleConfig(models.Model):
     forecast_mo_state_done      = fields.Boolean(string='Terminada',         default=False,
         help='OFs terminadas incluidas en el cálculo de cobertura de producción.')
 
+    comparison_date_mode = fields.Selection([
+        ('finish_date',  'Por fecha de cierre'),
+        ('overlap',      'Por solapamiento completo'),
+        ('proportional', 'Proporcional por duración'),
+    ], string='Criterio de OFs en comparativa y forecast', default='finish_date',
+       help='Define cómo se asignan las OFs a un período en la comparativa y el forecast.\n'
+            'Por fecha de cierre: solo OFs cuya fecha de fin cae dentro del período.\n'
+            'Por solapamiento: toda OF activa durante el período (puede aparecer en varios).\n'
+            'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
+            'el producido usa los movimientos reales de stock con fecha en el período.')
+
     forecast_rotation_unit = fields.Selection([
         ('days',   'Días'),
         ('months', 'Meses'),

@@ -28,8 +28,9 @@ const STOCK_COLS = [
     { key: 'qty',          label: 'Stock actual', width:  95, sortKey: 'qty',             align: 'end', title: 'Cantidad disponible en las ubicaciones seleccionadas.' },
     { key: 'min_qty',      label: 'Mínimo',       width:  85, sortKey: 'min_qty',         align: 'end', title: 'Cantidad mínima del punto de reorden con ruta Fabricación.' },
     { key: 'qty_forecast', label: 'Pronóstico',   width:  95, sortKey: 'qty_forecast',    align: 'end', title: 'Cantidad pronosticada (qty_forecast): stock actual + entradas pendientes − salidas pendientes.' },
+    { key: 'bom_lead',     label: 'Plazo fab.',   width:  85, sortKey: 'bom_lead',        align: 'end', title: 'Plazo total de fabricación según BoM de manufactura: produce_delay + days_to_prepare_bom. Tiempo estimado para reponer stock por producción.' },
     { key: 'rotation',     label: 'Rot.',         width:  75, sortKey: 'rotation',        align: 'end', title: 'Rotación = stock promedio del período ÷ promedio mensual de salidas × 30. Período configurable en Ajustes.' },
-    { key: 'status',       label: 'Estado',       width: 100, sortKey: 'status',          align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado.' },
+    { key: 'status',       label: 'Estado',       width: 115, sortKey: 'status',          align: 'center', title: 'Quiebre: stock menor que mínimo | OK: stock mayor o igual al mínimo | Sin mínimo: sin punto de reorden configurado. Los días en quiebre se estiman a partir del historial de movimientos de salida.' },
 ];
 
 class StockBreakWidget extends Component {
@@ -195,6 +196,12 @@ class StockBreakWidget extends Component {
             rows.sort((a, b) => {
                 const av = a.rotation_days !== null ? a.rotation_days : 999999;
                 const bv = b.rotation_days !== null ? b.rotation_days : 999999;
+                return rev ? bv - av : av - bv;
+            });
+        } else if (field === 'bom_lead') {
+            rows.sort((a, b) => {
+                const av = a.bom_lead_days !== null && a.bom_lead_days !== undefined ? a.bom_lead_days : (rev ? -1 : 999999);
+                const bv = b.bom_lead_days !== null && b.bom_lead_days !== undefined ? b.bom_lead_days : (rev ? -1 : 999999);
                 return rev ? bv - av : av - bv;
             });
         } else if (field === 'status') {
@@ -645,10 +652,29 @@ class StockBreakWidget extends Component {
         return '';
     }
 
+    breakLabel(prod) {
+        if (prod.break_days === null || prod.break_days === undefined) return 'Quiebre';
+        if (prod.break_days === 0) return 'Quiebre · hoy';
+        return `Quiebre · ${prod.break_days} d`;
+    }
+
+    bomLeadTooltip(prod) {
+        if (prod.bom_lead_days === null || prod.bom_lead_days === undefined) {
+            return 'Sin BoM';
+        }
+        return `Plazo total de fabricación según BoM de manufactura\n→ ${prod.bom_lead_days} d (produce_delay + days_to_prepare_bom)`;
+    }
+
     statusTooltip(prod) {
         const f = n => this.fmt(n);
         if (prod.qty < prod.min_qty) {
-            return `Stock disponible menor que el mínimo del punto de reorden\n→ Stock: ${f(prod.qty)} | Mínimo: ${f(prod.min_qty)}`;
+            let msg = `Stock disponible menor que el mínimo del punto de reorden\n→ Stock: ${f(prod.qty)} | Mínimo: ${f(prod.min_qty)}`;
+            if (prod.break_days !== null && prod.break_days !== undefined) {
+                msg += prod.break_days === 0
+                    ? '\n→ Quiebre detectado hoy (aprox.)'
+                    : `\n→ En quiebre hace ${prod.break_days} día${prod.break_days === 1 ? '' : 's'} (aprox.)`;
+            }
+            return msg;
         }
         if (prod.min_qty !== null && prod.min_qty !== undefined) {
             return `Stock disponible mayor o igual al mínimo del punto de reorden\n→ Stock: ${f(prod.qty)} | Mínimo: ${f(prod.min_qty)}`;

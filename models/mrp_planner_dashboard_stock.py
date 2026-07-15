@@ -20,6 +20,7 @@ Relacionado con:
 - mrp_reschedule.stock_location_id: parámetro de sistema con la ubicación por defecto.
 """
 import logging
+from collections import defaultdict
 from datetime import date as _date, datetime as _datetime, timedelta
 
 from odoo import models, fields, api
@@ -305,6 +306,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 'rotation_period_out':rotation_period_out_map.get(pid),
                 'rotation_avg_inv':   rotation_avg_inv_map.get(pid),
                 'rotation_base':      rotation_base_map.get(pid),
+                'break_days':         None,
+                'bom_lead_days':      None,
             })
 
         # KPIs sobre el conjunto completo (antes de cualquier filtro)
@@ -360,6 +363,70 @@ class MrpPlannerDashboardStock(models.TransientModel):
             categ_map = {p.id: (p.categ_id.name or '') for p in all_prods}
             for r in rows:
                 r['categ_name'] = categ_map.get(r['id'], '')
+
+            # Plazo de fabricación: produce_delay + days_to_prepare_bom de la BoM de manufactura
+            bom_lead_map = {}
+            tmpl_ids_list = list({v for v in prod_to_tmpl.values()})
+            if tmpl_ids_list:
+                boms = self.env['mrp.bom'].search_read([
+                    ('type', '=', 'normal'),
+                    ('active', '=', True),
+                    '|',
+                    ('product_id', 'in', all_pids),
+                    '&',
+                    ('product_id', '=', False),
+                    ('product_tmpl_id', 'in', tmpl_ids_list),
+                ], ['product_id', 'product_tmpl_id', 'produce_delay', 'days_to_prepare_bom'],
+                   order='product_id desc, sequence asc')
+                tmpl_to_pids_map = defaultdict(list)
+                for pid_v, tmpl_id in prod_to_tmpl.items():
+                    tmpl_to_pids_map[tmpl_id].append(pid_v)
+                for bom in boms:
+                    lead = round((bom['produce_delay'] or 0.0) + (bom['days_to_prepare_bom'] or 0.0), 1)
+                    if bom['product_id']:
+                        pid_v = bom['product_id'][0]
+                        if pid_v not in bom_lead_map:
+                            bom_lead_map[pid_v] = lead
+                    else:
+                        tmpl_id = bom['product_tmpl_id'][0] if bom['product_tmpl_id'] else None
+                        if tmpl_id:
+                            for pid_v in tmpl_to_pids_map.get(tmpl_id, []):
+                                if pid_v not in bom_lead_map:
+                                    bom_lead_map[pid_v] = lead
+            for r in rows:
+                r['bom_lead_days'] = bom_lead_map.get(r['id'])
+
+            # Días en quiebre: reconstrucción vía movimientos de salida históricos
+            broken_pids_set = {r['id'] for r in rows if r['is_broken']}
+            if broken_pids_set:
+                try:
+                    SM = self.env['stock.move'].sudo()
+                    out_moves = SM.search_read([
+                        ('product_id', 'in', list(broken_pids_set)),
+                        ('state', '=', 'done'),
+                        ('location_id.usage', '=', 'internal'),
+                        ('location_dest_id.usage', '!=', 'internal'),
+                    ], ['product_id', 'date', 'quantity'], order='date desc')
+                    moves_by_pid = defaultdict(list)
+                    for m in out_moves:
+                        pid_v = m['product_id'][0] if m['product_id'] else None
+                        if pid_v:
+                            moves_by_pid[pid_v].append((m['date'], m['quantity'] or 0.0))
+                    today_date = _date.today()
+                    broken_row_map = {r['id']: r for r in rows if r['is_broken']}
+                    for pid_v, r in broken_row_map.items():
+                        accumulated = 0.0
+                        break_date  = None
+                        for move_dt, move_qty in moves_by_pid.get(pid_v, []):
+                            accumulated += move_qty
+                            break_date   = move_dt
+                            if r['qty'] + accumulated >= (r['min_qty'] or 0.0):
+                                break
+                        if break_date is not None:
+                            bd = break_date.date() if isinstance(break_date, _datetime) else break_date
+                            r['break_days'] = max(0, (today_date - bd).days)
+                except Exception:
+                    pass
 
         rotation_unit          = (cfg.forecast_rotation_unit if cfg else None) or 'days'
         alerts_enabled         = cfg.stock_break_rotation_alerts_enabled if cfg else False

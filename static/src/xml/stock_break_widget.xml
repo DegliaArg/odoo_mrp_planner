@@ -261,11 +261,18 @@
                                                        t-att-title="`Rotación lenta: supera el umbral crítico de ${state.rotation_critical_days} días`"/>
                                                 </span>
                                             </t>
+                                            <t t-elif="col.key === 'bom_lead'">
+                                                <span t-if="prod.bom_lead_days !== null and prod.bom_lead_days !== undefined"
+                                                      t-att-title="bomLeadTooltip(prod)">
+                                                    <t t-esc="prod.bom_lead_days + ' d'"/>
+                                                </span>
+                                                <span t-else="" class="text-muted" title="Sin BoM">—</span>
+                                            </t>
                                             <t t-elif="col.key === 'status'">
                                                 <span t-if="prod.is_broken"
                                                       class="badge text-bg-danger"
                                                       t-att-title="statusTooltip(prod)">
-                                                    Quiebre
+                                                    <t t-esc="breakLabel(prod)"/>
                                                 </span>
                                                 <span t-elif="prod.has_min"
                                                       class="badge text-bg-success"

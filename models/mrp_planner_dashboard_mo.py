@@ -372,25 +372,34 @@ class MrpPlannerDashboardMo(models.TransientModel):
         cfg  = self.env['mrp.reschedule.config'].search([], limit=1)
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
 
+        mo_states = []
+        if cfg:
+            if cfg.forecast_mo_state_draft:     mo_states.append('draft')
+            if cfg.forecast_mo_state_confirmed: mo_states.append('confirmed')
+            if cfg.forecast_mo_state_progress:  mo_states.append('progress')
+            if cfg.forecast_mo_state_to_close:  mo_states.append('to_close')
+            if cfg.forecast_mo_state_done:      mo_states.append('done')
+        if not mo_states:
+            mo_states = ['confirmed', 'progress', 'to_close']
+
         first_day_str = fields.Datetime.to_string(first_day)
         last_day_str  = fields.Datetime.to_string(last_day)
 
+        state_domain = [('state', 'in', mo_states)]
+
         if mode == 'finish_date':
-            all_mos = self.env['mrp.production'].search([
-                ('state', 'not in', ('cancel',)),
+            all_mos = self.env['mrp.production'].search(state_domain + [
                 ('date_finished', '>=', first_day_str),
                 ('date_finished', '<=', last_day_str),
             ] + no_sc + wh_mo)
         elif mode == 'start_date':
-            all_mos = self.env['mrp.production'].search([
-                ('state', 'not in', ('cancel',)),
+            all_mos = self.env['mrp.production'].search(state_domain + [
                 ('date_start', '>=', first_day_str),
                 ('date_start', '<=', last_day_str),
             ] + no_sc + wh_mo)
         else:
             # overlap y proportional: toda OF que solape el período
-            all_mos = self.env['mrp.production'].search([
-                ('state', 'not in', ('cancel',)),
+            all_mos = self.env['mrp.production'].search(state_domain + [
                 ('date_start', '<=', last_day_str),
                 '|',
                 ('date_finished', '>=', first_day_str),

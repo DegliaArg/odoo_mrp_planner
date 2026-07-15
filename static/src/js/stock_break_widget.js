@@ -673,6 +673,8 @@ class StockBreakWidget extends Component {
                 msg += prod.break_days === 0
                     ? '\n→ Quiebre detectado hoy (aprox.)'
                     : `\n→ En quiebre hace ${prod.break_days} día${prod.break_days === 1 ? '' : 's'} (aprox.)`;
+            } else {
+                msg += '\n→ Sin movimientos de salida registrados — fecha de inicio no determinable';
             }
             return msg;
         }

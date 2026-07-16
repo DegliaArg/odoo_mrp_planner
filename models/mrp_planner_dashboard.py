@@ -483,7 +483,7 @@ class MrpPlannerDashboard(models.TransientModel):
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Panel del planificador'),
+            'name': _('Panel de Producción'),
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',
@@ -506,7 +506,7 @@ class MrpPlannerDashboard(models.TransientModel):
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Forecast de Ventas'),
+            'name': _('Panel de Ventas'),
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',

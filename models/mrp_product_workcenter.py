@@ -54,6 +54,9 @@ class MrpProductWorkcenter(models.Model):
         help='Orden de prioridad dentro de la lista de centros compatibles. '
              'Valores menores aparecen primero.',
     )
+    company_id = fields.Many2one(
+        related='workcenter_id.company_id', store=True, index=True, string='Empresa',
+    )
 
     def write(self, vals):
         """
@@ -62,7 +65,8 @@ class MrpProductWorkcenter(models.Model):
 
         Cuando se activa is_preferred en uno o varios registros, primero
         desactiva el flag en todos los registros hermanos del mismo producto
-        para que _check_single_preferred no encuentre conflicto al validar.
+        y misma empresa para que _check_single_preferred no encuentre conflicto
+        al validar.
 
         :param vals: dict con los valores a escribir
         :returns: resultado de super().write(vals)
@@ -74,6 +78,7 @@ class MrpProductWorkcenter(models.Model):
                 ('product_tmpl_id', 'in', self.mapped('product_tmpl_id').ids),
                 ('id', 'not in', self.ids),
                 ('is_preferred', '=', True),
+                ('company_id', 'in', self.mapped('company_id').ids),
             ])
             if siblings:
                 siblings.write({'is_preferred': False})
@@ -81,10 +86,11 @@ class MrpProductWorkcenter(models.Model):
 
     @api.constrains('is_preferred')
     def _check_single_preferred(self):
-        """Valida que no exista más de un centro preferido por producto."""
+        """Valida que no exista más de un centro preferido por producto y empresa."""
         for rec in self.filtered('is_preferred'):
             count = self.env['mrp.product.workcenter'].search_count([
                 ('product_tmpl_id', '=', rec.product_tmpl_id.id),
+                ('company_id', '=', rec.company_id.id),
                 ('is_preferred', '=', True),
                 ('id', '!=', rec.id),
             ])

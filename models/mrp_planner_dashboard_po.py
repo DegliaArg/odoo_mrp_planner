@@ -113,9 +113,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain + wh_po
         approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain + wh_po
-        # state='done' = OC bloqueada/cerrada — no es accionable, no va en vencidas ni pendientes
         # receipt_status='full' = ya recibida completamente — no es accionable
-        approved_dom = [('state', '=', 'purchase'), ('receipt_status', 'not in', ['full'])] + sc_domain + date_domain + wh_po
+        approved_dom = [('state', 'in', ('purchase', 'done')), ('receipt_status', 'not in', ['full'])] + sc_domain + date_domain + wh_po
 
         approved = PO.search(approved_dom)
         overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)

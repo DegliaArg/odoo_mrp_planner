@@ -295,6 +295,7 @@ class PoDashboardWidget extends Component {
         const now = new Date().toISOString();
         this._navigate("A tiempo", [
             ["state", "in", ["purchase", "done"]],
+            ["receipt_status", "not in", ["full"]],
             "|", ["date_planned", ">=", now], ["date_planned", "=", false],
             ...this._dateDomain(),
         ]);

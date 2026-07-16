@@ -271,13 +271,13 @@ class MoDashboardWidget extends Component {
     onClickDelayed() {
         const now = new Date().toISOString();
         this._navigate("OFs atrasadas", [
-            ["state", "not in", ["done", "cancel"]], ["date_finished", "<", now], ...this._dateDomain(),
+            ["state", "not in", ["done", "cancel", "draft"]], ["date_finished", "<", now], ...this._dateDomain(),
         ]);
     }
     /** Navega a las OFs marcadas con x_reschedule_needed que aún no finalizaron. */
     onClickReschedule() {
         this._navigate("Para reprogramar", [
-            ["state", "not in", ["done", "cancel"]], ["x_reschedule_needed", "=", true], ...this._dateDomain(),
+            ["state", "not in", ["done", "cancel", "draft"]], ["x_reschedule_needed", "=", true], ...this._dateDomain(),
         ]);
     }
 

@@ -124,6 +124,15 @@ class MrpPlannerDashboardPo(models.TransientModel):
         cfg = self.env['mrp.reschedule.config'].get_config()
         po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
 
+        # Capturar conteos ANTES de separar servicios — los KPIs deben reflejar
+        # exactamente lo que muestra la lista al hacer click (sin exclusión de servicios).
+        kpi_total    = len(approved)
+        kpi_pending  = len(pending)
+        kpi_overdue  = len(overdue)
+        kpi_critical = len(overdue.filtered(
+            lambda p: (now - p.date_planned).days >= po_crit_days
+        ))
+
         def _po_dict(po):
             return {
                 'id':               po.id,
@@ -410,12 +419,10 @@ class MrpPlannerDashboardPo(models.TransientModel):
             'kpis': {
                 'rfq':              len(rfqs_list),
                 'to_approve':       len(to_approve_list),
-                'total':            len(approved),
-                'pending':          len(pending),
-                'overdue':          len(overdue),
-                'overdue_critical': len(overdue.filtered(
-                    lambda p: (now - p.date_planned).days >= po_crit_days
-                )),
+                'total':            kpi_total,
+                'pending':          kpi_pending,
+                'overdue':          kpi_overdue,
+                'overdue_critical': kpi_critical,
                 'receipts_total':    len(receipts),
                 'receipts_overdue':  len(overdue_receipts),
                 'deliveries_total':  len(deliveries),

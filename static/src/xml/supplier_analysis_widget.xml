@@ -124,6 +124,7 @@
 
                 <!-- Buscador con agrupamiento ABC -->
                 <PlannerSearchBar
+                    class="flex-grow-1"
                     widgetKey="'supplier_analysis'"
                     placeholder="'Buscar proveedor…'"
                     t-props="{
@@ -195,11 +196,8 @@
                     </div>
                 </div>
 
-                <!-- Contador + Exportar -->
-                <small t-if="state.data" class="text-muted ms-auto">
-                    <t t-esc="sortedRows.length"/> proveedores
-                </small>
-                <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                <!-- Exportar -->
+                <button class="btn btn-sm btn-outline-success ms-auto d-flex align-items-center gap-1"
                         t-on-click="downloadExport">
                     <i class="fa fa-download"/>
                     <span>Exportar</span>

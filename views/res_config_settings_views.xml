@@ -263,7 +263,11 @@
                                                 <div class="col-5">
                                                     <div invisible="supplier_cat_method == 'manual'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
-                                                        <div class="d-flex align-items-center gap-2">
+                                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                                            <field name="supplier_cat_auto_cron" widget="boolean_toggle" nolabel="1"/>
+                                                            <span class="text-muted small">Automática</span>
+                                                        </div>
+                                                        <div invisible="not supplier_cat_auto_cron" class="d-flex align-items-center gap-2">
                                                             <field name="supplier_cat_cron_number" nolabel="1"/>
                                                             <field name="supplier_cat_cron_type" nolabel="1"/>
                                                         </div>
@@ -434,7 +438,11 @@
                                                 <div class="col-5">
                                                     <div invisible="customer_cat_method == 'manual'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
-                                                        <div class="d-flex align-items-center gap-2">
+                                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                                            <field name="customer_cat_auto_cron" widget="boolean_toggle" nolabel="1"/>
+                                                            <span class="text-muted small">Automática</span>
+                                                        </div>
+                                                        <div invisible="not customer_cat_auto_cron" class="d-flex align-items-center gap-2">
                                                             <field name="customer_cat_cron_number" nolabel="1"/>
                                                             <field name="customer_cat_cron_type" nolabel="1"/>
                                                         </div>

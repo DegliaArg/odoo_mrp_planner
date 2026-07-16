@@ -449,6 +449,9 @@ class MrpRescheduleConfig(models.Model):
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
     ], string='Unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de proveedor.')
+    supplier_cat_auto_cron = fields.Boolean(
+        string='Actualización automática', default=False,
+        help='Recalcula las categorías de proveedor automáticamente según el intervalo configurado.')
 
     # Umbrales Pareto (aplican a todos los métodos ABC Pareto, no a RFM ni manual)
     abc_pct_a = fields.Integer(string='A ≤', default=20,
@@ -488,6 +491,9 @@ class MrpRescheduleConfig(models.Model):
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
     ], string='Unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de cliente.')
+    customer_cat_auto_cron = fields.Boolean(
+        string='Actualización automática', default=False,
+        help='Recalcula las categorías de cliente automáticamente según el intervalo configurado.')
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
     customer_analysis_ontime_method = fields.Selection([
@@ -725,33 +731,39 @@ class MrpRescheduleConfig(models.Model):
                 # del módulo no tiene permisos de escritura directa sobre él.
                 cat_cron.sudo().write(cat_cron_vals)
         # Supplier categories cron
-        if any(k in vals for k in ('enable_supplier_categories', 'supplier_cat_cron_number', 'supplier_cat_cron_type')):
+        if any(k in vals for k in ('enable_supplier_categories', 'supplier_cat_auto_cron', 'supplier_cat_cron_number', 'supplier_cat_cron_type')):
             sup_cron = self.env.ref('odoo_mrp_planner.ir_cron_compute_supplier_categories', raise_if_not_found=False)
             if sup_cron:
                 sup_vals = {}
-                if 'enable_supplier_categories' in vals:
-                    sup_vals['active'] = vals['enable_supplier_categories']
+                if 'supplier_cat_auto_cron' in vals:
+                    sup_vals['active'] = vals['supplier_cat_auto_cron']
+                if 'enable_supplier_categories' in vals and not vals['enable_supplier_categories']:
+                    sup_vals['active'] = False  # disabling the feature also disables the cron
                 if 'supplier_cat_cron_number' in vals:
                     sup_vals['interval_number'] = vals['supplier_cat_cron_number']
                 if 'supplier_cat_cron_type' in vals:
                     sup_vals['interval_type'] = vals['supplier_cat_cron_type']
                 # sudo() necesario: ir.cron pertenece al superusuario y el administrador
                 # del módulo no tiene permisos de escritura directa sobre él.
-                sup_cron.sudo().write(sup_vals)
+                if sup_vals:
+                    sup_cron.sudo().write(sup_vals)
         # Customer categories cron
-        if any(k in vals for k in ('enable_customer_categories', 'customer_cat_cron_number', 'customer_cat_cron_type')):
+        if any(k in vals for k in ('enable_customer_categories', 'customer_cat_auto_cron', 'customer_cat_cron_number', 'customer_cat_cron_type')):
             cust_cron = self.env.ref('odoo_mrp_planner.ir_cron_compute_customer_categories', raise_if_not_found=False)
             if cust_cron:
                 cust_vals = {}
-                if 'enable_customer_categories' in vals:
-                    cust_vals['active'] = vals['enable_customer_categories']
+                if 'customer_cat_auto_cron' in vals:
+                    cust_vals['active'] = vals['customer_cat_auto_cron']
+                if 'enable_customer_categories' in vals and not vals['enable_customer_categories']:
+                    cust_vals['active'] = False  # disabling the feature also disables the cron
                 if 'customer_cat_cron_number' in vals:
                     cust_vals['interval_number'] = vals['customer_cat_cron_number']
                 if 'customer_cat_cron_type' in vals:
                     cust_vals['interval_type'] = vals['customer_cat_cron_type']
                 # sudo() necesario: ir.cron pertenece al superusuario y el administrador
                 # del módulo no tiene permisos de escritura directa sobre él.
-                cust_cron.sudo().write(cust_vals)
+                if cust_vals:
+                    cust_cron.sudo().write(cust_vals)
         return res
 
     @api.model_create_multi

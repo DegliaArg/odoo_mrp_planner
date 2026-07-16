@@ -281,10 +281,12 @@ class PoDashboardWidget extends Component {
     onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._dateDomain()]); }
     /** Navega a la lista de OCs pendientes de aprobación (estado to approve). */
     onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._dateDomain()]); }
-    /** Navega a todas las OCs aprobadas o completadas en el rango de fechas. */
+    /** Navega a todas las OCs aprobadas con recepción incompleta en el rango de fechas. */
     onClickAll() {
         this._navigate("Aprobadas", [
-            ["state", "in", ["purchase", "done"]], ...this._dateDomain(),
+            ["state", "in", ["purchase", "done"]],
+            ["receipt_status", "not in", ["full"]],
+            ...this._dateDomain(),
         ]);
     }
     /**

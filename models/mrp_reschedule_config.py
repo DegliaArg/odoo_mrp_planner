@@ -646,7 +646,17 @@ class MrpRescheduleConfig(models.Model):
         base de datos incluso si env.ref() falla por caché o estado del registry.
         Invalida el caché ORM del modelo después del UPDATE para que la sesión
         actual no devuelva datos obsoletos.
+
+        En entornos multi-empresa, solo oculta los menús si ninguna otra empresa
+        tiene scheduling activo, para evitar afectar a usuarios de otras empresas.
         """
+        if not enabled:
+            other_enabled = self.env['mrp.reschedule.config'].sudo().search([
+                ('id', 'not in', self.ids),
+                ('enable_scheduling', '=', True),
+            ], limit=1)
+            if other_enabled:
+                return
         cr = self.env.cr
         menu_xmlids = [
             ('odoo_mrp_planner', 'mrp_reschedule_menu_plans'),
@@ -685,10 +695,11 @@ class MrpRescheduleConfig(models.Model):
         if 'enable_scheduling' in vals:
             self._sync_scheduling_group(vals['enable_scheduling'])
         sp = self.env['ir.config_parameter'].sudo()
+        company_id = self.env.company.id
         if 'wc_fallback' in vals:
-            sp.set_param('mrp_reschedule.wc_fallback', vals['wc_fallback'])
+            sp.set_param(f'mrp_reschedule.wc_fallback.{company_id}', vals['wc_fallback'])
         if 'priority' in vals:
-            sp.set_param('mrp_reschedule.priority', vals['priority'])
+            sp.set_param(f'mrp_reschedule.priority.{company_id}', vals['priority'])
         if 'cron_interval_number' in vals or 'cron_interval_type' in vals:
             cron = self.env.ref('odoo_mrp_planner.ir_cron_check_delays', raise_if_not_found=False)
             if cron:
@@ -768,8 +779,8 @@ class MrpRescheduleConfig(models.Model):
                 rec._sync_scheduling_group(True)
         sp = self.env['ir.config_parameter'].sudo()
         for rec in records:
-            sp.set_param('mrp_reschedule.wc_fallback', rec.wc_fallback)
-            sp.set_param('mrp_reschedule.priority', rec.priority)
+            sp.set_param(f'mrp_reschedule.wc_fallback.{rec.company_id.id}', rec.wc_fallback)
+            sp.set_param(f'mrp_reschedule.priority.{rec.company_id.id}', rec.priority)
             cron = self.env.ref('odoo_mrp_planner.ir_cron_check_delays', raise_if_not_found=False)
             if cron:
                 # sudo() necesario: ir.cron pertenece al superusuario y el administrador

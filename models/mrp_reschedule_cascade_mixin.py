@@ -319,8 +319,14 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
         :param sequence_overrides: dict {production_id: int} con orden manual opcional.
         :returns: lista de mrp.production ordenada.
         """
-        priority = self.env['ir.config_parameter'].sudo().get_param(
-            'mrp_reschedule.priority', 'chronological'
+        company_id = self.env.company.id
+        priority = (
+            self.env['ir.config_parameter'].sudo().get_param(
+                f'mrp_reschedule.priority.{company_id}'
+            )
+            or self.env['ir.config_parameter'].sudo().get_param(
+                'mrp_reschedule.priority', 'chronological'
+            )
         )
         seq_map = sequence_overrides or {}
         dt_max = datetime(9999, 12, 31)  # Centinela para MOs sin fecha de inicio (van al final)

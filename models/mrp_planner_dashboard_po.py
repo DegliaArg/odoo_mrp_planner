@@ -302,6 +302,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)
         to_approve_list = PO.search(approve_dom, order=po_order)
+        kpi_rfq        = len(rfqs_list)
+        kpi_to_approve = len(to_approve_list)
 
         # ── Separar servicios ────────────────────────────────────────────────
         # Los servicios se excluyen SIEMPRE de las listas de OC (bienes).
@@ -417,8 +419,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         return {
             'kpis': {
-                'rfq':              len(rfqs_list),
-                'to_approve':       len(to_approve_list),
+                'rfq':              kpi_rfq,
+                'to_approve':       kpi_to_approve,
                 'total':            kpi_total,
                 'pending':          kpi_pending,
                 'overdue':          kpi_overdue,

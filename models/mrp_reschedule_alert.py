@@ -337,6 +337,7 @@ class MrpRescheduleAlert(models.Model):
             return cache[product_id]
 
         mos = self.env['mrp.production'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', 'in', ('confirmed', 'progress')),
             ('move_raw_ids.product_id', '=', product_id),
         ] + no_subcontract_domain(self.env)).sorted(lambda m: m.date_start or datetime(9999, 12, 31))
@@ -362,6 +363,22 @@ class MrpRescheduleAlert(models.Model):
         if cache is not None:
             cache[product_id] = impacted
         return impacted
+
+    # ── Migración ─────────────────────────────────────────────────────────────
+
+    def _auto_init(self):
+        super()._auto_init()
+        # Fill company_id for alerts created before multi-company support
+        self.env.cr.execute("SAVEPOINT fill_alert_company_id")
+        try:
+            self.env.cr.execute("""
+                UPDATE mrp_reschedule_alert
+                SET company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
+                WHERE company_id IS NULL
+            """)
+            self.env.cr.execute("RELEASE SAVEPOINT fill_alert_company_id")
+        except Exception:
+            self.env.cr.execute("ROLLBACK TO SAVEPOINT fill_alert_company_id")
 
     # ── Cron ─────────────────────────────────────────────────────────────────
 
@@ -408,6 +425,7 @@ class MrpRescheduleAlert(models.Model):
         # 3 días es el umbral crítico por defecto si no hay configuración activa
         crit_days = cfg.alert_mo_critical_days if cfg else 3
         mos = self.env['mrp.production'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
             ('date_finished', '<', now),
             ('date_finished', '!=', False),
@@ -445,6 +463,7 @@ class MrpRescheduleAlert(models.Model):
         future_limit = now + timedelta(days=warn_days)
 
         mos = self.env['mrp.production'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', 'in', ['confirmed', 'progress', 'to_close']),
             ('date_finished', '>=', now),
             ('date_finished', '<=', future_limit),
@@ -479,6 +498,7 @@ class MrpRescheduleAlert(models.Model):
         # 5 días es el umbral crítico por defecto para OCs si no hay configuración activa
         crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         pos = self.env['purchase.order'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', 'in', ('purchase', 'done')),
             ('date_planned', '<', now),
             ('receipt_status', 'not in', ['full']),
@@ -536,6 +556,7 @@ class MrpRescheduleAlert(models.Model):
         future_limit = now + timedelta(days=warn_days)
 
         pos = self.env['purchase.order'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', '=', 'purchase'),
             ('receipt_status', '!=', 'full'),
             ('date_planned', '>=', now),
@@ -570,6 +591,7 @@ class MrpRescheduleAlert(models.Model):
         # 3 días es el umbral crítico por defecto para recepciones si no hay configuración activa
         crit_days = cfg.alert_receipt_critical_days if cfg else 3
         pickings = self.env['stock.picking'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', 'not in', ['done', 'cancel']),
             ('picking_type_code', '=', 'incoming'),
             ('purchase_id', '!=', False),
@@ -638,6 +660,7 @@ class MrpRescheduleAlert(models.Model):
         # Mínimo de 30 minutos para no dejar ventana en blanco si el cron se configura muy frecuente
         since = now - timedelta(hours=max(hours, 0.5))
         done_mos = self.env['mrp.production'].search([
+            ('company_id', '=', self.env.company.id),
             ('state', '=', 'done'),
             ('date_finished', '>=', since),
             ('date_finished', '!=', False),

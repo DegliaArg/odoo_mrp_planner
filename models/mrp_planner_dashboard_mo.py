@@ -280,6 +280,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'reschedule':  _cnt(active + [('x_reschedule_needed', '=', True)] + date_d + no_sc + wh_mo),
             'done':        _cnt([('state', '=', 'done')] + date_d + no_sc + wh_mo),
             'partial':     _cnt([('state', '=', 'to_close')] + date_d + no_sc + wh_mo),
+            'mode':        mode,
         }
 
     @api.model

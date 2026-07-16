@@ -74,7 +74,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
                 # FIX [FASE-3]: umbral crítico de días leído de config (antes hardcodeado en 5)
                 cfg = self.env['mrp.reschedule.config'].get_config()
                 po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
-                active_pos = PO.search([('state', '=', 'purchase')])
+                active_pos = PO.search([('state', '=', 'purchase'), ('receipt_status', 'not in', ['full'])])
                 overdue = active_pos.filtered(lambda p: p.date_planned and p.date_planned < now)
                 rec.po_total            = len(active_pos)
                 rec.po_pending          = len(active_pos.filtered(
@@ -181,7 +181,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             'name': _('Órdenes de compra activas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase')],
+            'domain': [('state', '=', 'purchase'), ('receipt_status', 'not in', ['full'])],
             'target': 'current',
         }
 
@@ -192,7 +192,11 @@ class MrpPlannerDetailDashboard(models.TransientModel):
             'name': _('OCs vencidas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'purchase'), ('date_planned', '<', now)],
+            'domain': [
+                ('state', '=', 'purchase'),
+                ('date_planned', '<', now),
+                ('receipt_status', 'not in', ['full']),
+            ],
             'target': 'current',
         }
 

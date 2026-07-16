@@ -713,7 +713,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('Solicitudes de cotización'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', 'in', ('draft', 'sent'))],
+            'domain': [('state', 'in', ('draft', 'sent'))] + self._wh_domain_po(self._get_allowed_wh_ids()),
             'target': 'current',
         }
 
@@ -724,12 +724,12 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('Por aprobar'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'to approve')],
+            'domain': [('state', '=', 'to approve')] + self._wh_domain_po(self._get_allowed_wh_ids()),
             'target': 'current',
         }
 
     def action_view_pending_pos(self):
-        """Navega a las OCs aprobadas cuya fecha de entrega planificada aún no venció (o sin fecha)."""
+        """Navega a las OCs aprobadas cuya fecha de entrega planificada aún no venció (o sin fecha), no totalmente recibidas."""
         now = fields.Datetime.now()
         return {
             'type': 'ir.actions.act_window',
@@ -738,8 +738,9 @@ class MrpPlannerDashboard(models.TransientModel):
             'view_mode': 'list,form',
             'domain': [
                 ('state', 'in', ('purchase', 'done')),
+                ('receipt_status', '!=', 'full'),
                 '|', ('date_planned', '>=', now), ('date_planned', '=', False),
-            ],
+            ] + self._wh_domain_po(self._get_allowed_wh_ids()),
             'target': 'current',
         }
 
@@ -760,13 +761,16 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     def action_view_all_pos(self):
-        """Navega a todas las OCs aprobadas (estado purchase o done), sin filtro de recepción."""
+        """Navega a todas las OCs aprobadas (estado purchase o done) no totalmente recibidas."""
         return {
             'type': 'ir.actions.act_window',
             'name': _('Órdenes de compra aprobadas'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', 'in', ('purchase', 'done'))],
+            'domain': [
+                ('state', 'in', ('purchase', 'done')),
+                ('receipt_status', '!=', 'full'),
+            ] + self._wh_domain_po(self._get_allowed_wh_ids()),
             'target': 'current',
         }
 

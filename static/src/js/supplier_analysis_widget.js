@@ -20,6 +20,7 @@ import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 const SUP_COLS = [
     { key: 'partner_name',     label: 'Proveedor',     width: 160, sortKey: 'partner_name',     title: 'Nombre del proveedor.' },
@@ -57,6 +58,7 @@ function todayYMD() {
 class SupplierAnalysisWidget extends Component {
     static template = "odoo_mrp_planner.SupplierAnalysisWidget";
     static props = { record: { type: Object }, "*": true };
+    static components = { PlannerSearchBar };
 
     /**
      * Inicializa servicios, estado reactivo, gestor de columnas y lifecycle hooks.
@@ -71,7 +73,13 @@ class SupplierAnalysisWidget extends Component {
             periodFrom:         firstOfYearYMD(),
             periodTo:           todayYMD(),
             search:             '',
-            poType:             'all',
+            poTypeGoods:        true,
+            poTypeServices:     true,
+            activeFilter:       null,
+            activeGroupBy:      null,
+            tipoDropdownOpen:   false,
+            colsDropdownOpen:   false,
+            colsVisible:        {},
             sortCol:            'total_amount',
             sortDir:            'desc',
             page:               1,
@@ -90,7 +98,13 @@ class SupplierAnalysisWidget extends Component {
             this._loadDebounceTimer = setTimeout(() => this._load(), 400);
         };
 
+        this._closeDropdowns = () => {
+            this.state.tipoDropdownOpen = false;
+            this.state.colsDropdownOpen = false;
+        };
+
         onMounted(async () => {
+            document.addEventListener('click', this._closeDropdowns);
             try {
                 await this._load();
             } catch (e) {
@@ -98,6 +112,7 @@ class SupplierAnalysisWidget extends Component {
             }
         });
         onWillUnmount(() => {
+            document.removeEventListener('click', this._closeDropdowns);
             this.colsSup.cancelResize();
             clearTimeout(this._loadDebounceTimer);
         });
@@ -127,7 +142,7 @@ class SupplierAnalysisWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_supplier_analysis_data",
-                [this.state.periodFrom, this.state.periodTo, this.state.search || '', this.state.poType],
+                [this.state.periodFrom, this.state.periodTo, this.state.search || '', this._poTypeParam],
             );
             this.state.data = d;
             this.state.page = 1;
@@ -181,16 +196,120 @@ class SupplierAnalysisWidget extends Component {
         this._loadDebounced();
     }
 
+    // ── Helpers de tipo de OC ─────────────────────────────────────────────────
+
     /**
-     * Cambia el filtro de tipo de OC y recarga los datos desde el backend.
-     * El guard de igualdad evita una llamada innecesaria si se selecciona el tipo ya activo.
-     * @param {'all'|'purchase'|'done'} t - Tipo de OC a filtrar
+     * Mapea los checkboxes de bienes/servicios al parámetro po_type del backend.
+     * @returns {'all'|'goods'|'services'} Valor esperado por get_supplier_analysis_data
      */
-    setPoType(t) {
-        if (this.state.poType === t) return;
-        this.state.poType = t;
-        this.state.page   = 1;
+    get _poTypeParam() {
+        const { poTypeGoods, poTypeServices } = this.state;
+        if (poTypeGoods && !poTypeServices) return 'goods';
+        if (!poTypeGoods && poTypeServices) return 'services';
+        return 'all';
+    }
+
+    /**
+     * Retorna la etiqueta del dropdown de tipo según el estado de los checkboxes.
+     * @returns {string} Texto descriptivo del filtro activo
+     */
+    get poTypeDropdownLabel() {
+        const { poTypeGoods, poTypeServices } = this.state;
+        if (poTypeGoods && poTypeServices) return 'Bienes y servicios';
+        if (poTypeGoods) return 'Solo bienes';
+        if (poTypeServices) return 'Solo servicios';
+        return 'Bienes y servicios';
+    }
+
+    /**
+     * Alterna la selección de bienes o servicios y recarga los datos.
+     * @param {'goods'|'services'} type - Tipo a alternar
+     */
+    togglePoType(type) {
+        if (type === 'goods') this.state.poTypeGoods = !this.state.poTypeGoods;
+        if (type === 'services') this.state.poTypeServices = !this.state.poTypeServices;
+        this.state.page = 1;
         this._load();
+    }
+
+    // ── Toolbar: búsqueda, filtros, agrupamiento ───────────────────────────────
+
+    /**
+     * Actualiza el texto de búsqueda y dispara carga con debounce.
+     * @param {string} text - Texto de búsqueda
+     */
+    setSearch(text) {
+        this.state.search = text;
+        this.state.page = 1;
+        this._loadDebounced();
+    }
+
+    /**
+     * Activa o desactiva un filtro rápido por clave.
+     * @param {string|null} key - Clave del filtro activo (null para limpiar)
+     */
+    setActiveFilter(key) {
+        this.state.activeFilter = key;
+    }
+
+    /**
+     * Cambia el agrupamiento activo y reinicia la paginación.
+     * @param {string|null} key - Clave de agrupamiento (ej. 'cat_A') o null para limpiar
+     */
+    setActiveGroupBy(key) {
+        this.state.activeGroupBy = key;
+        this.state.page = 1;
+    }
+
+    // ── Dropdowns de toolbar ──────────────────────────────────────────────────
+
+    /**
+     * Alterna el dropdown de tipo (Bienes/Servicios) y cierra el de columnas.
+     * @param {MouseEvent} ev
+     */
+    toggleTipoDropdown(ev) {
+        ev.stopPropagation();
+        this.state.tipoDropdownOpen = !this.state.tipoDropdownOpen;
+        this.state.colsDropdownOpen = false;
+    }
+
+    /**
+     * Alterna el dropdown de columnas y cierra el de tipo.
+     * @param {MouseEvent} ev
+     */
+    toggleColsDropdown(ev) {
+        ev.stopPropagation();
+        this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
+        this.state.tipoDropdownOpen = false;
+    }
+
+    // ── Exportar CSV ──────────────────────────────────────────────────────────
+
+    /**
+     * Genera y descarga un archivo CSV con las filas visibles de la tabla.
+     * Usa las columnas visibles actuales como encabezados y escapa valores
+     * que contengan comas o comillas dobles.
+     */
+    downloadExport() {
+        const rows = this.sortedRows;
+        const visibleCols = this.supVisibleCols;
+        const headers = visibleCols.map(c => c.label);
+        const lines = [headers.join(',')];
+        for (const row of rows) {
+            const vals = visibleCols.map(c => {
+                const v = row[c.key] ?? '';
+                const s = String(v);
+                return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+            });
+            lines.push(vals.join(','));
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'proveedores.csv';
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────
@@ -234,10 +353,15 @@ class SupplierAnalysisWidget extends Component {
     get sortedRows() {
         if (!this.state.data) return [];
         let rows = [...this.state.data.rows];
-        // Filtro client-side
+        // Filtro client-side por nombre
         if (this.state.search) {
             const q = this.state.search.toLowerCase();
             rows = rows.filter(r => r.partner_name.toLowerCase().includes(q));
+        }
+        // Filtro por categoría ABC (activeGroupBy)
+        if (this.state.activeGroupBy) {
+            const cat = this.state.activeGroupBy.replace('cat_', '');
+            rows = rows.filter(r => r.supplier_cat === cat);
         }
         const col = this.state.sortCol;
         const dir = this.state.sortDir === 'asc' ? 1 : -1;
@@ -292,8 +416,13 @@ class SupplierAnalysisWidget extends Component {
         return this.colsSup.visibleCols().filter(c => {
             if (c.key === 'pending_inv') return this.state.data && this.state.data.has_invoices;
             if (c.key === 'supplier_cat') return this.state.data && this.state.data.show_supplier_cat;
-            return true;
+            return this.state.colsVisible[c.key] !== false;
         });
+    }
+
+    toggleSupCol(key) {
+        const cur = this.state.colsVisible[key];
+        this.state.colsVisible = { ...this.state.colsVisible, [key]: cur === false ? true : false };
     }
 
     /**

@@ -102,7 +102,7 @@
                             onGroupByChange:(k) => this.onGroupByChange(k)
                         }"/>
                     <div t-if="state.locations.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
-                        <label class="form-label mb-0 small text-muted">Ubicación</label>
+                        <label class="form-label mb-0 small text-muted">Depósito</label>
                         <div class="position-relative">
                             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                                     style="min-width:160px;"
@@ -114,7 +114,7 @@
                                  class="dropdown-menu show shadow p-2"
                                  style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
                                 <input type="text" class="form-control form-control-sm mb-2"
-                                       placeholder="Buscar ubicación…"
+                                       placeholder="Buscar depósito…"
                                        t-model="state.locSearch"
                                        autocomplete="off"/>
                                 <div class="form-check mb-1">
@@ -138,6 +138,13 @@
                                 </t>
                             </div>
                         </div>
+                    </div>
+                    <div class="ms-auto">
+                        <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                                t-on-click="downloadExport">
+                            <i class="fa fa-download"/>
+                            <span>Exportar</span>
+                        </button>
                     </div>
                 </div>
 

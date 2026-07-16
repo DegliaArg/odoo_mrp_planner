@@ -557,6 +557,45 @@ class ForecastWidget extends Component {
     }
 
     /**
+     * KPIs calculados a partir de las filas actualmente filtradas (búsqueda + filtro rápido + grupo).
+     * Reemplaza a `state.data.kpis` en las cards de KPI para que reaccionen a los filtros de tabla.
+     * Los campos no recalculables (ej. so_demand_no_fc, acc_all) se heredan del estado global.
+     * @returns {Object} KPIs calculados sobre las filas filtradas.
+     */
+    get filteredKpis() {
+        if (!this.state.data) return {};
+        const rows = this.filteredRowsAll;
+        const total_forecast  = rows.reduce((s, r) => s + (r.total_forecast  || 0), 0);
+        const total_mos       = rows.reduce((s, r) => s + (r.total_mos       || 0), 0);
+        const total_delivered = rows.reduce((s, r) => s + (r.total_delivered || 0), 0);
+        const total_so_demand = rows.reduce((s, r) => s + (r.total_so_demand || 0), 0);
+
+        const overall_service_rate = total_so_demand > 0
+            ? Math.round(total_delivered / total_so_demand * 100) : null;
+        const demand_gap_pct = total_forecast > 0
+            ? Math.round((total_so_demand - total_forecast) / total_forecast * 100) : null;
+        const mos_gap_pct = total_forecast > 0
+            ? Math.round((total_mos - total_forecast) / total_forecast * 100) : null;
+
+        const accRows = rows.filter(r => r.total_forecast_acc !== null && r.total_forecast_acc !== undefined);
+        const overall_forecast_acc = accRows.length > 0
+            ? Math.round(accRows.reduce((s, r) => s + r.total_forecast_acc, 0) / accRows.length)
+            : null;
+
+        return {
+            ...this.state.data.kpis,
+            total_forecast,
+            total_mos,
+            total_delivered,
+            total_so_demand,
+            overall_forecast_acc,
+            overall_service_rate,
+            demand_gap_pct,
+            mos_gap_pct,
+        };
+    }
+
+    /**
      * Página actual de filas: aplica el slice de paginación sobre las filas ordenadas.
      * @returns {Object[]} Filas de la página actual.
      */

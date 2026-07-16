@@ -11,20 +11,6 @@
             <!-- ── Barra de filtros unificada ──────────────────────────────── -->
             <div class="d-flex align-items-center gap-1 mb-3 flex-nowrap">
 
-                <!-- Período -->
-                <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
-                           title="Fecha de inicio del período analizado"
-                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
-                </div>
-                <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:110px; font-size:10px;"
-                           title="Fecha de cierre del período analizado"
-                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
-                </div>
-
                 <!-- Categoría de cliente -->
                 <t t-if="availableCategories.length">
                     <div class="vr" style="height:20px;"/>
@@ -250,6 +236,22 @@
 
                 <!-- Controles -->
                 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+                    <!-- Período -->
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Desde</label>
+                        <input type="date" class="form-control form-control-sm"
+                               style="max-width:140px;"
+                               t-att-value="state.dateFrom"
+                               t-on-change="onDateFromChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Hasta</label>
+                        <input type="date" class="form-control form-control-sm"
+                               style="max-width:140px;"
+                               t-att-value="state.dateTo"
+                               t-on-change="onDateToChange"/>
+                    </div>
 
                     <PlannerSearchBar
                         widgetKey="'customer_analysis'"

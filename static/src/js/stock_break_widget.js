@@ -356,12 +356,12 @@ class StockBreakWidget extends Component {
      */
     get selectedLocLabel() {
         const ids = this.state.locationIds;
-        if (!ids.length) return 'Todas las ubicaciones';
+        if (!ids.length) return 'Todos los depósitos';
         if (ids.length === 1) {
             const loc = this.state.locations.find(l => l.id === ids[0]);
-            return loc ? loc.name : 'Todas las ubicaciones';
+            return loc ? loc.name : 'Todos los depósitos';
         }
-        return `${ids.length} ubicaciones`;
+        return `${ids.length} depósitos`;
     }
 
     /**
@@ -634,6 +634,41 @@ class StockBreakWidget extends Component {
      */
     async openConfig() {
         await this.action.doAction('odoo_mrp_planner.action_mrp_reschedule_config');
+    }
+
+    /**
+     * Exporta las filas actualmente visibles (post-sort/filtro) como archivo CSV.
+     * Usa las columnas visibles del gestor de columnas para determinar headers y keys.
+     * Omite la columna '_expand' (control de acordeón). Descarga el archivo directamente
+     * en el navegador sin requerir intervención del servidor.
+     */
+    downloadExport() {
+        const rows = this.state.products;
+        if (!rows || !rows.length) return;
+        const visibleCols = this.colsStock.visibleCols().filter(col => {
+            if (col.key === 'rotation')      return this.state.show_rotation;
+            if (col.key === 'sale_category') return this.state.show_sale_cat;
+            return true;
+        });
+        const headers = visibleCols.map(c => c.label).filter(Boolean);
+        const colKeys = visibleCols.map(c => c.key);
+        const lines = [headers.join(',')];
+        for (const row of rows) {
+            const vals = colKeys.map(key => {
+                if (key === '_expand') return '';
+                const v = row[key] ?? '';
+                const s = String(v);
+                return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+            });
+            lines.push(vals.join(','));
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'quiebres_stock.csv';
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     stockKpiTooltip(key) {

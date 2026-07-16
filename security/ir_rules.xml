@@ -57,4 +57,20 @@
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
+    <!-- mrp.partner.company.category — categorías ABC de proveedor/cliente, por empresa. -->
+    <record id="rule_partner_company_category_company" model="ir.rule">
+        <field name="name">Partner Company Category: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_partner_company_category"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.product.company.category — categoría ABC de venta, por empresa. -->
+    <record id="rule_product_company_category_company" model="ir.rule">
+        <field name="name">Product Company Category: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_product_company_category"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
 </odoo>

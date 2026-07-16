@@ -1,5 +1,6 @@
 from . import mrp_schedule_mixin
 from . import mrp_product_type
+from . import mrp_product_company_category
 from . import product_template
 from . import mrp_forecast_line
 from . import mrp_product_workcenter
@@ -25,4 +26,5 @@ from . import mrp_planner_dashboard_customer
 from . import mrp_planner_detail_dashboard
 from . import purchase_order
 from . import stock_picking
+from . import mrp_partner_company_category
 from . import res_partner

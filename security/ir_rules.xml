@@ -73,4 +73,20 @@
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
+    <!-- mrp.production.request — solicitudes de fabricación por empresa. -->
+    <record id="rule_production_request_company" model="ir.rule">
+        <field name="name">Production Request: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_production_request"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.product.workcenter — vínculos producto-workcenter por empresa. -->
+    <record id="rule_product_workcenter_company" model="ir.rule">
+        <field name="name">Product Workcenter: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_product_workcenter"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
 </odoo>

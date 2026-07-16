@@ -48,6 +48,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         default=True,
         help='Desactivar oculta la solicitud sin eliminarla (archivado).',
     )
+    company_id = fields.Many2one(
+        'res.company', string='Empresa', required=True,
+        default=lambda self: self.env.company, index=True,
+    )
 
     start_from = fields.Datetime(
         string='Disponible desde', default=fields.Datetime.now,
@@ -79,7 +83,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
     picking_type_id = fields.Many2one(
         'stock.picking.type',
         string='Tipo de operación',
-        domain=[('code', '=', 'mrp_operation')],
+        domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
         required=True,
         # FIX [FASE-3]: el ID 518 era específico de la instancia de desarrollo; buscar por código
         default=lambda self: self.env['stock.picking.type'].search(
@@ -155,6 +159,27 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             'domain': [('production_id', 'in', mo_ids)],
             'target': 'current',
         }
+
+    # ── Migración ─────────────────────────────────────────────────────────────
+
+    def _auto_init(self):
+        super()._auto_init()
+        self.env.cr.execute("SAVEPOINT fill_request_company_id")
+        try:
+            self.env.cr.execute("""
+                UPDATE mrp_production_request req
+                   SET company_id = COALESCE(
+                           (SELECT spt.company_id
+                              FROM stock_picking_type spt
+                             WHERE spt.id = req.picking_type_id
+                             LIMIT 1),
+                           (SELECT id FROM res_company ORDER BY id LIMIT 1)
+                       )
+                 WHERE company_id IS NULL
+            """)
+            self.env.cr.execute("RELEASE SAVEPOINT fill_request_company_id")
+        except Exception:
+            self.env.cr.execute("ROLLBACK TO SAVEPOINT fill_request_company_id")
 
     # ── Creación ─────────────────────────────────────────────────────────────
 

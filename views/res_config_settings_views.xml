@@ -289,6 +289,7 @@
                                                     <button name="action_compute_supplier_categories"
                                                             type="object"
                                                             string="Calcular ahora"
+                                                            invisible="supplier_cat_method == 'manual'"
                                                             class="btn btn-primary btn-sm"/>
                                                 </div>
                                             </div>
@@ -403,6 +404,7 @@
                                                     <button name="action_auto_assign_sale_categories"
                                                             type="object"
                                                             string="Asignar ahora"
+                                                            invisible="sale_cat_mode == 'manual'"
                                                             class="btn btn-primary btn-sm"/>
                                                 </div>
                                             </div>
@@ -467,6 +469,7 @@
                                                     <button name="action_compute_customer_categories"
                                                             type="object"
                                                             string="Calcular ahora"
+                                                            invisible="customer_cat_method == 'manual'"
                                                             class="btn btn-primary btn-sm"/>
                                                 </div>
                                             </div>

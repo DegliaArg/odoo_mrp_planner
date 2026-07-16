@@ -87,8 +87,9 @@ class MoDashboardWidget extends Component {
             pageSize:       50,
             enable_scheduling: true,
             // OFs
-            ofs_kpis:    { total: 0, in_progress: 0, delayed: 0, reschedule: 0, done: 0, partial: 0 },
-            mos:         [],
+            ofs_kpis:      { total: 0, in_progress: 0, delayed: 0, reschedule: 0, done: 0, partial: 0 },
+            ofs_date_mode: 'finish_date',  // modo de filtro de fecha usado por get_mo_kpi_counts
+            mos:           [],
             // Programaciones
             req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0 },
             requests:    [],
@@ -141,8 +142,9 @@ class MoDashboardWidget extends Component {
                         this.state.selectedWarehouseId || null,
                     ]),
                 ]);
-                this.state.ofs_kpis = kpis;
-                this.state.mos      = d.mos;
+                this.state.ofs_kpis      = kpis;
+                this.state.ofs_date_mode = kpis.mode || 'finish_date';
+                this.state.mos           = d.mos;
             } else if (this.state.tab === "requests") {
                 const d = await this.orm.call("mrp.planner.dashboard", "get_request_widget_data", [
                     this.state.sortField || null,
@@ -251,13 +253,34 @@ class MoDashboardWidget extends Component {
 
     /**
      * Construye el fragmento de dominio de rango de fechas según los filtros activos.
-     * Agrega condiciones sobre date_finished solo si los valores no están vacíos.
+     * Usa el mismo campo que el backend (comparison_date_mode vía ofs_date_mode) para que
+     * la navegación cubra exactamente los mismos registros que los KPIs.
+     *   - 'finish_date' → filtra por date_finished
+     *   - 'start_date'  → filtra por date_start
+     *   - 'overlap' / 'proportional' → date_start <= dateTo AND date_finished >= dateFrom
      * @returns {Array} Tuplas de dominio Odoo para dateFrom y/o dateTo.
      */
     _dateDomain() {
+        const mode    = this.state.ofs_date_mode || 'finish_date';
+        const dfrom   = this.state.dateFrom;
+        const dto     = this.state.dateTo;
+        if (mode === 'start_date') {
+            const d = [];
+            if (dfrom) d.push(["date_start", ">=", dfrom + " 00:00:00"]);
+            if (dto)   d.push(["date_start", "<=", dto   + " 23:59:59"]);
+            return d;
+        }
+        if (mode === 'overlap' || mode === 'proportional') {
+            const d = [];
+            if (dto)   d.push(["date_start",    "<=", dto   + " 23:59:59"]);
+            if (dfrom) d.push("|", ["date_finished", ">=", dfrom + " 00:00:00"],
+                                   ["date_finished", "=",  false]);
+            return d;
+        }
+        // 'finish_date' (default)
         const d = [];
-        if (this.state.dateFrom) d.push(["date_finished", ">=", this.state.dateFrom + " 00:00:00"]);
-        if (this.state.dateTo)   d.push(["date_finished", "<=", this.state.dateTo   + " 23:59:59"]);
+        if (dfrom) d.push(["date_finished", ">=", dfrom + " 00:00:00"]);
+        if (dto)   d.push(["date_finished", "<=", dto   + " 23:59:59"]);
         return d;
     }
 

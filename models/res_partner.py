@@ -27,14 +27,16 @@ class ResPartner(models.Model):
     x_supplier_category = fields.Selection(
         SALE_CAT_SELECTION,
         string='Categoría de proveedor',
-        help='Clasificación A–E de calidad del proveedor.',
-        index=True,
+        compute='_compute_supplier_category',
+        inverse='_set_supplier_category',
+        search='_search_supplier_category',
     )
     x_customer_category = fields.Selection(
         SALE_CAT_SELECTION,
         string='Categoría de cliente',
-        help='Clasificación A–E de calidad del cliente.',
-        index=True,
+        compute='_compute_customer_category',
+        inverse='_set_customer_category',
+        search='_search_customer_category',
     )
 
     mrp_enable_supplier_cat = fields.Boolean(
@@ -49,6 +51,76 @@ class ResPartner(models.Model):
              'configuración del planificador. Usado para ocultar/mostrar el '
              'campo x_customer_category en las vistas.',
     )
+
+    @api.depends_context('company')
+    def _compute_supplier_category(self):
+        cats = self.env['mrp.partner.company.category'].search([
+            ('partner_id', 'in', self.ids),
+            ('company_id', '=', self.env.company.id),
+        ])
+        by_partner = {r.partner_id.id: r.supplier_category for r in cats}
+        for rec in self:
+            rec.x_supplier_category = by_partner.get(rec.id)
+
+    def _set_supplier_category(self):
+        Cat = self.env['mrp.partner.company.category']
+        company_id = self.env.company.id
+        existing = Cat.search([('partner_id', 'in', self.ids), ('company_id', '=', company_id)])
+        by_partner = {r.partner_id.id: r for r in existing}
+        to_create = []
+        for rec in self:
+            if rec.id in by_partner:
+                by_partner[rec.id].supplier_category = rec.x_supplier_category
+            else:
+                to_create.append({
+                    'partner_id': rec.id,
+                    'company_id': company_id,
+                    'supplier_category': rec.x_supplier_category,
+                })
+        if to_create:
+            Cat.create(to_create)
+
+    def _search_supplier_category(self, operator, value):
+        cats = self.env['mrp.partner.company.category'].search([
+            ('company_id', '=', self.env.company.id),
+            ('supplier_category', operator, value),
+        ])
+        return [('id', 'in', cats.mapped('partner_id').ids)]
+
+    @api.depends_context('company')
+    def _compute_customer_category(self):
+        cats = self.env['mrp.partner.company.category'].search([
+            ('partner_id', 'in', self.ids),
+            ('company_id', '=', self.env.company.id),
+        ])
+        by_partner = {r.partner_id.id: r.customer_category for r in cats}
+        for rec in self:
+            rec.x_customer_category = by_partner.get(rec.id)
+
+    def _set_customer_category(self):
+        Cat = self.env['mrp.partner.company.category']
+        company_id = self.env.company.id
+        existing = Cat.search([('partner_id', 'in', self.ids), ('company_id', '=', company_id)])
+        by_partner = {r.partner_id.id: r for r in existing}
+        to_create = []
+        for rec in self:
+            if rec.id in by_partner:
+                by_partner[rec.id].customer_category = rec.x_customer_category
+            else:
+                to_create.append({
+                    'partner_id': rec.id,
+                    'company_id': company_id,
+                    'customer_category': rec.x_customer_category,
+                })
+        if to_create:
+            Cat.create(to_create)
+
+    def _search_customer_category(self, operator, value):
+        cats = self.env['mrp.partner.company.category'].search([
+            ('company_id', '=', self.env.company.id),
+            ('customer_category', operator, value),
+        ])
+        return [('id', 'in', cats.mapped('partner_id').ids)]
 
     # Usar @api.depends con la ruta cross-model para que Odoo invalide el cache
     # cuando cambia la configuración del planificador.

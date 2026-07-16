@@ -316,6 +316,18 @@ class PoDashboardWidget extends Component {
         ]);
     }
 
+    /** Navega a OCs críticas: vencidas con retraso mayor al umbral configurado. */
+    onClickCritical() {
+        const days = this.state.kpis.po_critical_days || 5;
+        const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+        this._navigate(`Críticas (+${days} días)`, [
+            ["state", "in", ["purchase", "done"]],
+            ["date_planned", "<", cutoff],
+            ["receipt_status", "not in", ["full"]],
+            ...this._dateDomain(),
+        ]);
+    }
+
     /** @param {number|string} id — ID de la OC a abrir */
     openPo(id) {
         // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante

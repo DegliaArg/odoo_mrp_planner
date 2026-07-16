@@ -139,7 +139,7 @@
 
                         <div class="col-6">
                             <div class="card o_planner_card o_planner_card_danger h-100"
-                                 style="cursor:pointer" t-on-click="onClickOverdue"
+                                 style="cursor:pointer" t-on-click="onClickCritical"
                                  t-att-title="poKpiTooltip('overdue_critical')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
@@ -147,7 +147,7 @@
                                     <div class="o_planner_label">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickOverdue">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickCritical">Ver →</button>
                                 </div>
                             </div>
                         </div>

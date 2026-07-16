@@ -29,6 +29,9 @@ class ProductTemplate(models.Model):
         string='Categoría de venta',
         help='Clasificación A–E de rotación del artículo (A = mayor rotación). '
              'Se puede asignar manualmente o de forma automática desde Configuración del planificador.',
+        compute='_compute_sale_category',
+        inverse='_set_sale_category',
+        search='_search_sale_category',
     )
     x_product_type_ids = fields.Many2many(
         'mrp.product.type',
@@ -47,6 +50,41 @@ class ProductTemplate(models.Model):
              'tiene habilitada la visualización de categorías de venta. '
              'Se usa en la vista para mostrar u ocultar el campo x_sale_category.',
     )
+
+    @api.depends_context('company')
+    def _compute_sale_category(self):
+        cats = self.env['mrp.product.company.category'].search([
+            ('product_tmpl_id', 'in', self.ids),
+            ('company_id', '=', self.env.company.id),
+        ])
+        by_tmpl = {r.product_tmpl_id.id: r.sale_category for r in cats}
+        for rec in self:
+            rec.x_sale_category = by_tmpl.get(rec.id)
+
+    def _set_sale_category(self):
+        Cat = self.env['mrp.product.company.category']
+        company_id = self.env.company.id
+        existing = Cat.search([('product_tmpl_id', 'in', self.ids), ('company_id', '=', company_id)])
+        by_tmpl = {r.product_tmpl_id.id: r for r in existing}
+        to_create = []
+        for rec in self:
+            if rec.id in by_tmpl:
+                by_tmpl[rec.id].sale_category = rec.x_sale_category
+            else:
+                to_create.append({
+                    'product_tmpl_id': rec.id,
+                    'company_id': company_id,
+                    'sale_category': rec.x_sale_category,
+                })
+        if to_create:
+            Cat.create(to_create)
+
+    def _search_sale_category(self, operator, value):
+        cats = self.env['mrp.product.company.category'].search([
+            ('company_id', '=', self.env.company.id),
+            ('sale_category', operator, value),
+        ])
+        return [('id', 'in', cats.mapped('product_tmpl_id').ids)]
 
     @api.depends_context('company')
     def _compute_mrp_sale_cat_flag(self):

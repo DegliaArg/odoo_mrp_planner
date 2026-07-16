@@ -81,6 +81,7 @@ class MrpPartnerCategory(models.Model):
             ('date', '>=', start_dt),
             ('date', '<=', end_dt),
             ('product_id', '!=', False),
+            ('company_id', '=', self.env.company.id),
         ], ['product_id', 'quantity:sum'], ['product_id'])
         del_by_pid = {g['product_id'][0]: (g['quantity'] or 0.0)
                       for g in del_groups if g['product_id']}
@@ -91,11 +92,12 @@ class MrpPartnerCategory(models.Model):
             ('order_id.date_order', '>=', str(start)),
             ('order_id.date_order', '<=', str(end)),
             ('product_id', '!=', False),
+            ('order_id.company_id', '=', self.env.company.id),
         ], ['product_id', 'product_uom_qty:sum'], ['product_id'])
         demand_by_pid = {g['product_id'][0]: (g['product_uom_qty'] or 0.0)
                          for g in so_groups if g['product_id']}
 
-        templates = self.env['product.template'].search([('sale_ok', '=', True)])
+        templates = self.env['product.template'].search([('sale_ok', '=', True), ('company_id', 'in', [self.env.company.id, False])])
         updated   = 0
 
         # Agrega cantidades por variante a nivel de plantilla
@@ -159,7 +161,7 @@ class MrpPartnerCategory(models.Model):
 
             # Stock actual (snapshot al cierre del período)
             quants = self.env['stock.quant'].read_group(
-                [('location_id.usage', '=', 'internal'), ('product_id', '!=', False)],
+                [('location_id.usage', '=', 'internal'), ('product_id', '!=', False), ('company_id', '=', self.env.company.id)],
                 ['product_id', 'quantity:sum'],
                 ['product_id'],
             )
@@ -172,6 +174,7 @@ class MrpPartnerCategory(models.Model):
                 ('date', '>=', start_dt),
                 ('date', '<=', end_dt),
                 ('product_id', '!=', False),
+                ('company_id', '=', self.env.company.id),
             ], ['product_id', 'quantity:sum'], ['product_id'])
             qty_in_pid = {g['product_id'][0]: (g['quantity'] or 0.0)
                           for g in in_groups if g['product_id']}
@@ -214,11 +217,12 @@ class MrpPartnerCategory(models.Model):
     def _cron_auto_assign_sale_categories(self):
         """Punto de entrada del cron para recategorización automática de artículos de venta."""
         _logger.info('MRP Planner cron: inicio actualización categorías de venta')
-        config = self.get_config()
-        if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
-            _logger.info('MRP Planner cron: categorías de venta omitidas (desactivado o modo manual)')
-            return
-        config.action_auto_assign_sale_categories()
+        for company in self.env['res.company'].search([]):
+            config = self.with_company(company).get_config()
+            if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
+                continue
+            _logger.info('MRP Planner cron: categorías de venta para empresa %s', company.name)
+            config.action_auto_assign_sale_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de venta')
 
     def action_compute_supplier_categories(self):
@@ -259,7 +263,7 @@ class MrpPartnerCategory(models.Model):
 
         if config.supplier_cat_method in ('abc_volume', 'abc_frequency'):
             groups = self.env['purchase.order'].read_group(
-                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start))],
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count'],
                 ['partner_id'],
             )
@@ -274,7 +278,7 @@ class MrpPartnerCategory(models.Model):
             start_dt = fields.Datetime.to_datetime(str(start))
             now_dt   = fields.Datetime.now()
             groups = self.env['purchase.order'].read_group(
-                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start))],
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
                 ['partner_id'],
             )
@@ -326,6 +330,7 @@ class MrpPartnerCategory(models.Model):
                 ('picking_type_code', '=', 'incoming'),
                 ('purchase_id.partner_id', 'in', suppliers.ids),
                 ('purchase_id.date_order', '>=', str(start)),
+                ('company_id', '=', self.env.company.id),
             ])
             pct_data = {}
             for pick in picks:
@@ -348,6 +353,7 @@ class MrpPartnerCategory(models.Model):
                 ('order_id.date_order', '>=', str(start)),
                 ('order_id.partner_id', 'in', suppliers.ids),
                 ('product_id', '!=', False),
+                ('company_id', '=', self.env.company.id),
             ])
             prod_ids     = list({ln.product_id.id for ln in po_lines})
             price_method = config.supplier_price_var_method or 'standard'
@@ -399,6 +405,7 @@ class MrpPartnerCategory(models.Model):
                 ('picking_id.picking_type_code', '=', 'incoming'),
                 ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
                 ('picking_id.purchase_id.date_order', '>=', str(start)),
+                ('company_id', '=', self.env.company.id),
             ])
             qty_data = {}
             for mv in moves:
@@ -427,6 +434,7 @@ class MrpPartnerCategory(models.Model):
                     ('return_id.purchase_id', '!=', False),
                     ('return_id.purchase_id.partner_id', 'in', suppliers.ids),
                     ('return_id.purchase_id.date_order', '>=', str(start)),
+                    ('company_id', '=', self.env.company.id),
                 ])
                 for pick in ret_picks:
                     pid = pick.return_id.purchase_id.partner_id.id
@@ -440,6 +448,7 @@ class MrpPartnerCategory(models.Model):
                 ('picking_type_code', '=', 'incoming'),
                 ('purchase_id.partner_id', 'in', suppliers.ids),
                 ('purchase_id.date_order', '>=', str(start)),
+                ('company_id', '=', self.env.company.id),
             ])
             combo_data = {}
             for pick in picks:
@@ -454,6 +463,7 @@ class MrpPartnerCategory(models.Model):
                 ('picking_id.picking_type_code', '=', 'incoming'),
                 ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
                 ('picking_id.purchase_id.date_order', '>=', str(start)),
+                ('company_id', '=', self.env.company.id),
             ])
             qty_data = {}
             for mv in moves:
@@ -483,11 +493,12 @@ class MrpPartnerCategory(models.Model):
     def _cron_compute_supplier_categories(self):
         """Punto de entrada del cron para recategorización automática de proveedores."""
         _logger.info('MRP Planner cron: inicio actualización categorías de proveedor')
-        config = self.get_config()
-        if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
-            _logger.info('MRP Planner cron: categorías de proveedor omitidas (desactivado o modo manual)')
-            return
-        config.action_compute_supplier_categories()
+        for company in self.env['res.company'].search([]):
+            config = self.with_company(company).get_config()
+            if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
+                continue
+            _logger.info('MRP Planner cron: categorías de proveedor para empresa %s', company.name)
+            config.action_compute_supplier_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de proveedor')
 
     def action_compute_customer_categories(self):
@@ -522,7 +533,7 @@ class MrpPartnerCategory(models.Model):
 
         if config.customer_cat_method in ('abc_volume', 'abc_frequency'):
             groups = self.env['sale.order'].read_group(
-                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start))],
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count'],
                 ['partner_id'],
             )
@@ -537,7 +548,7 @@ class MrpPartnerCategory(models.Model):
             start_dt = fields.Datetime.to_datetime(str(start))
             now_dt   = fields.Datetime.now()
             groups = self.env['sale.order'].read_group(
-                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start))],
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
                 ['partner_id'],
             )
@@ -589,9 +600,10 @@ class MrpPartnerCategory(models.Model):
     def _cron_compute_customer_categories(self):
         """Punto de entrada del cron para recategorización automática de clientes."""
         _logger.info('MRP Planner cron: inicio actualización categorías de cliente')
-        config = self.get_config()
-        if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
-            _logger.info('MRP Planner cron: categorías de cliente omitidas (desactivado o modo manual)')
-            return
-        config.action_compute_customer_categories()
+        for company in self.env['res.company'].search([]):
+            config = self.with_company(company).get_config()
+            if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
+                continue
+            _logger.info('MRP Planner cron: categorías de cliente para empresa %s', company.name)
+            config.action_compute_customer_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de cliente')

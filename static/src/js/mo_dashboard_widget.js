@@ -252,6 +252,19 @@ class MoDashboardWidget extends Component {
     }
 
     /**
+     * Convierte una fecha local 'YYYY-MM-DD' al string UTC equivalente para dominios Odoo.
+     * Odoo almacena datetimes en UTC; pasar '2026-07-01 00:00:00' UTC cuando el usuario
+     * está en UTC-3 incluye incorrectamente OFs del 30/06 local (01:00-02:59 UTC del 1/7).
+     * @param {string} dateStr - Fecha local 'YYYY-MM-DD'.
+     * @param {boolean} endOfDay - Si true usa 23:59:59 local; si false usa 00:00:00 local.
+     * @returns {string} Datetime UTC 'YYYY-MM-DD HH:MM:SS'.
+     */
+    _toUtcStr(dateStr, endOfDay = false) {
+        const dt = new Date(dateStr + (endOfDay ? 'T23:59:59' : 'T00:00:00'));
+        return dt.toISOString().replace('T', ' ').slice(0, 19);
+    }
+
+    /**
      * Construye el fragmento de dominio de rango de fechas según los filtros activos.
      * Usa el mismo campo que el backend (comparison_date_mode vía ofs_date_mode) para que
      * la navegación cubra exactamente los mismos registros que los KPIs.
@@ -266,21 +279,21 @@ class MoDashboardWidget extends Component {
         const dto     = this.state.dateTo;
         if (mode === 'start_date') {
             const d = [];
-            if (dfrom) d.push(["date_start", ">=", dfrom + " 00:00:00"]);
-            if (dto)   d.push(["date_start", "<=", dto   + " 23:59:59"]);
+            if (dfrom) d.push(["date_start", ">=", this._toUtcStr(dfrom)]);
+            if (dto)   d.push(["date_start", "<=", this._toUtcStr(dto, true)]);
             return d;
         }
         if (mode === 'overlap' || mode === 'proportional') {
             const d = [];
-            if (dto)   d.push(["date_start",    "<=", dto   + " 23:59:59"]);
-            if (dfrom) d.push("|", ["date_finished", ">=", dfrom + " 00:00:00"],
+            if (dto)   d.push(["date_start",    "<=", this._toUtcStr(dto, true)]);
+            if (dfrom) d.push("|", ["date_finished", ">=", this._toUtcStr(dfrom)],
                                    ["date_finished", "=",  false]);
             return d;
         }
         // 'finish_date' (default)
         const d = [];
-        if (dfrom) d.push(["date_finished", ">=", dfrom + " 00:00:00"]);
-        if (dto)   d.push(["date_finished", "<=", dto   + " 23:59:59"]);
+        if (dfrom) d.push(["date_finished", ">=", this._toUtcStr(dfrom)]);
+        if (dto)   d.push(["date_finished", "<=", this._toUtcStr(dto, true)]);
         return d;
     }
 
@@ -308,8 +321,8 @@ class MoDashboardWidget extends Component {
     onClickDone() {
         this._navigate("OFs finalizadas", [
             ["state", "=", "done"],
-            ["date_finished", ">=", this.state.dateFrom + " 00:00:00"],
-            ["date_finished", "<=", this.state.dateTo   + " 23:59:59"],
+            ["date_finished", ">=", this._toUtcStr(this.state.dateFrom)],
+            ["date_finished", "<=", this._toUtcStr(this.state.dateTo, true)],
         ]);
     }
 
@@ -357,8 +370,8 @@ class MoDashboardWidget extends Component {
 
     onClickAllComparison() {
         const mode     = this.state.cmp_mode || 'finish_date';
-        const dateFrom = this.state.dateFrom + ' 00:00:00';
-        const dateTo   = this.state.dateTo   + ' 23:59:59';
+        const dateFrom = this._toUtcStr(this.state.dateFrom);
+        const dateTo   = this._toUtcStr(this.state.dateTo, true);
         const domain   = [["state", "not in", ["cancel"]]];
         if (mode === 'start_date') {
             domain.push(["date_start", ">=", dateFrom], ["date_start", "<=", dateTo]);

@@ -26,9 +26,22 @@ Relacionado con:
 """
 import logging
 from datetime import datetime
+from pytz import timezone as _tz, utc as _pytz_utc
 
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
+
+
+def _local_to_utc(env, datestr, end_of_day=False):
+    """Convert a user-local date string 'YYYY-MM-DD' to a naive UTC datetime.
+    Avoids the bug where OFs near UTC midnight fall in the wrong local-date bucket.
+    """
+    tz_name = env.context.get('tz') or env.user.tz or 'UTC'
+    if end_of_day:
+        naive = datetime.strptime(datestr, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+    else:
+        naive = datetime.strptime(datestr, '%Y-%m-%d')
+    return _tz(tz_name).localize(naive).astimezone(_pytz_utc).replace(tzinfo=None)
 
 _logger = logging.getLogger(__name__)
 
@@ -52,8 +65,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :returns: list[dict] con campos id, name, product, qty, date_finished, state,
                   delayed (bool) y reschedule (bool) por cada OF encontrada.
         """
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        first_day = _local_to_utc(self.env, date_from)
+        last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
         wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
@@ -160,8 +173,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
                   - mos (list[dict]): registros de la página con campos id, name, product, qty,
                     date_finished, state, delayed, reschedule, pending_delivery.
         """
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        first_day = _local_to_utc(self.env, date_from)
+        last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         _sd = 'desc' if sort_dir == 'desc' else 'asc'
         _MO_FIELD = {
@@ -255,8 +268,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
         wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
-        dFrom = date_from + ' 00:00:00'
-        dTo   = date_to   + ' 23:59:59'
+        dFrom = fields.Datetime.to_string(_local_to_utc(self.env, date_from))
+        dTo   = fields.Datetime.to_string(_local_to_utc(self.env, date_to, end_of_day=True))
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
         now_s  = fields.Datetime.to_string(now)
 
@@ -364,8 +377,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
                   - items (list[dict], máx. 20): product_id, product, uom, planned_qty,
                     produced_qty, pct por producto, ordenados por planned_qty desc.
         """
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        first_day = _local_to_utc(self.env, date_from)
+        last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
         wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())

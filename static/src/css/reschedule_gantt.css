@@ -52,10 +52,10 @@
 }
 
 .o_planner_number {
-    font-size: clamp(0.85rem, 12cqi, 2rem);
+    font-size: clamp(0.7rem, 8cqi, 1.3rem);
     font-weight: 700;
     line-height: 1;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

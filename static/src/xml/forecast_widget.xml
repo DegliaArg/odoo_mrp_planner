@@ -76,8 +76,7 @@
                                  t-att-title="fcKpiTooltip('delivered')"
                                  t-on-click="openDrillDelivered">
                                 <div class="card-body text-center py-1">
-                                    <i class="fa fa-truck fa-sm text-info mb-1 d-block"/>
-                                    <div class="o_planner_number text-info" style="font-size:1.3rem;"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
+                                    <div class="o_planner_number text-info" style="font-size:0.85rem;"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
                                     <div class="o_planner_label">Entregas Físicas</div>
                                     <div t-if="state.data.kpis.delivered_no_fc > 0"
                                          class="text-warning mt-1"
@@ -96,8 +95,7 @@
                                  t-att-title="fcKpiTooltip('demand_delivered')"
                                  t-on-click="openDrillDemandDelivered">
                                 <div class="card-body text-center py-1">
-                                    <i class="fa fa-check-circle fa-sm text-success mb-1 d-block"/>
-                                    <div class="o_planner_number text-success" style="font-size:1.3rem;"><t t-esc="fmt(filteredKpis.total_demand_delivered)"/></div>
+                                    <div class="o_planner_number text-success" style="font-size:0.85rem;"><t t-esc="fmt(filteredKpis.total_demand_delivered)"/></div>
                                     <div class="o_planner_label">Cumplimiento de demanda</div>
                                     <div t-if="state.data.kpis.demand_delivered_no_fc > 0"
                                          class="text-warning mt-1"
@@ -176,8 +174,7 @@
                                  t-att-title="fcKpiTooltip('svc')"
                                  t-on-click="openDrillDelivered">
                                 <div class="card-body text-center py-1">
-                                    <i class="fa fa-truck fa-sm mb-1 d-block text-secondary"/>
-                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_service_rate)" style="font-size:1.3rem;">
+                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_service_rate)" style="font-size:0.85rem;">
                                         <t t-esc="fmtPct(filteredKpis.overall_service_rate)"/>
                                     </div>
                                     <div class="o_planner_label">Tasa física</div>
@@ -191,8 +188,7 @@
                                  t-att-title="fcKpiTooltip('demand_svc')"
                                  t-on-click="openDrillDemandDelivered">
                                 <div class="card-body text-center py-1">
-                                    <i class="fa fa-check-circle fa-sm mb-1 d-block text-secondary"/>
-                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)" style="font-size:1.3rem;">
+                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)" style="font-size:0.85rem;">
                                         <t t-esc="fmtPct(filteredKpis.overall_demand_service_rate)"/>
                                     </div>
                                     <div class="o_planner_label">Tasa de cumplimiento</div>

@@ -565,13 +565,16 @@ class ForecastWidget extends Component {
     get filteredKpis() {
         if (!this.state.data) return {};
         const rows = this.filteredRowsAll;
-        const total_forecast  = rows.reduce((s, r) => s + (r.total_forecast  || 0), 0);
-        const total_mos       = rows.reduce((s, r) => s + (r.total_mos       || 0), 0);
-        const total_delivered = rows.reduce((s, r) => s + (r.total_delivered || 0), 0);
-        const total_so_demand = rows.reduce((s, r) => s + (r.total_so_demand || 0), 0);
+        const total_forecast          = rows.reduce((s, r) => s + (r.total_forecast          || 0), 0);
+        const total_mos               = rows.reduce((s, r) => s + (r.total_mos               || 0), 0);
+        const total_delivered         = rows.reduce((s, r) => s + (r.total_delivered         || 0), 0);
+        const total_so_demand         = rows.reduce((s, r) => s + (r.total_so_demand         || 0), 0);
+        const total_demand_delivered  = rows.reduce((s, r) => s + (r.total_demand_delivered  || 0), 0);
 
-        const overall_service_rate = total_so_demand > 0
-            ? Math.round(total_delivered / total_so_demand * 100) : null;
+        const overall_service_rate       = total_so_demand > 0
+            ? Math.round(total_delivered        / total_so_demand * 100) : null;
+        const overall_demand_service_rate = total_so_demand > 0
+            ? Math.round(total_demand_delivered / total_so_demand * 100) : null;
         const demand_gap_pct = total_forecast > 0
             ? Math.round((total_so_demand - total_forecast) / total_forecast * 100) : null;
         const mos_gap_pct = total_forecast > 0
@@ -582,16 +585,27 @@ class ForecastWidget extends Component {
             ? Math.round(accRows.reduce((s, r) => s + r.total_forecast_acc, 0) / accRows.length)
             : null;
 
+        // Desglose entregas físicas por mes de confirmación del pedido origen
+        const del_by_order_month = {};
+        for (const r of rows) {
+            for (const [ym, qty] of Object.entries(r.del_by_order_month || {})) {
+                del_by_order_month[ym] = (del_by_order_month[ym] || 0) + qty;
+            }
+        }
+
         return {
             ...this.state.data.kpis,
             total_forecast,
             total_mos,
             total_delivered,
             total_so_demand,
+            total_demand_delivered,
             overall_forecast_acc,
             overall_service_rate,
+            overall_demand_service_rate,
             demand_gap_pct,
             mos_gap_pct,
+            del_by_order_month,
         };
     }
 
@@ -1128,10 +1142,26 @@ class ForecastWidget extends Component {
                 return `Unidades pedidas en órdenes de venta confirmadas de productos con línea de forecast\n→ ${this.fmt(k.total_so_demand)} u en el período`;
             case 'mos':
                 return `Unidades en OFs activas con fecha de fin en el período, de productos con línea de forecast\n→ ${this.fmt(k.total_mos)} u planificadas`;
-            case 'delivered':
-                return `Unidades entregadas a clientes (albaranes de salida validados) de productos con línea de forecast\n→ ${this.fmt(k.total_delivered)} u entregadas`;
+            case 'delivered': {
+                const fk = this.filteredKpis;
+                const byMonth = fk.del_by_order_month || {};
+                const sortedMonths = Object.keys(byMonth).sort();
+                const lines = sortedMonths.map(ym => {
+                    const [y, m] = ym.split('-');
+                    const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
+                    return `  ${label}: ${this.fmt(byMonth[ym])} u`;
+                });
+                const breakdown = lines.length
+                    ? '\nPor mes de confirmación del pedido:\n' + lines.join('\n')
+                    : '';
+                return `Unidades entregadas físicamente en el período seleccionado (albaranes validados), de cualquier pedido${breakdown}`;
+            }
+            case 'demand_delivered':
+                return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega\n→ ${this.fmt(this.filteredKpis.total_demand_delivered)} u`;
             case 'svc':
-                return `Porcentaje de la demanda real que fue efectivamente entregada al cliente en el período\nTotal entregado ÷ Total pedidos de venta × 100\n→ ${this.fmt(k.total_delivered)} ÷ ${this.fmt(k.total_so_demand)} × 100 = ${this.fmtPct(k.overall_service_rate)}`;
+                return `Tasa de entregas físicas del período ÷ demanda real\n→ ${this.fmt(this.filteredKpis.total_delivered)} ÷ ${this.fmt(this.filteredKpis.total_so_demand)} × 100 = ${this.fmtPct(this.filteredKpis.overall_service_rate)}`;
+            case 'demand_svc':
+                return `Tasa de cumplimiento: todo lo entregado de los pedidos del período ÷ demanda real\n→ ${this.fmt(this.filteredKpis.total_demand_delivered)} ÷ ${this.fmt(this.filteredKpis.total_so_demand)} × 100 = ${this.fmtPct(this.filteredKpis.overall_demand_service_rate)}`;
         }
         return '';
     }

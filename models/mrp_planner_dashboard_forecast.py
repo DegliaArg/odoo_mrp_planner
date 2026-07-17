@@ -319,9 +319,24 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             ('product_id', 'in', all_product_ids_list),
             ('company_id', '=', self.env.company.id),
         ]
-        del_data = {}   # {product_id: {ym: qty}}
-        for _ml in self.env['stock.move.line'].search(del_line_domain).read(
-                ['product_id', 'date', 'quantity']):
+        del_data = {}           # {product_id: {ym: qty}}
+        del_by_order_month = {} # {product_id: {order_ym: qty}} — para tooltip por mes de OV
+        _del_lines = self.env['stock.move.line'].search(del_line_domain).read(
+            ['product_id', 'date', 'quantity', 'picking_id'])
+
+        # Batch-fetch sale_id por picking y date_order por sale para el tooltip
+        _del_pick_ids = list({ml['picking_id'][0] for ml in _del_lines if ml['picking_id']})
+        _pick_to_sale = {}
+        if _del_pick_ids:
+            for _p in self.env['stock.picking'].browse(_del_pick_ids).read(['id', 'sale_id']):
+                _pick_to_sale[_p['id']] = _p['sale_id'][0] if _p['sale_id'] else None
+        _del_sale_ids = list({sid for sid in _pick_to_sale.values() if sid})
+        _del_sale_dates = {}
+        if _del_sale_ids:
+            for _s in self.env['sale.order'].browse(_del_sale_ids).read(['id', 'date_order']):
+                _del_sale_dates[_s['id']] = _s['date_order']
+
+        for _ml in _del_lines:
             pid = _ml['product_id'][0] if _ml['product_id'] else False
             dt  = _ml['date']
             if not pid or not dt:
@@ -329,8 +344,18 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             ym = _dt_ym(dt)
             if ym not in months:
                 continue
+            qty = _ml['quantity']
             del_data.setdefault(pid, {})
-            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + _ml['quantity']
+            del_data[pid][ym] = del_data[pid].get(ym, 0.0) + qty
+
+            # Acumular por mes de confirmación del pedido origen
+            _pick_id  = _ml['picking_id'][0] if _ml['picking_id'] else None
+            _sale_id  = _pick_to_sale.get(_pick_id) if _pick_id else None
+            _order_dt = _del_sale_dates.get(_sale_id) if _sale_id else None
+            if _order_dt:
+                _oym = _order_dt.strftime('%Y-%m') if hasattr(_order_dt, 'strftime') else str(_order_dt)[:7]
+                del_by_order_month.setdefault(pid, {})
+                del_by_order_month[pid][_oym] = del_by_order_month[pid].get(_oym, 0.0) + qty
 
         # ── Demanda real: pedidos de venta confirmados ─────────────────────────
         so_data = {}    # {product_id: {ym: qty}}
@@ -363,6 +388,31 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 so_data[pid][ym] = so_data[pid].get(ym, 0.0) + _sl['product_uom_qty']
         except Exception:
             pass    # módulo sale no disponible
+
+        # ── Cumplimiento de demanda: todo lo entregado de pedidos del período ──
+        demand_del_data = {}  # {product_id: qty} — sin filtro de fecha de entrega
+        try:
+            _period_so_ids = self.env['sale.order'].search([
+                ('state', 'in', ('sale', 'done')),
+                ('date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_order', '<=', fields.Datetime.to_string(dt_to)),
+                ('company_id', '=', self.env.company.id),
+            ]).ids
+            if _period_so_ids and all_product_ids_list:
+                demand_del_dom = [
+                    ('state', '=', 'done'),
+                    ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                    ('picking_id.sale_id', 'in', _period_so_ids),
+                    ('product_id', 'in', all_product_ids_list),
+                    ('company_id', '=', self.env.company.id),
+                ]
+                for _ml in self.env['stock.move.line'].search(demand_del_dom).read(
+                        ['product_id', 'quantity']):
+                    _pid = _ml['product_id'][0] if _ml['product_id'] else False
+                    if _pid:
+                        demand_del_data[_pid] = demand_del_data.get(_pid, 0.0) + _ml['quantity']
+        except Exception:
+            pass
 
         # ── Stock actual (snapshot) ───────────────────────────────────────────
         stock_data = {}   # {product_id: qty}
@@ -579,6 +629,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 tot_del += del_qty
                 tot_so  += so_qty
 
+            # Cumplimiento: total entregado de pedidos del período (cualquier fecha)
+            demand_del_qty  = round(demand_del_data.get(pid, 0.0), 2)
+            demand_svc_rate = round(demand_del_qty / tot_so * 100, 1) if tot_so > 0 else None
+
             tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
             tot_svc = round(tot_del / tot_so * 100, 1) if tot_so > 0 else None
             if acc_formula == 'mape':
@@ -632,9 +686,12 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'total_forecast':     round(tot_fc,  2),
                 'total_mos':          round(tot_mos, 2),
                 'total_pct':          tot_pct,
-                'total_delivered':    round(tot_del, 2),
-                'total_so_demand':    round(tot_so,  2),
-                'total_service_rate': tot_svc,
+                'total_delivered':             round(tot_del, 2),
+                'total_so_demand':             round(tot_so,  2),
+                'total_service_rate':          tot_svc,
+                'total_demand_delivered':      demand_del_qty,
+                'total_demand_service_rate':   demand_svc_rate,
+                'del_by_order_month':          del_by_order_month.get(pid, {}),
                 'total_forecast_acc': tot_acc,
                 'demand_gap_pct': round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
                 'acc_all': {
@@ -728,7 +785,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
 
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
-        ovr_svc = round(total_del / total_so * 100, 1) if total_so > 0 else None
+        ovr_svc         = round(total_del / total_so * 100, 1) if total_so > 0 else None
+        total_demand_del = sum(r['total_demand_delivered'] for r in rows)
+        ovr_demand_svc   = round(total_demand_del / total_so * 100, 1) if total_so > 0 else None
         _all_mape_sum   = sum(r['_mape_acc_sum']   for r in rows)
         _all_mape_count = sum(r['_mape_acc_count'] for r in rows)
         _all_wape_err   = sum(r['_wape_abs_err']   for r in rows)
@@ -763,7 +822,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'coverage_pct':         coverage,
                 'at_risk':              at_risk,
                 'total_products':       len(rows),
-                'overall_service_rate': ovr_svc,
+                'overall_service_rate':        ovr_svc,
+                'total_demand_delivered':      round(total_demand_del, 2),
+                'overall_demand_service_rate': ovr_demand_svc,
                 'overall_forecast_acc': ovr_acc,
                 'acc_all':              acc_all,
                 'so_demand_no_fc':      so_demand_no_fc,

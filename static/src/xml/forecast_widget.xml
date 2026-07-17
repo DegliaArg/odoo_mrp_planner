@@ -68,22 +68,38 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="fcKpiTooltip('delivered')"
-                             t-on-click="openDrillDelivered">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-truck fa-lg text-info mb-1 d-block"/>
-                                <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
-                                <div class="o_planner_label">Entregado</div>
-                                <div t-if="state.data.kpis.delivered_no_fc > 0"
-                                     class="text-warning mt-1"
-                                     style="font-size:10px; line-height:1.3;"
-                                     t-att-title="fmt(state.data.kpis.delivered_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
-                                    <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.delivered_no_fc)"/> sin FC
+                        <div class="d-flex flex-column gap-2 h-100">
+                            <!-- Entregas Físicas -->
+                            <div class="card o_planner_card flex-fill o_planner_card_clickable"
+                                 t-att-title="fcKpiTooltip('delivered')"
+                                 t-on-click="openDrillDelivered">
+                                <div class="card-body text-center py-1">
+                                    <i class="fa fa-truck fa-sm text-info mb-1 d-block"/>
+                                    <div class="o_planner_number text-info" style="font-size:1.3rem;"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
+                                    <div class="o_planner_label">Entregas Físicas</div>
+                                    <div t-if="state.data.kpis.delivered_no_fc > 0"
+                                         class="text-warning mt-1"
+                                         style="font-size:10px; line-height:1.3;"
+                                         t-att-title="fmt(state.data.kpis.delivered_no_fc) + ' u. en productos vendibles SIN línea de forecast'">
+                                        <i class="fa fa-exclamation-triangle me-1"/>+<t t-esc="fmt(state.data.kpis.delivered_no_fc)"/> sin FC
+                                    </div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-0 text-info" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
                                 </div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1 text-info" t-on-click.stop="openDrillDelivered">Ver →</button>
+                            <!-- Cumplimiento de demanda -->
+                            <div class="card o_planner_card flex-fill o_planner_card_clickable"
+                                 t-att-title="fcKpiTooltip('demand_delivered')"
+                                 t-on-click="openDrillDelivered">
+                                <div class="card-body text-center py-1">
+                                    <i class="fa fa-check-circle fa-sm text-success mb-1 d-block"/>
+                                    <div class="o_planner_number text-success" style="font-size:1.3rem;"><t t-esc="fmt(filteredKpis.total_demand_delivered)"/></div>
+                                    <div class="o_planner_label">Cumplimiento de demanda</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-0 text-success" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -144,18 +160,36 @@
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="fcKpiTooltip('svc')"
-                             t-on-click="openDrillDelivered">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-handshake-o fa-lg mb-1 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_service_rate)">
-                                    <t t-esc="fmtPct(filteredKpis.overall_service_rate)"/>
+                        <div class="d-flex flex-column gap-2 h-100">
+                            <!-- Tasa física -->
+                            <div class="card o_planner_card flex-fill o_planner_card_clickable"
+                                 t-att-title="fcKpiTooltip('svc')"
+                                 t-on-click="openDrillDelivered">
+                                <div class="card-body text-center py-1">
+                                    <i class="fa fa-truck fa-sm mb-1 d-block text-secondary"/>
+                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_service_rate)" style="font-size:1.3rem;">
+                                        <t t-esc="fmtPct(filteredKpis.overall_service_rate)"/>
+                                    </div>
+                                    <div class="o_planner_label">Tasa física</div>
                                 </div>
-                                <div class="o_planner_label">Tasa de servicio</div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-0" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
+                                </div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="openDrillDelivered">Ver →</button>
+                            <!-- Tasa de cumplimiento -->
+                            <div class="card o_planner_card flex-fill o_planner_card_clickable"
+                                 t-att-title="fcKpiTooltip('demand_svc')"
+                                 t-on-click="openDrillDelivered">
+                                <div class="card-body text-center py-1">
+                                    <i class="fa fa-check-circle fa-sm mb-1 d-block text-secondary"/>
+                                    <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)" style="font-size:1.3rem;">
+                                        <t t-esc="fmtPct(filteredKpis.overall_demand_service_rate)"/>
+                                    </div>
+                                    <div class="o_planner_label">Tasa de cumplimiento</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-0" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
+                                </div>
                             </div>
                         </div>
                     </div>

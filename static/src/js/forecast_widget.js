@@ -1433,6 +1433,94 @@ class ForecastWidget extends Component {
         });
     }
 
+    /** Drill-down para demanda real de productos SIN línea de forecast. */
+    openDrillSoDemandNoFc() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Demanda real – productos sin forecast',
+            res_model: 'sale.order.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['order_id.state', 'in', ['sale', 'done']],
+                ['order_id.date_order', '>=', dateFrom],
+                ['order_id.date_order', '<=', dateTo],
+                ['product_id.sale_ok', '=', true],
+                ['product_id', 'not in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Drill-down para producción planificada de productos SIN línea de forecast. */
+    openDrillMosNoFc() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids     = this._forecastProductIds();
+        const moStates = (this.state.data && this.state.data.mo_states) || ['confirmed', 'progress', 'to_close'];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Producción planificada – productos sin forecast',
+            res_model: 'mrp.production',
+            view_mode: 'list,form',
+            views:     [[false, 'list'], [false, 'form']],
+            domain:    [
+                ['state', 'in', moStates],
+                ['date_finished', '>=', dateFrom],
+                ['date_finished', '<=', dateTo],
+                ['product_id.sale_ok', '=', true],
+                ['location_src_id.is_subcontracting_location', '!=', true],
+                ['product_id', 'not in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Drill-down para cumplimiento de demanda de productos SIN línea de forecast. */
+    openDrillDemandDeliveredNoFc() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Cumplimiento de demanda – productos sin forecast',
+            res_model: 'stock.move.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.date_order', '>=', dateFrom],
+                ['picking_id.sale_id.date_order', '<=', dateTo],
+                ['product_id.sale_ok', '=', true],
+                ['product_id', 'not in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Drill-down para entregas físicas de productos SIN línea de forecast. */
+    openDrillDeliveredNoFc() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Entregas físicas – productos sin forecast',
+            res_model: 'stock.move.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['date', '>=', dateFrom],
+                ['date', '<=', dateTo],
+                ['product_id.sale_ok', '=', true],
+                ['product_id', 'not in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
     /**
      * Genera y descarga el forecast como Excel SpreadsheetML usando los datos ya cargados
      * en el widget (respeta los filtros activos de búsqueda, filtro rápido y grupo).

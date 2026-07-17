@@ -764,6 +764,33 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         except Exception:
             delivered_no_fc = 0.0
 
+        # Cumplimiento de demanda para productos SIN línea de forecast:
+        # entregas de SOs confirmados en el período, sin filtro de fecha en la entrega.
+        demand_delivered_no_fc = 0.0
+        try:
+            if all_product_ids_list:
+                _so_no_fc = self.env['sale.order'].search([
+                    ('state', 'in', ('sale', 'done')),
+                    ('date_order', '>=', fields.Datetime.to_string(dt_from)),
+                    ('date_order', '<=', fields.Datetime.to_string(dt_to)),
+                    ('company_id', '=', self.env.company.id),
+                ])
+                _so_no_fc_ids = _so_no_fc.ids
+                if _so_no_fc_ids:
+                    _dd_no_fc_domain = [
+                        ('state', '=', 'done'),
+                        ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                        ('picking_id.sale_id', 'in', _so_no_fc_ids),
+                        ('product_id.sale_ok', '=', True),
+                        ('product_id', 'not in', all_product_ids_list),
+                        ('company_id', '=', self.env.company.id),
+                    ]
+                    _dd_groups = self.env['stock.move.line'].read_group(_dd_no_fc_domain, ['quantity:sum'], [])
+                    demand_delivered_no_fc = round(
+                        (_dd_groups[0]['quantity'] or 0.0) if _dd_groups else 0.0, 2)
+        except Exception:
+            demand_delivered_no_fc = 0.0
+
         # Demanda de SOs en el período para productos SIN línea de forecast (solo vendibles).
         # El filtro sale_ok=True es consistente con mos_no_fc y delivered_no_fc; sin él
         # se inflaría el contador con líneas de productos internos o componentes.
@@ -827,9 +854,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'overall_demand_service_rate': ovr_demand_svc,
                 'overall_forecast_acc': ovr_acc,
                 'acc_all':              acc_all,
-                'so_demand_no_fc':      so_demand_no_fc,
-                'mos_no_fc':            mos_no_fc,
-                'delivered_no_fc':      delivered_no_fc,
+                'so_demand_no_fc':           so_demand_no_fc,
+                'mos_no_fc':                mos_no_fc,
+                'delivered_no_fc':          delivered_no_fc,
+                'demand_delivered_no_fc':   demand_delivered_no_fc,
             },
             'months':        months,
             'month_totals':  month_totals,

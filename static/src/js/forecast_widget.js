@@ -140,10 +140,11 @@ class ForecastWidget extends Component {
             groupBy:            null,
             selectedGroup:      null,
             visibleCols: {
-                forecast:      true,
-                mos:           true,
-                delivered:     true,
-                stock:         true,
+                forecast:         true,
+                mos:              true,
+                delivered:        true,
+                demand_delivered: true,
+                stock:            true,
                 rotation:      true,
                 coverage:      true,
                 total:         true,
@@ -393,9 +394,10 @@ class ForecastWidget extends Component {
      */
     get monthColspan() {
         let n = 0;
-        if (this.state.visibleCols.forecast)  n++;
-        if (this.state.visibleCols.mos)       n++;
-        if (this.state.visibleCols.delivered) n++;
+        if (this.state.visibleCols.forecast)         n++;
+        if (this.state.visibleCols.mos)              n++;
+        if (this.state.visibleCols.delivered)        n++;
+        if (this.state.visibleCols.demand_delivered) n++;
         return n || 1;
     }
 
@@ -426,9 +428,10 @@ class ForecastWidget extends Component {
      */
     get showTotal() {
         return this.state.visibleCols.total &&
-               (this.state.visibleCols.forecast ||
-                this.state.visibleCols.mos      ||
-                this.state.visibleCols.delivered);
+               (this.state.visibleCols.forecast         ||
+                this.state.visibleCols.mos              ||
+                this.state.visibleCols.delivered        ||
+                this.state.visibleCols.demand_delivered);
     }
 
     /**

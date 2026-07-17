@@ -366,13 +366,13 @@
                                 <input type="checkbox" class="form-check-input" id="col_delivered"
                                        t-att-checked="state.visibleCols.delivered"
                                        t-on-change="() => this.toggleCol('delivered')"/>
-                                <label class="form-check-label small" for="col_delivered">Entregas Físicas + tasa%</label>
+                                <label class="form-check-label small" for="col_delivered">Entregado</label>
                             </div>
                             <div class="form-check mb-1">
                                 <input type="checkbox" class="form-check-input" id="col_demand_delivered"
                                        t-att-checked="state.visibleCols.demand_delivered"
                                        t-on-change="() => this.toggleCol('demand_delivered')"/>
-                                <label class="form-check-label small" for="col_demand_delivered">Cumplimiento + tasa%</label>
+                                <label class="form-check-label small" for="col_demand_delivered">Cumplimiento</label>
                             </div>
                             <div class="dropdown-divider my-1"/>
                             <div class="form-check">
@@ -494,11 +494,6 @@
                                             style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
                                             title="Unidades entregadas. % = tasa de servicio.">
                                             Entregado
-                                        </th>
-                                        <th t-if="state.visibleCols.demand_delivered"
-                                            class="text-end text-muted"
-                                            style="padding:3px 5px; font-size:11px; white-space:nowrap; font-weight:600; background:#f8f9fa;">
-                                            Cumplim.
                                         </th>
                                     </t>
                                     <t t-if="showTotal">
@@ -690,7 +685,7 @@
                                                 <td t-if="state.visibleCols.delivered"
                                                     class="text-end fw-semibold"
                                                     style="padding:3px 5px;"
-                                                    t-att-title="'Tasa física total = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
+                                                    t-att-title="'Tasa de servicio = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
                                                     <t t-esc="fmt(row.total_delivered)"/>
                                                     <span t-if="row.total_service_rate !== null"
                                                           t-att-class="'ms-1 ' + svcClass(row.total_service_rate)"

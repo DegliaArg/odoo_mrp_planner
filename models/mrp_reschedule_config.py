@@ -362,6 +362,14 @@ class MrpRescheduleConfig(models.Model):
              'simplificar la interfaz.',
     )
 
+    exclude_service_pos = fields.Boolean(
+        string='Excluir OC de servicios de los KPIs',
+        default=True,
+        help='Cuando está activo, las OCs cuyas líneas son todas de tipo servicio '
+             '(sin recepción de mercadería) se excluyen de los contadores KPI del '
+             'panel de compras. Siguen visibles en la pestaña "Servicios" si está habilitada.',
+    )
+
     supplier_analysis_date_field = fields.Selection([
         ('date_approve', 'Fecha de aprobación'),
         ('date_order',   'Fecha de pedido'),

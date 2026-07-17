@@ -324,6 +324,17 @@ class MrpPlannerDashboardPo(models.TransientModel):
         overdue         = overdue - approved_svc
         pending         = pending - approved_svc
 
+        # Recalcular KPIs sin servicios si el config lo indica
+        if cfg and cfg.exclude_service_pos:
+            kpi_rfq        = len(rfqs_list)
+            kpi_to_approve = len(to_approve_list)
+            kpi_total      = len(approved)
+            kpi_pending    = len(pending)
+            kpi_overdue    = len(overdue)
+            kpi_critical   = len(overdue.filtered(
+                lambda p: (now - p.date_planned).days >= po_crit_days
+            ))
+
         if show_svc:
             services_rs = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
         else:
@@ -429,8 +440,9 @@ class MrpPlannerDashboardPo(models.TransientModel):
                 'receipts_overdue':  len(overdue_receipts),
                 'deliveries_total':  len(deliveries),
                 'deliveries_overdue': len(overdue_deliveries),
-                'services_total':    len(services_rs),
-                'po_critical_days':  po_crit_days,
+                'services_total':       len(services_rs),
+                'po_critical_days':     po_crit_days,
+                'exclude_service_pos':  bool(cfg and cfg.exclude_service_pos),
             },
             'show_services_tab': show_svc,
             'rfqs':        [_po_dict(p) for p in rfqs_pg],

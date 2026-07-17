@@ -195,6 +195,8 @@
                                     <group string="Panel de compras">
                                         <field name="show_po_services_tab"
                                                help="Cuando está activo, las OCs de servicios se muestran en una pestaña propia dentro del widget de OCs."/>
+                                        <field name="exclude_service_pos"
+                                               help="Cuando está activo, las OCs de solo servicios (sin recepción de mercadería) no se cuentan en los KPIs del panel de compras."/>
                                         <field name="supplier_analysis_date_field"
                                                help="Campo de fecha que se usa para filtrar OCs en el análisis de proveedores."/>
                                     </group>

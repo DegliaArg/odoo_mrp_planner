@@ -111,8 +111,9 @@ class PoDashboardWidget extends Component {
             pending_pos:      [],
             receipts:         [],
             deliveries:       [],
-            services:         [],
-            show_services_tab: false,
+            services:            [],
+            show_services_tab:   false,
+            exclude_service_pos: false,
             expandedIds: {},
         });
 
@@ -157,7 +158,8 @@ class PoDashboardWidget extends Component {
             this.state.receipts        = d.receipts   || [];
             this.state.deliveries      = d.deliveries || [];
             this.state.services        = d.services   || [];
-            this.state.show_services_tab = d.show_services_tab || false;
+            this.state.show_services_tab   = d.show_services_tab   || false;
+            this.state.exclude_service_pos = d.kpis.exclude_service_pos || false;
         } catch (e) {
             console.error("[PoDashboardWidget]", e);
         } finally {
@@ -277,15 +279,21 @@ class PoDashboardWidget extends Component {
         return d;
     }
 
+    /** Retorna filtro de servicio: excluye OCs sin recepción cuando el config lo indica. */
+    _svcFilter() {
+        return this.state.exclude_service_pos ? [["receipt_status", "!=", false]] : [];
+    }
+
     /** Navega a la lista de cotizaciones (estado draft o sent) en el rango de fechas activo. */
-    onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._dateDomain()]); }
+    onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._svcFilter(), ...this._dateDomain()]); }
     /** Navega a la lista de OCs pendientes de aprobación (estado to approve). */
-    onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._dateDomain()]); }
+    onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._svcFilter(), ...this._dateDomain()]); }
     /** Navega a todas las OCs aprobadas con recepción incompleta en el rango de fechas. */
     onClickAll() {
         this._navigate("Aprobadas", [
             ["state", "in", ["purchase", "done"]],
             ["receipt_status", "not in", ["full"]],
+            ...this._svcFilter(),
             ...this._dateDomain(),
         ]);
     }
@@ -298,6 +306,7 @@ class PoDashboardWidget extends Component {
         this._navigate("A tiempo", [
             ["state", "in", ["purchase", "done"]],
             ["receipt_status", "not in", ["full"]],
+            ...this._svcFilter(),
             "|", ["date_planned", ">=", now], ["date_planned", "=", false],
             ...this._dateDomain(),
         ]);
@@ -312,6 +321,7 @@ class PoDashboardWidget extends Component {
             ["state", "in", ["purchase", "done"]],
             ["date_planned", "<", now],
             ["receipt_status", "not in", ["full"]],
+            ...this._svcFilter(),
             ...this._dateDomain(),
         ]);
     }
@@ -324,6 +334,7 @@ class PoDashboardWidget extends Component {
             ["state", "in", ["purchase", "done"]],
             ["date_planned", "<", cutoff],
             ["receipt_status", "not in", ["full"]],
+            ...this._svcFilter(),
             ...this._dateDomain(),
         ]);
     }

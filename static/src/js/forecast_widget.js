@@ -1396,7 +1396,7 @@ class ForecastWidget extends Component {
         const pids = this._forecastProductIds();
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Entregado (movimientos de salida)',
+            name:      'Entregas Físicas (movimientos de salida)',
             res_model: 'stock.move.line',
             view_mode: 'list',
             views:     [[false, 'list']],
@@ -1405,6 +1405,28 @@ class ForecastWidget extends Component {
                 ['picking_id.picking_type_id.code', '=', 'outgoing'],
                 ['date', '>=', dateFrom],
                 ['date', '<=', dateTo],
+                ['product_id', 'in', pids],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Drill-down al KPI de cumplimiento de demanda: entregas de pedidos confirmados
+     *  en el período, sin importar la fecha de entrega. */
+    openDrillDemandDelivered() {
+        const { dateFrom, dateTo } = this._periodDateRange();
+        const pids = this._forecastProductIds();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Cumplimiento de demanda (entregas de pedidos del período)',
+            res_model: 'stock.move.line',
+            view_mode: 'list',
+            views:     [[false, 'list']],
+            domain:    [
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.date_order', '>=', dateFrom],
+                ['picking_id.sale_id.date_order', '<=', dateTo],
                 ['product_id', 'in', pids],
             ],
             target: 'current',

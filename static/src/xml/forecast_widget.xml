@@ -91,14 +91,14 @@
                             <!-- Cumplimiento de demanda -->
                             <div class="card o_planner_card flex-fill o_planner_card_clickable"
                                  t-att-title="fcKpiTooltip('demand_delivered')"
-                                 t-on-click="openDrillDelivered">
+                                 t-on-click="openDrillDemandDelivered">
                                 <div class="card-body text-center py-1">
                                     <i class="fa fa-check-circle fa-sm text-success mb-1 d-block"/>
                                     <div class="o_planner_number text-success" style="font-size:1.3rem;"><t t-esc="fmt(filteredKpis.total_demand_delivered)"/></div>
                                     <div class="o_planner_label">Cumplimiento de demanda</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-0 text-success" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-0 text-success" style="font-size:11px;" t-on-click.stop="openDrillDemandDelivered">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -179,7 +179,7 @@
                             <!-- Tasa de cumplimiento -->
                             <div class="card o_planner_card flex-fill o_planner_card_clickable"
                                  t-att-title="fcKpiTooltip('demand_svc')"
-                                 t-on-click="openDrillDelivered">
+                                 t-on-click="openDrillDemandDelivered">
                                 <div class="card-body text-center py-1">
                                     <i class="fa fa-check-circle fa-sm mb-1 d-block text-secondary"/>
                                     <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)" style="font-size:1.3rem;">
@@ -188,7 +188,7 @@
                                     <div class="o_planner_label">Tasa de cumplimiento</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-0" style="font-size:11px;" t-on-click.stop="openDrillDelivered">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-0" style="font-size:11px;" t-on-click.stop="openDrillDemandDelivered">Ver →</button>
                                 </div>
                             </div>
                         </div>

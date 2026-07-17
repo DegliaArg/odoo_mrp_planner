@@ -24,11 +24,11 @@
 
                 <!-- Métrica -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <button t-att-class="'btn ' + (state.metric === 'qty' ? 'btn-info' : 'btn-outline-secondary')"
+                    <button t-att-class="'btn ' + (state.metric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar cantidad (Q): unidades demandadas o entregadas según la fuente seleccionada"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('qty')">Unidades</button>
-                    <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-info' : 'btn-outline-secondary')"
+                    <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar PxQ: para OVs confirmadas usa el precio real de venta (subtotal de la línea); para entregas usa precio de lista × cantidad. La clasificación por participación (Pareto) usa precio de lista."
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('amount')">PxQ</button>
@@ -39,14 +39,14 @@
                 <!-- Top N + Todos -->
                 <div class="btn-group btn-group-sm" role="group">
                     <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
-                        <button t-att-class="'btn ' + (state.topN === n ? 'btn-secondary' : 'btn-outline-secondary')"
+                        <button t-att-class="'btn ' + (state.topN === n ? 'btn-primary' : 'btn-outline-secondary')"
                                 t-att-title="'Mostrar sólo los top ' + n + ' productos por volumen'"
                                 style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                                 t-on-click="() => this.setTopN(n)">
                             <t t-esc="'Top ' + n"/>
                         </button>
                     </t>
-                    <button t-att-class="'btn ' + (state.topN === 0 ? 'btn-secondary' : 'btn-outline-secondary')"
+                    <button t-att-class="'btn ' + (state.topN === 0 ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar todos los productos sin límite"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setTopN(0)">Todos</button>
@@ -74,7 +74,7 @@
                     <div class="btn-group btn-group-sm" role="group">
                         <t t-foreach="[['','Todas'],['A','A'],['B','B'],['C','C'],['D','D'],['E','E'],['__none__','—']]"
                            t-as="c" t-key="c[0]">
-                            <button t-att-class="'btn ' + (state.saleCategory === c[0] ? 'btn-dark' : 'btn-outline-secondary')"
+                            <button t-att-class="'btn ' + (state.saleCategory === c[0] ? 'btn-primary' : 'btn-outline-secondary')"
                                     t-att-title="c[0] === '' ? 'Ver todas las categorías de venta' : c[0] === '__none__' ? 'Productos sin categoría de venta asignada' : 'Filtrar productos de categoría de venta ' + c[0]"
                                     style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                                     t-on-click="() => this.setSaleCat(c[0])">

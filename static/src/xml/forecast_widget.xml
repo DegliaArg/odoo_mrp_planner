@@ -495,6 +495,12 @@
                                             title="Unidades entregadas. % = tasa de servicio.">
                                             Entregado
                                         </th>
+                                        <th t-if="state.visibleCols.demand_delivered"
+                                            class="text-end text-muted"
+                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
+                                            title="Entregado de pedidos confirmados en ese mes (cualquier fecha de entrega). % = cumplimiento.">
+                                            Cumplim.
+                                        </th>
                                     </t>
                                     <t t-if="showTotal">
                                         <th t-if="state.visibleCols.forecast"
@@ -656,6 +662,20 @@
                                                               t-att-class="'ms-1 ' + svcClass(cell.service_rate)"
                                                               style="font-size:10px;">
                                                             <t t-esc="fmtPct(cell.service_rate)"/>
+                                                        </span>
+                                                    </t>
+                                                    <span t-else="" class="text-muted">—</span>
+                                                </td>
+                                                <td t-if="state.visibleCols.demand_delivered"
+                                                    class="text-end"
+                                                    style="padding:3px 5px;"
+                                                    t-att-title="'Entregado de pedidos de ' + cell.month + ': ' + fmt(cell.demand_delivered) + ' ÷ ' + fmt(cell.so_demand) + ' pedidos = ' + fmtPct(cell.demand_service_rate)">
+                                                    <t t-if="cell.demand_delivered > 0 or cell.so_demand > 0">
+                                                        <t t-esc="fmt(cell.demand_delivered)"/>
+                                                        <span t-if="cell.demand_service_rate !== null"
+                                                              t-att-class="'ms-1 ' + svcClass(cell.demand_service_rate)"
+                                                              style="font-size:10px;">
+                                                            <t t-esc="fmtPct(cell.demand_service_rate)"/>
                                                         </span>
                                                     </t>
                                                     <span t-else="" class="text-muted">—</span>

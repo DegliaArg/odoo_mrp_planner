@@ -389,15 +389,22 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         except Exception:
             pass    # módulo sale no disponible
 
-        # ── Cumplimiento de demanda: todo lo entregado de pedidos del período ──
-        demand_del_data = {}  # {product_id: qty} — sin filtro de fecha de entrega
+        # ── Cumplimiento de demanda: entregas de pedidos del período, por mes del pedido ──
+        demand_del_data = {}  # {product_id: {ym: qty}} — agrupado por mes de confirmación del SO
+        _period_so_ids  = []
         try:
-            _period_so_ids = self.env['sale.order'].search([
+            _period_sos = self.env['sale.order'].search([
                 ('state', 'in', ('sale', 'done')),
                 ('date_order', '>=', fields.Datetime.to_string(dt_from)),
                 ('date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('company_id', '=', self.env.company.id),
-            ]).ids
+            ])
+            _period_so_ids = _period_sos.ids
+            # Mapa SO → mes de confirmación
+            _so_to_ym = {
+                so.id: so.date_order.strftime('%Y-%m')
+                for so in _period_sos if so.date_order
+            }
             if _period_so_ids and all_product_ids_list:
                 demand_del_dom = [
                     ('state', '=', 'done'),
@@ -406,11 +413,25 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                     ('product_id', 'in', all_product_ids_list),
                     ('company_id', '=', self.env.company.id),
                 ]
-                for _ml in self.env['stock.move.line'].search(demand_del_dom).read(
-                        ['product_id', 'quantity']):
-                    _pid = _ml['product_id'][0] if _ml['product_id'] else False
-                    if _pid:
-                        demand_del_data[_pid] = demand_del_data.get(_pid, 0.0) + _ml['quantity']
+                _dd_lines = self.env['stock.move.line'].search(demand_del_dom).read(
+                    ['product_id', 'quantity', 'picking_id'])
+                # Mapa picking → SO id
+                _dd_pick_ids = list({ml['picking_id'][0] for ml in _dd_lines if ml['picking_id']})
+                _dd_pick_to_so = {}
+                if _dd_pick_ids:
+                    for _p in self.env['stock.picking'].browse(_dd_pick_ids).read(['id', 'sale_id']):
+                        if _p['sale_id']:
+                            _dd_pick_to_so[_p['id']] = _p['sale_id'][0]
+                for _ml in _dd_lines:
+                    _pid   = _ml['product_id'][0] if _ml['product_id'] else False
+                    _pick  = _ml['picking_id'][0]  if _ml['picking_id'] else False
+                    if not _pid or not _pick:
+                        continue
+                    _so_id = _dd_pick_to_so.get(_pick)
+                    _ym    = _so_to_ym.get(_so_id) if _so_id else None
+                    if _ym:
+                        demand_del_data.setdefault(_pid, {})
+                        demand_del_data[_pid][_ym] = demand_del_data[_pid].get(_ym, 0.0) + _ml['quantity']
         except Exception:
             pass
 
@@ -590,8 +611,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 mo_qty  = mo_data.get(pid, {}).get(ym, 0.0)
                 del_qty = pid_del.get(ym, 0.0)
                 so_qty  = pid_so.get(ym, 0.0)
-                pct      = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
-                svc_rate = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
+                pct            = round(mo_qty  / fc_qty * 100, 1) if fc_qty > 0 else 0.0
+                svc_rate       = round(del_qty / so_qty * 100, 1) if so_qty > 0 else None
+                dd_qty         = round(demand_del_data.get(pid, {}).get(ym, 0.0), 2)
+                dd_svc_rate    = round(dd_qty / so_qty * 100, 1) if so_qty > 0 else None
 
                 actual  = del_qty if precision_source == 'delivery' else so_qty
                 abs_err = abs(actual - fc_qty)
@@ -614,23 +637,25 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 demand_gap_pct = round((so_qty - fc_qty) / fc_qty * 100, 1) if fc_qty > 0 else None
 
                 cells.append({
-                    'month':           ym,
-                    'forecast':        round(fc_qty,  2),
-                    'mos':             round(mo_qty,  2),
-                    'pct':             pct,
-                    'delivered':       round(del_qty, 2),
-                    'so_demand':       round(so_qty,  2),
-                    'service_rate':    svc_rate,
-                    'forecast_acc':    fc_acc,
-                    'demand_gap_pct':  demand_gap_pct,
+                    'month':              ym,
+                    'forecast':           round(fc_qty,  2),
+                    'mos':                round(mo_qty,  2),
+                    'pct':                pct,
+                    'delivered':          round(del_qty, 2),
+                    'so_demand':          round(so_qty,  2),
+                    'service_rate':       svc_rate,
+                    'demand_delivered':   dd_qty,
+                    'demand_service_rate': dd_svc_rate,
+                    'forecast_acc':       fc_acc,
+                    'demand_gap_pct':     demand_gap_pct,
                 })
                 tot_fc  += fc_qty
                 tot_mos += mo_qty
                 tot_del += del_qty
                 tot_so  += so_qty
 
-            # Cumplimiento: total entregado de pedidos del período (cualquier fecha)
-            demand_del_qty  = round(demand_del_data.get(pid, 0.0), 2)
+            # Cumplimiento: total entregado de pedidos del período (suma de todos los meses)
+            demand_del_qty  = round(sum(demand_del_data.get(pid, {}).values()), 2)
             demand_svc_rate = round(demand_del_qty / tot_so * 100, 1) if tot_so > 0 else None
 
             tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0

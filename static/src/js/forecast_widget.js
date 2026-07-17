@@ -571,10 +571,17 @@ class ForecastWidget extends Component {
         const total_so_demand         = rows.reduce((s, r) => s + (r.total_so_demand         || 0), 0);
         const total_demand_delivered  = rows.reduce((s, r) => s + (r.total_demand_delivered  || 0), 0);
 
-        const overall_service_rate       = total_so_demand > 0
-            ? Math.round(total_delivered        / total_so_demand * 100) : null;
-        const overall_demand_service_rate = total_so_demand > 0
-            ? Math.round(total_demand_delivered / total_so_demand * 100) : null;
+        // Incluir sin FC en tasas para reflejar demanda y entregas reales totales
+        const kpis0 = this.state.data.kpis;
+        const no_fc_demand     = kpis0.so_demand_no_fc         || 0;
+        const no_fc_delivered  = kpis0.delivered_no_fc         || 0;
+        const no_fc_demand_del = kpis0.demand_delivered_no_fc  || 0;
+        const total_demand_all = total_so_demand + no_fc_demand;
+
+        const overall_service_rate       = total_demand_all > 0
+            ? Math.round((total_delivered       + no_fc_delivered)  / total_demand_all * 100) : null;
+        const overall_demand_service_rate = total_demand_all > 0
+            ? Math.round((total_demand_delivered + no_fc_demand_del) / total_demand_all * 100) : null;
         const demand_gap_pct = total_forecast > 0
             ? Math.round((total_so_demand - total_forecast) / total_forecast * 100) : null;
         const mos_gap_pct = total_forecast > 0
@@ -1158,10 +1165,32 @@ class ForecastWidget extends Component {
             }
             case 'demand_delivered':
                 return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega\n→ ${this.fmt(this.filteredKpis.total_demand_delivered)} u`;
-            case 'svc':
-                return `Tasa de entregas físicas del período ÷ demanda real\n→ ${this.fmt(this.filteredKpis.total_delivered)} ÷ ${this.fmt(this.filteredKpis.total_so_demand)} × 100 = ${this.fmtPct(this.filteredKpis.overall_service_rate)}`;
-            case 'demand_svc':
-                return `Tasa de cumplimiento: todo lo entregado de los pedidos del período ÷ demanda real\n→ ${this.fmt(this.filteredKpis.total_demand_delivered)} ÷ ${this.fmt(this.filteredKpis.total_so_demand)} × 100 = ${this.fmtPct(this.filteredKpis.overall_demand_service_rate)}`;
+            case 'svc': {
+                const fk = this.filteredKpis;
+                const kpi = this.state.data.kpis;
+                const noFcDel = kpi.delivered_no_fc || 0;
+                const noFcDem = kpi.so_demand_no_fc || 0;
+                const totalDel = fk.total_delivered + noFcDel;
+                const totalDem = (fk.total_so_demand || 0) + noFcDem;
+                const noFcPart = noFcDel > 0 || noFcDem > 0
+                    ? `\n  Entregas: ${this.fmt(fk.total_delivered)} FC + ${this.fmt(noFcDel)} sin FC = ${this.fmt(totalDel)}`
+                    + `\n  Demanda:  ${this.fmt(fk.total_so_demand)} FC + ${this.fmt(noFcDem)} sin FC = ${this.fmt(totalDem)}`
+                    : '';
+                return `Entregas físicas del período ÷ demanda real total${noFcPart}\n→ ${this.fmt(totalDel)} ÷ ${this.fmt(totalDem)} × 100 = ${this.fmtPct(fk.overall_service_rate)}`;
+            }
+            case 'demand_svc': {
+                const fk = this.filteredKpis;
+                const kpi = this.state.data.kpis;
+                const noFcDel = kpi.demand_delivered_no_fc || 0;
+                const noFcDem = kpi.so_demand_no_fc || 0;
+                const totalDel = fk.total_demand_delivered + noFcDel;
+                const totalDem = (fk.total_so_demand || 0) + noFcDem;
+                const noFcPart = noFcDel > 0 || noFcDem > 0
+                    ? `\n  Entregado: ${this.fmt(fk.total_demand_delivered)} FC + ${this.fmt(noFcDel)} sin FC = ${this.fmt(totalDel)}`
+                    + `\n  Demanda:   ${this.fmt(fk.total_so_demand)} FC + ${this.fmt(noFcDem)} sin FC = ${this.fmt(totalDem)}`
+                    : '';
+                return `Cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${this.fmt(totalDel)} ÷ ${this.fmt(totalDem)} × 100 = ${this.fmtPct(fk.overall_demand_service_rate)}`;
+            }
         }
         return '';
     }

@@ -541,3 +541,55 @@ Al actualizar el módulo, Odoo lanzaba `ParseError: directiva owl prohibida (t-e
 |---|------|-------------|
 | D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
 | D-06 | XML | `result_message` declarado dos veces en el wizard de importación de forecast. |
+
+---
+
+## Revisión v52 — Cierre de pendientes técnicos
+
+**Fecha:** 2026-07-20
+**Alcance:** Cierre de D-06, G-02, G-16, comentarios `sudo()`, split sales/supplier. I-13 (ir.rule de depósito) bloqueado pendiente de decisión de alcance.
+
+### D-06 — `result_message` duplicado en wizard de importación
+
+Resuelto con campo computado `result_html = fields.Html(compute='_compute_result_html', sanitize=False)` en `wizard/mrp_forecast_import_wizard.py`. El campo incluye el HTML del alert (ícono + mensaje + clase CSS) calculado en Python. La vista XML ahora tiene **una sola declaración** `<field name="result_html" widget="html" .../>` en lugar de los dos `<div>` con `invisible` excluyentes que incluían el campo dos veces.
+
+### G-02 — Consolidación de `_get_config()`
+
+Eliminado el método wrapper `_get_config()` de `mrp_reschedule_alert.py` (era innecesario — solo delegaba a `env['mrp.reschedule.config'].get_config()`). Los 6 call sites en el mismo archivo pasan a llamar `env['mrp.reschedule.config'].get_config()` directamente.
+
+### G-16 — Umbrales 90/70 como constantes nombradas
+
+Añadidas a `models/const.py`:
+
+| Constante | Valor | Descripción |
+|-----------|-------|-------------|
+| `DEFAULT_ON_TIME_GREEN_PCT` | 90 | Umbral verde entregas a tiempo (proveedor) |
+| `DEFAULT_ON_TIME_YELLOW_PCT` | 70 | Umbral amarillo entregas a tiempo |
+| `DEFAULT_RISK_DAYS` | 90 | Días sin compra → cliente/proveedor en riesgo |
+| `DEFAULT_ROTATION_WARN_DAYS` | 90 | Días sin rotación → alerta quiebre |
+| `FORECAST_WARNING_PCT` | 70 | Cobertura forecast: alerta |
+| `FORECAST_CRITICAL_PCT` | 50 | Cobertura forecast: crítico |
+| `RFM_RECENCY_RECENT_DAYS` | 30 | RFM: recencia alta (< 30 días) |
+| `RFM_RECENCY_MEDIUM_DAYS` | 90 | RFM: recencia media (< 90 días) |
+
+Usadas en: `mrp_planner_dashboard_sales.py`, `mrp_planner_dashboard_customer.py`, `mrp_planner_dashboard_stock.py`, `mrp_planner_dashboard_forecast.py`, `mrp_partner_category.py`.
+
+### sudo() — Comentarios de justificación
+
+Añadidos o reubicados comentarios en:
+- `mrp_reschedule_alert.py`: `res.company.sudo().search([])` en `_cron_check_delays` — el cron corre en contexto de empresa activa y el multi-company record rule restringe la visibilidad.
+- `product_template.py`: comentario movido a la línea anterior al `sudo()` (convención: comment before, not after).
+- `res_partner.py`: añadido comentario inline antes de `mrp.reschedule.config.sudo().get_config()`.
+
+### Split de `mrp_planner_dashboard_sales.py`
+
+| Archivo original | Líneas antes | Líneas después | Extraído a |
+|-----------------|-------------|----------------|-----------|
+| `models/mrp_planner_dashboard_sales.py` | 618 | 227 | `models/mrp_planner_dashboard_supplier.py` (nuevo, ~290 líneas): `MrpPlannerDashboardSupplier` con `get_supplier_analysis_data` y `get_supplier_pos_for_analysis`. Importa `_parse_date` del módulo de ventas. |
+
+### Pending
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
+| I-13 | Seguridad | Filtrado garantizado por depósito: pendiente de decisión de alcance (¿solo dashboard o global vía ir.rule?). |

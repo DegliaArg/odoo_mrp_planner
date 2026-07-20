@@ -91,7 +91,8 @@ Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por wid
 | `mrp_planner_dashboard_wc.py` | Carga de centros de trabajo (gráfico) |
 | `mrp_planner_dashboard_stock.py` | Quiebres de stock |
 | `mrp_planner_dashboard_forecast.py` | Datos de forecast para el widget |
-| `mrp_planner_dashboard_sales.py` | Panel de ventas y productos más vendidos |
+| `mrp_planner_dashboard_sales.py` | Panel de ventas: gráfico de ventas por producto, categorías disponibles. Expone `_parse_date` como helper compartido. |
+| `mrp_planner_dashboard_supplier.py` | Análisis de proveedores: KPIs de cumplimiento, lead time, variación de precio. Importa `_parse_date` de sales. |
 | `mrp_planner_dashboard_customer.py` | Análisis de clientes |
 | `mrp_planner_detail_dashboard.py` | Dashboard detalle por OF/producto (drill-down) |
 
@@ -117,7 +118,7 @@ Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por wid
 |---------|-----------|
 | `models/mrp_schedule_mixin.py` | `MrpScheduleMixin` (AbstractModel): `_schedule_duration`, `INDENT_MAP` — compartido por wizards y planes |
 | `models/mrp_abc_helpers.py` | Funciones ABC/Pareto reutilizadas por categorías de proveedor, cliente y venta |
-| `models/const.py` | Constantes del módulo: `SALE_CAT_SELECTION`, `DEFAULT_PO_CRITICAL_DAYS` |
+| `models/const.py` | Constantes del módulo: `SALE_CAT_SELECTION`, `DEFAULT_PO_CRITICAL_DAYS`, umbrales de semáforo (`DEFAULT_ON_TIME_*`, `DEFAULT_RISK_DAYS`, `FORECAST_*`, `RFM_*`) |
 | `models/mrp_product_type.py` | Catálogo de tipos de OF |
 | `models/mrp_product_workcenter.py` | Relación producto → centros de trabajo compatibles |
 

@@ -108,3 +108,31 @@ class ResUsers(models.Model):
         string='Análisis clientes', default=True,
         help='Muestra el widget de análisis de clientes.',
     )
+
+    # ── Validación: al menos una sección por panel ───────────────────────────
+
+    _PANEL_FIELDS = {
+        'Producción': ['mrp_planner_show_prod_alerts', 'mrp_planner_show_prod_mos',
+                       'mrp_planner_show_prod_wc', 'mrp_planner_show_stock_breaks'],
+        'Compras':    ['mrp_planner_show_po_alerts', 'mrp_planner_show_po_widget',
+                       'mrp_planner_show_supplier_analysis'],
+        'Ventas':     ['mrp_planner_show_sales_chart', 'mrp_planner_show_forecast'],
+        'Clientes':   ['mrp_planner_show_customer_analysis'],
+    }
+
+    @api.constrains(
+        'mrp_planner_show_prod_alerts', 'mrp_planner_show_prod_mos',
+        'mrp_planner_show_prod_wc', 'mrp_planner_show_stock_breaks',
+        'mrp_planner_show_po_alerts', 'mrp_planner_show_po_widget',
+        'mrp_planner_show_supplier_analysis',
+        'mrp_planner_show_sales_chart', 'mrp_planner_show_forecast',
+        'mrp_planner_show_customer_analysis',
+    )
+    def _check_panel_has_at_least_one_section(self):
+        for user in self:
+            for panel, fields_list in self._PANEL_FIELDS.items():
+                if not any(getattr(user, f) for f in fields_list):
+                    raise ValidationError(
+                        f'El panel "{panel}" no puede quedar sin secciones visibles. '
+                        f'Habilitá al menos una sección antes de guardar.'
+                    )

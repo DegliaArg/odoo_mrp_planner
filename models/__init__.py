@@ -25,6 +25,7 @@ from . import mrp_planner_dashboard_forecast
 from . import mrp_planner_dashboard_forecast_export
 from . import mrp_planner_dashboard_stock
 from . import mrp_planner_dashboard_sales
+from . import mrp_planner_dashboard_supplier
 from . import mrp_planner_dashboard_customer
 from . import mrp_planner_detail_dashboard
 from . import purchase_order

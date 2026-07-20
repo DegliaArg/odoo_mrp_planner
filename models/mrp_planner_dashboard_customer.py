@@ -15,6 +15,8 @@ from collections import defaultdict
 
 from odoo import models, fields, api
 
+from .const import DEFAULT_RISK_DAYS
+
 _logger = logging.getLogger(__name__)
 
 
@@ -32,7 +34,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'delivery_crit':   cfg.customer_analysis_delivery_crit_pct or 60,
             'ontime_warn':     cfg.customer_analysis_ontime_warn_pct or 80,
             'ontime_crit':     cfg.customer_analysis_ontime_crit_pct or 60,
-            'risk_days':       cfg.customer_analysis_risk_days or 90,
+            'risk_days':       cfg.customer_analysis_risk_days or DEFAULT_RISK_DAYS,
             'default_period':  cfg.customer_analysis_default_period or 'quarter',
             'abc_a_pct':       cfg.customer_analysis_abc_a_pct or 20,
             'abc_b_pct':       cfg.customer_analysis_abc_b_pct or 50,

@@ -31,6 +31,8 @@ from datetime import datetime, timedelta
 from odoo import models, fields, api
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
+from .const import FORECAST_WARNING_PCT, FORECAST_CRITICAL_PCT
+
 _logger = logging.getLogger(__name__)
 
 
@@ -119,13 +121,13 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             d_to   = _parse_ym(period_to)
         except Exception:
             return {'kpis': {}, 'months': [], 'month_totals': [], 'rows': [],
-                    'warning_pct': 70, 'critical_pct': 50}
+                    'warning_pct': FORECAST_WARNING_PCT, 'critical_pct': FORECAST_CRITICAL_PCT}
 
         months = _months_between(d_from, d_to)
 
         cfg = self.env['mrp.reschedule.config'].get_config()
-        warning_pct    = cfg.forecast_warning_pct    if cfg else 70   # 70 %: umbral de alerta por defecto (cobertura aceptable mínima)
-        critical_pct   = cfg.forecast_critical_pct   if cfg else 50   # 50 %: umbral crítico por defecto (cobertura insuficiente)
+        warning_pct    = cfg.forecast_warning_pct    if cfg else FORECAST_WARNING_PCT    # umbral de alerta (cobertura aceptable mínima)
+        critical_pct   = cfg.forecast_critical_pct   if cfg else FORECAST_CRITICAL_PCT   # umbral crítico (cobertura insuficiente)
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
         rotation_method = (cfg.forecast_rotation_method if cfg else None) or 'units'
         acc_formula      = (cfg.forecast_acc_formula      if cfg else None) or 'simple'

@@ -26,6 +26,8 @@ from datetime import date as _date, datetime as _datetime, timedelta
 from odoo import models, fields, api
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
+from .const import DEFAULT_ROTATION_WARN_DAYS
+
 _logger = logging.getLogger(__name__)
 
 
@@ -445,7 +447,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
         rotation_unit          = (cfg.forecast_rotation_unit if cfg else None) or 'days'
         alerts_enabled         = cfg.stock_break_rotation_alerts_enabled if cfg else False
-        rotation_warn_days     = (cfg.stock_break_rotation_warn_days     or 90)  if alerts_enabled else None
+        rotation_warn_days     = (cfg.stock_break_rotation_warn_days     or DEFAULT_ROTATION_WARN_DAYS)  if alerts_enabled else None
         rotation_critical_days = (cfg.stock_break_rotation_critical_days or 180) if alerts_enabled else None
 
         return {

@@ -26,6 +26,7 @@ from datetime import date, timedelta
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from .const import RFM_RECENCY_RECENT_DAYS, RFM_RECENCY_MEDIUM_DAYS
 from .mrp_abc_helpers import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
 
 _logger = logging.getLogger(__name__)
@@ -298,7 +299,7 @@ class MrpPartnerCategory(models.Model):
                     updated += 1
                     continue
                 # R < 30 días: compra reciente (alta recencia); R < 90: moderada; ≥ 90: baja.
-                r_score = 3 if d['R'] < 30 else (2 if d['R'] < 90 else 1)
+                r_score = 3 if d['R'] < RFM_RECENCY_RECENT_DAYS else (2 if d['R'] < RFM_RECENCY_MEDIUM_DAYS else 1)
                 # F > 10 órdenes: alta frecuencia; F ≥ 3: moderada; < 3: baja.
                 f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
                 # M se puntúa respecto a los terciles del universo, calculados más abajo.
@@ -568,7 +569,7 @@ class MrpPartnerCategory(models.Model):
                     updated += 1
                     continue
                 # R < 30 días: compra reciente (alta recencia); R < 90: moderada; ≥ 90: baja.
-                r_score = 3 if d['R'] < 30 else (2 if d['R'] < 90 else 1)
+                r_score = 3 if d['R'] < RFM_RECENCY_RECENT_DAYS else (2 if d['R'] < RFM_RECENCY_MEDIUM_DAYS else 1)
                 # F > 10 órdenes: alta frecuencia; F ≥ 3: moderada; < 3: baja.
                 f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
                 data[p.id]['r_score'] = r_score

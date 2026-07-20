@@ -74,7 +74,7 @@ class SalesChartWidget extends Component {
         this.state = useState({
             loading:         true,
             period:          "3m",
-            metric:          "qty",
+            metric:          "sku",
             topN:            20,
             saleCategory:    "",
             productCategId:  "",
@@ -141,10 +141,11 @@ class SalesChartWidget extends Component {
         if (this._pie)   { this._pie.destroy();   this._pie   = null; }
         try {
             const [df, dt] = this._dateRange();
+            const sortBy = this.state.metric === "sku" ? "qty" : this.state.metric;
             const rows = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_sales_chart_data",
-                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null, this.state.metric, this.state.docType],
+                [df, dt, this.state.topN, this.state.saleCategory || null, this.state.productCategId || null, sortBy, this.state.docType],
             );
             this.state.rows = rows || [];
         } catch (e) {
@@ -246,6 +247,7 @@ class SalesChartWidget extends Component {
         if (!ChartJs) return;
         if (this._pie) { this._pie.destroy(); this._pie = null; }
 
+        const metric = this.state.metric;
         const ORDER  = ['A', 'B', 'C', 'D', 'E', ''];
         const NAMES  = { A: 'Cat. A', B: 'Cat. B', C: 'Cat. C', D: 'Cat. D', E: 'Cat. E', '': 'Sin cat.' };
         const bycat  = {};
@@ -258,7 +260,8 @@ class SalesChartWidget extends Component {
         }
 
         const cats   = ORDER.filter(c => bycat[c]);
-        const total  = cats.reduce((s, c) => s + bycat[c].skus, 0);
+        const pieVal = c => metric === 'qty' ? bycat[c].qty : metric === 'amount' ? bycat[c].amount : bycat[c].skus;
+        const total  = cats.reduce((s, c) => s + pieVal(c), 0);
         const fmtN   = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
         const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
 
@@ -290,7 +293,7 @@ class SalesChartWidget extends Component {
             data: {
                 labels: cats.map(c => NAMES[c]),
                 datasets: [{
-                    data:            cats.map(c => bycat[c].skus),
+                    data:            cats.map(c => pieVal(c)),
                     backgroundColor: cats.map(c => CAT_COLORS[c] ?? CAT_COLORS['']),
                     borderWidth: 1,
                     borderColor: '#fff',
@@ -308,7 +311,18 @@ class SalesChartWidget extends Component {
                             title: items => NAMES[cats[items[0].dataIndex]],
                             label: ctx => {
                                 const d   = bycat[cats[ctx.dataIndex]];
-                                const pct = total ? Math.round(d.skus / total * 100) : 0;
+                                const v   = pieVal(cats[ctx.dataIndex]);
+                                const pct = total ? Math.round(v / total * 100) : 0;
+                                if (metric === 'qty') return [
+                                    `  ${fmtN(d.qty)} u. (${pct}%)`,
+                                    `  SKUs: ${d.skus}`,
+                                    `  Importe: ${fmtAmt(d.amount)}`,
+                                ];
+                                if (metric === 'amount') return [
+                                    `  ${fmtAmt(d.amount)} (${pct}%)`,
+                                    `  SKUs: ${d.skus}`,
+                                    `  Qty total: ${fmtN(d.qty)} u.`,
+                                ];
                                 return [
                                     `  ${d.skus} SKU (${pct}%)`,
                                     `  Qty total: ${fmtN(d.qty)} u.`,

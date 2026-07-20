@@ -648,3 +648,37 @@ Migrados **25 call sites** en 9 archivos al nuevo patrón:
 | # | Área | Descripción |
 |---|------|-------------|
 | D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica. |
+
+## v54 — Consistencia dashboard ↔ categorías almacenadas (2026-07-20)
+
+### Problema A — Período configurable para categorización de proveedores y clientes
+
+**Antes:** `action_compute_supplier_categories` y `action_compute_customer_categories` usaban `timedelta(days=365)` hardcodeado, sin forma de configurarlo.
+
+**Después:** dos campos nuevos en `mrp.reschedule.config`:
+- `supplier_cat_lookback_months` (Integer, default=12) — usado en `action_compute_supplier_categories`
+- `customer_cat_lookback_months` (Integer, default=12) — usado en `action_compute_customer_categories`
+
+Ambos campos aparecen en Ajustes bajo sus respectivas secciones con el mismo patrón visual que `sale_cat_lookback_months`.
+
+**Archivos:** `models/mrp_reschedule_config.py`, `models/mrp_partner_category.py`, `views/res_config_settings_views.xml`
+
+### Problema B — Definición de "a tiempo" unificada (precisión de hora)
+
+**Antes:** `get_supplier_analysis_data()` usaba `(done - sched).days <= 0` (trunca a día; entrega horas tarde en el mismo día = a tiempo). `abc_delivery_pct` en `mrp_partner_category.py` usaba `date_done <= scheduled_date` (datetime estricto).
+
+**Después:** `get_supplier_analysis_data()` usa `done <= sched`, idéntico a `abc_delivery_pct`. El mismo proveedor produce ahora el mismo porcentaje de entregas a tiempo en ambos contextos.
+
+**Archivo:** `models/mrp_planner_dashboard_supplier.py` (línea del bloque `if sched and done:`)
+
+### Problema C — Coloreado ABC de clientes usa categoría almacenada
+
+**Antes:** `get_customer_analysis_data()` calculaba `abc_segment` en vivo con `_abc_segments()` (Pareto por volumen del período filtrado). El color de filas y el gráfico usaban ese segmento calculado, que podía diferir de la categoría almacenada `x_customer_category`.
+
+**Después:** `abc_segment` se puebla directamente desde `pinfo['x_customer_category']`. Se eliminó la llamada a `_abc_segments()` y el loop post-construcción. El método estático `_abc_segments()` queda en la clase por si se necesita en otro contexto.
+
+**Archivo:** `models/mrp_planner_dashboard_customer.py`
+
+### Problema D — Rotación de productos (pendiente)
+
+La inconsistencia entre la fórmula de rotación usada en la tabla de quiebres de stock y la usada en la asignación automática de categorías de productos **queda pendiente de decisión de diseño**. Ver análisis en la sesión del 2026-07-20.

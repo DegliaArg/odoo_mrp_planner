@@ -1391,3 +1391,28 @@ Clasifica cada cliente según la regularidad y recencia de sus pedidos.
 | Promedio de intervalos > 90 días | Inactivo |
 
 > La condición "En riesgo" tiene precedencia sobre las demás: un cliente con intervalos frecuentes pero que no compra desde hace más de `customer_risk_days` días se clasifica como "En riesgo".
+
+---
+
+## Período de análisis — categorías de proveedor y cliente
+
+### `supplier_cat_lookback_months` (mrp.reschedule.config)
+
+Cantidad de meses de historial que se consideran al ejecutar `action_compute_supplier_categories`. Equivale a `sale_cat_lookback_months` para productos. Default: 12.
+
+El cálculo usa `date.today() - timedelta(days=months * 30)` como fecha de inicio.
+
+### `customer_cat_lookback_months` (mrp.reschedule.config)
+
+Ídem para `action_compute_customer_categories`. Default: 12.
+
+---
+
+## Precisión horaria en "entrega a tiempo" — proveedores
+
+La comparación de si una recepción llegó a tiempo usa `picking.date_done <= picking.scheduled_date` en todos los contextos:
+
+- `get_supplier_analysis_data()` en `mrp_planner_dashboard_supplier.py`
+- `abc_delivery_pct` y `abc_quality_combo` en `mrp_partner_category.py`
+
+Una entrega que llega el mismo día que la fecha programada pero una hora después se clasifica como **tarde**. Esto garantiza que el % de entregas a tiempo del dashboard y el de la categorización son comparables.

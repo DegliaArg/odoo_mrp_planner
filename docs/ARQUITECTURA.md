@@ -115,14 +115,16 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
 | `mrp.reschedule.config` _(extend)_ | `mrp_partner_category.py` | Clasificación A–E automática de `product.template` (venta) y `res.partner` (proveedores y clientes) por múltiples métodos: volumen, frecuencia, RFM, % entrega a tiempo, varianza de precio, calidad de cantidad, rotación de inventario. Expone métodos de cron y acciones manuales. Usa helpers de `mrp_abc_helpers.py`. | `product.template`, `res.partner`, `stock.move.line`, `purchase.order`, `sale.order` |
+| `mrp.partner.company.category` | `mrp_partner_company_category.py` | Almacén por empresa de las categorías A–E de proveedor y cliente. `res.partner.x_supplier_category` / `x_customer_category` son campos computed que leen/escriben en esta tabla. Incluye migración automática desde columnas globales previas. | `res.partner`, `res.company` |
+| `mrp.product.company.category` | `mrp_product_company_category.py` | Almacén por empresa de la categoría A–E de venta. `product.template.x_sale_category` es campo computed que lee/escribe en esta tabla. | `product.template`, `res.company` |
 
 ### Modelos extendidos (inherit)
 
 | Modelo base | Archivo | Qué agrega |
 |------------|---------|-----------|
 | `mrp.production` | `mrp_production.py` | Botones de reprogramación, campo de tipo de OF |
-| `product.template` | `product_template.py` | Campos de categoría de venta, centros de trabajo compatibles |
-| `res.partner` | `res_partner.py` | Campo de categoría de proveedor/cliente (A–E) |
+| `product.template` | `product_template.py` | Campo computed `x_sale_category` (A–E) — lee/escribe en `mrp.product.company.category`; centros de trabajo compatibles |
+| `res.partner` | `res_partner.py` | Campos computed `x_supplier_category` / `x_customer_category` (A–E) — leen/escriben en `mrp.partner.company.category`; flags `mrp_enable_*_cat` de visibilidad |
 | `purchase.order` | `purchase_order.py` | Hooks para generación reactiva de alertas al cancelar/confirmar |
 | `stock.picking` | `stock_picking.py` | Hook para resolución de alertas de recepción al validar |
 

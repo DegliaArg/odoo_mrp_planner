@@ -1,1170 +1,1179 @@
-# Fórmulas de cálculo — Módulo de Planificación MRP
+# Fórmulas de cálculo — odoo_mrp_planner
 
-Notación: `max(a,b)` = máximo entre a y b · `min(a,b)` = mínimo · `floor(x)` = entero inferior ·
-`abs(x)` = valor absoluto · `sum(...)` = suma de todos los elementos · `avg(...)` = promedio ·
-`%` = porcentaje literal · subíndices con guion bajo (ej. `F_h` = "F con subíndice h").
+> Versión para cliente. Sin referencias a modelos ni campos internos del sistema.
+> Notación: subíndices con `_`, funciones en minúscula con paréntesis.
+> Bloques con `CONFIG:` corresponden a una opción de una configuración seleccionable.
 
 ---
 
-## Panel de Producción
+## Sección 1 — Panel de Producción
 
-### 1.1.1 OFs atrasadas
-DESCRIPCION: Se genera cuando una orden de fabricación activa tiene su fecha de fin planificada
-en el pasado. Aplica a órdenes confirmadas, en progreso y por cerrar; excluye subcontratación.
+---
+
+### 1.1 Días de atraso — órdenes de fabricación
+DESCRIPCION: Cuantifica cuántos días lleva atrasada una orden de fabricación activa cuya fecha de fin ya pasó. El resultado es siempre mayor o igual a cero.
 VARIABLES:
-- F = Fecha de fin planificada de la OF
-- F_h = Fecha actual (hoy)
-- U = Umbral de días críticos para OFs — 3 días por defecto
-FORMULA: D = max(0, floor(F_h - F))
-LABEL: Días de atraso
+- D_hoy = fecha y hora actuales
+- D_fin = fecha y hora de fin planificada de la OF
+- A = días de atraso
+FORMULA: A = max(0, floor((D_hoy - D_fin) / 86400))
+LABEL: Días de atraso (OFs)
 CONDICIONES:
-- D >= U -> Crítica (roja)
-- D < U -> Advertencia (amarilla)
+- A >= umbral_critico_OF -> severidad roja
+- A < umbral_critico_OF AND A > 0 -> severidad amarilla
 
-### 1.1.2 OFs por vencer
-DESCRIPCION: Se genera cuando una orden de fabricación activa tiene su fecha de fin dentro
-de la ventana de aviso pero aún no ha vencido. Siempre se califica como advertencia.
+---
+
+### 1.2 Alerta de OF por vencer
+DESCRIPCION: Identifica las órdenes de fabricación cuya fecha de fin está dentro de la ventana de aviso configurada pero todavía no venció. Estas alertas siempre tienen severidad amarilla.
 VARIABLES:
-- F = Fecha de fin planificada de la OF
-- F_h = Fecha actual (hoy)
-- U_av = Ventana de aviso en días — 7 días por defecto
-FORMULA: F_h < F <= F_h + U_av
-LABEL: Condición de próxima a vencer
+- D_hoy = fecha actual
+- D_fin = fecha de fin planificada de la OF
+- V = ventana de aviso en días (configurable, def: 7)
+FORMULA: D_hoy < D_fin AND D_fin <= D_hoy + V
+LABEL: OFs por vencer (alerta)
+
+---
+
+### 1.3 Desvío de cantidad producida
+DESCRIPCION: Mide la diferencia porcentual entre la cantidad efectivamente producida y la planificada al cerrar una orden de fabricación. Se genera una alerta si el desvío supera la tolerancia configurada.
+VARIABLES:
+- Q_real = suma de unidades del producto terminado en movimientos con estado Hecho
+- Q_plan = cantidad planificada de la OF
+- D_pct = desvío porcentual
+FORMULA: D_pct = abs(Q_real - Q_plan) / Q_plan * 100
+LABEL: Desvío de cantidad producida (%)
 CONDICIONES:
-- Condición cumplida -> Advertencia (amarilla)
+- D_pct > tolerancia_config -> generar alerta
+- Q_real < Q_plan -> alerta roja (producción insuficiente)
+- Q_real > Q_plan -> alerta amarilla (excedente)
 
-### 1.1.3 Cantidad diferente — desvío
-DESCRIPCION: Se genera cuando una orden de fabricación recién cerrada produjo una cantidad
-que difiere de la planificada más allá de la tolerancia configurada.
+---
+
+### 1.4 % de cumplimiento — producido vs. programado
+DESCRIPCION: Indica qué porcentaje de la cantidad planificada para un producto en el período fue efectivamente producida. Se calcula agrupando las OFs del producto que correspondan al período según el criterio configurado.
 VARIABLES:
-- Q_r = Cantidad real producida (suma de movimientos de producto terminado en estado Hecho)
-- Q_p = Cantidad planificada de la OF
-- T = Tolerancia de desvío porcentual — 5 % por defecto
-FORMULA: delta = abs(Q_r - Q_p) / Q_p
-LABEL: Desvío porcentual
+- P_prod = suma de cantidades producidas de las OFs del producto en el período
+- P_prog = suma de cantidades planificadas de las OFs del producto en el período
+- C = porcentaje de cumplimiento
+FORMULA: C = (P_prod / P_prog) * 100
+LABEL: Cumplimiento producido vs. programado (%)
 CONDICIONES:
-- delta > T and Q_r < Q_p -> Crítica (producción insuficiente, roja)
-- delta > T and Q_r > Q_p -> Advertencia (excedente, amarilla)
+- C >= 90 -> verde
+- 50 <= C < 90 -> amarillo
+- C < 50 -> rojo
+- P_prog = 0 -> C = 0
 
-### 1.1.4 OFs canceladas
-DESCRIPCION: Se genera cuando una orden de fabricación pasa al estado Cancelada.
-No se resuelve automáticamente; requiere acción manual del operador.
-Excluye subcontratación.
-VARIABLES:
-- (sin fórmula numérica)
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Alerta por cancelación
-CONDICIONES:
-- OF pasa a estado Cancelada -> Advertencia (amarilla)
+---
 
-### 1.2 KPIs del panel OFs — contadores
-DESCRIPCION: Cada tarjeta KPI cuenta órdenes de fabricación según su estado en el momento
-de la consulta. Las categorías no se superponen; cada OF cuenta en un solo KPI.
+### 1.5 Criterio de OFs por período — por fecha de cierre
+DESCRIPCION: Una OF entra en el período únicamente si su fecha de cierre cae dentro del rango seleccionado. La cantidad utilizada es la planificada completa de la OF.
 VARIABLES:
-- F = Fecha de fin planificada de la OF
-- F_h = Fecha actual (hoy)
-FORMULA: Activas = count(OFs con estado distinto de Terminada y Cancelada)
-LABEL: OFs activas
-CONDICIONES:
-- estado = En progreso o Por cerrar -> En progreso (subconjunto de Activas)
-- F < F_h (y estado activo) -> Atrasadas (subconjunto de Activas)
-- OF marcada para reprogramar (y estado activo) -> Para reprogramar (subconjunto de Activas)
-
-### 1.3 Cumplimiento de producción — por producto
-DESCRIPCION: Compara lo producido con lo programado para cada producto en el período.
-El criterio que determina qué OFs entran en el período se configura globalmente
-y aplica tanto aquí como en la tabla de forecast.
-VARIABLES:
-- Q_prog = Suma de cantidades planificadas de OFs en el período para ese producto
-- Q_prod = Suma de cantidades ya producidas de OFs en el período para ese producto
-FORMULA: CumpPct = (Q_prod / Q_prog) * 100
-LABEL: % Cumplimiento (0 si Q_prog = 0)
-CONDICIONES:
-- CumpPct >= 90 -> Verde
-- CumpPct >= 50 -> Amarillo
-- CumpPct < 50 -> Rojo
-
-### 1.3b Cumplimiento de producción — KPIs globales
-DESCRIPCION: Agrega el cumplimiento de todos los productos del período en un único indicador.
-VARIABLES:
-- Q_prog_tot = Suma de cantidades planificadas de todos los productos
-- Q_prod_tot = Suma de cantidades producidas de todos los productos
-FORMULA: CumpGlobal = (Q_prod_tot / Q_prog_tot) * 100
-LABEL: % Cumplimiento global (0 si Q_prog_tot = 0)
-
-### 1.3c Criterio de OFs por período — por fecha de cierre
-DESCRIPCION: Solo entran en el período las OFs cuya fecha de fin planificada cae dentro del rango.
-Se usa la cantidad planificada completa, sin prorrateo.
-VARIABLES:
-- F_fin = Fecha de fin planificada de la OF
-- T0 = Inicio del período
-- T1 = Fin del período
-- Q_plan = Cantidad planificada total de la OF
-FORMULA: Q_prog = Q_plan si T0 <= F_fin <= T1 ; 0 en caso contrario
-LABEL: Cantidad al período — criterio fecha de cierre
+- D_cierre = fecha de cierre de la OF
+- D_ini = inicio del período
+- D_fin_per = fin del período
+FORMULA: D_ini <= D_cierre <= D_fin_per
+LABEL: OFs por fecha de cierre
 CONFIG: Criterio de OFs por período = Por fecha de cierre (predeterminado)
 
-### 1.3d Criterio de OFs por período — por solapamiento completo
-DESCRIPCION: Entran todas las OFs activas durante cualquier parte del período. La cantidad
-planificada se usa completa, sin prorrateo; una OF puede aparecer en varios períodos.
+---
+
+### 1.5b Criterio de OFs por período — por solapamiento completo
+DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango: su inicio es anterior o igual al fin del período, y su fin es posterior o igual al inicio del período. La cantidad es la planificada completa, y una OF puede aparecer en múltiples períodos.
 VARIABLES:
-- T_ini = Fecha de inicio de la OF
-- T_fin = Fecha de fin planificada de la OF
-- T0 = Inicio del período
-- T1 = Fin del período
-- Q_plan = Cantidad planificada total de la OF
-FORMULA: Q_prog = Q_plan si T_ini <= T1 and T_fin >= T0 ; 0 en caso contrario
-LABEL: Cantidad al período — criterio solapamiento completo
+- D_ini_OF = fecha de inicio de la OF
+- D_fin_OF = fecha de fin de la OF
+- D_ini = inicio del período
+- D_fin_per = fin del período
+FORMULA: D_ini_OF <= D_fin_per AND D_fin_OF >= D_ini
+LABEL: OFs por solapamiento completo
 CONFIG: Criterio de OFs por período = Por solapamiento completo
 
-### 1.3e Criterio de OFs por período — proporcional por duración
-DESCRIPCION: Entran todas las OFs activas durante el período. La cantidad planificada se
-distribuye proporcionalmente al tiempo que la OF solapa el intervalo. El producido usa los
-movimientos de stock reales con fecha dentro del período (no estimación).
+---
+
+### 1.5c Criterio de OFs por período — proporcional por duración
+DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango. La cantidad atribuida es proporcional a la fracción de la duración de la OF que cae en el período. Las unidades producidas reales solo cuentan si su fecha de movimiento cae dentro del período.
 VARIABLES:
-- T_ini = Fecha de inicio de la OF
-- T_fin = Fecha de fin planificada de la OF
-- T0 = Inicio del período
-- T1 = Fin del período
-- Q_plan = Cantidad planificada total de la OF
-FORMULA:
-  solap = max(0, min(T_fin, T1) - max(T_ini, T0)) ;
-  dur_total = T_fin - T_ini ;
-  Q_prog = Q_plan * (solap / dur_total)
-LABEL: Cantidad proporcional al período
+- s_solap = segundos solapados entre la OF y el período
+- s_total = duración total de la OF en segundos
+- Q_plan = cantidad planificada de la OF
+- f = fracción proporcional
+FORMULA: f = s_solap / s_total ; Q_atribuida = Q_plan * f
+LABEL: OFs proporcionales por duración
 CONFIG: Criterio de OFs por período = Proporcional por duración
-CONDICIONES:
-- Si T_ini o T_fin no están definidas -> se usa Q_plan completo (fallback a fecha de cierre)
-- Si solap = 0 -> la OF no aporta cantidad al período
 
-### 1.4 Horas disponibles en un centro de trabajo
-DESCRIPCION: Capacidad real del centro de trabajo en el período, ajustada por su eficiencia.
-Cuando el calendario no puede calcularse directamente, se estima en proporción a las horas
-semanales de asistencia configuradas.
+---
+
+### 1.6 Horas disponibles — centro de trabajo
+DESCRIPCION: Calcula las horas productivas reales de un centro de trabajo en el período, considerando el calendario laboral y la eficiencia del equipamiento. Si no hay calendario disponible, se estima a partir de las horas semanales de asistencia.
 VARIABLES:
-- H_cal = Horas hábiles del calendario laboral del centro de trabajo en el período
-- E = Eficiencia del centro de trabajo en porcentaje (ej. 85 = 85 %)
+- H_cal = horas hábiles según calendario en el período
+- E = eficiencia del centro de trabajo (%, ej: 85 significa 85 %)
+- H_disp = horas disponibles efectivas
 FORMULA: H_disp = H_cal * (E / 100)
-LABEL: Horas disponibles
+LABEL: Horas disponibles CT
 
-### 1.5 Solapamiento parcial de una operación con el período
-DESCRIPCION: Calcula qué fracción de una operación cae dentro del período seleccionado,
-para sumar solo las horas que efectivamente corresponden al intervalo.
-VARIABLES:
-- s_i = Fecha de inicio de la operación i
-- e_i = Fecha de fin de la operación i
-- t0 = Inicio del período seleccionado
-- t1 = Fin del período seleccionado
-FORMULA: alpha_i = (min(e_i, t1) - max(s_i, t0)) / (e_i - s_i)
-LABEL: Fracción solapada
+---
 
-### 1.5b Horas aportadas por operación
-DESCRIPCION: Horas que la operación i aporta al período, según la fracción solapada.
+### 1.7 Solapamiento de operación con el período
+DESCRIPCION: Determina qué fracción de la duración de una operación cae dentro del período seleccionado. Se usa para asignar horas ejecutadas o pendientes a cada período de análisis.
 VARIABLES:
-- D_i = Duración esperada de la operación i (en minutos)
-- alpha_i = Fracción solapada (ver 1.5)
-FORMULA: h_i = (D_i / 60) * alpha_i
-LABEL: Horas aportadas al período
+- D_ini_op = inicio de la operación
+- D_fin_op = fin de la operación
+- D_ini_per = inicio del período
+- D_fin_per = fin del período
+- s_solap = segundos solapados entre la operación y el período
+- s_total_op = duración total de la operación en segundos
+- H_op = horas esperadas de la operación
+- H_aport = horas aportadas al período
+FORMULA: s_solap = min(D_fin_op, D_fin_per) - max(D_ini_op, D_ini_per) ; H_aport = H_op * (s_solap / s_total_op)
+LABEL: Horas de operación solapadas con el período
 
-### 1.6 Horas ejecutadas
-DESCRIPCION: Horas de operaciones ya terminadas que solapan con el período.
-VARIABLES:
-- h_i = Horas aportadas por la operación i (ver 1.5b)
-FORMULA: H_ejec = sum(h_i para operaciones en estado Terminada)
-LABEL: Horas ejecutadas
+---
 
-### 1.6b Horas pendientes
-DESCRIPCION: Horas de operaciones activas (cualquier estado excepto Terminada y Cancelada)
-que solapan con el período.
+### 1.8 Tiempo libre y carga — centro de trabajo
+DESCRIPCION: El tiempo libre es la capacidad no utilizada del centro de trabajo en el período. La carga porcentual mide qué fracción de la capacidad disponible está ocupada sumando las horas de operaciones ya realizadas y las planificadas en curso.
 VARIABLES:
-- h_i = Horas aportadas por la operación i (ver 1.5b)
-FORMULA: H_pend = sum(h_i para operaciones con estado distinto de Terminada y Cancelada)
-LABEL: Horas pendientes
-
-### 1.7 Tiempo libre del centro de trabajo
-DESCRIPCION: Capacidad disponible que no está asignada ni ejecutada en el período.
-VARIABLES:
-- H_disp = Horas disponibles del centro de trabajo en el período (ver 1.4)
-- H_ejec = Horas ejecutadas (ver 1.6)
-- H_pend = Horas pendientes (ver 1.6b)
-FORMULA: T_libre = max(0, H_disp - H_ejec - H_pend)
-LABEL: Tiempo libre (horas)
-
-### 1.7b Carga del centro de trabajo
-DESCRIPCION: Porcentaje del tiempo disponible ocupado entre trabajo ya ejecutado y planificado.
-VARIABLES:
-- H_disp = Horas disponibles
-- H_ejec = Horas ejecutadas
-- H_pend = Horas pendientes
-FORMULA: Carga = (H_ejec + H_pend) / H_disp * 100
-LABEL: Carga % (0 si H_disp = 0)
+- H_disp = horas disponibles del CT en el período
+- H_ej = horas de operaciones terminadas que solapan el período
+- H_pend = horas de operaciones activas (no terminadas ni canceladas) que solapan el período
+- TL = tiempo libre en horas
+- C_pct = carga porcentual
+FORMULA: TL = max(0, H_disp - H_ej - H_pend) ; C_pct = (H_ej + H_pend) / H_disp * 100
+LABEL: Tiempo libre y carga % (CT)
 CONDICIONES:
-- Carga < 70 -> Verde
-- Carga < 90 -> Amarillo
-- Carga >= 90 -> Rojo
+- C_pct < 70 -> verde
+- 70 <= C_pct < 90 -> amarillo
+- C_pct >= 90 -> rojo
+- H_disp = 0 -> C_pct = 0
 
-### 1.8 Quiebre de stock
-DESCRIPCION: Un producto entra en quiebre cuando su stock en ubicaciones internas cae por
-debajo del mínimo configurado en su punto de reorden (ruta Fabricación). Si hay varios
-puntos de reorden, se toma el de mayor cantidad mínima.
-VARIABLES:
-- S = Stock actual en ubicaciones internas de la ubicación configurada
-- Q_min = Cantidad mínima del punto de reorden de ruta Fabricación
-FORMULA: DeltaStock = S - Q_min
-LABEL: Diferencia de stock (negativa = quiebre)
-CONDICIONES:
-- S < Q_min (con tolerancia de 0.001) -> Quiebre
-- S >= Q_min -> OK
-- Sin punto de reorden configurado -> Sin mínimo
+---
 
-### 1.9 Rotación en quiebres de stock — por unidades
-DESCRIPCION: Calcula los días de inventario a partir del stock promedio y el promedio mensual
-de salidas (unidades físicas).
+### 1.9 Condición de quiebre de stock
+DESCRIPCION: Un producto está en situación de quiebre cuando su stock disponible en las ubicaciones internas configuradas cae por debajo del nivel mínimo definido en su punto de reorden. Se aplica una tolerancia mínima para evitar falsos positivos por redondeo.
 VARIABLES:
-- S_ini = Stock al inicio del período (unidades)
-- S_fin = Stock al final del período (unidades)
-- Q_sal = Suma de unidades de salidas completadas en el período
-- N = Cantidad de meses del período configurado
-FORMULA: S_avg = (S_ini + S_fin) / 2 ; DIO = S_avg / (Q_sal / N) * 30
-LABEL: Días de inventario — por unidades
+- S = stock actual en ubicaciones internas
+- M = cantidad mínima del punto de reorden (si hay varios, se toma el mayor)
+- tol = tolerancia (0.001 unidades)
+FORMULA: quiebre = S < (M - tol)
+LABEL: Condición de quiebre de stock
+
+---
+
+### 1.10 Diferencia de stock
+DESCRIPCION: Indica en cuántas unidades el stock disponible supera o cae por debajo del mínimo configurado. Un valor negativo confirma quiebre.
+VARIABLES:
+- S = stock actual
+- M = mínimo del punto de reorden
+FORMULA: diferencia = S - M
+LABEL: Diferencia stock vs. mínimo
+
+---
+
+### 1.11 Rotación en quiebres de stock — por unidades
+DESCRIPCION: Estima los días de inventario disponible dividiendo el stock promedio del período por el promedio mensual de salidas, expresado en días. El período es el configurado para el análisis de quiebres.
+VARIABLES:
+- S_ini = stock al inicio del período (unidades)
+- S_fin = stock al final del período (unidades)
+- S_avg = stock promedio del período
+- sal = suma de unidades de salidas completadas en el período
+- n_m = número de meses del período configurado
+- DIO = días de inventario
+FORMULA: S_avg = (S_ini + S_fin) / 2 ; DIO = S_avg / (sal / n_m) * 30
+LABEL: Días de inventario — por unidades (quiebres)
 CONFIG: Método de rotación en quiebres de stock = Por unidades
 
-### 1.9b Rotación en quiebres de stock — por COGS
-DESCRIPCION: Calcula los días de inventario valorando el stock al costo estándar y usando
-el costo de las salidas (COGS) como denominador.
+---
+
+### 1.11b Rotación en quiebres de stock — por COGS
+DESCRIPCION: Estima los días de inventario comparando el valor monetario del stock promedio (a costo estándar) contra el costo de lo vendido en el período. Más preciso cuando los productos tienen costos muy distintos entre sí.
 VARIABLES:
-- S_ini_c = Stock inicial × costo estándar del producto
-- S_fin_c = Stock final × costo estándar del producto
-- COGS = Suma de (precio unitario × cantidad) de las salidas completadas en el período
-- D = Días del período (meses configurados × 30)
-FORMULA: S_avg_val = (S_ini_c + S_fin_c) / 2 ; DIO = D * S_avg_val / COGS
-LABEL: Días de inventario — por COGS (a costo)
+- I_ini = stock inicial × costo estándar del producto
+- I_fin = stock final × costo estándar del producto
+- I_avg = inventario promedio valorizado a costo
+- COGS = suma de (precio unitario de costo × cantidad) de salidas completadas en el período
+- D = días del período
+- DIO = días de inventario
+FORMULA: I_avg = (I_ini + I_fin) / 2 ; DIO = D * I_avg / COGS
+LABEL: Días de inventario — por COGS (quiebres)
 CONFIG: Método de rotación en quiebres de stock = Por COGS (a costo)
 
-### 1.9c Rotación en quiebres de stock — por ventas
-DESCRIPCION: Calcula los días de inventario valorando el stock al precio de lista y usando
-las ventas netas (a precio de lista) como denominador.
+---
+
+### 1.11c Rotación en quiebres de stock — por ventas
+DESCRIPCION: Estima los días de inventario comparando el valor monetario del stock promedio (a precio de lista) contra las ventas netas del período valoradas a precio de lista.
 VARIABLES:
-- S_ini_p = Stock inicial × precio de lista del producto
-- S_fin_p = Stock final × precio de lista del producto
-- V_net = Suma de (precio unitario × cantidad) de las salidas valoradas a precio de lista
-- D = Días del período (meses configurados × 30)
-FORMULA: S_avg_val = (S_ini_p + S_fin_p) / 2 ; DIO = D * S_avg_val / V_net
-LABEL: Días de inventario — por ventas (a precio de lista)
+- I_ini = stock inicial × precio de lista del producto
+- I_fin = stock final × precio de lista del producto
+- I_avg = inventario promedio valorizado a precio de lista
+- V_net = suma de ventas netas en el período (salidas valoradas a precio de lista)
+- D = días del período
+- DIO = días de inventario
+FORMULA: I_avg = (I_ini + I_fin) / 2 ; DIO = D * I_avg / V_net
+LABEL: Días de inventario — por ventas (quiebres)
 CONFIG: Método de rotación en quiebres de stock = Por ventas (a precio de lista)
 
-### 1.10 Duración de una OF para reprogramación
-DESCRIPCION: El sistema calcula la duración de la OF en este orden de prioridad: sumando
-operaciones si existen, usando las fechas de la OF como fallback, o asumiendo 8 horas si
-no hay ninguna referencia disponible.
-VARIABLES:
-- D_i = Duración esperada de la operación i (en minutos)
-- F_ini = Fecha de inicio de la OF
-- F_fin = Fecha de fin de la OF
-FORMULA: H = sum(D_i / 60) si hay operaciones
-LABEL: Duración (horas) — Prioridad 1 (con operaciones)
-CONDICIONES:
-- Sin operaciones pero con fechas -> H = F_fin - F_ini (en horas)
-- Sin operaciones ni fechas -> H = 8 (horas fijas de fallback)
+---
 
-### 1.11 Delta de reprogramación
-DESCRIPCION: Diferencia entre la nueva fecha de fin propuesta y la actual, expresada en
-días y horas enteras para mostrarse en la tabla del plan.
+### 1.12 Duración de una OF
+DESCRIPCION: El sistema calcula la duración de una orden de fabricación según la información disponible, en orden de prioridad descendente: primero operaciones, luego fechas de la OF, y como último recurso un valor fijo de 8 horas.
 VARIABLES:
-- F_nueva = Nueva fecha de fin propuesta
-- F_actual = Fecha de fin actual de la OF
-FORMULA: Delta_s = F_nueva - F_actual
-LABEL: Delta en segundos (positivo = se adelanta, negativo = se atrasa)
-
-### 1.11b Delta — visualización en días y horas
-VARIABLES:
-- Delta_s = Delta en segundos (ver 1.11)
-FORMULA: d = floor(abs(Delta_s) / 86400) ; h = floor((abs(Delta_s) / 3600) % 24)
-LABEL: Formato "+2d 3h" o "-1d 0h"
-
-### 1.12 Escalado proporcional de operaciones
-DESCRIPCION: Cuando se ajusta la duración total de una OF, cada operación se reescala
-para mantener las proporciones relativas entre centros de trabajo.
-VARIABLES:
-- H_aj = Duración total ajustada de la OF (en horas)
-- D_orig_i = Duración original de la operación i (en minutos)
-FORMULA: epsilon = H_aj / sum(D_orig_i / 60) ; D_nueva_i = D_orig_i * epsilon
-LABEL: Factor de escala y nueva duración de cada operación
-
-### 1.13 Criterio de prioridad al reprogramar — orden cronológico
-DESCRIPCION: Las órdenes de fabricación se ordenan por su fecha de inicio actual, de la
-más próxima a la más lejana, antes de ejecutar la reprogramación en cascada.
-VARIABLES:
-- T_ini_j = Fecha de inicio actual de la OF j
+- H_ops = suma de duraciones esperadas de todas las operaciones, convertidas de minutos a horas
+- D_fin = fecha y hora de fin de la OF
+- D_ini = fecha y hora de inicio de la OF
+- H_dur = duración resultante en horas
 FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Ordenación cronológica
-CONFIG: Criterio de prioridad al reprogramar = Orden cronológico (por fecha de inicio)
+LABEL: Duración de una OF
 CONDICIONES:
-- OFs ordenadas por T_ini_j ascendente
-
-### 1.13b Criterio de prioridad al reprogramar — más cortas primero (SPT)
-DESCRIPCION: Las órdenes de fabricación se ordenan por su duración calculada, de menor
-a mayor, antes de ejecutar la reprogramación. Minimiza el tiempo promedio de espera
-(Shortest Processing Time).
-VARIABLES:
-- H_j = Duración de la OF j según la lógica de la sección 1.10
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Ordenación SPT
-CONFIG: Criterio de prioridad al reprogramar = Más cortas primero (SPT)
-CONDICIONES:
-- OFs ordenadas por H_j ascendente
-
-### 1.13c Criterio de prioridad al reprogramar — secuencia manual
-DESCRIPCION: El operador define el orden arrastrando las órdenes de fabricación en el
-asistente de reprogramación antes de ejecutar. El sistema respeta ese orden sin modificarlo.
-VARIABLES:
-- (sin fórmula — el orden lo determina el usuario)
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Ordenación manual por el operador
-CONFIG: Criterio de prioridad al reprogramar = Secuencia manual en el asistente
-CONDICIONES:
-- OFs procesadas en el orden definido por el usuario
+- hay operaciones -> H_dur = sum(duracion_operacion_i / 60) para todo i
+- no hay operaciones AND hay fechas -> H_dur = (D_fin - D_ini) en horas
+- no hay operaciones AND no hay fechas -> H_dur = 8
 
 ---
 
-## Panel de Compras
-
-### 2.1.1 OCs vencidas — días de atraso
-DESCRIPCION: Se genera cuando una OC aprobada tiene su fecha de entrega estimada en el pasado.
-El campo de referencia es la fecha de entrega comprometida, no la fecha de emisión.
+### 1.13 Delta de reprogramación
+DESCRIPCION: Expresa en días y horas la diferencia entre la nueva fecha de fin propuesta por el plan de reprogramación y la fecha de fin original de la OF. Un valor positivo indica que la OF se adelanta; negativo, que se atrasa.
 VARIABLES:
-- F_ent = Fecha de entrega estimada de la OC
-- F_h = Fecha actual (hoy)
-- U_oc = Umbral crítico de días para OCs — 5 días por defecto
-FORMULA: D = max(0, floor(F_h - F_ent))
-LABEL: Días de atraso OC
+- D_nueva = nueva fecha de fin propuesta
+- D_orig = fecha de fin original de la OF
+- delta_h = diferencia en horas
+- dias = parte entera de delta_h / 24
+- horas_rest = resto de delta_h / 24
+FORMULA: delta_h = (D_nueva - D_orig) / 3600 ; dias = floor(delta_h / 24) ; horas_rest = floor(delta_h mod 24)
+LABEL: Delta de reprogramación (días y horas)
+
+---
+
+### 1.14 Escala de operaciones por CT
+DESCRIPCION: Cuando la duración total de una OF se ajusta en el plan de reprogramación, cada operación se escala proporcionalmente para mantener la distribución relativa de carga entre centros de trabajo.
+VARIABLES:
+- H_ajust = duración total ajustada de la OF (horas)
+- H_sum_orig = suma de duraciones esperadas originales de todas las operaciones
+- f_escala = factor de escala
+- H_i_orig = duración esperada original de la operación i
+- H_i_new = nueva duración de la operación i
+FORMULA: f_escala = H_ajust / H_sum_orig ; H_i_new = H_i_orig * f_escala
+LABEL: Duración de operación escalada
+
+---
+
+### 1.15 Criterio de prioridad al reprogramar — orden cronológico
+DESCRIPCION: Las órdenes de fabricación se ordenan por fecha de inicio actual de menor a mayor (primero las que comienzan antes) antes de ejecutar la reprogramación en cascada.
+VARIABLES:
+- D_ini_i = fecha de inicio actual de la OF i
+FORMULA: ordenar OFs por D_ini_i ascendente
+LABEL: Orden de reprogramación — cronológico
+CONFIG: Criterio de prioridad al reprogramar = Orden cronológico (por fecha de inicio)
+
+---
+
+### 1.15b Criterio de prioridad al reprogramar — más cortas primero (SPT)
+DESCRIPCION: Las órdenes de fabricación se ordenan por duración calculada de menor a mayor (primero las más rápidas). Este criterio minimiza el tiempo promedio de espera en cola, siguiendo el método Shortest Processing Time.
+VARIABLES:
+- H_dur_i = duración calculada de la OF i (según prioridad: operaciones -> fechas -> 8 h)
+FORMULA: ordenar OFs por H_dur_i ascendente
+LABEL: Orden de reprogramación — más cortas primero (SPT)
+CONFIG: Criterio de prioridad al reprogramar = Más cortas primero (SPT)
+
+---
+
+### 1.15c Criterio de prioridad al reprogramar — secuencia manual
+DESCRIPCION: El operador define el orden de las órdenes de fabricación arrastrando las filas en el wizard antes de ejecutar la reprogramación. El sistema respeta ese orden exacto.
+VARIABLES:
+- pos_i = posición asignada manualmente a la OF i en el wizard
+FORMULA: ordenar OFs por pos_i ascendente
+LABEL: Orden de reprogramación — secuencia manual
+CONFIG: Criterio de prioridad al reprogramar = Secuencia manual en el wizard
+
+---
+
+## Sección 2 — Panel de Compras
+
+---
+
+### 2.1 Días de atraso — órdenes de compra
+DESCRIPCION: Cuantifica cuántos días lleva atrasada una orden de compra aprobada cuya fecha de entrega estimada ya venció. El resultado es siempre mayor o igual a cero.
+VARIABLES:
+- D_hoy = fecha actual
+- D_entr = fecha de entrega estimada de la OC
+- A = días de atraso
+FORMULA: A = max(0, floor(D_hoy - D_entr))
+LABEL: Días de atraso (OCs)
 CONDICIONES:
-- D >= U_oc -> Crítica (roja)
-- D < U_oc -> Advertencia (amarilla)
+- A >= umbral_critico_OC -> severidad roja
+- A < umbral_critico_OC AND A > 0 -> severidad amarilla
 
-### 2.1.2 OCs por vencer
-DESCRIPCION: Se genera cuando una OC aprobada y no completamente recibida tiene su fecha
-de entrega dentro de la ventana de aviso pero aún no venció.
+---
+
+### 2.2 Días de atraso — recepciones
+DESCRIPCION: Cuantifica cuántos días lleva atrasada una recepción pendiente cuya fecha programada ya pasó. El resultado es siempre mayor o igual a cero.
 VARIABLES:
-- F_ent = Fecha de entrega estimada de la OC
-- F_h = Fecha actual (hoy)
-- U_av_oc = Ventana de aviso en días para OCs — 10 días por defecto
-FORMULA: F_h < F_ent <= F_h + U_av_oc
-LABEL: Condición de OC próxima a vencer
+- D_hoy = fecha actual
+- D_prog = fecha programada de la recepción
+- A = días de atraso
+FORMULA: A = max(0, floor(D_hoy - D_prog))
+LABEL: Días de atraso (recepciones)
 CONDICIONES:
-- Condición cumplida -> Advertencia (amarilla)
+- A >= umbral_critico_recepcion -> severidad roja
+- A < umbral_critico_recepcion AND A > 0 -> severidad amarilla
 
-### 2.1.3 Recepciones atrasadas — días de atraso
-DESCRIPCION: Se genera cuando una recepción pendiente de una OC tiene su fecha programada
-en el pasado.
+---
+
+### 2.3 % a tiempo — proveedor individual
+DESCRIPCION: Mide el porcentaje de recepciones de un proveedor que llegaron antes o exactamente en la fecha y hora programada. La comparación es a nivel de fecha y hora exacta: una recepción que llega el mismo día pero una hora después se considera tarde.
 VARIABLES:
-- F_rec = Fecha programada de la recepción
-- F_h = Fecha actual (hoy)
-- U_rec = Umbral crítico de días para recepciones — 3 días por defecto
-FORMULA: D = max(0, floor(F_h - F_rec))
-LABEL: Días de atraso recepción
+- n_ot = cantidad de recepciones donde fecha_cierre <= fecha_programada (comparación de fecha y hora exacta)
+- n_total = total de recepciones del proveedor en el período
+- pct_ot = porcentaje a tiempo
+FORMULA: pct_ot = n_ot / n_total * 100
+LABEL: % a tiempo (proveedor)
 CONDICIONES:
-- D >= U_rec -> Crítica (roja)
-- D < U_rec -> Advertencia (amarilla)
+- pct_ot >= umbral_verde_config -> verde
+- pct_ot >= umbral_amarillo_config -> amarillo
+- pct_ot < umbral_amarillo_config -> rojo
 
-### 2.2 KPIs del panel OCs
-DESCRIPCION: Clasificación de las OCs aprobadas según su estado respecto a la fecha de entrega.
+---
+
+### 2.4 % a tiempo global — ponderado
+DESCRIPCION: Combina la puntualidad de todos los proveedores en un único indicador. No es el promedio de porcentajes individuales sino el cociente entre el total de recepciones a tiempo y el total de recepciones de todos los proveedores.
 VARIABLES:
-- F_ent = Fecha de entrega estimada de la OC
-- F_h = Fecha actual (hoy)
-- U_oc = Umbral crítico de días para OCs
-FORMULA: Vencidas = count(OCs aprobadas con F_ent <= F_h)
-LABEL: OCs vencidas
+- N_ot = suma de recepciones a tiempo de todos los proveedores
+- N_total = suma total de recepciones de todos los proveedores
+- pct_ot_global = porcentaje a tiempo global
+FORMULA: pct_ot_global = N_ot / N_total * 100
+LABEL: % a tiempo global — ponderado (todos los proveedores)
+
+---
+
+### 2.5 Retraso promedio — proveedores
+DESCRIPCION: Promedia los días de atraso solo entre las recepciones que llegaron tarde, excluyendo las que llegaron a tiempo. Un valor alto indica que los retrasos existentes son sistemáticamente prolongados.
+VARIABLES:
+- d_i = (fecha_cierre_i - fecha_programada_i) en días, solo para recepciones donde fecha_cierre > fecha_programada
+- n_tard = cantidad de recepciones tardías
+- R_avg = retraso promedio en días
+FORMULA: R_avg = sum(d_i para toda i tardía) / n_tard
+LABEL: Retraso promedio (días, solo recepciones tardías)
 CONDICIONES:
-- F_ent > F_h -> A tiempo
-- F_ent <= F_h -> Vencidas
-- (F_h - F_ent) en días >= U_oc (y vencida) -> Críticas
+- R_avg <= umbral_verde_retraso -> verde
+- R_avg <= umbral_amarillo_retraso -> amarillo
+- R_avg > umbral_amarillo_retraso -> rojo
 
-### 2.3 Días de retraso de recepciones (columna tabla)
-DESCRIPCION: Días de diferencia entre la fecha de cierre real y la fecha programada,
-solo para recepciones ya completadas.
-VARIABLES:
-- F_real = Fecha en que se completó la recepción
-- F_prog = Fecha programada de la recepción
-FORMULA: D_ret = max(0, floor(F_real - F_prog))
-LABEL: Días de retraso recepción
+---
 
-### 2.4 % A tiempo — análisis de proveedores
-DESCRIPCION: Porcentaje de recepciones que llegaron en la fecha y hora programadas o antes.
-La comparación es a nivel de fecha y hora exactas: una recepción que llega el mismo día
-pero una hora después de la fecha programada se clasifica como tardía.
+### 2.6 % de recepciones completas
+DESCRIPCION: Mide qué porcentaje de las recepciones del proveedor se completaron sin generar un backorder. Una recepción completa es aquella que no derivó en una segunda recepción por saldo pendiente.
 VARIABLES:
-- n = Total de recepciones del proveedor en el período
-- n_ot = Recepciones donde la fecha y hora de cierre es menor o igual a la fecha y hora programadas
-FORMULA: OT_pct = (n_ot / n) * 100
-LABEL: % A tiempo (precisión horaria)
+- n_comp = cantidad de recepciones sin backorder asociado
+- n_total = total de recepciones del proveedor en el período
+- pct_comp = porcentaje de recepciones completas
+FORMULA: pct_comp = n_comp / n_total * 100
+LABEL: % recepciones completas
 
-### 2.4b % A tiempo global (ponderado)
-DESCRIPCION: Indicador global que divide el total de recepciones a tiempo entre el total
-de recepciones de todos los proveedores. Evita que proveedores con pocos envíos distorsionen
-el resultado respecto a un promedio de porcentajes individuales.
-VARIABLES:
-- n_ot_k = Recepciones a tiempo del proveedor k
-- n_k = Total de recepciones del proveedor k
-FORMULA: OT_global = sum(n_ot_k) / sum(n_k) * 100
-LABEL: % A tiempo global (ponderado)
+---
 
-### 2.5 Retraso promedio de entregas tardías
-DESCRIPCION: Promedio de días de atraso calculado solo sobre las recepciones que
-efectivamente llegaron tarde. No incluye recepciones en fecha.
+### 2.7 Lead time promedio — proveedores
+DESCRIPCION: Promedia en días el tiempo transcurrido entre la aprobación de cada orden de compra y el cierre de la recepción correspondiente.
 VARIABLES:
-- d_i = Días de atraso de la recepción i tardía: floor(fecha_cierre_i - fecha_prog_i)
-- n_tard = Cantidad de recepciones tardías del proveedor
-FORMULA: d_prom = sum(d_i) / n_tard
-LABEL: Retraso promedio (días, solo tardías)
-
-### 2.6 % Recepciones completas
-DESCRIPCION: Porcentaje de recepciones que se completaron sin generar un pedido pendiente
-(se recibió todo lo pedido en una sola entrega).
-VARIABLES:
-- n = Total de recepciones del proveedor en el período
-- n_comp = Recepciones sin pedido pendiente generado
-FORMULA: Comp_pct = (n_comp / n) * 100
-LABEL: % Completas
-
-### 2.7 Lead time promedio
-DESCRIPCION: Tiempo promedio en días desde que se aprueba una OC hasta que se cierra
-la recepción correspondiente.
-VARIABLES:
-- LT_i = Días desde la aprobación de la OC i hasta el cierre de su recepción
-- n = Total de recepciones del proveedor en el período
-FORMULA: LT_prom = sum(LT_i) / n
+- LT_i = (fecha_cierre_recepcion_i - fecha_aprobacion_OC_i) en días, para cada recepción i del período
+- n = cantidad de recepciones del proveedor en el período
+- LT_avg = lead time promedio en días
+FORMULA: LT_avg = sum(LT_i) / n
 LABEL: Lead time promedio (días)
 
-### 2.8 Variación de precio — referencia por costo estándar
-DESCRIPCION: Diferencia porcentual firmada entre el precio pagado y el costo estándar del
-producto. Negativa si el precio pagado fue menor al costo de referencia.
-VARIABLES:
-- p_i = Precio pagado por unidad en la línea i de la OC
-- p_std_i = Costo estándar del producto en la línea i
-- n = Total de líneas del proveedor en el período
-FORMULA: v_i = (p_i - p_std_i) / p_std_i * 100 ; v_prom = sum(v_i) / n
-LABEL: Variación promedio de precio vs. costo estándar (%)
-CONFIG: Referencia para variación de precio = Costo estándar del producto (predeterminado)
+---
 
-### 2.8b Variación de precio — referencia por lista del proveedor
-DESCRIPCION: Diferencia porcentual firmada entre el precio pagado y el precio configurado
-en la lista de precios del proveedor para ese artículo. Las líneas sin precio de proveedor
-configurado se excluyen del promedio.
+### 2.8 Variación de precio — referencia: costo estándar
+DESCRIPCION: Compara el precio pagado en cada línea de compra contra el costo estándar del producto en el catálogo. El resultado es el promedio firmado de esas diferencias porcentuales; un valor positivo indica que se pagó más que el costo de referencia.
 VARIABLES:
-- p_i = Precio pagado por unidad en la línea i de la OC
-- p_prov_i = Precio de la lista del proveedor para ese artículo en la línea i
-- n_v = Total de líneas del proveedor con precio configurado en el período
-FORMULA: v_i = (p_i - p_prov_i) / p_prov_i * 100 ; v_prom = sum(v_i) / n_v
-LABEL: Variación promedio de precio vs. lista del proveedor (%)
+- p_i = precio unitario pagado en la línea i de OC
+- c_i = costo estándar del producto de la línea i
+- v_i = variación porcentual de la línea i
+- n = cantidad de líneas con costo estándar distinto de cero
+- V_avg = variación promedio firmada
+FORMULA: v_i = (p_i - c_i) / c_i * 100 ; V_avg = sum(v_i) / n
+LABEL: Variación de precio — costo estándar (%)
+CONFIG: Referencia para variación de precio = Costo estándar del producto
+
+---
+
+### 2.8b Variación de precio — referencia: lista del proveedor
+DESCRIPCION: Compara el precio pagado contra el precio configurado en la lista del proveedor para ese artículo. Las líneas sin precio de proveedor configurado se excluyen del promedio.
+VARIABLES:
+- p_i = precio unitario pagado en la línea i de OC
+- pl_i = precio configurado en la lista del proveedor para el artículo
+- v_i = variación porcentual de la línea i
+- n = cantidad de líneas con precio de proveedor configurado
+- V_avg = variación promedio firmada
+FORMULA: v_i = (p_i - pl_i) / pl_i * 100 ; V_avg = sum(v_i para toda i con pl_i definido) / n
+LABEL: Variación de precio — lista de proveedor (%)
 CONFIG: Referencia para variación de precio = Lista de precio del proveedor
 
-### 2.9 Umbrales Pareto comunes (proveedores y clientes)
-DESCRIPCION: Parámetros de corte que definen los límites entre categorías A, B, C, D y E
-en todos los métodos automáticos de clasificación por Pareto acumulado.
-VARIABLES:
-- A_cum_k = Participación acumulada hasta el proveedor/cliente k (ordenado de mayor a menor valor)
-- U_A = Umbral para A — 20 % por defecto
-- U_B = Umbral para B — 50 % por defecto
-- U_C = Umbral para C — 80 % por defecto
-- U_D = Umbral para D — 95 % por defecto
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Categoría por Pareto acumulado
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
+---
 
-### 2.10 Categoría de proveedor — ABC por volumen
-DESCRIPCION: Clasifica proveedores según el importe total de sus órdenes de compra en el
-período configurado. Mayor importe = categoría más alta.
+### 2.9 Período de análisis — categorías de proveedor
+DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de proveedores. La fecha de inicio del análisis se calcula restando ese número de meses (a razón de 30 días por mes) a la fecha actual.
 VARIABLES:
-- V_k = Importe total de OCs del proveedor k en el período
-- V_tot = Suma de V_k de todos los proveedores
-- P_k = Participación individual del proveedor k
-- A_cum_k = Acumulado de participaciones ordenado de mayor a menor
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: P_k = V_k / V_tot ; A_cum_k = sum(P_j para j <= k, ordenado por V_j desc)
-LABEL: Participación acumulada por importe (proveedores)
-CONFIG: Método de categoría de proveedor = ABC por volumen (importe de órdenes de compra)
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
+- M_s = meses configurados para categorías de proveedor (def: 12)
+- F_ini = fecha de inicio del período de análisis
+FORMULA: F_ini = hoy - M_s * 30 dias
+LABEL: Horizonte temporal — categorías de proveedor
+CONFIG: Período de análisis de proveedores = N meses (configurable, def: 12 meses)
 
-### 2.11 Categoría de proveedor — ABC por frecuencia
-DESCRIPCION: Clasifica proveedores según la cantidad de órdenes de compra realizadas en
-el período configurado. Mayor cantidad de órdenes = categoría más alta.
-VARIABLES:
-- C_k = Cantidad de OCs del proveedor k en el período
-- C_tot = Suma de C_k de todos los proveedores
-- P_k = Participación individual
-- A_cum_k = Acumulado de mayor a menor
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: P_k = C_k / C_tot ; A_cum_k = sum(P_j para j <= k, ordenado por C_j desc)
-LABEL: Participación acumulada por frecuencia (proveedores)
-CONFIG: Método de categoría de proveedor = ABC por frecuencia (cantidad de órdenes de compra)
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
+---
 
-### 2.12 Categoría de proveedor — ABC por RFM
-DESCRIPCION: Clasifica proveedores en función de tres dimensiones: cuándo fue la última
-compra (Recencia), con qué frecuencia compran (Frecuencia), y cuánto representan en valor
-(Monetario). Cada dimensión otorga entre 1 y 3 puntos.
+### 2.10 Categoría de proveedor — Manual
+DESCRIPCION: La categoría A–E del proveedor se asigna directamente por el usuario en la ficha del proveedor. No existe cálculo automático; el valor se mantiene hasta que el usuario lo modifique manualmente.
 VARIABLES:
-- R = Puntos de Recencia (1–3)
-- F_rfm = Puntos de Frecuencia (1–3)
-- M = Puntos de Monetario (1–3)
-- S = Puntaje total
-FORMULA: S = R + F_rfm + M
-LABEL: Puntaje RFM total (proveedores)
+- ninguna
+FORMULA: clasificación manual (sin cálculo automático)
+LABEL: Categoría de proveedor — manual
+CONFIG: Método de categoría de proveedor = Manual (asignación directa)
+
+---
+
+### 2.11 Categoría de proveedor — ABC por volumen
+DESCRIPCION: Clasifica a los proveedores según el importe total de sus órdenes de compra en el período configurado. Los que concentran el mayor importe reciben la categoría más alta.
+VARIABLES:
+- V_j = importe total de OCs del proveedor j en el período
+- V_tot = suma de V_j de todos los proveedores
+- P_j = participación del proveedor j en el importe total (%)
+- P_cum_j = participación acumulada ordenando de mayor a menor
+FORMULA: P_j = V_j / V_tot * 100 ; P_cum_j = sum(P_k para todo k con V_k >= V_j)
+LABEL: Pareto por importe — proveedores
+CONFIG: Método de categoría de proveedor = ABC por volumen (importe de órdenes)
+CONDICIONES:
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
+
+---
+
+### 2.12 Categoría de proveedor — ABC por frecuencia
+DESCRIPCION: Clasifica a los proveedores según la cantidad de órdenes de compra emitidas en el período configurado. Los que tienen más órdenes reciben la categoría más alta.
+VARIABLES:
+- F_j = cantidad de OCs del proveedor j en el período
+- F_tot = suma de F_j de todos los proveedores
+- P_j = participación del proveedor j en la frecuencia total (%)
+- P_cum_j = participación acumulada ordenando de mayor a menor
+FORMULA: P_j = F_j / F_tot * 100 ; P_cum_j = sum(P_k para todo k con F_k >= F_j)
+LABEL: Pareto por frecuencia — proveedores
+CONFIG: Método de categoría de proveedor = ABC por frecuencia (cantidad de órdenes)
+CONDICIONES:
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
+
+---
+
+### 2.13 Categoría de proveedor — ABC por RFM
+DESCRIPCION: Clasifica a los proveedores combinando tres dimensiones: Recencia (cuándo fue el último pedido), Frecuencia (cuántos pedidos en el período) y Monto (importe total). Cada dimensión recibe 1 a 3 puntos; la suma de los tres determina la categoría final.
+VARIABLES:
+- R = puntuación de recencia (días desde la última OC)
+- F_score = puntuación de frecuencia (cantidad de OCs en el período)
+- M = puntuación de monto (percentil del importe vs. el grupo)
+- T = puntaje total (R + F_score + M)
+FORMULA: T = R + F_score + M
+LABEL: Puntaje RFM — proveedor
 CONFIG: Método de categoría de proveedor = ABC por RFM
 CONDICIONES:
-- S >= 8 -> A
-- S >= 6 -> B
-- S >= 4 -> C
-- S = 3 -> D
-- Sin datos en el período -> E
+- R: dias_ultima_OC < 30 -> 3 pts ; dias_ultima_OC < 90 -> 2 pts ; resto -> 1 pt
+- F_score: count_OCs > 10 -> 3 pts ; count_OCs >= 3 -> 2 pts ; resto -> 1 pt
+- M: percentil >= 66 -> 3 pts ; percentil >= 33 -> 2 pts ; resto -> 1 pt
+- T = 8 o 9 -> A
+- T = 6 o 7 -> B
+- T = 4 o 5 -> C
+- T = 3 -> D
+- sin datos (sin OCs en el período) -> E
 
-### 2.12b Puntos de Recencia
-DESCRIPCION: Días transcurridos desde la última orden del proveedor hasta hoy.
+---
+
+### 2.14 Categoría de proveedor — ABC por entrega a tiempo
+DESCRIPCION: Clasifica a los proveedores según el porcentaje de recepciones que llegaron en la fecha y hora programadas. La comparación es exacta a nivel de fecha y hora. Los que tienen mayor puntualidad reciben la categoría más alta.
 VARIABLES:
-- dias_ult = Días desde la última OC hasta hoy
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Puntos de Recencia (R)
+- ot_j = recepciones del proveedor j donde fecha_cierre <= fecha_programada (exacto, fecha y hora)
+- n_j = total de recepciones del proveedor j en el período
+- OT_j = porcentaje a tiempo del proveedor j
+- P_cum_j = participación acumulada ordenando de mayor OT a menor
+FORMULA: OT_j = ot_j / n_j * 100 ; P_cum_j = sum(P_k para todo k con OT_k >= OT_j)
+LABEL: Pareto por % a tiempo — proveedores
+CONFIG: Método de categoría de proveedor = ABC por entrega a tiempo
 CONDICIONES:
-- dias_ult < 30 -> R = 3
-- dias_ult < 90 -> R = 2
-- dias_ult >= 90 -> R = 1
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
 
-### 2.12c Puntos de Frecuencia
-DESCRIPCION: Cantidad de órdenes de compra realizadas en el último año.
-VARIABLES:
-- n_ord = Cantidad de OCs en el último año
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Puntos de Frecuencia (F)
-CONDICIONES:
-- n_ord > 10 -> F_rfm = 3
-- n_ord >= 3 -> F_rfm = 2
-- n_ord < 3 -> F_rfm = 1
+---
 
-### 2.12d Puntos de Monetario
-DESCRIPCION: Importe total de órdenes del período comparado contra los percentiles del grupo.
+### 2.15 Categoría de proveedor — ABC por variación de precio
+DESCRIPCION: Clasifica a los proveedores según la variación promedio en valor absoluto entre el precio pagado y el costo estándar de cada línea. La clasificación es inversa: el proveedor con menor variación (más predecible en precio) recibe la categoría A.
 VARIABLES:
-- M_k = Importe total de OCs del proveedor k
-- P33 = Percentil 33 del grupo de proveedores
-- P66 = Percentil 66 del grupo de proveedores
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Puntos de Monetario (M)
-CONDICIONES:
-- M_k >= P66 -> M = 3
-- M_k >= P33 -> M = 2
-- M_k < P33 -> M = 1
-
-### 2.13 Categoría de proveedor — ABC por % entrega a tiempo
-DESCRIPCION: Clasifica proveedores según el porcentaje de recepciones que llegaron en la
-fecha y hora programadas o antes. Mayor % = categoría más alta.
-VARIABLES:
-- OT_k = % de recepciones a tiempo del proveedor k (ver 2.4)
-- A_cum_k = Acumulado de mayor a menor OT_k
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: A_cum_k = sum(P_j para j <= k, ordenado por OT_j desc)
-LABEL: Participación acumulada por % a tiempo (proveedores)
-CONFIG: Método de categoría de proveedor = ABC por % de entrega a tiempo
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
-
-### 2.14 Categoría de proveedor — ABC por variación de precio
-DESCRIPCION: Clasifica proveedores según el valor absoluto de la variación de precio
-promedio respecto al costo estándar. Clasificación ascendente: menor variación = mejor
-categoría (A). Usa Pareto por posición relativa (percentil), no por acumulado de valor.
-VARIABLES:
-- absvar_k = Promedio de |precio línea - costo estándar| / costo estándar * 100 del proveedor k
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Categoría por variación de precio (ascendente)
+- v_k = abs(precio_pagado_k - costo_estandar_k) / costo_estandar_k * 100, para cada línea k del proveedor j
+- n_j = cantidad de líneas de OC del proveedor j
+- V_j = variación promedio del proveedor j
+- P_cum_j = participación acumulada ordenando de menor V a mayor (Pareto ascendente)
+FORMULA: V_j = sum(v_k) / n_j ; P_cum_j = sum(P_l para todo l con V_l <= V_j)
+LABEL: Pareto invertido por variación de precio — proveedores
 CONFIG: Método de categoría de proveedor = ABC por variación de precio
 CONDICIONES:
-- Proveedores ordenados por absvar_k ascendente (menor variación primero)
-- posición relativa del proveedor en el grupo <= U_A -> A
-- posición relativa <= U_B -> B
-- posición relativa <= U_C -> C
-- posición relativa <= U_D -> D
-- resto -> E
+- P_cum_j <= umbral_A -> A (menor variación)
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E (mayor variación)
 
-### 2.15 Categoría de proveedor — ABC por exactitud de cantidad
-DESCRIPCION: Porcentaje de movimientos de recepción donde la cantidad recibida coincide
-exactamente con la cantidad pedida (tolerancia de 0.001 unidades). Mayor % = categoría más alta.
+---
+
+### 2.16 Categoría de proveedor — ABC por exactitud de cantidad
+DESCRIPCION: Clasifica a los proveedores según el porcentaje de movimientos recibidos cuya cantidad coincide exactamente con la solicitada. Los que entregan cantidades exactas con mayor frecuencia reciben la categoría más alta.
 VARIABLES:
-- n_mov_k = Total de movimientos de recepción del proveedor k en el período
-- n_exact_k = Movimientos donde abs(cantidad_recibida - cantidad_pedida) < 0.001
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: Exactitud_k = (n_exact_k / n_mov_k) * 100
-LABEL: % Exactitud de cantidad por proveedor
-CONFIG: Método de categoría de proveedor = ABC por calidad — diferencia de cantidad
+- eq_j = movimientos del proveedor j donde abs(cantidad_recibida - cantidad_pedida) < 0.001
+- n_j = total de movimientos del proveedor j en el período
+- EX_j = porcentaje de exactitud del proveedor j
+- P_cum_j = participación acumulada ordenando de mayor EX a menor
+FORMULA: EX_j = eq_j / n_j * 100 ; P_cum_j = sum(P_k para todo k con EX_k >= EX_j)
+LABEL: Pareto por exactitud de cantidad — proveedores
+CONFIG: Método de categoría de proveedor = ABC por calidad — exactitud de cantidad
 CONDICIONES:
-- Clasificación Pareto descendente (mayor exactitud = A)
-- Umbrales U_A, U_B, U_C, U_D (ver 2.9)
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
 
-### 2.16 Categoría de proveedor — ABC por devoluciones
-DESCRIPCION: Clasifica proveedores según la cantidad de recepciones revertidas. Clasificación
-ascendente: menos devoluciones = mejor categoría (A). Usa Pareto por posición relativa.
+---
+
+### 2.17 Categoría de proveedor — ABC por devoluciones
+DESCRIPCION: Clasifica a los proveedores según la cantidad de recepciones que fueron revertidas (devueltas al proveedor). La clasificación es inversa: el proveedor con menos devoluciones recibe la categoría A.
 VARIABLES:
-- dev_k = Cantidad de recepciones revertidas del proveedor k en el período
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Categoría por devoluciones (ascendente)
+- dev_j = cantidad de recepciones revertidas del proveedor j en el período
+- P_cum_j = participación acumulada ordenando de menor dev a mayor (Pareto ascendente)
+FORMULA: P_cum_j = sum(P_l para todo l con dev_l <= dev_j)
+LABEL: Pareto invertido por devoluciones — proveedores
 CONFIG: Método de categoría de proveedor = ABC por calidad — devoluciones
 CONDICIONES:
-- Proveedores ordenados por dev_k ascendente (menos devoluciones primero)
-- posición relativa <= U_A -> A
-- posición relativa <= U_B -> B
-- posición relativa <= U_C -> C
-- posición relativa <= U_D -> D
-- resto -> E
-
-### 2.17 Categoría de proveedor — ABC por calidad combinada
-DESCRIPCION: Combina el % de entregas a tiempo y el % de exactitud de cantidad en una
-métrica única. Mayor promedio = mejor categoría (A).
-VARIABLES:
-- OT_k = % de recepciones a tiempo del proveedor k (ver 2.4)
-- Exactitud_k = % de exactitud de cantidad del proveedor k (ver 2.15)
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: Calidad_k = (OT_k + Exactitud_k) / 2
-LABEL: Índice de calidad combinado
-CONFIG: Método de categoría de proveedor = ABC por calidad — combinado (a tiempo y cantidad exacta)
-CONDICIONES:
-- Clasificación Pareto descendente (mayor Calidad_k = A)
-- Umbrales U_A, U_B, U_C, U_D (ver 2.9)
+- P_cum_j <= umbral_A -> A (menos devoluciones)
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E (más devoluciones)
 
 ---
 
-## Panel de Ventas
-
-### 3.1 Cantidad vendida y monto estimado
-DESCRIPCION: La cantidad vendida suma las unidades en salidas completadas del período,
-agrupando variantes bajo el mismo producto base. El importe es una aproximación porque
-usa el precio de lista actual, no el precio real de cada venta.
+### 2.18 Categoría de proveedor — ABC por calidad combinada
+DESCRIPCION: Clasifica a los proveedores promediando dos métricas de calidad: el porcentaje de entregas a tiempo y el porcentaje de movimientos con cantidad exacta. El resultado es el índice de calidad compuesto sobre el que se aplica Pareto descendente.
 VARIABLES:
-- Q_v = Suma de unidades en salidas completadas del período para el producto
-- P_L = Precio de lista vigente del producto
-FORMULA: Importe_est = Q_v * P_L
-LABEL: Importe estimado (usa precio de lista actual)
-
-### 3.2 Categoría de venta — modo rotación de inventario (fuente entregas)
-DESCRIPCION: Clasifica productos según cuántos días de stock quedan al ritmo de entregas
-físicas completadas en el período. Menor cantidad de días = mayor rotación = categoría A.
-VARIABLES:
-- Q_ent = Unidades entregadas (salidas completadas) en el período
-- M = Cantidad de meses del período de análisis — 3 por defecto
-- S = Stock actual en ubicaciones internas
-- U_A, U_B, U_C, U_D = Umbrales en días (30, 60, 90, 180 días por defecto)
-FORMULA: Q_prom = Q_ent / M ; R = floor((S / Q_prom) * 30)
-LABEL: Días de rotación (999 si Q_prom = 0)
-CONFIG: Modo de categoría de venta = Automática por rotación de inventario
+- OT_j = porcentaje de recepciones a tiempo del proveedor j
+- EX_j = porcentaje de movimientos con cantidad exacta del proveedor j
+- Q_j = índice de calidad combinado del proveedor j
+- P_cum_j = participación acumulada ordenando de mayor Q a menor
+FORMULA: Q_j = (OT_j + EX_j) / 2 ; P_cum_j = sum(P_k para todo k con Q_k >= Q_j)
+LABEL: Pareto por calidad combinada — proveedores
+CONFIG: Método de categoría de proveedor = ABC por calidad — combinado
 CONDICIONES:
-- R <= U_A -> A
-- R <= U_B -> B
-- R <= U_C -> C
-- R <= U_D -> D
-- R > U_D o sin ventas -> E
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
 
-### 3.2b Categoría de venta — modo rotación de inventario (fuente demanda OV)
-DESCRIPCION: Igual que 3.2 pero el denominador usa las unidades pedidas en órdenes de venta
-confirmadas del período, en lugar de las entregas físicas.
+---
+
+## Sección 3 — Panel de Ventas
+
+---
+
+### 3.1 Cantidad vendida y monto aproximado
+DESCRIPCION: Agrega las unidades de salidas completadas en el período por producto base, sumando todas las variantes. El monto es una aproximación: usa el precio de lista vigente al momento del cálculo, no el precio real de cada venta.
 VARIABLES:
-- Q_dem = Unidades en órdenes de venta confirmadas del período
-- M = Cantidad de meses del período de análisis
-- S = Stock actual en ubicaciones internas
-- U_A, U_B, U_C, U_D = Umbrales en días (30, 60, 90, 180 días por defecto)
-FORMULA: Q_prom = Q_dem / M ; R = floor((S / Q_prom) * 30)
-LABEL: Días de rotación por demanda (999 si Q_prom = 0)
-CONFIG: Fuente del denominador de rotación = Demanda confirmada (órdenes de venta)
+- q_i = unidades de la salida i para el producto base p
+- Q_p = cantidad total vendida del producto p en el período
+- L_p = precio de lista actual del producto p
+- M_p = monto aproximado del producto p
+FORMULA: Q_p = sum(q_i para toda salida i del producto p en el período) ; M_p = Q_p * L_p
+LABEL: Cantidad vendida y monto por producto
+
+---
+
+### 3.2 Categoría de venta — Rotación (fuente: entregas)
+DESCRIPCION: Asigna una categoría A–E a cada artículo según sus días de cobertura, calculados a partir del stock actual y el promedio mensual de unidades entregadas en el período de análisis. Menor rotación corresponde a categoría más baja.
+VARIABLES:
+- sal = suma de unidades de salidas completadas del artículo en el período de análisis
+- n_m = número de meses del período de análisis (configurable, def: 3)
+- prom_m = promedio mensual de salidas
+- S = stock actual en ubicaciones internas
+- DIO = días de inventario
+FORMULA: prom_m = sal / n_m ; DIO = (S / prom_m) * 30
+LABEL: Días de inventario — rotación por entregas (categoría de venta)
+CONFIG: Categorías de venta — Fuente del denominador de rotación = Entregas completadas
 CONDICIONES:
-- R <= U_A -> A
-- R <= U_B -> B
-- R <= U_C -> C
-- R <= U_D -> D
-- R > U_D o sin demanda -> E
+- DIO <= umbral_A_dias -> A
+- DIO <= umbral_B_dias -> B
+- DIO <= umbral_C_dias -> C
+- DIO <= umbral_D_dias -> D
+- sin ventas OR DIO > umbral_D_dias -> E
+- prom_m = 0 -> DIO = 999 (sin movimiento)
 
-### 3.3 Categoría de venta — modo demanda
-DESCRIPCION: Clasifica productos por su promedio mensual de unidades entregadas.
-Mayor volumen mensual = categoría más alta.
+---
+
+### 3.2b Categoría de venta — Rotación (fuente: demanda de pedidos)
+DESCRIPCION: Igual que el bloque anterior, pero el denominador de la rotación son las unidades en órdenes de venta confirmadas del período en lugar de las entregas completadas.
 VARIABLES:
-- Q_ent = Unidades entregadas (salidas completadas) en el período
-- M = Cantidad de meses del período de análisis — 3 por defecto
-- U_A, U_B, U_C, U_D = Umbrales en u/mes (100, 50, 20, 5 por defecto)
-FORMULA: Q_prom = Q_ent / M
-LABEL: Promedio mensual de entregas
-CONFIG: Modo de categoría de venta = Automática por demanda
+- dem = suma de unidades en órdenes de venta confirmadas del artículo en el período
+- n_m = número de meses del período de análisis
+- prom_m = promedio mensual de demanda
+- S = stock actual
+- DIO = días de inventario
+FORMULA: prom_m = dem / n_m ; DIO = (S / prom_m) * 30
+LABEL: Días de inventario — rotación por demanda OV (categoría de venta)
+CONFIG: Categorías de venta — Fuente del denominador de rotación = Demanda confirmada (órdenes de venta)
 CONDICIONES:
-- Q_prom >= U_A -> A
-- Q_prom >= U_B -> B
-- Q_prom >= U_C -> C
-- Q_prom >= U_D -> D
-- Q_prom < U_D -> E
+- DIO <= umbral_A_dias -> A
+- DIO <= umbral_B_dias -> B
+- DIO <= umbral_C_dias -> C
+- DIO <= umbral_D_dias -> D
+- sin demanda OR DIO > umbral_D_dias -> E
 
-### 3.4 Categoría de venta — modo participación acumulada por unidades
-DESCRIPCION: Clasifica productos por su participación acumulada en el total de unidades
-entregadas en el período. Los que acumulan la mayor parte primero son A.
+---
+
+### 3.3 Categoría de venta — Modo Demanda
+DESCRIPCION: Asigna una categoría A–E según el promedio mensual de unidades salientes del artículo en el período configurado. Mayor demanda promedio corresponde a categoría más alta.
 VARIABLES:
-- Q_k = Unidades entregadas del producto k en el período
-- Q_tot = Suma de Q_k de todos los productos
-- P_k = Participación individual
-- A_cum_k = Participación acumulada de mayor a menor
-- U_A, U_B, U_C, U_D = Umbrales (50, 80, 95, 99 % por defecto)
-FORMULA: P_k = Q_k / Q_tot ; A_cum_k = sum(P_j para j <= k, ordenado por Q_j desc)
-LABEL: Participación acumulada por unidades
-CONFIG: Modo de categoría de venta = Automática por participación acumulada (Pareto) — por unidades entregadas
+- sal = suma de unidades de salidas completadas del artículo en el período
+- n_m = número de meses del período (configurable, def: 3)
+- D_avg = promedio mensual de demanda en unidades por mes
+FORMULA: D_avg = sal / n_m
+LABEL: Demanda promedio mensual (categoría de venta)
+CONFIG: Categorías de venta — Modo de asignación = Por demanda (promedio mensual de unidades)
 CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
+- D_avg >= umbral_A_upm -> A
+- D_avg >= umbral_B_upm -> B
+- D_avg >= umbral_C_upm -> C
+- D_avg >= umbral_D_upm -> D
+- D_avg < umbral_D_upm -> E
 
-### 3.4b Categoría de venta — modo participación acumulada por importe
-DESCRIPCION: Igual que 3.4 pero ordena por importe (unidades entregadas × precio de lista actual)
-en lugar de por unidades.
+---
+
+### 3.4 Categoría de venta — Pareto por unidades
+DESCRIPCION: Clasifica los artículos según su participación acumulada en el total de unidades vendidas en el período. Los que concentran el mayor volumen reciben la categoría más alta.
 VARIABLES:
-- V_k = Unidades entregadas del producto k × precio de lista actual del producto k
-- V_tot = Suma de V_k de todos los productos
-- P_k = Participación individual por importe
-- A_cum_k = Participación acumulada de mayor a menor
-- U_A, U_B, U_C, U_D = Umbrales (50, 80, 95, 99 % por defecto)
-FORMULA: P_k = V_k / V_tot ; A_cum_k = sum(P_j para j <= k, ordenado por V_j desc)
-LABEL: Participación acumulada por importe
-CONFIG: Modo de categoría de venta = Automática por participación acumulada (Pareto) — por importe (precio lista × cantidad)
+- U_i = unidades vendidas del artículo i en el período
+- U_tot = suma de U_i de todos los artículos
+- P_i = participación del artículo i en el total de unidades (%)
+- P_cum_i = participación acumulada ordenando de mayor a menor
+FORMULA: P_i = U_i / U_tot * 100 ; P_cum_i = sum(P_k para todo k con U_k >= U_i)
+LABEL: Participación acumulada por unidades (artículos)
+CONFIG: Categorías de venta — Métrica de participación acumulada = Unidades entregadas
 CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
+- P_cum_i <= umbral_A -> A
+- P_cum_i <= umbral_B -> B
+- P_cum_i <= umbral_C -> C
+- P_cum_i <= umbral_D -> D
+- P_cum_i > umbral_D -> E
 
-### 3.5 Forecast — KPIs globales: cobertura
-DESCRIPCION: Compara las órdenes de fabricación planificadas contra el forecast para el período.
-Un valor mayor a 100 % indica que hay más producción planificada que la demanda forecasteada.
+---
+
+### 3.4b Categoría de venta — Pareto por importe
+DESCRIPCION: Clasifica los artículos según su participación acumulada en el importe total de ventas, calculado como precio de lista actual por unidades vendidas. Los que concentran el mayor valor reciben la categoría más alta.
 VARIABLES:
-- Q_OF = Suma de cantidades planificadas de OFs en el período
-- F_tot = Suma de cantidades de todas las líneas de forecast del período
-FORMULA: Cobertura = (Q_OF / F_tot) * 100
-LABEL: % Cobertura de forecast (0 si F_tot = 0)
+- I_i = unidades_i * precio_de_lista_i del artículo i en el período
+- I_tot = suma de I_i de todos los artículos
+- P_i = participación del artículo i en el importe total (%)
+- P_cum_i = participación acumulada ordenando de mayor a menor
+FORMULA: P_i = I_i / I_tot * 100 ; P_cum_i = sum(P_k para todo k con I_k >= I_i)
+LABEL: Participación acumulada por importe (artículos)
+CONFIG: Categorías de venta — Métrica de participación acumulada = Importe (precio de lista × cantidad)
 CONDICIONES:
-- Cobertura >= 100 -> Verde
-- Cobertura >= U_aviso (configurable, 70 % por defecto) -> Amarillo
-- Cobertura < U_aviso -> Rojo
+- P_cum_i <= umbral_A -> A
+- P_cum_i <= umbral_B -> B
+- P_cum_i <= umbral_C -> C
+- P_cum_i <= umbral_D -> D
+- P_cum_i > umbral_D -> E
 
-### 3.5b Forecast — Gap de OFs
+---
+
+### 3.5 Tasa de servicio — forecast global
+DESCRIPCION: Mide qué fracción de la demanda total confirmada en órdenes de venta del período fue efectivamente entregada. Incluye solo los productos que tienen líneas de forecast asociadas.
 VARIABLES:
-- Q_OF = Suma de cantidades de OFs del período
-- F_tot = Suma de forecast del período
-FORMULA: Gap_OF = Q_OF - F_tot
-LABEL: Gap de OFs (negativo = déficit de cobertura)
+- E_tot = suma de unidades entregadas (salidas completadas) del período, para productos con forecast
+- OV_tot = suma de unidades en órdenes de venta confirmadas del período
+- TS = tasa de servicio (%)
+FORMULA: TS = E_tot / OV_tot * 100
+LABEL: Tasa de servicio global (%)
 CONDICIONES:
-- Gap_OF >= 0 -> Verde
-- Gap_OF / F_tot * 100 >= -10 -> Amarillo
-- Gap_OF / F_tot * 100 < -10 -> Rojo
+- TS >= 95 -> verde
+- 80 <= TS < 95 -> amarillo
+- TS < 80 -> rojo
 
-### 3.6 Forecast — tasa de servicio global
-DESCRIPCION: Mide qué fracción de la demanda de órdenes de venta confirmadas fue
-efectivamente entregada en el período.
+---
+
+### 3.6 Gap de demanda — forecast global
+DESCRIPCION: Mide en qué porcentaje la demanda real de pedidos superó o quedó por debajo del forecast planificado en el período. Un valor positivo indica que la demanda superó las expectativas del plan.
 VARIABLES:
-- Q_ent = Suma de unidades entregadas del período para productos con forecast
-- D_OV = Suma de unidades pedidas en órdenes de venta confirmadas o cerradas del período
-FORMULA: TasaServicio = (Q_ent / D_OV) * 100
-LABEL: Tasa de servicio % (— si D_OV = 0)
+- OV_tot = suma de unidades en órdenes de venta confirmadas del período
+- FC_tot = suma de todas las cantidades de forecast del período
+- gap_dem = gap de demanda (%)
+FORMULA: gap_dem = (OV_tot - FC_tot) / FC_tot * 100
+LABEL: Gap de demanda vs. forecast (%)
 CONDICIONES:
-- TasaServicio >= 95 -> Verde
-- TasaServicio >= 80 -> Amarillo
-- TasaServicio < 80 -> Rojo
+- abs(gap_dem) <= 10 -> verde
+- abs(gap_dem) <= 25 -> amarillo
+- abs(gap_dem) > 25 -> rojo
 
-### 3.7 Forecast — Gap de demanda global
-DESCRIPCION: Diferencia porcentual entre la demanda real de órdenes de venta y el forecast.
-Positivo significa que la demanda superó el forecast; negativo que fue menor.
+---
+
+### 3.7 Gap de OFs — forecast global
+DESCRIPCION: Mide en qué porcentaje las órdenes de fabricación planificadas en el período cubren el forecast. Un valor negativo indica déficit de cobertura productiva.
 VARIABLES:
-- D_OV = Demanda en órdenes de venta confirmadas del período
-- F_tot = Forecast total del período
-FORMULA: Gap_D = (D_OV - F_tot) / F_tot * 100
-LABEL: Gap de demanda % (— si F_tot = 0)
+- OF_tot = suma de cantidades de OFs del período (según criterio de asignación configurado)
+- FC_tot = suma del forecast del período
+- gap_OF = gap de cobertura por OFs (%)
+FORMULA: gap_OF = (OF_tot - FC_tot) / FC_tot * 100
+LABEL: Gap de OFs vs. forecast (%)
 CONDICIONES:
-- abs(Gap_D) <= 10 -> Verde (demanda alineada con forecast)
-- abs(Gap_D) <= 25 -> Amarillo (desvío moderado)
-- abs(Gap_D) > 25 -> Rojo (desvío significativo)
+- gap_OF >= 0 -> verde
+- -10 <= gap_OF < 0 -> amarillo
+- gap_OF < -10 -> rojo
 
-### 3.8 Forecast — % cobertura de OFs por celda (denominador: forecast)
-DESCRIPCION: Para cada combinación de producto y mes, compara las OFs planificadas con
-el forecast de ese producto en ese mes. El denominador es el forecast planificado.
+---
+
+### 3.8 % Cobertura de OFs — denominador: forecast planificado
+DESCRIPCION: Para cada celda (producto × mes) de la tabla de forecast, mide qué porcentaje del forecast planificado está cubierto por órdenes de fabricación asignadas a ese mes.
 VARIABLES:
-- F_t = Forecast del producto para el mes t
-- Q_OF_t = Suma de cantidades de OFs del producto para el mes t
-FORMULA: CobPct_t = (Q_OF_t / F_t) * 100
-LABEL: % Cobertura por celda — base forecast (0 si F_t = 0)
-CONFIG: Divisor del % de cobertura de OFs = Forecast planificado (predeterminado)
+- OF_m = suma de cantidades de OFs del producto asignadas al mes
+- FC_m = forecast planificado del producto para el mes
+- cob = porcentaje de cobertura
+FORMULA: cob = OF_m / FC_m * 100
+LABEL: % Cobertura OFs / forecast planificado
+CONFIG: Forecast — Divisor del % de cobertura de OFs = Forecast planificado
 CONDICIONES:
-- CobPct_t >= 100 -> Verde
-- CobPct_t >= U_aviso (configurable, 70 % por defecto) -> Amarillo
-- CobPct_t < U_aviso -> Rojo
+- cob >= 100 -> verde
+- cob >= umbral_aviso_config -> amarillo
+- cob < umbral_aviso_config -> rojo
+- FC_m = 0 -> cob = 0
 
-### 3.8b Forecast — % cobertura de OFs por celda (denominador: demanda OV)
-DESCRIPCION: Igual que 3.8 pero el denominador son las unidades en órdenes de venta
-confirmadas del mes en lugar del forecast planificado.
+---
+
+### 3.8b % Cobertura de OFs — denominador: demanda real (OV)
+DESCRIPCION: Igual que el bloque anterior, pero el denominador es la demanda real confirmada en órdenes de venta del mes en lugar del forecast planificado.
 VARIABLES:
-- D_OV_t = Unidades en órdenes de venta confirmadas del producto en el mes t
-- Q_OF_t = Suma de cantidades de OFs del producto para el mes t
-FORMULA: CobPct_t = (Q_OF_t / D_OV_t) * 100
-LABEL: % Cobertura por celda — base demanda OV (0 si D_OV_t = 0)
-CONFIG: Divisor del % de cobertura de OFs = Demanda real (pedidos de órdenes de venta)
+- OF_m = suma de cantidades de OFs del producto asignadas al mes
+- OV_m = unidades en órdenes de venta confirmadas del producto en el mes
+- cob = porcentaje de cobertura
+FORMULA: cob = OF_m / OV_m * 100
+LABEL: % Cobertura OFs / demanda real (OV)
+CONFIG: Forecast — Divisor del % de cobertura de OFs = Demanda real (pedidos SO)
 CONDICIONES:
-- CobPct_t >= 100 -> Verde
-- CobPct_t >= U_aviso -> Amarillo
-- CobPct_t < U_aviso -> Rojo
+- cob >= 100 -> verde
+- cob >= umbral_aviso_config -> amarillo
+- cob < umbral_aviso_config -> rojo
+- OV_m = 0 -> cob = 0
 
-### 3.9 Forecast — tasa de servicio y gap de demanda por celda
-VARIABLES:
-- Q_ent_t = Unidades entregadas del producto en el mes t
-- D_OV_t = Demanda en órdenes de venta del producto en el mes t
-- F_t = Forecast del producto en el mes t
-FORMULA: SvcRate_t = (Q_ent_t / D_OV_t) * 100 ; GapD_t = (D_OV_t - F_t) / F_t * 100
-LABEL: Tasa de servicio y gap de demanda por celda (— si denominador = 0)
+---
 
-### 3.10 Rotación de inventario en forecast — por unidades
-DESCRIPCION: Para cada producto en el forecast, indica cuántos días (o meses) de stock
-quedan al ritmo de entregas del período del forecast.
+### 3.9 Rotación de inventario en forecast — por unidades
+DESCRIPCION: Estima los meses o días de stock que quedan para el artículo, usando el promedio mensual de unidades entregadas en el rango del forecast y el stock actual.
 VARIABLES:
-- Q_ent = Unidades entregadas en el período del forecast
-- M = Cantidad de meses del período
-- S = Stock actual en ubicaciones internas
-FORMULA: Q_prom = Q_ent / M ; R_m = S / Q_prom ; R_d = floor(S / Q_prom * 30)
-LABEL: Rotación en meses y días (— si Q_prom = 0)
-CONFIG: Método de rotación de inventario en forecast = Por unidades (entregas físicas)
+- E_per = suma de unidades entregadas del artículo en el rango del forecast
+- n_m = número de meses del rango del forecast
+- prom_m = promedio mensual de unidades entregadas
+- S = stock actual en ubicaciones internas
+- rot_m = rotación en meses
+- rot_d = rotación en días
+FORMULA: prom_m = E_per / n_m ; rot_m = S / prom_m ; rot_d = rot_m * 30
+LABEL: Rotación de inventario — por unidades (forecast)
+CONFIG: Forecast — Método de rotación de inventario = Por unidades
 CONDICIONES:
-- R_m <= 3 -> Verde ; R_m <= 6 -> Amarillo ; R_m > 6 -> Gris
-- R_d <= 90 -> Verde ; R_d <= 180 -> Amarillo ; R_d > 180 -> Gris
+- rot_m <= 3 -> verde ; 4 <= rot_m <= 6 -> amarillo ; rot_m > 6 -> sin color
+- rot_d <= 90 -> verde ; 91 <= rot_d <= 180 -> amarillo ; rot_d > 180 -> sin color
 
-### 3.10b Rotación de inventario en forecast — por COGS
-DESCRIPCION: Calcula los días de inventario valorando el stock al costo estándar y usando
-el costo de las salidas (COGS) como denominador. El período es el rango del forecast.
+---
+
+### 3.9b Rotación de inventario en forecast — por COGS
+DESCRIPCION: Estima los días de inventario comparando el valor del stock promedio (a costo estándar) contra el costo de lo vendido en el rango del forecast.
 VARIABLES:
-- S_ini_c = Stock al inicio del período × costo estándar del producto
-- S_fin_c = Stock al final del período × costo estándar del producto
-- COGS = Suma de (precio unitario × cantidad) de las salidas completadas en el período
-- D = Días del período del forecast
-FORMULA: S_avg_val = (S_ini_c + S_fin_c) / 2 ; DIO = D * S_avg_val / COGS
+- I_ini = stock inicial × costo estándar del producto
+- I_fin = stock final × costo estándar del producto
+- I_avg = inventario promedio valorizado a costo
+- COGS = suma de (precio unitario a costo × cantidad) de salidas completadas en el rango
+- D = días del rango del forecast
+- DIO = días de inventario
+FORMULA: I_avg = (I_ini + I_fin) / 2 ; DIO = D * I_avg / COGS
 LABEL: Días de inventario — por COGS (forecast)
-CONFIG: Método de rotación de inventario en forecast = Por COGS (a costo)
+CONFIG: Forecast — Método de rotación de inventario = Por COGS (a costo)
 
-### 3.10c Rotación de inventario en forecast — por ventas
-DESCRIPCION: Calcula los días de inventario valorando el stock al precio de lista y usando
-las ventas netas (a precio de lista) como denominador. El período es el rango del forecast.
-VARIABLES:
-- S_ini_p = Stock al inicio del período × precio de lista del producto
-- S_fin_p = Stock al final del período × precio de lista del producto
-- V_net = Suma de ventas netas (salidas × precio de lista) en el período
-- D = Días del período del forecast
-FORMULA: S_avg_val = (S_ini_p + S_fin_p) / 2 ; DIO = D * S_avg_val / V_net
-LABEL: Días de inventario — por ventas a precio de lista (forecast)
-CONFIG: Método de rotación de inventario en forecast = Por ventas (a precio de lista)
+---
 
-### 3.11 Cobertura de inventario — base forecast
-DESCRIPCION: Días de stock disponible calculados dividiendo el inventario actual entre la
-demanda del período de referencia. Distinto del % de cobertura de OFs: mide días de stock,
-no cuánto de la demanda tiene OF asignada.
+### 3.9c Rotación de inventario en forecast — por ventas
+DESCRIPCION: Estima los días de inventario comparando el valor del stock promedio (a precio de lista) contra las ventas netas en el rango del forecast valoradas a precio de lista.
 VARIABLES:
-- S = Stock actual en ubicaciones internas del producto
-- F_per = Total de forecast planificado del período
-- D = Días del período del forecast
-FORMULA: cobertura_dias = S * D / F_per
-LABEL: Días de cobertura de inventario — base forecast (indefinida si F_per = 0)
-CONFIG: Fuente de demanda para cobertura de inventario = Forecast planificado (predeterminado)
+- I_ini = stock inicial × precio de lista del producto
+- I_fin = stock final × precio de lista del producto
+- I_avg = inventario promedio valorizado a precio de lista
+- V_net = suma de ventas netas del artículo en el rango (salidas valoradas a precio de lista)
+- D = días del rango del forecast
+- DIO = días de inventario
+FORMULA: I_avg = (I_ini + I_fin) / 2 ; DIO = D * I_avg / V_net
+LABEL: Días de inventario — por ventas (forecast)
+CONFIG: Forecast — Método de rotación de inventario = Por ventas (a precio de lista)
 
-### 3.11b Cobertura de inventario — base demanda OV
-DESCRIPCION: Igual que 3.11 pero usa las unidades en órdenes de venta confirmadas del
-período como denominador en lugar del forecast.
-VARIABLES:
-- S = Stock actual en ubicaciones internas del producto
-- D_OV = Total de unidades en órdenes de venta confirmadas del período
-- D = Días del período del forecast
-FORMULA: cobertura_dias = S * D / D_OV
-LABEL: Días de cobertura de inventario — base demanda OV (indefinida si D_OV = 0)
-CONFIG: Fuente de demanda para cobertura de inventario = Demanda real (pedidos de órdenes de venta)
+---
 
-### 3.11c Cobertura de inventario — base entregado histórico
-DESCRIPCION: Igual que 3.11 pero usa las unidades entregadas (salidas completadas) del
-período como denominador.
+### 3.10 Cobertura de inventario — fuente: forecast planificado
+DESCRIPCION: Calcula cuántos días alcanza el stock actual si la demanda de referencia fuera el forecast planificado del período. Mide la autonomía del inventario frente al plan de ventas.
 VARIABLES:
-- S = Stock actual en ubicaciones internas del producto
-- Q_ent = Total de unidades entregadas (salidas completadas) del período
-- D = Días del período del forecast
-FORMULA: cobertura_dias = S * D / Q_ent
-LABEL: Días de cobertura de inventario — base entregado (indefinida si Q_ent = 0)
-CONFIG: Fuente de demanda para cobertura de inventario = Entregado histórico
+- S = stock actual del artículo en ubicaciones internas
+- FC = total de forecast planificado del artículo en el período
+- D = días del período del forecast
+- cov_d = cobertura en días
+FORMULA: cov_d = S * D / FC
+LABEL: Días de cobertura — vs. forecast planificado
+CONFIG: Forecast — Fuente de demanda para cobertura de inventario = Forecast planificado
+CONDICIONES:
+- FC = 0 -> cobertura indefinida (no se muestra)
+
+---
+
+### 3.10b Cobertura de inventario — fuente: demanda real (OV)
+DESCRIPCION: Calcula cuántos días alcanza el stock actual si la demanda de referencia fueran las unidades en órdenes de venta confirmadas del período.
+VARIABLES:
+- S = stock actual
+- OV = total de unidades en órdenes de venta confirmadas del artículo en el período
+- D = días del período
+- cov_d = cobertura en días
+FORMULA: cov_d = S * D / OV
+LABEL: Días de cobertura — vs. demanda real (OV)
+CONFIG: Forecast — Fuente de demanda para cobertura de inventario = Demanda real (pedidos SO)
+CONDICIONES:
+- OV = 0 -> cobertura indefinida (no se muestra)
+
+---
+
+### 3.10c Cobertura de inventario — fuente: entregado histórico
+DESCRIPCION: Calcula cuántos días alcanza el stock actual si la demanda de referencia fueran las unidades efectivamente entregadas (salidas completadas) del período.
+VARIABLES:
+- S = stock actual
+- E = total de unidades entregadas del artículo en el período
+- D = días del período
+- cov_d = cobertura en días
+FORMULA: cov_d = S * D / E
+LABEL: Días de cobertura — vs. entregado histórico
+CONFIG: Forecast — Fuente de demanda para cobertura de inventario = Entregado histórico
+CONDICIONES:
+- E = 0 -> cobertura indefinida (no se muestra)
+
+---
+
+### 3.11 Fuente del «real» para precisión — demanda confirmada
+DESCRIPCION: Define qué se entiende por «real» en todos los cálculos de precisión de forecast: las unidades pedidas en órdenes de venta confirmadas o cerradas del período. Mide con qué precisión el forecast anticipó la demanda comercial registrada.
+VARIABLES:
+- real_t = suma de unidades en órdenes de venta confirmadas o cerradas del período t
+FORMULA: real_t = sum(unidades en ordenes de venta confirmadas del período t)
+LABEL: Fuente del real — demanda OV
+CONFIG: Forecast — Fuente del «real» para precisión = Demanda confirmada (órdenes de venta)
+
+---
+
+### 3.11b Fuente del «real» para precisión — entregas completadas
+DESCRIPCION: Define qué se entiende por «real» en todos los cálculos de precisión de forecast: las unidades efectivamente entregadas (salidas de stock completadas) del período. Mide con qué precisión el forecast anticipó los despachos reales.
+VARIABLES:
+- real_t = suma de unidades de salidas de stock completadas del período t
+FORMULA: real_t = sum(unidades entregadas en salidas completadas del período t)
+LABEL: Fuente del real — entregas completadas
+CONFIG: Forecast — Fuente del «real» para precisión = Entregas completadas
+
+---
 
 ### 3.12 Precisión de forecast — Simple
-DESCRIPCION: Relación directa entre el volumen real y el forecast. Puede superar 100 %
-cuando la demanda fue mayor a lo planificado. Se calcula por período y también como total
-acumulado sobre todos los períodos.
+DESCRIPCION: Mide la precisión de cada celda como el cociente entre el volumen real y el forecast planificado. Un resultado del 100 % indica coincidencia exacta; más del 100 % indica que la demanda superó el forecast.
 VARIABLES:
-- F_t = Forecast planificado para el período t
-- D_t = Volumen real del período t (fuente configurable: ver 3.12f)
-FORMULA: Precision_t = D_t / F_t * 100 ; PrecisionTotal = sum(D_t) / sum(F_t) * 100
-LABEL: Precisión Simple (— si F_t = 0)
-CONFIG: Fórmula de precisión de forecast = Simple (real ÷ forecast × 100)
+- FC_t = forecast planificado del producto para el período t
+- real_t = volumen real del período t (según fuente configurada)
+- prec_t = precisión del período t (%)
+- prec_total = precisión global del producto
+FORMULA: prec_t = real_t / FC_t * 100 ; prec_total = sum(real_t) / sum(FC_t) * 100
+LABEL: Precisión Simple (%)
+CONFIG: Forecast — Fórmula de precisión = Simple
 CONDICIONES:
-- Precision_t >= 90 -> Verde
-- Precision_t >= 70 -> Amarillo
-- Precision_t < 70 -> Rojo
-
-### 3.13 Precisión de forecast — MAPE
-DESCRIPCION: Error porcentual absoluto medio. Se calcula solo sobre los períodos con
-volumen real mayor a cero para evitar divisiones por cero. Muy sensible a períodos con
-demanda baja o nula.
-VARIABLES:
-- F_t = Forecast del período t
-- D_t = Volumen real del período t
-- e_t = abs(D_t - F_t)
-FORMULA: Precision_t = max(0, 100 - (e_t / D_t) * 100) ; PrecisionTotal = avg(Precision_t para D_t > 0)
-LABEL: Precisión MAPE (solo períodos con real > 0)
-CONFIG: Fórmula de precisión de forecast = MAPE (error porcentual absoluto medio)
-CONDICIONES:
-- PrecisionTotal >= 90 -> Verde
-- PrecisionTotal >= 70 -> Amarillo
-- PrecisionTotal < 70 -> Rojo
-
-### 3.14 Precisión de forecast — WAPE
-DESCRIPCION: Error porcentual absoluto ponderado por el volumen real. Pondera más los
-períodos de mayor demanda. Robusto cuando el forecast o la demanda tienen ceros.
-VARIABLES:
-- e_t = abs(D_t - F_t)
-- D_t = Volumen real del período t
-FORMULA: PrecisionTotal = max(0, 100 - sum(e_t) / sum(D_t) * 100)
-LABEL: Precisión WAPE (global, pondera por volumen real)
-CONFIG: Fórmula de precisión de forecast = WAPE (error ponderado por demanda real)
-CONDICIONES:
-- PrecisionTotal >= 90 -> Verde
-- PrecisionTotal >= 70 -> Amarillo
-- PrecisionTotal < 70 -> Rojo
-
-### 3.15 Precisión de forecast — WMAPE
-DESCRIPCION: Error porcentual absoluto ponderado por el forecast planificado. Pondera más
-los períodos de mayor volumen planificado. Estándar en supply chain cuando el forecast es
-la referencia principal.
-VARIABLES:
-- e_t = abs(D_t - F_t)
-- F_t = Forecast del período t
-FORMULA: PrecisionTotal = max(0, 100 - sum(e_t) / sum(F_t) * 100)
-LABEL: Precisión WMAPE (global, pondera por forecast)
-CONFIG: Fórmula de precisión de forecast = WMAPE (error ponderado por forecast planificado)
-CONDICIONES:
-- PrecisionTotal >= 90 -> Verde
-- PrecisionTotal >= 70 -> Amarillo
-- PrecisionTotal < 70 -> Rojo
-
-### 3.16 Sesgo de forecast (Bias)
-DESCRIPCION: Mide si el forecast tiende sistemáticamente a sobrestimar o subestimar el
-volumen real. Positivo: la demanda superó al forecast de forma consistente (forecast
-conservador). Negativo: el forecast fue optimista.
-VARIABLES:
-- F_t = Forecast del período t
-- D_t = Volumen real del período t
-FORMULA: Sesgo_t = (D_t - F_t) / F_t * 100 ; SesgoTotal = (sum(D_t) - sum(F_t)) / sum(F_t) * 100
-LABEL: Sesgo por período y sesgo total acumulado (— si F_t = 0)
-CONFIG: Fórmula de precisión de forecast = Sesgo (Bias)
-CONDICIONES:
-- abs(Sesgo_t) <= 10 -> Verde
-- abs(Sesgo_t) <= 20 -> Amarillo
-- abs(Sesgo_t) > 20 -> Rojo
-
-### 3.12f Fuente del «real» para precisión de forecast — demanda confirmada
-DESCRIPCION: El volumen real en las cinco fórmulas de precisión son las unidades en
-órdenes de venta confirmadas o cerradas del período, independientemente de si fueron
-entregadas.
-VARIABLES:
-- D_t = Unidades en órdenes de venta confirmadas o cerradas del período t
-FORMULA: D_t = sum(unidades en OVs confirmadas del período t)
-LABEL: Real = demanda confirmada (órdenes de venta)
-CONFIG: Fuente del «real» para precisión = Demanda confirmada (órdenes de venta)
-
-### 3.12g Fuente del «real» para precisión de forecast — entregas completadas
-DESCRIPCION: El volumen real en las cinco fórmulas de precisión son las unidades entregadas
-físicamente en el período (salidas de stock completadas). Útil cuando la demanda confirmada
-y la entregada difieren significativamente.
-VARIABLES:
-- D_t = Unidades en salidas de stock completadas del período t
-FORMULA: D_t = sum(unidades entregadas en el período t)
-LABEL: Real = entregas completadas
-CONFIG: Fuente del «real» para precisión = Entregas completadas
-
-### 3.17 Categoría de cliente — ABC por volumen
-DESCRIPCION: Clasifica clientes según el importe total de sus órdenes de venta en el
-período configurado. Mayor importe = categoría más alta.
-VARIABLES:
-- V_k = Importe total de OVs del cliente k en el período
-- V_tot = Suma de V_k de todos los clientes
-- P_k = Participación individual
-- A_cum_k = Acumulado de mayor a menor
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: P_k = V_k / V_tot ; A_cum_k = sum(P_j para j <= k, ordenado por V_j desc)
-LABEL: Participación acumulada por importe (clientes)
-CONFIG: Método de categoría de cliente = ABC por volumen (importe de órdenes de venta)
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
-
-### 3.18 Categoría de cliente — ABC por frecuencia
-DESCRIPCION: Clasifica clientes según la cantidad de órdenes de venta realizadas en el
-período configurado. Mayor cantidad = categoría más alta.
-VARIABLES:
-- C_k = Cantidad de OVs del cliente k en el período
-- C_tot = Suma de C_k de todos los clientes
-- P_k = Participación individual
-- A_cum_k = Acumulado de mayor a menor
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: P_k = C_k / C_tot ; A_cum_k = sum(P_j para j <= k, ordenado por C_j desc)
-LABEL: Participación acumulada por frecuencia (clientes)
-CONFIG: Método de categoría de cliente = ABC por frecuencia (cantidad de órdenes de venta)
-CONDICIONES:
-- A_cum_k <= U_A -> A
-- A_cum_k <= U_B -> B
-- A_cum_k <= U_C -> C
-- A_cum_k <= U_D -> D
-- resto -> E
-
-### 3.19 Categoría de cliente — ABC por RFM
-DESCRIPCION: Mismo algoritmo que para proveedores (ver 2.12), aplicado a órdenes de venta
-en lugar de órdenes de compra. Recencia = días desde la última OV; Frecuencia = cantidad
-de OVs en el período; Monetario = importe total de OVs en el período.
-VARIABLES:
-- R = Puntos de Recencia (1–3, basados en días desde última OV)
-- F_rfm = Puntos de Frecuencia (1–3, basados en cantidad de OVs)
-- M = Puntos de Monetario (1–3, basados en percentil del grupo)
-- N_m = Período de análisis en meses — 12 por defecto
-FORMULA: S = R + F_rfm + M
-LABEL: Puntaje RFM total (clientes)
-CONFIG: Método de categoría de cliente = ABC por RFM
-CONDICIONES:
-- S >= 8 -> A
-- S >= 6 -> B
-- S >= 4 -> C
-- S = 3 -> D
-- Sin datos en el período -> E
+- prec >= 90 -> verde
+- 70 <= prec < 90 -> amarillo
+- prec < 70 -> rojo
+- FC_t = 0 -> prec_t no se muestra
 
 ---
 
-## Panel de Ventas — Análisis de clientes
+### 3.12b Precisión de forecast — MAPE
+DESCRIPCION: Promedia el error porcentual absoluto de cada período individual. Es muy sensible cuando la demanda real es baja o cero, porque un pequeño error genera un porcentaje alto. El resultado se expresa como precisión (100 % menos el error medio).
+VARIABLES:
+- FC_t = forecast planificado del período t
+- real_t = volumen real del período t
+- prec_t = max(0, 100 - abs(real_t - FC_t) / real_t * 100)
+- prec_total = promedio de prec_t para períodos con real_t > 0
+FORMULA: prec_t = max(0, 100 - abs(real_t - FC_t) / real_t * 100) ; prec_total = avg(prec_t para todo t con real_t > 0)
+LABEL: Precisión MAPE (%)
+CONFIG: Forecast — Fórmula de precisión = MAPE (error porcentual absoluto medio)
+CONDICIONES:
+- prec >= 90 -> verde
+- 70 <= prec < 90 -> amarillo
+- prec < 70 -> rojo
+- real_t = 0 -> período excluido del promedio
+
+---
+
+### 3.12c Precisión de forecast — WAPE
+DESCRIPCION: Calcula el error absoluto total dividido por el volumen real total. Pondera automáticamente los períodos de mayor demanda y es robusto cuando hay períodos con forecast cero, porque el denominador es el real total.
+VARIABLES:
+- err_t = abs(real_t - FC_t) para el período t
+- real_t = volumen real del período t
+- prec_total = precisión global ponderada por demanda real
+FORMULA: prec_total = max(0, 100 - sum(err_t) / sum(real_t) * 100)
+LABEL: Precisión WAPE — ponderada por demanda real (%)
+CONFIG: Forecast — Fórmula de precisión = WAPE (error ponderado por demanda real)
+CONDICIONES:
+- prec >= 90 -> verde
+- 70 <= prec < 90 -> amarillo
+- prec < 70 -> rojo
+
+---
+
+### 3.12d Precisión de forecast — WMAPE
+DESCRIPCION: Similar a WAPE, pero el denominador es el volumen planificado (forecast) en lugar del real. Penaliza más los errores en períodos donde se esperaba mayor venta. Es el estándar más usado en supply chain.
+VARIABLES:
+- err_t = abs(real_t - FC_t) para el período t
+- FC_t = forecast planificado del período t
+- prec_total = precisión global ponderada por forecast
+FORMULA: prec_total = max(0, 100 - sum(err_t) / sum(FC_t) * 100)
+LABEL: Precisión WMAPE — ponderada por forecast (%)
+CONFIG: Forecast — Fórmula de precisión = WMAPE (error ponderado por forecast)
+CONDICIONES:
+- prec >= 90 -> verde
+- 70 <= prec < 90 -> amarillo
+- prec < 70 -> rojo
+
+---
+
+### 3.12e Sesgo de forecast
+DESCRIPCION: Mide si el forecast tiende sistemáticamente a sobreestimar o subestimar la demanda. Un valor positivo indica que la demanda superó el forecast en forma consistente (forecast conservador); uno negativo indica forecast optimista.
+VARIABLES:
+- FC_t = forecast planificado del período t
+- real_t = volumen real del período t
+- sesgo_t = sesgo del período t (%)
+- sesgo_total = sesgo global del producto
+FORMULA: sesgo_t = (real_t - FC_t) / FC_t * 100 ; sesgo_total = (sum(real_t) - sum(FC_t)) / sum(FC_t) * 100
+LABEL: Sesgo de forecast — Bias (%)
+CONFIG: Forecast — Fórmula de precisión = Sesgo (Bias)
+CONDICIONES:
+- abs(sesgo) <= 10 -> verde
+- 10 < abs(sesgo) <= 20 -> amarillo
+- abs(sesgo) > 20 -> rojo
+- FC_t = 0 -> sesgo_t no se muestra
+
+---
+
+### 3.13 Período de análisis — categorías de cliente
+DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de clientes. La fecha de inicio del análisis se calcula restando ese número de meses (a razón de 30 días por mes) a la fecha actual.
+VARIABLES:
+- M_c = meses configurados para categorías de cliente (def: 12)
+- F_ini = fecha de inicio del período de análisis
+FORMULA: F_ini = hoy - M_c * 30 dias
+LABEL: Horizonte temporal — categorías de cliente
+CONFIG: Período de análisis de clientes = N meses (configurable, def: 12 meses)
+
+---
+
+### 3.14 Categoría de cliente — Manual
+DESCRIPCION: La categoría A–E del cliente se asigna directamente por el usuario en la ficha del cliente. No existe cálculo automático; el valor se mantiene hasta que el usuario lo modifique manualmente.
+VARIABLES:
+- ninguna
+FORMULA: clasificación manual (sin cálculo automático)
+LABEL: Categoría de cliente — manual
+CONFIG: Método de categoría de cliente = Manual (asignación directa)
+
+---
+
+### 3.15 Categoría de cliente — ABC por volumen
+DESCRIPCION: Clasifica a los clientes según el importe total de sus órdenes de venta en el período configurado. Los que concentran el mayor importe reciben la categoría más alta.
+VARIABLES:
+- V_j = importe total de OVs del cliente j en el período
+- V_tot = suma de V_j de todos los clientes
+- P_j = participación del cliente j en el importe total (%)
+- P_cum_j = participación acumulada ordenando de mayor a menor
+FORMULA: P_j = V_j / V_tot * 100 ; P_cum_j = sum(P_k para todo k con V_k >= V_j)
+LABEL: Pareto por importe — clientes
+CONFIG: Método de categoría de cliente = ABC por volumen (importe de pedidos)
+CONDICIONES:
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
+
+---
+
+### 3.16 Categoría de cliente — ABC por frecuencia
+DESCRIPCION: Clasifica a los clientes según la cantidad de órdenes de venta confirmadas en el período configurado. Los que compran con mayor frecuencia reciben la categoría más alta.
+VARIABLES:
+- F_j = cantidad de OVs del cliente j en el período
+- F_tot = suma de F_j de todos los clientes
+- P_j = participación del cliente j en la frecuencia total (%)
+- P_cum_j = participación acumulada ordenando de mayor a menor
+FORMULA: P_j = F_j / F_tot * 100 ; P_cum_j = sum(P_k para todo k con F_k >= F_j)
+LABEL: Pareto por frecuencia — clientes
+CONFIG: Método de categoría de cliente = ABC por frecuencia (cantidad de pedidos)
+CONDICIONES:
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_B -> B
+- P_cum_j <= umbral_C -> C
+- P_cum_j <= umbral_D -> D
+- P_cum_j > umbral_D -> E
+
+---
+
+### 3.17 Categoría de cliente — ABC por RFM
+DESCRIPCION: Clasifica a los clientes combinando tres dimensiones: Recencia (cuándo fue el último pedido), Frecuencia (cuántos pedidos en el período) y Monto (importe total). Cada dimensión recibe 1 a 3 puntos; la suma de los tres determina la categoría.
+VARIABLES:
+- R = puntuación de recencia (días desde la última OV)
+- F_score = puntuación de frecuencia (cantidad de OVs en el período)
+- M = puntuación de monto (percentil del importe vs. el grupo)
+- T = puntaje total (R + F_score + M)
+FORMULA: T = R + F_score + M
+LABEL: Puntaje RFM — cliente
+CONFIG: Método de categoría de cliente = ABC por RFM
+CONDICIONES:
+- R: dias_ultima_OV < 30 -> 3 pts ; dias_ultima_OV < 90 -> 2 pts ; resto -> 1 pt
+- F_score: count_OVs > 10 -> 3 pts ; count_OVs >= 3 -> 2 pts ; resto -> 1 pt
+- M: percentil >= 66 -> 3 pts ; percentil >= 33 -> 2 pts ; resto -> 1 pt
+- T = 8 o 9 -> A
+- T = 6 o 7 -> B
+- T = 4 o 5 -> C
+- T = 3 -> D
+- sin datos en el período -> E
+
+---
+
+## Sección 4 — Análisis de clientes
+
+---
 
 ### 4.1 % de entrega
-DESCRIPCION: Mide qué porcentaje de las unidades pedidas en órdenes de venta confirmadas
-del período fueron efectivamente entregadas mediante salidas de stock completadas.
+DESCRIPCION: Mide qué fracción de las unidades pedidas en órdenes de venta confirmadas del período fue efectivamente entregada al cliente. Un valor del 100 % indica que todo lo solicitado fue despachado.
 VARIABLES:
-- Q_ped = Suma de unidades en líneas de órdenes de venta confirmadas del período
-- Q_ent = Suma de unidades en salidas de stock completadas del período para el mismo cliente
-FORMULA: PctEntrega = (Q_ent / Q_ped) * 100
-LABEL: % de entrega (— si Q_ped = 0)
+- Q_ped = suma de unidades en líneas de órdenes de venta confirmadas del período
+- Q_entr = suma de unidades en salidas de stock completadas del período para ese cliente
+- pct_entr = porcentaje de entrega
+FORMULA: pct_entr = Q_entr / Q_ped * 100
+LABEL: % de entrega (cliente)
 
-### 4.2 % a tiempo — referencia fecha compromiso del pedido
-DESCRIPCION: Porcentaje de envíos (salidas completadas) que llegaron antes o en la fecha
-que la orden de venta comprometió con el cliente. Los envíos sin fecha compromiso no se
-incluyen en el cómputo.
-VARIABLES:
-- n_total = Total de envíos con fecha compromiso disponible en el período
-- n_ot = Envíos donde la fecha de cierre del envío es menor o igual a la fecha compromiso de la OV
-FORMULA: ontime_pct = (n_ot / n_total) * 100
-LABEL: % a tiempo — base fecha compromiso
-CONFIG: Método de entrega a tiempo en análisis de clientes = Fecha compromiso del pedido (predeterminado)
+---
 
-### 4.2b % a tiempo — referencia fecha programada del envío
-DESCRIPCION: Porcentaje de envíos que llegaron antes o en la fecha programada del propio
-envío saliente (no la fecha compromiso de la orden).
+### 4.2 % a tiempo — fecha compromiso del pedido
+DESCRIPCION: Mide el porcentaje de envíos completados antes o en la fecha comprometida con el cliente al confirmar el pedido. Los envíos sin fecha de compromiso registrada se excluyen del cómputo.
 VARIABLES:
-- n_total = Total de envíos con fecha programada disponible en el período
-- n_ot = Envíos donde la fecha de cierre es menor o igual a la fecha programada del envío
-FORMULA: ontime_pct = (n_ot / n_total) * 100
-LABEL: % a tiempo — base fecha programada del envío
-CONFIG: Método de entrega a tiempo en análisis de clientes = Fecha programada del envío
+- n_ot = cantidad de envíos del cliente donde fecha_cierre_envio <= fecha_compromiso_pedido
+- n_tot = total de envíos del cliente con fecha de compromiso definida
+- pct_ot = porcentaje a tiempo
+FORMULA: pct_ot = n_ot / n_tot * 100
+LABEL: % a tiempo — fecha compromiso (cliente)
+CONFIG: Análisis de clientes — Definición de «a tiempo» = Fecha compromiso del pedido (predeterminado)
 
-### 4.2c % a tiempo — referencia SLA en días
-DESCRIPCION: Porcentaje de envíos que llegaron dentro del plazo definido como SLA: la
-fecha de confirmación de la orden de venta más N días configurados.
-VARIABLES:
-- n_total = Total de envíos con fecha de confirmación disponible en el período
-- n_ot = Envíos donde la fecha de cierre <= fecha confirmación de la OV + N_sla días
-- N_sla = Días de SLA configurados
-FORMULA: ontime_pct = (n_ot / n_total) * 100
-LABEL: % a tiempo — base SLA en días desde confirmación
-CONFIG: Método de entrega a tiempo en análisis de clientes = Días desde confirmación del pedido (SLA configurable)
+---
 
-### 4.3 Intervalos entre pedidos
-DESCRIPCION: Mide la regularidad de compra de un cliente calculando el tiempo promedio
-entre pedidos consecutivos en el período.
+### 4.3 % a tiempo — fecha programada del envío
+DESCRIPCION: Mide el porcentaje de envíos completados antes o en la fecha programada del picking de salida. Los envíos sin fecha programada se excluyen del cómputo.
 VARIABLES:
-- fecha_i = Fecha de confirmación del pedido i (ordenadas cronológicamente)
-- gaps = Diferencias en días entre pedidos consecutivos
-FORMULA: gap_i = fecha_{i+1} - fecha_i ; prom_intervalo = sum(gaps) / count(gaps)
-LABEL: Promedio de días entre pedidos (indefinido si el cliente tiene un solo pedido)
+- n_ot = cantidad de envíos del cliente donde fecha_cierre_envio <= fecha_programada_envio
+- n_tot = total de envíos del cliente con fecha programada definida
+- pct_ot = porcentaje a tiempo
+FORMULA: pct_ot = n_ot / n_tot * 100
+LABEL: % a tiempo — fecha programada del envío (cliente)
+CONFIG: Análisis de clientes — Definición de «a tiempo» = Fecha programada del envío
 
-### 4.4 Ticket promedio
-DESCRIPCION: Importe promedio por pedido del cliente en el período.
+---
+
+### 4.4 % a tiempo — SLA en días desde confirmación
+DESCRIPCION: Mide el porcentaje de envíos completados dentro del plazo SLA configurado, contado desde la fecha de confirmación del pedido. El número de días es un parámetro configurable.
 VARIABLES:
-- V_tot = Importe total de órdenes de venta del cliente en el período
-- n = Cantidad de pedidos del cliente en el período
-FORMULA: ticket = V_tot / n
+- D_confirm = fecha de confirmación del pedido
+- N = plazo SLA en días (configurable)
+- D_limite = D_confirm + N dias
+- n_ot = cantidad de envíos del cliente donde fecha_cierre_envio <= D_limite
+- n_tot = total de envíos del cliente en el período
+- pct_ot = porcentaje a tiempo
+FORMULA: D_limite = D_confirm + N ; pct_ot = n_ot / n_tot * 100
+LABEL: % a tiempo — SLA días desde confirmación (cliente)
+CONFIG: Análisis de clientes — Definición de «a tiempo» = Días desde confirmación del pedido (SLA configurable)
+
+---
+
+### 4.5 Intervalos entre pedidos
+DESCRIPCION: Mide la regularidad de compra de un cliente calculando el promedio de días entre pedidos consecutivos en el período. Un valor bajo indica compras frecuentes y regulares.
+VARIABLES:
+- D_i = fecha de confirmación del pedido i, ordenada cronológicamente
+- g_i = gap en días entre el pedido i+1 y el pedido i
+- n_gaps = cantidad de gaps (= cantidad de pedidos - 1)
+- G_avg = promedio de intervalos en días
+FORMULA: g_i = D_{i+1} - D_i ; G_avg = sum(g_i para i=1..n_gaps) / n_gaps
+LABEL: Intervalo promedio entre pedidos (días)
+CONDICIONES:
+- n_gaps = 0 (solo 1 pedido en el período) -> G_avg no se muestra
+
+---
+
+### 4.6 Ticket promedio
+DESCRIPCION: Calcula el importe promedio por pedido del cliente en el período. Refleja el valor típico de cada transacción.
+VARIABLES:
+- I_tot = suma de importes de todas las órdenes de venta del cliente en el período
+- n_ped = cantidad de órdenes de venta del cliente en el período
+- T_avg = ticket promedio
+FORMULA: T_avg = I_tot / n_ped
 LABEL: Ticket promedio (importe por pedido)
 
-### 4.5 Tendencia de ventas
-DESCRIPCION: Compara el importe del período actual con el mismo rango de fechas del
-año anterior. Positivo = crecimiento; negativo = caída.
-VARIABLES:
-- V_actual = Importe total de OVs del período seleccionado
-- V_anterior = Importe total de OVs del mismo rango desplazado 1 año hacia atrás
-FORMULA: trend_pct = (V_actual - V_anterior) / V_anterior * 100
-LABEL: Tendencia de ventas % (no se muestra si V_anterior = 0)
+---
 
-### 4.6 ABC del período — clasificación en tiempo real
-DESCRIPCION: Clasifica los clientes activos en el período según su participación acumulada
-en el importe total de ventas. Calculado en tiempo real sobre los datos del widget; es
-independiente de la categoría permanente A–E asignada por el proceso automatizado.
-Usa tres categorías (A/B/C) con los parámetros globales de corte.
+### 4.7 Tendencia de ventas
+DESCRIPCION: Compara el importe total del cliente en el período seleccionado contra el mismo período desplazado un año hacia atrás. Un valor positivo indica crecimiento interanual.
 VARIABLES:
-- V_k = Importe total de OVs del cliente k en el período
-- V_tot = Suma de V_k de todos los clientes activos en el período
-- acum_k = Participación acumulada de mayor a menor
-- U_A = Umbral para A (configurable, 20 % por defecto)
-- U_A_B = Umbral para B = U_A + umbral_B (50 % por defecto)
-FORMULA: participacion_k = V_k / V_tot * 100 ; acum_k = sum(participacion_j para j <= k, desc)
-LABEL: ABC del período (en tiempo real, 3 categorías)
+- I_act = importe total de órdenes de venta del período actual
+- I_ant = importe total de órdenes de venta del mismo rango de fechas, 1 año antes
+- trend = variación porcentual interanual
+FORMULA: trend = (I_act - I_ant) / I_ant * 100
+LABEL: Tendencia de ventas (% interanual)
 CONDICIONES:
-- acum_k <= U_A -> A
-- acum_k <= U_A_B -> B
-- resto -> C
+- I_ant = 0 -> trend no se muestra (sin historial el año anterior)
 
-### 4.7 Segmento de frecuencia
-DESCRIPCION: Clasifica cada cliente según la regularidad y recencia de sus pedidos. La
-condición "En riesgo" tiene precedencia sobre las demás: un cliente frecuente que no
-compra desde hace más del tiempo configurado se clasifica como "En riesgo".
+---
+
+### 4.8 ABC del período — clasificación en tiempo real
+DESCRIPCION: Clasifica a los clientes activos en el período según su participación acumulada en el importe total de ventas del mismo período. Esta clasificación se calcula al vuelo para el widget y es independiente de la categoría permanente asignada por el proceso de categorización automática.
 VARIABLES:
-- dias_ult = Días desde el último pedido hasta hoy
-- R_dias = Umbral de riesgo por inactividad — 90 días por defecto
-- prom_interv = Promedio de días entre pedidos consecutivos (ver 4.3)
+- I_j = importe total del cliente j en el período
+- I_tot = suma de I_j de todos los clientes activos en el período
+- P_j = participación del cliente j en el importe total (%)
+- P_cum_j = participación acumulada, ordenada de mayor a menor
+FORMULA: P_j = I_j / I_tot * 100 ; P_cum_j = sum(P_k para todo k con I_k >= I_j)
+LABEL: ABC del período (clasificación en tiempo real)
+CONDICIONES:
+- P_cum_j <= umbral_A -> A
+- P_cum_j <= umbral_A + umbral_B -> B
+- P_cum_j > umbral_A + umbral_B -> C
+
+---
+
+### 4.9 Segmento de frecuencia
+DESCRIPCION: Clasifica a cada cliente según la regularidad y recencia de sus pedidos. La condición «En riesgo» tiene precedencia sobre todas las demás: un cliente frecuente que no compra desde hace más del umbral configurado se clasifica como en riesgo de todos modos.
+VARIABLES:
+- d_ult = días desde el último pedido hasta hoy
+- G_avg = promedio de intervalos entre pedidos (ver bloque 4.5)
+- R_dias = umbral de riesgo en días (configurable, def: 90)
 FORMULA: clasificación por reglas secuenciales (ver CONDICIONES)
-LABEL: Segmento de frecuencia
+LABEL: Segmento de frecuencia (cliente)
 CONDICIONES:
-- dias_ult > R_dias -> En riesgo (precedencia sobre el resto)
-- prom_interv <= 30 -> Frecuente
-- prom_interv <= 90 -> Ocasional
-- prom_interv > 90 -> Inactivo
+- d_ult > R_dias -> En riesgo (tiene precedencia sobre las demás)
+- G_avg <= 30 -> Frecuente
+- G_avg <= 90 -> Ocasional
+- G_avg > 90 -> Inactivo

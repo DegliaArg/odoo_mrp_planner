@@ -805,7 +805,7 @@ La fuente son las recepciones (`stock.picking`) con estado Hecho y tipo Entrante
 
 #### Categorías de proveedor — métodos automáticos
 
-El resultado se guarda en `res.partner.x_supplier_category`. El período de análisis son los últimos 12 meses.
+El resultado se guarda en `mrp.partner.company.category` (campo computed `res.partner.x_supplier_category`, por empresa). El período de análisis es configurable: `supplier_cat_lookback_months` en `mrp.reschedule.config` (def: 12 meses).
 
 **Umbrales Pareto comunes** (aplican a todos los métodos excepto RFM y Manual):
 
@@ -823,7 +823,7 @@ El resultado se guarda en `res.partner.x_supplier_category`. El período de aná
 
 | Concepto                | Detalle                                                                |
 | ----------------------- | ---------------------------------------------------------------------- |
-| **Valor por proveedor** | Suma de importes de OCs confirmadas o cerradas en los últimos 12 meses |
+| **Valor por proveedor** | Suma de importes de OCs confirmadas o cerradas en el período configurado |
 | **Clasificación**       | Pareto acumulado descendente: mayor importe = A                        |
 | **Campo**               | `Σ purchase.order.amount_total` donde `state in ('purchase','done')`   |
 
@@ -833,7 +833,7 @@ El resultado se guarda en `res.partner.x_supplier_category`. El período de aná
 
 | Concepto                | Detalle                                                        |
 | ----------------------- | -------------------------------------------------------------- |
-| **Valor por proveedor** | Cantidad de OCs confirmadas o cerradas en los últimos 12 meses |
+| **Valor por proveedor** | Cantidad de OCs confirmadas o cerradas en el período configurado |
 | **Clasificación**       | Pareto acumulado descendente: mayor frecuencia = A             |
 | **Campo**               | `count(purchase.order)` donde `state in ('purchase','done')`   |
 
@@ -1242,13 +1242,13 @@ Valores de base para cada período y producto:
 
 #### Categorías de cliente — métodos automáticos
 
-El resultado se guarda en `res.partner.x_customer_category`. El período de análisis son los últimos 12 meses. Los umbrales Pareto son los mismos que para proveedores (`abc_pct_a/b/c/d`).
+El resultado se guarda en `mrp.partner.company.category` (campo computed `res.partner.x_customer_category`, por empresa). El período de análisis es configurable: `customer_cat_lookback_months` en `mrp.reschedule.config` (def: 12 meses). Los umbrales Pareto son los mismos que para proveedores (`abc_pct_a/b/c/d`).
 
 **ABC por volumen** (`customer_cat_method = 'abc_volume'`)
 
 | Concepto              | Detalle                                                                |
 | --------------------- | ---------------------------------------------------------------------- |
-| **Valor por cliente** | Suma de importes de OVs confirmadas o cerradas en los últimos 12 meses |
+| **Valor por cliente** | Suma de importes de OVs confirmadas o cerradas en el período configurado |
 | **Clasificación**     | Pareto acumulado descendente: mayor volumen = A                        |
 | **Campo**             | `Σ sale.order.amount_total` donde `state in ('sale','done')`           |
 
@@ -1256,7 +1256,7 @@ El resultado se guarda en `res.partner.x_customer_category`. El período de aná
 
 | Concepto              | Detalle                                                        |
 | --------------------- | -------------------------------------------------------------- |
-| **Valor por cliente** | Cantidad de OVs confirmadas o cerradas en los últimos 12 meses |
+| **Valor por cliente** | Cantidad de OVs confirmadas o cerradas en el período configurado |
 | **Clasificación**     | Pareto acumulado descendente: mayor frecuencia = A             |
 | **Campo**             | `count(sale.order)` donde `state in ('sale','done')`           |
 

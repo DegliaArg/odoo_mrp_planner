@@ -244,7 +244,8 @@ class MrpPartnerCategory(models.Model):
         - 'abc_quality_combo': Pareto descendente sobre promedio de % entregas a tiempo
           y % cantidad exacta (composite score).
 
-        El horizonte de análisis es siempre los últimos 365 días desde hoy.
+        El horizonte de análisis es configurable mediante supplier_cat_lookback_months
+        (por defecto 12 meses).
 
         Requiere permiso de Administrador: escribe en res.partner.x_supplier_category.
 
@@ -259,7 +260,8 @@ class MrpPartnerCategory(models.Model):
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del proveedor.', 'type': 'warning'}}
 
-        start = date.today() - timedelta(days=365)
+        months = config.supplier_cat_lookback_months or 12
+        start = date.today() - timedelta(days=months * 30)
         suppliers = self.env['res.partner'].search([('supplier_rank', '>', 0), ('active', '=', True)])
         updated = 0
 
@@ -515,7 +517,8 @@ class MrpPartnerCategory(models.Model):
           de proveedores pero usando sale.order en lugar de purchase.order.
           Score total 3–9: A ≥ 8, B ≥ 6, C ≥ 4, D ≥ 3, E < 3.
 
-        El horizonte de análisis es siempre los últimos 365 días desde hoy.
+        El horizonte de análisis es configurable mediante customer_cat_lookback_months
+        (por defecto 12 meses).
 
         Requiere permiso de Administrador: escribe en res.partner.x_customer_category.
 
@@ -530,7 +533,8 @@ class MrpPartnerCategory(models.Model):
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del cliente.', 'type': 'warning'}}
 
-        start = date.today() - timedelta(days=365)
+        months = config.customer_cat_lookback_months or 12
+        start = date.today() - timedelta(days=months * 30)
         customers = self.env['res.partner'].search([('customer_rank', '>', 0), ('active', '=', True)])
         updated = 0
 

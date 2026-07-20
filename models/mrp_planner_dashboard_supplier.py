@@ -236,12 +236,11 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
             sched = picking.scheduled_date
             done  = picking.date_done
             if sched and done:
-                delay = (done - sched).days
-                # delay <= 0 significa entrega en fecha o antes: cuenta como a tiempo
-                if delay <= 0:
+                # Comparación datetime estricta: igual que abc_delivery_pct en categorización.
+                if done <= sched:
                     pd['on_time_count'] += 1
                 else:
-                    pd['delay_sum']   += delay
+                    pd['delay_sum']   += (done - sched).days
                     pd['delay_count'] += 1
 
             if picking.id not in partial_ids:

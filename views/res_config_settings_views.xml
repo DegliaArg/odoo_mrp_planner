@@ -264,6 +264,14 @@
                                                 </div>
                                                 <div class="col-5">
                                                     <div invisible="supplier_cat_method == 'manual'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Período de análisis</span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <field name="supplier_cat_lookback_months" nolabel="1"/>
+                                                            <span class="text-muted small">meses</span>
+                                                        </div>
+                                                        <div class="text-muted small mt-1">Historial considerado al calcular las categorías de proveedor.</div>
+                                                    </div>
+                                                    <div invisible="supplier_cat_method == 'manual'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
                                                         <div class="d-flex align-items-center gap-2 mb-2">
                                                             <field name="supplier_cat_auto_cron" widget="boolean_toggle" nolabel="1"/>
@@ -440,6 +448,14 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-5">
+                                                    <div invisible="customer_cat_method == 'manual'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Período de análisis</span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <field name="customer_cat_lookback_months" nolabel="1"/>
+                                                            <span class="text-muted small">meses</span>
+                                                        </div>
+                                                        <div class="text-muted small mt-1">Historial considerado al calcular las categorías de cliente.</div>
+                                                    </div>
                                                     <div invisible="customer_cat_method == 'manual'" class="mb-3">
                                                         <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Frecuencia de actualización</span>
                                                         <div class="d-flex align-items-center gap-2 mb-2">

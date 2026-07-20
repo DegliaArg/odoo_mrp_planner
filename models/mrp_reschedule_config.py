@@ -460,6 +460,10 @@ class MrpRescheduleConfig(models.Model):
     supplier_cat_auto_cron = fields.Boolean(
         string='Actualización automática', default=False,
         help='Recalcula las categorías de proveedor automáticamente según el intervalo configurado.')
+    supplier_cat_lookback_months = fields.Integer(
+        string='Período de análisis (meses)', default=12,
+        help='Cantidad de meses de historial que se consideran al calcular las categorías de proveedor. '
+             'Afecta al botón "Calcular ahora" y al cron automático.')
 
     # Umbrales Pareto (aplican a todos los métodos ABC Pareto, no a RFM ni manual)
     abc_pct_a = fields.Integer(string='A ≤', default=20,
@@ -502,6 +506,10 @@ class MrpRescheduleConfig(models.Model):
     customer_cat_auto_cron = fields.Boolean(
         string='Actualización automática', default=False,
         help='Recalcula las categorías de cliente automáticamente según el intervalo configurado.')
+    customer_cat_lookback_months = fields.Integer(
+        string='Período de análisis (meses)', default=12,
+        help='Cantidad de meses de historial que se consideran al calcular las categorías de cliente. '
+             'Afecta al botón "Calcular ahora" y al cron automático.')
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
     customer_analysis_ontime_method = fields.Selection([

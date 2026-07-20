@@ -292,13 +292,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'top_family':        max(fams,  key=fams.get)  if fams  else '',
                     'trend_pct':         round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None,
                     'prev_amount':       round(prev_amt, 2),
-                    'abc_segment':       '',
+                    'abc_segment':       pinfo.get('x_customer_category') or '',
                     'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
                 })
-
-            abc_map = self._abc_segments(rows, cfg.get('abc_a_pct', 20), cfg.get('abc_b_pct', 50))
-            for row in rows:
-                row['abc_segment'] = abc_map.get(row['partner_id'], 'C')
 
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)

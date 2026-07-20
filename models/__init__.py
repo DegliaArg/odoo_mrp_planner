@@ -19,6 +19,7 @@ from . import mrp_planner_dashboard
 from . import mrp_planner_dashboard_wc
 from . import mrp_planner_dashboard_po
 from . import mrp_planner_dashboard_mo
+from . import mrp_forecast_calc_mixin
 from . import mrp_planner_dashboard_forecast
 from . import mrp_planner_dashboard_forecast_export
 from . import mrp_planner_dashboard_stock

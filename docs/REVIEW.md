@@ -501,3 +501,43 @@ Añadidos comentarios `# sudo():` explicando la justificación en todos los usos
 |---|------|-------------|
 | D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
 | D-06 | XML | `result_message` declarado dos veces en el wizard de importación de forecast — mismo patrón que D-05, pendiente de resolver. |
+
+---
+
+## Revisión v51 — Segunda pasada de reducción agresiva de archivos
+
+**Fecha:** 2026-07-20
+**Alcance:** Reducción de los 2 archivos restantes sobre 1 000 líneas: `forecast_widget.js` (1 347 → 455) y `mrp_planner_dashboard_forecast.py` (1 047 → 711). Fix adicional de ParseError por directiva OWL prohibida en XML de formulario.
+
+---
+
+### Fix urgente — ParseError en `mrp_production_request_views.xml`
+
+Al actualizar el módulo, Odoo lanzaba `ParseError: directiva owl prohibida (t-esc)` en `wizard/mrp_production_request_views.xml:34`. El `<span t-esc="record.feasibility_summary.value"/>` insertado como fix D-05 es un OWL template directive válido en componentes, pero está explícitamente prohibido en la arquitectura XML de formularios de Odoo 18. Revertido al patrón de dos `<field>` con `invisible` excluyentes — que sí es válido — en commit `0ce74d2`.
+
+### Split de archivos
+
+| Archivo original | Líneas antes | Líneas después | Extraído a |
+|-----------------|-------------|----------------|-----------|
+| `static/src/js/forecast_widget.js` | 1 347 | 455 | `forecast_drilldown.js` (nuevo, 202 líneas): 9 funciones `openDrill*` + 2 helpers privados. `forecast_filters.js` (nuevo, 238 líneas): 5 getters computados + 16 handlers de filtro/sort. `forecast_formatters.js` (+103 líneas): 13 funciones puras nuevas (`accClass`, `fmtRotation`, `rotClass`, `fmtCoverage`, `covClass`, `demandGapClass`, `mosGapClass`, `fmtGapPct`, `fmt`, `fmtPct`, `fmtDate`, `sortIcon`, `colTitle`). |
+| `models/mrp_planner_dashboard_forecast.py` | 1 047 | 711 | `mrp_forecast_calc_mixin.py` (nuevo, 413 líneas): `_fc_rotation_data`, `_fc_build_rows`, `_fc_no_fc_stats` + funciones puras `_cov_days`/`_cov_months`. |
+
+### Cambios en manifests
+
+| Archivo | Cambio |
+|---------|--------|
+| `__manifest__.py` | Agregadas entradas `forecast_drilldown.js` y `forecast_filters.js` en assets antes de `forecast_widget.js` |
+| `models/__init__.py` | Agregado `from . import mrp_forecast_calc_mixin` antes de `mrp_planner_dashboard_forecast` |
+
+### Notas técnicas
+
+- **Patrón de delegación JS**: dentro del cuerpo de un método de clase, una llamada sin `this.` (`setSort(this, col)`) resuelve al import de módulo, nunca al método de clase — sin recursión. Esto es lo que permite que `sortedRows(col) { return sortedRows(this); }` funcione con el mismo nombre.
+- **Calls internos en forecast_filters.js**: `filteredKpis(widget)` llama `filteredRowsAll(widget)` directamente (no `widget.filteredRowsAll`) para evitar indirección innecesaria.
+- **`_to_utc`/`_dt_ym` en Python**: no extraídos al mixin porque cierran sobre `user_tz` del scope exterior de `get_forecast_dashboard_data`. Se extraen solo los bloques que no necesitan ese closure.
+
+### Pending (sin cambios)
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
+| D-06 | XML | `result_message` declarado dos veces en el wizard de importación de forecast. |

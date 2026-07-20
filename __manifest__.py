@@ -82,6 +82,8 @@ Forecast
             'odoo_mrp_planner/static/src/js/forecast_formatters.js',
             'odoo_mrp_planner/static/src/js/forecast_tooltips.js',
             'odoo_mrp_planner/static/src/js/forecast_export.js',
+            'odoo_mrp_planner/static/src/js/forecast_drilldown.js',
+            'odoo_mrp_planner/static/src/js/forecast_filters.js',
             'odoo_mrp_planner/static/src/js/forecast_widget.js',
             'odoo_mrp_planner/static/src/xml/forecast_widget.xml',
             'odoo_mrp_planner/static/src/js/supplier_analysis_widget.js',

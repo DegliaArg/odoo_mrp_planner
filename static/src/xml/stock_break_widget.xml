@@ -189,7 +189,7 @@
                                     <th t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                         t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsStock.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                         style="position:relative; user-select:none;"
-                                        t-att-title="col.title || col.label"
+                                        t-att-title="colHeaderTitle(col)"
                                         t-att-data-col-key="col.key"
                                         t-att-data-sort-key="col.sortKey || ''"
                                         t-att-draggable="col.fixed ? 'false' : 'true'"
@@ -235,6 +235,7 @@
                                             <t t-elif="col.key === 'sale_category'">
                                                 <span t-if="prod.sale_category"
                                                       t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[prod.sale_category] || 'secondary')"
+                                                      t-att-title="saleCatTooltip()"
                                                       t-esc="prod.sale_category"/>
                                                 <span t-else="" class="text-muted">—</span>
                                             </t>

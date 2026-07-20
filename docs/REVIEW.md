@@ -682,3 +682,23 @@ Ambos campos aparecen en Ajustes bajo sus respectivas secciones con el mismo pat
 ### Problema D — Rotación de productos (pendiente)
 
 La inconsistencia entre la fórmula de rotación usada en la tabla de quiebres de stock y la usada en la asignación automática de categorías de productos **queda pendiente de decisión de diseño**. Ver análisis en la sesión del 2026-07-20.
+
+## v55 — Problema D: transparencia entre rotación de stock y categorización (2026-07-20)
+
+**Decisión de diseño:** no unificar las dos herramientas. Son propósitos distintos: quiebres de stock es exploración operativa (filtros dinámicos), categorización es política estable (se recalcula manualmente o por cron). Ver `docs/docs.md` sección "Independencia entre rotación de quiebres y categorización de productos".
+
+### Qué se hizo
+
+**1. Quiebres de stock — header de columna "Rot." dinámico**
+`colHeaderTitle(col)` en `stock_break_widget.js`: cuando `col.key === 'rotation'`, llama a `rotHeaderTooltip()` que muestra método, período y fuente activos. El header ahora dice, por ejemplo: `Rotación de inventario — configuración activa:\n• Método: por unidades...\n• Período: 3 meses\n• Fuente: entregas reales`.
+
+**2. Quiebres de stock — badge "Cat. venta" con tooltip explicativo**
+Backend (`get_stock_break_data`): agrega `sale_cat_mode`, `sale_cat_lookback_months`, `sale_cat_rotation_source` al response cuando `show_sale_cat` está activo.
+JS (`saleCatTooltip()`): construye el tooltip con método, período y base usados, y una línea explícita: "No se recalcula con el período/método de rotación de esta tabla."
+XML (`stock_break_widget.xml`): `t-att-title="saleCatTooltip()"` en el badge.
+
+**3. Forecast — badge "Cat. venta" con tooltip estático**
+XML (`forecast_widget.xml`): `title="Categoría de venta almacenada (A–E). Calculada con la configuración de Ajustes → Categorías de venta. No se recalcula con los filtros del forecast."`.
+
+### Qué NO se tocó
+Ningún cálculo fue modificado. Solo UI/tooltips.

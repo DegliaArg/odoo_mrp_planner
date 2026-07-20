@@ -465,6 +465,9 @@ class MrpPlannerDashboardStock(models.TransientModel):
             'rotation_warn_days':     rotation_warn_days,
             'rotation_critical_days': rotation_critical_days,
             'show_sale_cat':          show_sale_cat,
+            'sale_cat_mode':            (cfg.sale_cat_mode            or 'manual')   if (cfg and show_sale_cat) else 'manual',
+            'sale_cat_lookback_months': (cfg.sale_cat_lookback_months or 3)          if (cfg and show_sale_cat) else 3,
+            'sale_cat_rotation_source': (cfg.sale_cat_rotation_source or 'delivery') if (cfg and show_sale_cat) else 'delivery',
         }
 
     @api.model

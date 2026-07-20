@@ -74,6 +74,9 @@ class StockBreakWidget extends Component {
             rotation_method:        'units',
             show_rotation:          false,
             show_sale_cat:          false,
+            sale_cat_mode:            'manual',
+            sale_cat_lookback_months: 3,
+            sale_cat_rotation_source: 'delivery',
             rotation_warn_days:     null,
             rotation_critical_days: null,
             groupBy:                null,
@@ -142,6 +145,9 @@ class StockBreakWidget extends Component {
                 this.state.rotation_unit          = d.rotation_unit          || 'days';
                 this.state.show_rotation          = !!d.show_rotation;
                 this.state.show_sale_cat          = !!d.show_sale_cat;
+                this.state.sale_cat_mode            = d.sale_cat_mode            || 'manual';
+                this.state.sale_cat_lookback_months = d.sale_cat_lookback_months || 3;
+                this.state.sale_cat_rotation_source = d.sale_cat_rotation_source || 'delivery';
                 this.state.rotation_months        = d.rotation_months        || 3;
                 this.state.rotation_method        = d.rotation_method        || 'units';
                 this.state.rotation_warn_days     = d.rotation_warn_days     ?? null;
@@ -544,6 +550,51 @@ class StockBreakWidget extends Component {
         const formula = `Stock promedio ÷ (salidas del período ÷ meses)${suffix}`;
         const calc = `→ ${this.fmt(prod.rotation_avg_stock)} ÷ (${this.fmt(prod.rotation_period_out)} ÷ ${months})${suffix} = ${val}`;
         return formula + '\n' + calc + thresholds;
+    }
+
+    rotHeaderTooltip() {
+        const METHOD_LABELS = {
+            units: 'por unidades (días de cobertura)',
+            cogs:  'por COGS — período × inv. promedio (costo) ÷ costo vendido',
+            sales: 'por ventas — período × inv. promedio (costo) ÷ ventas netas',
+        };
+        const method = this.state.rotation_method;
+        const months = this.state.rotation_months;
+        return `Rotación de inventario — configuración activa:\n`
+             + `• Método: ${METHOD_LABELS[method] || method}\n`
+             + `• Período: ${months} meses\n`
+             + `• Fuente: entregas reales (consumo físico)`;
+    }
+
+    saleCatTooltip() {
+        const MODE_LABELS = {
+            automatic: 'rotación de inventario',
+            demand:    'demanda mensual promedio',
+            share:     'participación acumulada (Pareto)',
+            manual:    'asignación manual',
+        };
+        const SRC_LABELS = {
+            delivery: 'entregas completadas',
+            demand:   'demanda OV confirmada',
+        };
+        const mode    = this.state.sale_cat_mode;
+        const months  = this.state.sale_cat_lookback_months;
+        const src     = this.state.sale_cat_rotation_source;
+        let text = `Categoría de venta (A–E) — valor almacenado, calculado con:\n`
+                 + `• Método: ${MODE_LABELS[mode] || mode}`;
+        if (mode !== 'manual') {
+            text += `\n• Período: ${months} meses`;
+        }
+        if (mode === 'automatic') {
+            text += `\n• Base: ${SRC_LABELS[src] || src}`;
+        }
+        text += `\n\nNo se recalcula con el período/método de rotación de esta tabla.\nPara recalcular: Ajustes → Categorías de venta → Calcular ahora.`;
+        return text;
+    }
+
+    colHeaderTitle(col) {
+        if (col.key === 'rotation') return this.rotHeaderTooltip();
+        return col.title || col.label;
     }
 
     /**

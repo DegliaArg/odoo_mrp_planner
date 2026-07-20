@@ -1416,3 +1416,22 @@ La comparación de si una recepción llegó a tiempo usa `picking.date_done <= p
 - `abc_delivery_pct` y `abc_quality_combo` en `mrp_partner_category.py`
 
 Una entrega que llega el mismo día que la fecha programada pero una hora después se clasifica como **tarde**. Esto garantiza que el % de entregas a tiempo del dashboard y el de la categorización son comparables.
+
+---
+
+## Independencia entre rotación de quiebres y categorización de productos
+
+**Decisión de diseño intencional, no un bug.**
+
+La tabla de quiebres de stock y la categoría ABC de producto (columna "Cat. venta") usan configuraciones independientes:
+
+| Dimensión | Quiebres de stock | Categoría de producto |
+|---|---|---|
+| Método | `stock_break_rotation_method` (units/cogs/sales) | `sale_cat_mode` (automatic/demand/share/manual) |
+| Período | `stock_break_rotation_months` | `sale_cat_lookback_months` |
+| Base demanda | siempre entregas reales | configurable (`sale_cat_rotation_source`) |
+| Cuándo se calcula | en vivo, cada vez que se abre el panel | bajo demanda (botón "Calcular ahora" o cron) |
+
+**Por qué no se unifican:** quiebres de stock es una herramienta de exploración operativa — el usuario cambia el filtro para investigar distintos escenarios. La categorización de productos es una política estable que no debe cambiar porque alguien tenga otro filtro abierto.
+
+**Cómo se documenta en pantalla:** el header de la columna "Rot." muestra el método y período activos. El badge de "Cat. venta" tiene un tooltip que indica con qué método/período/base fue calculada y que no se recalcula con los filtros del panel.

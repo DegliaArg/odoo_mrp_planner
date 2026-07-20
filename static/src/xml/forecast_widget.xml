@@ -203,7 +203,8 @@
                                                     class="text-center" style="padding:3px 6px;">
                                                     <span t-if="row.sale_category"
                                                           t-att-class="saleCatBadge(row.sale_category)"
-                                                          style="font-size:10px; padding:2px 6px;">
+                                                          style="font-size:10px; padding:2px 6px;"
+                                                          title="Categoría de venta almacenada (A–E). Calculada con la configuración de Ajustes → Categorías de venta. No se recalcula con los filtros del forecast.">
                                                         <t t-esc="row.sale_category"/>
                                                     </span>
                                                     <span t-else="" class="text-muted">—</span>

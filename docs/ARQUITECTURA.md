@@ -13,10 +13,19 @@
 | `wizard/` | Wizards de programación desde demanda e importación de forecast |
 | `views/` | XML de vistas form/list/tree y definición de menús |
 | `static/src/js/` | Widgets OWL del dashboard (un archivo por widget + helpers separados) |
-| `static/src/xml/` | Templates QWeb de cada widget OWL |
+| `static/src/xml/` | Templates QWeb de cada widget OWL (ver sub-templates más abajo) |
 | `static/src/css/` | Estilos específicos del módulo (Gantt, tooltips KPI) |
 | `security/` | Grupos (`groups.xml`), reglas de acceso (`ir_rules.xml`, `ir.model.access.csv`) |
 | `migrations/` | Scripts de migración pre/post por versión semántica del módulo |
+
+### Sub-templates XML por widget
+
+Los widgets más complejos dividen su template principal en sub-templates (`t-call`) registrados en archivos separados. El split refleja responsabilidades distintas, no líneas:
+
+| Widget | Archivo principal | Sub-templates |
+|--------|------------------|---------------|
+| Forecast | `forecast_widget.xml` (522 L) | `forecast_kpis.xml` — dos filas de 5 KPI cards; `forecast_controls.xml` — barra de filtros (período, depósito, columnas, exportar) |
+| Análisis de clientes | `customer_analysis_widget.xml` (484 L) | `customer_analysis_row.xml` — fila de tabla con datos de columnas y lista de pedidos; `customer_analysis_detail_panel.xml` — panel de análisis individual (KPIs, gráficos, top artículos) |
 
 ---
 
@@ -163,7 +172,8 @@ onMounted → orm.call(                  →    mrp.planner.dashboard.*
   ├── state.data = resultado
   ├── re-render → template QWeb
   └── Chart.js para gráficos
-        ├── forecast_widget.js  →  forecast_formatters.js (funciones puras)
+        ├── forecast_widget.js  →  forecast_formatters.js, forecast_drilldown.js,
+        │                          forecast_filters.js, forecast_export.js (funciones puras / delegación)
         └── customer_analysis_widget.js  →  customer_analysis_charts.js
 
 Configuración activa:

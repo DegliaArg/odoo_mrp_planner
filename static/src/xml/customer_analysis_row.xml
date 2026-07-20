@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<!-- Fila de cliente en la tabla de análisis. Comprende tres sub-filas:
+     la fila principal con los datos de columnas, el panel de detalle
+     (→ CustomerAnalysisDetailPanel) y la sub-fila expandible de pedidos.
+     Llamado desde CustomerAnalysisWidget con t-call; requiere `row` en scope. -->
+<t t-name="odoo_mrp_planner.CustomerAnalysisRow">
+
+    <!-- Fila principal -->
+    <tr>
+        <!-- Toggle expandir pedidos -->
+        <td style="padding:3px 4px; text-align:center; width:28px;">
+            <button class="btn btn-sm btn-link p-0 text-muted"
+                    style="font-size:11px; line-height:1;"
+                    title="Ver pedidos del período"
+                    t-on-click="() => this.toggleRow(row.partner_id)">
+                <i t-att-class="state.expandedRows[row.partner_id] ? 'fa fa-chevron-down' : 'fa fa-chevron-right'"/>
+            </button>
+        </td>
+
+        <t t-foreach="staticVisibleCols" t-as="col" t-key="'td_' + col.key + '_' + row.partner_id">
+
+            <td t-if="col.key === 'partner_name'"
+                class="text-primary"
+                style="padding:3px 8px; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; cursor:pointer;"
+                t-att-title="'Abrir contacto: ' + row.partner_name"
+                t-on-click="() => this.openCustomer(row.partner_id)"
+                t-esc="row.partner_name"/>
+
+            <td t-elif="col.key === 'customer_category'"
+                class="text-center" style="padding:3px 6px;"
+                t-att-title="'Categoría global de cliente: ' + (row.customer_category || '—')">
+                <span t-if="row.customer_category"
+                      t-att-class="'badge ' + catBadgeClass(row.customer_category)"
+                      t-esc="row.customer_category"/>
+                <span t-else="" class="text-muted">—</span>
+            </td>
+
+            <td t-elif="col.key === 'abc_segment'"
+                class="text-center" style="padding:3px 6px;"
+                title="Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto.">
+                <span t-if="row.abc_segment"
+                      t-att-class="'badge ' + abcBadgeClass(row.abc_segment)"
+                      t-esc="row.abc_segment"/>
+                <span t-else="" class="text-muted">—</span>
+            </td>
+
+            <td t-elif="col.key === 'salesperson'"
+                style="padding:3px 8px;" t-esc="row.salesperson || '—'"/>
+
+            <td t-elif="col.key === 'country'"
+                style="padding:3px 8px;" t-esc="row.country || '—'"/>
+
+            <td t-elif="col.key === 'province'"
+                style="padding:3px 8px;" t-esc="row.province || '—'"/>
+
+            <td t-elif="col.key === 'order_count'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('order_count', row)"
+                t-esc="fmt(row.order_count)"/>
+
+            <td t-elif="col.key === 'total_amount'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('total_amount', row)"
+                t-esc="fmtMoney(row.total_amount)"/>
+
+            <td t-elif="col.key === 'avg_ticket'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('avg_ticket', row)"
+                t-esc="fmtMoney(row.avg_ticket)"/>
+
+            <td t-elif="col.key === 'delivery_pct'"
+                t-att-class="'text-end ' + deliveryClass(row.delivery_pct)"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('delivery_pct', row)"
+                t-esc="fmtPct(row.delivery_pct)"/>
+
+            <td t-elif="col.key === 'ontime_pct'"
+                t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('ontime_pct', row)"
+                t-esc="fmtPct(row.ontime_pct)"/>
+
+            <td t-elif="col.key === 'avg_days_between'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('avg_days_between', row)">
+                <t t-if="row.avg_days_between !== null and row.avg_days_between !== undefined">
+                    <t t-esc="row.avg_days_between"/> d
+                </t>
+                <span t-else="" class="text-muted">—</span>
+            </td>
+
+            <td t-elif="col.key === 'days_since_last'"
+                t-att-class="'text-end ' + riskClass(row.days_since_last)"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('days_since_last', row)">
+                <t t-esc="row.days_since_last"/> d
+            </td>
+
+            <td t-elif="col.key === 'last_order_date'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('last_order_date', row)"
+                t-esc="row.last_order_date || '—'"/>
+
+            <td t-elif="col.key === 'distinct_products'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('distinct_products', row)"
+                t-esc="fmt(row.distinct_products)"/>
+
+            <td t-elif="col.key === 'top_product'"
+                style="padding:3px 8px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                t-att-title="row.top_product" t-esc="row.top_product || '—'"/>
+
+            <td t-elif="col.key === 'top_family'"
+                style="padding:3px 8px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                t-att-title="row.top_family" t-esc="row.top_family || '—'"/>
+
+            <td t-elif="col.key === 'trend_pct'"
+                t-att-class="'text-end ' + trendClass(row.trend_pct)"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('trend_pct', row)"
+                t-esc="fmtTrend(row.trend_pct)"/>
+
+            <td t-elif="col.key === 'frequency_segment'"
+                class="text-center" style="padding:3px 6px;"
+                t-att-title="cellTooltip('frequency_segment', row)">
+                <span t-att-class="'badge ' + freqBadgeClass(row.frequency_segment)"
+                      t-esc="freqLabel(row.frequency_segment)"/>
+            </td>
+
+            <td t-else="" style="padding:3px 8px;">
+                <t t-esc="row[col.key] !== null and row[col.key] !== undefined ? row[col.key] : '—'"/>
+            </td>
+
+        </t>
+
+        <!-- Botón detalle (activo cuando está expandido) -->
+        <td style="padding:3px 4px; text-align:center; width:36px;">
+            <button t-att-class="state.panelPartnerId === row.partner_id
+                        ? 'btn btn-sm btn-primary p-0 px-1'
+                        : 'btn btn-sm btn-link p-0'"
+                    style="font-size:11px;"
+                    title="Ver análisis del cliente"
+                    t-on-click="() => this.toggleDetail(row.partner_id)">
+                <i class="fa fa-bar-chart"/>
+            </button>
+        </td>
+    </tr>
+
+    <!-- Sub-fila expandible: detalle del cliente (gráficos + top artículos) -->
+    <t t-call="odoo_mrp_planner.CustomerAnalysisDetailPanel"/>
+
+    <!-- Sub-fila expandible: pedidos -->
+    <tr t-if="state.expandedRows[row.partner_id]">
+        <td t-att-colspan="staticVisibleCols.length + 2"
+            style="padding:0; background:#f8f9fa; border-top:none;">
+
+            <t t-if="state.rowOrdersLoading[row.partner_id]">
+                <div class="d-flex align-items-center justify-content-center py-2 gap-2">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"/>
+                    <span class="text-muted small">Cargando pedidos…</span>
+                </div>
+            </t>
+
+            <t t-elif="state.rowOrders[row.partner_id] and state.rowOrders[row.partner_id].length">
+                <table class="table table-sm mb-0" style="font-size:11px;">
+                    <thead>
+                        <tr style="background:#e2e6ea;">
+                            <t t-foreach="[
+                                {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px', tip:'Número de la orden de venta. Clic para abrir.'},
+                                {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px',          tip:'Fecha de confirmación de la orden.'},
+                                {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px',          tip:'Importe sin impuestos del pedido.'},
+                                {key:'delivery_pct', label:'% Entrega',  cls:'text-end', pad:'3px 8px',          tip:'Qty entregada ÷ Qty pedida × 100 de este pedido.'},
+                                {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px',          tip:'Estado actual de la orden de venta.'},
+                            ]" t-as="col" t-key="col.key">
+                                <th t-att-class="col.cls + ' user-select-none'"
+                                    t-att-title="col.tip"
+                                    t-att-style="'padding:' + col.pad + '; cursor:pointer; white-space:nowrap;'"
+                                    t-on-click="() => this.sortRowOrders(col.key)">
+                                    <t t-esc="col.label"/>
+                                    <t t-if="state.rowOrderSort === col.key">
+                                        <i t-att-class="state.rowOrderDir === 'desc' ? 'fa fa-sort-desc ms-1' : 'fa fa-sort-asc ms-1'"/>
+                                    </t>
+                                    <t t-else=""><i class="fa fa-sort ms-1 text-muted" style="opacity:0.35;"/></t>
+                                </th>
+                            </t>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="getSortedOrders(row.partner_id)" t-as="ord" t-key="ord.name">
+                            <tr style="cursor:pointer;" title="Abrir pedido."
+                                t-on-click="() => this.openOrder(ord.order_id)">
+                                <td style="padding:3px 8px 3px 40px;" class="text-primary fw-semibold">
+                                    <t t-esc="ord.name"/>
+                                </td>
+                                <td style="padding:3px 8px; color:#6c757d;"><t t-esc="ord.date"/></td>
+                                <td class="text-end" style="padding:3px 8px;">
+                                    <t t-esc="fmtMoney(ord.amount)"/>
+                                </td>
+                                <td t-att-class="'text-end ' + deliveryClass(ord.delivery_pct)"
+                                    style="padding:3px 8px;" t-esc="fmtPct(ord.delivery_pct)"/>
+                                <td style="padding:3px 8px;">
+                                    <span t-att-class="orderStateBadgeClass(ord.state)"
+                                          style="font-size:10px;" t-esc="ord.state"/>
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+            </t>
+
+            <t t-else="">
+                <div t-if="!state.rowOrdersLoading[row.partner_id]"
+                     class="text-center text-muted small py-2">
+                    Sin pedidos en el período.
+                </div>
+            </t>
+
+        </td>
+    </tr>
+
+</t>
+
+</templates>

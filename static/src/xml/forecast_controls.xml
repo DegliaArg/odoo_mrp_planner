@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Barra de controles de la tabla de forecast: período, búsqueda,
+         depósito, columnas visibles y botón de exportación.
+         Llamado desde ForecastWidget dentro de un t-if="state.data". -->
+    <t t-name="odoo_mrp_planner.ForecastControls">
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+            <!-- Período -->
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Desde</label>
+                <input type="date" class="form-control form-control-sm"
+                       style="max-width:140px;"
+                       t-att-value="state.periodFrom"
+                       t-on-change="onPeriodFromChange"/>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Hasta</label>
+                <input type="date" class="form-control form-control-sm"
+                       style="max-width:140px;"
+                       t-att-value="state.periodTo"
+                       t-on-change="onPeriodToChange"/>
+            </div>
+
+            <!-- Barra de búsqueda unificada -->
+            <PlannerSearchBar
+                widgetKey="'forecast'"
+                placeholder="'Buscar artículo…'"
+                t-props="{
+                    search:         state.productSearch,
+                    activeFilter:   state.activeFilter,
+                    activeGroupBy:  state.groupBy,
+                    filterDefs: [
+                        { key: 'with_mos', label: 'Con OFs planificadas' },
+                        { key: 'no_mos',   label: 'Sin OFs planificadas' },
+                        { key: 'gap',      label: 'Con brecha (OFs menor que forecast)' }
+                    ],
+                    groupByDefs: [
+                        { key: 'sale_category',  label: 'Categoría de venta' },
+                        { key: 'product_categ',  label: 'Familia de producto' }
+                    ],
+                    onSearch:        (t) => this.setSearch(t),
+                    onFilterChange:  (k) => this.setFilter(k),
+                    onGroupByChange: (k) => this.setGroupBy(k)
+                }"/>
+
+            <!-- Depósito dropdown -->
+            <div t-if="state.warehouses.length" class="d-flex align-items-center gap-1" t-on-click.stop="">
+                <label class="form-label mb-0 small text-muted">Depósito</label>
+                <div class="position-relative">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            style="min-width:140px;"
+                            t-on-click="toggleWhDropdown">
+                        <span class="text-truncate" style="max-width:110px;"><t t-esc="selectedWhLabel"/></span>
+                        <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.whDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                        <input type="text" class="form-control form-control-sm mb-2"
+                               placeholder="Buscar depósito…"
+                               t-model="state.whSearch"
+                               autocomplete="off"/>
+                        <div class="form-check mb-1">
+                            <input type="checkbox" class="form-check-input" id="wh_filter_all"
+                                   t-att-checked="!state.warehouseIds.length"
+                                   t-on-change="clearWhFilter"/>
+                            <label class="form-check-label fw-semibold small" for="wh_filter_all">Todos</label>
+                        </div>
+                        <div class="dropdown-divider my-1"/>
+                        <t t-foreach="filteredWarehouses" t-as="wh" t-key="wh.id">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'wh_filter_' + wh.id"
+                                       t-att-data-wh-id="wh.id"
+                                       t-att-checked="state.warehouseIds.includes(wh.id)"
+                                       t-on-change="toggleWarehouse"/>
+                                <label class="form-check-label small" t-att-for="'wh_filter_' + wh.id">
+                                    <t t-esc="wh.name"/>
+                                </label>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columnas dropdown -->
+            <div class="position-relative" t-on-click.stop="">
+                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                        t-on-click="toggleColsDropdown">
+                    <i class="fa fa-columns"/>
+                    <span>Columnas</span>
+                    <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                </button>
+                <div t-if="state.colsDropdownOpen"
+                     class="dropdown-menu show shadow p-2"
+                     style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                    <p class="small text-muted mb-1 px-1">Por artículo</p>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_sale_cat"
+                               t-att-checked="state.visibleCols.saleCategory"
+                               t-on-change="() => this.toggleCol('saleCategory')"/>
+                        <label class="form-check-label small" for="col_sale_cat">Categoría de venta</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_prod_cat"
+                               t-att-checked="state.visibleCols.productCateg"
+                               t-on-change="() => this.toggleCol('productCateg')"/>
+                        <label class="form-check-label small" for="col_prod_cat">Familia de producto</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_prod_types"
+                               t-att-checked="state.visibleCols.productTypes"
+                               t-on-change="() => this.toggleCol('productTypes')"/>
+                        <label class="form-check-label small" for="col_prod_types">Tipo de producto</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_stock"
+                               t-att-checked="state.visibleCols.stock"
+                               t-on-change="() => this.toggleCol('stock')"/>
+                        <label class="form-check-label small" for="col_stock">Stock actual</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_rotation"
+                               t-att-checked="state.visibleCols.rotation"
+                               t-on-change="() => this.toggleCol('rotation')"/>
+                        <label class="form-check-label small" for="col_rotation">Rotación</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_coverage"
+                               t-att-checked="state.visibleCols.coverage"
+                               t-on-change="() => this.toggleCol('coverage')"/>
+                        <label class="form-check-label small" for="col_coverage">Cobertura</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_demand"
+                               t-att-checked="state.visibleCols.demand"
+                               t-on-change="() => this.toggleCol('demand')"/>
+                        <label class="form-check-label small" for="col_demand">Demanda del período</label>
+                    </div>
+                    <div class="dropdown-divider my-1"/>
+                    <p class="small text-muted mb-1 px-1">Por mes</p>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_forecast"
+                               t-att-checked="state.visibleCols.forecast"
+                               t-on-change="() => this.toggleCol('forecast')"/>
+                        <label class="form-check-label small" for="col_forecast">Forecast</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_mos"
+                               t-att-checked="state.visibleCols.mos"
+                               t-on-change="() => this.toggleCol('mos')"/>
+                        <label class="form-check-label small" for="col_mos">OFs planificadas</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_delivered"
+                               t-att-checked="state.visibleCols.delivered"
+                               t-on-change="() => this.toggleCol('delivered')"/>
+                        <label class="form-check-label small" for="col_delivered">Entregado</label>
+                    </div>
+                    <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_demand_delivered"
+                               t-att-checked="state.visibleCols.demand_delivered"
+                               t-on-change="() => this.toggleCol('demand_delivered')"/>
+                        <label class="form-check-label small" for="col_demand_delivered">Cumplimiento</label>
+                    </div>
+                    <div class="dropdown-divider my-1"/>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="col_total"
+                               t-att-checked="state.visibleCols.total"
+                               t-on-change="() => this.toggleCol('total')"/>
+                        <label class="form-check-label small" for="col_total">Totales + prec.%</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <button class="btn btn-sm btn-outline-success ms-auto" t-on-click="downloadExport">
+                <i class="fa fa-download me-1"/> Exportar
+            </button>
+        </div>
+    </t>
+
+</templates>

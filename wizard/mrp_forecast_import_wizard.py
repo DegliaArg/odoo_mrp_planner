@@ -28,10 +28,34 @@ class MrpForecastImportWizard(models.TransientModel):
 
     # Resultado de la importación
     result_message = fields.Text(string='Resultado', readonly=True)
+    result_html = fields.Html(compute='_compute_result_html', sanitize=False)
     state = fields.Selection([
         ('upload', 'Cargar archivo'),
         ('done', 'Resultado'),
     ], default='upload')
+
+    @api.depends('result_message', 'state')
+    def _compute_result_html(self):
+        from markupsafe import Markup, escape
+        for rec in self:
+            if rec.state != 'done' or not rec.result_message:
+                rec.result_html = Markup('')
+                continue
+            msg = escape(rec.result_message)
+            if 'Error' in rec.result_message:
+                rec.result_html = Markup(
+                    '<div class="alert alert-warning d-flex align-items-start">'
+                    '<i class="fa fa-exclamation-triangle me-2 mt-1"></i>'
+                    f'<span style="white-space:pre-wrap">{msg}</span>'
+                    '</div>'
+                )
+            else:
+                rec.result_html = Markup(
+                    '<div class="alert alert-success d-flex align-items-start">'
+                    '<i class="fa fa-check-circle me-2 mt-1"></i>'
+                    f'<span style="white-space:pre-wrap">{msg}</span>'
+                    '</div>'
+                )
 
     @api.onchange('file_data')
     def _onchange_file_data(self):

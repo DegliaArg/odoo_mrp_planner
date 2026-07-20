@@ -67,10 +67,28 @@ class MrpPlannerDashboardWc(models.TransientModel):
         """
         Tag = self.env['mrp.workcenter.tag']
         Wc  = self.env['mrp.workcenter']
-        # Un único search para obtener todos los tag IDs con WCs activos
+        allowed_ids = self._get_wh_domains().allowed_ids
+
+        active_wcs = Wc.search([('active', '=', True)])
+        if allowed_ids is None:
+            # Sin restricción: todos los CTs activos
+            relevant_wc_ids = set(active_wcs.ids)
+        elif not allowed_ids:
+            # Sin acceso a ningún depósito
+            relevant_wc_ids = set()
+        else:
+            # Solo CTs con workorders de los depósitos permitidos
+            relevant_wc_ids = set(
+                self.env['mrp.workorder'].search([
+                    ('workcenter_id', 'in', active_wcs.ids),
+                    ('production_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+                ]).mapped('workcenter_id').ids
+            )
+
         active_tag_ids = set(
-            Wc.search([('active', '=', True)]).mapped('tag_ids').ids
+            Wc.browse(list(relevant_wc_ids)).mapped('tag_ids').ids
         )
+
         cfg = self.env['mrp.reschedule.config'].get_config()
         u = self.env.user
         has_scheduling = (
@@ -222,7 +240,12 @@ class MrpPlannerDashboardWc(models.TransientModel):
                     pendiente += _overlap_hours(w, first_day, last_day)
             tiempo_muerto = max(0.0, avail - ejecutado - pendiente)
 
-            if avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
+            # Para usuarios restringidos, excluir CTs sin actividad del depósito habilitado
+            # aunque tengan horas de calendario disponibles (esos CTs son de otros depósitos).
+            if allowed_ids is not None:
+                if ejecutado == 0.0 and pendiente == 0.0:
+                    continue
+            elif avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
                 continue
 
             labels.append(wc.name)

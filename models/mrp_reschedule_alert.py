@@ -385,6 +385,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _cron_check_delays(self):
         """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas (una vez por empresa activa)."""
+        # sudo() necesario: el cron corre en contexto de empresa activa y el multi-company record rule restringe res.company.
         companies = self.env['res.company'].sudo().search([])
         for company in companies:
             _logger.info('MRP Planner cron: chequeo desvíos — empresa %s', company.name)
@@ -414,14 +415,10 @@ class MrpRescheduleAlert(models.Model):
                 _logger.warning('MRP Reschedule cron: error en %s: %s', fn.__name__, e)
         _logger.info('MRP Planner cron: fin chequeo de desvíos de producción')
 
-    def _get_config(self):
-        """Retorna el primer registro de configuración del planificador, o None si no existe."""
-        return self.env['mrp.reschedule.config'].get_config()
-
     @api.model
     def _check_delayed_mos(self, now):
         """Detecta OFs confirmadas/en progreso cuya fecha de fin ya pasó y crea/actualiza alertas mo_delayed."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # 3 días es el umbral crítico por defecto si no hay configuración activa
         crit_days = cfg.alert_mo_critical_days if cfg else 3
         mos = self.env['mrp.production'].search([
@@ -457,7 +454,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_upcoming_mos(self, now):
         """Detecta OFs con fecha de fin dentro de la ventana de aviso y crea/actualiza alertas mo_upcoming."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # 7 días es el horizonte de aviso por defecto si no hay configuración activa
         warn_days = cfg.alert_mo_warning_days if cfg else 7
         future_limit = now + timedelta(days=warn_days)
@@ -494,7 +491,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_delayed_pos(self, now, impact_cache=None):
         """Detecta OCs con fecha de entrega vencida y sin recepción completa; crea/actualiza alertas po_delayed."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # 5 días es el umbral crítico por defecto para OCs si no hay configuración activa
         crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         pos = self.env['purchase.order'].search([
@@ -550,7 +547,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_upcoming_pos(self, now):
         """Detecta OCs con entrega próxima y sin recepción completa; crea/actualiza alertas po_upcoming."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # 10 días es el horizonte de aviso por defecto para OCs si no hay configuración activa
         warn_days = cfg.alert_po_warning_days if cfg else 10
         future_limit = now + timedelta(days=warn_days)
@@ -587,7 +584,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_delayed_receipts(self, now, impact_cache=None):
         """Detecta recepciones de compra pendientes cuya fecha programada ya pasó; crea/actualiza alertas receipt_delayed."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         # 3 días es el umbral crítico por defecto para recepciones si no hay configuración activa
         crit_days = cfg.alert_receipt_critical_days if cfg else 3
         pickings = self.env['stock.picking'].search([
@@ -645,7 +642,7 @@ class MrpRescheduleAlert(models.Model):
     @api.model
     def _check_qty_mismatches(self, now, impact_cache=None):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
-        cfg = self._get_config()
+        cfg = self.env['mrp.reschedule.config'].get_config()
         qty_tol = (cfg.qty_tolerance_pct / 100.0) if cfg else QTY_TOLERANCE
         # La ventana de búsqueda coincide con el intervalo del cron + 10 % de margen para evitar
         # que OFs cerradas justo entre dos ejecuciones queden fuera del análisis.

@@ -97,9 +97,8 @@ class ProductTemplate(models.Model):
         Depende de: contexto de compañía (se recomputa al cambiar de compañía);
         mrp.reschedule.config.enable_sale_categories.
         """
+        # sudo() necesario: mrp.reschedule.config puede no ser accesible para usuarios sin permisos de admin del planificador.
         config = self.env['mrp.reschedule.config'].sudo().get_config()
-        # Usa sudo() porque mrp.reschedule.config puede no ser accesible para
-        # usuarios sin permisos de administración del planificador.
         enable = config.enable_sale_categories if config else False
         for rec in self:
             rec.mrp_enable_sale_cat = enable

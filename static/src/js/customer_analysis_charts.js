@@ -6,6 +6,31 @@
  * de Chart y leer el estado reactivo sin acoplar esta lógica al componente OWL.
  */
 
+const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function monthLabel(ym) {
+    const [y, mStr] = ym.split('-');
+    return `${MONTHS_ES[parseInt(mStr) - 1]} ${y}`;
+}
+
+// Paleta de colores del panel lateral — exportada para que el widget pueda usar donutColor()
+export const CHART_COLORS = {
+    bar:   'rgba(13, 110, 253, 0.75)',
+    line:  'rgba(25, 135, 84, 0.85)',
+    donut: [
+        'rgba(13, 110, 253, 0.80)',
+        'rgba(25, 135, 84, 0.80)',
+        'rgba(255, 193, 7,  0.85)',
+        'rgba(220, 53,  69, 0.75)',
+        'rgba(108, 117, 125, 0.75)',
+        'rgba(102, 16, 242, 0.70)',
+        'rgba(253, 126, 20, 0.75)',
+        'rgba(32, 201, 151, 0.75)',
+        'rgba(214, 51, 132, 0.75)',
+        'rgba(13, 202, 240, 0.75)',
+    ],
+};
+
 // Paleta idéntica al panel de ventas — mismos colores por cat. ABC
 const CAT_COLORS = {
     A:  'rgba(25, 135, 84,  0.80)',
@@ -219,4 +244,208 @@ export function drawTopDonut(widget) {
             },
         },
     });
+}
+
+/**
+ * Dibuja los gráficos del panel lateral de detalle de cliente:
+ * barras agrupadas (pedido vs entregado por mes), donut de mix de familias,
+ * y línea de evolución mensual.
+ * @param {Object} widget - Instancia del CustomerAnalysisWidget
+ */
+export function drawPanelCharts(widget) {
+    const data = widget.state.panelData;
+    if (!data) return;
+    const Chart = globalThis.Chart;
+    if (typeof Chart === 'undefined') return;
+
+    const panelKey = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${widget.state.dateFrom}_${widget.state.dateTo}`;
+    if (widget._panelChartsKey === panelKey) return;
+    widget._panelChartsKey = panelKey;
+
+    const isQty   = widget.state.panelMetric === 'qty';
+    const fmtTick = isQty
+        ? v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)))
+        : v => widget.fmtK(v);
+    const fmtLbl  = isQty
+        ? v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)))
+        : v => widget.fmtK(v);
+
+    const barLabelPlugin = {
+        id: 'barLabel',
+        afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            chart.data.datasets.forEach((ds, i) => {
+                const meta = chart.getDatasetMeta(i);
+                if (meta.hidden) return;
+                meta.data.forEach((bar, idx) => {
+                    const v = ds.data[idx];
+                    if (!v) return;
+                    const label = ds._fmt ? ds._fmt(v) : String(v);
+                    ctx.save();
+                    ctx.fillStyle = '#555';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(label, bar.x, bar.y - 2);
+                    ctx.restore();
+                });
+            });
+        },
+    };
+
+    // ── Barras agrupadas: pedido vs entregado ────────────────────────────────
+    const barEl = widget.barRef.el;
+    if (barEl && data.monthly_data && data.monthly_data.length) {
+        if (widget._barChart) { widget._barChart.destroy(); widget._barChart = null; }
+        const labels    = data.monthly_data.map(m => monthLabel(m.month));
+        const dsPedido  = {
+            label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
+            data:            data.monthly_data.map(m => isQty ? m.qty_ordered   : m.amount),
+            backgroundColor: 'rgba(13,110,253,0.75)',
+            borderRadius:    3,
+            _fmt:            fmtLbl,
+        };
+        const dsEntrega = {
+            label:           isQty ? 'Entregado (u)' : 'Entregado ($)',
+            data:            data.monthly_data.map(m => isQty ? m.qty_delivered : m.amount_delivered),
+            backgroundColor: 'rgba(25,135,84,0.70)',
+            borderRadius:    3,
+            _fmt:            fmtLbl,
+        };
+        widget._barChart = new Chart(barEl, {
+            type: 'bar',
+            data: { labels, datasets: [dsPedido, dsEntrega] },
+            options: {
+                responsive:          true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
+                    barLabel: {},
+                },
+                scales: {
+                    x: { ticks: { font: { size: 10 } } },
+                    y: { ticks: { callback: fmtTick, font: { size: 10 } } },
+                },
+            },
+            plugins: [barLabelPlugin],
+        });
+    }
+
+    // ── Donut: mix de familias ───────────────────────────────────────────────
+    const donutEl = widget.donutRef.el;
+    if (donutEl && data.family_mix && data.family_mix.length) {
+        if (widget._donutChart) { widget._donutChart.destroy(); widget._donutChart = null; }
+        const panelPieLabelPlugin = {
+            id: 'panelPieLabels',
+            afterDatasetsDraw(chart) {
+                const { ctx, data: cData } = chart;
+                const ds  = cData.datasets[0];
+                const ttl = ds.data.reduce((a, b) => a + b, 0);
+                chart.getDatasetMeta(0).data.forEach((arc, i) => {
+                    const pct = ttl ? Math.round(ds.data[i] / ttl * 100) : 0;
+                    if (pct < 5) return;
+                    const { x, y } = arc.getCenterPoint();
+                    ctx.save();
+                    ctx.fillStyle    = '#fff';
+                    ctx.font         = 'bold 11px sans-serif';
+                    ctx.textAlign    = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+                    ctx.shadowBlur   = 3;
+                    ctx.fillText(`${pct}%`, x, y);
+                    ctx.restore();
+                });
+            },
+        };
+        widget._donutChart = new Chart(donutEl, {
+            type: 'doughnut',
+            data: {
+                labels:   data.family_mix.map(f => f.name),
+                datasets: [{
+                    data:            data.family_mix.map(f => isQty ? f.qty : f.amount),
+                    backgroundColor: CHART_COLORS.donut,
+                    borderWidth:     2,
+                }],
+            },
+            plugins: [panelPieLabelPlugin],
+            options: {
+                responsive:          true,
+                maintainAspectRatio: false,
+                cutout:              '50%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => data.family_mix[items[0].dataIndex].name,
+                            label: ctx => {
+                                const f = data.family_mix[ctx.dataIndex];
+                                return isQty
+                                    ? [` ${f.pct}%`, ` ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u.`]
+                                    : [` ${f.pct_amount}%`, ` ${widget.fmtMoney(f.amount)}`];
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    // ── Dos líneas: pedido mensual (eje izq.) + entregado (eje der.) ─────────
+    const lineEl = widget.lineRef.el;
+    const allMonths = data.monthly_data || [];
+    if (lineEl && allMonths.length > 0) {
+        if (widget._lineChart) { widget._lineChart.destroy(); widget._lineChart = null; }
+        const dsPedido = {
+            label:            isQty ? 'Pedido (u)' : 'Pedido ($)',
+            data:             allMonths.map(m => isQty ? m.qty_ordered   : m.amount),
+            borderColor:      'rgba(13,110,253,0.85)',
+            backgroundColor:  'rgba(13,110,253,0.10)',
+            fill:             true,
+            tension:          0.3,
+            pointRadius:      3,
+            pointHoverRadius: 5,
+            yAxisID:          'y',
+        };
+        const dsEntregado = {
+            label:            isQty ? 'Entregado (u)' : 'Entregado ($)',
+            data:             allMonths.map(m => isQty ? m.qty_delivered : m.amount_delivered),
+            borderColor:      CHART_COLORS.line,
+            backgroundColor:  'transparent',
+            fill:             false,
+            tension:          0.3,
+            pointRadius:      3,
+            pointHoverRadius: 5,
+            spanGaps:         false,
+            yAxisID:          'y',
+        };
+        widget._lineChart = new Chart(lineEl, {
+            type: 'line',
+            data: {
+                labels:   allMonths.map(m => monthLabel(m.month)),
+                datasets: [dsPedido, dsEntregado],
+            },
+            options: {
+                responsive:          true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`,
+                        },
+                    },
+                },
+                scales: {
+                    x: { ticks: { font: { size: 10 } } },
+                    y: {
+                        type:        'linear',
+                        position:    'left',
+                        beginAtZero: true,
+                        ticks:       { callback: fmtTick, font: { size: 10 } },
+                        grid:        { color: 'rgba(0,0,0,0.06)' },
+                    },
+                },
+            },
+        });
+    }
 }

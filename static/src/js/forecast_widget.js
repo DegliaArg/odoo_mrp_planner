@@ -35,6 +35,12 @@ import {
     moStateBadge, saleCatBadge, moCovPct, moCovPctCell, moCovPctRow,
     cellClassForPct, cellClassMonthly, cellClassTotal, cellClass, svcClass,
 } from "./forecast_formatters";
+import {
+    moTooltip, svcTooltip, rotHeaderTitle, rotTooltip,
+    covTooltip, covHeaderTitle, accGlobalTooltip, accTooltip,
+    fcKpiTooltip, demandGapTooltip, mosGapTooltip, accSecondaryPills,
+} from "./forecast_tooltips";
+import { downloadForecastExcel } from "./forecast_export";
 
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -953,72 +959,10 @@ class ForecastWidget extends Component {
         return v <= threshold ? 'text-success' : v <= threshold * 2 ? 'text-warning' : 'text-muted';
     }
 
-    /**
-     * Genera el tooltip de cobertura de OFs para una celda mensual.
-     * Muestra la fórmula de cálculo del porcentaje.
-     * @param {Object|null} cell - Celda mensual con `mos`, `forecast` y `pct`.
-     * @returns {string} Texto del tooltip o cadena vacía si no aplica.
-     */
-    moTooltip(cell) {
-        if (!cell || cell.forecast === 0) return '';
-        const denom = this.state.data && this.state.data.mo_coverage_denominator;
-        const pct = this.moCovPctCell(cell);
-        if (denom === 'so_demand') {
-            return `Cobertura de OFs planificadas respecto a la demanda real de pedidos de venta\nOFs ÷ demanda SO × 100\n→ ${this.fmt(cell.mos)} ÷ ${this.fmt(cell.so_demand)} × 100 = ${this.fmtPct(pct)}`;
-        }
-        return `Cobertura de OFs planificadas respecto al forecast del período\nOFs ÷ forecast × 100\n→ ${this.fmt(cell.mos)} ÷ ${this.fmt(cell.forecast)} × 100 = ${this.fmtPct(pct)}`;
-    }
-
-    /**
-     * Genera el tooltip de tasa de servicio para una celda mensual.
-     * Si no hay pedidos de venta confirmados, explica por qué no hay dato.
-     * @param {Object} cell - Celda mensual con `service_rate`, `delivered` y `so_demand`.
-     * @returns {string} Texto del tooltip.
-     */
-    svcTooltip(cell) {
-        if (cell.service_rate === null || cell.service_rate === undefined)
-            return 'Sin pedidos de venta confirmados en el período';
-        return `Porcentaje de la demanda real entregada efectivamente al cliente\nTotal entregado ÷ Total pedidos de venta × 100\n→ ${this.fmt(cell.delivered)} ÷ ${this.fmt(cell.so_demand)} × 100 = ${this.fmtPct(cell.service_rate)}`;
-    }
-
-    /**
-     * Título dinámico para la cabecera de la columna Rotación, según el método configurado.
-     * @returns {string}
-     */
-    get rotHeaderTitle() {
-        const method = this.state.data && this.state.data.rotation_method;
-        if (method === 'cogs')  return 'Rotación COGS = período (días) × inventario promedio (costo) ÷ costo de ventas. Clic para ordenar.';
-        if (method === 'sales') return 'Rotación Ventas = período (días) × inventario promedio (costo) ÷ ventas netas. Clic para ordenar.';
-        return 'Rotación Unidades = stock promedio del período ÷ (entregado ÷ N meses). Clic para ordenar.';
-    }
-
-    /**
-     * Genera el tooltip de rotación de inventario para una fila.
-     * Muestra la fórmula según el método configurado (unidades, COGS o ventas).
-     * @param {Object} row - Fila de la tabla.
-     * @returns {string} Texto del tooltip.
-     */
-    rotTooltip(row) {
-        const method = this.state.data && this.state.data.rotation_method;
-        const unit   = this.state.data && this.state.data.rotation_unit;
-        const val    = this.fmtRotation(row);
-        const n      = this.state.data ? (this.state.data.rotation_n_months || this.state.data.months.length) : 1;
-        const nLabel = Number.isInteger(n) ? n : n.toFixed(1).replace('.0', '');
-
-        if (!val || val === '—') {
-            if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
-            if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
-            return 'Sin entregas en el período — rotación no calculable';
-        }
-        if (method === 'cogs') {
-            return `Días cubiertos por el inventario valorizado al ritmo del costo de ventas\nPeríodo (días) × inventario promedio (costo) ÷ costo de lo vendido\n→ ${Math.round(n * 30)} d × inv. promedio ÷ COGS = ${val}`;
-        }
-        if (method === 'sales') {
-            return `Días cubiertos por el inventario valorizado al ritmo de las ventas netas\nPeríodo (días) × inventario promedio (costo) ÷ ventas netas\n→ ${Math.round(n * 30)} d × inv. promedio ÷ ventas = ${val}`;
-        }
-        const suffix = unit !== 'months' ? ' × 30' : '';
-        return `Tiempo que dura el inventario al ritmo de salidas del período\nStock promedio ÷ (entregado ÷ meses)${suffix}\n→ ${this.fmt(row.avg_stock_qty)} ÷ (${this.fmt(row.total_delivered)} ÷ ${nLabel} meses)${suffix} = ${val}`;
-    }
+    moTooltip(cell)  { return moTooltip(this, cell); }
+    svcTooltip(cell) { return svcTooltip(this, cell); }
+    get rotHeaderTitle() { return rotHeaderTitle(this); }
+    rotTooltip(row)  { return rotTooltip(this, row); }
 
     /**
      * Formatea el valor de cobertura de inventario de una fila.
@@ -1054,176 +998,14 @@ class ForecastWidget extends Component {
         return 'text-success';
     }
 
-    /**
-     * Tooltip de cobertura de inventario: muestra la fórmula con los valores reales.
-     * @param {Object} row
-     * @returns {string}
-     */
-    covTooltip(row) {
-        const d = this.state.data;
-        const val = this.fmtCoverage(row);
-        if (!val || val === '—') return 'Sin datos de demanda en el período — cobertura no calculable';
-        const n = d ? (d.rotation_n_months || d.months.length) : 1;
-        const periodDays = Math.round(n * 30);
-        const source = d && d.coverage_demand_source;
-        let demLabel, demQty;
-        if (source === 'so_demand') {
-            demLabel = 'demanda SO';
-            demQty   = row.total_so_demand;
-        } else if (source === 'delivered') {
-            demLabel = 'entregado';
-            demQty   = row.total_delivered;
-        } else {
-            demLabel = 'forecast';
-            demQty   = row.total_forecast;
-        }
-        return `Días que cubre el stock actual al ritmo de ${demLabel} del período\nStock disponible ÷ (${demLabel} ÷ período)\n→ ${this.fmt(row.stock_qty)} ÷ (${this.fmt(demQty)} ${demLabel} ÷ ${periodDays} d) = ${val}`;
-    }
-
-    /**
-     * Título para la cabecera de la columna Cobertura, menciona la fuente activa.
-     * @returns {string}
-     */
-    get covHeaderTitle() {
-        const d = this.state.data;
-        const source = d && d.coverage_demand_source;
-        const label = source === 'so_demand' ? 'demanda SO (pedidos confirmados)'
-                    : source === 'delivered' ? 'historial de entregas'
-                    : 'forecast planificado';
-        return `Cobertura de inventario: días (o meses) que cubre el stock actual a la tasa de ${label}. Clic para ordenar.`;
-    }
-
-    /**
-     * Genera el tooltip del KPI de precisión de forecast global.
-     * El texto varía según la fórmula configurada (mape/wape/wmape/bias/simple).
-     * @returns {string} Texto del tooltip con la fórmula y el valor calculado.
-     */
-    accGlobalTooltip() {
-        const d = this.state.data;
-        if (!d) return '';
-        const formula = d.acc_formula;
-        const dem = this.fmt(d.kpis.total_so_demand), fc = this.fmt(d.kpis.total_forecast);
-        const val = this.fmtPct(d.kpis.overall_forecast_acc);
-        if (formula === 'mape')
-            return `Precisión promedio por artículo (sensible a artículos de bajo volumen)\nPromedio de precisiones individuales vs demanda real por artículo\n→ promedio global = ${val}`;
-        if (formula === 'wape')
-            return `Precisión ponderada por volumen de demanda real (menos sensible a bajo volumen)\n100 − (Σ|errores| ÷ demanda real × 100)\n→ 100 − (Σ|errores| ÷ ${dem} × 100) = ${val}`;
-        if (formula === 'wmape')
-            return `Precisión ponderada por volumen de forecast\n100 − (Σ|errores| ÷ Σforecast × 100)\n→ 100 − (Σ|errores| ÷ ${fc} × 100) = ${val}`;
-        if (formula === 'bias')
-            return `Sesgo del forecast: mide si se sobreestima o subestima la demanda real\n(demanda real − forecast) ÷ forecast × 100\n→ (${dem} − ${fc}) ÷ ${fc} × 100 = ${val}`;
-        return `Porcentaje de la demanda real cubierta por el forecast (puede superar 100%)\ndemanda real ÷ forecast × 100\n→ ${dem} ÷ ${fc} × 100 = ${val}`;
-    }
-
-    /**
-     * Genera el tooltip de la columna de precisión de una fila de producto.
-     * Muestra las cinco métricas de precisión y marca con ◀ la fórmula configurada actualmente.
-     * @param {Object} row - Fila con `acc_all` conteniendo simple/mape/wape/wmape/bias.
-     * @returns {string} Texto multilínea para el atributo title.
-     */
-    accTooltip(row) {
-        const a = row.acc_all;
-        if (!a) return 'Sin datos suficientes para calcular precisión';
-        const configured = (this.state.data && this.state.data.acc_formula) || 'simple';
-        const fv = v => v !== null && v !== undefined ? `${v}%` : '—';
-        const mark = key => key === configured ? ' ◀' : '';
-        return [
-            `Simple (dem. real):  ${fv(a.simple)}${mark('simple')}`,
-            `MAPE (dem. real):    ${fv(a.mape)}${mark('mape')}`,
-            `WAPE (dem. real):    ${fv(a.wape)}${mark('wape')}`,
-            `WMAPE:               ${fv(a.wmape)}${mark('wmape')}`,
-            `Sesgo (dem. real):   ${fv(a.bias)}${mark('bias')}`,
-        ].join('\n');
-    }
-
-    /**
-     * Devuelve las métricas de precisión alternativas (no configuradas) para mostrar
-     * como pills secundarios en la sección de KPIs.
-     * @returns {Array<{key: string, label: string, value: number|null}>}
-     */
-    fcKpiTooltip(key) {
-        const d = this.state.data;
-        if (!d) return '';
-        const k = d.kpis;
-        switch (key) {
-            case 'forecast':
-                return `Unidades planificadas en líneas de forecast activas para el período seleccionado\n→ ${this.fmt(k.total_forecast)} u`;
-            case 'so_demand':
-                return `Unidades pedidas en órdenes de venta confirmadas de productos con línea de forecast\n→ ${this.fmt(k.total_so_demand)} u en el período`;
-            case 'mos':
-                return `Unidades en OFs activas con fecha de fin en el período, de productos con línea de forecast\n→ ${this.fmt(k.total_mos)} u planificadas`;
-            case 'delivered': {
-                const fk = this.filteredKpis;
-                const byMonth = fk.del_by_order_month || {};
-                const sortedMonths = Object.keys(byMonth).sort();
-                const lines = sortedMonths.map(ym => {
-                    const [y, m] = ym.split('-');
-                    const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
-                    return `  ${label}: ${this.fmt(byMonth[ym])} u`;
-                });
-                const breakdown = lines.length
-                    ? '\nPor mes de confirmación del pedido:\n' + lines.join('\n')
-                    : '';
-                return `Unidades entregadas físicamente en el período seleccionado (albaranes validados), de cualquier pedido${breakdown}`;
-            }
-            case 'demand_delivered':
-                return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega\n→ ${this.fmt(this.filteredKpis.total_demand_delivered)} u`;
-            case 'svc': {
-                const fk = this.filteredKpis;
-                const kpi = this.state.data.kpis;
-                const noFcDel = kpi.delivered_no_fc || 0;
-                const noFcDem = kpi.so_demand_no_fc || 0;
-                const totalDel = fk.total_delivered + noFcDel;
-                const totalDem = (fk.total_so_demand || 0) + noFcDem;
-                const noFcPart = noFcDel > 0 || noFcDem > 0
-                    ? `\n  Entregas: ${this.fmt(fk.total_delivered)} FC + ${this.fmt(noFcDel)} sin FC = ${this.fmt(totalDel)}`
-                    + `\n  Demanda:  ${this.fmt(fk.total_so_demand)} FC + ${this.fmt(noFcDem)} sin FC = ${this.fmt(totalDem)}`
-                    : '';
-                return `Entregas físicas del período ÷ demanda real total${noFcPart}\n→ ${this.fmt(totalDel)} ÷ ${this.fmt(totalDem)} × 100 = ${this.fmtPct(fk.overall_service_rate)}`;
-            }
-            case 'demand_svc': {
-                const fk = this.filteredKpis;
-                const kpi = this.state.data.kpis;
-                const noFcDel = kpi.demand_delivered_no_fc || 0;
-                const noFcDem = kpi.so_demand_no_fc || 0;
-                const totalDel = fk.total_demand_delivered + noFcDel;
-                const totalDem = (fk.total_so_demand || 0) + noFcDem;
-                const noFcPart = noFcDel > 0 || noFcDem > 0
-                    ? `\n  Entregado: ${this.fmt(fk.total_demand_delivered)} FC + ${this.fmt(noFcDel)} sin FC = ${this.fmt(totalDel)}`
-                    + `\n  Demanda:   ${this.fmt(fk.total_so_demand)} FC + ${this.fmt(noFcDem)} sin FC = ${this.fmt(totalDem)}`
-                    : '';
-                return `Cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${this.fmt(totalDel)} ÷ ${this.fmt(totalDem)} × 100 = ${this.fmtPct(fk.overall_demand_service_rate)}`;
-            }
-        }
-        return '';
-    }
-
-    demandGapTooltip() {
-        const d = this.state.data;
-        if (!d) return '';
-        const dem = this.fmt(d.kpis.total_so_demand), fc = this.fmt(d.kpis.total_forecast);
-        const val = this.fmtGapPct(d.kpis.demand_gap_pct);
-        return `Variación de la demanda real respecto al forecast. Positivo: se demandó más de lo planeado.\n(demanda real − forecast) ÷ forecast × 100\n→ (${dem} − ${fc}) ÷ ${fc} × 100 = ${val}`;
-    }
-
-    mosGapTooltip() {
-        const d = this.state.data;
-        if (!d) return '';
-        const mos = this.fmt(d.kpis.total_mos), fc = this.fmt(d.kpis.total_forecast);
-        const val = this.fmtGapPct(d.kpis.mos_gap_pct);
-        return `Cobertura de OFs planificadas respecto al forecast. Positivo: producción cubre el plan. Negativo: déficit.\n(OFs − forecast) ÷ forecast × 100\n→ (${mos} − ${fc}) ÷ ${fc} × 100 = ${val}`;
-    }
-
-    accSecondaryPills() {
-        const d = this.state.data;
-        if (!d || !d.kpis.acc_all) return [];
-        const all = d.kpis.acc_all;
-        const configured = d.acc_formula || 'simple';
-        const LABELS = { simple: 'Simple', mape: 'MAPE', wape: 'WAPE', wmape: 'WMAPE', bias: 'Sesgo' };
-        return Object.entries(LABELS)
-            .filter(([key]) => key !== configured)
-            .map(([key, label]) => ({ key, label, value: all[key] }));
-    }
+    covTooltip(row)       { return covTooltip(this, row); }
+    get covHeaderTitle()  { return covHeaderTitle(this); }
+    accGlobalTooltip()    { return accGlobalTooltip(this); }
+    accTooltip(row)       { return accTooltip(this, row); }
+    fcKpiTooltip(key)     { return fcKpiTooltip(this, key); }
+    demandGapTooltip()    { return demandGapTooltip(this); }
+    mosGapTooltip()       { return mosGapTooltip(this); }
+    accSecondaryPills()   { return accSecondaryPills(this); }
 
     /**
      * Clase CSS para la brecha entre demanda real y forecast de un KPI.
@@ -1553,70 +1335,10 @@ class ForecastWidget extends Component {
         });
     }
 
-    /**
-     * Genera y descarga el forecast como Excel SpreadsheetML usando los datos ya cargados
-     * en el widget (respeta los filtros activos de búsqueda, filtro rápido y grupo).
-     */
     downloadExport() {
         const d = this.state.data;
         if (!d || !d.rows || !d.months) return;
-        const rows   = this.baseFilteredRows;
-        const months = d.months;
-        const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-
-        const esc = s => String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-        let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Worksheet ss:Name="Forecast">
-  <Table>
-   <Row>`;
-
-        xml += `<Cell><Data ss:Type="String">Artículo</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">Cat. venta</Data></Cell>`;
-        months.forEach(ym => {
-            const [y, m] = ym.split('-');
-            const label = `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
-            xml += `<Cell><Data ss:Type="String">${esc(label)} - Forecast</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="String">${esc(label)} - OFs</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="String">${esc(label)} - %</Data></Cell>`;
-        });
-        xml += `<Cell><Data ss:Type="String">Total Forecast</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">Total OFs</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">% Cumplimiento</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">Stock</Data></Cell>`;
-        xml += '</Row>';
-
-        rows.forEach(row => {
-            xml += '<Row>';
-            xml += `<Cell><Data ss:Type="String">${esc(row.product)}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="String">${esc(row.sale_category || '')}</Data></Cell>`;
-            months.forEach(ym => {
-                const cell = (row.cells || []).find(c => c.month === ym) || {};
-                xml += `<Cell><Data ss:Type="Number">${cell.forecast || 0}</Data></Cell>`;
-                xml += `<Cell><Data ss:Type="Number">${cell.mos || 0}</Data></Cell>`;
-                xml += `<Cell><Data ss:Type="Number">${cell.pct || 0}</Data></Cell>`;
-            });
-            xml += `<Cell><Data ss:Type="Number">${row.total_forecast || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${row.total_mos || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${row.total_pct || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${row.stock_qty || 0}</Data></Cell>`;
-            xml += '</Row>';
-        });
-
-        xml += `  </Table>
- </Worksheet>
-</Workbook>`;
-
-        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = `forecast_${this.state.periodFrom}_${this.state.periodTo}.xls`;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadForecastExcel(this.baseFilteredRows, d.months, this.state.periodFrom, this.state.periodTo);
     }
 }
 

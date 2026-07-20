@@ -87,6 +87,7 @@ class MrpPartnerCategory(models.Model):
                       for g in del_groups if g['product_id']}
 
         # ── Demanda OVs confirmadas del período (para modo demand) ────────────
+        # sudo(): sale.order.line no es accesible para usuarios de producción/logística
         so_groups = self.env['sale.order.line'].sudo().read_group([
             ('order_id.state', 'in', ('sale', 'done')),
             ('order_id.date_order', '>=', str(start)),
@@ -364,6 +365,7 @@ class MrpPartnerCategory(models.Model):
             si_tmpl_map   = {}
             prod_tmpl_map = {}
             if price_method == 'pricelist' and prod_ids:
+                # sudo(): product.product y product.supplierinfo no son accesibles para todos los grupos
                 prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
                                  for r in self.env['product.product'].sudo().search_read(
                                      [('id', 'in', prod_ids)], ['id', 'product_tmpl_id'])}

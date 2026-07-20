@@ -665,6 +665,7 @@ class MrpRescheduleConfig(models.Model):
         tiene scheduling activo, para evitar afectar a usuarios de otras empresas.
         """
         if not enabled:
+            # sudo(): necesario para verificar otros registros de config sin importar el usuario activo
             other_enabled = self.env['mrp.reschedule.config'].sudo().search([
                 ('id', 'not in', self.ids),
                 ('enable_scheduling', '=', True),
@@ -690,6 +691,7 @@ class MrpRescheduleConfig(models.Model):
         if not group:
             return
         if not enabled:
+            # sudo(): ir.groups pertenece al sistema; el admin del módulo no tiene acceso directo
             group.sudo().write({'users': [(5,)]})
 
     def write(self, vals):
@@ -825,6 +827,7 @@ class MrpRescheduleConfig(models.Model):
         """
         config = self.search([('company_id', '=', self.env.company.id)], limit=1)
         if not config:
+            # sudo(): la creación del singleton puede ejecutarse como cualquier usuario que abre la pantalla
             config = self.sudo().create({'company_id': self.env.company.id})
         return {
             'type': 'ir.actions.act_window',

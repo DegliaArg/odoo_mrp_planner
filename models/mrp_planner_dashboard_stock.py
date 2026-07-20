@@ -414,6 +414,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             broken_pids_set = {r['id'] for r in rows if r['is_broken']}
             if broken_pids_set:
                 try:
+                    # sudo(): stock.move requiere permisos de inventario; el dashboard se ejecuta para cualquier grupo
                     SM = self.env['stock.move'].sudo()
                     out_moves = SM.search_read([
                         ('product_id', 'in', list(broken_pids_set)),

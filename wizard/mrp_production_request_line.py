@@ -93,6 +93,7 @@ class MrpProductionRequestLine(models.Model):
           - 'none': no asigna ningún centro (lista vacía).
         Depende de: product_id → product_tmpl_id → x_centros_compatibles, active.
         """
+        # sudo(): ir.config_parameter solo es legible con permisos de admin; usuarios de wizard no lo tienen
         get_param = self.env['ir.config_parameter'].sudo().get_param
         fallback = get_param('mrp_reschedule.wc_fallback', 'ldm')
         # Se inicializa en None para diferir la consulta SELECT hasta que sea realmente necesaria

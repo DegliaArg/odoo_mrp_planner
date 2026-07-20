@@ -110,17 +110,24 @@ class MrpPlannerDashboardSales(models.TransientModel):
             if product_categ_id:
                 sol_domain.append(('product_id.categ_id', '=', int(product_categ_id)))
             try:
+                # sudo(): sale.order.line no es accesible para usuarios de producción/logística
                 # read_group en lugar de search+loop para evitar N queries ORM
                 groups = self.env['sale.order.line'].sudo().read_group(
                     sol_domain,
                     ['product_id', 'product_uom_qty:sum', 'price_subtotal:sum'],
                     ['product_id'],
                 )
+                # D-02: batch-load product→template mapping; evita un browse individual por fila de read_group
+                sol_prod_ids = [g['product_id'][0] for g in groups if g['product_id']]
+                sol_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                                for r in self.env['product.product'].sudo().browse(sol_prod_ids)
+                                .read(['id', 'product_tmpl_id'])} if sol_prod_ids else {}
                 for g in groups:
                     if not g['product_id']:
                         continue
-                    pp = self.env['product.product'].sudo().browse(g['product_id'][0])
-                    tid = pp.product_tmpl_id.id
+                    tid = sol_tmpl_map.get(g['product_id'][0])
+                    if not tid:
+                        continue
                     tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
                     tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
             except Exception as e:
@@ -139,22 +146,30 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 domain.append(('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids))
             if product_categ_id:
                 domain.append(('product_id.categ_id', '=', int(product_categ_id)))
+            # sudo(): stock.move.line no es accesible para usuarios de ventas/producción sin permisos de inventario
             groups = self.env['stock.move.line'].sudo().read_group(
                 domain,
                 ['product_id', 'quantity:sum'],
                 ['product_id'],
             )
+            # D-02: batch-load product→template mapping; evita un browse individual por fila de read_group
+            sml_prod_ids = [g['product_id'][0] for g in groups if g['product_id']]
+            sml_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                            for r in self.env['product.product'].sudo().browse(sml_prod_ids)
+                            .read(['id', 'product_tmpl_id'])} if sml_prod_ids else {}
             for g in groups:
                 if not g['product_id']:
                     continue
-                pp = self.env['product.product'].sudo().browse(g['product_id'][0])
-                tid = pp.product_tmpl_id.id
+                tid = sml_tmpl_map.get(g['product_id'][0])
+                if not tid:
+                    continue
                 tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['quantity'] or 0.0)
 
         if not tmpl_qty:
             return []
 
         if sale_category is not None and sale_category != '':
+            # sudo(): product.template no es accesible para todos los grupos del módulo
             tmpls_all = self.env['product.template'].sudo().browse(list(tmpl_qty.keys()))
             tmpl_by_id_f = {t.id: t for t in tmpls_all}
             if sale_category == '__none__':
@@ -169,6 +184,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 return []
 
         all_ids    = list(tmpl_qty.keys())
+        # sudo(): product.template no es accesible para todos los grupos del módulo
         templates  = self.env['product.template'].sudo().browse(all_ids)
         tmpl_by_id = {t.id: t for t in templates}
 
@@ -202,6 +218,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
         Usa una sola read_group para obtener los categ_id activos, evitando el
         N+1 original (un search_count por categoría).
         """
+        # sudo(): product.template y product.category no son accesibles para usuarios de producción/ventas sin permisos de catálogo
         groups = self.env['product.template'].sudo().read_group(
             [('sale_ok', '=', True)],
             ['categ_id'],

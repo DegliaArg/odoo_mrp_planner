@@ -455,3 +455,49 @@ Archivos documentados (38 de 41 — 3 fallaron por rate limit y se retomaron man
 | C-02 | UI | `static/src/js/stock_break_widget.js`, `static/src/xml/stock_break_widget.xml` | **Agrupamiento por nav-tabs en quiebres de stock** — reescrito para usar nav-tabs encima de la tabla (igual que el widget de Forecast), en lugar de filas de encabezado de grupo dentro del `tbody`. Criterios disponibles: Categoría y Cat. venta (si habilitada). |
 | C-03 | Seguridad/Datos | `models/mrp_planner_dashboard_forecast.py`, `models/mrp_planner_dashboard_sales.py`, `models/mrp_planner_dashboard_wc.py`, `models/mrp_planner_dashboard_customer.py` | **Filtros de almacén faltantes** — aplicado `_get_allowed_wh_ids()` en 4 endpoints que no lo tenían: `get_forecast_dashboard_data` (filtro `picking_type_id.warehouse_id` en OFs), `get_sales_chart_data` (sale.order y stock.move.line), `get_wc_chart_data` (mrp.workorder), `get_customer_analysis_data` / `get_customer_detail` (validación server-side de warehouse_ids). |
 | C-04 | UI | `models/mrp_planner_dashboard_forecast.py`, `models/mrp_planner_dashboard_sales.py`, `models/mrp_planner_dashboard.py`, `models/mrp_planner_dashboard_stock.py` | **`name` en lugar de `complete_name`/`display_name`** — columna Familia y tabs del forecast, dropdown de familias en ventas, dropdown de ubicaciones en quiebres, y título del panel de quiebres ahora muestran solo el nodo hoja de la jerarquía. |
+
+---
+
+## Revisión v50 — Seguridad, performance, split de archivos grandes
+
+**Fecha:** 2026-07-17
+**Alcance:** Auditoría completa de producción: comentarios de sudo(), corrección de N+1, cierre de D-02/D-04/D-05, división de los 3 archivos más grandes.
+
+---
+
+### Issues cerrados en esta ronda
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-02 ✓ | Performance | **N+1 en `get_sales_chart_data`** — `browse(g['product_id'][0])` individual reemplazado por batch `browse(list_of_ids).read(['id','product_tmpl_id'])` + dict lookup, en dos lugares: loop de `sale.order.line` y loop de `stock.move.line`. |
+| D-04 ✓ | UX | **Banner de alerta crítica** — añadido `<div class="alert alert-danger">` en el form de `mrp.reschedule.alert` (`mrp_reschedule_alert_views.xml`), visible cuando `severity == 'critical' and not resolved`. |
+| D-05 ✓ | XML | **`feasibility_summary` binding conflict OWL** — `mrp_production_request_views.xml`: el segundo `<field name="feasibility_summary">` reemplazado por `<span t-esc="record.feasibility_summary.value"/>`. Un único binding OWL, sin colisión. |
+
+### Seguridad — comentarios sudo()
+
+Añadidos comentarios `# sudo():` explicando la justificación en todos los usos de `sudo()` que los requerían:
+
+| Archivo | Contexto |
+|---------|----------|
+| `models/mrp_partner_category.py` | `sale.order.line`, `product.product`, `product.supplierinfo` — no accesibles para usuarios de producción/logística |
+| `models/mrp_planner_dashboard_sales.py` | Batch pre-load para N+1 fix (D-02) |
+| `models/mrp_planner_dashboard_stock.py` | `stock.move` requiere permisos de inventario |
+| `models/mrp_reschedule_config.py` | Búsqueda de singletons, escritura en `ir.groups`, creación de config inicial |
+| `models/mrp_reschedule_cascade_mixin.py` | `ir.config_parameter` solo legible con permisos de admin |
+| `wizard/mrp_production_request_line.py` | `ir.config_parameter` desde contexto de wizard sin permisos de admin |
+| `wizard/mrp_demand_expansion_mixin.py` | `ir.config_parameter` desde mixin de expansión de demanda |
+
+### Split de archivos grandes
+
+| Archivo original | Líneas antes | Líneas después | Extraído a |
+|-----------------|-------------|----------------|-----------|
+| `static/src/js/customer_analysis_widget.js` | 1 119 | 881 | `customer_analysis_charts.js` (+229 líneas): `drawPanelCharts(widget)`, `CHART_COLORS`, `monthLabel()` |
+| `static/src/js/forecast_widget.js` | 1 625 | 1 347 | `forecast_tooltips.js` (nuevo, 175 líneas): 12 funciones de tooltip/KPI. `forecast_export.js` (nuevo, 65 líneas): `downloadForecastExcel()`. Se eliminó `const MONTHS_ES` duplicada que vivía dentro de `downloadExport()`. |
+| `models/mrp_planner_dashboard_forecast.py` | 1 165 | 1 047 | `mrp_planner_dashboard_forecast_export.py` (nuevo): mixin `MrpPlannerDashboardForecastExport` con `get_forecast_export()`. Imports `io` y `base64` movidos al nuevo archivo. |
+
+### Pending (aún abiertos)
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
+| D-06 | XML | `result_message` declarado dos veces en el wizard de importación de forecast — mismo patrón que D-05, pendiente de resolver. |

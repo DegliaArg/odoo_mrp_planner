@@ -80,6 +80,8 @@ Forecast
             'odoo_mrp_planner/static/src/js/wc_load_chart.js',
             'odoo_mrp_planner/static/src/xml/wc_load_chart.xml',
             'odoo_mrp_planner/static/src/js/forecast_formatters.js',
+            'odoo_mrp_planner/static/src/js/forecast_tooltips.js',
+            'odoo_mrp_planner/static/src/js/forecast_export.js',
             'odoo_mrp_planner/static/src/js/forecast_widget.js',
             'odoo_mrp_planner/static/src/xml/forecast_widget.xml',
             'odoo_mrp_planner/static/src/js/supplier_analysis_widget.js',

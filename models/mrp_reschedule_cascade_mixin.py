@@ -320,6 +320,7 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
         :returns: lista de mrp.production ordenada.
         """
         company_id = self.env.company.id
+        # sudo(): ir.config_parameter requiere admin; se lee aquí desde el mixin de cascada sin usuario admin
         priority = (
             self.env['ir.config_parameter'].sudo().get_param(
                 f'mrp_reschedule.priority.{company_id}'

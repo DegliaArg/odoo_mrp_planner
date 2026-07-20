@@ -113,6 +113,12 @@
                             invisible="resolved"/>
                 </header>
                 <sheet>
+                    <!-- D-04: Banner de alerta crítica no resuelta -->
+                    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert"
+                         invisible="severity != 'critical' or resolved">
+                        <i class="fa fa-exclamation-circle me-2 fs-5"/>
+                        <strong>Alerta crítica sin resolver</strong> — Esta alerta requiere atención inmediata.
+                    </div>
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
                     </div>

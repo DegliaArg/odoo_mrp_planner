@@ -220,6 +220,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         bom_factor = qty / (bom.product_qty or 1.0)
 
         preferred_wc = self._get_preferred_workcenter(product)
+        # sudo(): ir.config_parameter solo es legible con permisos de admin; usuarios de wizard no lo tienen
         wc_fallback = self.env['ir.config_parameter'].sudo().get_param(
             'mrp_reschedule.wc_fallback', 'ldm'
         )

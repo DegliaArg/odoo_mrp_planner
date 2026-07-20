@@ -20,6 +20,7 @@ from . import mrp_planner_dashboard_wc
 from . import mrp_planner_dashboard_po
 from . import mrp_planner_dashboard_mo
 from . import mrp_planner_dashboard_forecast
+from . import mrp_planner_dashboard_forecast_export
 from . import mrp_planner_dashboard_stock
 from . import mrp_planner_dashboard_sales
 from . import mrp_planner_dashboard_customer

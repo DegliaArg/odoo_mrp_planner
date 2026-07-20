@@ -3,15 +3,19 @@ Módulo: res_users.py
 Modelo: extensión de res.users
 
 Extiende el modelo de usuarios de Odoo para incorporar preferencias de acceso
-al Planificador MRP por depósito.
+y visualización del Planificador MRP.
 
 Responsabilidades:
 - Controlar si el usuario visualiza todos los depósitos o solo un subconjunto
 - Almacenar la lista de depósitos permitidos cuando el acceso es restringido
+- Almacenar qué secciones de cada panel son visibles para el usuario
+- Validar que cada panel conserve al menos una sección visible al guardar
 
 Relacionado con:
 - stock.warehouse: depósitos que el usuario tiene permitido consultar en el
   Planificador MRP
+- mrp.reschedule.config: determina si la programación está habilitada para
+  validar la asignación del grupo group_scheduling
 """
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError

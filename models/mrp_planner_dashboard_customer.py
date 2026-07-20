@@ -63,24 +63,6 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             return 'ocasional'
         return 'inactivo'
 
-    @staticmethod
-    def _abc_segments(rows, pct_a, pct_b):
-        total = sum(r['total_amount'] for r in rows)
-        if total <= 0:
-            return {r['partner_id']: 'C' for r in rows}
-        sorted_rows = sorted(rows, key=lambda r: r['total_amount'], reverse=True)
-        result = {}
-        cumulative = 0.0
-        for r in sorted_rows:
-            cumulative += r['total_amount'] / total * 100
-            if cumulative <= pct_a:
-                result[r['partner_id']] = 'A'
-            elif cumulative <= pct_a + pct_b:
-                result[r['partner_id']] = 'B'
-            else:
-                result[r['partner_id']] = 'C'
-        return result
-
     # ── Método principal ─────────────────────────────────────────────────────
 
     @api.model

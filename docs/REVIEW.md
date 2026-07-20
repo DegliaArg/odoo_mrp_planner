@@ -702,3 +702,60 @@ XML (`forecast_widget.xml`): `title="Categoría de venta almacenada (A–E). Cal
 
 ### Qué NO se tocó
 Ningún cálculo fue modificado. Solo UI/tooltips.
+
+---
+
+## v56 — Revisión completa del checklist (2026-07-20)
+
+**Revisor:** Claude Code
+**Alcance:** Fases 1–13 del ODOO_MODULE_REVIEW.md aplicadas al estado actual del módulo (post commits I-13, A/B/C, D de esta sesión).
+
+### Resumen ejecutivo
+
+Revisión pasada sobre el módulo en estado post-refactor. Se encontraron 0 issues críticos, 1 importante (código muerto) y 3 mejoras (doc, estructura, diseño). El código muerto fue eliminado y la documentación actualizada. Un issue de diseño requiere decisión del equipo.
+
+### 🔴 Crítico
+
+*Ninguno encontrado en esta revisión.*
+
+### 🟡 Importante
+
+| # | Archivo | Línea | Descripción | Estado |
+|---|---------|-------|-------------|--------|
+| I-01 | `models/mrp_planner_dashboard_customer.py` | 66–82 | Método estático `_abc_segments` definido pero nunca llamado. Quedó como código muerto al resolver el Problema C (la llamada fue eliminada pero no el método). | **Corregido** |
+
+### 🟢 Mejoras
+
+| # | Archivo | Línea | Descripción | Estado |
+|---|---------|-------|-------------|--------|
+| M-01 | `models/res_users.py` | 1–14 | Docstring de módulo no mencionaba la gestión de visibilidad de secciones por panel ni la validación por constrains, añadidas en esta sesión. | **Corregido** |
+| M-02 | `models/mrp_product_workcenter.py` | 103 | Dos clases en un mismo archivo: `MrpProductWorkcenter` (`_name = 'mrp.product.workcenter'`) y `ProductTemplate` (`_inherit = 'product.template'`). La segunda extiende un modelo distinto al principal del archivo y existe también `product_template.py` con otra extensión de `product.template`. Bajo riesgo funcional, pero viola la convención de un modelo principal por archivo. | **Requiere decisión** |
+| M-03 | `models/res_users.py` | 114–138 | `_PANEL_FIELDS['Clientes']` contiene un único campo (`mrp_planner_show_customer_analysis`). La restricción exige que al menos un campo del panel sea True, lo que hace imposible deshabilitar el análisis de clientes sin deshabilitar el panel completo. El comportamiento actual es: si el único campo del panel está en False, el save es rechazado. Los paneles con un solo campo son inmunes a ser deshabilitados vía los toggles. | **Requiere decisión** |
+
+### Cambios aplicados
+
+| Archivo | Descripción del cambio |
+|---------|----------------------|
+| `models/mrp_planner_dashboard_customer.py` | Eliminado método `_abc_segments` (código muerto, nunca llamado tras el fix del Problema C) |
+| `models/res_users.py` | Actualizado docstring de módulo para incluir las responsabilidades de visibilidad de panel y validación por constrains |
+
+### Decisiones pendientes para el equipo
+
+1. **Dos clases en `mrp_product_workcenter.py`** (`mrp_product_workcenter.py:103`): La clase `ProductTemplate` que extiende `product.template` podría moverse a `product_template.py` junto con la otra extensión del mismo modelo. Alternativa: mantener la co-localización y agregar un comentario explicando que los campos de WC por producto viven aquí por cohesión. Recomendación: mover a `product_template.py` en el próximo ciclo de refactor, no es urgente.
+
+2. **`_PANEL_FIELDS` con panel de un solo campo** (`res_users.py:120`): El panel "Clientes" tiene un único toggle (`mrp_planner_show_customer_analysis`). El `@api.constrains` actual bloquea deshabilitarlo, haciendo ese toggle efectivamente inmutable. Opciones: (a) excluir del constrains los paneles con un solo campo y tratar ese toggle como un on/off del panel entero; (b) agregar una segunda sección al panel "Clientes" para que tenga al menos dos campos; (c) documentar intencionalmente que el análisis de clientes no puede ocultarse. Recomendación: opción (a) — excluir del constrains los paneles con `len(fields_list) == 1`.
+
+### Notas de seguridad
+
+- Todos los `sudo()` tienen comentario de justificación (`# sudo: razón`). ✅
+- `_get_wh_domains()` se respeta en todos los métodos nuevos de esta sesión. ✅
+- Los nuevos campos `supplier_cat_lookback_months` y `customer_cat_lookback_months` en `mrp.reschedule.config` heredan la seguridad existente del modelo (read para todos, write solo para grupos específicos). ✅
+- No se encontraron IDs hardcodeados, SQL raw, ni `sudo()` dentro de loops. ✅
+
+### Estado general del módulo
+
+- **Líneas Python:** 12.563 (sano para el alcance funcional)
+- **Archivos Python fuera del rango 300–650 líneas:** `mrp_reschedule_config.py` (849), `mrp_reschedule_alert.py` (821) — ambos justificados por responsabilidades no particionables sin introducir acoplamiento
+- **Código muerto JS:** no encontrado
+- **Lifecycle OWL:** todos los `addEventListener` tienen su `removeEventListener` en `onWillUnmount`; todos los `setTimeout` tienen `clearTimeout` en `onWillUnmount`
+- **N+1 queries:** no encontrados en la revisión actual (correcciones previas mantienen el patrón batch)

@@ -75,9 +75,17 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 
 Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por widgets OWL. Usan `sudo()` extensivamente para leer modelos de ventas/stock/compras sin requerir acceso directo del usuario (ver comentarios en cada método).
 
+**Mixin del dashboard**
+
+| Mixin | Archivo | Responsabilidad |
+|-------|---------|-----------------|
+| `mrp.planner.dashboard.actions.mixin` | `mrp_planner_dashboard_actions_mixin.py` | AbstractModel con los 22 métodos de drill-down (`action_view_*` + helpers `_open_alerts` / `_open_mos`). Importado por `mrp.planner.dashboard` via `_inherit`. Los `_wh_domain_*` y `_get_allowed_wh_ids` quedan en el coordinador porque los usan también los `_compute_*`. |
+
+**Coordinador y extensiones por área de datos**
+
 | Modelo / archivo | Dominio de datos |
 |-----------------|-----------------|
-| `mrp_planner_dashboard.py` | Coordinador base; KPIs de alertas generales |
+| `mrp_planner_dashboard.py` (629 L) | Coordinador base: campos, `_compute_*`, helpers de depósito (`_wh_domain_*`, `_get_allowed_wh_ids`), navegación inter-panel (`action_open_*`, `action_refresh_*`, `action_new_*`), `get_internal_locations()`. Hereda `mrp.planner.dashboard.actions.mixin`. |
 | `mrp_planner_dashboard_mo.py` | Órdenes de fabricación |
 | `mrp_planner_dashboard_po.py` | Órdenes de compra |
 | `mrp_planner_dashboard_wc.py` | Carga de centros de trabajo (gráfico) |

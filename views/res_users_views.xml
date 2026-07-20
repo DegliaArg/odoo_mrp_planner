@@ -6,7 +6,7 @@
         <field name="name">res.users.mrp.warehouse.list</field>
         <field name="model">res.users</field>
         <field name="arch" type="xml">
-            <list string="Preferencias por usuario" editable="top">
+            <list string="Preferencias por usuario">
                 <field name="name"  string="Usuario" readonly="1"/>
                 <field name="login" string="Login"   readonly="1"/>
                 <!-- Depósitos -->

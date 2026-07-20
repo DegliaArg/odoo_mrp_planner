@@ -88,7 +88,7 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         # 'date_approve' es el campo estándar de Odoo para la fecha de confirmación.
         date_field = (cfg and cfg.supplier_analysis_date_field) or 'date_approve'
 
-        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+        wh_po = self._get_wh_domains().po
         po_domain = [
             ('state', 'in', ['purchase', 'done']),
             (date_field, '>=', dt_from),
@@ -380,7 +380,7 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         dt_to   = fields.Datetime.to_string(datetime.combine(d_to,   datetime.max.time()))
 
         _date_field = date_field if date_field in ('date_order', 'date_approve', 'date_planned') else 'date_order'
-        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+        wh_po = self._get_wh_domains().po
         pos = self.env['purchase.order'].search([
             ('partner_id', '=', partner_id),
             ('state', 'in', ['purchase', 'done']),

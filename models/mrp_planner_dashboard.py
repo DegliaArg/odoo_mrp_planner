@@ -22,6 +22,7 @@ Relacionado con:
 import logging
 import pytz
 from datetime import datetime
+from types import SimpleNamespace
 
 from odoo import models, fields, api, _
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
@@ -174,7 +175,7 @@ class MrpPlannerDashboard(models.TransientModel):
         # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
-        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
+        wh_alert = self._get_wh_domains().alert
         for rec in self:
             rec.alert_total           = Alert.search_count(base + no_sc + wh_alert)
             rec.alert_critical        = Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'critical')])
@@ -248,8 +249,10 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Permisos por depósito ────────────────────────────────────────────────
 
     def _get_allowed_wh_ids(self):
-        """Retorna None si el usuario ve todos los depósitos, o lista de IDs si está restringido.
-        Cuando hay restricción, filtra a los depósitos de la empresa activa."""
+        """Implementación interna — usar _get_wh_domains() en métodos nuevos.
+
+        Retorna None si el usuario ve todos los depósitos, o lista de IDs si está
+        restringido. Cuando hay restricción, filtra a los depósitos de la empresa activa."""
         u = self.env.user
         if u.mrp_planner_all_warehouses:
             return None  # sin restricción; los callers filtran por empresa al buscar en stock.warehouse
@@ -295,6 +298,28 @@ class MrpPlannerDashboard(models.TransientModel):
                  ('picking_id', '=', False),
         ]
 
+    def _get_wh_domains(self):
+        """Punto de entrada único para el filtro de depósitos del usuario en el dashboard.
+
+        Llama a _get_allowed_wh_ids() una sola vez y devuelve los tres dominios
+        precalculados. Todo método get_* del dashboard que filtre por depósito debe
+        usar este método en lugar de llamar _get_allowed_wh_ids() + _wh_domain_* por
+        separado. Esto garantiza que el filtro se aplique siempre desde un único lugar.
+
+        Atributos del resultado:
+          .allowed_ids — list[int] | None  (None = sin restricción; [] = sin acceso)
+          .mo          — dominio para mrp.production
+          .po          — dominio para purchase.order / stock.picking
+          .alert       — dominio para mrp.reschedule.alert
+        """
+        allowed = self._get_allowed_wh_ids()
+        return SimpleNamespace(
+            allowed_ids=allowed,
+            mo=self._wh_domain_mo(allowed),
+            po=self._wh_domain_po(allowed),
+            alert=self._wh_domain_alert(allowed),
+        )
+
     @api.depends()
     def _compute_inline_alerts(self):
         """
@@ -304,7 +329,7 @@ class MrpPlannerDashboard(models.TransientModel):
         ordenadas por ID descendente (más recientes primero).
         Depende de: mrp.reschedule.alert (resolved, severity).
         """
-        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
+        wh_alert = self._get_wh_domains().alert
         for rec in self:
             rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
                 [('resolved', '=', False), ('severity', '=', 'critical')] + wh_alert,
@@ -326,7 +351,7 @@ class MrpPlannerDashboard(models.TransientModel):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = self._get_wh_domains().mo
         for rec in self:
             active = MO.search([('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc + wh_mo)
             rec.mo_total             = len(active)
@@ -351,7 +376,7 @@ class MrpPlannerDashboard(models.TransientModel):
         MO = self.env['mrp.production']
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = self._get_wh_domains().mo
         for rec in self:
             rec.delayed_mo_ids = MO.search([
                 ('state', 'in', ('confirmed', 'progress', 'to_close')),
@@ -377,7 +402,7 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
-        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+        wh_po = self._get_wh_domains().po
         for rec in self:
             rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))] + wh_po)
             rec.po_to_approve = PO.search_count([('state', '=', 'to approve')] + wh_po)
@@ -407,7 +432,7 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
-        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+        wh_po = self._get_wh_domains().po
         for rec in self:
             rec.rfq_ids = PO.search([
                 ('state', 'in', ('draft', 'sent')),
@@ -614,7 +639,7 @@ class MrpPlannerDashboard(models.TransientModel):
     @api.model
     def get_internal_locations(self):
         """Devuelve ubicaciones internas activas para el selector del widget, filtradas por depósito permitido."""
-        allowed_ids = self._get_allowed_wh_ids()
+        allowed_ids = self._get_wh_domains().allowed_ids
         if allowed_ids is not None and not allowed_ids:
             return []
         if allowed_ids is not None:

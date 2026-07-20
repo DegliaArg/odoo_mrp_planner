@@ -105,7 +105,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             d_to_str   = period_to   + ' 23:59:59'
             d_from     = datetime.strptime(period_from, '%Y-%m-%d')
             d_to       = datetime.strptime(period_to,   '%Y-%m-%d')
-            allowed    = self._get_allowed_wh_ids()
+            allowed    = self._get_wh_domains().allowed_ids
             if allowed is not None:
                 allowed_set = set(allowed)
                 warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
@@ -344,7 +344,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         """
         d_from_str = period_from + ' 00:00:00'
         d_to_str   = period_to   + ' 23:59:59'
-        allowed = self._get_allowed_wh_ids()
+        allowed = self._get_wh_domains().allowed_ids
         if allowed is not None:
             allowed_set = set(allowed)
             warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed

@@ -35,7 +35,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
     @api.model
     def get_mo_warehouses(self):
         """Devuelve almacenes disponibles para el widget de OFs y flag de programación."""
-        allowed = self._get_allowed_wh_ids()
+        allowed = self._get_wh_domains().allowed_ids
         if allowed is None:
             whs = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)])
         elif not allowed:
@@ -184,7 +184,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             return (wo.duration_expected or 0.0) / 60.0 * proportion
 
         # Fix 19: cargar todos los workorders en 1 query batch antes del loop
-        allowed_ids = self._get_allowed_wh_ids()
+        allowed_ids = self._get_wh_domains().allowed_ids
         wos_domain = [
             ('workcenter_id', 'in', workcenters.ids),
             ('state', 'not in', ('cancel',)),

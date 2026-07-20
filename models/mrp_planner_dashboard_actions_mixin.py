@@ -126,7 +126,7 @@ class MrpPlannerDashboardActionsMixin(models.AbstractModel):
             'name': _('Solicitudes de cotización'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', 'in', ('draft', 'sent'))] + self._wh_domain_po(self._get_allowed_wh_ids()),
+            'domain': [('state', 'in', ('draft', 'sent'))] + self._get_wh_domains().po,
             'target': 'current',
         }
 
@@ -137,7 +137,7 @@ class MrpPlannerDashboardActionsMixin(models.AbstractModel):
             'name': _('Por aprobar'),
             'res_model': 'purchase.order',
             'view_mode': 'list,form',
-            'domain': [('state', '=', 'to approve')] + self._wh_domain_po(self._get_allowed_wh_ids()),
+            'domain': [('state', '=', 'to approve')] + self._get_wh_domains().po,
             'target': 'current',
         }
 
@@ -153,7 +153,7 @@ class MrpPlannerDashboardActionsMixin(models.AbstractModel):
                 ('state', 'in', ('purchase', 'done')),
                 ('receipt_status', '!=', 'full'),
                 '|', ('date_planned', '>=', now), ('date_planned', '=', False),
-            ] + self._wh_domain_po(self._get_allowed_wh_ids()),
+            ] + self._get_wh_domains().po,
             'target': 'current',
         }
 
@@ -183,7 +183,7 @@ class MrpPlannerDashboardActionsMixin(models.AbstractModel):
             'domain': [
                 ('state', 'in', ('purchase', 'done')),
                 ('receipt_status', '!=', 'full'),
-            ] + self._wh_domain_po(self._get_allowed_wh_ids()),
+            ] + self._get_wh_domains().po,
             'target': 'current',
         }
 

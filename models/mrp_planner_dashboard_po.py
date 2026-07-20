@@ -91,7 +91,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
         pick_order = f'{pick_f} {_sd}'
         offset     = (max(1, page) - 1) * page_size
 
-        wh_po = self._wh_domain_po(self._get_allowed_wh_ids())
+        wh_po = self._get_wh_domains().po
 
         sc_domain = []
         if filter_type == 'purchase':

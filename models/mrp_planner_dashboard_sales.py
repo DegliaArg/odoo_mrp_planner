@@ -80,7 +80,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
         """
         tmpl_qty = {}
         tmpl_amount = {}
-        allowed_ids = self._get_allowed_wh_ids()
+        allowed_ids = self._get_wh_domains().allowed_ids
         if allowed_ids is not None and not allowed_ids:
             return []
 

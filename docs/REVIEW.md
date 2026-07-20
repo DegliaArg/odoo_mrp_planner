@@ -592,4 +592,59 @@ Añadidos o reubicados comentarios en:
 | # | Área | Descripción |
 |---|------|-------------|
 | D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica antes de intervenir. |
-| I-13 | Seguridad | Filtrado garantizado por depósito: pendiente de decisión de alcance (¿solo dashboard o global vía ir.rule?). |
+| I-13 | ~~Seguridad~~ | **Resuelto** — ver sección de cierre v53 más abajo. |
+
+---
+
+## Revisión v53 — I-13: centralización del filtro de depósitos (alcance dashboard)
+
+**Fecha:** 2026-07-20
+**Alcance:** Garantizar que el filtro de depósitos por usuario sea estructuralmente difícil de omitir en métodos nuevos del dashboard.
+
+### Decisión de alcance
+
+El filtro `res.users.mrp_planner_warehouse_ids` es una funcionalidad específica de este módulo (no una política global de Odoo). **No se usa `ir.rule`** — hacerlo aplicaría el filtro en Inventario, Compras y Fabricación nativos, fuera del alcance de este módulo. El filtro sigue siendo en código del dashboard, pero centralizado en un único punto de entrada.
+
+### Patrón implementado: `_get_wh_domains()`
+
+Se añadió `_get_wh_domains()` en `mrp_planner_dashboard.py` como **único punto de entrada** para el filtro de depósitos:
+
+```python
+def _get_wh_domains(self):
+    """Punto de entrada único para el filtro de depósitos del usuario en el dashboard."""
+    allowed = self._get_allowed_wh_ids()
+    return SimpleNamespace(
+        allowed_ids=allowed,          # list[int] | None
+        mo=self._wh_domain_mo(allowed),
+        po=self._wh_domain_po(allowed),
+        alert=self._wh_domain_alert(allowed),
+    )
+```
+
+**Garantía estructural:** `_get_allowed_wh_ids()` se documenta como implementación interna. Los `_wh_domain_*` siguen existiendo (los usa `_get_wh_domains()` internamente) pero requieren un argumento `allowed_ids` explícito — cualquier desarrollador que quiera llamarlos necesita conseguir ese argumento de algún lado, y la única fuente correcta es `_get_wh_domains()`.
+
+### Migración de call sites
+
+Migrados **25 call sites** en 9 archivos al nuevo patrón:
+
+| Archivo | Call sites migrados | Patrón antes → después |
+|---------|--------------------|-----------------------|
+| `mrp_planner_dashboard.py` | 7 | `self._wh_domain_*(self._get_allowed_wh_ids())` → `self._get_wh_domains().*` |
+| `mrp_planner_dashboard_actions_mixin.py` | 4 | `self._wh_domain_po(self._get_allowed_wh_ids())` → `self._get_wh_domains().po` |
+| `mrp_planner_dashboard_mo.py` | 5 | mixto (`wh_alert`+`wh_mo` en 1 llamada; fallback en condicional warehouse_id) |
+| `mrp_planner_dashboard_po.py` | 1 | `_wh_domain_po(...)` → `.po` |
+| `mrp_planner_dashboard_stock.py` | 2 | `_get_allowed_wh_ids()` → `wh.allowed_ids`; `_wh_domain_mo(...)` → `wh.mo` |
+| `mrp_planner_dashboard_sales.py` | 1 | `_get_allowed_wh_ids()` → `.allowed_ids` |
+| `mrp_planner_dashboard_wc.py` | 2 | `_get_allowed_wh_ids()` → `.allowed_ids` |
+| `mrp_planner_dashboard_customer.py` | 2 | `_get_allowed_wh_ids()` → `.allowed_ids` |
+| `mrp_planner_dashboard_supplier.py` | 2 | `_wh_domain_po(...)` → `.po` |
+
+### Comportamiento preservado para `mrp_planner_all_warehouses=True`
+
+`_get_allowed_wh_ids()` retorna `None` cuando el flag es `True`, y los tres `_wh_domain_*` devuelven `[]` (dominio vacío = sin filtro) cuando reciben `None`. Este comportamiento no cambió — el usuario sin restricción ve todo.
+
+### Pending
+
+| # | Área | Descripción |
+|---|------|-------------|
+| D-03 | Performance | N+1 en `_build_lines` BFS (`mrp_reschedule_cascade_mixin.py`): requiere decisión arquitectónica. |

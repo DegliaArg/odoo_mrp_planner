@@ -81,6 +81,20 @@ Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por wid
 |-------|---------|-----------------|
 | `mrp.planner.dashboard.actions.mixin` | `mrp_planner_dashboard_actions_mixin.py` | AbstractModel con los 22 métodos de drill-down (`action_view_*` + helpers `_open_alerts` / `_open_mos`). Importado por `mrp.planner.dashboard` via `_inherit`. Los `_wh_domain_*` y `_get_allowed_wh_ids` quedan en el coordinador porque los usan también los `_compute_*`. |
 
+**Convención de filtrado por depósito**
+
+Todo método `get_*` del dashboard que filtre por depósito usa `_get_wh_domains()` como único punto de entrada:
+
+```python
+wh = self._get_wh_domains()   # calcula una vez
+wh.mo       # dominio para mrp.production
+wh.po       # dominio para purchase.order / stock.picking
+wh.alert    # dominio para mrp.reschedule.alert
+wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
+```
+
+`_get_wh_domains()` respeta `mrp_planner_all_warehouses=True` (retorna dominios vacíos = sin filtro). Métodos nuevos que consulten MO/PO/alertas deben pasar por este método. `_get_allowed_wh_ids()` es implementación interna; no llamarla directamente desde métodos nuevos.|
+
 **Coordinador y extensiones por área de datos**
 
 | Modelo / archivo | Dominio de datos |

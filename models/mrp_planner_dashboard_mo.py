@@ -69,7 +69,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
         domain = [
             ('state', 'not in', ('done', 'cancel')),
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
@@ -126,8 +126,9 @@ class MrpPlannerDashboardMo(models.TransientModel):
         # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
-        wh_alert = self._wh_domain_alert(self._get_allowed_wh_ids())
-        wh_mo    = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh = self._get_wh_domains()
+        wh_alert = wh.alert
+        wh_mo    = wh.mo
 
         def cnt(alert_type):
             return Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', alert_type)])
@@ -186,7 +187,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
         # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
         active_states = [s for s in (states or []) if s != 'done'] if states else []
         state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
@@ -267,7 +268,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         now   = fields.Datetime.now()
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
         dFrom = fields.Datetime.to_string(_local_to_utc(self.env, date_from))
         dTo   = fields.Datetime.to_string(_local_to_utc(self.env, date_to, end_of_day=True))
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
@@ -381,7 +382,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
 
         cfg  = self.env['mrp.reschedule.config'].get_config()
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'

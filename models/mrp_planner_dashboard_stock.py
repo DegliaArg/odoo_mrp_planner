@@ -76,8 +76,9 @@ class MrpPlannerDashboardStock(models.TransientModel):
         elif not location_ids:
             location_ids = []
 
-        # Resolver allowed_ids una vez; se reutiliza para ubicaciones, orderpoints y mo_groups
-        allowed_ids = self._get_allowed_wh_ids()
+        # Resolver dominios una vez; se reutiliza para ubicaciones, orderpoints y mo_groups
+        wh = self._get_wh_domains()
+        allowed_ids = wh.allowed_ids
 
         if location_ids:
             locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
@@ -333,7 +334,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
             mo_groups = self.env['mrp.production'].read_group(
                 [('product_id', 'in', all_pids),
-                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain + self._wh_domain_mo(allowed_ids),
+                 ('state', 'in', ['confirmed', 'progress', 'to_close'])] + no_sc_domain + wh.mo,
                 ['product_id'], ['product_id'],
             )
             mo_count_map = {g['product_id'][0]: g['product_id_count'] for g in mo_groups}
@@ -487,7 +488,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             - 'date_finished': str — fecha de fin planificada en formato dd/mm/YYYY o '—'.
         """
         # limit=50 evita cargar acordeones excesivamente largos para productos con muchas OFs
-        wh_mo = self._wh_domain_mo(self._get_allowed_wh_ids())
+        wh_mo = self._get_wh_domains().mo
         mos = self.env['mrp.production'].search([
             ('product_id', '=', product_id),
             ('state', 'in', ['confirmed', 'progress', 'to_close']),

@@ -482,13 +482,14 @@ class CustomerAnalysisWidget extends Component {
             this.state.panelMetric   = m;
             this.state.panelProdSort = m === 'qty' ? 'qty_ordered' : 'amount';
             this.state.panelProdDir  = 'desc';
-            this._panelChartsKey     = '';
+            this._panelDonutsKey     = '';
+            this._panelChartKey      = '';
         }
     }
     setPanelChartMode(mode) {
         if (this.state.panelChartMode !== mode) {
             this.state.panelChartMode = mode;
-            this._panelChartsKey      = '';
+            this._panelChartKey       = '';
         }
     }
     saleCatColor(name) {

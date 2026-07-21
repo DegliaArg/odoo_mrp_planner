@@ -105,25 +105,13 @@
                 <!-- Sección gráficos: donuts + gráfico unificado -->
                 <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
 
-                    <!-- Controles: tipo de gráfico + métrica -->
+                    <!-- Controles globales: solo métrica (aplica a donuts + gráfico) -->
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="o_planner_section_title" style="margin-bottom:0;">
                             <i class="fa fa-bar-chart me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Evolución</span>
                         </div>
                         <div class="btn-group btn-group-sm ms-auto" role="group">
-                            <button t-att-class="state.panelChartMode === 'bar'  ? 'btn btn-primary' : 'btn btn-outline-secondary'"
-                                    style="font-size:11px; padding:1px 8px;"
-                                    t-on-click="() => this.setPanelChartMode('bar')">
-                                <i class="fa fa-bar-chart me-1"/>Barras
-                            </button>
-                            <button t-att-class="state.panelChartMode === 'line' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
-                                    style="font-size:11px; padding:1px 8px;"
-                                    t-on-click="() => this.setPanelChartMode('line')">
-                                <i class="fa fa-line-chart me-1"/>Línea
-                            </button>
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group">
                             <button t-att-class="state.panelMetric === 'amount' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                                     style="font-size:11px; padding:1px 8px;"
                                     t-on-click="() => this.setPanelMetric('amount')">
@@ -191,7 +179,21 @@
                         </t>
                     </div>
 
-                    <!-- Gráfico unificado (barras o línea) -->
+                    <!-- Toggle tipo de gráfico + canvas -->
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <button t-att-class="state.panelChartMode === 'bar'  ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelChartMode('bar')">
+                                <i class="fa fa-bar-chart me-1"/>Barras
+                            </button>
+                            <button t-att-class="state.panelChartMode === 'line' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelChartMode('line')">
+                                <i class="fa fa-line-chart me-1"/>Línea
+                            </button>
+                        </div>
+                    </div>
                     <div style="position:relative; height:190px; width:100%; overflow:hidden;">
                         <canvas t-ref="panelBarCanvas"/>
                     </div>

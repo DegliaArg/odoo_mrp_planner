@@ -58,7 +58,8 @@ export function destroyPanelCharts(widget) {
     if (widget._donutChart)   { widget._donutChart.destroy();   widget._donutChart   = null; }
     if (widget._lineChart)    { widget._lineChart.destroy();    widget._lineChart    = null; }
     if (widget._saleCatChart) { widget._saleCatChart.destroy(); widget._saleCatChart = null; }
-    widget._panelChartsKey = '';
+    widget._panelDonutsKey = '';
+    widget._panelChartKey  = '';
 }
 
 /**
@@ -260,10 +261,15 @@ export function drawPanelCharts(widget) {
     const Chart = globalThis.Chart;
     if (typeof Chart === 'undefined') return;
 
-    const chartMode = widget.state.panelChartMode || 'bar';
-    const panelKey  = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${chartMode}_${widget.state.dateFrom}_${widget.state.dateTo}`;
-    if (widget._panelChartsKey === panelKey) return;
-    widget._panelChartsKey = panelKey;
+    const chartMode  = widget.state.panelChartMode || 'bar';
+    const baseKey    = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${widget.state.dateFrom}_${widget.state.dateTo}`;
+    const donutsKey  = baseKey;
+    const chartKey   = `${baseKey}_${chartMode}`;
+    const skipDonuts = widget._panelDonutsKey === donutsKey;
+    const skipChart  = widget._panelChartKey  === chartKey;
+    if (skipDonuts && skipChart) return;
+    widget._panelDonutsKey = donutsKey;
+    widget._panelChartKey  = chartKey;
 
     const isQty   = widget.state.panelMetric === 'qty';
     const fmtTick = isQty
@@ -321,8 +327,10 @@ export function drawPanelCharts(widget) {
         },
     };
 
+    // ── Donuts (solo si cambió métrica/partner/fechas) ───────────────────────
+    if (skipDonuts) { /* donuts ya dibujados, solo redibujar gráfico abajo */ }
     // ── Donut: mix por categoría de venta ────────────────────────────────────
-    const saleCatEl = widget.saleCatRef.el;
+    const saleCatEl = !skipDonuts ? widget.saleCatRef.el : null;
     if (saleCatEl && data.sale_category_mix && data.sale_category_mix.length) {
         if (widget._saleCatChart) { widget._saleCatChart.destroy(); widget._saleCatChart = null; }
         const scm = data.sale_category_mix;
@@ -362,7 +370,7 @@ export function drawPanelCharts(widget) {
     }
 
     // ── Donut: mix de familias ───────────────────────────────────────────────
-    const donutEl = widget.donutRef.el;
+    const donutEl = !skipDonuts ? widget.donutRef.el : null;
     if (donutEl && data.family_mix && data.family_mix.length) {
         if (widget._donutChart) { widget._donutChart.destroy(); widget._donutChart = null; }
         widget._donutChart = new Chart(donutEl, {
@@ -399,8 +407,8 @@ export function drawPanelCharts(widget) {
         });
     }
 
-    // ── Gráfico unificado (barras o línea según panelChartMode) ─────────────
-    const barEl     = widget.barRef.el;
+    // ── Gráfico unificado (solo si cambió chartMode, métrica o datos) ────────
+    const barEl     = !skipChart ? widget.barRef.el : null;
     const allMonths = data.monthly_data || [];
     if (barEl && allMonths.length) {
         if (widget._barChart)  { widget._barChart.destroy();  widget._barChart  = null; }

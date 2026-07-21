@@ -64,45 +64,47 @@
                 </t>
 
                 <!-- ── Favoritos ────────────────────────────────────────────── -->
-                <div class="dropdown-divider my-1"/>
-                <div class="o_planner_search_section_header">Favoritos</div>
+                <t t-if="props.showFavorites">
+                    <div class="dropdown-divider my-1"/>
+                    <div class="o_planner_search_section_header">Favoritos</div>
 
-                <!-- Favoritos guardados -->
-                <t t-if="localState.favorites.length">
-                    <t t-foreach="localState.favorites" t-as="fav" t-key="fav.name">
-                        <div class="o_planner_search_fav_row">
-                            <i class="fa fa-star text-warning fa-fw"/>
-                            <span class="flex-grow-1 text-truncate o_planner_search_item px-0 py-0"
-                                  style="cursor:pointer"
-                                  t-on-click.stop="() => this.applyFavorite(fav)"
-                                  t-esc="fav.name"/>
-                            <i class="fa fa-trash text-muted small"
-                               style="cursor:pointer"
-                               t-on-click.stop="() => this.deleteFavorite(fav)"/>
-                        </div>
+                    <!-- Favoritos guardados -->
+                    <t t-if="localState.favorites.length">
+                        <t t-foreach="localState.favorites" t-as="fav" t-key="fav.name">
+                            <div class="o_planner_search_fav_row">
+                                <i class="fa fa-star text-warning fa-fw"/>
+                                <span class="flex-grow-1 text-truncate o_planner_search_item px-0 py-0"
+                                      style="cursor:pointer"
+                                      t-on-click.stop="() => this.applyFavorite(fav)"
+                                      t-esc="fav.name"/>
+                                <i class="fa fa-trash text-muted small"
+                                   style="cursor:pointer"
+                                   t-on-click.stop="() => this.deleteFavorite(fav)"/>
+                            </div>
+                        </t>
                     </t>
-                </t>
-                <t t-else="">
-                    <div class="o_planner_search_item text-muted small pe-none">Sin favoritos guardados.</div>
-                </t>
+                    <t t-else="">
+                        <div class="o_planner_search_item text-muted small pe-none">Sin favoritos guardados.</div>
+                    </t>
 
-                <!-- Guardar búsqueda actual -->
-                <div class="o_planner_search_fav_add" t-on-click.stop="">
-                    <div class="d-flex gap-2">
-                        <input type="text" class="form-control form-control-sm"
-                               placeholder="Guardar búsqueda actual como..."
-                               t-att-value="localState.favoriteName"
-                               t-on-input="onFavInput"
-                               t-on-keydown="onFavKeydown"
-                               autocomplete="off"/>
-                        <button class="btn btn-sm btn-primary"
-                                type="button"
-                                t-att-disabled="!localState.favoriteName.trim()"
-                                t-on-click.stop="saveFavorite">
-                            <i class="fa fa-star"/>
-                        </button>
+                    <!-- Guardar búsqueda actual -->
+                    <div class="o_planner_search_fav_add" t-on-click.stop="">
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control form-control-sm"
+                                   placeholder="Guardar búsqueda actual como..."
+                                   t-att-value="localState.favoriteName"
+                                   t-on-input="onFavInput"
+                                   t-on-keydown="onFavKeydown"
+                                   autocomplete="off"/>
+                            <button class="btn btn-sm btn-primary"
+                                    type="button"
+                                    t-att-disabled="!localState.favoriteName.trim()"
+                                    t-on-click.stop="saveFavorite">
+                                <i class="fa fa-star"/>
+                            </button>
+                        </div>
                     </div>
-                </div>
+                </t>
             </div>
         </div>
     </t>

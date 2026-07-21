@@ -32,6 +32,7 @@ export class PlannerSearchBar extends Component {
         onSearch:       { type: Function },
         onFilterChange: { type: Function, optional: true },
         onGroupByChange:{ type: Function, optional: true },
+        showFavorites:  { type: Boolean, optional: true },
         "*":            true,
     };
 

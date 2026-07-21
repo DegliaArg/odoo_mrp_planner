@@ -265,7 +265,8 @@
                             activeGroupBy:   state.groupBy,
                             groupByDefs:     groupByDefs,
                             onSearch:        (t) => this.setSearch(t),
-                            onGroupByChange: (k) => this.setGroupBy(k)
+                            onGroupByChange: (k) => this.setGroupBy(k),
+                            showFavorites:   true
                         }"/>
 
                     <div class="position-relative" t-on-click.stop="">

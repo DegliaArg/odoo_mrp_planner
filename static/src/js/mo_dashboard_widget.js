@@ -102,6 +102,7 @@ class MoDashboardWidget extends Component {
             cmp_mode:      'finish_date',
             cmpSearch:     '',
             reqSearch:     '',
+            ofsSearch:     '',
         });
 
         onMounted(async () => {
@@ -139,6 +140,8 @@ class MoDashboardWidget extends Component {
                         this.state.sortDir,
                         this.state.page,
                         this.state.pageSize,
+                        null,
+                        this.state.ofsSearch || null,
                     ]),
                     this.orm.call("mrp.planner.dashboard", "get_mo_kpi_counts", [
                         this.state.dateFrom,
@@ -244,6 +247,12 @@ class MoDashboardWidget extends Component {
      * @returns {boolean}
      */
     get showFilters() { return this.state.tab !== "requests"; }
+
+    setOfsSearch(text) {
+        this.state.ofsSearch = text;
+        this.state.page = 1;
+        this._loadData();
+    }
 
     setCmpSearch(text) {
         this.state.cmpSearch = text;

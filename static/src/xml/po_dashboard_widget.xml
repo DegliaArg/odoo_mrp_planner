@@ -33,36 +33,38 @@
                 </div>
             </div>
 
-            <!-- Pestañas de tipo -->
-            <ul class="nav nav-pills mb-3">
-                <li class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'all' ? ' active' : '')"
-                            t-on-click="() => this.setTab('all')">
-                        <i class="fa fa-th-list me-1"/>Todas
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'purchase' ? ' active' : '')"
-                            t-on-click="() => this.setTab('purchase')">
-                        <i class="fa fa-shopping-cart me-1"/>Compras
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'subcontract' ? ' active' : '')"
-                            t-on-click="() => this.setTab('subcontract')">
-                        <i class="fa fa-industry me-1"/>Subcontratación
-                    </button>
-                </li>
-            </ul>
-
-            <!-- Buscador -->
-            <PlannerSearchBar
-                widgetKey="'po_dashboard'"
-                placeholder="'Buscar OC, referencia, proveedor…'"
-                t-props="{
-                    search:   state.search,
-                    onSearch: (t) => this.setSearch(t)
-                }"/>
+            <!-- Pestañas de tipo + buscador inline -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <ul class="nav nav-pills mb-0">
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'all' ? ' active' : '')"
+                                t-on-click="() => this.setTab('all')">
+                            <i class="fa fa-th-list me-1"/>Todas
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'purchase' ? ' active' : '')"
+                                t-on-click="() => this.setTab('purchase')">
+                            <i class="fa fa-shopping-cart me-1"/>Compras
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'subcontract' ? ' active' : '')"
+                                t-on-click="() => this.setTab('subcontract')">
+                            <i class="fa fa-industry me-1"/>Subcontratación
+                        </button>
+                    </li>
+                </ul>
+                <div class="ms-auto" style="min-width:200px; max-width:280px;">
+                    <PlannerSearchBar
+                        widgetKey="'po_dashboard'"
+                        placeholder="'Buscar OC, referencia, proveedor…'"
+                        t-props="{
+                            search:   state.search,
+                            onSearch: (t) => this.setSearch(t)
+                        }"/>
+                </div>
+            </div>
 
             <!-- Contenido — dimming durante carga en lugar de spinner full -->
             <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">

@@ -4,27 +4,43 @@
     <t t-name="odoo_mrp_planner.MoDashboardWidget">
         <div class="o_mo_dashboard_widget" t-ref="moRoot">
 
-            <!-- Pestañas principales -->
-            <ul class="nav nav-pills mb-3">
-                <li class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'ofs' ? ' active' : '')"
-                            t-on-click="() => this.setTab('ofs')">
-                        <i class="fa fa-industry me-1"/>OFs
-                    </button>
-                </li>
-                <li t-if="state.enable_scheduling" class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'requests' ? ' active' : '')"
-                            t-on-click="() => this.setTab('requests')">
-                        <i class="fa fa-calendar me-1"/>Programaciones
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button t-att-class="'nav-link' + (state.tab === 'comparison' ? ' active' : '')"
-                            t-on-click="() => this.setTab('comparison')">
-                        <i class="fa fa-bar-chart me-1"/>Producido vs Programado
-                    </button>
-                </li>
-            </ul>
+            <!-- Pestañas principales + buscador inline -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <ul class="nav nav-pills mb-0">
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'ofs' ? ' active' : '')"
+                                t-on-click="() => this.setTab('ofs')">
+                            <i class="fa fa-industry me-1"/>OFs
+                        </button>
+                    </li>
+                    <li t-if="state.enable_scheduling" class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'requests' ? ' active' : '')"
+                                t-on-click="() => this.setTab('requests')">
+                            <i class="fa fa-calendar me-1"/>Programaciones
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'comparison' ? ' active' : '')"
+                                t-on-click="() => this.setTab('comparison')">
+                            <i class="fa fa-bar-chart me-1"/>Producido vs Programado
+                        </button>
+                    </li>
+                </ul>
+                <div class="ms-auto" style="min-width:200px; max-width:280px;">
+                    <PlannerSearchBar t-if="state.tab === 'ofs'"
+                        widgetKey="'mo_ofs'"
+                        placeholder="'Buscar OF, producto…'"
+                        t-props="{ search: state.ofsSearch, onSearch: (t) => this.setOfsSearch(t) }"/>
+                    <PlannerSearchBar t-elif="state.tab === 'requests'"
+                        widgetKey="'mo_requests'"
+                        placeholder="'Buscar referencia, fecha…'"
+                        t-props="{ search: state.reqSearch, onSearch: (t) => this.setReqSearch(t) }"/>
+                    <PlannerSearchBar t-elif="state.tab === 'comparison'"
+                        widgetKey="'mo_comparison'"
+                        placeholder="'Buscar producto…'"
+                        t-props="{ search: state.cmpSearch, onSearch: (t) => this.setCmpSearch(t) }"/>
+                </div>
+            </div>
 
             <!-- Filtros (fecha + sector), ocultos en pestaña Programaciones -->
             <div t-if="showFilters" class="row g-2 mb-3">
@@ -322,13 +338,6 @@
 
                     <!-- Lista de programaciones -->
                     <div class="col-12 col-lg-8">
-                        <PlannerSearchBar
-                            widgetKey="'mo_requests'"
-                            placeholder="'Buscar referencia, fecha…'"
-                            t-props="{
-                                search:   state.reqSearch,
-                                onSearch: (t) => this.setReqSearch(t)
-                            }"/>
                         <div t-if="state.requests.length === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
                              style="height:260px;">
@@ -514,13 +523,6 @@
 
                     <!-- Tabla comparativa -->
                     <div class="col-12 col-lg-8">
-                        <PlannerSearchBar
-                            widgetKey="'mo_comparison'"
-                            placeholder="'Buscar producto…'"
-                            t-props="{
-                                search:   state.cmpSearch,
-                                onSearch: (t) => this.setCmpSearch(t)
-                            }"/>
                         <div t-if="state.cmp_total === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
                              style="height:260px;">

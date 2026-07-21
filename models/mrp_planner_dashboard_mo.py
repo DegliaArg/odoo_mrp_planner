@@ -149,7 +149,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
     # ── Widget OFs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_mo_widget_data(self, date_from, date_to, warehouse_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None):
+    def get_mo_widget_data(self, date_from, date_to, warehouse_id=None, sort_field=None, sort_dir='asc', page=1, page_size=50, states=None, search=None):
         """
         Retorna KPIs de OFs y la página de registros solicitada para el widget principal de OFs.
 
@@ -201,6 +201,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
         ] + no_sc + wh_mo
 
         mos = self.env['mrp.production'].search(domain, order=mo_order)
+
+        if search:
+            _s = search.strip().lower()
+            mos = mos.filtered(
+                lambda m: _s in (m.name or '').lower()
+                or _s in (m.product_id.display_name or '').lower()
+            )
 
         # OFs finalizadas en el mismo rango de fechas
         done_domain = [

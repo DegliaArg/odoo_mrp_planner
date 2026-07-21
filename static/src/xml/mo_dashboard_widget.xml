@@ -164,14 +164,14 @@
 
                     <!-- Lista de OFs -->
                     <div class="col-12 col-lg-8">
-                        <input type="text" class="form-control form-control-sm mb-2"
+                        <input type="text" class="form-control form-control-sm mb-2 o_above_table_search"
                                placeholder="Buscar OF, producto…"
                                t-att-value="state.ofsSearch"
                                t-on-input="(ev) => this.setOfsSearch(ev.target.value)"
                                autocomplete="off"/>
                         <div t-if="state.mos.length === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
-                             style="height:292px;">
+                             style="height:330px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
                                 Sin órdenes en el período.
@@ -179,7 +179,7 @@
                         </div>
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
-                             style="overflow:hidden; height:292px;">
+                             style="overflow:hidden; height:330px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
@@ -329,14 +329,14 @@
 
                     <!-- Lista de programaciones -->
                     <div class="col-12 col-lg-8">
-                        <input type="text" class="form-control form-control-sm mb-2"
+                        <input type="text" class="form-control form-control-sm mb-2 o_above_table_search"
                                placeholder="Buscar referencia, fecha…"
                                t-att-value="state.reqSearch"
                                t-on-input="(ev) => this.setReqSearch(ev.target.value)"
                                autocomplete="off"/>
                         <div t-if="state.requests.length === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
-                             style="height:222px;">
+                             style="height:260px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-calendar-check-o fa-2x mb-2 d-block text-muted"/>
                                 Sin programaciones activas.
@@ -344,7 +344,7 @@
                         </div>
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
-                             style="overflow:hidden; height:222px;">
+                             style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
@@ -519,14 +519,14 @@
 
                     <!-- Tabla comparativa -->
                     <div class="col-12 col-lg-8">
-                        <input type="text" class="form-control form-control-sm mb-2"
+                        <input type="text" class="form-control form-control-sm mb-2 o_above_table_search"
                                placeholder="Buscar producto…"
                                t-att-value="state.cmpSearch"
                                t-on-input="(ev) => this.setCmpSearch(ev.target.value)"
                                autocomplete="off"/>
                         <div t-if="state.cmp_total === 0"
                              class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
-                             style="height:222px;">
+                             style="height:260px;">
                             <div class="text-center small text-muted">
                                 <i class="fa fa-bar-chart fa-2x mb-2 d-block text-muted"/>
                                 Sin datos en el período.
@@ -534,7 +534,7 @@
                         </div>
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
-                             style="overflow:hidden; height:222px;">
+                             style="overflow:hidden; height:260px;">
                             <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
                                 <colgroup>
                                     <col t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"

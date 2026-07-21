@@ -191,11 +191,13 @@ class PoDashboardWidget extends Component {
     _syncH() {
         const root = this._root.el;
         if (!root) return;
-        const kpiEl   = root.querySelector('.o_kpi_height_src');
-        const tableEl = root.querySelector('.o_table_scroll');
+        const kpiEl    = root.querySelector('.o_kpi_height_src');
+        const tableEl  = root.querySelector('.o_table_scroll');
         if (!kpiEl || !tableEl) return;
         tableEl.style.height = '0';
-        const h = kpiEl.offsetHeight;
+        const searchEl = root.querySelector('.o_above_table_search');
+        const searchH  = searchEl ? (searchEl.offsetHeight + 8) : 0;
+        const h = kpiEl.offsetHeight - searchH;
         tableEl.style.height = Math.max(h, 150) + 'px';
     }
 

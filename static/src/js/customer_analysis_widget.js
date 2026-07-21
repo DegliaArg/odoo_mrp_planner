@@ -37,6 +37,7 @@ const CA_STATIC_COLS = [
     { key: 'top_family',        label: 'Familia principal', width: 140, align: 'start'  },
     { key: 'trend_pct',         label: 'Tendencia',         width:  90, align: 'end'    },
     { key: 'frequency_segment', label: 'Segmento freq.',    width: 110, align: 'center' },
+    { key: 'partner_tag',       label: 'Etiqueta',          width: 130, align: 'center' },
 ];
 
 const CA_SORT_KEYS = {
@@ -59,6 +60,7 @@ const CA_SORT_KEYS = {
     top_family:        'top_family',
     trend_pct:         'trend_pct',
     frequency_segment: 'frequency_segment',
+    partner_tag:       'partner_tag',
 };
 
 function toDateStr(d) {
@@ -177,6 +179,7 @@ class CustomerAnalysisWidget extends Component {
                 top_family:        false,
                 trend_pct:         false,
                 frequency_segment: true,
+                partner_tag:       false,
             },
         });
 
@@ -492,6 +495,15 @@ class CustomerAnalysisWidget extends Component {
             this._panelChartKey       = '';
         }
     }
+    partnerTagColor(colorIdx) {
+        const palette = [
+            '#aaaaaa', '#e06c75', '#e09b49', '#e8d04a',
+            '#56b4d3', '#7b65be', '#73c7ae', '#a8a8a8',
+            '#71bb63', '#de9898', '#e0734b', '#b9699b',
+        ];
+        return palette[colorIdx] ?? '#aaaaaa';
+    }
+
     saleCatColor(name) {
         const map = { A: '#198754', B: '#0d6efd', C: '#ffc107', D: '#6c757d', E: '#c8d2dc' };
         return map[name] || '#6c757d';
@@ -874,6 +886,7 @@ class CustomerAnalysisWidget extends Component {
             top_family:        'Familia de producto (categ_id) con mayor monto en el período.',
             trend_pct:         'Variación del monto vs el período anterior de igual duración. ▲ crecimiento, ▼ caída.',
             frequency_segment: 'Segmento de frecuencia: Frecuente (< 30 días entre pedidos), Ocasional (30–90 días), Inactivo (> 90 días), En riesgo (sin comprar hace más días que el umbral configurado).',
+            partner_tag:       'Primera etiqueta de contacto asignada al cliente en Odoo (res.partner.category_id). Clic para ordenar.',
         };
         return titles[col.key] || '';
     }
@@ -886,6 +899,7 @@ class CustomerAnalysisWidget extends Component {
             { key: 'abc_segment',       label: 'Segmento ABC período' },
             { key: 'frequency_segment', label: 'Segmento frecuencia'  },
             { key: 'top_family',        label: 'Familia principal'    },
+            { key: 'partner_tag',       label: 'Etiqueta'             },
         ];
         if (this.state.config.show_category) {
             base.unshift({ key: 'customer_category', label: 'Categoría de cliente' });

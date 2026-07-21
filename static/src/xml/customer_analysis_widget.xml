@@ -282,6 +282,7 @@
                             <t t-foreach="[
                                 ['customer_category', 'Cat. global (A–E del contacto)'],
                                 ['abc_segment',       'ABC período (ranking dinámico)'],
+                                ['partner_tag',       'Etiqueta de contacto'],
                                 ['salesperson',       'Vendedor'],
                                 ['country',           'País'],
                                 ['province',          'Provincia'],

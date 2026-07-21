@@ -129,6 +129,16 @@
                       t-esc="freqLabel(row.frequency_segment)"/>
             </td>
 
+            <td t-elif="col.key === 'partner_tag'"
+                class="text-center" style="padding:3px 6px;"
+                t-att-title="row.partner_tag || 'Sin etiqueta'">
+                <span t-if="row.partner_tag"
+                      style="display:inline-block; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:1px 6px; border-radius:10px; font-size:11px; font-weight:500; color:#fff;"
+                      t-att-style="'display:inline-block; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:1px 6px; border-radius:10px; font-size:11px; font-weight:500; color:#fff; background:' + partnerTagColor(row.partner_tag_color)"
+                      t-esc="row.partner_tag"/>
+                <span t-else="" class="text-muted">—</span>
+            </td>
+
             <td t-else="" style="padding:3px 8px;">
                 <t t-esc="row[col.key] !== null and row[col.key] !== undefined ? row[col.key] : '—'"/>
             </td>

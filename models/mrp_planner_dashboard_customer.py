@@ -194,9 +194,20 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 p['id']: p
                 # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
                 for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
-                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id']
+                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id', 'category_id']
                 )
             }
+
+            # Leer nombre y color de la primera etiqueta de cada partner
+            all_tag_ids = {
+                p.get('category_id', [None])[0]
+                for p in partner_info.values()
+                if p.get('category_id')
+            }
+            tag_data = {}
+            if all_tag_ids:
+                for t in self.env['res.partner.category'].sudo().browse(list(all_tag_ids)).read(['id', 'name', 'color']):
+                    tag_data[t['id']] = {'name': t['name'], 'color': t.get('color') or 0}
 
             # ── 7. Construir filas ────────────────────────────────────────────
             ontime_method = cfg.get('ontime_method', 'commitment_date')
@@ -206,6 +217,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
             for pid, sos in partner_sos.items():
                 pinfo       = partner_info.get(pid, {})
+                first_tag_id = (pinfo.get('category_id') or [None])[0]
+                tag          = tag_data.get(first_tag_id, {})
                 order_count = len(sos)
                 dates       = sorted(self._to_date(s['date_order']) for s in sos)
                 last_date   = dates[-1]
@@ -276,6 +289,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'prev_amount':       round(prev_amt, 2),
                     'abc_segment':       pinfo.get('x_customer_category') or '',
                     'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
+                    'partner_tag':       tag.get('name', '') or '',
+                    'partner_tag_color': tag.get('color', 0),
                 })
 
             total_customers   = len(rows)

@@ -358,6 +358,12 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         categ_by_prod = {p['id']: (p.get('categ_id') or (0, 'Sin familia'))[1] for p in prods}
         tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}
 
+        tmpl_ids = list({tid for tid in tmpl_by_prod.values() if tid})
+        sale_cat_by_tmpl = {}
+        if tmpl_ids:
+            for t in self.env['product.template'].sudo().browse(tmpl_ids).read(['id', 'x_sale_category']):
+                sale_cat_by_tmpl[t['id']] = t.get('x_sale_category') or ''
+
         sol_by_order = defaultdict(list)
         for l in lines_data:
             sol_by_order[l['order_id'][0]].append(l)
@@ -430,15 +436,17 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         top_products = sorted([
             {
-                'product_id':   pid,
-                'tmpl_id':      tmpl_by_prod.get(pid, 0),
-                'name':         prod_names.get(pid, ''),
-                'qty_ordered':  round(v['qty_ordered'],  1),
+                'product_id':    pid,
+                'tmpl_id':       tmpl_by_prod.get(pid, 0),
+                'name':          prod_names.get(pid, ''),
+                'qty_ordered':   round(v['qty_ordered'],  1),
                 'qty_delivered': round(v['qty_delivered'], 1),
-                'amount':       round(v['amount'], 2),
-                'order_count':  len(v['orders']),
-                'delivery_pct': round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
-                                if v['qty_ordered'] > 0 else None,
+                'amount':        round(v['amount'], 2),
+                'order_count':   len(v['orders']),
+                'delivery_pct':  round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
+                                 if v['qty_ordered'] > 0 else None,
+                'sale_category': sale_cat_by_tmpl.get(tmpl_by_prod.get(pid, 0), ''),
+                'family':        categ_by_prod.get(pid, ''),
             }
             for pid, v in prod_totals.items()
         ], key=lambda x: x['amount'], reverse=True)

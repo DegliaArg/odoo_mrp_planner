@@ -194,12 +194,14 @@
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
                                     <t t-foreach="[
-                                        {key:'name',         label:'Artículo',   cls:'',         tip:'Nombre del artículo (variante de producto). Clic para abrir ficha.'},
-                                        {key:'qty_ordered',  label:'Pedido',     cls:'text-end', tip:'Total de unidades pedidas del artículo en el período.'},
-                                        {key:'qty_delivered',label:'Entregado',  cls:'text-end', tip:'Total de unidades entregadas (qty_delivered) en el período.'},
-                                        {key:'amount',       label:'Monto',      cls:'text-end', tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
-                                        {key:'delivery_pct', label:'% Entrega',  cls:'text-end', tip:'Entregado ÷ Pedido × 100. Semáforo configurable en Ajustes.'},
-                                        {key:'order_count',  label:'OVs',        cls:'text-end', tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
+                                        {key:'name',          label:'Artículo',   cls:'',            tip:'Nombre del artículo (variante de producto). Clic para abrir ficha.'},
+                                        {key:'sale_category', label:'Cat.',        cls:'text-center', tip:'Categoría de venta A–E asignada al artículo.'},
+                                        {key:'family',        label:'Familia',     cls:'',            tip:'Familia (categoría interna) del producto.'},
+                                        {key:'qty_ordered',   label:'Pedido',      cls:'text-end',    tip:'Total de unidades pedidas del artículo en el período.'},
+                                        {key:'qty_delivered', label:'Entregado',   cls:'text-end',    tip:'Total de unidades entregadas (qty_delivered) en el período.'},
+                                        {key:'amount',        label:'Monto',       cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
+                                        {key:'delivery_pct',  label:'% Entrega',   cls:'text-end',    tip:'Entregado ÷ Pedido × 100. Semáforo configurable en Ajustes.'},
+                                        {key:'order_count',   label:'OVs',         cls:'text-end',    tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
                                     ]" t-as="col" t-key="col.key">
                                         <th t-att-class="col.cls + ' user-select-none'"
                                             t-att-title="col.tip"
@@ -227,6 +229,18 @@
                                             <a href="#" class="text-decoration-none"
                                                t-on-click.prevent="() => this.openProduct(prod.tmpl_id)"
                                                t-esc="prod.name"/>
+                                        </td>
+                                        <td class="text-center" style="padding:2px 8px;">
+                                            <t t-if="prod.sale_category">
+                                                <span class="badge bg-secondary" style="font-size:10px;">
+                                                    <t t-esc="prod.sale_category"/>
+                                                </span>
+                                            </t>
+                                            <t t-else=""><span class="text-muted">—</span></t>
+                                        </td>
+                                        <td style="padding:2px 8px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                            t-att-title="prod.family">
+                                            <t t-esc="prod.family or '—'"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;">
                                             <t t-esc="fmt(prod.qty_ordered)"/>

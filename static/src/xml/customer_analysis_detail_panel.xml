@@ -102,16 +102,28 @@
                     </div>
                 </div>
 
-                <!-- Toggle métrica + sección gráficos -->
+                <!-- Sección gráficos: donuts + gráfico unificado -->
                 <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.length">
 
-                    <!-- Barra de controles: $ Monto / # Piezas -->
+                    <!-- Controles: tipo de gráfico + métrica -->
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="o_planner_section_title" style="margin-bottom:0;">
                             <i class="fa fa-bar-chart me-1 text-muted"/>
-                            <span class="text-uppercase fw-bold text-muted small">Evolución mensual</span>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución</span>
                         </div>
                         <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <button t-att-class="state.panelChartMode === 'bar'  ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelChartMode('bar')">
+                                <i class="fa fa-bar-chart me-1"/>Barras
+                            </button>
+                            <button t-att-class="state.panelChartMode === 'line' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    t-on-click="() => this.setPanelChartMode('line')">
+                                <i class="fa fa-line-chart me-1"/>Línea
+                            </button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
                             <button t-att-class="state.panelMetric === 'amount' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                                     style="font-size:11px; padding:1px 8px;"
                                     t-on-click="() => this.setPanelMetric('amount')">
@@ -125,50 +137,65 @@
                         </div>
                     </div>
 
-                    <!-- Gráficos: barras agrupadas (flex:3) + donut familias (flex:2) -->
-                    <div class="d-flex gap-3 mb-3 align-items-start">
-                        <div style="flex:3; min-width:0; overflow:hidden;">
-                            <div style="position:relative; height:190px; width:100%;">
-                                <canvas t-ref="panelBarCanvas"/>
-                            </div>
-                        </div>
-                        <div t-if="state.panelData.family_mix and state.panelData.family_mix.length"
-                             style="flex:2; min-width:0; overflow:hidden;">
-                            <div class="o_planner_section_title mb-1">
-                                <i class="fa fa-pie-chart me-1 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Mix de familias</span>
-                            </div>
-                            <div class="d-flex gap-2" style="height:190px;">
-                                <!-- Chart sin leyenda -->
-                                <div style="flex:0 0 140px; position:relative;">
-                                    <canvas t-ref="panelDonutCanvas"/>
-                                </div>
-                                <!-- Leyenda HTML: una sola columna, scrollable -->
-                                <div style="flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px;">
-                                    <t t-foreach="state.panelData.family_mix" t-as="f" t-key="f_index">
-                                        <div class="d-flex align-items-center gap-1" style="min-width:0;">
-                                            <span t-att-style="'flex-shrink:0; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + donutColor(f_index)"/>
-                                            <span class="small text-truncate" style="flex:1; min-width:0; font-size:11px;"
-                                                  t-esc="f.name"/>
-                                            <span class="small text-muted ms-1" style="flex-shrink:0; font-size:11px;"
-                                                  t-esc="(state.panelMetric === 'qty' ? f.pct : f.pct_amount) + '%'"/>
-                                        </div>
-                                    </t>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </t>
+                    <!-- Fila de donuts: cat. venta (izq.) + familias (der.) -->
+                    <div class="d-flex gap-3 mb-2 align-items-start">
 
-                <!-- Línea % entrega — ancho completo -->
-                <t t-if="state.panelData.monthly_data and state.panelData.monthly_data.filter(m => m.delivery_pct !== null).length > 1">
-                    <div class="o_planner_section_title mb-1">
-                        <i class="fa fa-line-chart me-1 text-muted"/>
-                        <span class="text-uppercase fw-bold text-muted small">% Entrega mensual</span>
+                        <!-- Donut: mix por categoría de venta -->
+                        <t t-if="state.panelData.sale_category_mix and state.panelData.sale_category_mix.length">
+                            <div style="flex:1; min-width:0; overflow:hidden;">
+                                <div class="o_planner_section_title mb-1">
+                                    <i class="fa fa-pie-chart me-1 text-muted"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Mix cat. venta</span>
+                                </div>
+                                <div class="d-flex gap-2" style="height:160px;">
+                                    <div style="flex:0 0 120px; position:relative;">
+                                        <canvas t-ref="panelSaleCatCanvas"/>
+                                    </div>
+                                    <div style="flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px;">
+                                        <t t-foreach="state.panelData.sale_category_mix" t-as="sc" t-key="sc.name">
+                                            <div class="d-flex align-items-center gap-1" style="min-width:0;">
+                                                <span t-att-style="'flex-shrink:0; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + saleCatColor(sc.name)"/>
+                                                <span class="small fw-bold" style="flex-shrink:0; font-size:11px;" t-esc="sc.name"/>
+                                                <span class="small text-muted ms-auto" style="flex-shrink:0; font-size:11px;"
+                                                      t-esc="(state.panelMetric === 'qty' ? sc.pct : sc.pct_amount) + '%'"/>
+                                            </div>
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+
+                        <!-- Donut: mix de familias -->
+                        <t t-if="state.panelData.family_mix and state.panelData.family_mix.length">
+                            <div style="flex:1; min-width:0; overflow:hidden;">
+                                <div class="o_planner_section_title mb-1">
+                                    <i class="fa fa-pie-chart me-1 text-muted"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Mix familias</span>
+                                </div>
+                                <div class="d-flex gap-2" style="height:160px;">
+                                    <div style="flex:0 0 120px; position:relative;">
+                                        <canvas t-ref="panelDonutCanvas"/>
+                                    </div>
+                                    <div style="flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px;">
+                                        <t t-foreach="state.panelData.family_mix" t-as="f" t-key="f_index">
+                                            <div class="d-flex align-items-center gap-1" style="min-width:0;">
+                                                <span t-att-style="'flex-shrink:0; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + donutColor(f_index)"/>
+                                                <span class="small text-truncate" style="flex:1; min-width:0; font-size:11px;" t-esc="f.name"/>
+                                                <span class="small text-muted ms-1" style="flex-shrink:0; font-size:11px;"
+                                                      t-esc="(state.panelMetric === 'qty' ? f.pct : f.pct_amount) + '%'"/>
+                                            </div>
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
                     </div>
-                    <div style="position:relative; height:140px; width:100%; overflow:hidden;">
-                        <canvas t-ref="panelLineCanvas"/>
+
+                    <!-- Gráfico unificado (barras o línea) -->
+                    <div style="position:relative; height:190px; width:100%; overflow:hidden;">
+                        <canvas t-ref="panelBarCanvas"/>
                     </div>
+
                 </t>
 
                 <!-- Top artículos -->
@@ -232,9 +259,8 @@
                                         </td>
                                         <td class="text-center" style="padding:2px 8px;">
                                             <t t-if="prod.sale_category">
-                                                <span class="badge bg-secondary" style="font-size:10px;">
-                                                    <t t-esc="prod.sale_category"/>
-                                                </span>
+                                                <span t-att-style="'display:inline-block; width:18px; height:18px; border-radius:3px; line-height:18px; text-align:center; font-size:10px; font-weight:bold; color:#fff; background:' + saleCatColor(prod.sale_category)"
+                                                      t-esc="prod.sale_category"/>
                                             </t>
                                             <t t-else=""><span class="text-muted">—</span></t>
                                         </td>

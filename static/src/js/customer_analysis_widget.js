@@ -103,12 +103,14 @@ class CustomerAnalysisWidget extends Component {
         this._topDonutChart = null;
         this._topDonutKey  = '';
 
-        this.barRef    = useRef("panelBarCanvas");
-        this.donutRef  = useRef("panelDonutCanvas");
-        this.lineRef   = useRef("panelLineCanvas");
-        this._barChart   = null;
-        this._donutChart = null;
-        this._lineChart  = null;
+        this.barRef       = useRef("panelBarCanvas");
+        this.donutRef     = useRef("panelDonutCanvas");
+        this.lineRef      = useRef("panelLineCanvas");
+        this.saleCatRef   = useRef("panelSaleCatCanvas");
+        this._barChart    = null;
+        this._donutChart  = null;
+        this._lineChart   = null;
+        this._saleCatChart = null;
 
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
         this.caSortKeys = CA_SORT_KEYS;
@@ -149,6 +151,7 @@ class CustomerAnalysisWidget extends Component {
             panelData:      null,
             panelPartnerId: null,
             panelMetric:    'amount',   // 'amount' | 'qty'
+            panelChartMode: 'bar',      // 'bar' | 'line'
             panelTopN:      10,
             panelProdSort:  'amount',   // columna de sort en top artículos
             panelProdDir:   'desc',
@@ -481,6 +484,16 @@ class CustomerAnalysisWidget extends Component {
             this.state.panelProdDir  = 'desc';
             this._panelChartsKey     = '';
         }
+    }
+    setPanelChartMode(mode) {
+        if (this.state.panelChartMode !== mode) {
+            this.state.panelChartMode = mode;
+            this._panelChartsKey      = '';
+        }
+    }
+    saleCatColor(name) {
+        const map = { A: '#198754', B: '#0d6efd', C: '#ffc107', D: '#6c757d', E: '#c8d2dc' };
+        return map[name] || '#6c757d';
     }
     setPanelTopN(n) { this.state.panelTopN = n; }
 

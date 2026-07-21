@@ -355,8 +355,18 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
         # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
         prods     = self.env['product.product'].sudo().browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
-        categ_by_prod = {p['id']: (p.get('categ_id') or (0, 'Sin familia'))[1] for p in prods}
         tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}
+
+        # Leer nombre hoja de categoría (no complete_name con jerarquía)
+        categ_ids = list({(p.get('categ_id') or [0])[0] for p in prods if p.get('categ_id')})
+        categ_leaf_names = {}
+        if categ_ids:
+            for c in self.env['product.category'].sudo().browse(categ_ids).read(['id', 'name']):
+                categ_leaf_names[c['id']] = c['name']
+        categ_by_prod = {
+            p['id']: categ_leaf_names.get((p.get('categ_id') or [0])[0], 'Sin familia')
+            for p in prods
+        }
 
         tmpl_ids = list({tid for tid in tmpl_by_prod.values() if tid})
         sale_cat_by_tmpl = {}
@@ -468,11 +478,38 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'order_id':     s['id'],
             })
 
+        # Mix por categoría de venta
+        CAT_ORDER = ['A', 'B', 'C', 'D', 'E']
+        sale_cat_totals = defaultdict(lambda: {'qty': 0.0, 'amount': 0.0, 'products': set()})
+        for l in lines_data:
+            if not l.get('product_id'):
+                continue
+            pid     = l['product_id'][0]
+            tmpl_id = tmpl_by_prod.get(pid, 0)
+            cat     = sale_cat_by_tmpl.get(tmpl_id, '') or ''
+            sale_cat_totals[cat]['qty']      += l['product_uom_qty'] or 0.0
+            sale_cat_totals[cat]['amount']   += l['price_subtotal']  or 0.0
+            sale_cat_totals[cat]['products'].add(pid)
+        total_sc_qty    = sum(v['qty']    for v in sale_cat_totals.values())
+        total_sc_amount = sum(v['amount'] for v in sale_cat_totals.values())
+        sale_category_mix = sorted([
+            {
+                'name':       k if k else 'Sin cat.',
+                'qty':        round(v['qty'], 1),
+                'amount':     round(v['amount'], 2),
+                'pct':        round(v['qty']    / total_sc_qty    * 100, 1) if total_sc_qty    else 0.0,
+                'pct_amount': round(v['amount'] / total_sc_amount * 100, 1) if total_sc_amount else 0.0,
+                'sku_count':  len(v['products']),
+            }
+            for k, v in sale_cat_totals.items()
+        ], key=lambda x: CAT_ORDER.index(x['name']) if x['name'] in CAT_ORDER else 99)
+
         return {
-            'partner_name':      partner.display_name or partner.name,
-            'monthly_data':      monthly_data,
-            'family_mix':        family_mix,
-            'orders':            order_list,
-            'top_products':      top_products,
-            'total_qty_ordered': total_qty_ordered,
+            'partner_name':       partner.display_name or partner.name,
+            'monthly_data':       monthly_data,
+            'family_mix':         family_mix,
+            'sale_category_mix':  sale_category_mix,
+            'orders':             order_list,
+            'top_products':       top_products,
+            'total_qty_ordered':  total_qty_ordered,
         }

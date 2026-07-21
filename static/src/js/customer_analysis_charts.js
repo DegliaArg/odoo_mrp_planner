@@ -54,9 +54,10 @@ const FREQ_COLORS = {
  * @param {Object} widget - Instancia del CustomerAnalysisWidget
  */
 export function destroyPanelCharts(widget) {
-    if (widget._barChart)   { widget._barChart.destroy();   widget._barChart   = null; }
-    if (widget._donutChart) { widget._donutChart.destroy(); widget._donutChart = null; }
-    if (widget._lineChart)  { widget._lineChart.destroy();  widget._lineChart  = null; }
+    if (widget._barChart)     { widget._barChart.destroy();     widget._barChart     = null; }
+    if (widget._donutChart)   { widget._donutChart.destroy();   widget._donutChart   = null; }
+    if (widget._lineChart)    { widget._lineChart.destroy();    widget._lineChart    = null; }
+    if (widget._saleCatChart) { widget._saleCatChart.destroy(); widget._saleCatChart = null; }
     widget._panelChartsKey = '';
 }
 
@@ -70,6 +71,7 @@ export function destroyCharts(widget) {
     if (widget._barChart)      { widget._barChart.destroy();      widget._barChart      = null; }
     if (widget._donutChart)    { widget._donutChart.destroy();    widget._donutChart    = null; }
     if (widget._lineChart)     { widget._lineChart.destroy();     widget._lineChart     = null; }
+    if (widget._saleCatChart)  { widget._saleCatChart.destroy();  widget._saleCatChart  = null; }
 }
 
 /**
@@ -258,7 +260,8 @@ export function drawPanelCharts(widget) {
     const Chart = globalThis.Chart;
     if (typeof Chart === 'undefined') return;
 
-    const panelKey = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${widget.state.dateFrom}_${widget.state.dateTo}`;
+    const chartMode = widget.state.panelChartMode || 'bar';
+    const panelKey  = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${chartMode}_${widget.state.dateFrom}_${widget.state.dateTo}`;
     if (widget._panelChartsKey === panelKey) return;
     widget._panelChartsKey = panelKey;
 
@@ -270,6 +273,7 @@ export function drawPanelCharts(widget) {
         ? v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v)))
         : v => widget.fmtK(v);
 
+    // Plugin compartido para etiquetas encima de barras
     const barLabelPlugin = {
         id: 'barLabel',
         afterDatasetsDraw(chart) {
@@ -282,9 +286,9 @@ export function drawPanelCharts(widget) {
                     if (!v) return;
                     const label = ds._fmt ? ds._fmt(v) : String(v);
                     ctx.save();
-                    ctx.fillStyle = '#555';
-                    ctx.font = 'bold 9px sans-serif';
-                    ctx.textAlign = 'center';
+                    ctx.fillStyle    = '#555';
+                    ctx.font         = 'bold 9px sans-serif';
+                    ctx.textAlign    = 'center';
                     ctx.textBaseline = 'bottom';
                     ctx.fillText(label, bar.x, bar.y - 2);
                     ctx.restore();
@@ -293,41 +297,67 @@ export function drawPanelCharts(widget) {
         },
     };
 
-    // ── Barras agrupadas: pedido vs entregado ────────────────────────────────
-    const barEl = widget.barRef.el;
-    if (barEl && data.monthly_data && data.monthly_data.length) {
-        if (widget._barChart) { widget._barChart.destroy(); widget._barChart = null; }
-        const labels    = data.monthly_data.map(m => monthLabel(m.month));
-        const dsPedido  = {
-            label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
-            data:            data.monthly_data.map(m => isQty ? m.qty_ordered   : m.amount),
-            backgroundColor: 'rgba(13,110,253,0.75)',
-            borderRadius:    3,
-            _fmt:            fmtLbl,
-        };
-        const dsEntrega = {
-            label:           isQty ? 'Entregado (u)' : 'Entregado ($)',
-            data:            data.monthly_data.map(m => isQty ? m.qty_delivered : m.amount_delivered),
-            backgroundColor: 'rgba(25,135,84,0.70)',
-            borderRadius:    3,
-            _fmt:            fmtLbl,
-        };
-        widget._barChart = new Chart(barEl, {
-            type: 'bar',
-            data: { labels, datasets: [dsPedido, dsEntrega] },
+    // Plugin compartido para % encima de sectores de donut
+    const pieLabelPlugin = {
+        id: 'panelPieLabels',
+        afterDatasetsDraw(chart) {
+            const { ctx, data: cData } = chart;
+            const ds  = cData.datasets[0];
+            const ttl = ds.data.reduce((a, b) => a + b, 0);
+            chart.getDatasetMeta(0).data.forEach((arc, i) => {
+                const pct = ttl ? Math.round(ds.data[i] / ttl * 100) : 0;
+                if (pct < 5) return;
+                const { x, y } = arc.getCenterPoint();
+                ctx.save();
+                ctx.fillStyle    = '#fff';
+                ctx.font         = 'bold 11px sans-serif';
+                ctx.textAlign    = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+                ctx.shadowBlur   = 3;
+                ctx.fillText(`${pct}%`, x, y);
+                ctx.restore();
+            });
+        },
+    };
+
+    // ── Donut: mix por categoría de venta ────────────────────────────────────
+    const saleCatEl = widget.saleCatRef.el;
+    if (saleCatEl && data.sale_category_mix && data.sale_category_mix.length) {
+        if (widget._saleCatChart) { widget._saleCatChart.destroy(); widget._saleCatChart = null; }
+        const scm = data.sale_category_mix;
+        widget._saleCatChart = new Chart(saleCatEl, {
+            type: 'doughnut',
+            data: {
+                labels:   scm.map(s => s.name),
+                datasets: [{
+                    data:            scm.map(s => isQty ? s.qty : s.amount),
+                    backgroundColor: scm.map(s => CAT_COLORS[s.name] ?? CAT_COLORS['']),
+                    borderWidth:     2,
+                    borderColor:     '#fff',
+                }],
+            },
+            plugins: [pieLabelPlugin],
             options: {
                 responsive:          true,
                 maintainAspectRatio: false,
+                cutout:              '50%',
                 plugins: {
-                    legend: { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
-                    barLabel: {},
-                },
-                scales: {
-                    x: { ticks: { font: { size: 10 } } },
-                    y: { ticks: { callback: fmtTick, font: { size: 10 } } },
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => scm[items[0].dataIndex].name,
+                            label: ctx => {
+                                const s = scm[ctx.dataIndex];
+                                const skuLine = `  ${s.sku_count} SKU${s.sku_count !== 1 ? 's' : ''}`;
+                                return isQty
+                                    ? [`  ${s.pct}%`, `  ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(s.qty)} u.`, skuLine]
+                                    : [`  ${s.pct_amount}%`, `  ${widget.fmtMoney(s.amount)}`, skuLine];
+                            },
+                        },
+                    },
                 },
             },
-            plugins: [barLabelPlugin],
         });
     }
 
@@ -335,28 +365,6 @@ export function drawPanelCharts(widget) {
     const donutEl = widget.donutRef.el;
     if (donutEl && data.family_mix && data.family_mix.length) {
         if (widget._donutChart) { widget._donutChart.destroy(); widget._donutChart = null; }
-        const panelPieLabelPlugin = {
-            id: 'panelPieLabels',
-            afterDatasetsDraw(chart) {
-                const { ctx, data: cData } = chart;
-                const ds  = cData.datasets[0];
-                const ttl = ds.data.reduce((a, b) => a + b, 0);
-                chart.getDatasetMeta(0).data.forEach((arc, i) => {
-                    const pct = ttl ? Math.round(ds.data[i] / ttl * 100) : 0;
-                    if (pct < 5) return;
-                    const { x, y } = arc.getCenterPoint();
-                    ctx.save();
-                    ctx.fillStyle    = '#fff';
-                    ctx.font         = 'bold 11px sans-serif';
-                    ctx.textAlign    = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-                    ctx.shadowBlur   = 3;
-                    ctx.fillText(`${pct}%`, x, y);
-                    ctx.restore();
-                });
-            },
-        };
         widget._donutChart = new Chart(donutEl, {
             type: 'doughnut',
             data: {
@@ -365,9 +373,10 @@ export function drawPanelCharts(widget) {
                     data:            data.family_mix.map(f => isQty ? f.qty : f.amount),
                     backgroundColor: CHART_COLORS.donut,
                     borderWidth:     2,
+                    borderColor:     '#fff',
                 }],
             },
-            plugins: [panelPieLabelPlugin],
+            plugins: [pieLabelPlugin],
             options: {
                 responsive:          true,
                 maintainAspectRatio: false,
@@ -380,8 +389,8 @@ export function drawPanelCharts(widget) {
                             label: ctx => {
                                 const f = data.family_mix[ctx.dataIndex];
                                 return isQty
-                                    ? [` ${f.pct}%`, ` ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u.`]
-                                    : [` ${f.pct_amount}%`, ` ${widget.fmtMoney(f.amount)}`];
+                                    ? [`  ${f.pct}%`, `  ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(f.qty)} u.`]
+                                    : [`  ${f.pct_amount}%`, `  ${widget.fmtMoney(f.amount)}`];
                             },
                         },
                     },
@@ -390,62 +399,93 @@ export function drawPanelCharts(widget) {
         });
     }
 
-    // ── Dos líneas: pedido mensual (eje izq.) + entregado (eje der.) ─────────
-    const lineEl = widget.lineRef.el;
+    // ── Gráfico unificado (barras o línea según panelChartMode) ─────────────
+    const barEl     = widget.barRef.el;
     const allMonths = data.monthly_data || [];
-    if (lineEl && allMonths.length > 0) {
+    if (barEl && allMonths.length) {
+        if (widget._barChart)  { widget._barChart.destroy();  widget._barChart  = null; }
         if (widget._lineChart) { widget._lineChart.destroy(); widget._lineChart = null; }
-        const dsPedido = {
-            label:            isQty ? 'Pedido (u)' : 'Pedido ($)',
-            data:             allMonths.map(m => isQty ? m.qty_ordered   : m.amount),
-            borderColor:      'rgba(13,110,253,0.85)',
-            backgroundColor:  'rgba(13,110,253,0.10)',
-            fill:             true,
-            tension:          0.3,
-            pointRadius:      3,
-            pointHoverRadius: 5,
-            yAxisID:          'y',
-        };
-        const dsEntregado = {
-            label:            isQty ? 'Entregado (u)' : 'Entregado ($)',
-            data:             allMonths.map(m => isQty ? m.qty_delivered : m.amount_delivered),
-            borderColor:      CHART_COLORS.line,
-            backgroundColor:  'transparent',
-            fill:             false,
-            tension:          0.3,
-            pointRadius:      3,
-            pointHoverRadius: 5,
-            spanGaps:         false,
-            yAxisID:          'y',
-        };
-        widget._lineChart = new Chart(lineEl, {
-            type: 'line',
-            data: {
-                labels:   allMonths.map(m => monthLabel(m.month)),
-                datasets: [dsPedido, dsEntregado],
-            },
-            options: {
-                responsive:          true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`,
+
+        const labels = allMonths.map(m => monthLabel(m.month));
+
+        if (chartMode === 'bar') {
+            widget._barChart = new Chart(barEl, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label:           isQty ? 'Pedido (u)' : 'Pedido ($)',
+                            data:            allMonths.map(m => isQty ? m.qty_ordered   : m.amount),
+                            backgroundColor: 'rgba(13,110,253,0.75)',
+                            borderRadius:    3,
+                            _fmt:            fmtLbl,
                         },
+                        {
+                            label:           isQty ? 'Entregado (u)' : 'Entregado ($)',
+                            data:            allMonths.map(m => isQty ? m.qty_delivered : m.amount_delivered),
+                            backgroundColor: 'rgba(25,135,84,0.70)',
+                            borderRadius:    3,
+                            _fmt:            fmtLbl,
+                        },
+                    ],
+                },
+                options: {
+                    responsive:          true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend:   { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
+                        barLabel: {},
+                        tooltip:  { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}` } },
+                    },
+                    scales: {
+                        x: { ticks: { font: { size: 10 } } },
+                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
                     },
                 },
-                scales: {
-                    x: { ticks: { font: { size: 10 } } },
-                    y: {
-                        type:        'linear',
-                        position:    'left',
-                        beginAtZero: true,
-                        ticks:       { callback: fmtTick, font: { size: 10 } },
-                        grid:        { color: 'rgba(0,0,0,0.06)' },
+                plugins: [barLabelPlugin],
+            });
+        } else {
+            widget._barChart = new Chart(barEl, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label:            isQty ? 'Pedido (u)' : 'Pedido ($)',
+                            data:             allMonths.map(m => isQty ? m.qty_ordered   : m.amount),
+                            borderColor:      'rgba(13,110,253,0.85)',
+                            backgroundColor:  'rgba(13,110,253,0.10)',
+                            fill:             true,
+                            tension:          0.3,
+                            pointRadius:      3,
+                            pointHoverRadius: 5,
+                        },
+                        {
+                            label:            isQty ? 'Entregado (u)' : 'Entregado ($)',
+                            data:             allMonths.map(m => isQty ? m.qty_delivered : m.amount_delivered),
+                            borderColor:      CHART_COLORS.line,
+                            backgroundColor:  'transparent',
+                            fill:             false,
+                            tension:          0.3,
+                            pointRadius:      3,
+                            pointHoverRadius: 5,
+                        },
+                    ],
+                },
+                options: {
+                    responsive:          true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend:  { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
+                        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}` } },
+                    },
+                    scales: {
+                        x: { ticks: { font: { size: 10 } } },
+                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
                     },
                 },
-            },
-        });
+            });
+        }
     }
 }

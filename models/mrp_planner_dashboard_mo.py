@@ -298,7 +298,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
-    def get_request_widget_data(self, sort_field=None, sort_dir='asc', page=1, page_size=50):
+    def get_request_widget_data(self, sort_field=None, sort_dir='asc', page=1, page_size=50, search=None):
         """
         Retorna KPIs y la página de programaciones de producción activas (confirmed + calculated).
 
@@ -326,6 +326,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
         calculated = Req.search([('state', '=', 'calculated')])
         all_active = (confirmed | calculated).sorted(req_f, reverse=(_sd == 'desc'))
         all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
+
+        if search:
+            _s = search.strip().lower()
+            all_active = all_active.filtered(
+                lambda r: _s in (r.name or '').lower()
+                or _s in (r.start_from.strftime('%d/%m/%Y') if r.start_from else '')
+            )
 
         offset          = (max(1, page) - 1) * page_size
         all_active_page = all_active[offset:offset + page_size]
@@ -365,7 +372,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
-    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc'):
+    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
 
@@ -489,6 +496,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
         total_planned  = sum(x['planned_qty']  for x in items)
         total_produced = sum(x['produced_qty'] for x in items)
         pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
+        desvio          = round(total_planned - total_produced, 2)
+        ofs_in_progress = sum(1 for mo in all_mos if mo.state == 'progress')
+
+        if search:
+            _s = search.strip().lower()
+            items = [x for x in items if _s in (x.get('product') or '').lower()]
 
         # Ordenamiento por campo solicitado
         _sort_map = {'product': 'product', 'planned_qty': 'planned_qty',
@@ -517,10 +530,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
 
         return {
             'kpis': {
-                'planned':  round(total_planned,  2),
-                'produced': round(total_produced, 2),
-                'pct':      pct,
-                'ofs_done': ofs_done,
+                'planned':         round(total_planned,  2),
+                'produced':        round(total_produced, 2),
+                'pct':             pct,
+                'ofs_done':        ofs_done,
+                'desvio':          desvio,
+                'ofs_in_progress': ofs_in_progress,
             },
             'items':         items[offset:offset + page_size],
             'total':         total,

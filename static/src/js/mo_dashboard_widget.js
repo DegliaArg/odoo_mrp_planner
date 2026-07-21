@@ -19,6 +19,7 @@ import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 const MO_OF_COLS = [
     { key: 'name',             label: 'Referencia',    width: 130, sortKey: 'name',             title: 'Número de la orden de fabricación.' },
@@ -52,6 +53,7 @@ function toDateStr(d) {
 
 class MoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.MoDashboardWidget";
+    static components = { PlannerSearchBar };
     static props = {
         record: { type: Object },
         "*": true,
@@ -94,10 +96,12 @@ class MoDashboardWidget extends Component {
             req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0 },
             requests:    [],
             // Comparativo
-            cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0 },
+            cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0, desvio: 0, ofs_in_progress: 0 },
             comparison:    [],
             cmp_total:     0,
             cmp_mode:      'finish_date',
+            cmpSearch:     '',
+            reqSearch:     '',
         });
 
         onMounted(async () => {
@@ -151,6 +155,7 @@ class MoDashboardWidget extends Component {
                     this.state.sortDir,
                     this.state.page,
                     this.state.pageSize,
+                    this.state.reqSearch || null,
                 ]);
                 this.state.req_kpis  = d.kpis;
                 this.state.requests  = d.requests;
@@ -163,6 +168,7 @@ class MoDashboardWidget extends Component {
                     this.state.pageSize,
                     this.state.sortField || null,
                     this.state.sortDir,
+                    this.state.cmpSearch || null,
                 ]);
                 this.state.cmp_kpis   = d.kpis;
                 this.state.comparison = d.items;
@@ -238,6 +244,18 @@ class MoDashboardWidget extends Component {
      * @returns {boolean}
      */
     get showFilters() { return this.state.tab !== "requests"; }
+
+    setCmpSearch(text) {
+        this.state.cmpSearch = text;
+        this.state.page = 1;
+        this._loadData();
+    }
+
+    setReqSearch(text) {
+        this.state.reqSearch = text;
+        this.state.page = 1;
+        this._loadData();
+    }
 
     // ── Navegación OFs ───────────────────────────────────────────────────────
 
@@ -377,6 +395,13 @@ class MoDashboardWidget extends Component {
 
     /** Navega a todas las solicitudes de programación sin filtro de estado. */
     onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
+
+    onClickCmpInProgress() {
+        this._navigate("OFs en curso (comparativo)", [
+            ["state", "=", "progress"],
+            ...this._dateDomain(),
+        ]);
+    }
 
     onClickAllComparison() {
         const mode     = this.state.cmp_mode || 'finish_date';

@@ -4,6 +4,15 @@
     <t t-name="odoo_mrp_planner.MoListWidget">
         <div class="o_mo_list_widget p-2">
 
+            <!-- Buscador -->
+            <PlannerSearchBar
+                widgetKey="'mo_list'"
+                placeholder="'Buscar OF, producto…'"
+                t-props="{
+                    search:   state.search,
+                    onSearch: (t) => this.setSearch(t)
+                }"/>
+
             <!-- Filtros -->
             <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
                 <div>
@@ -38,7 +47,7 @@
             </div>
 
             <!-- Sin datos -->
-            <div t-elif="state.mos.length === 0"
+            <div t-elif="filteredMos.length === 0"
                  class="d-flex align-items-center justify-content-center py-4 text-muted">
                 <div class="text-center small">
                     <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
@@ -58,7 +67,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <t t-foreach="state.mos" t-as="mo" t-key="mo.id">
+                    <t t-foreach="filteredMos" t-as="mo" t-key="mo.id">
                         <tr t-att-class="mo.delayed ? 'table-danger' : (mo.reschedule ? 'table-warning' : '')"
                             style="cursor:pointer"
                             t-on-click="() => this.openMo(mo.id)">

@@ -3,6 +3,7 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -10,6 +11,7 @@ function toDateStr(d) {
 
 class MoListWidget extends Component {
     static template = "odoo_mrp_planner.MoListWidget";
+    static components = { PlannerSearchBar };
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
@@ -27,6 +29,7 @@ class MoListWidget extends Component {
             dateTo:              toDateStr(lastOfMonth),
             loading:             false,
             mos:                 [],
+            search:              '',
         });
 
         onMounted(async () => {
@@ -79,6 +82,19 @@ class MoListWidget extends Component {
     onWarehouseChange(ev) {
         this.state.selectedWarehouseId = ev.target.value || null;
         this._loadMos();
+    }
+
+    setSearch(text) {
+        this.state.search = text;
+    }
+
+    get filteredMos() {
+        const s = (this.state.search || '').toLowerCase().trim();
+        if (!s) return this.state.mos;
+        return this.state.mos.filter(m =>
+            (m.name    || '').toLowerCase().includes(s) ||
+            (m.product || '').toLowerCase().includes(s)
+        );
     }
 
     openMo(moId) {

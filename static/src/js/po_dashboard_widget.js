@@ -16,6 +16,7 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { PlannerSearchBar } from "./planner_search_bar";
 
 const PO_OC_COLS = [
     { key: 'name',         label: 'Referencia',      width: 130, sortKey: 'name',         title: 'Número de la orden de compra.' },
@@ -69,6 +70,7 @@ const EMPTY_KPIS = {
 
 class PoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.PoDashboardWidget";
+    static components = { PlannerSearchBar };
     static props = {
         record: { type: Object },
         "*": true,
@@ -98,6 +100,7 @@ class PoDashboardWidget extends Component {
             listTab:   null,       // null = OC mode | "receipts" | "deliveries" | "services"
             dateFrom:  toDateStr(firstOfMonth),
             dateTo:    toDateStr(lastOfMonth),
+            search:    '',
             loading:   true,
             sortField: null,
             sortDir:   "asc",
@@ -147,7 +150,7 @@ class PoDashboardWidget extends Component {
                 "get_po_dashboard_data",
                 [this.state.tab, this.state.dateFrom, this.state.dateTo,
                  this.state.sortField || null, this.state.sortDir,
-                 this.state.page, this.state.pageSize],
+                 this.state.page, this.state.pageSize, this.state.search || null],
             );
             this.state.kpis            = d.kpis;
             this.state.rfqs            = d.rfqs;
@@ -201,6 +204,12 @@ class PoDashboardWidget extends Component {
      * Actualiza la fecha de inicio del filtro y recarga desde la página 1.
      * @param {Event} ev - Evento change del input date
      */
+    setSearch(text) {
+        this.state.search = text;
+        this.state.page   = 1;
+        this._load();
+    }
+
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
         if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;

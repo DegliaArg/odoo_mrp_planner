@@ -40,7 +40,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
     # ── Widget OCs con pestañas ──────────────────────────────────────────────
 
     @api.model
-    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc', page=1, page_size=50):
+    def get_po_dashboard_data(self, filter_type='all', date_from=None, date_to=None, sort_field=None, sort_dir='asc', page=1, page_size=50, search=None):
         """
         Retorna todos los datos necesarios para renderizar el widget de OC del dashboard.
 
@@ -357,6 +357,22 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
 
 
+        if search:
+            _s = search.strip().lower()
+            def _po_match(po):
+                return _s in (po.name or '').lower() or _s in (po.partner_id.display_name or '').lower()
+            rfqs_list       = rfqs_list.filtered(_po_match)
+            to_approve_list = to_approve_list.filtered(_po_match)
+            overdue_list    = overdue_list.filtered(_po_match)
+            all_pos_list    = all_pos_list.filtered(_po_match)
+            pending_list    = pending_list.filtered(_po_match)
+            services_rs     = services_rs.filtered(_po_match)
+            receipts        = receipts.filtered(
+                lambda p: _s in (p.name or '').lower()
+                or _s in (p.partner_id.display_name or '').lower()
+                or _s in (p.purchase_id.name or '').lower()
+            )
+
         rfqs_pg       = rfqs_list[offset:offset + page_size]
         to_approve_pg = to_approve_list[offset:offset + page_size]
         overdue_pg    = overdue_list[offset:offset + page_size]
@@ -423,10 +439,24 @@ class MrpPlannerDashboardPo(models.TransientModel):
             receipts   = receipts.sorted(lambda p: (p.purchase_id.name or '').lower(), reverse=_rev)
             deliveries = deliveries.sorted(_dok, reverse=_rev)
 
-        receipts_pg        = receipts[offset:offset + page_size]
-        deliveries_pg      = deliveries[offset:offset + page_size]
-        services_pg        = services_rs[offset:offset + page_size]
+        receipts_pg   = receipts[offset:offset + page_size]
+        services_pg   = services_rs[offset:offset + page_size]
         overdue_deliveries = deliveries.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
+
+        if search:
+            _s = search.strip().lower()
+            all_delivery_dicts = [_pick_dict(p, True) for p in deliveries]
+            filtered_deliveries = [
+                d for d in all_delivery_dicts
+                if _s in (d.get('name') or '').lower()
+                or _s in (d.get('partner') or '').lower()
+                or _s in (d.get('po_name') or '').lower()
+                or _s in (d.get('finished_product') or '').lower()
+            ]
+            deliveries_result = filtered_deliveries[offset:offset + page_size]
+        else:
+            deliveries_pg     = deliveries[offset:offset + page_size]
+            deliveries_result = [_pick_dict(p, True) for p in deliveries_pg]
 
         return {
             'kpis': {
@@ -450,7 +480,7 @@ class MrpPlannerDashboardPo(models.TransientModel):
             'overdue':     [_po_dict(p) for p in overdue_pg],
             'all_pos':     [_po_dict(p) for p in all_pos_pg],
             'pending_pos': [_po_dict(p) for p in pending_pg],
-            'receipts':    [_pick_dict(p, True)  for p in receipts_pg],
-            'deliveries':  [_pick_dict(p, True)  for p in deliveries_pg],
+            'receipts':    [_pick_dict(p, True) for p in receipts_pg],
+            'deliveries':  deliveries_result,
             'services':    [_po_dict(p) for p in services_pg],
         }

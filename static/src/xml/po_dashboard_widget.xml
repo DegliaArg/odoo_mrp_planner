@@ -55,6 +55,15 @@
                 </li>
             </ul>
 
+            <!-- Buscador -->
+            <PlannerSearchBar
+                widgetKey="'po_dashboard'"
+                placeholder="'Buscar OC, referencia, proveedor…'"
+                t-props="{
+                    search:   state.search,
+                    onSearch: (t) => this.setSearch(t)
+                }"/>
+
             <!-- Contenido — dimming durante carga en lugar de spinner full -->
             <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
 

@@ -31,6 +31,7 @@
 .o_planner_card_warning { border-color: #ffdba8; }
 .o_planner_card_info    { border-color: #b8e7f5; }
 .o_planner_card_success { border-color: #b7e4c7; }
+.o_planner_card_primary { border-color: #b6d4fe; }
 
 .o_planner_card_clickable {
     cursor: pointer;

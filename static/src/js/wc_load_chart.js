@@ -203,11 +203,13 @@ class WcLoadChartWidget extends Component {
 
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
         this._loadChart();
     }
 
     onDateToChange(ev) {
         this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         this._loadChart();
     }
 

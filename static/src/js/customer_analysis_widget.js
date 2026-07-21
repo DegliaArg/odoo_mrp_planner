@@ -72,7 +72,7 @@ function defaultPeriod() {
         const saved = localStorage.getItem(CA_DATE_KEY);
         if (saved) {
             const { from, to } = JSON.parse(saved);
-            if (from && to) return { from, to };
+            if (from && to && from <= to) return { from, to };
         }
     } catch (e) {}
     const now = new Date();
@@ -316,11 +316,13 @@ class CustomerAnalysisWidget extends Component {
 
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
         savePeriod(this.state.dateFrom, this.state.dateTo);
         this._load();
     }
     onDateToChange(ev) {
         this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         savePeriod(this.state.dateFrom, this.state.dateTo);
         this._load();
     }

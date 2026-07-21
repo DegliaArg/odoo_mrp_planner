@@ -66,11 +66,13 @@ class MoListWidget extends Component {
 
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
         this._loadMos();
     }
 
     onDateToChange(ev) {
         this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         this._loadMos();
     }
 

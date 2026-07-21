@@ -207,13 +207,23 @@ class MoDashboardWidget extends Component {
      * Actualiza el filtro de fecha inicial y recarga datos desde la página 1.
      * @param {Event} ev - Evento change del input[type=date].
      */
-    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._loadData(); }
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
+        this.state.page = 1;
+        this._loadData();
+    }
 
     /**
      * Actualiza el filtro de fecha final y recarga datos desde la página 1.
      * @param {Event} ev - Evento change del input[type=date].
      */
-    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._loadData(); }
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
+        this.state.page = 1;
+        this._loadData();
+    }
 
     /**
      * Actualiza el filtro de sector/tag y recarga datos desde la página 1.

@@ -201,12 +201,22 @@ class PoDashboardWidget extends Component {
      * Actualiza la fecha de inicio del filtro y recarga desde la página 1.
      * @param {Event} ev - Evento change del input date
      */
-    onDateFromChange(ev) { this.state.dateFrom = ev.target.value; this.state.page = 1; this._load(); }
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
+        this.state.page = 1;
+        this._load();
+    }
     /**
      * Actualiza la fecha de fin del filtro y recarga desde la página 1.
      * @param {Event} ev - Evento change del input date
      */
-    onDateToChange(ev)   { this.state.dateTo   = ev.target.value; this.state.page = 1; this._load(); }
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
+        this.state.page = 1;
+        this._load();
+    }
 
     /**
      * Cambia el filtro de tipo de OC (all / pending / overdue / rfqs / approve)

@@ -19,7 +19,6 @@ import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
-import { PlannerSearchBar } from "./planner_search_bar";
 
 const MO_OF_COLS = [
     { key: 'name',             label: 'Referencia',    width: 130, sortKey: 'name',             title: 'Número de la orden de fabricación.' },
@@ -53,7 +52,7 @@ function toDateStr(d) {
 
 class MoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.MoDashboardWidget";
-    static components = { PlannerSearchBar };
+    static components = {};
     static props = {
         record: { type: Object },
         "*": true,

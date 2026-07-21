@@ -16,7 +16,6 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
-import { PlannerSearchBar } from "./planner_search_bar";
 
 const PO_OC_COLS = [
     { key: 'name',         label: 'Referencia',      width: 130, sortKey: 'name',         title: 'Número de la orden de compra.' },
@@ -70,7 +69,7 @@ const EMPTY_KPIS = {
 
 class PoDashboardWidget extends Component {
     static template = "odoo_mrp_planner.PoDashboardWidget";
-    static components = { PlannerSearchBar };
+    static components = {};
     static props = {
         record: { type: Object },
         "*": true,

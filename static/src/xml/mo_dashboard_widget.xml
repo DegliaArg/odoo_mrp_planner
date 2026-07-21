@@ -27,18 +27,24 @@
                     </li>
                 </ul>
                 <div class="ms-auto" style="min-width:200px; max-width:280px;">
-                    <PlannerSearchBar t-if="state.tab === 'ofs'"
-                        widgetKey="'mo_ofs'"
-                        placeholder="'Buscar OF, producto…'"
-                        t-props="{ search: state.ofsSearch, onSearch: (t) => this.setOfsSearch(t) }"/>
-                    <PlannerSearchBar t-elif="state.tab === 'requests'"
-                        widgetKey="'mo_requests'"
-                        placeholder="'Buscar referencia, fecha…'"
-                        t-props="{ search: state.reqSearch, onSearch: (t) => this.setReqSearch(t) }"/>
-                    <PlannerSearchBar t-elif="state.tab === 'comparison'"
-                        widgetKey="'mo_comparison'"
-                        placeholder="'Buscar producto…'"
-                        t-props="{ search: state.cmpSearch, onSearch: (t) => this.setCmpSearch(t) }"/>
+                    <input t-if="state.tab === 'ofs'"
+                           type="text" class="form-control form-control-sm"
+                           placeholder="Buscar OF, producto…"
+                           t-att-value="state.ofsSearch"
+                           t-on-input="(ev) => this.setOfsSearch(ev.target.value)"
+                           autocomplete="off"/>
+                    <input t-elif="state.tab === 'requests'"
+                           type="text" class="form-control form-control-sm"
+                           placeholder="Buscar referencia, fecha…"
+                           t-att-value="state.reqSearch"
+                           t-on-input="(ev) => this.setReqSearch(ev.target.value)"
+                           autocomplete="off"/>
+                    <input t-elif="state.tab === 'comparison'"
+                           type="text" class="form-control form-control-sm"
+                           placeholder="Buscar producto…"
+                           t-att-value="state.cmpSearch"
+                           t-on-input="(ev) => this.setCmpSearch(ev.target.value)"
+                           autocomplete="off"/>
                 </div>
             </div>
 

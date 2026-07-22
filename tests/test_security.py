@@ -205,13 +205,7 @@ class TestMrpPlannerSecurity(TransactionCase):
 
     def test_config_write_requires_admin(self):
         """Un usuario con group_prod pero sin group_admin no puede hacer write()
-        en mrp.reschedule.config.
-
-        Nota: el guard en write() usa 'mrp_planner.group_admin' (prefijo incorrecto
-        — debería ser 'odoo_mrp_planner.group_admin'). Con ese prefijo inválido,
-        has_group() siempre devuelve False y el guard bloquea a CUALQUIER usuario,
-        incluyendo al que tiene group_admin. Este test documenta el comportamiento
-        real del código tal como está implementado.
+        en mrp.reschedule.config. Un usuario con group_admin sí puede.
         """
         # Crear el singleton de config si no existe
         config = self.env['mrp.reschedule.config'].sudo().search(
@@ -222,7 +216,7 @@ class TestMrpPlannerSecurity(TransactionCase):
                 'company_id': self.env.company.id,
             })
 
-        # Usuario con group_prod pero sin group_admin
+        # Usuario con group_prod pero sin group_admin → debe fallar
         user_prod = self._new_user('test_config_write_prod',
                                    groups=['odoo_mrp_planner.group_prod'])
 
@@ -230,20 +224,14 @@ class TestMrpPlannerSecurity(TransactionCase):
                                msg="config.write debe lanzar AccessError sin group_admin"):
             config.with_user(user_prod).write({'alert_mo_critical_days': 5})
 
-        # Usuario con group_admin: el guard usa el xmlid incorrecto 'mrp_planner.group_admin'
-        # (en lugar de 'odoo_mrp_planner.group_admin'), lo que hace que has_group() devuelva
-        # False para cualquier usuario. Se documenta el bug y se verifica que el comportamiento
-        # actual es consistente (AccessError incluso con group_admin).
+        # Usuario con group_admin → debe poder escribir sin AccessError
         user_admin = self._new_user('test_config_write_admin',
                                     groups=['odoo_mrp_planner.group_admin'])
 
-        # BUG DOCUMENTADO: el guard bloquea incluso al administrador del módulo
-        # porque el xmlid 'mrp_planner.group_admin' es incorrecto.
-        # Cuando se corrija a 'odoo_mrp_planner.group_admin', este assertRaises
-        # deberá reemplazarse por una llamada que no lance excepción.
-        with self.assertRaises((AccessError, Exception),
-                               msg="BUG: guard usa xmlid incorrecto — AccessError esperado incluso con group_admin"):
+        try:
             config.with_user(user_admin).write({'alert_mo_critical_days': 5})
+        except AccessError:
+            self.fail("config.write no debería lanzar AccessError para group_admin")
 
     # ── Test 5: action_download_template requiere group_sales ─────────────────
 

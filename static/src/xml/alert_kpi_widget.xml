@@ -15,7 +15,7 @@
                         por hover y por foco de teclado (accesibilidad WCAG 2.1 AA).
                         El wrapper es display:block para ocupar todo el ancho de la columna.
                     -->
-                    <MrpTooltip t-att-content="alertKpiTooltip('mo_delayed')"
+                    <MrpTooltip content="alertKpiTooltip('mo_delayed')"
                                 position="'top'"
                                 style="display:block;">
                         <div class="card o_planner_card h-100">

@@ -15,9 +15,9 @@
                         por hover y por foco de teclado (accesibilidad WCAG 2.1 AA).
                         El wrapper es display:block para ocupar todo el ancho de la columna.
                     -->
+                    <div style="display:block;">
                     <MrpTooltip content="alertKpiTooltip('mo_delayed')"
-                                position="'top'"
-                                style="display:block;">
+                                position="'top'">
                         <div class="card o_planner_card h-100">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-warning fa-lg text-danger mb-2 d-block" aria-hidden="true"/>
@@ -34,6 +34,7 @@
                             </div>
                         </div>
                     </MrpTooltip>
+                    </div>
                 </div>
 
                 <!-- OFs por vencer -->

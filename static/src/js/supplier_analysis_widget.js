@@ -76,7 +76,8 @@ class SupplierAnalysisWidget extends Component {
             poTypeGoods:        true,
             poTypeServices:     true,
             activeFilter:       null,
-            activeGroupBy:      null,
+            groupBy:            null,
+            selectedGroup:      null,
             tipoDropdownOpen:   false,
             colsDropdownOpen:   false,
             colsVisible:        {},
@@ -252,13 +253,41 @@ class SupplierAnalysisWidget extends Component {
         this.state.activeFilter = key;
     }
 
-    /**
-     * Cambia el agrupamiento activo y reinicia la paginación.
-     * @param {string|null} key - Clave de agrupamiento (ej. 'cat_A') o null para limpiar
-     */
-    setActiveGroupBy(key) {
-        this.state.activeGroupBy = key;
+    onGroupByChange(k) {
+        this.state.groupBy = k;
         this.state.page = 1;
+        if (k) {
+            const groups = this.allGroupsForTabs;
+            this.state.selectedGroup = groups && groups.length ? groups[0].key : null;
+        } else {
+            this.state.selectedGroup = null;
+        }
+    }
+
+    setGroup(key) {
+        this.state.selectedGroup = key;
+        this.state.page = 1;
+    }
+
+    get allGroupsForTabs() {
+        if (!this.state.groupBy || !this.state.data) return null;
+        const counts = new Map();
+        for (const row of this.state.data.rows) {
+            const key = row.supplier_cat || '';
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        const ORDER = ['A', 'B', 'C', 'D', 'E', ''];
+        const entries = [...counts.entries()];
+        entries.sort((a, b) => {
+            const ia = ORDER.indexOf(a[0]);
+            const ib = ORDER.indexOf(b[0]);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
+        return entries.map(([key, count]) => ({
+            key,
+            label: key || 'Sin categoría',
+            count,
+        }));
     }
 
     // ── Dropdowns de toolbar ──────────────────────────────────────────────────
@@ -358,10 +387,9 @@ class SupplierAnalysisWidget extends Component {
             const q = this.state.search.toLowerCase();
             rows = rows.filter(r => r.partner_name.toLowerCase().includes(q));
         }
-        // Filtro por categoría ABC (activeGroupBy)
-        if (this.state.activeGroupBy) {
-            const cat = this.state.activeGroupBy.replace('cat_', '');
-            rows = rows.filter(r => r.supplier_cat === cat);
+        // Filtro por tab activo (cuando groupBy está en uso)
+        if (this.state.groupBy && this.state.selectedGroup !== null) {
+            rows = rows.filter(r => (r.supplier_cat || '') === this.state.selectedGroup);
         }
         const col = this.state.sortCol;
         const dir = this.state.sortDir === 'asc' ? 1 : -1;

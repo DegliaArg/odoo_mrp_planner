@@ -140,7 +140,7 @@
                            t-on-change="onPeriodToChange"/>
                 </div>
 
-                <!-- Buscador con agrupamiento ABC -->
+                <!-- Buscador con agrupamiento -->
                 <PlannerSearchBar
                     class="flex-grow-1"
                     widgetKey="'supplier_analysis'"
@@ -148,17 +148,13 @@
                     t-props="{
                         search:          state.search,
                         activeFilter:    state.activeFilter,
-                        activeGroupBy:   state.activeGroupBy,
+                        activeGroupBy:   state.groupBy,
                         groupByDefs: [
-                            { key: 'cat_A', label: 'Categoría A' },
-                            { key: 'cat_B', label: 'Categoría B' },
-                            { key: 'cat_C', label: 'Categoría C' },
-                            { key: 'cat_D', label: 'Categoría D' },
-                            { key: 'cat_E', label: 'Categoría E' },
+                            { key: 'supplier_cat', label: 'Categoría' },
                         ],
                         onSearch:        (t) => this.setSearch(t),
                         onFilterChange:  (k) => this.setActiveFilter(k),
-                        onGroupByChange: (k) => this.setActiveGroupBy(k),
+                        onGroupByChange: (k) => this.onGroupByChange(k),
                     }"/>
 
                 <!-- Tipo dropdown (Bienes / Servicios) -->
@@ -235,6 +231,25 @@
                 <i class="fa fa-search fa-2x mb-2 d-block" aria-hidden="true"/>
                 No hay proveedores con órdenes confirmadas en el período seleccionado.
             </div>
+
+            <!-- Tabs de agrupamiento por categoría -->
+            <t t-if="state.groupBy and allGroupsForTabs">
+                <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                    <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_sup_' + g.key">
+                        <li class="nav-item">
+                            <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
+                                    style="font-size:12px; white-space:nowrap;"
+                                    t-on-click="() => this.setGroup(g.key)">
+                                <span t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[g.key] || 'secondary')"
+                                      style="font-size:10px; padding:1px 6px; margin-right:4px;">
+                                    <t t-esc="g.label"/>
+                                </span>
+                                <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                            </button>
+                        </li>
+                    </t>
+                </ul>
+            </t>
 
             <t t-if="state.data and sortedRows.length > 0">
 

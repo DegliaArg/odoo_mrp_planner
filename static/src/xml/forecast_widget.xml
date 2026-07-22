@@ -4,11 +4,15 @@
     <t t-name="odoo_mrp_planner.ForecastWidget">
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
-            <!-- KPI cards -->
-            <div t-if="state.loading || !state.data" class="text-center text-muted py-3">
-                <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
-                Cargando…
-            </div>
+            <!-- Skeleton de carga inicial (reemplaza spinner plano) -->
+            <t t-if="state.loading || !state.data">
+                <div class="p-3">
+                    <div class="o_mrp_skeleton o_mrp_skeleton_card mb-3"/>
+                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 80%"/>
+                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 60%"/>
+                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 70%"/>
+                </div>
+            </t>
 
             <t t-if="state.data">
                 <t t-call="odoo_mrp_planner.ForecastKpis"/>

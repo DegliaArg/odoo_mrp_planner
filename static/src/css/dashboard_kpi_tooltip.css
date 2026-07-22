@@ -1,3 +1,61 @@
+/* ── MrpTooltip — componente OWL accesible (reemplaza title= nativos) ── */
+
+.o_mrp_tooltip_wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+/* El tooltip en sí */
+.o_mrp_tooltip {
+    position: absolute;
+    z-index: calc(var(--mrp-tooltip-z) + 10);
+    background: var(--mrp-tooltip-bg);
+    color: var(--mrp-bg-light);
+    font-size: 0.71rem;
+    font-weight: 400;
+    line-height: 1.55;
+    padding: 8px 12px;
+    border-radius: 6px;
+    width: 230px;
+    max-width: 90vw;
+    text-align: left;
+    white-space: pre-line;
+    pointer-events: none;
+    box-shadow: var(--mrp-tooltip-shadow);
+    animation: o_mrp_tooltip_in var(--mrp-transition-fast) forwards;
+}
+
+@keyframes o_mrp_tooltip_in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Posicionamiento ───────────────────────────────────────────────── */
+
+.o_mrp_tooltip--top {
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.o_mrp_tooltip--bottom {
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.o_mrp_tooltip--left {
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.o_mrp_tooltip--right {
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
 /* ── KPI Tooltip — aparece 2 segundos después del hover ─────────────── */
 
 [data-kpi-tip] {
@@ -10,8 +68,8 @@
     bottom: calc(100% + 8px);
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(33, 37, 41, 0.93);
-    color: #f8f9fa;
+    background: var(--mrp-tooltip-bg);
+    color: var(--mrp-bg-light);
     font-size: 0.71rem;
     font-weight: 400;
     line-height: 1.55;
@@ -24,8 +82,8 @@
     opacity: 0;
     transition: opacity 0.18s ease;
     transition-delay: 0s;
-    z-index: 1050;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+    z-index: var(--mrp-tooltip-z);
+    box-shadow: var(--mrp-tooltip-shadow);
 }
 
 [data-kpi-tip]:hover::after {
@@ -36,29 +94,29 @@
 /* ── Forecast widget — semáforo de celdas ─────────────────────────────────── */
 
 .o_forecast_widget .forecast-ok {
-    background-color: #c6efce !important;
-    color: #276221;
+    background-color: var(--mrp-forecast-ok-bg) !important;
+    color: var(--mrp-forecast-ok-text);
 }
 
 .o_forecast_widget .forecast-warning {
-    background-color: #ffeb9c !important;
-    color: #7d6608;
+    background-color: var(--mrp-forecast-warning-bg) !important;
+    color: var(--mrp-forecast-warning-text);
 }
 
 .o_forecast_widget .forecast-critical {
-    background-color: #ffc7ce !important;
-    color: #9c0006;
+    background-color: var(--mrp-forecast-critical-bg) !important;
+    color: var(--mrp-forecast-critical-text);
 }
 
-.o_forecast_widget .badge.forecast-ok      { background-color: #c6efce; }
-.o_forecast_widget .badge.forecast-warning { background-color: #ffeb9c; }
-.o_forecast_widget .badge.forecast-critical{ background-color: #ffc7ce; }
+.o_forecast_widget .badge.forecast-ok      { background-color: var(--mrp-forecast-ok-bg); }
+.o_forecast_widget .badge.forecast-warning { background-color: var(--mrp-forecast-warning-bg); }
+.o_forecast_widget .badge.forecast-critical{ background-color: var(--mrp-forecast-critical-bg); }
 
 .o_forecast_widget thead th {
     position: sticky;
     top: 0;
     z-index: 2;
-    background: #f8f9fa;
+    background: var(--mrp-bg-light);
 }
 
 /* ── Radio buttons en 2 columnas (selector de métodos ABC) ─────────── */
@@ -66,4 +124,32 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px 24px;
+}
+
+/* ── Empty state consistente ──────────────────────────────────────────── */
+.o_mrp_empty_state {
+    padding: 2.5rem 1rem;
+    color: var(--mrp-color-neutral);
+}
+
+/* ── Skeleton loading ─────────────────────────────────────────────────── */
+.o_mrp_skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: mrp-skeleton-wave 1.5s infinite;
+    border-radius: 4px;
+}
+
+@keyframes mrp-skeleton-wave {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.o_mrp_skeleton_line {
+    height: 12px;
+    margin-bottom: 8px;
+}
+
+.o_mrp_skeleton_card {
+    height: 80px;
 }

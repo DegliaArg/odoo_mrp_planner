@@ -3,9 +3,11 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { MrpTooltip } from "./mrp_tooltip";
 
 class AlertKpiWidget extends Component {
     static template = "odoo_mrp_planner.AlertKpiWidget";
+    static components = { MrpTooltip };
     static props = { record: { type: Object }, "*": true };
 
     setup() {

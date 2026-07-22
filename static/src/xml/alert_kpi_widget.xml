@@ -9,22 +9,31 @@
 
                 <!-- OFs atrasadas -->
                 <div class="col-6 col-md-3">
-                    <div class="card o_planner_card h-100"
-                         t-att-title="alertKpiTooltip('mo_delayed')">
-                        <div class="card-body text-center py-3">
-                            <i class="fa fa-warning fa-lg text-danger mb-2 d-block" aria-hidden="true"/>
-                            <div class="o_planner_number text-danger"
-                                 t-esc="fmt(state.kpis.mo_delayed)"
-                                 aria-live="polite" aria-label="OFs atrasadas"/>
-                            <div class="o_planner_label" aria-hidden="true">OFs atrasadas</div>
+                    <!--
+                        Ejemplo de uso de MrpTooltip en lugar de title= nativo.
+                        El componente envuelve el card completo; el tooltip se activa
+                        por hover y por foco de teclado (accesibilidad WCAG 2.1 AA).
+                        El wrapper es display:block para ocupar todo el ancho de la columna.
+                    -->
+                    <MrpTooltip t-att-content="alertKpiTooltip('mo_delayed')"
+                                position="'top'"
+                                style="display:block;">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-warning fa-lg text-danger mb-2 d-block" aria-hidden="true"/>
+                                <div class="o_planner_number text-danger"
+                                     t-esc="fmt(state.kpis.mo_delayed)"
+                                     aria-live="polite" aria-label="OFs atrasadas"/>
+                                <div class="o_planner_label" aria-hidden="true">OFs atrasadas</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button t-if="state.kpis.mo_delayed > 0"
+                                        class="btn btn-sm btn-link w-100 py-1 text-danger"
+                                        aria-label="Ver OFs atrasadas"
+                                        t-on-click="onViewDelayed">Ver →</button>
+                            </div>
                         </div>
-                        <div class="card-footer p-0">
-                            <button t-if="state.kpis.mo_delayed > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-danger"
-                                    aria-label="Ver OFs atrasadas"
-                                    t-on-click="onViewDelayed">Ver →</button>
-                        </div>
-                    </div>
+                    </MrpTooltip>
                 </div>
 
                 <!-- OFs por vencer -->

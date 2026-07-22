@@ -71,6 +71,8 @@ Forecast
             'odoo_mrp_planner/static/src/xml/mo_list_widget.xml',
             'odoo_mrp_planner/static/src/js/po_dashboard_widget.js',
             'odoo_mrp_planner/static/src/xml/po_dashboard_widget.xml',
+            'odoo_mrp_planner/static/src/js/mrp_tooltip.js',
+            'odoo_mrp_planner/static/src/xml/mrp_tooltip.xml',
             'odoo_mrp_planner/static/src/js/alert_kpi_widget.js',
             'odoo_mrp_planner/static/src/xml/alert_kpi_widget.xml',
             'odoo_mrp_planner/static/src/js/mo_dashboard_widget.js',

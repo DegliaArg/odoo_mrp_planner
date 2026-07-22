@@ -324,6 +324,40 @@
                                 </div>
                             </div>
 
+                            <div class="col-6">
+                                <div t-att-class="'card o_planner_card h-100 ' + (state.req_kpis.exec_rate >= 70 ? 'o_planner_card_success' : state.req_kpis.exec_rate >= 40 ? 'o_planner_card_warning' : 'o_planner_card_danger')"
+                                     style="cursor:pointer" t-on-click="onClickReqExecRate"
+                                     t-att-title="moKpiTooltip('req', 'exec_rate')">
+                                    <div class="card-body text-center py-3">
+                                        <i t-att-class="'fa fa-play-circle fa-lg mb-2 d-block ' + (state.req_kpis.exec_rate >= 70 ? 'text-success' : state.req_kpis.exec_rate >= 40 ? 'text-warning' : 'text-danger')"/>
+                                        <div t-att-class="'o_planner_number ' + (state.req_kpis.exec_rate >= 70 ? 'text-success' : state.req_kpis.exec_rate >= 40 ? 'text-warning' : 'text-danger')"
+                                             t-esc="state.req_kpis.exec_rate + '%'"/>
+                                        <div class="o_planner_label">Tasa de ejecución</div>
+                                    </div>
+                                    <div class="card-footer p-0">
+                                        <button t-att-class="'btn btn-sm btn-link w-100 py-1 ' + (state.req_kpis.exec_rate >= 70 ? 'text-success' : state.req_kpis.exec_rate >= 40 ? 'text-warning' : 'text-danger')"
+                                                t-on-click.stop="onClickReqExecRate">Ver →</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div t-att-class="'card o_planner_card h-100 ' + (state.req_kpis.no_materials > 0 ? 'o_planner_card_danger' : 'o_planner_card_success')"
+                                     style="cursor:pointer" t-on-click="onClickReqNoMaterials"
+                                     t-att-title="moKpiTooltip('req', 'no_materials')">
+                                    <div class="card-body text-center py-3">
+                                        <i t-att-class="'fa fa-exclamation-triangle fa-lg mb-2 d-block ' + (state.req_kpis.no_materials > 0 ? 'text-danger' : 'text-success')"/>
+                                        <div t-att-class="'o_planner_number ' + (state.req_kpis.no_materials > 0 ? 'text-danger' : 'text-success')"
+                                             t-esc="fmt(state.req_kpis.no_materials)"/>
+                                        <div class="o_planner_label">Sin materiales</div>
+                                    </div>
+                                    <div class="card-footer p-0">
+                                        <button t-att-class="'btn btn-sm btn-link w-100 py-1 ' + (state.req_kpis.no_materials > 0 ? 'text-danger' : 'text-success')"
+                                                t-on-click.stop="onClickReqNoMaterials">Ver →</button>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
@@ -487,7 +521,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_warning h-100"
                                      style="cursor:pointer" t-on-click="onClickAllComparison"
-                                     title="Diferencia entre lo programado y lo producido en el período">
+                                     t-att-title="moKpiTooltip('cmp', 'desvio')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-arrows-h fa-lg text-warning mb-2 d-block"/>
                                         <div class="o_planner_number text-warning" t-esc="fmt(state.cmp_kpis.desvio)"/>
@@ -502,7 +536,7 @@
                             <div class="col-6">
                                 <div class="card o_planner_card o_planner_card_primary h-100"
                                      style="cursor:pointer" t-on-click="onClickCmpInProgress"
-                                     title="OFs con estado En progreso dentro del período">
+                                     t-att-title="moKpiTooltip('cmp', 'ofs_in_progress')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cogs fa-lg text-primary mb-2 d-block"/>
                                         <div class="o_planner_number text-primary" t-esc="fmt(state.cmp_kpis.ofs_in_progress)"/>

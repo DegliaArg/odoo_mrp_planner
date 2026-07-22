@@ -359,6 +359,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 )),
             }
 
+        exec_running = len(all_mos.filtered(lambda m: m.state in ('progress', 'done')))
+        exec_total   = len(all_mos)
+        exec_rate    = round(exec_running / exec_total * 100, 1) if exec_total > 0 else 0.0
+        no_materials = len(all_mos.filtered(
+            lambda m: m.state == 'confirmed' and m.reservation_state != 'assigned'
+        ))
+
         return {
             'kpis': {
                 'total':       len(all_active),
@@ -374,6 +381,10 @@ class MrpPlannerDashboardMo(models.TransientModel):
                     lambda m: m.state not in ('done', 'cancel')
                     and m.date_finished and m.date_finished < now
                 )),
+                'exec_running': exec_running,
+                'exec_total':   exec_total,
+                'exec_rate':    exec_rate,
+                'no_materials': no_materials,
             },
             'requests': [_req_dict(r) for r in all_active_page],
         }

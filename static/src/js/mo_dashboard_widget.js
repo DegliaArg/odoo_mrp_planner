@@ -92,7 +92,7 @@ class MoDashboardWidget extends Component {
             ofs_date_mode: 'finish_date',  // modo de filtro de fecha usado por get_mo_kpi_counts
             mos:           [],
             // Programaciones
-            req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0 },
+            req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0, exec_rate: 0, exec_running: 0, exec_total: 0, no_materials: 0 },
             requests:    [],
             // Comparativo
             cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0, desvio: 0, ofs_in_progress: 0 },
@@ -406,6 +406,12 @@ class MoDashboardWidget extends Component {
     /** Navega a todas las solicitudes de programación sin filtro de estado. */
     onClickAllRequests()   { this._navReq("Todas las programaciones",  []); }
 
+    /** Navega a OFs en progreso o completadas (tasa de ejecución). */
+    onClickReqExecRate()    { this._navigate("OFs en ejecución o completadas", [["state", "in", ["progress", "done"]]]); }
+
+    /** Navega a OFs confirmadas sin materiales disponibles. */
+    onClickReqNoMaterials() { this._navigate("OFs sin materiales", [["state", "=", "confirmed"], ["reservation_state", "!=", "assigned"]]); }
+
     onClickCmpInProgress() {
         this._navigate("OFs en curso (comparativo)", [
             ["state", "=", "progress"],
@@ -598,6 +604,10 @@ class MoDashboardWidget extends Component {
                     return `Solicitudes con al menos una OF marcada como "requiere reprogramación"\nCampo x_reschedule_needed = Sí en alguna OF asociada\n→ ${f(k.reschedule)} solicitudes`;
                 case 'mos_delayed':
                     return `OFs atrasadas (fecha_fin < hoy y estado activo) asociadas a solicitudes activas\n→ ${f(k.mos_delayed)} OFs atrasadas`;
+                case 'exec_rate':
+                    return `OFs de solicitudes activas con estado En progreso o Completada\n(OFs in_progress + done) ÷ total OFs × 100\n→ ${f(k.exec_running)} ÷ ${f(k.exec_total)} × 100 = ${k.exec_rate}%\nVerde ≥ 70% | Amarillo ≥ 40% | Rojo < 40%`;
+                case 'no_materials':
+                    return `OFs confirmadas con componentes sin reservar completamente\nCondición: state = confirmed y reservation_state ≠ assigned\n→ ${f(k.no_materials)} OFs sin materiales disponibles`;
             }
         }
         if (section === 'cmp') {
@@ -612,6 +622,10 @@ class MoDashboardWidget extends Component {
                     return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
                 case 'ofs_done':
                     return `OFs con estado Completada (done) finalizadas dentro del período\n→ ${f(k.ofs_done)} OFs completadas`;
+                case 'desvio':
+                    return `Diferencia entre lo programado y lo producido en el período\nProgramado − Producido\n→ ${f2(k.planned)} − ${f2(k.produced)} = ${f2(k.desvio)} unidades`;
+                case 'ofs_in_progress':
+                    return `OFs con estado En progreso dentro del período seleccionado\nCampo: state = in_progress\n→ ${f(k.ofs_in_progress)} OFs en curso`;
             }
         }
         return '';

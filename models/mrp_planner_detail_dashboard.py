@@ -51,6 +51,7 @@ class MrpPlannerDetailDashboard(models.TransientModel):
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
 
+        cfg = self.env['mrp.reschedule.config'].get_config()
         for rec in self:
             cat = rec.category
 
@@ -71,8 +72,6 @@ class MrpPlannerDetailDashboard(models.TransientModel):
 
             # ── OCs ──────────────────────────────────────────────────────────
             if cat == 'pos':
-                # FIX [FASE-3]: umbral crítico de días leído de config (antes hardcodeado en 5)
-                cfg = self.env['mrp.reschedule.config'].get_config()
                 po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
                 active_pos = PO.search([('state', '=', 'purchase'), ('receipt_status', 'not in', ['full'])])
                 overdue = active_pos.filtered(lambda p: p.date_planned and p.date_planned < now)

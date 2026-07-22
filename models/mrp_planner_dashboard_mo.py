@@ -29,6 +29,7 @@ from datetime import datetime
 from pytz import timezone as _tz, utc as _pytz_utc
 
 from odoo import models, fields, api, _
+from odoo.exceptions import AccessError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 
@@ -65,6 +66,11 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :returns: list[dict] con campos id, name, product, qty, date_finished, state,
                   delayed (bool) y reschedule (bool) por cada OF encontrada.
         """
+        if warehouse_id:
+            allowed_ids = self._get_allowed_wh_ids()
+            if allowed_ids is not None and int(warehouse_id) not in allowed_ids:
+                raise AccessError(_("Acceso denegado al depósito seleccionado"))
+
         first_day = _local_to_utc(self.env, date_from)
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
@@ -174,6 +180,11 @@ class MrpPlannerDashboardMo(models.TransientModel):
                   - mos (list[dict]): registros de la página con campos id, name, product, qty,
                     date_finished, state, delayed, reschedule, pending_delivery.
         """
+        if warehouse_id:
+            allowed_ids = self._get_allowed_wh_ids()
+            if allowed_ids is not None and int(warehouse_id) not in allowed_ids:
+                raise AccessError(_("Acceso denegado al depósito seleccionado"))
+
         first_day = _local_to_utc(self.env, date_from)
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
@@ -272,6 +283,11 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
         :returns: dict con claves total, in_progress, delayed, reschedule, done, partial (int cada una).
         """
+        if warehouse_id:
+            allowed_ids = self._get_allowed_wh_ids()
+            if allowed_ids is not None and int(warehouse_id) not in allowed_ids:
+                raise AccessError(_("Acceso denegado al depósito seleccionado"))
+
         now   = fields.Datetime.now()
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
@@ -403,6 +419,11 @@ class MrpPlannerDashboardMo(models.TransientModel):
                   - items (list[dict], máx. 20): product_id, product, uom, planned_qty,
                     produced_qty, pct por producto, ordenados por planned_qty desc.
         """
+        if warehouse_id:
+            allowed_ids = self._get_allowed_wh_ids()
+            if allowed_ids is not None and int(warehouse_id) not in allowed_ids:
+                raise AccessError(_("Acceso denegado al depósito seleccionado"))
+
         first_day = _local_to_utc(self.env, date_from)
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 

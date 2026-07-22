@@ -89,4 +89,13 @@
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
+    <!-- mrp.product.type — tipos de producto del planificador, por empresa.
+         Usa '|' con False para permitir tipos globales (company_id no obligatorio). -->
+    <record id="mrp_product_type_company_rule" model="ir.rule">
+        <field name="name">MRP Product Type: Multi-Company</field>
+        <field name="model_id" ref="model_mrp_product_type"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
 </odoo>

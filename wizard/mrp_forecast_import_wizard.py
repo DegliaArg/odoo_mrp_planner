@@ -4,7 +4,7 @@ import json
 from datetime import date
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 _MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
                'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -28,7 +28,7 @@ class MrpForecastImportWizard(models.TransientModel):
 
     # Resultado de la importación
     result_message = fields.Text(string='Resultado', readonly=True)
-    result_html = fields.Html(compute='_compute_result_html', sanitize=False)
+    result_html = fields.Html(compute='_compute_result_html', sanitize=True)
     state = fields.Selection([
         ('upload', 'Cargar archivo'),
         ('done', 'Resultado'),
@@ -239,6 +239,9 @@ class MrpForecastImportWizard(models.TransientModel):
     @api.model
     def action_download_template(self):
         """Genera y descarga una plantilla Excel vacía."""
+        if not self.env.user.has_group('odoo_mrp_planner.group_sales') and \
+                not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+            raise AccessError(_("No tiene permisos para descargar la plantilla"))
         try:
             import openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment

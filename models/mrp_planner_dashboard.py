@@ -25,6 +25,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from odoo import models, fields, api, _
+from odoo.exceptions import AccessError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 from .const import DEFAULT_PO_CRITICAL_DAYS
 
@@ -403,6 +404,8 @@ class MrpPlannerDashboard(models.TransientModel):
         PO = self.env['purchase.order']
         now = fields.Datetime.now()
         wh_po = self._get_wh_domains().po
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         for rec in self:
             rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))] + wh_po)
             rec.po_to_approve = PO.search_count([('state', '=', 'to approve')] + wh_po)
@@ -414,8 +417,6 @@ class MrpPlannerDashboard(models.TransientModel):
                 lambda p: not p.date_planned or p.date_planned >= now
             ))
             rec.po_overdue          = len(overdue)
-            cfg = self.env['mrp.reschedule.config'].get_config()
-            crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
             rec.po_overdue_critical = len(overdue.filtered(
                 lambda p: (now - p.date_planned).days >= crit_days
             ))
@@ -590,6 +591,8 @@ class MrpPlannerDashboard(models.TransientModel):
 
         :returns: dict — resultado de action_open() (acción de ventana del panel principal).
         """
+        if not self.env.user.has_group('odoo_mrp_planner.group_prod') and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+            raise AccessError(_("No tiene permisos para ejecutar esta acción"))
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()
 
@@ -601,6 +604,8 @@ class MrpPlannerDashboard(models.TransientModel):
 
         :returns: dict — resultado de action_open_compras() (acción de ventana del panel de compras).
         """
+        if not self.env.user.has_group('odoo_mrp_planner.group_purchase') and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+            raise AccessError(_("No tiene permisos para ejecutar esta acción"))
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open_compras()
 

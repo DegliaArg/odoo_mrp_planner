@@ -5,7 +5,7 @@
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
             <!-- KPI cards -->
-            <div t-if="!state.data" class="text-center text-muted py-3">
+            <div t-if="state.loading || !state.data" class="text-center text-muted py-3">
                 <i class="fa fa-spinner fa-spin fa-2x mb-2 d-block"/>
                 Cargando…
             </div>

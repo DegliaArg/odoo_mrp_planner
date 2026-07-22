@@ -46,6 +46,36 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Plugin de Chart.js que dibuja el porcentaje de cada segmento directamente
+ * sobre el gráfico de dona. Los segmentos menores al 5 % no muestran etiqueta
+ * para evitar solapamiento visual.
+ * Definido a nivel de módulo para evitar recrearlo en cada render.
+ * @type {import('chart.js').Plugin}
+ */
+const PIE_LABEL_PLUGIN = {
+    id: 'pieLabels',
+    afterDatasetsDraw(chart) {
+        const { ctx, data } = chart;
+        const dataset = data.datasets[0];
+        const ttl = dataset.data.reduce((a, b) => a + b, 0);
+        chart.getDatasetMeta(0).data.forEach((arc, i) => {
+            const pct = ttl ? Math.round(dataset.data[i] / ttl * 100) : 0;
+            if (pct < 5) return;
+            const { x, y } = arc.getCenterPoint();
+            ctx.save();
+            ctx.fillStyle    = '#fff';
+            ctx.font         = 'bold 11px sans-serif';
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+            ctx.shadowBlur   = 3;
+            ctx.fillText(`${pct}%`, x, y);
+            ctx.restore();
+        });
+    },
+};
+
 class SalesChartWidget extends Component {
     static template = "odoo_mrp_planner.SalesChartWidget";
     static props = {
@@ -233,7 +263,7 @@ class SalesChartWidget extends Component {
      * categoría ABC de venta. Agrega por categoría la cantidad de SKUs,
      * cantidad total y el importe total de los `state.rows` actuales.
      *
-     * Incluye un plugin inline `pieLabelPlugin` que dibuja el porcentaje
+     * Usa el plugin de módulo `PIE_LABEL_PLUGIN` que dibuja el porcentaje
      * directamente sobre cada segmento; los segmentos menores al 5% no
      * muestran etiqueta para evitar solapamiento visual.
      *
@@ -265,29 +295,6 @@ class SalesChartWidget extends Component {
         const fmtN   = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
         const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
 
-        const pieLabelPlugin = {
-            id: 'pieLabels',
-            afterDatasetsDraw(chart) {
-                const { ctx, data } = chart;
-                const dataset = data.datasets[0];
-                const ttl = dataset.data.reduce((a, b) => a + b, 0);
-                chart.getDatasetMeta(0).data.forEach((arc, i) => {
-                    const pct = ttl ? Math.round(dataset.data[i] / ttl * 100) : 0;
-                    if (pct < 5) return;
-                    const { x, y } = arc.getCenterPoint();
-                    ctx.save();
-                    ctx.fillStyle    = '#fff';
-                    ctx.font         = 'bold 11px sans-serif';
-                    ctx.textAlign    = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-                    ctx.shadowBlur   = 3;
-                    ctx.fillText(`${pct}%`, x, y);
-                    ctx.restore();
-                });
-            },
-        };
-
         this._pie = new ChartJs(canvas, {
             type: 'doughnut',
             data: {
@@ -299,7 +306,7 @@ class SalesChartWidget extends Component {
                     borderColor: '#fff',
                 }],
             },
-            plugins: [pieLabelPlugin],
+            plugins: [PIE_LABEL_PLUGIN],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,

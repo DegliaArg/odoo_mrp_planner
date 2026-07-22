@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from odoo import models, fields, api
+from odoo.exceptions import AccessError
+from odoo.tools.translate import _
 
 from .const import DEFAULT_RISK_DAYS
 
@@ -351,8 +353,12 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ('date_order', '<=', d_to_str),
         ] + wh_domain)
 
-        # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
-        partner = self.env['res.partner'].sudo().browse(partner_id)
+        partner = self.env['res.partner'].search([
+            ('id', '=', partner_id),
+            '|', ('company_id', '=', False), ('company_id', 'in', self.env.user.company_ids.ids)
+        ], limit=1)
+        if not partner:
+            raise AccessError(_("Socio no encontrado o sin acceso"))
 
         if not orders:
             return {

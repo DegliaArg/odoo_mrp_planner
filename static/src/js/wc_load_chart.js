@@ -189,12 +189,15 @@ class WcLoadChartWidget extends Component {
                     },
                     y: {
                         stacked: true,
+                        beginAtZero: true,
                         title: {
                             display: true,
                             text: "Horas",
                             font: { size: 11 },
                         },
-                        ticks: { stepSize: 8 },
+                        ticks: {
+                            callback: function(value) { return value + 'h'; },
+                        },
                     },
                 },
             },

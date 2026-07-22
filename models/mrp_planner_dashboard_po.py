@@ -367,11 +367,6 @@ class MrpPlannerDashboardPo(models.TransientModel):
             all_pos_list    = all_pos_list.filtered(_po_match)
             pending_list    = pending_list.filtered(_po_match)
             services_rs     = services_rs.filtered(_po_match)
-            receipts        = receipts.filtered(
-                lambda p: _s in (p.name or '').lower()
-                or _s in (p.partner_id.display_name or '').lower()
-                or _s in (p.purchase_id.name or '').lower()
-            )
 
         rfqs_pg       = rfqs_list[offset:offset + page_size]
         to_approve_pg = to_approve_list[offset:offset + page_size]
@@ -394,6 +389,14 @@ class MrpPlannerDashboardPo(models.TransientModel):
         ] + receipt_sc + wh_po, order=pick_order)
 
         overdue_receipts = receipts.filtered(lambda p: p.scheduled_date and p.scheduled_date < now)
+
+        if search:
+            _s = search.strip().lower()
+            receipts = receipts.filtered(
+                lambda p: _s in (p.name or '').lower()
+                or _s in (p.partner_id.display_name or '').lower()
+                or _s in (p.purchase_id.name or '').lower()
+            )
 
         # ── Entregas (component deliveries to subcontractors) ───────────────
         # La OC no es un M2O en estos pickings, es texto. El único campo

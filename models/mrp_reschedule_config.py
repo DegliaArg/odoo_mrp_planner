@@ -26,7 +26,7 @@ import logging
 from datetime import date, timedelta
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, AccessError
 from .mrp_abc_helpers import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
 
 _logger = logging.getLogger(__name__)
@@ -715,6 +715,8 @@ class MrpRescheduleConfig(models.Model):
         :param vals: dict con los campos a actualizar.
         :returns: bool — resultado del super().write().
         """
+        if not self.env.user.has_group('mrp_planner.group_admin'):
+            raise AccessError(_("Solo los administradores pueden modificar la configuración"))
         res = super().write(vals)
         if 'enable_scheduling' in vals:
             self._sync_scheduling_group(vals['enable_scheduling'])
@@ -797,6 +799,8 @@ class MrpRescheduleConfig(models.Model):
         :returns: mrp.reschedule.config — recordset con los registros creados.
         :raises UserError: si ya existe una configuración en la base de datos.
         """
+        if not self.env.user.has_group('mrp_planner.group_admin'):
+            raise AccessError(_("Solo los administradores pueden crear la configuración"))
         # FIX [FASE-2]: prevenir múltiples singletons — solo puede existir un registro
         if self.search_count([]) > 0:
             raise UserError(_(
@@ -833,6 +837,8 @@ class MrpRescheduleConfig(models.Model):
         :returns: dict — acción ir.actions.act_window con res_id del singleton o
                   False si aún no fue creado.
         """
+        if not self.env.user.has_group('mrp_planner.group_admin'):
+            raise AccessError(_("Solo los administradores pueden acceder a la configuración"))
         config = self.search([('company_id', '=', self.env.company.id)], limit=1)
         if not config:
             # sudo(): la creación del singleton puede ejecutarse como cualquier usuario que abre la pantalla

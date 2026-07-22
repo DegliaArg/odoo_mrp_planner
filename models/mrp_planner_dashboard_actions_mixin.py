@@ -169,7 +169,7 @@ class MrpPlannerDashboardActionsMixin(models.AbstractModel):
                 ('state', 'in', ('purchase', 'done')),
                 ('date_planned', '<', now),
                 ('receipt_status', 'not in', ['full']),
-            ],
+            ] + self._get_wh_domains().po,
             'target': 'current',
         }
 

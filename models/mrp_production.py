@@ -24,8 +24,7 @@ from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontrac
 import logging
 _logger = logging.getLogger(__name__)
 
-# Tolerancia de desvío de cantidad: diferencias <= 5 % no generan alerta qty_mismatch.
-QTY_TOLERANCE = 0.05
+# QTY_TOLERANCE eliminada: la tolerancia se lee de mrp.reschedule.config.qty_tolerance_pct.
 
 
 class MrpProduction(models.Model):
@@ -72,7 +71,7 @@ class MrpProduction(models.Model):
         - Cualquier estado → done/cancel: marca OFs subsecuentes con x_reschedule_needed.
         - → cancel: resuelve alertas mo_delayed/qty_mismatch y crea alerta mo_cancelled.
         - → done: resuelve alerta mo_delayed y compara cantidad producida vs planificada;
-                  si el desvío supera QTY_TOLERANCE crea alerta qty_mismatch.
+                  si el desvío supera la tolerancia configurada en mrp.reschedule.config crea alerta qty_mismatch.
         - Cambio de date_finished a fecha futura: resuelve alerta mo_delayed (ya no hay atraso).
 
         Todos los bloques de alerta están envueltos en try/except para no interrumpir
@@ -148,6 +147,8 @@ class MrpProduction(models.Model):
                     planned_qty = planned_qtys.get(mo.id, 0)
                     if planned_qty:
                         try:
+                            cfg = self.env['mrp.reschedule.config'].get_config()
+                            qty_tolerance = (cfg.qty_tolerance_pct or 5.0) / 100.0
                             done_moves = mo.move_finished_ids.filtered(
                                 lambda m: m.state == 'done' and m.product_id == mo.product_id
                             )
@@ -158,7 +159,7 @@ class MrpProduction(models.Model):
                             if actual_qty == 0:
                                 actual_qty = planned_qty
                             delta = abs(actual_qty - planned_qty) / planned_qty
-                            if delta > QTY_TOLERANCE:
+                            if delta > qty_tolerance:
                                 alert_env = self.env['mrp.reschedule.alert']
                                 avail = mo.product_id.qty_available
                                 impacted = alert_env._find_impact_mos(mo.product_id.id, avail)

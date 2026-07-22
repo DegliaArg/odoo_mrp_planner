@@ -105,6 +105,10 @@ class CustomerAnalysisWidget extends Component {
         this._topDonutChart = null;
         this._topDonutKey  = '';
 
+        // Cache key para onPatched — evita redibujar en cada patch menor
+        this._lastChartKey  = null;
+        this._lastPanelKey  = null;
+
         this.barRef       = useRef("panelBarCanvas");
         this.donutRef     = useRef("panelDonutCanvas");
         this.lineRef      = useRef("panelLineCanvas");
@@ -198,13 +202,34 @@ class CustomerAnalysisWidget extends Component {
         });
 
         onPatched(() => {
-            setTimeout(() => {
+            const newChartKey = JSON.stringify([
+                this.state.chartMetric,
+                this.state.chartTopN,
+                this.state.chartDonut,
+                this.state.filterCategory,
+                this.state.filterABC,
+                this.state.filterFreq,
+                this.state.dateFrom,
+                this.state.dateTo,
+            ]);
+            if (this._lastChartKey !== newChartKey) {
+                this._lastChartKey = newChartKey;
                 this._drawTopChart();
                 this._drawTopDonut();
-                if (this.state.panelPartnerId && this.state.panelData && !this.state.panelLoading) {
+            }
+
+            if (this.state.panelPartnerId && this.state.panelData && !this.state.panelLoading) {
+                const newPanelKey = JSON.stringify([
+                    this.state.panelPartnerId,
+                    this.state.panelMetric,
+                    this.state.panelChartMode,
+                    this.state.panelTopN,
+                ]);
+                if (this._lastPanelKey !== newPanelKey) {
+                    this._lastPanelKey = newPanelKey;
                     this._drawPanelCharts();
                 }
-            }, 0);
+            }
         });
 
         onWillUnmount(() => {
@@ -223,6 +248,8 @@ class CustomerAnalysisWidget extends Component {
         this.state.rowOrdersLoading = {};
         this.state.panelPartnerId   = null;
         this.state.panelData        = null;
+        this._lastChartKey          = null;  // forzar redraw de charts superiores
+        this._lastPanelKey          = null;
         this._destroyPanelCharts();
         try {
             const res = await this.orm.call(
@@ -426,10 +453,12 @@ class CustomerAnalysisWidget extends Component {
         if (this.state.panelPartnerId === partnerId) {
             this.state.panelPartnerId = null;
             this.state.panelData      = null;
+            this._lastPanelKey        = null;
             this._destroyPanelCharts();
             return;
         }
         this._destroyPanelCharts();
+        this._lastPanelKey        = null;
         this.state.panelPartnerId = partnerId;
         this.state.panelData      = null;
         this.state.panelLoading   = true;

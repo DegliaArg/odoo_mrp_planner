@@ -53,6 +53,12 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         if not calendar or lead_days <= 0:
             return from_dt + timedelta(days=lead_days or 0)
 
+        # Precomputar asistencias agrupadas por día de la semana (string '0'..'6').
+        # Permite lookup O(1) dentro del loop en lugar de iterar toda la lista cada día.
+        atts_by_weekday = {}
+        for att in calendar.attendance_ids:
+            atts_by_weekday.setdefault(att.dayofweek, []).append(att)
+
         dt = from_dt
         days_counted = 0
         max_iter = lead_days * 7 + 30  # margen extra para calendarios con muchos días festivos
@@ -63,11 +69,11 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             dt += timedelta(days=1)
             dt_date = dt.date()
             weekday = str(dt.weekday())
+            # O(1): si el weekday no tiene asistencias, es día no laboral directo
             if any(
-                att.dayofweek == weekday
-                and (not att.date_from or att.date_from <= dt_date)
+                (not att.date_from or att.date_from <= dt_date)
                 and (not att.date_to   or att.date_to   >= dt_date)
-                for att in calendar.attendance_ids
+                for att in atts_by_weekday.get(weekday, ())
             ):
                 days_counted += 1
 
@@ -75,9 +81,8 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         weekday = str(dt.weekday())
         day_atts = sorted(
             [
-                a for a in calendar.attendance_ids
-                if a.dayofweek == weekday
-                and (not a.date_from or a.date_from <= dt_date)
+                a for a in atts_by_weekday.get(weekday, ())
+                if (not a.date_from or a.date_from <= dt_date)
                 and (not a.date_to   or a.date_to   >= dt_date)
             ],
             key=lambda a: a.hour_from,
@@ -104,6 +109,12 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         if not calendar or lead_days <= 0:
             return before_dt - timedelta(days=lead_days or 0)
 
+        # Precomputar asistencias agrupadas por día de la semana (string '0'..'6').
+        # Permite lookup O(1) dentro del loop en lugar de iterar toda la lista cada día.
+        atts_by_weekday = {}
+        for att in calendar.attendance_ids:
+            atts_by_weekday.setdefault(att.dayofweek, []).append(att)
+
         dt = before_dt
         days_counted = 0
         max_iter = lead_days * 7 + 30  # margen para calendarios con muchos días libres
@@ -114,11 +125,11 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             dt -= timedelta(days=1)
             dt_date = dt.date()
             weekday = str(dt.weekday())  # '0'=lunes, igual que att.dayofweek
+            # O(1): si el weekday no tiene asistencias, es día no laboral directo
             if any(
-                att.dayofweek == weekday
-                and (not att.date_from or att.date_from <= dt_date)
+                (not att.date_from or att.date_from <= dt_date)
                 and (not att.date_to   or att.date_to   >= dt_date)
-                for att in calendar.attendance_ids
+                for att in atts_by_weekday.get(weekday, ())
             ):
                 days_counted += 1
 
@@ -127,9 +138,8 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         weekday = str(dt.weekday())
         day_atts = sorted(
             [
-                a for a in calendar.attendance_ids
-                if a.dayofweek == weekday
-                and (not a.date_from or a.date_from <= dt_date)
+                a for a in atts_by_weekday.get(weekday, ())
+                if (not a.date_from or a.date_from <= dt_date)
                 and (not a.date_to   or a.date_to   >= dt_date)
             ],
             key=lambda a: a.hour_from,

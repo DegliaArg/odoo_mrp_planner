@@ -158,10 +158,14 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         Calcula todos los contadores de alertas para cada registro del panel.
 
-        Fórmula: búsquedas independientes sobre mrp.reschedule.alert filtrando por
-        resolved=False y tipo/severidad. Las alertas de OFs de subcontratación se
-        excluyen del conteo de producción; las alertas de OCs/recepciones se filtran
-        sin dominio SBC para no ocultarlas.
+        Fórmula: un único read_group sobre mrp.reschedule.alert agrupado por
+        (alert_type, severity) reemplaza las búsquedas individuales anteriores,
+        reduciendo las queries SQL de 10 a 3 por apertura del dashboard.
+        Las alertas de OFs de subcontratación se excluyen del conteo de producción;
+        las alertas de OCs/recepciones se filtran sin dominio SBC para no ocultarlas.
+        alert_receipt_delayed mantiene un search_count individual por sus filtros
+        relacionales (picking_id.purchase_id, picking_id.return_id) que no son
+        compatibles con read_group en todos los backends.
         Depende de: mrp.reschedule.alert (resolved, severity, alert_type,
                     production_id, picking_id.purchase_id, picking_id.return_id).
         """
@@ -177,22 +181,44 @@ class MrpPlannerDashboard(models.TransientModel):
         no_sc = ['|', ('production_id', '=', False),
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
         wh_alert = self._get_wh_domains().alert
+
+        # ── read_group con no_sc: cubre alert_total, severidades y tipos de OF ──
+        groups_no_sc = Alert.read_group(
+            base + no_sc + wh_alert,
+            fields=['alert_type', 'severity'],
+            groupby=['alert_type', 'severity'],
+            lazy=False,
+        )
+        counts_no_sc = {(g['alert_type'], g['severity']): g['__count'] for g in groups_no_sc}
+
+        # ── read_group sin no_sc: cubre tipos de OC (po_delayed, po_upcoming, po_cancelled) ──
+        groups_all = Alert.read_group(
+            base + wh_alert,
+            fields=['alert_type'],
+            groupby=['alert_type'],
+            lazy=False,
+        )
+        counts_all = {g['alert_type']: g['__count'] for g in groups_all}
+
         for rec in self:
-            rec.alert_total           = Alert.search_count(base + no_sc + wh_alert)
-            rec.alert_critical        = Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'critical')])
-            rec.alert_warning         = Alert.search_count(base + no_sc + wh_alert + [('severity', '=', 'warning')])
-            rec.alert_mo_delayed      = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_delayed')])
-            rec.alert_mo_upcoming     = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_upcoming')])
-            rec.alert_po_delayed      = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_delayed')])
-            rec.alert_po_upcoming     = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_upcoming')])
-            rec.alert_po_cancelled    = Alert.search_count(base + wh_alert + [('alert_type', '=', 'po_cancelled')])
+            # Totales con no_sc
+            rec.alert_total       = sum(counts_no_sc.values())
+            rec.alert_critical    = sum(v for (t, s), v in counts_no_sc.items() if s == 'critical')
+            rec.alert_warning     = sum(v for (t, s), v in counts_no_sc.items() if s == 'warning')
+            rec.alert_mo_delayed  = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_delayed')
+            rec.alert_mo_upcoming = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_upcoming')
+            rec.alert_qty_mismatch = sum(v for (t, s), v in counts_no_sc.items() if t == 'qty_mismatch')
+            rec.alert_mo_cancelled = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_cancelled')
+            # Tipos de OC (sin no_sc)
+            rec.alert_po_delayed   = counts_all.get('po_delayed', 0)
+            rec.alert_po_upcoming  = counts_all.get('po_upcoming', 0)
+            rec.alert_po_cancelled = counts_all.get('po_cancelled', 0)
+            # receipt_delayed: filtros relacionales incompatibles con read_group
             rec.alert_receipt_delayed = Alert.search_count(base + wh_alert + [
                 ('alert_type', '=', 'receipt_delayed'),
                 ('picking_id.purchase_id', '!=', False),
                 ('picking_id.return_id', '=', False),
             ])
-            rec.alert_qty_mismatch    = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'qty_mismatch')])
-            rec.alert_mo_cancelled    = Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', 'mo_cancelled')])
 
     @api.depends()
     def _compute_user_permissions(self):
@@ -452,33 +478,80 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         Calcula los contadores de programaciones de producción para el panel.
 
-        Fórmula: confirmed y calculated se obtienen con search; las OFs asociadas
-        se recopilan desde item_ids.production_id de las programaciones confirmadas
-        y se filtran en Python para done y delayed. request_reschedule_needed
-        cuenta las programaciones que tienen al menos un item con OF marcada.
-        Depende de: mrp.production.request (state, item_ids),
+        Fórmula: request_active y request_calculated se obtienen con search_count
+        (una query COUNT por estado). Las métricas sobre OFs vinculadas se calculan
+        con read_group sobre mrp.production.request.item para evitar cargar registros
+        en memoria — una sola query GROUP BY por contador en lugar de mapped() +
+        filtered() en Python.
+
+        request_reschedule_needed: programaciones confirmadas que tienen al menos
+        un item cuya OF tenga x_reschedule_needed=True. Se resuelve con un search
+        sobre los items filtrado por la OF, luego len(set(...)) para deduplicar.
+
+        Depende de: mrp.production.request (state),
+                    mrp.production.request.item (request_id, production_id),
                     mrp.production (state, date_finished, x_reschedule_needed).
         """
         Req = self.env['mrp.production.request']
+        Item = self.env['mrp.production.request.item']
         now = fields.Datetime.now()
         for rec in self:
-            confirmed = Req.search([('state', '=', 'confirmed')])
-            calculated = Req.search([('state', '=', 'calculated')])
-            all_mos = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
-            rec.request_active     = len(confirmed)
-            rec.request_calculated = len(calculated)
-            rec.request_reschedule_needed = len(confirmed.filtered(
-                lambda r: any(
-                    it.production_id and it.production_id.x_reschedule_needed
-                    for it in r.item_ids
-                )
-            ))
-            rec.req_mos_total   = len(all_mos)
-            rec.req_mos_done    = len(all_mos.filtered(lambda m: m.state == 'done'))
-            rec.req_mos_delayed = len(all_mos.filtered(
-                lambda m: m.state not in ('done', 'cancel')
-                and m.date_finished and m.date_finished < now
-            ))
+            confirmed_ids = Req.search([('state', '=', 'confirmed')]).ids
+            rec.request_active     = len(confirmed_ids)
+            rec.request_calculated = Req.search_count([('state', '=', 'calculated')])
+
+            if not confirmed_ids:
+                rec.request_reschedule_needed = 0
+                rec.req_mos_total   = 0
+                rec.req_mos_done    = 0
+                rec.req_mos_delayed = 0
+                continue
+
+            # ── req_mos_total: cantidad de OFs distintas vinculadas a confirmed ──
+            # read_group emite: SELECT request_id, COUNT(DISTINCT production_id) ...
+            # GROUP BY request_id  → O(1) en SQL en lugar de mapped() en Python.
+            groups_total = Item.read_group(
+                [('request_id', 'in', confirmed_ids), ('production_id', '!=', False)],
+                fields=['production_id:count_distinct'],
+                groupby=[],
+            )
+            rec.req_mos_total = groups_total[0]['production_id'] if groups_total else 0
+
+            # ── req_mos_done: OFs en estado 'done' vinculadas a confirmed ────────
+            groups_done = Item.read_group(
+                [
+                    ('request_id', 'in', confirmed_ids),
+                    ('production_id', '!=', False),
+                    ('production_id.state', '=', 'done'),
+                ],
+                fields=['production_id:count_distinct'],
+                groupby=[],
+            )
+            rec.req_mos_done = groups_done[0]['production_id'] if groups_done else 0
+
+            # ── req_mos_delayed: OFs activas con date_finished vencido ───────────
+            groups_delayed = Item.read_group(
+                [
+                    ('request_id', 'in', confirmed_ids),
+                    ('production_id', '!=', False),
+                    ('production_id.state', 'not in', ('done', 'cancel')),
+                    ('production_id.date_finished', '!=', False),
+                    ('production_id.date_finished', '<', now),
+                ],
+                fields=['production_id:count_distinct'],
+                groupby=[],
+            )
+            rec.req_mos_delayed = groups_delayed[0]['production_id'] if groups_delayed else 0
+
+            # ── request_reschedule_needed: programaciones con ≥1 OF pendiente ───
+            # search sobre items filtrando directamente por la OF marcada; luego
+            # deduplicar request_id con un set para contar programaciones únicas.
+            items_reschedule = Item.search([
+                ('request_id', 'in', confirmed_ids),
+                ('production_id', '!=', False),
+                ('production_id.x_reschedule_needed', '=', True),
+            ])
+            rec.request_reschedule_needed = len(set(items_reschedule.mapped('request_id').ids))
 
     @api.depends()
     def _compute_inline_requests(self):

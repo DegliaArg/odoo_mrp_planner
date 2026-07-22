@@ -21,7 +21,7 @@ Relacionado con:
 import logging
 from datetime import datetime, timedelta
 
-from odoo import models, fields, api, _
+from odoo import models, fields, api, tools, _
 from odoo.exceptions import UserError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 from .const import DEFAULT_PO_CRITICAL_DAYS
@@ -368,6 +368,20 @@ class MrpRescheduleAlert(models.Model):
 
     def _auto_init(self):
         super()._auto_init()
+        # Índices compuestos para acelerar las queries de alertas que siempre
+        # filtran por (resolved, company_id) y frecuentemente por alert_type.
+        tools.create_index(
+            self._cr,
+            'mrp_reschedule_alert_resolved_company_idx',
+            self._table,
+            ['resolved', 'company_id'],
+        )
+        tools.create_index(
+            self._cr,
+            'mrp_reschedule_alert_type_company_idx',
+            self._table,
+            ['alert_type', 'company_id', 'resolved'],
+        )
         # Fill company_id for alerts created before multi-company support
         self.env.cr.execute("SAVEPOINT fill_alert_company_id")
         try:
@@ -399,13 +413,16 @@ class MrpRescheduleAlert(models.Model):
         _logger.info('MRP Planner cron: inicio chequeo de desvíos de producción')
         now = datetime.utcnow()
         impact_cache = {}
+        # Leer la configuración una sola vez para toda la ejecución del cron.
+        # Los métodos privados la reciben como parámetro para evitar llamadas repetidas a get_config().
+        cfg = self.env['mrp.reschedule.config'].get_config()
         steps = [
-            (self._check_delayed_mos,     (now,)),
-            (self._check_upcoming_mos,    (now,)),
-            (self._check_delayed_pos,     (now, impact_cache)),
-            (self._check_upcoming_pos,    (now,)),
-            (self._check_delayed_receipts,(now, impact_cache)),
-            (self._check_qty_mismatches,  (now, impact_cache)),
+            (self._check_delayed_mos,     (now, cfg)),
+            (self._check_upcoming_mos,    (now, cfg)),
+            (self._check_delayed_pos,     (now, cfg, impact_cache)),
+            (self._check_upcoming_pos,    (now, cfg)),
+            (self._check_delayed_receipts,(now, cfg, impact_cache)),
+            (self._check_qty_mismatches,  (now, cfg, impact_cache)),
             (self._auto_resolve_stale,    ()),
         ]
         for fn, args in steps:
@@ -416,9 +433,10 @@ class MrpRescheduleAlert(models.Model):
         _logger.info('MRP Planner cron: fin chequeo de desvíos de producción')
 
     @api.model
-    def _check_delayed_mos(self, now):
+    def _check_delayed_mos(self, now, cfg=None):
         """Detecta OFs confirmadas/en progreso cuya fecha de fin ya pasó y crea/actualiza alertas mo_delayed."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         # 3 días es el umbral crítico por defecto si no hay configuración activa
         crit_days = cfg.alert_mo_critical_days if cfg else 3
         mos = self.env['mrp.production'].search([
@@ -452,9 +470,10 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_upcoming_mos(self, now):
+    def _check_upcoming_mos(self, now, cfg=None):
         """Detecta OFs con fecha de fin dentro de la ventana de aviso y crea/actualiza alertas mo_upcoming."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         # 7 días es el horizonte de aviso por defecto si no hay configuración activa
         warn_days = cfg.alert_mo_warning_days if cfg else 7
         future_limit = now + timedelta(days=warn_days)
@@ -489,9 +508,10 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_delayed_pos(self, now, impact_cache=None):
+    def _check_delayed_pos(self, now, cfg=None, impact_cache=None):
         """Detecta OCs con fecha de entrega vencida y sin recepción completa; crea/actualiza alertas po_delayed."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         # 5 días es el umbral crítico por defecto para OCs si no hay configuración activa
         crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
         pos = self.env['purchase.order'].search([
@@ -545,9 +565,10 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_upcoming_pos(self, now):
+    def _check_upcoming_pos(self, now, cfg=None):
         """Detecta OCs con entrega próxima y sin recepción completa; crea/actualiza alertas po_upcoming."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         # 10 días es el horizonte de aviso por defecto para OCs si no hay configuración activa
         warn_days = cfg.alert_po_warning_days if cfg else 10
         future_limit = now + timedelta(days=warn_days)
@@ -582,9 +603,10 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_delayed_receipts(self, now, impact_cache=None):
+    def _check_delayed_receipts(self, now, cfg=None, impact_cache=None):
         """Detecta recepciones de compra pendientes cuya fecha programada ya pasó; crea/actualiza alertas receipt_delayed."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         # 3 días es el umbral crítico por defecto para recepciones si no hay configuración activa
         crit_days = cfg.alert_receipt_critical_days if cfg else 3
         pickings = self.env['stock.picking'].search([
@@ -640,9 +662,10 @@ class MrpRescheduleAlert(models.Model):
             self.create(to_create)
 
     @api.model
-    def _check_qty_mismatches(self, now, impact_cache=None):
+    def _check_qty_mismatches(self, now, cfg=None, impact_cache=None):
         """Detecta MOs recién cerradas con cantidad diferente a la planificada."""
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].get_config()
         qty_tol = (cfg.qty_tolerance_pct / 100.0) if cfg else QTY_TOLERANCE
         # La ventana de búsqueda coincide con el intervalo del cron + 10 % de margen para evitar
         # que OFs cerradas justo entre dos ejecuciones queden fuera del análisis.

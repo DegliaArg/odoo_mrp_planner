@@ -83,6 +83,7 @@ class PoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
+        this._loadSeq = 0;
         this._root        = useRef("poRoot");
         this.colsOc       = useColManager('po_ocs',       PO_OC_COLS);
         this.colsReceipts = useColManager('po_receipts',  PO_RECEIPT_COLS);
@@ -139,9 +140,12 @@ class PoDashboardWidget extends Component {
     /**
      * Llama al método Python get_po_dashboard_data y vuelca el resultado en
      * el estado reactivo. Gestiona el flag loading para el spinner del template.
+     * Usa un contador de secuencia (_loadSeq) para descartar respuestas obsoletas
+     * cuando se encadenan llamadas rápidas o el componente es destruido durante el await.
      * @returns {Promise<void>}
      */
     async _load() {
+        const seq = ++this._loadSeq;
         this.state.loading = true;
         try {
             const d = await this.orm.call(
@@ -151,6 +155,7 @@ class PoDashboardWidget extends Component {
                  this.state.sortField || null, this.state.sortDir,
                  this.state.page, this.state.pageSize, this.state.search || null],
             );
+            if (seq !== this._loadSeq) return;
             this.state.kpis            = d.kpis;
             this.state.rfqs            = d.rfqs;
             this.state.to_approve      = d.to_approve;
@@ -163,9 +168,10 @@ class PoDashboardWidget extends Component {
             this.state.show_services_tab   = d.show_services_tab   || false;
             this.state.exclude_service_pos = d.kpis.exclude_service_pos || false;
         } catch (e) {
+            if (seq !== this._loadSeq) return;
             console.error("[PoDashboardWidget]", e);
         } finally {
-            this.state.loading = false;
+            if (seq === this._loadSeq) this.state.loading = false;
         }
     }
 

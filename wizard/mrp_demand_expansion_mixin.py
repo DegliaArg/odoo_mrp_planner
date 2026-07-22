@@ -184,7 +184,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         preferred = centros.filtered('is_preferred')
         return (preferred[:1] if preferred else centros[:1]).workcenter_id or None
 
-    def _build_demand_tree(self, product, qty, level, visited=None):
+    def _build_demand_tree(self, product, qty, level, visited=None, _orderpoint_cache=None):
         """
         Construye recursivamente el árbol de demanda multinivel para un producto.
 
@@ -203,6 +203,10 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         :param qty: float — cantidad necesaria a producir/abastecer.
         :param level: int — profundidad en el árbol (0 = artículo raíz de la solicitud).
         :param visited: set | None — productos ya visitados en la rama actual (evita ciclos).
+        :param _orderpoint_cache: dict | None — caché compartido {product_id: bool} de
+            orderpoints activos con trigger=auto. Se inicializa en el primer nivel y se
+            comparte en todas las llamadas recursivas para evitar queries individuales.
+            Por cada nivel de LdM se hace un único search() batch con los IDs del nivel.
         :returns: dict | None — nodo raíz del árbol, o None si no existe LdM fabricable.
         """
         if visited is None:
@@ -210,6 +214,12 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         if product.id in visited:
             return None
         visited = visited | {product.id}
+
+        # Inicializar caché compartido en la primera llamada (nivel raíz).
+        # El dict se pasa por referencia en todas las llamadas recursivas,
+        # acumulando resultados sin repetir queries para productos ya vistos.
+        if _orderpoint_cache is None:
+            _orderpoint_cache = {}
 
         bom = self._find_bom(product)
         if not bom or bom.type == 'phantom':
@@ -249,17 +259,30 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             'scheduled_end':   None,
         }
 
+        # Precarga batch de orderpoints para todos los componentes de este nivel de LdM.
+        # Se omiten los product_ids que ya están en caché para no repetir queries.
+        comp_ids_this_level = [
+            line.product_id.id for line in bom.bom_line_ids
+            if line.product_id.id not in _orderpoint_cache
+        ]
+        if comp_ids_this_level:
+            ops_found = self.env['stock.warehouse.orderpoint'].search([
+                ('product_id', 'in', comp_ids_this_level),
+                ('active',     '=', True),
+                ('trigger',    '=', 'auto'),
+            ])
+            found_ids = set(ops_found.mapped('product_id').ids)
+            for pid in comp_ids_this_level:
+                _orderpoint_cache[pid] = pid in found_ids
+
         for bom_line in bom.bom_line_ids:
             comp     = bom_line.product_id
             comp_qty = bom_line.product_qty * bom_factor
 
             # Productos con regla de reorden automática: el sistema los repone solo.
             # Generar un único nodo stock_ok para la cantidad total y saltar.
-            if self.env['stock.warehouse.orderpoint'].search([
-                ('product_id', '=', comp.id),
-                ('active',     '=', True),
-                ('trigger',    '=', 'auto'),
-            ], limit=1):
+            # Se usa el caché precargado; sin query individual por producto.
+            if _orderpoint_cache.get(comp.id, False):
                 node['children'].append({
                     'type':            'stock',
                     'product':         comp,
@@ -313,7 +336,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             method = self._get_supply_method(comp)
 
             if method == 'manufacture':
-                child = self._build_demand_tree(comp, remaining_qty, level + 1, visited)
+                child = self._build_demand_tree(comp, remaining_qty, level + 1, visited, _orderpoint_cache)
                 if child:
                     node['children'].append(child)
 

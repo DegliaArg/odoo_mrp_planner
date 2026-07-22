@@ -180,7 +180,8 @@
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
                              style="overflow:hidden; height:330px;">
-                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                   aria-label="Órdenes de fabricación" role="grid">
                                 <colgroup>
                                     <col t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
                                          t-att-style="colsOf.colGroupStyle(col.key)"/>
@@ -190,10 +191,12 @@
                                         <th t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
                                             t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsOf.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                             style="position:relative; user-select:none;"
+                                            scope="col"
                                             t-att-title="col.title"
                                             t-att-data-col-key="col.key"
                                             t-att-data-sort-key="col.sortKey || ''"
                                             t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
                                             t-on-click="onHeaderClick"
                                             t-on-dragstart="colsOf.onDragStart"
                                             t-on-dragover="colsOf.onDragOver"
@@ -210,7 +213,8 @@
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
-                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                       aria-label="Filas de órdenes de fabricación" role="grid">
                                     <colgroup>
                                         <col t-foreach="colsOf.visibleCols()" t-as="col" t-key="col.key"
                                              t-att-style="colsOf.colGroupStyle(col.key)"/>
@@ -379,7 +383,8 @@
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
                              style="overflow:hidden; height:260px;">
-                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                   aria-label="Programaciones" role="grid">
                                 <colgroup>
                                     <col t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
                                          t-att-style="colsReq.colGroupStyle(col.key)"/>
@@ -389,10 +394,12 @@
                                         <th t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
                                             t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsReq.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                             style="position:relative; user-select:none;"
+                                            scope="col"
                                             t-att-title="col.title"
                                             t-att-data-col-key="col.key"
                                             t-att-data-sort-key="col.sortKey || ''"
                                             t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
                                             t-on-click="onHeaderClick"
                                             t-on-dragstart="colsReq.onDragStart"
                                             t-on-dragover="colsReq.onDragOver"
@@ -409,7 +416,8 @@
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
-                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                       aria-label="Filas de programaciones" role="grid">
                                     <colgroup>
                                         <col t-foreach="colsReq.visibleCols()" t-as="col" t-key="col.key"
                                              t-att-style="colsReq.colGroupStyle(col.key)"/>
@@ -569,7 +577,8 @@
                         <div t-else=""
                              class="border rounded d-flex flex-column o_table_scroll"
                              style="overflow:hidden; height:260px;">
-                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;">
+                            <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                   aria-label="Producido vs Programado" role="grid">
                                 <colgroup>
                                     <col t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
                                          t-att-style="colsComp.colGroupStyle(col.key)"/>
@@ -579,10 +588,12 @@
                                         <th t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
                                             t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsComp.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                             style="position:relative; user-select:none;"
+                                            scope="col"
                                             t-att-title="col.title"
                                             t-att-data-col-key="col.key"
                                             t-att-data-sort-key="col.sortKey || ''"
                                             t-att-draggable="col.fixed ? 'false' : 'true'"
+                                            t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
                                             t-on-click="onHeaderClick"
                                             t-on-dragstart="colsComp.onDragStart"
                                             t-on-dragover="colsComp.onDragOver"
@@ -599,7 +610,8 @@
                                 </thead>
                             </table>
                             <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
-                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
+                                <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                       aria-label="Filas de producido vs programado" role="grid">
                                     <colgroup>
                                         <col t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
                                              t-att-style="colsComp.colGroupStyle(col.key)"/>

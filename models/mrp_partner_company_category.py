@@ -19,31 +19,6 @@ class MrpPartnerCompanyCategory(models.Model):
     supplier_category = fields.Selection(SALE_CAT_SELECTION, string='Categoría de proveedor')
     customer_category = fields.Selection(SALE_CAT_SELECTION, string='Categoría de cliente')
 
-    def _auto_init(self):
-        super()._auto_init()
-        # Migrar valores existentes de las columnas globales res_partner.x_supplier_category
-        # y x_customer_category (las columnas persisten en DB aunque el campo sea non-stored).
-        self.env.cr.execute("SAVEPOINT migrate_partner_company_categories")
-        try:
-            self.env.cr.execute("""
-                INSERT INTO mrp_partner_company_category
-                    (partner_id, company_id, supplier_category, customer_category,
-                     create_uid, create_date, write_uid, write_date)
-                SELECT
-                    rp.id,
-                    (SELECT id FROM res_company ORDER BY id LIMIT 1),
-                    rp.x_supplier_category,
-                    rp.x_customer_category,
-                    1, NOW() AT TIME ZONE 'UTC',
-                    1, NOW() AT TIME ZONE 'UTC'
-                FROM res_partner rp
-                WHERE (rp.x_supplier_category IS NOT NULL OR rp.x_customer_category IS NOT NULL)
-                  AND NOT EXISTS (
-                      SELECT 1 FROM mrp_partner_company_category mpc
-                       WHERE mpc.partner_id = rp.id
-                         AND mpc.company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
-                  )
-            """)
-            self.env.cr.execute("RELEASE SAVEPOINT migrate_partner_company_categories")
-        except Exception:
-            self.env.cr.execute("ROLLBACK TO SAVEPOINT migrate_partner_company_categories")
+    # La migración de datos desde res_partner.x_supplier_category /
+    # x_customer_category fue movida a migrations/18.0.46.0.0/pre-migrate.py
+    # para ejecutarse una sola vez en el upgrade y no en cada reinicio.

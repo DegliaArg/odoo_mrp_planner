@@ -195,6 +195,107 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             ])
         return children
 
+    def _preload_child_mos_batch(self, parent_ids, visited_mo_ids=None):
+        """
+        Carga en una sola query todas las MOs hijas para un conjunto de IDs padre.
+
+        Equivalente a llamar _get_child_mos() para cada ID individualmente,
+        pero en batch para minimizar el número de queries SQL durante el BFS.
+
+        :param parent_ids: colección de IDs de mrp.production padre.
+        :param visited_mo_ids: set opcional de IDs ya visitados — se excluyen
+            del resultado para evitar re-encolar nodos ya procesados.
+        :returns: dict {parent_id: [mrp.production recordsets]} (lista de registros).
+        """
+        parent_ids = list(parent_ids)
+        if not parent_ids:
+            return {}
+        visited = visited_mo_ids or set()
+        result = {}
+
+        # Hijas por x_parent_mo_id (campo Studio)
+        by_parent = self.env['mrp.production'].search([
+            ('x_parent_mo_id', 'in', parent_ids),
+            ('state', 'not in', ['done', 'cancel']),
+        ])
+        for child in by_parent:
+            if child.id not in visited:
+                pid = child.x_parent_mo_id.id
+                result.setdefault(pid, self.env['mrp.production'])
+                result[pid] |= child
+
+        # Hijas por origin = mo.name (MOs generadas sin campo Studio)
+        # Necesitamos el mapa id->name de los padres
+        parent_recs = self.env['mrp.production'].browse(parent_ids)
+        name_to_parent_id = {
+            mo.name: mo.id for mo in parent_recs if mo.name
+        }
+        if name_to_parent_id:
+            by_origin = self.env['mrp.production'].search([
+                ('origin', 'in', list(name_to_parent_id.keys())),
+                ('x_parent_mo_id', '=', False),
+                ('state', 'not in', ['done', 'cancel']),
+            ])
+            for child in by_origin:
+                if child.id not in visited and child.origin in name_to_parent_id:
+                    pid = name_to_parent_id[child.origin]
+                    result.setdefault(pid, self.env['mrp.production'])
+                    result[pid] |= child
+
+        return result
+
+    def _preload_pos_batch(self, mo_list):
+        """
+        Carga en una sola query todas las POs vinculadas a un conjunto de MOs.
+
+        Equivalente a llamar _get_pos_for_mo() para cada MO individualmente,
+        pero en batch. Usa la misma lógica de tres fuentes que _get_pos_for_mo.
+
+        :param mo_list: iterable de mrp.production.
+        :returns: dict {mo_id: purchase.order recordset}.
+        """
+        result = {}
+        if not mo_list:
+            return result
+
+        mo_ids = [mo.id for mo in mo_list]
+        mo_by_id = {mo.id: mo for mo in mo_list}
+
+        # Fuente 1: purchase_order_id directo en la MO
+        if mo_list and 'purchase_order_id' in next(iter(mo_list))._fields:
+            for mo in mo_list:
+                po = mo.purchase_order_id
+                if po and po.state not in ('done', 'cancel'):
+                    result.setdefault(mo.id, self.env['purchase.order'])
+                    result[mo.id] |= po
+
+        # Fuente 2: purchase_line_id en la MO
+        if mo_list and 'purchase_line_id' in next(iter(mo_list))._fields:
+            for mo in mo_list:
+                line = mo.purchase_line_id
+                if line and line.order_id and line.order_id.state not in ('done', 'cancel'):
+                    result.setdefault(mo.id, self.env['purchase.order'])
+                    result[mo.id] |= line.order_id
+
+        # Fuente 3: purchase.order cuyo origin contiene el nombre de la MO (batch)
+        mo_names = [mo.name for mo in mo_list if mo.name]
+        name_to_mo_ids = {}
+        for mo in mo_list:
+            if mo.name:
+                name_to_mo_ids.setdefault(mo.name, []).append(mo.id)
+
+        if mo_names:
+            pos_by_origin = self.env['purchase.order'].search([
+                ('origin', 'in', mo_names),
+                ('state', 'not in', ('done', 'cancel')),
+            ])
+            for po in pos_by_origin:
+                for mo_id in name_to_mo_ids.get(po.origin, []):
+                    result.setdefault(mo_id, self.env['purchase.order'])
+                    result[mo_id] |= po
+
+        return result
+
     # ── Helpers — calendario ─────────────────────────────────────────────────
 
     def _get_mo_duration_hours(self, mo):
@@ -362,6 +463,14 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
         7. Encola las MOs hijas para procesamiento en profundidad.
         8. Crea los registros en batch al final para minimizar queries.
 
+        Optimización de queries (preload por nivel):
+        - En lugar de llamar _get_child_mos() y _get_pos_for_mo() por cada nodo
+          individualmente (N+1 queries), se usan _preload_child_mos_batch() y
+          _preload_pos_batch() para cargar todos los datos del nivel actual en
+          una sola query antes de procesar sus nodos.
+        - Las POs se precargan para el nivel raíz al inicio y luego, cuando se
+          descubren hijos nuevos al cerrar cada nivel, se precarga el nivel siguiente.
+
         :raises nada directamente — los errores de profundidad se registran en _logger.
         """
         self.ensure_one()
@@ -436,14 +545,35 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
         root_label = pivot.name if pivot else ''
         truncated_mo_ids = []
 
-        # Iterative replacement of recursive add_mo using a deque
-        # queue items: (mo, level, parent_label, parent_delta)
+        # ── BFS con preload por nivel ─────────────────────────────────────────
+        # Cada ítem de la cola: (mo, level, parent_label, parent_delta)
+        # Se mantiene un cache de hijos (child_cache) y POs (po_cache) que se
+        # recarga en batch cada vez que se descubren MOs de un nivel nuevo.
         queue = deque()
 
-        # Agregar el pivot primero (como anchor) y luego sus hijas en cascada
+        # Cache de hijos precargados: {parent_mo_id: recordset de hijas}
+        child_cache = {}
+        # Cache de POs precargadas: {mo_id: recordset de POs}
+        po_cache = {}
+
+        # Construir lista raíz de MOs y precargar sus datos en batch
+        root_mos = []
+        if not is_global and pivot:
+            root_mos.append(pivot)
+        for mo in mos_sorted:
+            if mo.id not in visited_mo_ids:
+                root_mos.append(mo)
+
+        if root_mos:
+            # Preload hijos y POs del nivel raíz en 2 queries (en lugar de 2*N)
+            child_cache.update(self._preload_child_mos_batch(
+                [mo.id for mo in root_mos], visited_mo_ids
+            ))
+            po_cache.update(self._preload_pos_batch(root_mos))
+
+        # Encolar nivel raíz
         if not is_global and pivot:
             queue.append((pivot, 0, '', None))
-
         for mo in mos_sorted:
             if mo.id not in visited_mo_ids:
                 queue.append((mo, 0, root_label, None))
@@ -549,7 +679,10 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             })
             seq += 10
 
-            for po in self._get_pos_for_mo(mo):
+            # POs del nodo actual — usar cache precargado (fallback a consulta individual
+            # solo si el ID no estaba en el cache, lo cual no debería ocurrir normalmente)
+            mo_pos = po_cache.get(mo.id, self.env['purchase.order'])
+            for po in mo_pos:
                 if po.id in visited_po_ids:
                     continue
                 visited_po_ids.add(po.id)
@@ -578,10 +711,26 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                 })
                 seq += 10
 
-            # Add children to queue instead of recursive call
-            for child in self._get_child_mos(mo):
+            # Hijos del nodo actual — usar cache precargado en lugar de search() individual
+            children = child_cache.get(mo.id, self.env['mrp.production'])
+            new_children_to_enqueue = []
+            for child in children:
                 if child.id not in visited_mo_ids:
                     queue.append((child, level + 1, mo.name, mo_delta))
+                    new_children_to_enqueue.append(child)
+
+            # Marcar hijos nuevos como pendientes de preload para el siguiente nivel
+            # Si sus IDs no están aún en child_cache, necesitan precargarse
+            new_child_ids_not_cached = [
+                c.id for c in new_children_to_enqueue
+                if c.id not in child_cache
+            ]
+            if new_child_ids_not_cached:
+                # Preload batch para los hijos recién encolados (nivel N+1)
+                child_cache.update(self._preload_child_mos_batch(
+                    new_child_ids_not_cached, visited_mo_ids
+                ))
+                po_cache.update(self._preload_pos_batch(new_children_to_enqueue))
 
         if truncated_mo_ids:
             _logger.warning(

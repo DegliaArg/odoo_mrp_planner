@@ -370,6 +370,8 @@ class MrpRescheduleAlert(models.Model):
         super()._auto_init()
         # Índices compuestos para acelerar las queries de alertas que siempre
         # filtran por (resolved, company_id) y frecuentemente por alert_type.
+        # Se mantienen aquí porque tools.create_index es idempotente
+        # (CREATE INDEX IF NOT EXISTS) y no representa DDL pesado.
         tools.create_index(
             self._cr,
             'mrp_reschedule_alert_resolved_company_idx',
@@ -382,17 +384,9 @@ class MrpRescheduleAlert(models.Model):
             self._table,
             ['alert_type', 'company_id', 'resolved'],
         )
-        # Fill company_id for alerts created before multi-company support
-        self.env.cr.execute("SAVEPOINT fill_alert_company_id")
-        try:
-            self.env.cr.execute("""
-                UPDATE mrp_reschedule_alert
-                SET company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
-                WHERE company_id IS NULL
-            """)
-            self.env.cr.execute("RELEASE SAVEPOINT fill_alert_company_id")
-        except Exception:
-            self.env.cr.execute("ROLLBACK TO SAVEPOINT fill_alert_company_id")
+        # El relleno de company_id en registros históricos fue movido a
+        # migrations/18.0.46.0.0/pre-migrate.py para evitar ejecutarse
+        # en cada upgrade.
 
     # ── Cron ─────────────────────────────────────────────────────────────────
 

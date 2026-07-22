@@ -115,6 +115,7 @@ class MrpPartnerCategory(models.Model):
             b_q = config.sale_cat_demand_b_qty
             c_q = config.sale_cat_demand_c_qty
             d_q = config.sale_cat_demand_d_qty
+            by_category = {}
             for tmpl in templates:
                 avg_monthly = demand_by_tmpl.get(tmpl.id, 0.0) / months
                 if   avg_monthly >= a_q: cat = 'A'
@@ -122,8 +123,11 @@ class MrpPartnerCategory(models.Model):
                 elif avg_monthly >= c_q: cat = 'C'
                 elif avg_monthly >= d_q: cat = 'D'
                 else:                    cat = 'E'
-                tmpl.x_sale_category = cat
-                updated += 1
+                by_category.setdefault(cat, self.env['product.template'])
+                by_category[cat] |= tmpl
+            for cat, prods in by_category.items():
+                prods.write({'x_sale_category': cat})
+                updated += len(prods)
 
         elif config.sale_cat_mode == 'share':
             metric = config.sale_cat_share_metric or 'units'
@@ -139,11 +143,11 @@ class MrpPartnerCategory(models.Model):
 
             total = sum(tmpl_value.values())
             if total <= 0:
-                for tmpl in templates:
-                    tmpl.x_sale_category = 'E'
-                    updated += 1
+                templates.write({'x_sale_category': 'E'})
+                updated += len(templates)
             else:
                 sorted_tmpls = sorted(templates, key=lambda t: tmpl_value.get(t.id, 0.0), reverse=True)
+                by_category = {}
                 cumulative = 0.0
                 for tmpl in sorted_tmpls:
                     cumulative += tmpl_value.get(tmpl.id, 0.0) / total
@@ -152,8 +156,11 @@ class MrpPartnerCategory(models.Model):
                     elif cumulative <= c_pct: cat = 'C'
                     elif cumulative <= d_pct: cat = 'D'
                     else:                     cat = 'E'
-                    tmpl.x_sale_category = cat
-                    updated += 1
+                    by_category.setdefault(cat, self.env['product.template'])
+                    by_category[cat] |= tmpl
+                for cat, prods in by_category.items():
+                    prods.write({'x_sale_category': cat})
+                    updated += len(prods)
 
         else:  # automatic (rotation) — usa stock promedio del período
             a_d = config.sale_cat_a_days
@@ -181,6 +188,7 @@ class MrpPartnerCategory(models.Model):
             qty_in_pid = {g['product_id'][0]: (g['quantity'] or 0.0)
                           for g in in_groups if g['product_id']}
 
+            by_category = {}
             for tmpl in templates:
                 stock_now   = sum(stock_now_by_pid.get(v.id, 0.0) for v in tmpl.product_variant_ids)
                 qty_in      = sum(qty_in_pid.get(v.id,        0.0) for v in tmpl.product_variant_ids)
@@ -202,8 +210,11 @@ class MrpPartnerCategory(models.Model):
                     elif rot <= c_d: cat = 'C'
                     elif rot <= d_d: cat = 'D'
                     else:            cat = 'E'
-                tmpl.x_sale_category = cat
-                updated += 1
+                by_category.setdefault(cat, self.env['product.template'])
+                by_category[cat] |= tmpl
+            for cat, prods in by_category.items():
+                prods.write({'x_sale_category': cat})
+                updated += len(prods)
 
         return {
             'type':   'ir.actions.client',

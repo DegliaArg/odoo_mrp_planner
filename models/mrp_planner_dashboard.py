@@ -369,9 +369,11 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         Calcula los contadores de órdenes de fabricación para el panel.
 
-        Fórmula: carga en memoria las OFs activas (no done/cancel/draft ni SBC) y
-        aplica filtros en Python para in_progress y delayed; mo_done se obtiene con
-        search_count para no cargar registros completos.
+        Fórmula: un único read_group agrupado por 'state' cubre mo_total y
+        mo_in_progress sin cargar registros en memoria; mo_done, mo_delayed y
+        mo_reschedule_needed se obtienen con search_count usando dominios
+        específicos — cada uno emite un COUNT(*) en SQL en lugar de filtrar
+        en Python sobre el resultado completo de search().
         Depende de: mrp.production (state, date_finished, x_reschedule_needed,
                     location_src_id.is_subcontracting_location).
         """
@@ -379,15 +381,28 @@ class MrpPlannerDashboard(models.TransientModel):
         now = fields.Datetime.now()
         no_sc = no_subcontract_domain(self.env)
         wh_mo = self._get_wh_domains().mo
+
+        # ── read_group por state: mo_total y mo_in_progress en una sola query ──
+        base_active = [('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc + wh_mo
+        groups = MO.read_group(base_active, fields=['state'], groupby=['state'], lazy=False)
+        total = 0
+        in_progress = 0
+        for g in groups:
+            cnt = g['__count']
+            total += cnt
+            if g['state'] in ('progress', 'to_close'):
+                in_progress += cnt
+
         for rec in self:
-            active = MO.search([('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc + wh_mo)
-            rec.mo_total             = len(active)
-            rec.mo_in_progress       = len(active.filtered(lambda m: m.state in ('progress', 'to_close')))
-            rec.mo_done              = MO.search_count([('state', '=', 'done')] + no_sc + wh_mo)
-            rec.mo_delayed           = len(active.filtered(
-                lambda m: m.date_finished and m.date_finished < now
-            ))
-            rec.mo_reschedule_needed = len(active.filtered(lambda m: m.x_reschedule_needed))
+            rec.mo_total       = total
+            rec.mo_in_progress = in_progress
+            rec.mo_done        = MO.search_count([('state', '=', 'done')] + no_sc + wh_mo)
+            rec.mo_delayed     = MO.search_count(
+                base_active + [('date_finished', '!=', False), ('date_finished', '<', now)]
+            )
+            rec.mo_reschedule_needed = MO.search_count(
+                base_active + [('x_reschedule_needed', '=', True)]
+            )
 
     @api.depends()
     def _compute_inline_mos(self):

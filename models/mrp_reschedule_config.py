@@ -572,31 +572,6 @@ class MrpRescheduleConfig(models.Model):
         help='Ubicación interna desde la cual se lee el stock actual en el widget de quiebres de stock.',
     )
 
-    def _auto_init(self):
-        cr = self.env.cr
-        # Drop the old single-column constraint so super() can create the new (singleton_check, company_id) one
-        cr.execute("SAVEPOINT drop_old_singleton_constraint")
-        try:
-            cr.execute(
-                "ALTER TABLE mrp_reschedule_config "
-                "DROP CONSTRAINT IF EXISTS mrp_reschedule_config_singleton"
-            )
-            cr.execute("RELEASE SAVEPOINT drop_old_singleton_constraint")
-        except Exception:
-            cr.execute("ROLLBACK TO SAVEPOINT drop_old_singleton_constraint")
-        super()._auto_init()
-        # Fill company_id for records that existed before multi-company support
-        cr.execute("SAVEPOINT fill_config_company_id")
-        try:
-            cr.execute("""
-                UPDATE mrp_reschedule_config
-                SET company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
-                WHERE company_id IS NULL
-            """)
-            cr.execute("RELEASE SAVEPOINT fill_config_company_id")
-        except Exception:
-            cr.execute("ROLLBACK TO SAVEPOINT fill_config_company_id")
-
     @api.model
     def get_config(self):
         """Retorna la configuración de la empresa actual; None si no existe."""

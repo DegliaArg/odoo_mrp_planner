@@ -8,11 +8,12 @@
             <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
 
                 <!-- Período -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Período de análisis">
                     <t t-foreach="[['1m','1 mes'],['3m','3 meses'],['6m','6 meses'],['12m','12 meses']]"
                        t-as="p" t-key="p[0]">
                         <button t-att-class="'btn ' + (state.period === p[0] ? 'btn-primary' : 'btn-outline-secondary')"
                                 t-att-title="'Ver ventas de los últimos ' + p[1]"
+                                t-att-aria-pressed="state.period === p[0] ? 'true' : 'false'"
                                 style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                                 t-on-click="() => this.setPeriod(p[0])">
                             <t t-esc="p[1]"/>
@@ -23,17 +24,20 @@
                 <div class="vr" style="height:20px;"/>
 
                 <!-- Métrica -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Métrica de visualización">
                     <button t-att-class="'btn ' + (state.metric === 'sku' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Distribución de categorías por cantidad de SKUs (productos distintos)"
+                            t-att-aria-pressed="state.metric === 'sku' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('sku')">SKU</button>
                     <button t-att-class="'btn ' + (state.metric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar cantidad (Q): unidades demandadas o entregadas según la fuente seleccionada"
+                            t-att-aria-pressed="state.metric === 'qty' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('qty')">Unidades</button>
                     <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar PxQ: para OVs confirmadas usa el precio real de venta (subtotal de la línea); para entregas usa precio de lista × cantidad. La clasificación por participación (Pareto) usa precio de lista."
+                            t-att-aria-pressed="state.metric === 'amount' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('amount')">PxQ</button>
                 </div>
@@ -41,10 +45,11 @@
                 <div class="vr" style="height:20px;"/>
 
                 <!-- Top N + Todos -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad de productos a mostrar">
                     <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
                         <button t-att-class="'btn ' + (state.topN === n ? 'btn-primary' : 'btn-outline-secondary')"
                                 t-att-title="'Mostrar sólo los top ' + n + ' productos por volumen'"
+                                t-att-aria-pressed="state.topN === n ? 'true' : 'false'"
                                 style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                                 t-on-click="() => this.setTopN(n)">
                             <t t-esc="'Top ' + n"/>
@@ -52,6 +57,7 @@
                     </t>
                     <button t-att-class="'btn ' + (state.topN === 0 ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Mostrar todos los productos sin límite"
+                            t-att-aria-pressed="state.topN === 0 ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setTopN(0)">Todos</button>
                 </div>
@@ -59,13 +65,15 @@
                 <div class="vr" style="height:20px;"/>
 
                 <!-- Fuente -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Fuente de datos">
                     <button t-att-class="'btn ' + (state.docType === 'sales' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Demandadas: unidades en órdenes de venta confirmadas del período. PxQ = precio real de venta × cantidad."
+                            t-att-aria-pressed="state.docType === 'sales' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setDocType('sales')">Demandadas</button>
                     <button t-att-class="'btn ' + (state.docType === 'delivery' ? 'btn-primary' : 'btn-outline-secondary')"
                             title="Entregadas: unidades en movimientos de salida completados del período. PxQ = precio de lista × cantidad."
+                            t-att-aria-pressed="state.docType === 'delivery' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setDocType('delivery')">Entregadas</button>
                 </div>
@@ -75,11 +83,12 @@
                 <!-- Categoría de venta -->
                 <div class="d-flex align-items-center gap-1">
                     <span style="font-size:10px;" class="text-muted fw-semibold">Cat.:</span>
-                    <div class="btn-group btn-group-sm" role="group">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Categoría de venta ABC">
                         <t t-foreach="[['','Todas'],['A','A'],['B','B'],['C','C'],['D','D'],['E','E'],['__none__','—']]"
                            t-as="c" t-key="c[0]">
                             <button t-att-class="'btn ' + (state.saleCategory === c[0] ? 'btn-primary' : 'btn-outline-secondary')"
                                     t-att-title="c[0] === '' ? 'Ver todas las categorías de venta' : c[0] === '__none__' ? 'Productos sin categoría de venta asignada' : 'Filtrar productos de categoría de venta ' + c[0]"
+                                    t-att-aria-pressed="state.saleCategory === c[0] ? 'true' : 'false'"
                                     style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                                     t-on-click="() => this.setSaleCat(c[0])">
                                 <t t-esc="c[1]"/>
@@ -93,6 +102,7 @@
                     <span style="font-size:10px;" class="text-muted fw-semibold">Cat.:</span>
                     <select class="form-select form-select-sm" style="min-width:90px; max-width:130px; font-size:10px;"
                             title="Filtrar por familia/categoría interna de producto"
+                            aria-label="Categoría de producto"
                             t-on-change="setProductCat">
                         <option value="">Todas</option>
                         <t t-foreach="state.productCategs" t-as="cat" t-key="cat.id">

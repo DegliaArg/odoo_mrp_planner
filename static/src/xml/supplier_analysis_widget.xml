@@ -11,12 +11,15 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('suppliers')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-users fa-lg text-secondary mb-2 d-block" title="Proveedores"/>
-                                <div class="o_planner_number"><t t-esc="state.data.kpis.supplier_count"/></div>
-                                <div class="o_planner_label">Proveedores</div>
+                                <i class="fa fa-users fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                                <div class="o_planner_number"
+                                     aria-live="polite" aria-label="Proveedores"><t t-esc="state.data.kpis.supplier_count"/></div>
+                                <div class="o_planner_label" aria-hidden="true">Proveedores</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        aria-label="Ver proveedores"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -24,12 +27,15 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('amount')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-money fa-lg text-primary mb-2 d-block" title="Monto comprado"/>
-                                <div class="o_planner_number"><t t-esc="fmtMoney(state.data.kpis.total_amount)"/></div>
-                                <div class="o_planner_label">Monto comprado</div>
+                                <i class="fa fa-money fa-lg text-primary mb-2 d-block" aria-hidden="true"/>
+                                <div class="o_planner_number"
+                                     aria-live="polite" aria-label="Monto comprado"><t t-esc="fmtMoney(state.data.kpis.total_amount)"/></div>
+                                <div class="o_planner_label" aria-hidden="true">Monto comprado</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1 text-primary" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1 text-primary"
+                                        aria-label="Ver monto comprado"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -37,12 +43,15 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('orders')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-file-text fa-lg text-secondary mb-2 d-block" title="Órdenes"/>
-                                <div class="o_planner_number"><t t-esc="state.data.kpis.total_orders"/></div>
-                                <div class="o_planner_label">Órdenes</div>
+                                <i class="fa fa-file-text fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                                <div class="o_planner_number"
+                                     aria-live="polite" aria-label="Órdenes de compra"><t t-esc="state.data.kpis.total_orders"/></div>
+                                <div class="o_planner_label" aria-hidden="true">Órdenes</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        aria-label="Ver órdenes de compra"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -50,17 +59,20 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('on_time')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block" title="A tiempo"/>
-                                <div t-att-class="'o_planner_number ' + onTimeCls(state.data.kpis.avg_on_time_pct)">
+                                <i class="fa fa-clock-o fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                                <div t-att-class="'o_planner_number ' + onTimeCls(state.data.kpis.avg_on_time_pct)"
+                                     aria-live="polite" aria-label="Porcentaje de entregas a tiempo">
                                     <t t-if="state.data.kpis.avg_on_time_pct !== null">
                                         <t t-esc="state.data.kpis.avg_on_time_pct"/>%
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">A tiempo</div>
+                                <div class="o_planner_label" aria-hidden="true">A tiempo</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        aria-label="Ver entregas a tiempo"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -68,17 +80,20 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('lead_time')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block" title="Lead time"/>
-                                <div class="o_planner_number">
+                                <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                                <div class="o_planner_number"
+                                     aria-live="polite" aria-label="Lead time promedio en días">
                                     <t t-if="state.data.kpis.avg_lead_time_days !== null">
                                         <t t-esc="state.data.kpis.avg_lead_time_days"/> d
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">Lead time</div>
+                                <div class="o_planner_label" aria-hidden="true">Lead time</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        aria-label="Ver lead time de proveedores"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -86,17 +101,20 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="supplierKpiTooltip('price_var')">
                             <div class="card-body text-center py-3">
-                                <i class="fa fa-tag fa-lg text-secondary mb-2 d-block" title="Variación precio"/>
-                                <div t-att-class="'o_planner_number ' + priceVarCls(state.data.kpis.avg_price_var_pct)">
+                                <i class="fa fa-tag fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                                <div t-att-class="'o_planner_number ' + priceVarCls(state.data.kpis.avg_price_var_pct)"
+                                     aria-live="polite" aria-label="Variación de precio promedio">
                                     <t t-if="state.data.kpis.avg_price_var_pct !== null">
                                         <t t-esc="fmtPct(state.data.kpis.avg_price_var_pct)"/>
                                     </t>
                                     <t t-else="">—</t>
                                 </div>
-                                <div class="o_planner_label">Var. precio</div>
+                                <div class="o_planner_label" aria-hidden="true">Var. precio</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="openKpiList">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        aria-label="Ver variación de precio de proveedores"
+                                        t-on-click="openKpiList">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -108,15 +126,15 @@
 
                 <!-- Período -->
                 <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="date" class="form-control form-control-sm"
+                    <label class="form-label mb-0 small text-muted" for="sup_period_from">Desde</label>
+                    <input type="date" id="sup_period_from" class="form-control form-control-sm"
                            style="max-width:140px;"
                            t-att-value="state.periodFrom"
                            t-on-change="onPeriodFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="date" class="form-control form-control-sm"
+                    <label class="form-label mb-0 small text-muted" for="sup_period_to">Hasta</label>
+                    <input type="date" id="sup_period_to" class="form-control form-control-sm"
                            style="max-width:140px;"
                            t-att-value="state.periodTo"
                            t-on-change="onPeriodToChange"/>
@@ -146,10 +164,12 @@
                 <!-- Tipo dropdown (Bienes / Servicios) -->
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            aria-label="Filtrar por tipo de OC"
+                            t-att-aria-expanded="state.tipoDropdownOpen ? 'true' : 'false'"
                             t-on-click="toggleTipoDropdown">
-                        <i class="fa fa-filter"/>
+                        <i class="fa fa-filter" aria-hidden="true"/>
                         <span><t t-esc="poTypeDropdownLabel"/></span>
-                        <i t-att-class="'fa ' + (state.tipoDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        <i t-att-class="'fa ' + (state.tipoDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')" aria-hidden="true"/>
                     </button>
                     <div t-if="state.tipoDropdownOpen"
                          class="dropdown-menu show shadow p-2"
@@ -172,10 +192,12 @@
                 <!-- Columnas ▼ -->
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            aria-label="Seleccionar columnas visibles"
+                            t-att-aria-expanded="state.colsDropdownOpen ? 'true' : 'false'"
                             t-on-click="toggleColsDropdown">
-                        <i class="fa fa-columns"/>
+                        <i class="fa fa-columns" aria-hidden="true"/>
                         <span>Columnas</span>
-                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')" aria-hidden="true"/>
                     </button>
                     <div t-if="state.colsDropdownOpen"
                          class="dropdown-menu show shadow p-2"
@@ -198,8 +220,9 @@
 
                 <!-- Exportar -->
                 <button class="btn btn-sm btn-outline-success ms-auto d-flex align-items-center gap-1"
+                        aria-label="Exportar tabla de proveedores a CSV"
                         t-on-click="downloadExport">
-                    <i class="fa fa-download"/>
+                    <i class="fa fa-download" aria-hidden="true"/>
                     <span>Exportar</span>
                 </button>
 
@@ -207,8 +230,9 @@
 
             <!-- Sin datos -->
             <div t-if="!state.loading and state.data and state.data.rows.length === 0"
-                 class="text-center text-muted py-4 border rounded">
-                <i class="fa fa-search fa-2x mb-2 d-block" title="Sin resultados"/>
+                 class="text-center text-muted py-4 border rounded"
+                 role="status" aria-live="polite">
+                <i class="fa fa-search fa-2x mb-2 d-block" aria-hidden="true"/>
                 No hay proveedores con órdenes confirmadas en el período seleccionado.
             </div>
 
@@ -263,8 +287,10 @@
                                             <button class="btn btn-link btn-sm p-0 me-1 text-muted"
                                                     style="line-height:1; vertical-align:middle;"
                                                     t-att-title="state.expandedSuppliers[row.partner_id] ? 'Cerrar OCs' : 'Ver OCs del proveedor'"
+                                                    t-att-aria-label="state.expandedSuppliers[row.partner_id] ? 'Cerrar órdenes de compra de ' + row.partner_name : 'Ver órdenes de compra de ' + row.partner_name"
+                                                    t-att-aria-expanded="state.expandedSuppliers[row.partner_id] ? 'true' : 'false'"
                                                     t-on-click.stop="() => this.toggleAccordion(row)">
-                                                <i t-att-class="'fa ' + (state.expandedSuppliers[row.partner_id] ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                                <i t-att-class="'fa ' + (state.expandedSuppliers[row.partner_id] ? 'fa-chevron-down' : 'fa-chevron-right')" aria-hidden="true"/>
                                             </button>
                                             <a href="#"
                                                class="text-truncate d-inline-block fw-semibold"
@@ -344,13 +370,14 @@
                                         <div class="px-4 py-2">
 
                                             <div t-if="state.posLoading[row.partner_id]"
-                                                 class="text-center text-muted py-2 small">
-                                                <i class="fa fa-spinner fa-spin me-1" title="Cargando"/> Cargando OCs…
+                                                 class="text-center text-muted py-2 small"
+                                                 role="status" aria-live="polite">
+                                                <i class="fa fa-spinner fa-spin me-1" aria-hidden="true"/> Cargando OCs…
                                             </div>
 
                                             <div t-elif="!state.posBySupplier[row.partner_id] or !state.posBySupplier[row.partner_id].length"
                                                  class="text-muted small py-1">
-                                                <i class="fa fa-info-circle me-1" title="Sin OCs"/>
+                                                <i class="fa fa-info-circle me-1" aria-hidden="true"/>
                                                 No hay órdenes de compra en el período.
                                             </div>
 
@@ -370,6 +397,7 @@
                                                 <tbody>
                                                     <t t-foreach="state.posBySupplier[row.partner_id]" t-as="po" t-key="po.po_id">
                                                         <tr style="cursor:pointer;"
+                                                            t-att-aria-label="'Abrir orden de compra ' + po.name"
                                                             t-on-click="(ev) => this.openPO(ev, po)">
                                                             <td style="padding:3px 6px;" class="fw-semibold text-primary">
                                                                 <t t-esc="po.name"/>
@@ -410,15 +438,17 @@
                 <div t-if="totalPages > 1"
                      class="d-flex align-items-center justify-content-between px-1 py-1 mt-1">
                     <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            aria-label="Página anterior"
                             t-att-disabled="!hasPrevPage" t-on-click="prevPage">
-                        <i class="fa fa-chevron-left" title="Página anterior"/>
+                        <i class="fa fa-chevron-left" aria-hidden="true"/>
                     </button>
-                    <small class="text-muted">
+                    <small class="text-muted" aria-live="polite">
                         Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
                     </small>
                     <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            aria-label="Página siguiente"
                             t-att-disabled="!hasNextPage" t-on-click="nextPage">
-                        <i class="fa fa-chevron-right" title="Página siguiente"/>
+                        <i class="fa fa-chevron-right" aria-hidden="true"/>
                     </button>
                 </div>
 

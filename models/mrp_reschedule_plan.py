@@ -97,34 +97,6 @@ class MrpReschedulePlan(MrpRescheduleCascadeMixin, models.Model):
         help='Usuario que ejecutó la acción "Aplicar plan".',
     )
 
-    # ── Migración ────────────────────────────────────────────────────────────
-
-    def _auto_init(self):
-        """Migración DDL: elimina NOT NULL de production_id y rellena company_id en planes históricos."""
-        super()._auto_init()
-        cr = self.env.cr
-        # production_id pasa a ser opcional (modo global sin pivot)
-        cr.execute("SAVEPOINT drop_nn_production_id")
-        try:
-            cr.execute(
-                "ALTER TABLE mrp_reschedule_plan "
-                "ALTER COLUMN production_id DROP NOT NULL"
-            )
-            cr.execute("RELEASE SAVEPOINT drop_nn_production_id")
-        except Exception:
-            cr.execute("ROLLBACK TO SAVEPOINT drop_nn_production_id")
-        # Fill company_id for plans created before multi-company support
-        cr.execute("SAVEPOINT fill_plan_company_id")
-        try:
-            cr.execute("""
-                UPDATE mrp_reschedule_plan
-                SET company_id = (SELECT id FROM res_company ORDER BY id LIMIT 1)
-                WHERE company_id IS NULL
-            """)
-            cr.execute("RELEASE SAVEPOINT fill_plan_company_id")
-        except Exception:
-            cr.execute("ROLLBACK TO SAVEPOINT fill_plan_company_id")
-
     # ── Ciclo de vida ────────────────────────────────────────────────────────
 
     @api.model_create_multi

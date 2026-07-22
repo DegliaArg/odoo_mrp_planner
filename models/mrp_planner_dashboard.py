@@ -24,7 +24,7 @@ import pytz
 from datetime import datetime
 from types import SimpleNamespace
 
-from odoo import models, fields, api, _
+from odoo import models, fields, api, _, tools
 from odoo.exceptions import AccessError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 from .const import DEFAULT_PO_CRITICAL_DAYS
@@ -275,6 +275,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── Permisos por depósito ────────────────────────────────────────────────
 
+    @tools.ormcache('self.env.uid', 'self.env.company.id')
     def _get_allowed_wh_ids(self):
         """Implementación interna — usar _get_wh_domains() en métodos nuevos.
 

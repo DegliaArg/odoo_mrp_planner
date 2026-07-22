@@ -252,19 +252,22 @@ class MoDashboardWidget extends Component {
     setOfsSearch(text) {
         this.state.ofsSearch = text;
         this.state.page = 1;
-        this._loadData();
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => this._loadData(), 300);
     }
 
     setCmpSearch(text) {
         this.state.cmpSearch = text;
         this.state.page = 1;
-        this._loadData();
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => this._loadData(), 300);
     }
 
     setReqSearch(text) {
         this.state.reqSearch = text;
         this.state.page = 1;
-        this._loadData();
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => this._loadData(), 300);
     }
 
     // ── Navegación OFs ───────────────────────────────────────────────────────

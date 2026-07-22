@@ -214,7 +214,8 @@ class PoDashboardWidget extends Component {
     setSearch(text) {
         this.state.search = text;
         this.state.page   = 1;
-        this._load();
+        clearTimeout(this._searchTimer);
+        this._searchTimer = setTimeout(() => this._load(), 300);
     }
 
     onDateFromChange(ev) {

@@ -444,11 +444,12 @@ class MrpRescheduleConfig(models.Model):
             'suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.\n'
             'ABC por % de entrega a tiempo: Pareto por % de recepciones completadas '
             'antes o en la fecha planificada. Mayor % = mejor categoría.\n'
-            'ABC por variación de precio: Pareto invertido por |variación precio OC vs costo estándar|. '
+            'ABC por variación de precio: Ranking por percentil por |variación de precio vs. el precio anterior '
+            'pagado del mismo producto al mismo proveedor| (tendencia de precio, no usa costo estándar). '
             'Menor variación = mejor categoría.\n'
             'ABC por calidad — diferencia de cantidad: Pareto por % de movimientos de recepción '
             'donde la cantidad recibida coincide exactamente con la pedida.\n'
-            'ABC por calidad — devoluciones: Pareto invertido por cantidad de devoluciones al proveedor. '
+            'ABC por calidad — devoluciones: Ranking por percentil por cantidad de devoluciones al proveedor. '
             'Menos devoluciones = mejor categoría.\n'
             'ABC por calidad — combinado: promedio de % entrega a tiempo y % sin diferencia de cantidad.')
     supplier_cat_cron_number = fields.Integer(string='Cada', default=1,
@@ -474,6 +475,25 @@ class MrpRescheduleConfig(models.Model):
         help='Acumulado máximo (%) para categoría C.')
     abc_pct_d = fields.Integer(string='D ≤', default=95,
         help='Acumulado máximo (%) para categoría D. El resto queda en E.')
+
+    # Parámetros del scoring RFM (aplican a clientes y proveedores con método "ABC por RFM").
+    rfm_recency_recent_days = fields.Integer(string='Recencia reciente (días) <', default=30,
+        help='Días desde la última compra por debajo de los cuales la recencia puntúa 3 (reciente).')
+    rfm_recency_medium_days = fields.Integer(string='Recencia media (días) <', default=90,
+        help='Días desde la última compra por debajo de los cuales la recencia puntúa 2 (media). '
+             'Por encima puntúa 1.')
+    rfm_freq_high = fields.Integer(string='Frecuencia alta (> pedidos)', default=10,
+        help='Cantidad de pedidos por encima de la cual la frecuencia puntúa 3 (alta).')
+    rfm_freq_medium = fields.Integer(string='Frecuencia media (≥ pedidos)', default=3,
+        help='Cantidad de pedidos a partir de la cual la frecuencia puntúa 2 (media). Menos puntúa 1.')
+    rfm_score_a = fields.Integer(string='RFM A ≥', default=8,
+        help='Score total (3–9) a partir del cual la categoría es A.')
+    rfm_score_b = fields.Integer(string='RFM B ≥', default=6,
+        help='Score total a partir del cual la categoría es B.')
+    rfm_score_c = fields.Integer(string='RFM C ≥', default=4,
+        help='Score total a partir del cual la categoría es C.')
+    rfm_score_d = fields.Integer(string='RFM D ≥', default=3,
+        help='Score total a partir del cual la categoría es D. Por debajo queda en E.')
 
     # ── Categorías de cliente ─────────────────────────────────────────────────
     enable_customer_categories = fields.Boolean(

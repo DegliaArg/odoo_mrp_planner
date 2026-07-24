@@ -465,6 +465,14 @@
                 <!-- ══ TAB: Producido vs Programado ══════════════════════════ -->
                 <t t-else="">
 
+                    <!-- Aviso del criterio de fechas activo (solo solapamiento completo / proporcional) -->
+                    <div t-if="cmpModeBadge()" class="col-12 mb-2">
+                        <div class="alert alert-info py-1 px-2 mb-0 small d-flex align-items-start" role="alert">
+                            <i class="fa fa-info-circle me-2 mt-1"/>
+                            <span t-esc="cmpModeBadge()"/>
+                        </div>
+                    </div>
+
                     <!-- KPIs -->
                     <div class="col-12 col-lg-4 o_kpi_height_src">
                         <div class="row g-2">
@@ -505,7 +513,7 @@
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-pie-chart fa-lg text-secondary mb-2 d-block"/>
                                         <div t-att-class="'o_planner_number ' + pctClass(state.cmp_kpis.pct)"
-                                             t-esc="state.cmp_kpis.pct + '%'"/>
+                                             t-esc="state.cmp_kpis.pct === null ? 's/plan' : state.cmp_kpis.pct + '%'"/>
                                         <div class="o_planner_label">Cumplimiento</div>
                                     </div>
                                 </div>
@@ -627,7 +635,7 @@
                                                     <t t-elif="col.key === 'pct'">
                                                         <span t-att-class="pctClass(item.pct)"
                                                               t-att-title="cmpRowTooltip(item)"
-                                                              t-esc="item.pct + '%'"/>
+                                                              t-esc="item.pct === null ? 's/plan' : item.pct + '%'"/>
                                                     </t>
                                                 </td>
                                             </tr>

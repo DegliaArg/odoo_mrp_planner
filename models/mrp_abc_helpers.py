@@ -46,18 +46,20 @@ def _assign_abc_pareto(partners, value_by_id, field_name, thresholds=(0.20, 0.50
             p[field_name] = 'E'
         return
     sorted_p = sorted(partners, key=lambda p: value_by_id.get(p.id, 0.0), reverse=True)
+    # Se clasifica por el acumulado ANTES de sumar el ítem actual (acumulado exclusivo):
+    # así el registro más grande siempre cae en A, aunque por sí solo supere el corte A.
     cumulative = 0.0
     for p in sorted_p:
         v = value_by_id.get(p.id, 0.0)
         if v <= 0:
             p[field_name] = 'E'
             continue
+        if   cumulative < t_a: cat = 'A'
+        elif cumulative < t_b: cat = 'B'
+        elif cumulative < t_c: cat = 'C'
+        elif cumulative < t_d: cat = 'D'
+        else:                  cat = 'E'
         cumulative += v / total
-        if   cumulative <= t_a: cat = 'A'
-        elif cumulative <= t_b: cat = 'B'
-        elif cumulative <= t_c: cat = 'C'
-        elif cumulative <= t_d: cat = 'D'
-        else:                   cat = 'E'
         p[field_name] = cat
 
 

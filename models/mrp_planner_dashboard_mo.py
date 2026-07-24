@@ -483,8 +483,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
                     ov_end       = min(mo_end, last_day)
                     overlap_secs = max(0.0, (ov_end - ov_start).total_seconds())
                     planned_qty  = mo.product_qty * (overlap_secs / total_secs)
-                else:
+                elif mo_end and first_day <= mo_end <= last_day:
+                    # Sin fecha de inicio válida: fallback a la fecha de cierre (igual que el
+                    # forecast). Se atribuye la cantidad completa solo si el cierre cae en el período.
                     planned_qty = mo.product_qty
+                else:
+                    planned_qty = 0.0
                 # Producido real: movimientos de salida del producto principal con fecha en el período
                 done_in_period = mo.move_finished_ids.filtered(
                     lambda m, p=mo.product_id: (
@@ -526,15 +530,25 @@ class MrpPlannerDashboardMo(models.TransientModel):
 
         items = sorted(product_data.values(), key=lambda x: x['planned_qty'], reverse=True)
         for item in items:
-            item['pct'] = round(
-                item['produced_qty'] / item['planned_qty'] * 100, 1
-            ) if item['planned_qty'] > 0 else 0.0
+            # pct = None señala "sin plan / sobreproducción": se produjo sin cantidad
+            # programada, caso en que un 0% sería engañoso. El frontend lo muestra como "s/plan".
+            if item['planned_qty'] > 0:
+                item['pct'] = round(item['produced_qty'] / item['planned_qty'] * 100, 1)
+            elif item['produced_qty'] > 0:
+                item['pct'] = None
+            else:
+                item['pct'] = 0.0
             item['planned_qty']  = round(item['planned_qty'],  2)
             item['produced_qty'] = round(item['produced_qty'], 2)
 
         total_planned  = sum(x['planned_qty']  for x in items)
         total_produced = sum(x['produced_qty'] for x in items)
-        pct = round(total_produced / total_planned * 100, 1) if total_planned > 0 else 0.0
+        if total_planned > 0:
+            pct = round(total_produced / total_planned * 100, 1)
+        elif total_produced > 0:
+            pct = None   # sin plan / sobreproducción a nivel total
+        else:
+            pct = 0.0
         desvio          = round(total_planned - total_produced, 2)
         ofs_in_progress = sum(1 for mo in all_mos if mo.state == 'progress')
 

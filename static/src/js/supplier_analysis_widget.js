@@ -703,7 +703,7 @@ class SupplierAnalysisWidget extends Component {
             case 'orders':
                 return `Cantidad de OCs confirmadas en el período\n→ ${k.total_orders} OCs`;
             case 'on_time':
-                return `% de recepciones completadas antes o en la fecha planificada, promediado entre proveedores\nRecepciones a tiempo ÷ Total recepciones × 100\n→ ${k.avg_on_time_pct !== null ? k.avg_on_time_pct + '%' : '—'} promedio general\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
+                return `% de recepciones completadas antes o en la fecha planificada, promediado entre proveedores\nRecepciones a tiempo ÷ recepciones con fecha × 100 (se excluyen las sin fecha planificada o de recepción)\n→ ${k.avg_on_time_pct !== null ? k.avg_on_time_pct + '%' : '—'} promedio general${k.on_time_no_date ? ` · ${k.on_time_no_date} recepciones sin fecha (excluidas)` : ''}\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
             case 'lead_time':
                 return `Días promedio entre aprobación de OC y validación de recepción, promediado entre proveedores\n→ ${k.avg_lead_time_days !== null ? k.avg_lead_time_days + ' días' : '—'} promedio general`;
             case 'price_var': {
@@ -717,9 +717,14 @@ class SupplierAnalysisWidget extends Component {
     supplierCellTooltip(key, row) {
         const cfg = this._cfg();
         switch (key) {
-            case 'on_time_pct':
+            case 'on_time_pct': {
                 if (!row.pick_count) return 'Sin recepciones en el período';
-                return `Recepciones completadas en fecha respecto al total del proveedor\nRecepciones a tiempo ÷ Total recepciones × 100\n→ ${row.on_time_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
+                const nd  = row.no_date_count || 0;
+                const mes = row.pick_count - nd;
+                if (row.on_time_pct === null)
+                    return `Sin recepciones con fecha para evaluar puntualidad\n${nd} de ${row.pick_count} recepciones sin fecha planificada o de recepción`;
+                return `Recepciones completadas en fecha respecto a las recepciones con fecha del proveedor\nRecepciones a tiempo ÷ recepciones con fecha × 100\n→ ${row.on_time_pct}% de ${mes} recepciones${nd ? ` (${nd} sin fecha, excluidas)` : ''}\nVerde ≥ ${cfg.sup_on_time_green ?? 90}% | Amarillo ≥ ${cfg.sup_on_time_yellow ?? 70}% | Rojo < ${cfg.sup_on_time_yellow ?? 70}%`;
+            }
             case 'complete_pct':
                 if (!row.pick_count) return 'Sin recepciones en el período';
                 return `Recepciones recibidas completamente sin backorder respecto al total\nRecepciones completas ÷ Total recepciones × 100\n→ ${row.complete_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_complete_green ?? 95}% | Amarillo ≥ ${cfg.sup_complete_yellow ?? 80}% | Rojo < ${cfg.sup_complete_yellow ?? 80}%`;

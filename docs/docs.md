@@ -21,8 +21,8 @@ Las configuraciones de esta tabla seleccionan entre **fórmulas o algoritmos dis
 | Valor en Ajustes | Qué OFs entran en el período | Cómo se calcula la cantidad |
 |---|---|---|
 | Por fecha de cierre (default) | Solo OFs cuya `date_finished` cae dentro del período | Se usa `product_qty` completa |
-| Por solapamiento completo | Toda OF activa durante el período (inicio ≤ fin período y fin ≥ inicio período) | Se usa `product_qty` completa; puede aparecer en varios períodos |
-| Proporcional por duración | Toda OF activa durante el período | `product_qty × (segundos solapados ÷ duración total)`; el producido usa `move_finished_ids` con fecha en el período |
+| Por solapamiento completo | Toda OF activa durante el período (inicio ≤ fin período y fin ≥ inicio período) | Se usan `product_qty` y `qty_produced` completos; una OF puede aparecer en varios períodos (doble conteo): no sumar períodos entre sí |
+| Proporcional por duración | Toda OF activa durante el período | `product_qty × (segundos solapados ÷ duración total)`; el producido usa `move_finished_ids` con fecha en el período. Sin fecha de inicio válida: fallback a la fecha de cierre (cantidad completa si el cierre cae en el período), igual en comparativa y forecast |
 
 Se configura en Ajustes → Producción → "Comparativa Producido vs. Programado" (`mrp.reschedule.config.comparison_date_mode`). Aplica tanto en el widget de comparativa como en la columna OFs del forecast.
 
@@ -133,11 +133,11 @@ Mismas tres fórmulas que en Quiebres de stock; el período es el rango del fore
 | Manual | Asignación directa desde la ficha del proveedor |
 | ABC por volumen (importe OCs) | Pareto por importe total de OCs del último año |
 | ABC por frecuencia (cantidad de OCs) | Pareto por cantidad de OCs del último año |
-| ABC por RFM | Scoring R + F + M (1–3 pts c/u); A = 8–9 pts, B = 6–7, C = 4–5, D = 3, E = sin datos |
-| ABC por % de entrega a tiempo | Pareto descendente por % de recepciones llegadas en fecha |
-| ABC por variación de precio | Pareto ascendente (invertido) por \|var precio\| respecto al precio de referencia |
+| ABC por RFM | Scoring R + F + M (1–3 pts c/u); cortes configurables en "Parámetros RFM" (def: A ≥ 8, B ≥ 6, C ≥ 4, D ≥ 3, E = sin datos) |
+| ABC por % de entrega a tiempo | Pareto descendente por % de recepciones llegadas en fecha (excluye recepciones sin fecha) |
+| ABC por variación de precio | Ranking por percentil de posición por \|var precio\| respecto al precio de referencia; menor = A |
 | ABC por calidad — diferencia de cantidad | Pareto descendente por % de movimientos recibidos con cantidad exacta |
-| ABC por calidad — devoluciones | Pareto ascendente (invertido) por cantidad de recepciones revertidas |
+| ABC por calidad — devoluciones | Ranking por percentil de posición por cantidad de devoluciones; 0 devoluciones con actividad = A, sin actividad = E |
 | ABC por calidad — combinado | Pareto descendente por promedio de % a tiempo y % sin diferencia de cantidad |
 
 → Ver *Categorías de proveedor — métodos automáticos*
@@ -352,7 +352,7 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 | Producto       | Nombre del producto                                                                    | `mrp.production.product_id.display_name` |
 | Programado     | Suma de cantidades planificadas de las OFs del período para ese producto (puede ser fracción en modo proporcional) | `mrp.production.product_qty` (o fracción proporcional) |
 | Producido      | Suma de cantidades producidas de las OFs del período. En modo proporcional, solo los movimientos reales con fecha en el período | `mrp.production.qty_produced` o `move_finished_ids` filtrados por fecha |
-| % Cumplimiento | (producido ÷ programado) × 100, redondeado a 1 decimal. Cero si no hay nada programado | Calculado                                |
+| % Cumplimiento | (producido ÷ programado) × 100, redondeado a 1 decimal. "s/plan" si se produjo sin cantidad programada (sin plan / sobreproducción); 0 % si no hubo ni producido ni programado | Calculado |
 
 **Colores del % de cumplimiento**
 
@@ -368,8 +368,8 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 | ---------------- | ------------------------------------------------------------------ |
 | Total programado | Suma de cantidades programadas de todos los productos              |
 | Total producido  | Suma de cantidades producidas de todos los productos               |
-| % Global         | (total producido ÷ total programado) × 100, redondeado a 1 decimal |
-| OFs terminadas   | Cantidad de OFs con estado Terminada en el período                 |
+| % Global         | (total producido ÷ total programado) × 100, redondeado a 1 decimal; "s/plan" si hubo producido sin programado |
+| OFs terminadas   | Cantidad de OFs con estado Terminada cuya `date_finished` cae en el período. Se cuenta siempre por fecha de fin, sin importar el criterio de fechas, por lo que puede no coincidir con las OFs del comparativo de cantidades |
 
 ---
 
@@ -817,6 +817,8 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 | D         | acumulado ≤ umbral D | `abc_pct_d` (def: 95 %) |
 | E         | resto                | —                       |
 
+> Cada registro se clasifica por el acumulado **antes** de sumar su propia participación (acumulado exclusivo): así el registro más grande siempre cae en A, aunque por sí solo supere el umbral A.
+
 ---
 
 **ABC por volumen** (`supplier_cat_method = 'abc_volume'`)
@@ -843,16 +845,18 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 
 | Componente     | Fórmula en español                    | Puntuación                                                               |
 | -------------- | ------------------------------------- | ------------------------------------------------------------------------ |
-| Recencia (R)   | Días desde la última OC hasta hoy     | < 30 días = 3 pts / < 90 días = 2 pts / resto = 1 pt                     |
-| Frecuencia (F) | Cantidad de OCs en el último año      | > 10 OCs = 3 pts / ≥ 3 = 2 pts / resto = 1 pt                            |
+| Recencia (R)   | Días desde la última OC hasta hoy     | < `rfm_recency_recent_days` (30) = 3 pts / < `rfm_recency_medium_days` (90) = 2 pts / resto = 1 pt |
+| Frecuencia (F) | Cantidad de OCs en el último año      | > `rfm_freq_high` (10) = 3 pts / ≥ `rfm_freq_medium` (3) = 2 pts / resto = 1 pt |
 | Monetario (M)  | Importe total de OCs en el último año | ≥ percentil 66 del grupo = 3 pts / ≥ percentil 33 = 2 pts / resto = 1 pt |
+
+Cortes del puntaje configurables en Ajustes → "Parámetros RFM" (entre paréntesis los defaults):
 
 | Puntaje total (R+F+M)             | Categoría |
 | --------------------------------- | --------- |
-| 8 o 9                             | A         |
-| 6 o 7                             | B         |
-| 4 o 5                             | C         |
-| 3                                 | D         |
+| ≥ `rfm_score_a` (8)               | A         |
+| ≥ `rfm_score_b` (6)               | B         |
+| ≥ `rfm_score_c` (4)               | C         |
+| ≥ `rfm_score_d` (3)               | D         |
 | Sin datos (sin OCs en el período) | E         |
 
 ---
@@ -861,7 +865,7 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 
 | Concepto                | Detalle                                                    |
 | ----------------------- | ---------------------------------------------------------- |
-| **Valor por proveedor** | Recepciones llegadas en fecha ÷ total de recepciones × 100 |
+| **Valor por proveedor** | Recepciones llegadas en fecha ÷ recepciones con fecha × 100 (las recepciones sin fecha planificada o de recepción se excluyen del denominador) |
 | **Clasificación**       | Pareto acumulado descendente: mayor % a tiempo = A         |
 
 ---
@@ -870,9 +874,9 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 
 | Concepto                | Detalle                                                                                                  |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Valor por proveedor** | Promedio de \|precio de la línea − costo estándar del producto\| ÷ costo estándar × 100, por línea de OC |
-| **Clasificación**       | Pareto acumulado **ascendente** (invertido): menor variación = A                                         |
-| **Campos**              | `purchase.order.line.price_unit`, `product.product.standard_price`                                       |
+| **Valor por proveedor** | Promedio de \|precio − precio anterior pagado del mismo producto al mismo proveedor\| ÷ precio anterior × 100, entre compras sucesivas del período (tendencia de precio; no usa costo estándar) |
+| **Clasificación**       | Ranking por percentil de posición (ascendente): menor variación = A. Reparte por cuotas fijas de proveedores, no por participación acumulada |
+| **Campos**              | `purchase.order.line.price_unit` ordenado por `order_id.date_order` (referencia = compra previa del mismo producto) |
 
 ---
 
@@ -890,8 +894,8 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 
 | Concepto                | Detalle                                                             |
 | ----------------------- | ------------------------------------------------------------------- |
-| **Valor por proveedor** | Cantidad de recepciones revertidas al proveedor en el último año    |
-| **Clasificación**       | Pareto acumulado **ascendente** (invertido): menos devoluciones = A |
+| **Valor por proveedor** | Cantidad de recepciones revertidas al proveedor en el período (0 si tuvo compras y ninguna devolución)    |
+| **Clasificación**       | Ranking por percentil de posición: menos devoluciones = A. Proveedores con compras y 0 devoluciones = A; sin actividad de compra en el período = E (sin datos) |
 
 ---
 
@@ -1264,16 +1268,18 @@ El resultado se guarda en `mrp.partner.company.category` (campo computed `res.pa
 
 | Componente     | Fórmula en español                    | Puntuación                                                               |
 | -------------- | ------------------------------------- | ------------------------------------------------------------------------ |
-| Recencia (R)   | Días desde la última OV hasta hoy     | < 30 días = 3 pts / < 90 días = 2 pts / resto = 1 pt                     |
-| Frecuencia (F) | Cantidad de OVs en el último año      | > 10 OVs = 3 pts / ≥ 3 = 2 pts / resto = 1 pt                            |
+| Recencia (R)   | Días desde la última OV hasta hoy     | < `rfm_recency_recent_days` (30) = 3 pts / < `rfm_recency_medium_days` (90) = 2 pts / resto = 1 pt |
+| Frecuencia (F) | Cantidad de OVs en el último año      | > `rfm_freq_high` (10) = 3 pts / ≥ `rfm_freq_medium` (3) = 2 pts / resto = 1 pt |
 | Monetario (M)  | Importe total de OVs en el último año | ≥ percentil 66 del grupo = 3 pts / ≥ percentil 33 = 2 pts / resto = 1 pt |
+
+Cortes configurables en Ajustes → "Parámetros RFM" (compartidos con proveedores):
 
 | Puntaje total (R+F+M)             | Categoría |
 | --------------------------------- | --------- |
-| 8 o 9                             | A         |
-| 6 o 7                             | B         |
-| 4 o 5                             | C         |
-| 3                                 | D         |
+| ≥ `rfm_score_a` (8)               | A         |
+| ≥ `rfm_score_b` (6)               | B         |
+| ≥ `rfm_score_c` (4)               | C         |
+| ≥ `rfm_score_d` (3)               | D         |
 | Sin datos (sin OVs en el período) | E         |
 
 ---

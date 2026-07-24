@@ -143,7 +143,7 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                 'order_count':  g['partner_id_count'],
                 'total_amount': round(g['amount_total'] or 0.0, 2),
                 'products':     set(),
-                'pick_count':   0, 'on_time_count': 0,
+                'pick_count':   0, 'on_time_count': 0, 'no_date_count': 0,
                 'delay_sum':    0.0, 'delay_count': 0,
                 'complete_count': 0,
                 'lt_sum':       0.0, 'lt_count': 0,
@@ -242,6 +242,10 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                 else:
                     pd['delay_sum']   += (done - sched).days
                     pd['delay_count'] += 1
+            else:
+                # Sin fecha planificada o sin fecha de recepción: no se puede evaluar la
+                # puntualidad, así que se excluye del % a tiempo (no penaliza al proveedor).
+                pd['no_date_count'] += 1
 
             if picking.id not in partial_ids:
                 pd['complete_count'] += 1
@@ -276,6 +280,8 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         rows = []
         for pid, d in partner_data.items():
             pc = d['pick_count']
+            nd = d['no_date_count']
+            measurable = pc - nd  # recepciones con fecha planificada y de recepción (evaluables)
             rows.append({
                 'partner_id':        pid,
                 'partner_name':      d['partner_name'],
@@ -283,7 +289,8 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                 'total_amount':      d['total_amount'],
                 'distinct_products': len(d['products']),
                 'pick_count':        pc,
-                'on_time_pct':   round(d['on_time_count'] / pc * 100, 1) if pc > 0 else None,
+                'no_date_count':     nd,
+                'on_time_pct':   round(d['on_time_count'] / measurable * 100, 1) if measurable > 0 else None,
                 'avg_delay_days': round(d['delay_sum'] / d['delay_count'], 1) if d['delay_count'] > 0 else None,
                 'complete_pct':  round(d['complete_count'] / pc * 100, 1) if pc > 0 else None,
                 'avg_lead_time': round(d['lt_sum'] / d['lt_count'], 1) if d['lt_count'] > 0 else None,
@@ -298,14 +305,17 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
             vals = [r[key] for r in rows if r[key] is not None]
             return round(sum(vals) / len(vals), 1) if vals else None
 
-        total_pickings = sum(r['pick_count'] for r in rows)
+        total_pickings   = sum(r['pick_count'] for r in rows)
+        total_no_date    = sum(d['no_date_count'] for d in partner_data.values())
+        total_measurable = total_pickings - total_no_date  # excluye recepciones sin fecha
         # on_time_abs se suma desde partner_data (antes de round) para mayor precisión
         on_time_abs    = sum(d['on_time_count'] for d in partner_data.values())
         kpis = {
             'supplier_count':     len(rows),
             'total_amount':       round(sum(r['total_amount'] for r in rows), 2),
             'total_orders':       sum(r['order_count'] for r in rows),
-            'avg_on_time_pct':    round(on_time_abs / total_pickings * 100, 1) if total_pickings > 0 else None,
+            'on_time_no_date':    total_no_date,
+            'avg_on_time_pct':    round(on_time_abs / total_measurable * 100, 1) if total_measurable > 0 else None,
             'avg_lead_time_days': _wavg(rows, 'avg_lead_time'),
             'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
         }

@@ -239,7 +239,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_rfm'">
-                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 OCs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, sin datos = E.
+                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia por días desde la última OC, Frecuencia por cantidad de OCs y Monetario por percentil 33/66 del grupo. Los cortes de recencia, frecuencia y del score total (A/B/C/D) se configuran abajo en "Parámetros RFM". Sin datos = E.
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_delivery_pct'">
@@ -247,7 +247,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_price_var'">
-                                                        <b>Pareto invertido por variación de precio:</b> promedio de |precio OC − precio de referencia| / referencia × 100 por proveedor. El precio de referencia usa la misma lógica que el análisis de proveedores (costo estándar o lista de proveedor, según la configuración de "Referencia para variación de precio"). Menor variación = mejor categoría (A).
+                                                        <b>Ranking por percentil por variación de precio:</b> promedio de |precio − precio anterior pagado del mismo producto al mismo proveedor| / precio anterior × 100, entre compras sucesivas del período. No usa el costo estándar (evita la distorsión cuando el costo de referencia es muy volátil). Menor variación = mejor categoría (A). Reparte por percentil de posición (cuotas fijas), no por participación acumulada.
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_quality_qty'">
@@ -255,7 +255,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_quality_returns'">
-                                                        <b>Pareto invertido por devoluciones:</b> cantidad de recepciones revertidas al proveedor en el último año. Menos devoluciones = mejor categoría (A).
+                                                        <b>Ranking por percentil por devoluciones:</b> cantidad de recepciones revertidas al proveedor en el último año. Menos devoluciones = mejor categoría (A). Los proveedores con recepciones y cero devoluciones se clasifican como A; solo los que no tuvieron actividad quedan en E. Reparte por percentil de posición (cuotas fijas), no por participación acumulada.
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_quality_combo'">
@@ -294,6 +294,32 @@
                                                             <span class="text-muted small">D ≤</span>
                                                             <field name="abc_pct_d" nolabel="1" style="width:52px;"/>
                                                             <span class="text-muted small">E = resto</span>
+                                                        </div>
+                                                    </div>
+                                                    <div invisible="supplier_cat_method != 'abc_rfm'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Parámetros RFM</span>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                                            <span class="text-muted small">Recencia: reciente &lt;</span>
+                                                            <field name="rfm_recency_recent_days" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">d · media &lt;</span>
+                                                            <field name="rfm_recency_medium_days" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">d</span>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                                            <span class="text-muted small">Frecuencia: alta &gt;</span>
+                                                            <field name="rfm_freq_high" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">· media ≥</span>
+                                                            <field name="rfm_freq_medium" nolabel="1" style="width:56px;"/>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                            <span class="text-muted small">Score: A ≥</span>
+                                                            <field name="rfm_score_a" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">B ≥</span>
+                                                            <field name="rfm_score_b" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">C ≥</span>
+                                                            <field name="rfm_score_c" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">D ≥</span>
+                                                            <field name="rfm_score_d" nolabel="1" style="width:52px;"/>
                                                         </div>
                                                     </div>
                                                     <button name="action_compute_supplier_categories"
@@ -444,7 +470,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="customer_cat_method != 'abc_rfm'">
-                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia: &lt;30 d = 3 pts, &lt;90 d = 2 pts, resto = 1 pt. Frecuencia: &gt;10 SOs = 3 pts, ≥3 = 2 pts, resto = 1 pt. Monetario: percentil 33/66 del grupo. Suma 8–9 = A, 6–7 = B, 4–5 = C, 3 = D, sin datos = E.
+                                                        <b>Recencia + Frecuencia + Monetario (1–3 pts c/u):</b> Recencia por días desde el último SO, Frecuencia por cantidad de SOs y Monetario por percentil 33/66 del grupo. Los cortes de recencia, frecuencia y del score total (A/B/C/D) se configuran abajo en "Parámetros RFM". Sin datos = E.
                                                     </div>
                                                 </div>
                                                 <div class="col-5">
@@ -482,6 +508,35 @@
                                                         </div>
                                                         <div class="text-muted" style="font-size:0.75rem; margin-top:4px;">
                                                             Mismos umbrales que categorías de proveedor.
+                                                        </div>
+                                                    </div>
+                                                    <div invisible="customer_cat_method != 'abc_rfm'" class="mb-3">
+                                                        <span class="fw-semibold d-block mb-1" style="font-size:0.85rem; color:#6c757d;">Parámetros RFM</span>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                                            <span class="text-muted small">Recencia: reciente &lt;</span>
+                                                            <field name="rfm_recency_recent_days" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">d · media &lt;</span>
+                                                            <field name="rfm_recency_medium_days" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">d</span>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
+                                                            <span class="text-muted small">Frecuencia: alta &gt;</span>
+                                                            <field name="rfm_freq_high" nolabel="1" style="width:56px;"/>
+                                                            <span class="text-muted small">· media ≥</span>
+                                                            <field name="rfm_freq_medium" nolabel="1" style="width:56px;"/>
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                            <span class="text-muted small">Score: A ≥</span>
+                                                            <field name="rfm_score_a" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">B ≥</span>
+                                                            <field name="rfm_score_b" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">C ≥</span>
+                                                            <field name="rfm_score_c" nolabel="1" style="width:52px;"/>
+                                                            <span class="text-muted small">D ≥</span>
+                                                            <field name="rfm_score_d" nolabel="1" style="width:52px;"/>
+                                                        </div>
+                                                        <div class="text-muted" style="font-size:0.75rem; margin-top:4px;">
+                                                            Mismos parámetros RFM que categorías de proveedor.
                                                         </div>
                                                     </div>
                                                     <button name="action_compute_customer_categories"

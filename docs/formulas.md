@@ -62,7 +62,8 @@ CONDICIONES:
 - C >= 90 -> verde
 - 50 <= C < 90 -> amarillo
 - C < 50 -> rojo
-- P_prog = 0 -> C = 0
+- P_prog = 0 y P_prod = 0 -> C = 0
+- P_prog = 0 y P_prod > 0 -> "s/plan" (sin plan / sobreproducción): se produjo sin cantidad programada; no se muestra 0%
 
 ---
 
@@ -79,7 +80,7 @@ CONFIG: Criterio de OFs por período = Por fecha de cierre (predeterminado)
 ---
 
 ### 1.5b Criterio de OFs por período — por solapamiento completo
-DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango: su inicio es anterior o igual al fin del período, y su fin es posterior o igual al inicio del período. La cantidad es la planificada completa, y una OF puede aparecer en múltiples períodos.
+DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango: su inicio es anterior o igual al fin del período, y su fin es posterior o igual al inicio del período. La cantidad es la planificada completa, y una OF puede aparecer en múltiples períodos (doble conteo): no deben sumarse los períodos entre sí. Tanto lo programado como lo producido usan los totales de la OF (product_qty y qty_produced), sin acotar al período.
 VARIABLES:
 - D_ini_OF = fecha de inicio de la OF
 - D_fin_OF = fecha de fin de la OF
@@ -92,7 +93,7 @@ CONFIG: Criterio de OFs por período = Por solapamiento completo
 ---
 
 ### 1.5c Criterio de OFs por período — proporcional por duración
-DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango. La cantidad atribuida es proporcional a la fracción de la duración de la OF que cae en el período. Las unidades producidas reales solo cuentan si su fecha de movimiento cae dentro del período.
+DESCRIPCION: Una OF entra en el período si estuvo activa en algún momento dentro del rango. La cantidad atribuida es proporcional a la fracción de la duración de la OF que cae en el período. Las unidades producidas reales solo cuentan si su fecha de movimiento cae dentro del período. Si una OF no tiene fecha de inicio válida, se usa como fallback su fecha de cierre: se atribuye la cantidad completa solo si el cierre cae en el período (mismo criterio en la comparativa y en el forecast).
 VARIABLES:
 - s_solap = segundos solapados entre la OF y el período
 - s_total = duración total de la OF en segundos
@@ -320,12 +321,13 @@ CONDICIONES:
 ---
 
 ### 2.3 % a tiempo — proveedor individual
-DESCRIPCION: Mide el porcentaje de recepciones de un proveedor que llegaron antes o exactamente en la fecha y hora programada. La comparación es a nivel de fecha y hora exacta: una recepción que llega el mismo día pero una hora después se considera tarde.
+DESCRIPCION: Mide el porcentaje de recepciones de un proveedor que llegaron antes o exactamente en la fecha y hora programada. La comparación es a nivel de fecha y hora exacta: una recepción que llega el mismo día pero una hora después se considera tarde. Las recepciones sin fecha programada o sin fecha de cierre no se pueden evaluar: se excluyen del denominador y se informan aparte como "sin fecha".
 VARIABLES:
 - n_ot = cantidad de recepciones donde fecha_cierre <= fecha_programada (comparación de fecha y hora exacta)
-- n_total = total de recepciones del proveedor en el período
+- n_sf = recepciones sin fecha programada o sin fecha de cierre (no evaluables)
+- n_eval = recepciones evaluables del proveedor = total de recepciones − n_sf
 - pct_ot = porcentaje a tiempo
-FORMULA: pct_ot = n_ot / n_total * 100
+FORMULA: pct_ot = n_ot / n_eval * 100
 LABEL: % a tiempo (proveedor)
 CONDICIONES:
 - pct_ot >= umbral_verde_config -> verde
@@ -335,12 +337,12 @@ CONDICIONES:
 ---
 
 ### 2.4 % a tiempo global — ponderado
-DESCRIPCION: Combina la puntualidad de todos los proveedores en un único indicador. No es el promedio de porcentajes individuales sino el cociente entre el total de recepciones a tiempo y el total de recepciones de todos los proveedores.
+DESCRIPCION: Combina la puntualidad de todos los proveedores en un único indicador. No es el promedio de porcentajes individuales sino el cociente entre el total de recepciones a tiempo y el total de recepciones evaluables (con fecha) de todos los proveedores. Las recepciones sin fecha se excluyen del denominador.
 VARIABLES:
 - N_ot = suma de recepciones a tiempo de todos los proveedores
-- N_total = suma total de recepciones de todos los proveedores
+- N_eval = suma de recepciones evaluables (con fecha programada y de cierre) de todos los proveedores
 - pct_ot_global = porcentaje a tiempo global
-FORMULA: pct_ot_global = N_ot / N_total * 100
+FORMULA: pct_ot_global = N_ot / N_eval * 100
 LABEL: % a tiempo global — ponderado (todos los proveedores)
 
 ---
@@ -479,14 +481,11 @@ VARIABLES:
 FORMULA: T = R + F_score + M
 LABEL: Puntaje RFM — proveedor
 CONFIG: Método de categoría de proveedor = ABC por RFM
-CONDICIONES:
-- R: dias_ultima_OC < 30 -> 3 pts ; dias_ultima_OC < 90 -> 2 pts ; resto -> 1 pt
-- F_score: count_OCs > 10 -> 3 pts ; count_OCs >= 3 -> 2 pts ; resto -> 1 pt
+CONDICIONES (los cortes son configurables en Ajustes → "Parámetros RFM"; entre paréntesis los valores por defecto):
+- R: dias_ultima_OC < rfm_recency_recent_days (30) -> 3 pts ; < rfm_recency_medium_days (90) -> 2 pts ; resto -> 1 pt
+- F_score: count_OCs > rfm_freq_high (10) -> 3 pts ; >= rfm_freq_medium (3) -> 2 pts ; resto -> 1 pt
 - M: percentil >= 66 -> 3 pts ; percentil >= 33 -> 2 pts ; resto -> 1 pt
-- T = 8 o 9 -> A
-- T = 6 o 7 -> B
-- T = 4 o 5 -> C
-- T = 3 -> D
+- T >= rfm_score_a (8) -> A ; T >= rfm_score_b (6) -> B ; T >= rfm_score_c (4) -> C ; T >= rfm_score_d (3) -> D
 - sin datos (sin OCs en el período) -> E
 
 ---
@@ -511,21 +510,21 @@ CONDICIONES:
 ---
 
 ### 2.15 Categoría de proveedor — ABC por variación de precio
-DESCRIPCION: Clasifica a los proveedores según la variación promedio en valor absoluto entre el precio pagado y el costo estándar de cada línea. La clasificación es inversa: el proveedor con menor variación (más predecible en precio) recibe la categoría A.
+DESCRIPCION: Clasifica a los proveedores según cuánto varía el precio que cobran para un mismo producto entre compras sucesivas. Cada compra del período se compara con el precio anterior pagado del mismo producto al mismo proveedor (tendencia de precio, independiente del costo estándar, que puede ser muy volátil). La clasificación es inversa: el proveedor con menor variación (más estable) recibe la categoría A.
 VARIABLES:
-- v_k = abs(precio_pagado_k - costo_estandar_k) / costo_estandar_k * 100, para cada línea k del proveedor j
+- v_k = abs(precio_k - precio_anterior_k) / precio_anterior_k * 100, para cada compra k del proveedor j que tiene una compra previa del mismo producto
 - n_j = cantidad de líneas de OC del proveedor j
 - V_j = variación promedio del proveedor j
-- P_cum_j = participación acumulada ordenando de menor V a mayor (Pareto ascendente)
-FORMULA: V_j = sum(v_k) / n_j ; P_cum_j = sum(P_l para todo l con V_l <= V_j)
-LABEL: Pareto invertido por variación de precio — proveedores
+- pos_j = percentil de posición ordenando de menor V a mayor (reparto por cuotas fijas de proveedores, NO por participación acumulada del valor)
+FORMULA: V_j = sum(v_k) / n_j ; pos_j = (índice_j + 1) / n_proveedores_con_datos
+LABEL: Ranking por percentil por variación de precio — proveedores
 CONFIG: Método de categoría de proveedor = ABC por variación de precio
-CONDICIONES:
-- P_cum_j <= umbral_A -> A (menor variación)
-- P_cum_j <= umbral_B -> B
-- P_cum_j <= umbral_C -> C
-- P_cum_j <= umbral_D -> D
-- P_cum_j > umbral_D -> E (mayor variación)
+CONDICIONES (los umbrales se interpretan como percentiles de posición, no como participación acumulada):
+- pos_j <= umbral_A -> A (menor variación)
+- pos_j <= umbral_B -> B
+- pos_j <= umbral_C -> C
+- pos_j <= umbral_D -> D
+- pos_j > umbral_D -> E (mayor variación)
 
 ---
 
@@ -549,19 +548,19 @@ CONDICIONES:
 ---
 
 ### 2.17 Categoría de proveedor — ABC por devoluciones
-DESCRIPCION: Clasifica a los proveedores según la cantidad de recepciones que fueron revertidas (devueltas al proveedor). La clasificación es inversa: el proveedor con menos devoluciones recibe la categoría A.
+DESCRIPCION: Clasifica a los proveedores según la cantidad de recepciones que fueron revertidas (devueltas al proveedor). La clasificación es inversa: el proveedor con menos devoluciones recibe la categoría A. Los proveedores con compras en el período y cero devoluciones cuentan como 0 (mejor caso) y se clasifican como A; solo los proveedores sin actividad de compra en el período quedan como E (sin datos).
 VARIABLES:
-- dev_j = cantidad de recepciones revertidas del proveedor j en el período
-- P_cum_j = participación acumulada ordenando de menor dev a mayor (Pareto ascendente)
-FORMULA: P_cum_j = sum(P_l para todo l con dev_l <= dev_j)
-LABEL: Pareto invertido por devoluciones — proveedores
+- dev_j = cantidad de recepciones revertidas del proveedor j en el período (0 si tuvo compras y ninguna devolución)
+- pos_j = percentil de posición ordenando de menor dev a mayor (reparto por cuotas fijas, NO por participación acumulada)
+FORMULA: pos_j = (índice_j + 1) / n_proveedores_con_actividad
+LABEL: Ranking por percentil por devoluciones — proveedores
 CONFIG: Método de categoría de proveedor = ABC por calidad — devoluciones
-CONDICIONES:
-- P_cum_j <= umbral_A -> A (menos devoluciones)
-- P_cum_j <= umbral_B -> B
-- P_cum_j <= umbral_C -> C
-- P_cum_j <= umbral_D -> D
-- P_cum_j > umbral_D -> E (más devoluciones)
+CONDICIONES (los umbrales se interpretan como percentiles de posición):
+- pos_j <= umbral_A -> A (menos devoluciones)
+- pos_j <= umbral_B -> B
+- pos_j <= umbral_C -> C
+- pos_j <= umbral_D -> D
+- sin actividad de compra en el período -> E (sin datos)
 
 ---
 
@@ -1046,14 +1045,11 @@ VARIABLES:
 FORMULA: T = R + F_score + M
 LABEL: Puntaje RFM — cliente
 CONFIG: Método de categoría de cliente = ABC por RFM
-CONDICIONES:
-- R: dias_ultima_OV < 30 -> 3 pts ; dias_ultima_OV < 90 -> 2 pts ; resto -> 1 pt
-- F_score: count_OVs > 10 -> 3 pts ; count_OVs >= 3 -> 2 pts ; resto -> 1 pt
+CONDICIONES (los cortes son configurables en Ajustes → "Parámetros RFM", compartidos con proveedores; entre paréntesis los valores por defecto):
+- R: dias_ultima_OV < rfm_recency_recent_days (30) -> 3 pts ; < rfm_recency_medium_days (90) -> 2 pts ; resto -> 1 pt
+- F_score: count_OVs > rfm_freq_high (10) -> 3 pts ; >= rfm_freq_medium (3) -> 2 pts ; resto -> 1 pt
 - M: percentil >= 66 -> 3 pts ; percentil >= 33 -> 2 pts ; resto -> 1 pt
-- T = 8 o 9 -> A
-- T = 6 o 7 -> B
-- T = 4 o 5 -> C
-- T = 3 -> D
+- T >= rfm_score_a (8) -> A ; T >= rfm_score_b (6) -> B ; T >= rfm_score_c (4) -> C ; T >= rfm_score_d (3) -> D
 - sin datos en el período -> E
 
 ---

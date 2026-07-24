@@ -21,12 +21,13 @@ Relacionado con:
   para los distintos métodos de clasificación.
 """
 import logging
-from datetime import date, timedelta
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-from .const import RFM_RECENCY_RECENT_DAYS, RFM_RECENCY_MEDIUM_DAYS
 from .mrp_abc_helpers import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
 
 _logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class MrpPartnerCategory(models.Model):
 
         months   = config.sale_cat_lookback_months or 3
         end      = date.today()
-        start    = end - timedelta(days=months * 30)
+        start    = end - relativedelta(months=months)
         start_dt = fields.Datetime.to_datetime(str(start))
         end_dt   = fields.Datetime.to_datetime(str(end))
 
@@ -148,14 +149,18 @@ class MrpPartnerCategory(models.Model):
             else:
                 sorted_tmpls = sorted(templates, key=lambda t: tmpl_value.get(t.id, 0.0), reverse=True)
                 by_category = {}
+                # Acumulado exclusivo (antes de sumar el ítem) para que el producto más
+                # vendido siempre caiga en A aunque por sí solo supere el corte A.
                 cumulative = 0.0
                 for tmpl in sorted_tmpls:
-                    cumulative += tmpl_value.get(tmpl.id, 0.0) / total
-                    if   cumulative <= a_pct: cat = 'A'
-                    elif cumulative <= b_pct: cat = 'B'
-                    elif cumulative <= c_pct: cat = 'C'
-                    elif cumulative <= d_pct: cat = 'D'
-                    else:                     cat = 'E'
+                    val = tmpl_value.get(tmpl.id, 0.0)
+                    if   val <= 0:           cat = 'E'
+                    elif cumulative < a_pct: cat = 'A'
+                    elif cumulative < b_pct: cat = 'B'
+                    elif cumulative < c_pct: cat = 'C'
+                    elif cumulative < d_pct: cat = 'D'
+                    else:                    cat = 'E'
+                    cumulative += val / total
                     by_category.setdefault(cat, self.env['product.template'])
                     by_category[cat] |= tmpl
                 for cat, prods in by_category.items():
@@ -272,13 +277,15 @@ class MrpPartnerCategory(models.Model):
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del proveedor.', 'type': 'warning'}}
 
         months = config.supplier_cat_lookback_months or 12
-        start = date.today() - timedelta(days=months * 30)
+        end = date.today()
+        start = end - relativedelta(months=months)
+        end_str = str(end) + ' 23:59:59'
         suppliers = self.env['res.partner'].search([('supplier_rank', '>', 0), ('active', '=', True)])
         updated = 0
 
         if config.supplier_cat_method in ('abc_volume', 'abc_frequency'):
-            groups = self.env['purchase.order'].read_group(
-                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
+            groups = self.env['purchase.order'].sudo().read_group(
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('date_order', '<=', end_str), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count'],
                 ['partner_id'],
             )
@@ -292,8 +299,8 @@ class MrpPartnerCategory(models.Model):
         elif config.supplier_cat_method == 'abc_rfm':
             start_dt = fields.Datetime.to_datetime(str(start))
             now_dt   = fields.Datetime.now()
-            groups = self.env['purchase.order'].read_group(
-                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
+            groups = self.env['purchase.order'].sudo().read_group(
+                [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('date_order', '<=', end_str), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
                 ['partner_id'],
             )
@@ -311,10 +318,10 @@ class MrpPartnerCategory(models.Model):
                     p.x_supplier_category = 'E'
                     updated += 1
                     continue
-                # R < 30 días: compra reciente (alta recencia); R < 90: moderada; ≥ 90: baja.
-                r_score = 3 if d['R'] < RFM_RECENCY_RECENT_DAYS else (2 if d['R'] < RFM_RECENCY_MEDIUM_DAYS else 1)
-                # F > 10 órdenes: alta frecuencia; F ≥ 3: moderada; < 3: baja.
-                f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
+                # Recencia: reciente (3 pts), media (2 pts) o baja (1 pt) según cortes configurables.
+                r_score = 3 if d['R'] < config.rfm_recency_recent_days else (2 if d['R'] < config.rfm_recency_medium_days else 1)
+                # Frecuencia: alta (3 pts), media (2 pts) o baja (1 pt) según cortes configurables.
+                f_score = 3 if d['F'] > config.rfm_freq_high else (2 if d['F'] >= config.rfm_freq_medium else 1)
                 # M se puntúa respecto a los terciles del universo, calculados más abajo.
                 data[p.id]['r_score'] = r_score
                 data[p.id]['f_score'] = f_score
@@ -331,20 +338,21 @@ class MrpPartnerCategory(models.Model):
                 m_score = 3 if d['M'] >= m_p66 else (2 if d['M'] >= m_p33 else 1)
                 total_score = d['r_score'] + d['f_score'] + m_score
                 # Score máximo = 9 (3+3+3); mínimo significativo = 3 (1+1+1).
-                if   total_score >= 8: cat = 'A'
-                elif total_score >= 6: cat = 'B'
-                elif total_score >= 4: cat = 'C'
-                elif total_score >= 3: cat = 'D'
-                else:                  cat = 'E'
+                if   total_score >= config.rfm_score_a: cat = 'A'
+                elif total_score >= config.rfm_score_b: cat = 'B'
+                elif total_score >= config.rfm_score_c: cat = 'C'
+                elif total_score >= config.rfm_score_d: cat = 'D'
+                else:                                   cat = 'E'
                 p.x_supplier_category = cat
                 updated += 1
 
         elif config.supplier_cat_method == 'abc_delivery_pct':
-            picks = self.env['stock.picking'].search([
+            picks = self.env['stock.picking'].sudo().search([
                 ('state', '=', 'done'),
                 ('picking_type_code', '=', 'incoming'),
                 ('purchase_id.partner_id', 'in', suppliers.ids),
                 ('purchase_id.date_order', '>=', str(start)),
+                ('purchase_id.date_order', '<=', end_str),
                 ('company_id', '=', self.env.company.id),
             ])
             pct_data = {}
@@ -363,51 +371,40 @@ class MrpPartnerCategory(models.Model):
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_price_var':
-            po_lines = self.env['purchase.order.line'].search([
+            # Variación vs. el precio ANTERIOR pagado del mismo producto al mismo proveedor
+            # (tendencia de precio, independiente del costo estándar, que puede ser muy volátil).
+            # Se lee el historial de compras hasta el fin del período para tener una referencia
+            # previa incluso para la primera compra dentro del período; solo se puntúan las
+            # compras cuya fecha cae dentro del período.
+            start_dt = fields.Datetime.to_datetime(str(start))
+            po_lines = self.env['purchase.order.line'].sudo().search([
                 ('order_id.state', 'in', ('purchase', 'done')),
-                ('order_id.date_order', '>=', str(start)),
+                ('order_id.date_order', '<=', end_str),
                 ('order_id.partner_id', 'in', suppliers.ids),
                 ('product_id', '!=', False),
                 ('company_id', '=', self.env.company.id),
             ])
-            prod_ids     = list({ln.product_id.id for ln in po_lines})
-            price_method = config.supplier_price_var_method or 'standard'
-            std_map = {r['id']: r['standard_price']
-                       for r in self.env['product.product'].search_read(
-                           [('id', 'in', prod_ids)], ['id', 'standard_price']
-                       )} if prod_ids else {}
-            si_tmpl_map   = {}
-            prod_tmpl_map = {}
-            if price_method == 'pricelist' and prod_ids:
-                # sudo(): product.product y product.supplierinfo no son accesibles para todos los grupos
-                prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
-                                 for r in self.env['product.product'].sudo().search_read(
-                                     [('id', 'in', prod_ids)], ['id', 'product_tmpl_id'])}
-                all_tmpl_ids = list(set(prod_tmpl_map.values()))
-                for si in self.env['product.supplierinfo'].sudo().search_read(
-                    [('partner_id', 'in', suppliers.ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
-                    ['partner_id', 'product_tmpl_id', 'price'],
-                ):
-                    if not si['partner_id'] or not si['product_tmpl_id']:
-                        continue
-                    key = (si['partner_id'][0], si['product_tmpl_id'][0])
-                    if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
-                        si_tmpl_map[key] = si['price']
-            pvar_data = {}
+            # Historial (fecha, precio) por (proveedor, producto)
+            hist = {}
             for ln in po_lines:
-                pid     = ln.order_id.partner_id.id
-                prod_id = ln.product_id.id
-                if price_method == 'pricelist':
-                    tmpl_id = prod_tmpl_map.get(prod_id)
-                    ref = si_tmpl_map.get((pid, tmpl_id), 0.0) if tmpl_id else 0.0
-                else:
-                    ref = std_map.get(prod_id, 0.0)
-                if ref > 0 and ln.price_unit > 0:
-                    var = abs((ln.price_unit - ref) / ref * 100)
-                    if pid not in pvar_data:
-                        pvar_data[pid] = {'sum': 0.0, 'count': 0}
-                    pvar_data[pid]['sum'] += var
-                    pvar_data[pid]['count'] += 1
+                do = ln.order_id.date_order
+                if not do or not ln.price_unit or ln.price_unit <= 0:
+                    continue
+                hist.setdefault((ln.order_id.partner_id.id, ln.product_id.id), []).append((do, ln.price_unit))
+            pvar_data = {}
+            for (pid, _prod), seq in hist.items():
+                seq.sort(key=lambda x: x[0])
+                for i in range(1, len(seq)):
+                    date_i, price_i = seq[i]
+                    if date_i < start_dt:
+                        continue  # la referencia puede ser anterior al período; solo se puntúan las compras del período
+                    prev_price = seq[i - 1][1]
+                    if prev_price <= 0:
+                        continue
+                    var = abs((price_i - prev_price) / prev_price * 100)
+                    d = pvar_data.setdefault(pid, {'sum': 0.0, 'count': 0})
+                    d['sum'] += var
+                    d['count'] += 1
             avg_var_by_id = {
                 pid: d['sum'] / d['count'] if d['count'] > 0 else None
                 for pid, d in pvar_data.items()
@@ -416,11 +413,12 @@ class MrpPartnerCategory(models.Model):
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_quality_qty':
-            moves = self.env['stock.move'].search([
+            moves = self.env['stock.move'].sudo().search([
                 ('state', '=', 'done'),
                 ('picking_id.picking_type_code', '=', 'incoming'),
                 ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
                 ('picking_id.purchase_id.date_order', '>=', str(start)),
+                ('picking_id.purchase_id.date_order', '<=', end_str),
                 ('company_id', '=', self.env.company.id),
             ])
             qty_data = {}
@@ -444,12 +442,24 @@ class MrpPartnerCategory(models.Model):
             # instalado el módulo de devoluciones de Odoo (stock_picking_return o similar).
             _has_return_id = 'return_id' in self.env['stock.picking']._fields
             if _has_return_id:
-                ret_picks = self.env['stock.picking'].search([
+                # Base: proveedores con OCs en el período parten de 0 devoluciones (mejor caso).
+                # Sin esta base, "cero devoluciones" (excelente) se confundiría con "sin datos"
+                # y esos proveedores caerían en E (el peor) en vez de A.
+                active = self.env['purchase.order'].sudo().read_group(
+                    [('state', 'in', ('purchase', 'done')), ('date_order', '>=', str(start)), ('date_order', '<=', end_str),
+                     ('partner_id', 'in', suppliers.ids), ('company_id', '=', self.env.company.id)],
+                    ['partner_id'], ['partner_id'],
+                )
+                for g in active:
+                    if g['partner_id']:
+                        returns_by_partner[g['partner_id'][0]] = 0
+                ret_picks = self.env['stock.picking'].sudo().search([
                     ('state', '=', 'done'),
                     ('return_id', '!=', False),
                     ('return_id.purchase_id', '!=', False),
                     ('return_id.purchase_id.partner_id', 'in', suppliers.ids),
                     ('return_id.purchase_id.date_order', '>=', str(start)),
+                    ('return_id.purchase_id.date_order', '<=', end_str),
                     ('company_id', '=', self.env.company.id),
                 ])
                 for pick in ret_picks:
@@ -459,11 +469,12 @@ class MrpPartnerCategory(models.Model):
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_quality_combo':
-            picks = self.env['stock.picking'].search([
+            picks = self.env['stock.picking'].sudo().search([
                 ('state', '=', 'done'),
                 ('picking_type_code', '=', 'incoming'),
                 ('purchase_id.partner_id', 'in', suppliers.ids),
                 ('purchase_id.date_order', '>=', str(start)),
+                ('purchase_id.date_order', '<=', end_str),
                 ('company_id', '=', self.env.company.id),
             ])
             combo_data = {}
@@ -474,11 +485,12 @@ class MrpPartnerCategory(models.Model):
                 combo_data[pid]['total'] += 1
                 if pick.scheduled_date and pick.date_done and pick.date_done <= pick.scheduled_date:
                     combo_data[pid]['on_time'] += 1
-            moves = self.env['stock.move'].search([
+            moves = self.env['stock.move'].sudo().search([
                 ('state', '=', 'done'),
                 ('picking_id.picking_type_code', '=', 'incoming'),
                 ('picking_id.purchase_id.partner_id', 'in', suppliers.ids),
                 ('picking_id.purchase_id.date_order', '>=', str(start)),
+                ('picking_id.purchase_id.date_order', '<=', end_str),
                 ('company_id', '=', self.env.company.id),
             ])
             qty_data = {}
@@ -545,13 +557,15 @@ class MrpPartnerCategory(models.Model):
                     'params': {'title': 'Modo manual', 'message': 'Las categorías en modo manual se asignan desde la ficha del cliente.', 'type': 'warning'}}
 
         months = config.customer_cat_lookback_months or 12
-        start = date.today() - timedelta(days=months * 30)
+        end = date.today()
+        start = end - relativedelta(months=months)
+        end_str = str(end) + ' 23:59:59'
         customers = self.env['res.partner'].search([('customer_rank', '>', 0), ('active', '=', True)])
         updated = 0
 
         if config.customer_cat_method in ('abc_volume', 'abc_frequency'):
-            groups = self.env['sale.order'].read_group(
-                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
+            groups = self.env['sale.order'].sudo().read_group(
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('date_order', '<=', end_str), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count'],
                 ['partner_id'],
             )
@@ -565,8 +579,8 @@ class MrpPartnerCategory(models.Model):
         elif config.customer_cat_method == 'abc_rfm':
             start_dt = fields.Datetime.to_datetime(str(start))
             now_dt   = fields.Datetime.now()
-            groups = self.env['sale.order'].read_group(
-                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('company_id', '=', self.env.company.id)],
+            groups = self.env['sale.order'].sudo().read_group(
+                [('state', 'in', ('sale', 'done')), ('date_order', '>=', str(start)), ('date_order', '<=', end_str), ('company_id', '=', self.env.company.id)],
                 ['partner_id', 'amount_total:sum', 'id:count', 'date_order:max'],
                 ['partner_id'],
             )
@@ -583,10 +597,10 @@ class MrpPartnerCategory(models.Model):
                     p.x_customer_category = 'E'
                     updated += 1
                     continue
-                # R < 30 días: compra reciente (alta recencia); R < 90: moderada; ≥ 90: baja.
-                r_score = 3 if d['R'] < RFM_RECENCY_RECENT_DAYS else (2 if d['R'] < RFM_RECENCY_MEDIUM_DAYS else 1)
-                # F > 10 órdenes: alta frecuencia; F ≥ 3: moderada; < 3: baja.
-                f_score = 3 if d['F'] > 10 else (2 if d['F'] >= 3 else 1)
+                # Recencia: reciente (3 pts), media (2 pts) o baja (1 pt) según cortes configurables.
+                r_score = 3 if d['R'] < config.rfm_recency_recent_days else (2 if d['R'] < config.rfm_recency_medium_days else 1)
+                # Frecuencia: alta (3 pts), media (2 pts) o baja (1 pt) según cortes configurables.
+                f_score = 3 if d['F'] > config.rfm_freq_high else (2 if d['F'] >= config.rfm_freq_medium else 1)
                 data[p.id]['r_score'] = r_score
                 data[p.id]['f_score'] = f_score
 
@@ -602,11 +616,11 @@ class MrpPartnerCategory(models.Model):
                 m_score = 3 if d['M'] >= m_p66 else (2 if d['M'] >= m_p33 else 1)
                 total_score = d['r_score'] + d['f_score'] + m_score
                 # Score máximo = 9 (3+3+3); mínimo significativo = 3 (1+1+1).
-                if   total_score >= 8: cat = 'A'
-                elif total_score >= 6: cat = 'B'
-                elif total_score >= 4: cat = 'C'
-                elif total_score >= 3: cat = 'D'
-                else:                  cat = 'E'
+                if   total_score >= config.rfm_score_a: cat = 'A'
+                elif total_score >= config.rfm_score_b: cat = 'B'
+                elif total_score >= config.rfm_score_c: cat = 'C'
+                elif total_score >= config.rfm_score_d: cat = 'D'
+                else:                                   cat = 'E'
                 p.x_customer_category = cat
                 updated += 1
 

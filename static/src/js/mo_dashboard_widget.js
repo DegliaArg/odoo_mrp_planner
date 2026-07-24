@@ -527,9 +527,32 @@ class MoDashboardWidget extends Component {
      * @returns {string} Clases CSS Bootstrap de color y peso de fuente.
      */
     pctClass(pct) {
+        if (pct === null || pct === undefined) return "text-info fw-semibold";  // sin plan / sobreproducción
         if (pct >= 90) return "text-success fw-semibold";
         if (pct >= 50) return "text-warning fw-semibold";
         return "text-danger fw-semibold";
+    }
+
+    /**
+     * Aviso del criterio de fechas activo del comparativo (solo overlap/proportional),
+     * para que el usuario entienda por qué los números pueden no sumar de forma intuitiva.
+     * @returns {string} Texto del badge, o '' si el modo no requiere aviso.
+     */
+    cmpModeBadge() {
+        if (this.state.cmp_mode === 'overlap')
+            return "Criterio “Solapamiento completo”: cada OF que cruza el período cuenta entera en el mes. No sumes meses: una OF larga aparece completa en cada uno (doble conteo).";
+        if (this.state.cmp_mode === 'proportional')
+            return "Criterio “Proporcional por duración”: lo programado se reparte según el tiempo que la OF pasa en el período, y lo producido es lo realmente movido a stock en el período. El % de un mes puede superar 100% o dar bajo.";
+        return "";
+    }
+
+    /** Nota breve del criterio activo para anexar a los tooltips del comparativo. */
+    _cmpModeNote() {
+        if (this.state.cmp_mode === 'proportional')
+            return "\nProporcional: programado prorrateado por duración vs. producido real del período (el % puede pasar 100%).";
+        if (this.state.cmp_mode === 'overlap')
+            return "\nSolapamiento completo: cada OF cuenta entera en el mes que toca (no sumar meses).";
+        return "";
     }
 
     /**
@@ -622,9 +645,11 @@ class MoDashboardWidget extends Component {
                 case 'produced':
                     return `Suma de qty_produced de las OFs con estado Completada (done) en el período\n→ ${f2(k.produced)} u producidas de ${f2(k.planned)} u planificadas`;
                 case 'pct':
-                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+                    if (k.pct === null)
+                        return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${f2(k.produced)} u producidas, 0 programadas${this._cmpModeNote()}`;
+                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%${this._cmpModeNote()}`;
                 case 'ofs_done':
-                    return `OFs con estado Completada (done) finalizadas dentro del período\n→ ${f(k.ofs_done)} OFs completadas`;
+                    return `OFs con estado Completada (done) cuya fecha de fin cae en el período.\nSe cuenta siempre por fecha de fin, sin importar el criterio de fechas elegido, por eso puede no coincidir con las OFs del comparativo de cantidades.\n→ ${f(k.ofs_done)} OFs completadas`;
                 case 'desvio':
                     return `Diferencia entre lo programado y lo producido en el período\nProgramado − Producido\n→ ${f2(k.planned)} − ${f2(k.produced)} = ${f2(k.desvio)} unidades`;
                 case 'ofs_in_progress':
@@ -636,7 +661,9 @@ class MoDashboardWidget extends Component {
 
     cmpRowTooltip(item) {
         const f = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
-        return `Relación entre producido y programado para este artículo en el período\nProducido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%`;
+        if (item.pct === null)
+            return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${f(item.produced_qty)} u producidas, 0 programadas${this._cmpModeNote()}`;
+        return `Relación entre producido y programado para este artículo en el período\nProducido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%${this._cmpModeNote()}`;
     }
 
     /**

@@ -79,7 +79,6 @@ class MrpPlannerDashboardSales(models.TransientModel):
             Devuelve ``[]`` ante cualquier error o cuando no hay datos.
         """
         tmpl_qty = {}
-        tmpl_amount = {}
         allowed_ids = self._get_wh_domains().allowed_ids
         if allowed_ids is not None and not allowed_ids:
             return []
@@ -108,7 +107,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 # read_group en lugar de search+loop para evitar N queries ORM
                 groups = self.env['sale.order.line'].sudo().read_group(
                     sol_domain,
-                    ['product_id', 'product_uom_qty:sum', 'price_subtotal:sum'],
+                    ['product_id', 'product_uom_qty:sum'],
                     ['product_id'],
                 )
                 # D-02: batch-load product→template mapping; evita un browse individual por fila de read_group
@@ -123,7 +122,6 @@ class MrpPlannerDashboardSales(models.TransientModel):
                     if not tid:
                         continue
                     tmpl_qty[tid] = tmpl_qty.get(tid, 0.0) + (g['product_uom_qty'] or 0.0)
-                    tmpl_amount[tid] = tmpl_amount.get(tid, 0.0) + (g['price_subtotal'] or 0.0)
             except Exception as e:
                 _logger.error('[SalesChart] Error al leer sale.order.line: %s', e, exc_info=True)
                 raise
@@ -173,7 +171,6 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 keep = {tid for tid in tmpl_qty
                         if tmpl_by_id_f.get(tid) and tmpl_by_id_f[tid].x_sale_category == sale_category}
             tmpl_qty   = {tid: q for tid, q in tmpl_qty.items()   if tid in keep}
-            tmpl_amount = {tid: a for tid, a in tmpl_amount.items() if tid in keep}
             if not tmpl_qty:
                 return []
 
@@ -188,8 +185,10 @@ class MrpPlannerDashboardSales(models.TransientModel):
             if not t:
                 continue
             qty    = round(tmpl_qty[tid], 2)
-            # Si no hay importe registrado (caso delivery), se estima con precio de lista
-            amount = round(tmpl_amount[tid], 2) if tid in tmpl_amount else round(qty * (t.list_price or 0.0), 2)
+            # PxQ = precio de lista del artículo × cantidad (demandada o entregada según la fuente).
+            # Se usa list_price en ambas fuentes para que el importe sea comparable y no dependa
+            # de descuentos/impuestos de la línea de venta.
+            amount = round(qty * (t.list_price or 0.0), 2)
             rows.append({
                 'tmpl_id':       tid,
                 'name':          t.name,

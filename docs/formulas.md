@@ -777,15 +777,17 @@ CONDICIONES:
 ---
 
 ### 3.9 Rotación de inventario en forecast — por unidades
-DESCRIPCION: Estima los meses o días de stock que quedan para el artículo, usando el promedio mensual de unidades entregadas en el rango del forecast y el stock actual.
+DESCRIPCION: Estima los meses o días de stock que quedan para el artículo, usando el promedio mensual de unidades entregadas en el rango del forecast y el stock promedio del período (promedio entre el stock al inicio y al fin del rango).
 VARIABLES:
 - E_per = suma de unidades entregadas del artículo en el rango del forecast
 - n_m = número de meses del rango del forecast
 - prom_m = promedio mensual de unidades entregadas
-- S = stock actual en ubicaciones internas
+- S_ini = stock del artículo al inicio del rango (reconstruido desde stock.move)
+- S_fin = stock del artículo al fin del rango (reconstruido desde stock.move)
+- S = stock promedio del período = (S_ini + S_fin) / 2
 - rot_m = rotación en meses
 - rot_d = rotación en días
-FORMULA: prom_m = E_per / n_m ; rot_m = S / prom_m ; rot_d = rot_m * 30
+FORMULA: S = (S_ini + S_fin) / 2 ; prom_m = E_per / n_m ; rot_m = S / prom_m ; rot_d = rot_m * 30
 LABEL: Rotación de inventario — por unidades (forecast)
 CONFIG: Forecast — Método de rotación de inventario = Por unidades
 CONDICIONES:

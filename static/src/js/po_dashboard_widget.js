@@ -107,6 +107,7 @@ class PoDashboardWidget extends Component {
             page:      1,
             pageSize:  50,
             kpis:      { ...EMPTY_KPIS },
+            kpi_ids:   {},
             rfqs:             [],
             to_approve:       [],
             overdue:          [],
@@ -157,6 +158,7 @@ class PoDashboardWidget extends Component {
             );
             if (seq !== this._loadSeq) return;
             this.state.kpis            = d.kpis;
+            this.state.kpi_ids         = d.kpi_ids || {};
             this.state.rfqs            = d.rfqs;
             this.state.to_approve      = d.to_approve;
             this.state.overdue         = d.overdue;
@@ -264,106 +266,39 @@ class PoDashboardWidget extends Component {
     }
 
     /**
-     * Construye el fragmento de dominio Odoo que filtra por tipo de OC
-     * (compra directa vs. subcontratación) según el tab activo.
-     * Devuelve array vacío cuando el tab es "all".
-     * @returns {Array} Fragmento de dominio para purchase.order
-     */
-    _scDomain() {
-        if (this.state.tab === "purchase")    return [["subcontract_production_ids", "=", false]];
-        if (this.state.tab === "subcontract") return [["subcontract_production_ids", "!=", false]];
-        return [];
-    }
-
-    /**
-     * Abre una vista lista/form de purchase.order con el dominio compuesto
-     * (baseDomain + filtro de subcontratación del tab activo).
+     * Abre una vista lista/form de purchase.order acotada a un conjunto exacto
+     * de IDs. El backend calcula esos IDs con los mismos criterios que el KPI
+     * (campo de fecha por bucket, depósito, servicios y umbral crítico), de modo
+     * que la lista mostrada coincide siempre con el número del KPI.
      * @param {string} name - Título que se muestra en la vista
-     * @param {Array} baseDomain - Dominio base antes de aplicar _scDomain
+     * @param {number[]} ids - IDs de purchase.order del KPI correspondiente
      */
-    _navigate(name, baseDomain) {
+    _navigateIds(name, ids) {
         this.action.doAction({
             type:      "ir.actions.act_window",
             name,
             res_model: "purchase.order",
             view_mode: "list,form",
             views:     [[false, "list"], [false, "form"]],
-            domain:    [...baseDomain, ...this._scDomain()],
+            domain:    [["id", "in", ids || []]],
             target:    "current",
         });
     }
 
-    /**
-     * Genera el fragmento de dominio que acota por date_order al rango
-     * dateFrom/dateTo definido en el estado. Los extremos se normalizan
-     * a 00:00:00 y 23:59:59 para capturar el día completo.
-     * @returns {Array} Entre 0 y 2 condiciones de dominio Odoo
-     */
-    _dateDomain() {
-        const d = [];
-        if (this.state.dateFrom) d.push(["date_order", ">=", this.state.dateFrom + " 00:00:00"]);
-        if (this.state.dateTo)   d.push(["date_order", "<=", this.state.dateTo   + " 23:59:59"]);
-        return d;
-    }
-
-    /** Retorna filtro de servicio: excluye OCs sin recepción cuando el config lo indica. */
-    _svcFilter() {
-        return this.state.exclude_service_pos ? [["receipt_status", "!=", false]] : [];
-    }
-
-    /** Navega a la lista de cotizaciones (estado draft o sent) en el rango de fechas activo. */
-    onClickRfqs()      { this._navigate("Cotizaciones", [["state", "in", ["draft", "sent"]], ...this._svcFilter(), ...this._dateDomain()]); }
-    /** Navega a la lista de OCs pendientes de aprobación (estado to approve). */
-    onClickToApprove() { this._navigate("Por aprobar",  [["state", "=", "to approve"],       ...this._svcFilter(), ...this._dateDomain()]); }
-    /** Navega a todas las OCs aprobadas con recepción incompleta en el rango de fechas. */
-    onClickAll() {
-        this._navigate("Aprobadas", [
-            ["state", "in", ["purchase", "done"]],
-            ["receipt_status", "not in", ["full"]],
-            ...this._svcFilter(),
-            ...this._dateDomain(),
-        ]);
-    }
-    /**
-     * Navega a OCs a tiempo: aprobadas con date_planned en el futuro
-     * o sin fecha planificada (OR explícito en el dominio).
-     */
-    onClickPending() {
-        const now = new Date().toISOString();
-        this._navigate("A tiempo", [
-            ["state", "in", ["purchase", "done"]],
-            ["receipt_status", "not in", ["full"]],
-            ...this._svcFilter(),
-            "|", ["date_planned", ">=", now], ["date_planned", "=", false],
-            ...this._dateDomain(),
-        ]);
-    }
-    /**
-     * Navega a OCs vencidas: aprobadas con date_planned en el pasado
-     * y cuya recepción no está completa (receipt_status not in full).
-     */
-    onClickOverdue() {
-        const now = new Date().toISOString();
-        this._navigate("Vencidas", [
-            ["state", "in", ["purchase", "done"]],
-            ["date_planned", "<", now],
-            ["receipt_status", "not in", ["full"]],
-            ...this._svcFilter(),
-            ...this._dateDomain(),
-        ]);
-    }
-
-    /** Navega a OCs críticas: vencidas con retraso mayor al umbral configurado. */
+    /** Navega a las cotizaciones del KPI (estado borrador/enviada, filtradas por date_order). */
+    onClickRfqs()      { this._navigateIds("Cotizaciones", this.state.kpi_ids.rfq); }
+    /** Navega a las OCs por aprobar del KPI (filtradas por date_order). */
+    onClickToApprove() { this._navigateIds("Por aprobar",  this.state.kpi_ids.to_approve); }
+    /** Navega a las OCs aprobadas del KPI (filtradas por date_approve). */
+    onClickAll()       { this._navigateIds("Aprobadas",    this.state.kpi_ids.total); }
+    /** Navega a las OCs a tiempo del KPI (date_planned en rango y ≥ hoy). */
+    onClickPending()   { this._navigateIds("A tiempo",     this.state.kpi_ids.pending); }
+    /** Navega a las OCs vencidas del KPI (date_planned en rango y < hoy). */
+    onClickOverdue()   { this._navigateIds("Vencidas",     this.state.kpi_ids.overdue); }
+    /** Navega a las OCs críticas del KPI (vencidas con retraso ≥ umbral configurable). */
     onClickCritical() {
         const days = this.state.kpis.po_critical_days || 5;
-        const cutoff = new Date(Date.now() - days * 86400000).toISOString();
-        this._navigate(`Críticas (+${days} días)`, [
-            ["state", "in", ["purchase", "done"]],
-            ["date_planned", "<", cutoff],
-            ["receipt_status", "not in", ["full"]],
-            ...this._svcFilter(),
-            ...this._dateDomain(),
-        ]);
+        this._navigateIds(`Críticas (+${days} días)`, this.state.kpi_ids.overdue_critical);
     }
 
     /** @param {number|string} id — ID de la OC a abrir */
@@ -498,20 +433,22 @@ class PoDashboardWidget extends Component {
     poKpiTooltip(key) {
         const k   = this.state.kpis;
         const f   = n => this.fmt(n);
-        const pct = (a, b) => b > 0 ? ` (${Math.round(a / b * 100)}%)` : '';
+        const cd  = k.po_critical_days || 5;
+        // Nota: cada KPI filtra el rango de fechas por un campo distinto, por eso
+        // "Aprobadas" NO es la suma de "A tiempo" + "Vencidas" (esas usan fecha de entrega).
         switch (key) {
             case 'rfq':
-                return `OCs en estado Borrador o Enviada al proveedor, aún no aprobadas\nEstados: Borrador · Enviada al proveedor\n→ ${f(k.rfq)} OCs en cotización`;
+                return `OCs en estado Borrador o Enviada al proveedor, aún no aprobadas\nEstados: Borrador · Enviada al proveedor\nFiltro de fecha: fecha del pedido (date_order) dentro del rango\n→ ${f(k.rfq)} OCs en cotización`;
             case 'to_approve':
-                return `OCs que requieren aprobación adicional antes de ser confirmadas\nEstado: Por aprobar (to approve)\n→ ${f(k.to_approve)} OCs por aprobar`;
+                return `OCs que requieren aprobación adicional antes de ser confirmadas\nEstado: Por aprobar (to approve)\nFiltro de fecha: fecha del pedido (date_order) dentro del rango\n→ ${f(k.to_approve)} OCs por aprobar`;
             case 'total':
-                return `OCs aprobadas con recepción pendiente o parcial en el período\nEstado: Aprobada, recepción pendiente o parcial\n→ ${f(k.total)} OCs aprobadas`;
+                return `OCs aprobadas con recepción pendiente o parcial\nEstado: Aprobada, recepción pendiente o parcial\nFiltro de fecha: fecha de aprobación (date_approve) dentro del rango\nNota: cada KPI usa un campo de fecha distinto; Aprobadas NO es la suma de A tiempo + Vencidas (esas usan fecha de entrega)\n→ ${f(k.total)} OCs aprobadas`;
             case 'pending':
-                return `OCs aprobadas cuya fecha de entrega aún no venció\nCondición: fecha_entrega >= hoy y estado Aprobada\nOCs en plazo ÷ OCs aprobadas × 100\n→ ${f(k.pending)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.pending / k.total * 100) : 0}%`;
+                return `OCs aprobadas cuya fecha de entrega aún no venció\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango y ≥ hoy\n→ ${f(k.pending)} OCs a tiempo`;
             case 'overdue':
-                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nCondición: fecha_entrega < hoy y sin recepción completa\nOCs vencidas ÷ OCs aprobadas × 100\n→ ${f(k.overdue)} ÷ ${f(k.total)} × 100 = ${k.total > 0 ? Math.round(k.overdue / k.total * 100) : 0}%`;
+                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango y < hoy\n→ ${f(k.overdue)} OCs vencidas`;
             case 'overdue_critical':
-                return `OCs vencidas con más de ${k.po_critical_days || 5} días de retraso (umbral configurable en Ajustes)\nCondición: días_retraso > umbral_crítico\nOCs críticas ÷ OCs vencidas × 100\n→ ${f(k.overdue_critical)} ÷ ${f(k.overdue)} × 100 = ${k.overdue > 0 ? Math.round(k.overdue_critical / k.overdue * 100) : 0}%`;
+                return `OCs vencidas con más de ${cd} días de retraso (umbral configurable en Ajustes)\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango\nCondición: días de retraso ≥ ${cd}\n→ ${f(k.overdue_critical)} OCs críticas`;
         }
         return '';
     }

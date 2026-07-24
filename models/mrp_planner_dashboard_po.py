@@ -99,39 +99,43 @@ class MrpPlannerDashboardPo(models.TransientModel):
         elif filter_type == 'subcontract':
             sc_domain = [('subcontract_production_ids', '!=', False)]
 
-        date_domain = []
-        if date_from:
-            date_domain.append(('date_order', '>=', date_from + ' 00:00:00'))
-        if date_to:
-            date_domain.append(('date_order', '<=', date_to + ' 23:59:59'))
+        # Cada KPI usa un campo de fecha distinto para el filtro por rango (ver Ajustes):
+        #   - Cotizaciones / Por aprobar     : date_order   (fecha del pedido)
+        #   - Aprobadas                      : date_approve (fecha de aprobación)
+        #   - A tiempo / Vencidas / Críticas : date_planned (fecha de entrega)
+        def _range(field):
+            d = []
+            if date_from:
+                d.append((field, '>=', date_from + ' 00:00:00'))
+            if date_to:
+                d.append((field, '<=', date_to + ' 23:59:59'))
+            return d
 
-        sched_domain = []
-        if date_from:
-            sched_domain.append(('scheduled_date', '>=', date_from + ' 00:00:00'))
-        if date_to:
-            sched_domain.append(('scheduled_date', '<=', date_to + ' 23:59:59'))
+        dord_dom  = _range('date_order')
+        dappr_dom = _range('date_approve')
+        dplan_dom = _range('date_planned')
 
-        rfq_dom      = [('state', 'in', ('draft', 'sent'))] + sc_domain + date_domain + wh_po
-        approve_dom  = [('state', '=', 'to approve')] + sc_domain + date_domain + wh_po
+        # Filtro de fecha de pickings (recepciones/entregas) por scheduled_date.
+        sched_domain = _range('scheduled_date')
+
         # receipt_status='full' = ya recibida completamente — no es accionable
-        approved_dom = [('state', 'in', ('purchase', 'done')), ('receipt_status', 'not in', ['full'])] + sc_domain + date_domain + wh_po
+        base_approved = [('state', 'in', ('purchase', 'done')),
+                         ('receipt_status', 'not in', ['full'])] + sc_domain + wh_po
 
-        approved = PO.search(approved_dom)
-        overdue  = approved.filtered(lambda p: p.date_planned and p.date_planned < now)
-        pending  = approved.filtered(lambda p: not p.date_planned or p.date_planned >= now)
+        rfq_dom     = [('state', 'in', ('draft', 'sent'))] + sc_domain + dord_dom + wh_po
+        approve_dom = [('state', '=', 'to approve')] + sc_domain + dord_dom + wh_po
+
+        # Aprobadas: rango por date_approve.
+        # A tiempo / Vencidas: rango por date_planned más la condición respecto de hoy.
+        # Las OC aprobadas siempre tienen fecha de entrega, por eso date_planned se
+        # filtra directamente en el dominio (las sin fecha no aplican a estos KPIs).
+        approved = PO.search(base_approved + dappr_dom)
+        pending  = PO.search(base_approved + dplan_dom + [('date_planned', '>=', now)])
+        overdue  = PO.search(base_approved + dplan_dom + [('date_planned', '<', now)])
 
         # Leer umbral crítico OC desde config
         cfg = self.env['mrp.reschedule.config'].get_config()
         po_crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
-
-        # Capturar conteos ANTES de separar servicios — los KPIs deben reflejar
-        # exactamente lo que muestra la lista al hacer click (sin exclusión de servicios).
-        kpi_total    = len(approved)
-        kpi_pending  = len(pending)
-        kpi_overdue  = len(overdue)
-        kpi_critical = len(overdue.filtered(
-            lambda p: (now - p.date_planned).days >= po_crit_days
-        ))
 
         def _po_dict(po):
             return {
@@ -302,12 +306,10 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         rfqs_list       = PO.search(rfq_dom,     order=po_order)
         to_approve_list = PO.search(approve_dom, order=po_order)
-        kpi_rfq        = len(rfqs_list)
-        kpi_to_approve = len(to_approve_list)
 
         # ── Separar servicios ────────────────────────────────────────────────
-        # Los servicios se excluyen SIEMPRE de las listas de OC (bienes).
-        # Solo se muestran en la pestaña de servicios cuando show_svc=True.
+        # Los servicios (OC con todas las líneas de tipo servicio) se excluyen SIEMPRE
+        # de las listas de bienes. Solo aparecen en la pestaña de servicios (show_svc).
         show_svc = bool(cfg and cfg.show_po_services_tab)
 
         def _is_svc(po):
@@ -315,25 +317,52 @@ class MrpPlannerDashboardPo(models.TransientModel):
             lines = po.order_line.filtered(lambda l: l.product_id)
             return bool(lines) and all(l.product_id.type == 'service' for l in lines)
 
-        rfqs_svc        = rfqs_list.filtered(_is_svc)
-        rfqs_list       = rfqs_list - rfqs_svc
-        approve_svc     = to_approve_list.filtered(_is_svc)
-        to_approve_list = to_approve_list - approve_svc
-        approved_svc    = approved.filtered(_is_svc)
-        approved        = approved - approved_svc
-        overdue         = overdue - approved_svc
-        pending         = pending - approved_svc
+        # Recordsets completos (con servicios) — usados para el KPI cuando NO se excluyen servicios
+        rfq_all      = rfqs_list
+        approve_all  = to_approve_list
+        approved_all = approved
+        pending_all  = pending
+        overdue_all  = overdue
 
-        # Recalcular KPIs sin servicios si el config lo indica
+        rfqs_svc     = rfq_all.filtered(_is_svc)
+        approve_svc  = approve_all.filtered(_is_svc)
+        approved_svc = approved_all.filtered(_is_svc)
+        pending_svc  = pending_all.filtered(_is_svc)
+        overdue_svc  = overdue_all.filtered(_is_svc)
+
+        # Listas de bienes (sin servicios) — lo que muestran las pestañas del widget
+        rfqs_list       = rfq_all - rfqs_svc
+        to_approve_list = approve_all - approve_svc
+        approved        = approved_all - approved_svc
+        pending         = pending_all - pending_svc
+        overdue         = overdue_all - overdue_svc
+
+        # Recordsets base de cada KPI: con o sin servicios según la config.
+        # El botón "Ver" navega por estos mismos IDs, garantizando que la lista
+        # coincida exactamente con el número del KPI.
         if cfg and cfg.exclude_service_pos:
-            kpi_rfq        = len(rfqs_list)
-            kpi_to_approve = len(to_approve_list)
-            kpi_total      = len(approved)
-            kpi_pending    = len(pending)
-            kpi_overdue    = len(overdue)
-            kpi_critical   = len(overdue.filtered(
-                lambda p: (now - p.date_planned).days >= po_crit_days
-            ))
+            kpi_rfq_rs     = rfqs_list
+            kpi_approve_rs = to_approve_list
+            kpi_total_rs   = approved
+            kpi_pending_rs = pending
+            kpi_overdue_rs = overdue
+        else:
+            kpi_rfq_rs     = rfq_all
+            kpi_approve_rs = approve_all
+            kpi_total_rs   = approved_all
+            kpi_pending_rs = pending_all
+            kpi_overdue_rs = overdue_all
+
+        kpi_critical_rs = kpi_overdue_rs.filtered(
+            lambda p: (now - p.date_planned).days >= po_crit_days
+        )
+
+        kpi_rfq        = len(kpi_rfq_rs)
+        kpi_to_approve = len(kpi_approve_rs)
+        kpi_total      = len(kpi_total_rs)
+        kpi_pending    = len(kpi_pending_rs)
+        kpi_overdue    = len(kpi_overdue_rs)
+        kpi_critical   = len(kpi_critical_rs)
 
         if show_svc:
             services_rs = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
@@ -476,6 +505,16 @@ class MrpPlannerDashboardPo(models.TransientModel):
                 'services_total':       len(services_rs),
                 'po_critical_days':     po_crit_days,
                 'exclude_service_pos':  bool(cfg and cfg.exclude_service_pos),
+            },
+            # IDs exactos de cada KPI para que el botón "Ver" abra justo esos registros
+            # (respeta depósito, servicios, campo de fecha y umbral crítico).
+            'kpi_ids': {
+                'rfq':              kpi_rfq_rs.ids,
+                'to_approve':       kpi_approve_rs.ids,
+                'total':            kpi_total_rs.ids,
+                'pending':          kpi_pending_rs.ids,
+                'overdue':          kpi_overdue_rs.ids,
+                'overdue_critical': kpi_critical_rs.ids,
             },
             'show_services_tab': show_svc,
             'rfqs':        [_po_dict(p) for p in rfqs_pg],

@@ -36,7 +36,7 @@
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('qty')">Unidades</button>
                     <button t-att-class="'btn ' + (state.metric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
-                            title="Mostrar PxQ: para OVs confirmadas usa el precio real de venta (subtotal de la línea); para entregas usa precio de lista × cantidad. La clasificación por participación (Pareto) usa precio de lista."
+                            title="Mostrar PxQ = precio de lista del artículo × cantidad (demandada o entregada según la fuente seleccionada)."
                             t-att-aria-pressed="state.metric === 'amount' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setMetric('amount')">PxQ</button>
@@ -67,7 +67,7 @@
                 <!-- Fuente -->
                 <div class="btn-group btn-group-sm" role="group" aria-label="Fuente de datos">
                     <button t-att-class="'btn ' + (state.docType === 'sales' ? 'btn-primary' : 'btn-outline-secondary')"
-                            title="Demandadas: unidades en órdenes de venta confirmadas del período. PxQ = precio real de venta × cantidad."
+                            title="Demandadas: unidades en órdenes de venta confirmadas del período. PxQ = precio de lista × cantidad."
                             t-att-aria-pressed="state.docType === 'sales' ? 'true' : 'false'"
                             style="font-size:10px; padding:1px 5px; white-space:nowrap;"
                             t-on-click="() => this.setDocType('sales')">Demandadas</button>

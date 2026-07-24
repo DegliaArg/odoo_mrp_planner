@@ -1107,9 +1107,9 @@ El método se configura en `mrp.reschedule.config.forecast_rotation_method`. El 
 | Concepto                   | Fórmula en español                                             | Campo Odoo                                       |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------ |
 | Promedio mensual entregado | Total de unidades entregadas en el período ÷ cantidad de meses | `Σ stock.move.line.quantity` salidas completadas |
-| Stock actual               | Suma de cantidades en ubicaciones internas                     | `Σ stock.quant.quantity`                         |
-| Rotación en meses          | stock actual ÷ promedio mensual, redondeado a 1 decimal        | Calculado                                        |
-| Rotación en días           | stock actual ÷ promedio mensual × 30, redondeado a entero      | Calculado                                        |
+| Stock promedio del período | (stock al inicio + stock al fin del rango) ÷ 2                  | Reconstruido desde `stock.move`                  |
+| Rotación en meses          | stock promedio ÷ promedio mensual, redondeado a 1 decimal      | Calculado                                        |
+| Rotación en días           | stock promedio ÷ promedio mensual × 30, redondeado a entero    | Calculado                                        |
 | Unidad de visualización    | Configurable: días o meses                                     | `mrp.reschedule.config.forecast_rotation_unit`   |
 
 **Por COGS — a costo (`forecast_rotation_method = 'cogs'`)**

@@ -59,6 +59,14 @@
         <field name="implied_ids" eval="[(4, ref('group_sales_read'))]"/>
     </record>
 
+    <!-- Programación -->
+    <record id="group_scheduling" model="res.groups">
+        <field name="name">Programación</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Habilita las funciones de programación y reprogramación: pestaña Programaciones en el panel de producción, botones de reprogramación en OFs y KPIs asociados. También permite modificar la configuración de reprogramación.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
     <!-- Administrador -->
     <record id="group_admin" model="res.groups">
         <field name="name">Administrador</field>
@@ -66,14 +74,6 @@
         <field name="comment">Acceso completo al módulo: todos los paneles, todas las configuraciones y todas las funciones de programación y reprogramación.</field>
         <field name="users" eval="[]"/>
         <field name="implied_ids" eval="[(4, ref('group_prod')), (4, ref('group_purchase_admin')), (4, ref('group_sales')), (4, ref('group_prod_read')), (4, ref('group_purchase')), (4, ref('group_sales_read')), (4, ref('group_scheduling'))]"/>
-    </record>
-
-    <!-- Programación -->
-    <record id="group_scheduling" model="res.groups">
-        <field name="name">Programación</field>
-        <field name="category_id" ref="module_category_mrp_planner"/>
-        <field name="comment">Habilita las funciones de programación y reprogramación: pestaña Programaciones en el panel de producción, botones de reprogramación en OFs y KPIs asociados. También permite modificar la configuración de reprogramación.</field>
-        <field name="users" eval="[]"/>
     </record>
 
 </odoo>

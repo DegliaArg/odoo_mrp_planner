@@ -715,7 +715,8 @@ class MrpRescheduleConfig(models.Model):
         :param vals: dict con los campos a actualizar.
         :returns: bool — resultado del super().write().
         """
-        if not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+        # Modo superusuario permitido para la carga de datos del módulo (instalación/upgrade).
+        if not self.env.su and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
             raise AccessError(_("Solo los administradores pueden modificar la configuración"))
         res = super().write(vals)
         if 'enable_scheduling' in vals:
@@ -799,7 +800,9 @@ class MrpRescheduleConfig(models.Model):
         :returns: mrp.reschedule.config — recordset con los registros creados.
         :raises UserError: si ya existe una configuración en la base de datos.
         """
-        if not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+        # Se permite en modo superusuario para que la carga de datos del módulo (instalación:
+        # el singleton se crea como SUPERUSER, que aún no pertenece a group_admin) no falle.
+        if not self.env.su and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
             raise AccessError(_("Solo los administradores pueden crear la configuración"))
         # FIX [FASE-2]: prevenir múltiples singletons — solo puede existir un registro
         if self.search_count([]) > 0:

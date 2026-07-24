@@ -874,9 +874,9 @@ Cortes del puntaje configurables en Ajustes → "Parámetros RFM" (entre parént
 
 | Concepto                | Detalle                                                                                                  |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Valor por proveedor** | Promedio de \|precio − precio anterior pagado del mismo producto al mismo proveedor\| ÷ precio anterior × 100, entre compras sucesivas del período (tendencia de precio; no usa costo estándar) |
+| **Valor por proveedor** | Promedio de \|precio − referencia\| ÷ referencia × 100. Referencia configurable en `supplier_price_var_method`: costo estándar (`standard`), lista de proveedor (`pricelist`) o precio anterior pagado (`previous`, default). Misma referencia que la columna del análisis de proveedores |
 | **Clasificación**       | Ranking por percentil de posición (ascendente): menor variación = A. Reparte por cuotas fijas de proveedores, no por participación acumulada |
-| **Campos**              | `purchase.order.line.price_unit` ordenado por `order_id.date_order` (referencia = compra previa del mismo producto) |
+| **Campos**              | `purchase.order.line.price_unit` vs. `product.product.standard_price` / `product.supplierinfo.price` / precio de la compra previa (según config) |
 
 ---
 

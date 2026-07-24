@@ -510,9 +510,10 @@ CONDICIONES:
 ---
 
 ### 2.15 Categoría de proveedor — ABC por variación de precio
-DESCRIPCION: Clasifica a los proveedores según cuánto varía el precio que cobran para un mismo producto entre compras sucesivas. Cada compra del período se compara con el precio anterior pagado del mismo producto al mismo proveedor (tendencia de precio, independiente del costo estándar, que puede ser muy volátil). La clasificación es inversa: el proveedor con menor variación (más estable) recibe la categoría A.
+DESCRIPCION: Clasifica a los proveedores según la variación promedio de precio respecto a una referencia configurable en "Referencia para variación de precio" (la misma que usa la columna del análisis de proveedores): costo estándar (`standard`), lista de proveedor (`pricelist`) o precio anterior pagado (`previous`, valor por defecto). Con "precio anterior" cada compra del período se compara con la compra previa del mismo producto al mismo proveedor (tendencia de precio, independiente del costo estándar, que puede ser muy volátil). La clasificación es inversa: el proveedor con menor variación (más estable/predecible) recibe la categoría A.
 VARIABLES:
-- v_k = abs(precio_k - precio_anterior_k) / precio_anterior_k * 100, para cada compra k del proveedor j que tiene una compra previa del mismo producto
+- ref_k = referencia de la compra k según config: costo estándar del producto, precio de lista del proveedor, o precio de la compra anterior del mismo producto
+- v_k = abs(precio_k - ref_k) / ref_k * 100, para cada compra/línea k del proveedor j con referencia válida
 - n_j = cantidad de líneas de OC del proveedor j
 - V_j = variación promedio del proveedor j
 - pos_j = percentil de posición ordenando de menor V a mayor (reparto por cuotas fijas de proveedores, NO por participación acumulada del valor)

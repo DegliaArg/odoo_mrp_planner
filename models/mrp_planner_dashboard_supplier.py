@@ -44,7 +44,8 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         * Porcentaje de entregas a tiempo (on_time_pct) y días promedio de retraso.
         * Porcentaje de recepciones completas (sin backorder).
         * Lead time promedio real (desde aprobación de OC hasta recepción).
-        * Variación de precio promedio respecto al costo estándar del producto.
+        * Variación de precio promedio respecto a la referencia configurada
+          (costo estándar, lista de proveedor o precio anterior pagado).
         * Monto pendiente de factura (si el módulo account está disponible).
 
         Los KPIs globales se calculan como promedios ponderados / agregaciones
@@ -164,49 +165,76 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         )
         all_prod_ids = list({ln['product_id'][0] for ln in po_line_data if ln['product_id']})
 
-        price_method = (cfg and cfg.supplier_price_var_method) or 'standard'
+        # Referencia de variación de precio, tomada del mismo ajuste que la clasificación ABC:
+        # 'previous' (precio anterior pagado), 'standard' (costo estándar) o 'pricelist'.
+        price_method = (cfg and cfg.supplier_price_var_method) or 'previous'
 
         std_map = {}
-        if all_prod_ids:
-            std_map = {r['id']: r['standard_price']
-                       for r in self.env['product.product'].search_read(
-                           [('id', 'in', all_prod_ids)], ['id', 'standard_price'])}
-
-        # Listas de precio del proveedor: (partner_id, product_tmpl_id) → precio mínimo
         si_tmpl_map = {}
         prod_tmpl_map = {}
-        if price_method == 'pricelist' and all_prod_ids:
-            prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
-                             for r in self.env['product.product'].sudo().search_read(
-                                 [('id', 'in', all_prod_ids)], ['id', 'product_tmpl_id'])}
-            all_tmpl_ids = list(set(prod_tmpl_map.values()))
-            partner_ids  = list(partner_data.keys())
-            for si in self.env['product.supplierinfo'].sudo().search_read(
-                [('partner_id', 'in', partner_ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
-                ['partner_id', 'product_tmpl_id', 'price'],
-            ):
-                if not si['partner_id'] or not si['product_tmpl_id']:
-                    continue
-                key = (si['partner_id'][0], si['product_tmpl_id'][0])
-                if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
-                    si_tmpl_map[key] = si['price']
-
-        for ln in po_line_data:
-            po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
-            prod_id  = ln['product_id'][0] if isinstance(ln['product_id'], (list, tuple)) else ln['product_id']
-            partner_id = po_map.get(po_id, (None,))[0]
-            if partner_id not in partner_data:
-                continue
-            pd = partner_data[partner_id]
-            pd['products'].add(prod_id)
+        if price_method in ('standard', 'pricelist') and all_prod_ids:
+            std_map = {r['id']: r['standard_price']
+                       for r in self.env['product.product'].sudo().search_read(
+                           [('id', 'in', all_prod_ids)], ['id', 'standard_price'])}
+            # Listas de precio del proveedor: (partner_id, product_tmpl_id) → precio mínimo
             if price_method == 'pricelist':
-                tmpl_id = prod_tmpl_map.get(prod_id)
-                ref = si_tmpl_map.get((partner_id, tmpl_id), 0.0) if tmpl_id else 0.0
-            else:
-                ref = std_map.get(prod_id, 0.0)
-            if ref > 0 and ln['price_unit'] > 0:
-                pd['pvar_sum']   += (ln['price_unit'] - ref) / ref * 100
-                pd['pvar_count'] += 1
+                prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                                 for r in self.env['product.product'].sudo().search_read(
+                                     [('id', 'in', all_prod_ids)], ['id', 'product_tmpl_id'])}
+                all_tmpl_ids = list(set(prod_tmpl_map.values()))
+                partner_ids  = list(partner_data.keys())
+                for si in self.env['product.supplierinfo'].sudo().search_read(
+                    [('partner_id', 'in', partner_ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
+                    ['partner_id', 'product_tmpl_id', 'price'],
+                ):
+                    if not si['partner_id'] or not si['product_tmpl_id']:
+                        continue
+                    key = (si['partner_id'][0], si['product_tmpl_id'][0])
+                    if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
+                        si_tmpl_map[key] = si['price']
+
+        if price_method == 'previous':
+            # Variación vs. el precio anterior pagado del mismo producto al mismo proveedor,
+            # entre compras sucesivas dentro del rango del análisis (signo = tendencia).
+            po_date = {po.id: po.date_order for po in pos}
+            hist = {}
+            for ln in po_line_data:
+                po_id      = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
+                prod_id    = ln['product_id'][0] if isinstance(ln['product_id'], (list, tuple)) else ln['product_id']
+                partner_id = po_map.get(po_id, (None,))[0]
+                if partner_id not in partner_data:
+                    continue
+                partner_data[partner_id]['products'].add(prod_id)
+                do = po_date.get(po_id)
+                if not do or not ln['price_unit'] or ln['price_unit'] <= 0:
+                    continue
+                hist.setdefault((partner_id, prod_id), []).append((do, ln['price_unit']))
+            for (partner_id, _prod), seq in hist.items():
+                seq.sort(key=lambda x: x[0])
+                pd = partner_data[partner_id]
+                for i in range(1, len(seq)):
+                    prev_price = seq[i - 1][1]
+                    if prev_price <= 0:
+                        continue
+                    pd['pvar_sum']   += (seq[i][1] - prev_price) / prev_price * 100
+                    pd['pvar_count'] += 1
+        else:
+            for ln in po_line_data:
+                po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
+                prod_id  = ln['product_id'][0] if isinstance(ln['product_id'], (list, tuple)) else ln['product_id']
+                partner_id = po_map.get(po_id, (None,))[0]
+                if partner_id not in partner_data:
+                    continue
+                pd = partner_data[partner_id]
+                pd['products'].add(prod_id)
+                if price_method == 'pricelist':
+                    tmpl_id = prod_tmpl_map.get(prod_id)
+                    ref = si_tmpl_map.get((partner_id, tmpl_id), 0.0) if tmpl_id else 0.0
+                else:
+                    ref = std_map.get(prod_id, 0.0)
+                if ref > 0 and ln['price_unit'] > 0:
+                    pd['pvar_sum']   += (ln['price_unit'] - ref) / ref * 100
+                    pd['pvar_count'] += 1
 
         # Solo recepciones completadas de tipo entrante para calcular cumplimiento
         pickings = self.env['stock.picking'].search([
@@ -345,7 +373,7 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
             'sup_price_var_green':  cfg.sup_price_var_green_pct  if cfg else 3.0,
             'sup_price_var_yellow': cfg.sup_price_var_yellow_pct if cfg else 10.0,
             'date_field':       cfg.supplier_analysis_date_field  if cfg else 'date_order',
-            'price_var_method': cfg.supplier_price_var_method      if cfg else 'standard',
+            'price_var_method': cfg.supplier_price_var_method      if cfg else 'previous',
         }
 
         return {

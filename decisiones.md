@@ -177,10 +177,16 @@ recomendación. Al final hay un registro de lo que **ya se corrigió**.
 **Todas las decisiones fueron tomadas e implementadas** (A1–A7, B1, B2, B4, B5, B6).
 Los ítems B3 quedaron "como están" por decisión del usuario (documentados).
 
-- **A3** — Variación de precio ahora se mide contra el **precio anterior pagado** del mismo
-  producto al mismo proveedor (tendencia de precio), en vez del costo estándar actual. Ya no
-  usa `supplier_price_var_method` en la categorización. *(`mrp_partner_category.py`,
-  método `abc_price_var`; config, vista y docs actualizados.)*
+- **A3** — La referencia de variación de precio es ahora **configurable con 3 opciones**
+  (`supplier_price_var_method`): costo estándar, lista de proveedor o **precio anterior
+  pagado** (default). Ese único ajuste controla **tanto la clasificación ABC como la columna
+  del panel de análisis**, así siempre coinciden. Con "precio anterior" cada compra se compara
+  con la compra previa del mismo producto al mismo proveedor (tendencia de precio, independiente
+  del costo estándar volátil). *(`mrp_partner_category.py`, `mrp_planner_dashboard_supplier.py`,
+  `mrp_reschedule_config.py`, `supplier_analysis_widget.js`, config/vista/docs actualizados.)*
+  Nota: en instalaciones existentes el ajuste conserva su valor guardado; para obtener el
+  comportamiento por defecto (precio anterior) hay que setearlo en Ajustes → "Referencia para
+  variación de precio".
 - **B6** — El fallback del comparativo cuando una OF no tiene fecha de inicio válida ahora usa
   la **fecha de cierre** (cantidad completa solo si el cierre cae en el período), igual que el
   forecast. *(`mrp_planner_dashboard_mo.py`.)*

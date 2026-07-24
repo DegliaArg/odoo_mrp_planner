@@ -371,40 +371,87 @@ class MrpPartnerCategory(models.Model):
             updated = len(suppliers)
 
         elif config.supplier_cat_method == 'abc_price_var':
-            # Variación vs. el precio ANTERIOR pagado del mismo producto al mismo proveedor
-            # (tendencia de precio, independiente del costo estándar, que puede ser muy volátil).
-            # Se lee el historial de compras hasta el fin del período para tener una referencia
-            # previa incluso para la primera compra dentro del período; solo se puntúan las
-            # compras cuya fecha cae dentro del período.
-            start_dt = fields.Datetime.to_datetime(str(start))
-            po_lines = self.env['purchase.order.line'].sudo().search([
-                ('order_id.state', 'in', ('purchase', 'done')),
-                ('order_id.date_order', '<=', end_str),
-                ('order_id.partner_id', 'in', suppliers.ids),
-                ('product_id', '!=', False),
-                ('company_id', '=', self.env.company.id),
-            ])
-            # Historial (fecha, precio) por (proveedor, producto)
-            hist = {}
-            for ln in po_lines:
-                do = ln.order_id.date_order
-                if not do or not ln.price_unit or ln.price_unit <= 0:
-                    continue
-                hist.setdefault((ln.order_id.partner_id.id, ln.product_id.id), []).append((do, ln.price_unit))
+            # La referencia de precio se toma del mismo ajuste que el análisis de proveedores:
+            # 'previous' (precio anterior pagado), 'standard' (costo estándar) o 'pricelist'
+            # (lista del proveedor). Menor variación promedio = mejor categoría.
+            price_method = config.supplier_price_var_method or 'previous'
             pvar_data = {}
-            for (pid, _prod), seq in hist.items():
-                seq.sort(key=lambda x: x[0])
-                for i in range(1, len(seq)):
-                    date_i, price_i = seq[i]
-                    if date_i < start_dt:
-                        continue  # la referencia puede ser anterior al período; solo se puntúan las compras del período
-                    prev_price = seq[i - 1][1]
-                    if prev_price <= 0:
+            if price_method == 'previous':
+                # Variación vs. el precio ANTERIOR pagado del mismo producto al mismo proveedor
+                # (tendencia de precio, independiente del costo estándar). Se lee el historial
+                # hasta el fin del período para tener referencia previa incluso en la primera
+                # compra del rango; solo se puntúan las compras cuya fecha cae en el período.
+                start_dt = fields.Datetime.to_datetime(str(start))
+                po_lines = self.env['purchase.order.line'].sudo().search([
+                    ('order_id.state', 'in', ('purchase', 'done')),
+                    ('order_id.date_order', '<=', end_str),
+                    ('order_id.partner_id', 'in', suppliers.ids),
+                    ('product_id', '!=', False),
+                    ('company_id', '=', self.env.company.id),
+                ])
+                hist = {}
+                for ln in po_lines:
+                    do = ln.order_id.date_order
+                    if not do or not ln.price_unit or ln.price_unit <= 0:
                         continue
-                    var = abs((price_i - prev_price) / prev_price * 100)
-                    d = pvar_data.setdefault(pid, {'sum': 0.0, 'count': 0})
-                    d['sum'] += var
-                    d['count'] += 1
+                    hist.setdefault((ln.order_id.partner_id.id, ln.product_id.id), []).append((do, ln.price_unit))
+                for (pid, _prod), seq in hist.items():
+                    seq.sort(key=lambda x: x[0])
+                    for i in range(1, len(seq)):
+                        date_i, price_i = seq[i]
+                        if date_i < start_dt:
+                            continue  # la referencia puede ser anterior al período; solo se puntúan las del período
+                        prev_price = seq[i - 1][1]
+                        if prev_price <= 0:
+                            continue
+                        var = abs((price_i - prev_price) / prev_price * 100)
+                        d = pvar_data.setdefault(pid, {'sum': 0.0, 'count': 0})
+                        d['sum'] += var
+                        d['count'] += 1
+            else:
+                # Variación vs. costo estándar del producto ('standard') o precio de lista del
+                # proveedor ('pricelist').
+                po_lines = self.env['purchase.order.line'].sudo().search([
+                    ('order_id.state', 'in', ('purchase', 'done')),
+                    ('order_id.date_order', '>=', str(start)),
+                    ('order_id.date_order', '<=', end_str),
+                    ('order_id.partner_id', 'in', suppliers.ids),
+                    ('product_id', '!=', False),
+                    ('company_id', '=', self.env.company.id),
+                ])
+                prod_ids = list({ln.product_id.id for ln in po_lines})
+                std_map = {r['id']: r['standard_price']
+                           for r in self.env['product.product'].sudo().search_read(
+                               [('id', 'in', prod_ids)], ['id', 'standard_price'])} if prod_ids else {}
+                si_tmpl_map   = {}
+                prod_tmpl_map = {}
+                if price_method == 'pricelist' and prod_ids:
+                    prod_tmpl_map = {r['id']: r['product_tmpl_id'][0]
+                                     for r in self.env['product.product'].sudo().search_read(
+                                         [('id', 'in', prod_ids)], ['id', 'product_tmpl_id'])}
+                    all_tmpl_ids = list(set(prod_tmpl_map.values()))
+                    for si in self.env['product.supplierinfo'].sudo().search_read(
+                        [('partner_id', 'in', suppliers.ids), ('product_tmpl_id', 'in', all_tmpl_ids)],
+                        ['partner_id', 'product_tmpl_id', 'price'],
+                    ):
+                        if not si['partner_id'] or not si['product_tmpl_id']:
+                            continue
+                        key = (si['partner_id'][0], si['product_tmpl_id'][0])
+                        if key not in si_tmpl_map or si['price'] < si_tmpl_map[key]:
+                            si_tmpl_map[key] = si['price']
+                for ln in po_lines:
+                    pid     = ln.order_id.partner_id.id
+                    prod_id = ln.product_id.id
+                    if price_method == 'pricelist':
+                        tmpl_id = prod_tmpl_map.get(prod_id)
+                        ref = si_tmpl_map.get((pid, tmpl_id), 0.0) if tmpl_id else 0.0
+                    else:
+                        ref = std_map.get(prod_id, 0.0)
+                    if ref > 0 and ln.price_unit > 0:
+                        var = abs((ln.price_unit - ref) / ref * 100)
+                        d = pvar_data.setdefault(pid, {'sum': 0.0, 'count': 0})
+                        d['sum'] += var
+                        d['count'] += 1
             avg_var_by_id = {
                 pid: d['sum'] / d['count'] if d['count'] > 0 else None
                 for pid, d in pvar_data.items()

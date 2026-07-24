@@ -401,11 +401,16 @@ class MrpRescheduleConfig(models.Model):
     supplier_price_var_method = fields.Selection([
         ('standard',   'Costo estándar del producto'),
         ('pricelist',  'Lista de precio del proveedor'),
-    ], string='Referencia para variación de precio', default='standard',
-       help='Precio de referencia para calcular la variación en el análisis de proveedores.\n'
+        ('previous',   'Precio anterior pagado'),
+    ], string='Referencia para variación de precio', default='previous',
+       help='Precio de referencia para calcular la variación de precio, tanto en el análisis de '
+            'proveedores (columna) como en la clasificación ABC por variación de precio.\n'
             'Costo estándar: compara precio OC vs. standard_price del producto.\n'
             'Lista de precio del proveedor: compara precio OC vs. precio en product.supplierinfo. '
-            'Si el proveedor no tiene precio configurado para ese producto, queda sin variación.')
+            'Si el proveedor no tiene precio configurado para ese producto, queda sin variación.\n'
+            'Precio anterior pagado: compara cada compra con el precio de la compra anterior del '
+            'mismo producto al mismo proveedor (tendencia de precio; no depende del costo estándar, '
+            'que puede ser muy volátil).')
 
     # ── Auto-actualización categoría de venta ─────────────────────────────────
     sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False,
@@ -444,9 +449,9 @@ class MrpRescheduleConfig(models.Model):
             'suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.\n'
             'ABC por % de entrega a tiempo: Pareto por % de recepciones completadas '
             'antes o en la fecha planificada. Mayor % = mejor categoría.\n'
-            'ABC por variación de precio: Ranking por percentil por |variación de precio vs. el precio anterior '
-            'pagado del mismo producto al mismo proveedor| (tendencia de precio, no usa costo estándar). '
-            'Menor variación = mejor categoría.\n'
+            'ABC por variación de precio: Ranking por percentil por |variación de precio vs. la referencia '
+            'configurada| (costo estándar, lista de proveedor o precio anterior pagado, según "Referencia '
+            'para variación de precio"). Menor variación = mejor categoría.\n'
             'ABC por calidad — diferencia de cantidad: Pareto por % de movimientos de recepción '
             'donde la cantidad recibida coincide exactamente con la pedida.\n'
             'ABC por calidad — devoluciones: Ranking por percentil por cantidad de devoluciones al proveedor. '

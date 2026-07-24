@@ -247,7 +247,7 @@
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_price_var'">
-                                                        <b>Ranking por percentil por variación de precio:</b> promedio de |precio − precio anterior pagado del mismo producto al mismo proveedor| / precio anterior × 100, entre compras sucesivas del período. No usa el costo estándar (evita la distorsión cuando el costo de referencia es muy volátil). Menor variación = mejor categoría (A). Reparte por percentil de posición (cuotas fijas), no por participación acumulada.
+                                                        <b>Ranking por percentil por variación de precio:</b> promedio de |precio − precio de referencia| / referencia × 100 por proveedor. La referencia se elige en "Referencia para variación de precio" (costo estándar, lista de proveedor o precio anterior pagado) y es la misma que usa la columna del análisis de proveedores. Menor variación = mejor categoría (A). Reparte por percentil de posición (cuotas fijas), no por participación acumulada.
                                                     </div>
                                                     <div class="text-muted small border-start border-2 ps-2 mt-2"
                                                          invisible="supplier_cat_method != 'abc_quality_qty'">

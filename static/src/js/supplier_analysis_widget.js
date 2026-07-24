@@ -32,7 +32,7 @@ const SUP_COLS = [
     { key: 'avg_delay_days',   label: 'Retraso (d)',   width: 80,  sortKey: 'avg_delay_days',    align: 'center', title: 'Promedio de días de retraso en recepciones tardías.' },
     { key: 'complete_pct',     label: '% Completas',   width: 85,  sortKey: 'complete_pct',      align: 'center', title: '% recepciones completadas sin backorder.' },
     { key: 'avg_lead_time',    label: 'Lead time (d)', width: 80,  sortKey: 'avg_lead_time',     align: 'center', title: 'Lead time real promedio: días entre aprobación y recepción.' },
-    { key: 'avg_price_var_pct',label: 'Var. precio',   width: 80,  sortKey: 'avg_price_var_pct', align: 'center', title: 'Variación promedio de precio OC vs el precio de referencia configurado (costo estándar o lista de proveedor).' },
+    { key: 'avg_price_var_pct',label: 'Var. precio',   width: 80,  sortKey: 'avg_price_var_pct', align: 'center', title: 'Variación promedio de precio OC vs el precio de referencia configurado (costo estándar, lista de proveedor o precio anterior pagado).' },
     { key: 'pending_inv',      label: 'Fact. pend.',   width: 100, sortKey: 'pending_inv',       align: 'end', title: 'Facturas de proveedor pendientes de pago.' },
 ];
 
@@ -707,7 +707,8 @@ class SupplierAnalysisWidget extends Component {
             case 'lead_time':
                 return `Días promedio entre aprobación de OC y validación de recepción, promediado entre proveedores\n→ ${k.avg_lead_time_days !== null ? k.avg_lead_time_days + ' días' : '—'} promedio general`;
             case 'price_var': {
-                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor' : 'costo estándar';
+                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor'
+                          : (cfg.price_var_method === 'previous' ? 'precio anterior pagado' : 'costo estándar');
                 return `Variación porcentual promedio entre precio de OC y ${ref}\n(Precio OC − Referencia) ÷ Referencia × 100\n→ ${k.avg_price_var_pct !== null ? this.fmtPct(k.avg_price_var_pct) : '—'} promedio general\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
             }
         }
@@ -730,7 +731,8 @@ class SupplierAnalysisWidget extends Component {
                 return `Recepciones recibidas completamente sin backorder respecto al total\nRecepciones completas ÷ Total recepciones × 100\n→ ${row.complete_pct}% de ${row.pick_count} recepciones\nVerde ≥ ${cfg.sup_complete_green ?? 95}% | Amarillo ≥ ${cfg.sup_complete_yellow ?? 80}% | Rojo < ${cfg.sup_complete_yellow ?? 80}%`;
             case 'avg_price_var_pct': {
                 if (row.avg_price_var_pct === null || row.avg_price_var_pct === undefined) return 'Sin datos de precio';
-                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor' : 'costo estándar';
+                const ref = cfg.price_var_method === 'pricelist' ? 'lista de proveedor'
+                          : (cfg.price_var_method === 'previous' ? 'precio anterior pagado' : 'costo estándar');
                 return `Diferencia promedio entre precio de OC y ${ref}\n(Precio OC − Referencia) ÷ Referencia × 100\n→ ${row.avg_price_var_pct > 0 ? '+' : ''}${row.avg_price_var_pct}%\nVerde ≤ ${cfg.sup_price_var_green ?? 3}% | Amarillo ≤ ${cfg.sup_price_var_yellow ?? 10}% | Rojo > ${cfg.sup_price_var_yellow ?? 10}%`;
             }
         }

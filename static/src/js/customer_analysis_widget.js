@@ -319,6 +319,9 @@ class CustomerAnalysisWidget extends Component {
         this.state.totalFiltered = rows.length;
         this._filteredRows = rows;
 
+        // Los KPIs siguen el conjunto filtrado/buscado (mismas fórmulas que el backend).
+        this.state.kpis = { ...this.state.kpis, ...this._computeKpis(rows) };
+
         // Agrupamiento (sólo afecta la vista, no el orden interno del grupo)
         if (this.state.groupBy) {
             this._groupedRows = this._buildGroups(rows);
@@ -328,6 +331,36 @@ class CustomerAnalysisWidget extends Component {
             const offset      = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
             this.state.rows   = rows.slice(offset, offset + this.state.pageSize);
         }
+    }
+
+    /**
+     * Recalcula los KPIs de la parte superior sobre el conjunto de filas dado
+     * (filtrado/buscado), replicando las fórmulas del backend para que las cards
+     * reflejen exactamente lo que se ve en la tabla.
+     * @param {Array} rows - filas filtradas
+     * @returns {Object} dict de KPIs
+     */
+    _computeKpis(rows) {
+        const totalOrders = rows.reduce((s, r) => s + (r.order_count || 0), 0);
+        const totalAmount = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
+        const avg = (key) => {
+            const vals = rows.map(r => r[key]).filter(v => v !== null && v !== undefined);
+            return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
+        };
+        const nOf = (key) => rows.filter(r => r[key] !== null && r[key] !== undefined).length;
+        return {
+            total_customers:  rows.length,
+            total_orders:     totalOrders,
+            total_amount:     Math.round(totalAmount * 100) / 100,
+            avg_ticket:       totalOrders ? Math.round(totalAmount / totalOrders * 100) / 100 : 0,
+            avg_delivery_pct: avg('delivery_pct'),
+            avg_physical_pct: avg('physical_pct'),
+            avg_ontime_pct:   avg('ontime_pct'),
+            avg_days_between: avg('avg_days_between'),
+            delivery_n:       nOf('delivery_pct'),
+            physical_n:       nOf('physical_pct'),
+            ontime_n:         nOf('ontime_pct'),
+        };
     }
 
     _buildGroups(rows) {

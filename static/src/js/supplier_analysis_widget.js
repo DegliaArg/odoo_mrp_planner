@@ -640,6 +640,19 @@ class SupplierAnalysisWidget extends Component {
         });
     }
 
+    /** KPI "Proveedores": abre la lista de los proveedores del análisis (no las OCs). */
+    openSupplierList() {
+        const ids = (this.state.data && this.state.data.rows || []).map(r => r.partner_id);
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Proveedores',
+            res_model: 'res.partner',
+            views:     [[false, 'list'], [false, 'form']],
+            target:    'current',
+            domain:    [['id', 'in', ids]],
+        });
+    }
+
     /**
      * Navega al formulario del proveedor en res.partner.
      * Detiene la propagación del evento para no disparar el toggleAccordion

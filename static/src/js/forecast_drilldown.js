@@ -18,8 +18,16 @@ function periodDateRange(widget) {
     };
 }
 
+// Todos los productos con línea de forecast (para los drills "sin forecast",
+// que necesitan el universo completo para el 'not in').
 function forecastProductIds(widget) {
     return (widget.state.data && widget.state.data.rows || []).map(r => r.product_id);
+}
+
+// Productos actualmente VISIBLES en la tabla (tras búsqueda, filtro y agrupamiento).
+// Los drills de los KPIs usan este conjunto para reflejar lo que el usuario ve.
+function visibleProductIds(widget) {
+    return (widget.filteredRowsAll || []).map(r => r.product_id);
 }
 
 export function openDrillForecast(widget) {
@@ -32,6 +40,7 @@ export function openDrillForecast(widget) {
         domain:    [
             ['period', '>=', widget.state.periodFrom.substring(0, 7) + '-01'],
             ['period', '<=', widget.state.periodTo.substring(0, 7)   + '-01'],
+            ['product_id', 'in', visibleProductIds(widget)],
         ],
         target: 'current',
     });
@@ -39,7 +48,7 @@ export function openDrillForecast(widget) {
 
 export function openDrillMos(widget) {
     const { dateFrom, dateTo } = periodDateRange(widget);
-    const pids     = forecastProductIds(widget);
+    const pids     = visibleProductIds(widget);
     const moStates = (widget.state.data && widget.state.data.mo_states) || ['confirmed', 'progress', 'to_close'];
     widget.action.doAction({
         type:      'ir.actions.act_window',
@@ -60,7 +69,7 @@ export function openDrillMos(widget) {
 
 export function openDrillSoDemand(widget) {
     const { dateFrom, dateTo } = periodDateRange(widget);
-    const pids = forecastProductIds(widget);
+    const pids = visibleProductIds(widget);
     widget.action.doAction({
         type:      'ir.actions.act_window',
         name:      'Demanda real (órdenes de venta)',
@@ -79,7 +88,7 @@ export function openDrillSoDemand(widget) {
 
 export function openDrillDelivered(widget) {
     const { dateFrom, dateTo } = periodDateRange(widget);
-    const pids = forecastProductIds(widget);
+    const pids = visibleProductIds(widget);
     widget.action.doAction({
         type:      'ir.actions.act_window',
         name:      'Entregas Físicas (movimientos de salida)',
@@ -99,7 +108,7 @@ export function openDrillDelivered(widget) {
 
 export function openDrillDemandDelivered(widget) {
     const { dateFrom, dateTo } = periodDateRange(widget);
-    const pids = forecastProductIds(widget);
+    const pids = visibleProductIds(widget);
     widget.action.doAction({
         type:      'ir.actions.act_window',
         name:      'Cumplimiento de demanda (entregas de pedidos del período)',

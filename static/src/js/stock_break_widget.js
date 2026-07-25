@@ -2,7 +2,7 @@
 
 /**
  * @description Widget de roturas de stock por ubicación/almacén.
- *   Filtra por tipo (all/broken/ok/no_min), búsqueda por nombre con debounce 300ms,
+ *   Filtra por tipo (all/broken/ok/no_min) y búsqueda por nombre, todo client-side,
  *   y por una o varias ubicaciones internas.
  * @fires RPC mrp.planner.dashboard.get_internal_locations — ubicaciones internas disponibles
  * @fires RPC mrp.planner.dashboard.get_stock_break_data — productos con rotura/sin mínimo
@@ -136,7 +136,9 @@ class StockBreakWidget extends Component {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_stock_break_data",
-                [this.state.search, this.state.locationIds.length ? this.state.locationIds : null],
+                // La búsqueda por texto es client-side (como clientes/ventas): se carga
+                // el dataset completo una sola vez y se filtra en JS sin recargar.
+                [null, this.state.locationIds.length ? this.state.locationIds : null],
             );
             if (seq !== this._loadSeq) return;
             if (d.error === "no_location") {
@@ -177,6 +179,10 @@ class StockBreakWidget extends Component {
      */
     _filteredSortedRows() {
         let rows = [...this.state.allProducts];
+
+        // Filtro por texto (client-side): el name incluye la referencia interna [REF].
+        const q = (this.state.search || '').trim().toLowerCase();
+        if (q) rows = rows.filter(r => (r.name || '').toLowerCase().includes(q));
 
         // Filtro de tipo
         const f = this.state.filterType;
@@ -387,18 +393,11 @@ class StockBreakWidget extends Component {
 
     /**
      * Maneja el evento `input` del campo de búsqueda nativo.
-     * Actualiza `state.search` de forma inmediata para reflejar el texto en la UI
-     * y aplana la recarga mediante debounce de 300 ms.
+     * Filtra el dataset ya cargado en el cliente (sin RPC), como clientes/ventas.
      * @param {InputEvent} ev - Evento de entrada del campo de búsqueda
      */
     onSearchInput(ev) {
-        const val = ev.target.value;
-        this.state.search = val;
-        clearTimeout(this._searchTimer);
-        this._searchTimer = setTimeout(() => {
-            this.state.page = 1;
-            this._load();
-        }, 300);
+        this.setSearch(ev.target.value);
     }
 
     /**
@@ -407,12 +406,10 @@ class StockBreakWidget extends Component {
      * @param {string} text - Texto de búsqueda a aplicar
      */
     setSearch(text) {
+        // Filtro client-side sobre el dataset ya cargado: sin RPC ni recarga.
         this.state.search = text;
-        clearTimeout(this._searchTimer);
-        this._searchTimer = setTimeout(() => {
-            this.state.page = 1;
-            this._load();
-        }, 300);
+        this.state.page = 1;
+        this._applyClientSort();
     }
 
     /**
@@ -452,6 +449,31 @@ class StockBreakWidget extends Component {
         this.state.filterType = f;
         this.state.page = 1;
         this._applyClientSort();
+    }
+
+    /**
+     * Botón "Ver" de un KPI: abre la lista de productos (product.product) del
+     * estado correspondiente al KPI presionado, con los IDs ya calculados en el
+     * widget. A diferencia de setFilter (que filtra la tabla en el lugar), esto
+     * navega a una lista real de Odoo.
+     * @param {string} kind - 'all' | 'broken' | 'ok' | 'no_min'
+     */
+    openKpiProducts(kind) {
+        const all = this.state.allProducts || [];
+        let rows = all;
+        let name = 'Productos';
+        if      (kind === 'broken') { rows = all.filter(r => r.is_broken);              name = 'Productos en quiebre'; }
+        else if (kind === 'ok')     { rows = all.filter(r => r.has_min && !r.is_broken); name = 'Productos con stock OK'; }
+        else if (kind === 'no_min') { rows = all.filter(r => !r.has_min);               name = 'Productos sin mínimo'; }
+        const ids = rows.map(r => r.id);
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name,
+            res_model: 'product.product',
+            views:     [[false, 'list'], [false, 'form']],
+            target:    'current',
+            domain:    [['id', 'in', ids]],
+        });
     }
 
     /**

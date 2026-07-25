@@ -580,8 +580,8 @@
                                                    string="A ≤ % acumulado"
                                                    help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>
                                             <field name="customer_analysis_abc_b_pct"
-                                                   string="B ≤ % acumulado (C = resto)"
-                                                   help="Los clientes que acumulan hasta este % del monto total se clasifican como B. El resto queda en C. Ambos porcentajes son acumulados desde el inicio, incluyendo el segmento A."/>
+                                                   string="B — % acumulado adicional (C = resto)"
+                                                   help="Tras el segmento A, los clientes que acumulan el siguiente X% del monto total se clasifican como B: el corte del segmento B es A% + B% acumulado (def. 20% + 50% = 70%). El resto queda en C."/>
                                         </group>
 
                                         <group string="Umbrales semáforo — % Entrega">

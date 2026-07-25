@@ -252,16 +252,19 @@ class MrpForecastCalcMixin(models.TransientModel):
 
             tot_pct = round(tot_mos / tot_fc * 100, 1) if tot_fc > 0 else 0.0
             tot_svc = round(tot_del / tot_so * 100, 1) if tot_so > 0 else None
+            # El "real" de los totales de precisión respeta la fuente configurada
+            # (demanda OV o entregas), igual que las celdas y el KPI global.
+            tot_actual = tot_del if precision_source == 'delivery' else tot_so
             if acc_formula == 'mape':
                 tot_acc = round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None
             elif acc_formula == 'wape':
-                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None
+                tot_acc = round(max(0.0, 100.0 - _wape_abs_err / tot_actual * 100), 1) if tot_actual > 0 else None
             elif acc_formula == 'wmape':
                 tot_acc = round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None
             elif acc_formula == 'bias':
-                tot_acc = round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
+                tot_acc = round((tot_actual - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None
             else:
-                tot_acc = round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None
+                tot_acc = round(tot_actual / tot_fc * 100, 1) if tot_fc > 0 else None
 
             rot_months = None
             rot_days   = None
@@ -313,11 +316,11 @@ class MrpForecastCalcMixin(models.TransientModel):
                 'total_forecast_acc': tot_acc,
                 'demand_gap_pct': round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
                 'acc_all': {
-                    'simple': round(tot_so / tot_fc * 100, 1) if tot_fc > 0 else None,
+                    'simple': round(tot_actual / tot_fc * 100, 1) if tot_fc > 0 else None,
                     'mape':   round(_mape_acc_sum / _mape_acc_count, 1) if _mape_acc_count > 0 else None,
-                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_so * 100), 1) if tot_so > 0 else None,
+                    'wape':   round(max(0.0, 100.0 - _wape_abs_err / tot_actual * 100), 1) if tot_actual > 0 else None,
                     'wmape':  round(max(0.0, 100.0 - _wmape_abs_err / tot_fc * 100), 1) if tot_fc > 0 else None,
-                    'bias':   round((tot_so - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
+                    'bias':   round((tot_actual - tot_fc) / tot_fc * 100, 1) if tot_fc > 0 else None,
                 },
                 'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
                 'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),

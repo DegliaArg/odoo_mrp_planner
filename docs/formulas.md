@@ -491,10 +491,10 @@ CONDICIONES (los cortes son configurables en Ajustes → "Parámetros RFM"; entr
 ---
 
 ### 2.14 Categoría de proveedor — ABC por entrega a tiempo
-DESCRIPCION: Clasifica a los proveedores según el porcentaje de recepciones que llegaron en la fecha y hora programadas. La comparación es exacta a nivel de fecha y hora. Los que tienen mayor puntualidad reciben la categoría más alta.
+DESCRIPCION: Clasifica a los proveedores según el porcentaje de recepciones que llegaron en la fecha y hora programadas. La comparación es exacta a nivel de fecha y hora. Las recepciones sin fecha programada o sin fecha de cierre no se pueden evaluar: se excluyen del denominador (mismo criterio que el % a tiempo del análisis de proveedores). Los que tienen mayor puntualidad reciben la categoría más alta.
 VARIABLES:
 - ot_j = recepciones del proveedor j donde fecha_cierre <= fecha_programada (exacto, fecha y hora)
-- n_j = total de recepciones del proveedor j en el período
+- n_j = recepciones evaluables del proveedor j en el período (con fecha programada y de cierre)
 - OT_j = porcentaje a tiempo del proveedor j
 - P_cum_j = participación acumulada ordenando de mayor OT a menor
 FORMULA: OT_j = ot_j / n_j * 100 ; P_cum_j = sum(P_k para todo k con OT_k >= OT_j)
@@ -566,9 +566,9 @@ CONDICIONES (los umbrales se interpretan como percentiles de posición):
 ---
 
 ### 2.18 Categoría de proveedor — ABC por calidad combinada
-DESCRIPCION: Clasifica a los proveedores promediando dos métricas de calidad: el porcentaje de entregas a tiempo y el porcentaje de movimientos con cantidad exacta. El resultado es el índice de calidad compuesto sobre el que se aplica Pareto descendente.
+DESCRIPCION: Clasifica a los proveedores promediando dos métricas de calidad: el porcentaje de entregas a tiempo y el porcentaje de movimientos con cantidad exacta. Para el % a tiempo, las recepciones sin fecha programada o sin fecha de cierre se excluyen del denominador. El resultado es el índice de calidad compuesto sobre el que se aplica Pareto descendente.
 VARIABLES:
-- OT_j = porcentaje de recepciones a tiempo del proveedor j
+- OT_j = porcentaje de recepciones a tiempo del proveedor j (sobre recepciones evaluables, con fecha)
 - EX_j = porcentaje de movimientos con cantidad exacta del proveedor j
 - Q_j = índice de calidad combinado del proveedor j
 - P_cum_j = participación acumulada ordenando de mayor Q a menor
@@ -1059,14 +1059,29 @@ CONDICIONES (los cortes son configurables en Ajustes → "Parámetros RFM", comp
 
 ---
 
-### 4.1 % de entrega
-DESCRIPCION: Mide qué fracción de las unidades pedidas en órdenes de venta confirmadas del período fue efectivamente entregada al cliente. Un valor del 100 % indica que todo lo solicitado fue despachado.
+### 4.1 % de cumplimiento (tasa de cumplimiento por cliente)
+DESCRIPCION: Mide qué fracción de las unidades pedidas en órdenes de venta confirmadas del período ya fue entregada al cliente, sin importar cuándo se entregó (la entrega puede ser posterior al período). Responde: "de lo que este cliente pidió en el período, ¿cuánto le entregué?". Equivale a la Tasa de cumplimiento del panel de ventas, calculada por cliente. Se aplica también por mes, por producto y por pedido en el detalle del cliente.
 VARIABLES:
 - Q_ped = suma de unidades en líneas de órdenes de venta confirmadas del período
-- Q_entr = suma de unidades en salidas de stock completadas del período para ese cliente
-- pct_entr = porcentaje de entrega
+- Q_entr = unidades entregadas (acumuladas a la fecha) de esas mismas líneas (campo qty_delivered)
+- pct_entr = porcentaje de cumplimiento
 FORMULA: pct_entr = Q_entr / Q_ped * 100
-LABEL: % de entrega (cliente)
+LABEL: % de cumplimiento (cliente)
+
+---
+
+### 4.1b % físico (tasa física por cliente)
+DESCRIPCION: Mide cuánto se le despachó al cliente DENTRO del período, en relación a lo que pidió en el período. El numerador son las salidas de stock completadas cuya fecha de efectivización cae en el período, de CUALQUIER pedido del cliente (incluso pedidos confirmados antes del período), vinculadas al cliente vía el pedido de venta del remito. Responde: "¿cuánto le despaché este período?". Equivale a la Tasa física del panel de ventas, calculada por cliente. Puede superar el 100 % cuando se despachan pedidos de períodos anteriores. El tooltip desglosa las entregas por mes de confirmación del pedido de origen. Se aplica también por mes (por fecha de despacho) y por producto en el detalle del cliente.
+VARIABLES:
+- Q_ped = suma de unidades en líneas de órdenes de venta confirmadas del período
+- Q_desp = unidades en salidas de stock completadas con fecha de efectivización dentro del período, de cualquier pedido del cliente
+- pct_fis = porcentaje físico
+FORMULA: pct_fis = Q_desp / Q_ped * 100
+LABEL: % físico (cliente)
+CONDICIONES:
+- Mismo semáforo configurable que el % de cumplimiento (verde/amarillo/rojo por umbrales de Ajustes)
+- Q_ped = 0 -> no se muestra
+- pct_fis puede ser > 100 (despachos de pedidos anteriores al período)
 
 ---
 
@@ -1148,18 +1163,19 @@ CONDICIONES:
 ---
 
 ### 4.8 ABC del período — clasificación en tiempo real
-DESCRIPCION: Clasifica a los clientes activos en el período según su participación acumulada en el importe total de ventas del mismo período. Esta clasificación se calcula al vuelo para el widget y es independiente de la categoría permanente asignada por el proceso de categorización automática.
+DESCRIPCION: Clasifica a los clientes activos en el período según su participación acumulada en el importe total de ventas del mismo período. Esta clasificación se calcula al vuelo para el widget y es independiente de la categoría permanente asignada por el proceso de categorización automática (cambia al cambiar el rango de fechas). El acumulado se evalúa ANTES de sumar la participación del propio cliente (acumulado exclusivo): el cliente de mayor facturación siempre queda en A.
 VARIABLES:
 - I_j = importe total del cliente j en el período
 - I_tot = suma de I_j de todos los clientes activos en el período
 - P_j = participación del cliente j en el importe total (%)
-- P_cum_j = participación acumulada, ordenada de mayor a menor
-FORMULA: P_j = I_j / I_tot * 100 ; P_cum_j = sum(P_k para todo k con I_k >= I_j)
+- P_prev_j = participación acumulada de los clientes que preceden a j en el orden de mayor a menor (sin incluir a j)
+FORMULA: P_j = I_j / I_tot * 100 ; P_prev_j = sum(P_k para todo k anterior a j en el ranking)
 LABEL: ABC del período (clasificación en tiempo real)
+CONFIG: Análisis de clientes — umbrales A/B del ABC del período (def: A = 20, B = 50)
 CONDICIONES:
-- P_cum_j <= umbral_A -> A
-- P_cum_j <= umbral_A + umbral_B -> B
-- P_cum_j > umbral_A + umbral_B -> C
+- P_prev_j < umbral_A -> A
+- P_prev_j < umbral_A + umbral_B -> B
+- resto (o I_j <= 0, o I_tot <= 0) -> C
 
 ---
 

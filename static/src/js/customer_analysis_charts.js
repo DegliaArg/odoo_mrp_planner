@@ -416,6 +416,20 @@ export function drawPanelCharts(widget) {
 
         const labels = allMonths.map(m => monthLabel(m.month));
 
+        // Desglose "por mes de confirmación del pedido" para el tooltip del dataset
+        // Despachado (tasa física): indica de qué mes son los pedidos entregados.
+        const physAfterLabel = ctx => {
+            if (!ctx.dataset.label || !ctx.dataset.label.startsWith('Despachado')) return '';
+            const bm = (allMonths[ctx.dataIndex] || {}).phys_by_order_month || {};
+            const keys = Object.keys(bm).sort();
+            if (!keys.length) return '';
+            return ['Por mes del pedido:'].concat(keys.map(ym => {
+                const [y, m] = ym.split('-');
+                const lbl = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'short', year: '2-digit' });
+                return `  ${lbl}: ${fmtLbl(bm[ym])}`;
+            }));
+        };
+
         if (chartMode === 'bar') {
             widget._barChart = new Chart(barEl, {
                 type: 'bar',
@@ -436,6 +450,14 @@ export function drawPanelCharts(widget) {
                             borderRadius:    3,
                             _fmt:            fmtLbl,
                         },
+                        // Tasa física: solo en modo unidades (no hay importe físico)
+                        ...(isQty ? [{
+                            label:           'Despachado (u)',
+                            data:            allMonths.map(m => m.qty_delivered_phys || 0),
+                            backgroundColor: 'rgba(253,126,20,0.70)',
+                            borderRadius:    3,
+                            _fmt:            fmtLbl,
+                        }] : []),
                     ],
                 },
                 options: {
@@ -444,7 +466,7 @@ export function drawPanelCharts(widget) {
                     plugins: {
                         legend:   { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
                         barLabel: {},
-                        tooltip:  { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}` } },
+                        tooltip:  { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`, afterLabel: physAfterLabel } },
                     },
                     scales: {
                         x: { ticks: { font: { size: 10 } } },
@@ -479,6 +501,17 @@ export function drawPanelCharts(widget) {
                             pointRadius:      3,
                             pointHoverRadius: 5,
                         },
+                        // Tasa física: solo en modo unidades (no hay importe físico)
+                        ...(isQty ? [{
+                            label:            'Despachado (u)',
+                            data:             allMonths.map(m => m.qty_delivered_phys || 0),
+                            borderColor:      'rgba(253,126,20,0.85)',
+                            backgroundColor:  'transparent',
+                            fill:             false,
+                            tension:          0.3,
+                            pointRadius:      3,
+                            pointHoverRadius: 5,
+                        }] : []),
                     ],
                 },
                 options: {
@@ -486,7 +519,7 @@ export function drawPanelCharts(widget) {
                     maintainAspectRatio: false,
                     plugins: {
                         legend:  { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
-                        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}` } },
+                        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`, afterLabel: physAfterLabel } },
                     },
                     scales: {
                         x: { ticks: { font: { size: 10 } } },

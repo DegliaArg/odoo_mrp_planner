@@ -191,6 +191,28 @@ Los ítems B3 quedaron "como están" por decisión del usuario (documentados).
   la **fecha de cierre** (cantidad completa solo si el cierre cae en el período), igual que el
   forecast. *(`mrp_planner_dashboard_mo.py`.)*
 
+Decisiones posteriores (revisión del documento Word de fórmulas):
+- **S1** — La clasificación ABC por entrega a tiempo y la combinada excluyen del denominador
+  las recepciones sin fecha (criterio unificado con el panel de análisis de proveedores).
+  *(`mrp_partner_category.py`.)*
+- **S2** — Los totales por producto de precisión de forecast (Simple, WAPE, Sesgo) respetan
+  la fuente del «real» configurada (demanda u entregas), igual que celdas y KPI global.
+  *(`mrp_forecast_calc_mixin.py`.)*
+- **4.8 (opción B)** — La columna "ABC período" del análisis de clientes ahora se calcula
+  **al vuelo** por participación en la facturación del rango visible (A ≤ a%, B ≤ a%+b%,
+  C = resto; acumulado exclusivo). Los umbrales de Ajustes ahora sí se usan; tooltip
+  explicativo. *(`mrp_planner_dashboard_customer.py`, widget/row XML, JS.)*
+- **4.1 (opción 2, simetría física/cumplimiento)** — Toda tasa de entrega por cliente muestra
+  ahora **ambas tasas**: "% Cumplim." (entregado de los pedidos del período ÷ pedido) y
+  "% Físico" (despachado dentro del período, de cualquier pedido ÷ pedido; puede superar
+  100%). Aplica en: tabla principal, KPIs superiores (Cumplim. prom. + Física prom.),
+  detalle del cliente (cards, gráfico mensual con dataset "Despachado" y desglose por mes
+  de confirmación del pedido en el tooltip, tabla por producto), export y ordenamiento.
+  Ambas comparten el semáforo configurable de entrega. *(`mrp_planner_dashboard_customer.py`,
+  `customer_analysis_widget.js/.xml`, `customer_analysis_row.xml`,
+  `customer_analysis_detail_panel.xml`, `customer_analysis_charts.js`; docs
+  `formulas.md` §4.1/§4.1b y `docs.md`.)*
+
 Detalle de lo implementado en esta ronda:
 - **A1** — Etiqueta "Pareto invertido" → "Ranking por percentil" (variación de precio y
   devoluciones), en config, vista de ajustes y docs.

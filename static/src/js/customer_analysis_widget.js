@@ -27,7 +27,8 @@ const CA_STATIC_COLS = [
     { key: 'order_count',       label: 'Pedidos',           width:  75, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
     { key: 'avg_ticket',        label: 'Ticket prom.',      width: 110, align: 'end'    },
-    { key: 'delivery_pct',      label: '% Entrega',         width:  90, align: 'end'    },
+    { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
+    { key: 'physical_pct',      label: '% Físico',          width:  90, align: 'end'    },
     { key: 'ontime_pct',        label: '% A tiempo',        width:  90, align: 'end'    },
     { key: 'avg_days_between',  label: 'Frecuencia',        width:  95, align: 'end'    },
     { key: 'days_since_last',   label: 'Días sin comprar',  width: 110, align: 'end'    },
@@ -51,6 +52,7 @@ const CA_SORT_KEYS = {
     total_amount:      'total_amount',
     avg_ticket:        'avg_ticket',
     delivery_pct:      'delivery_pct',
+    physical_pct:      'physical_pct',
     ontime_pct:        'ontime_pct',
     avg_days_between:  'avg_days_between',
     days_since_last:   'days_since_last',
@@ -129,7 +131,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, avg_ticket: 0, avg_delivery_pct: null, avg_ontime_pct: null, avg_days_between: null },
+            kpis:          { total_customers: 0, total_orders: 0, avg_ticket: 0, avg_delivery_pct: null, avg_physical_pct: null, avg_ontime_pct: null, avg_days_between: null },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -174,6 +176,7 @@ class CustomerAnalysisWidget extends Component {
                 total_amount:      true,
                 avg_ticket:        true,
                 delivery_pct:      true,
+                physical_pct:      true,
                 ontime_pct:        false,
                 avg_days_between:  false,
                 days_since_last:   false,
@@ -696,7 +699,7 @@ class CustomerAnalysisWidget extends Component {
         const cellVal = (row, key) => {
             const v = row[key];
             if (v === null || v === undefined) return '';
-            if (['delivery_pct', 'ontime_pct', 'trend_pct'].includes(key))
+            if (['delivery_pct', 'physical_pct', 'ontime_pct', 'trend_pct'].includes(key))
                 return v.toFixed(1) + '%';
             if (['avg_days_between', 'days_since_last'].includes(key) && v !== null)
                 return v + ' d';
@@ -843,7 +846,9 @@ class CustomerAnalysisWidget extends Component {
             case 'avg_ticket':
                 return `Importe promedio por pedido del período\nMonto total ÷ Total pedidos\n→ ${m(k.total_amount)} ÷ ${f(k.total_orders)} = ${m(k.avg_ticket)}`;
             case 'avg_delivery_pct':
-                return `Promedio de % Entrega entre ${f(k.delivery_n)} clientes con entregas en el período\nQty entregada ÷ Qty pedida × 100 (por cliente, luego promediado)\n→ ${p(k.avg_delivery_pct)}`;
+                return `Tasa de cumplimiento promedio entre ${f(k.delivery_n)} clientes del período\nEntregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido × 100, por cliente y luego promediado\n→ ${p(k.avg_delivery_pct)}`;
+            case 'avg_physical_pct':
+                return `Tasa física promedio entre ${f(k.physical_n)} clientes del período\nDespachado dentro del período (de cualquier pedido) ÷ pedido en el período × 100, por cliente y luego promediado\nPuede superar 100% si se despacharon pedidos de períodos anteriores\n→ ${p(k.avg_physical_pct)}`;
             case 'avg_ontime_pct':
                 return `Promedio de % A tiempo entre ${f(k.ontime_n)} clientes con pickings realizados. Criterio: fecha entrega ≤ fecha compromiso (configurable en Ajustes)\nEntregas a tiempo ÷ Total entregas × 100 (por cliente, luego promediado)\n→ ${p(k.avg_ontime_pct)}`;
             case 'avg_days_between':
@@ -866,7 +871,9 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}`;
             case 'delivery_pct':
-                return `Cantidad entregada del cliente respecto a lo pedido en el período\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+                return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+            case 'physical_pct':
+                return `Tasa física: despachado DENTRO del período (de cualquier pedido) ÷ pedido en el período\n→ ${n(row.qty_delivered_phys)} u ÷ ${n(row.qty_ordered)} u = ${row.physical_pct != null ? row.physical_pct + '%' : '—'}${this._physBreak(row.phys_by_order_month)}\nPuede superar 100% si se despacharon pedidos de períodos anteriores.`;
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_ticket':
@@ -891,21 +898,46 @@ class CustomerAnalysisWidget extends Component {
     prodCellTooltip(prod) {
         if (!prod || prod.qty_ordered == null) return '';
         const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
-        return `Cantidad entregada respecto a lo pedido para este artículo en el período\nQty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
+        return `Tasa de cumplimiento: entregado de los pedidos del período respecto a lo pedido de este artículo\nQty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
+    }
+
+    prodPhysTooltip(prod) {
+        if (!prod || prod.qty_ordered == null) return '';
+        const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
+        return `Tasa física: despachado DENTRO del período de este artículo ÷ pedido en el período\n→ ${n(prod.qty_delivered_phys)} u ÷ ${n(prod.qty_ordered)} u = ${prod.physical_pct != null ? prod.physical_pct + '%' : '—'}\nPuede superar 100% si se despacharon pedidos de períodos anteriores.`;
+    }
+
+    /**
+     * Desglose "por mes de confirmación del pedido" para los tooltips de la tasa
+     * física: indica de qué mes son los pedidos que originaron las entregas.
+     * @param {Object} byMonth - {'YYYY-MM': qty}
+     * @returns {string} Bloque de texto (vacío si no hay datos)
+     */
+    _physBreak(byMonth) {
+        const months = Object.keys(byMonth || {}).sort();
+        if (!months.length) return '';
+        const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
+        const lines = months.map(ym => {
+            const [y, m] = ym.split('-');
+            const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
+            return `  ${label}: ${n(byMonth[ym])} u`;
+        });
+        return '\nPor mes de confirmación del pedido:\n' + lines.join('\n');
     }
 
     colTitle(col) {
         const titles = {
             partner_name:      'Nombre del cliente. Clic para ordenar.',
             customer_category: 'Categoría de cliente (A–E) calculada globalmente por el módulo según el método configurado en Ajustes.',
-            abc_segment:       'Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto. Los umbrales se configuran en Ajustes.',
+            abc_segment:       'ABC del período — calculado al vuelo con las compras del rango de fechas visible.\nSe ordenan los clientes de mayor a menor facturación del período y se acumula su participación sobre el total: el primer tramo acumulado (A%, def. 20%) = A; hasta A%+B% (def. 20%+50% = 70%) = B; el resto = C. El cliente de mayor facturación siempre es A.\nEs independiente de la categoría permanente del contacto (columna "Categoría", que se calcula aparte) y cambia al cambiar el rango de fechas.\nUmbrales configurables en Ajustes → Análisis de clientes.',
             salesperson:       'Vendedor más frecuente en los pedidos del período.',
             country:           'País del cliente. Clic para ordenar.',
             province:          'Provincia del cliente. Clic para ordenar.',
             order_count:       'Cantidad de pedidos de venta confirmados en el período.',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
             avg_ticket:        'Monto total ÷ cantidad de pedidos del período.',
-            delivery_pct:      'Cantidad entregada ÷ cantidad pedida × 100, acumulado de todas las líneas del período. Semáforo configurable en Ajustes.',
+            delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
+            physical_pct:      'Tasa física: despachado DENTRO del período (salidas validadas de cualquier pedido, incluso anteriores) ÷ pedido en el período × 100. Responde "¿cuánto le despaché este período?". Puede superar 100% si se despacharon pedidos viejos. El tooltip de cada celda desglosa de qué mes son los pedidos entregados. Mismo semáforo que la tasa de cumplimiento.',
             ontime_pct:        'Porcentaje de entregas realizadas dentro del plazo acordado. El plazo se define según el método configurado en Ajustes (fecha compromiso, fecha programada o SLA en días).',
             avg_days_between:  'Promedio de días entre pedidos consecutivos del cliente en el período.',
             days_since_last:   'Días desde el último pedido hasta hoy. Se resalta en rojo si supera el umbral de riesgo configurado en Ajustes.',

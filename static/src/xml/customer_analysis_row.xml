@@ -39,7 +39,7 @@
 
             <td t-elif="col.key === 'abc_segment'"
                 class="text-center" style="padding:3px 6px;"
-                title="Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto.">
+                title="ABC del período, calculado al vuelo con las compras del rango de fechas visible (A/B/C por participación acumulada en la facturación). Independiente de la categoría permanente del contacto.">
                 <span t-if="row.abc_segment"
                       t-att-class="'badge ' + abcBadgeClass(row.abc_segment)"
                       t-esc="row.abc_segment"/>
@@ -75,6 +75,12 @@
                 style="padding:3px 8px;"
                 t-att-title="cellTooltip('delivery_pct', row)"
                 t-esc="fmtPct(row.delivery_pct)"/>
+
+            <td t-elif="col.key === 'physical_pct'"
+                t-att-class="'text-end ' + deliveryClass(row.physical_pct)"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('physical_pct', row)"
+                t-esc="fmtPct(row.physical_pct)"/>
 
             <td t-elif="col.key === 'ontime_pct'"
                 t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"
@@ -181,7 +187,7 @@
                                 {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px', tip:'Número de la orden de venta. Clic para abrir.'},
                                 {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px',          tip:'Fecha de confirmación de la orden.'},
                                 {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px',          tip:'Importe sin impuestos del pedido.'},
-                                {key:'delivery_pct', label:'% Entrega',  cls:'text-end', pad:'3px 8px',          tip:'Qty entregada ÷ Qty pedida × 100 de este pedido.'},
+                                {key:'delivery_pct', label:'% Cumplim.', cls:'text-end', pad:'3px 8px',          tip:'Cumplimiento del pedido: qty entregada (a la fecha) ÷ qty pedida × 100.'},
                                 {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px',          tip:'Estado actual de la orden de venta.'},
                             ]" t-as="col" t-key="col.key">
                                 <th t-att-class="col.cls + ' user-select-none'"

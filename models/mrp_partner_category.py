@@ -357,11 +357,16 @@ class MrpPartnerCategory(models.Model):
             ])
             pct_data = {}
             for pick in picks:
+                # Solo recepciones evaluables (con fecha programada y de cierre): las sin
+                # fecha se excluyen del denominador para no penalizar al proveedor,
+                # mismo criterio que el % a tiempo del análisis de proveedores.
+                if not (pick.scheduled_date and pick.date_done):
+                    continue
                 pid = pick.purchase_id.partner_id.id
                 if pid not in pct_data:
                     pct_data[pid] = {'total': 0, 'on_time': 0}
                 pct_data[pid]['total'] += 1
-                if pick.scheduled_date and pick.date_done and pick.date_done <= pick.scheduled_date:
+                if pick.date_done <= pick.scheduled_date:
                     pct_data[pid]['on_time'] += 1
             value_by_id = {
                 pid: (d['on_time'] / d['total'] * 100) if d['total'] > 0 else 0.0
@@ -526,11 +531,15 @@ class MrpPartnerCategory(models.Model):
             ])
             combo_data = {}
             for pick in picks:
+                # Solo recepciones evaluables (con fecha programada y de cierre): las sin
+                # fecha se excluyen del denominador del % a tiempo (criterio unificado).
+                if not (pick.scheduled_date and pick.date_done):
+                    continue
                 pid = pick.purchase_id.partner_id.id
                 if pid not in combo_data:
                     combo_data[pid] = {'total': 0, 'on_time': 0}
                 combo_data[pid]['total'] += 1
-                if pick.scheduled_date and pick.date_done and pick.date_done <= pick.scheduled_date:
+                if pick.date_done <= pick.scheduled_date:
                     combo_data[pid]['on_time'] += 1
             moves = self.env['stock.move'].sudo().search([
                 ('state', '=', 'done'),

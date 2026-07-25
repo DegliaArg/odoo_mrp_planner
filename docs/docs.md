@@ -1290,15 +1290,27 @@ El widget de análisis de clientes calcula métricas por cliente a partir de ór
 
 ---
 
-### % de entrega
+### % de cumplimiento y % físico (tasas de entrega por cliente)
 
-Mide qué porcentaje de las unidades pedidas en OVs confirmadas del período fueron efectivamente entregadas.
+Cada cliente muestra dos tasas de entrega, espejando la "Tasa de cumplimiento" y la "Tasa física" del panel de ventas. Ambas se aplican también en el detalle del cliente (por mes, por producto) y en los KPIs superiores del panel (promedios).
+
+**% de cumplimiento** — "de lo que pidió en el período, ¿cuánto ya le entregué?"
 
 | Concepto | Fórmula | Campo Odoo |
 |---|---|---|
 | Cantidad pedida | Suma de unidades en líneas de OVs confirmadas del período | `Σ sale.order.line.product_uom_qty` donde `order.state in ('sale','done')` |
-| Cantidad entregada | Suma de unidades en movimientos de salida completados del período | `Σ stock.move.line.quantity` donde `state = 'done'` y `picking_type_code = 'outgoing'` |
-| % de entrega | cantidad_entregada ÷ cantidad_pedida × 100 | Calculado |
+| Cantidad entregada | Entregado acumulado a la fecha de esas mismas líneas (cualquier fecha de entrega) | `Σ sale.order.line.qty_delivered` |
+| % de cumplimiento | cantidad_entregada ÷ cantidad_pedida × 100 | Calculado |
+
+**% físico** — "¿cuánto le despaché este período?"
+
+| Concepto | Fórmula | Campo Odoo |
+|---|---|---|
+| Cantidad pedida | Igual que arriba (pedido en el período) | `Σ sale.order.line.product_uom_qty` |
+| Cantidad despachada | Salidas completadas con fecha de efectivización dentro del período, de cualquier pedido del cliente (vinculadas vía el pedido del remito) | `Σ stock.move.line.quantity` donde `state='done'`, picking `outgoing` con `date_done` en el período |
+| % físico | cantidad_despachada ÷ cantidad_pedida × 100 | Calculado |
+
+> El % físico puede superar 100 % si se despachan pedidos de períodos anteriores. El tooltip desglosa las entregas por mes de confirmación del pedido de origen. Ambas tasas usan el mismo semáforo configurable en Ajustes.
 
 ---
 

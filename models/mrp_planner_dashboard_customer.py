@@ -75,7 +75,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         """
         empty_kpis = {
             'total_customers': 0, 'avg_ticket': 0,
-            'avg_delivery_pct': None, 'avg_ontime_pct': None, 'avg_days_between': None,
+            'avg_delivery_pct': None, 'avg_physical_pct': None,
+            'avg_ontime_pct': None, 'avg_days_between': None,
         }
         try:
             cfg = self._ca_config()
@@ -187,6 +188,50 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             )
             prev_amount = {g['partner_id'][0]: (g['amount_untaxed'] or 0.0) for g in prev_groups}
 
+            # ── 5b. Entregas físicas del período (tasa física) ────────────────
+            # Salidas completadas cuya fecha de efectivización cae DENTRO del
+            # período, de CUALQUIER pedido del cliente (incluso confirmado antes).
+            # Se vinculan al cliente vía el pedido de venta del remito, y se
+            # guarda el mes de confirmación del pedido para el desglose del tooltip.
+            phys_pick_domain = [
+                ('state', '=', 'done'),
+                ('picking_type_code', '=', 'outgoing'),
+                ('sale_id', '!=', False),
+                ('date_done', '>=', d_from_str),
+                ('date_done', '<=', d_to_str),
+            ]
+            if warehouse_ids:
+                phys_pick_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+            # sudo(): usuario no tiene acceso directo a stock.picking; solo agregado para el dashboard
+            phys_picks = self.env['stock.picking'].sudo().search_read(
+                phys_pick_domain, ['id', 'sale_id'])
+            phys_so_ids  = list({p['sale_id'][0] for p in phys_picks})
+            phys_so_info = {
+                s['id']: s
+                for s in self.env['sale.order'].sudo().browse(phys_so_ids).read(
+                    ['id', 'partner_id', 'date_order'])
+            } if phys_so_ids else {}
+            phys_qty_by_pick = {}
+            if phys_picks:
+                for g in self.env['stock.move.line'].sudo().read_group(
+                    [('picking_id', 'in', [p['id'] for p in phys_picks]), ('state', '=', 'done')],
+                    ['picking_id', 'quantity:sum'], ['picking_id'],
+                ):
+                    if g.get('picking_id'):
+                        phys_qty_by_pick[g['picking_id'][0]] = g['quantity'] or 0.0
+            phys_by_partner       = defaultdict(float)
+            phys_month_by_partner = defaultdict(lambda: defaultdict(float))
+            for p in phys_picks:
+                so = phys_so_info.get(p['sale_id'][0])
+                if not so:
+                    continue
+                _ppid = so['partner_id'][0]
+                _pqty = phys_qty_by_pick.get(p['id'], 0.0)
+                if _pqty <= 0:
+                    continue
+                phys_by_partner[_ppid] += _pqty
+                phys_month_by_partner[_ppid][str(so['date_order'])[:7]] += _pqty
+
             # ── 6. Agrupar por partner ────────────────────────────────────────
             partner_sos = defaultdict(list)
             for s in so_data:
@@ -233,6 +278,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
                 total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
                 delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
+                # Tasa física: despachado dentro del período (de cualquier pedido)
+                # ÷ pedido en el período. Puede superar 100% si se despachan pedidos viejos.
+                phys_qty      = phys_by_partner.get(pid, 0.0)
+                physical_pct  = round(phys_qty / total_ordered * 100, 1) if total_ordered > 0 else None
 
                 ot_total = ot_ok = 0
                 for s in sos:
@@ -278,6 +327,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'qty_ordered':       round(total_ordered, 1),
                     'qty_delivered':     round(total_deliv, 1),
                     'delivery_pct':      delivery_pct,
+                    'qty_delivered_phys': round(phys_qty, 1),
+                    'physical_pct':      physical_pct,
+                    'phys_by_order_month': {k: round(v, 1) for k, v in sorted(phys_month_by_partner.get(pid, {}).items())},
                     'ontime_ok':         ot_ok,
                     'ontime_total':      ot_total,
                     'ontime_pct':        ontime_pct,
@@ -289,16 +341,39 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'top_family':        max(fams,  key=fams.get)  if fams  else '',
                     'trend_pct':         round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None,
                     'prev_amount':       round(prev_amt, 2),
-                    'abc_segment':       pinfo.get('x_customer_category') or '',
+                    'abc_segment':       '',  # se calcula abajo: ABC del período (Pareto sobre el importe del rango)
                     'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
                     'partner_tag':       tag.get('name', '') or '',
                     'partner_tag_color': tag.get('color', 0),
                 })
 
+            # ── ABC del período: clasificación al vuelo sobre el importe del rango ──
+            # Independiente de la categoría permanente del contacto. Se ordena por
+            # facturación del período y se acumula la participación con acumulado
+            # EXCLUSIVO (se evalúa antes de sumar al propio cliente), de modo que el
+            # cliente de mayor facturación siempre queda en A. Cortes: A ≤ a_pct%,
+            # B ≤ (a_pct + b_pct)%, C = resto (configurables en Ajustes).
+            abc_a_cut  = (cfg.get('abc_a_pct') or 20) / 100.0
+            abc_b_cut  = abc_a_cut + (cfg.get('abc_b_pct') or 50) / 100.0
+            _abc_total = sum(r['total_amount'] for r in rows)
+            _abc_cum   = 0.0
+            for r in sorted(rows, key=lambda x: x['total_amount'], reverse=True):
+                if _abc_total <= 0 or r['total_amount'] <= 0:
+                    r['abc_segment'] = 'C'
+                    continue
+                if _abc_cum < abc_a_cut:
+                    r['abc_segment'] = 'A'
+                elif _abc_cum < abc_b_cut:
+                    r['abc_segment'] = 'B'
+                else:
+                    r['abc_segment'] = 'C'
+                _abc_cum += r['total_amount'] / _abc_total
+
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)
             avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_orders, 2) if total_orders else 0.0
             delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
+            physical_vals     = [r['physical_pct'] for r in rows if r['physical_pct'] is not None]
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
             freq_vals         = [r['avg_days_between'] for r in rows if r['avg_days_between'] is not None]
 
@@ -311,9 +386,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'total_amount':     total_amount_global,
                     'avg_ticket':       avg_ticket_global,
                     'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
+                    'avg_physical_pct': round(sum(physical_vals) / len(physical_vals), 1) if physical_vals else None,
                     'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,
                     'avg_days_between': round(sum(freq_vals)     / len(freq_vals),     1) if freq_vals     else None,
                     'delivery_n':       len(delivery_vals),
+                    'physical_n':       len(physical_vals),
                     'ontime_n':         len(ontime_vals),
                 },
                 'config': cfg,
@@ -399,6 +476,56 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         for l in lines_data:
             sol_by_order[l['order_id'][0]].append(l)
 
+        # ── Entregas físicas del período (tasa física) ────────────────────────
+        # Salidas completadas por fecha de efectivización dentro del período, de
+        # cualquier pedido del cliente. Se guarda el mes de confirmación del pedido
+        # de origen para el desglose de los tooltips.
+        phys_pick_domain = [
+            ('state', '=', 'done'),
+            ('picking_type_code', '=', 'outgoing'),
+            ('sale_id.partner_id', '=', partner_id),
+            ('date_done', '>=', d_from_str),
+            ('date_done', '<=', d_to_str),
+        ]
+        if warehouse_ids:
+            phys_pick_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+        # sudo(): usuario no tiene acceso directo a stock.picking; solo agregado para el dashboard
+        phys_picks = self.env['stock.picking'].sudo().search_read(
+            phys_pick_domain, ['id', 'sale_id', 'date_done'])
+        phys_so_ids   = list({p['sale_id'][0] for p in phys_picks})
+        phys_so_month = {
+            s['id']: str(s['date_order'])[:7]
+            for s in self.env['sale.order'].sudo().browse(phys_so_ids).read(['id', 'date_order'])
+        } if phys_so_ids else {}
+        phys_qty_by_pick = defaultdict(float)
+        phys_qty_by_prod = defaultdict(float)
+        if phys_picks:
+            for g in self.env['stock.move.line'].sudo().read_group(
+                [('picking_id', 'in', [p['id'] for p in phys_picks]),
+                 ('state', '=', 'done'), ('product_id', '!=', False)],
+                ['picking_id', 'product_id', 'quantity:sum'],
+                ['picking_id', 'product_id'], lazy=False,
+            ):
+                _q = g.get('quantity') or 0.0
+                phys_qty_by_pick[g['picking_id'][0]] += _q
+                phys_qty_by_prod[g['product_id'][0]] += _q
+        # Físico por mes de ENTREGA + desglose por mes de confirmación del pedido
+        phys_by_del_month    = defaultdict(float)
+        phys_break_del_month = defaultdict(lambda: defaultdict(float))
+        phys_break_total     = defaultdict(float)
+        phys_total           = 0.0
+        for p in phys_picks:
+            _q = phys_qty_by_pick.get(p['id'], 0.0)
+            if _q <= 0:
+                continue
+            _dmk = str(p['date_done'])[:7]
+            _omk = phys_so_month.get(p['sale_id'][0], '')
+            phys_by_del_month[_dmk] += _q
+            if _omk:
+                phys_break_del_month[_dmk][_omk] += _q
+                phys_break_total[_omk] += _q
+            phys_total += _q
+
         # Evolución mensual
         monthly = defaultdict(lambda: {'amount': 0.0, 'orders': 0, 'qty_ordered': 0.0, 'qty_delivered': 0.0})
         for s in so_data:
@@ -410,10 +537,13 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 monthly[mk]['qty_delivered'] += l['qty_delivered']   or 0.0
 
         monthly_data = []
-        for mk in sorted(monthly.keys()):
+        # Unión de meses con pedidos y meses con entregas físicas (puede haber meses
+        # con despachos pero sin pedidos confirmados).
+        for mk in sorted(set(monthly.keys()) | set(phys_by_del_month.keys())):
             m  = monthly[mk]
             dp = round(m['qty_delivered'] / m['qty_ordered'] * 100, 1) if m['qty_ordered'] > 0 else None
             amt_del = round(m['amount'] * m['qty_delivered'] / m['qty_ordered'], 2) if m['qty_ordered'] > 0 else 0.0
+            phys_m  = phys_by_del_month.get(mk, 0.0)
             monthly_data.append({
                 'month':            mk,
                 'amount':           round(m['amount'], 2),
@@ -422,6 +552,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'qty_delivered':    round(m['qty_delivered'], 1),
                 'orders':           m['orders'],
                 'delivery_pct':     dp,
+                'qty_delivered_phys': round(phys_m, 1),
+                'physical_pct':     round(phys_m / m['qty_ordered'] * 100, 1) if m['qty_ordered'] > 0 else None,
+                'phys_by_order_month': {k: round(v, 1) for k, v in sorted(phys_break_del_month.get(mk, {}).items())},
             })
 
         # Mix de familias
@@ -475,6 +608,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'amount':        round(v['amount'], 2),
                 'order_count':   len(v['orders']),
                 'delivery_pct':  round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
+                                 if v['qty_ordered'] > 0 else None,
+                'qty_delivered_phys': round(phys_qty_by_prod.get(pid, 0.0), 1),
+                'physical_pct':  round(phys_qty_by_prod.get(pid, 0.0) / v['qty_ordered'] * 100, 1)
                                  if v['qty_ordered'] > 0 else None,
                 'sale_category': sale_cat_by_tmpl.get(tmpl_by_prod.get(pid, 0), ''),
                 'family':        categ_by_prod.get(pid, ''),
@@ -533,4 +669,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'orders':             order_list,
             'top_products':       top_products,
             'total_qty_ordered':  total_qty_ordered,
+            # Agregado de tasa física del cliente en el período
+            'total_qty_delivered_phys': round(phys_total, 1),
+            'physical_pct':       round(phys_total / total_qty_ordered * 100, 1) if total_qty_ordered > 0 else None,
+            'phys_by_order_month': {k: round(v, 1) for k, v in sorted(phys_break_total.items())},
         }

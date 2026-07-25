@@ -48,15 +48,15 @@
                                 t-on-click="() => this.setFilterABC(null)">Todos</button>
                         <button t-att-class="state.filterABC === 'A' ? 'btn btn-success' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Segmento A: clientes de alto valor (top 20% de facturación)"
+                                title="Segmento A: clientes que concentran el primer tramo acumulado de facturación del período (umbral configurable en Ajustes, def. 20%)"
                                 t-on-click="() => this.setFilterABC('A')">A</button>
                         <button t-att-class="state.filterABC === 'B' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Segmento B: clientes de valor medio"
+                                title="Segmento B: clientes del tramo medio de facturación acumulada del período (hasta A%+B%, def. 70%)"
                                 t-on-click="() => this.setFilterABC('B')">B</button>
                         <button t-att-class="state.filterABC === 'C' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
-                                title="Segmento C: clientes de menor volumen"
+                                title="Segmento C: resto de los clientes del período (menor participación en la facturación acumulada)"
                                 t-on-click="() => this.setFilterABC('C')">C</button>
                     </div>
                 </div>
@@ -212,10 +212,24 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_delivery_pct')">
                             <div class="card-body text-center py-2">
-                                <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
+                                <i class="fa fa-check-circle fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
                                      t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                                <div class="o_planner_label">% Entrega promedio</div>
+                                <div class="o_planner_label">% Cumplim. promedio</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('delivery')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
+                        <div class="card o_planner_card h-100"
+                             t-att-title="kpiTooltip('avg_physical_pct')">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_physical_pct)"
+                                     t-esc="fmtPct(state.kpis.avg_physical_pct)"/>
+                                <div class="o_planner_label">% Física promedio</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('delivery')">Ver →</button>
@@ -320,7 +334,8 @@
                             <div class="dropdown-divider my-1"/>
                             <p class="small text-muted mb-1 px-1">Entrega</p>
                             <t t-foreach="[
-                                ['delivery_pct', '% Entrega'],
+                                ['delivery_pct', '% Cumplim.'],
+                                ['physical_pct', '% Físico'],
                                 ['ontime_pct',   '% A tiempo'],
                             ]" t-as="col" t-key="col[0]">
                                 <div class="form-check mb-1">

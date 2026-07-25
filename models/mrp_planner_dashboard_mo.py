@@ -175,6 +175,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :param page: int — página a devolver (base 1).
         :param page_size: int — cantidad máxima de registros por página.
         :param states: list[str]|None — estados a incluir; si es None se excluyen 'done' y 'cancel'.
+        :param search: str|None — filtro de texto sobre nombre de OF, producto u origen.
         :returns: dict con:
                   - kpis (dict): total, in_progress, delayed, reschedule, done, partial.
                   - mos (list[dict]): registros de la página con campos id, name, product, qty,
@@ -333,6 +334,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :param sort_dir: 'asc' o 'desc'.
         :param page: int — página a devolver (base 1).
         :param page_size: int — cantidad máxima de registros por página.
+        :param search: str|None — filtro de texto sobre nombre o fecha de inicio de la programación.
         :returns: dict con:
                   - kpis (dict): total, active (confirmed), calculated, reschedule, mos_delayed.
                   - requests (list[dict]): registros de la página con id, name, start_from, state,
@@ -413,11 +415,20 @@ class MrpPlannerDashboardMo(models.TransientModel):
         :param date_from: str 'YYYY-MM-DD', inicio del rango.
         :param date_to: str 'YYYY-MM-DD', fin del rango.
         :param warehouse_id: int|None — ID del almacén a filtrar; None para todos los permitidos.
+        :param page: int — página a devolver (base 1).
+        :param page_size: int — registros por página (default 50, máx. 200).
+        :param sort_field: str|None — 'product', 'planned_qty', 'produced_qty' o 'pct';
+                           None ordena por planned_qty desc.
+        :param sort_dir: 'asc' o 'desc' (default 'desc').
+        :param search: str|None — filtro de texto sobre el nombre del producto.
         :returns: dict con:
-                  - kpis (dict): planned (float), produced (float), pct (float, % de cumplimiento),
-                    ofs_done (int).
-                  - items (list[dict], máx. 20): product_id, product, uom, planned_qty,
-                    produced_qty, pct por producto, ordenados por planned_qty desc.
+                  - kpis (dict): planned (float), produced (float), pct (float|None, % de
+                    cumplimiento), ofs_done (int), desvio (float, planificado − producido)
+                    y ofs_in_progress (int, OFs en estado 'progress').
+                  - items (list[dict], página solicitada): product_id, product, uom,
+                    planned_qty, produced_qty, pct por producto.
+                  - total (int): cantidad de productos tras filtrar (para paginar).
+                  - mo_mode (str): modo de fechas usado (comparison_date_mode de config).
         """
         if warehouse_id:
             allowed_ids = self._get_allowed_wh_ids()
@@ -595,16 +606,3 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'mo_mode':       mode,
         }
 
-    # ── Backwards compat (paneles de detalle) ─────────────────────────────────
-
-    def action_open_mos_dashboard(self):
-        """Abre el sub-panel de detalle de Órdenes de Fabricación."""
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('mos')
-
-    def action_open_pos_dashboard(self):
-        """Abre el sub-panel de detalle de Órdenes de Compra."""
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('pos')
-
-    def action_open_requests_dashboard(self):
-        """Abre el sub-panel de detalle de Programaciones de Producción."""
-        return self.env['mrp.planner.detail.dashboard'].action_open_for_category('requests')

@@ -232,7 +232,7 @@ class WcLoadChartWidget extends Component {
             case 'planificado':
                 return `Suma de horas asignadas en órdenes de trabajo confirmadas o en progreso\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
-                return `Porcentaje de capacidad utilizada respecto al total disponible en los centros de trabajo\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 80% | Amarillo 80–100% | Rojo > 100%`;
+                return `Porcentaje de capacidad utilizada respecto al total disponible en los centros de trabajo\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 70% | Amarillo 70–89.9% | Rojo ≥ 90%`;
             case 'ejecutado':
                 return `Horas efectivamente trabajadas y registradas en órdenes de trabajo completadas\n→ ${h(k.ejecutado)} ejecutadas de ${h(k.planificado)} planificadas`;
             case 'pendiente':

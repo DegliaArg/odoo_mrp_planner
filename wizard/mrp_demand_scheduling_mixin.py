@@ -9,7 +9,6 @@ Responsabilidades:
 - Convertir el árbol programado en la lista de dicts para crear las líneas del plan.
 """
 import logging
-import pytz
 from datetime import datetime, timedelta
 
 from odoo import models

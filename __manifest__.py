@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción',
-    'version': '18.0.2.0.0',
+    'version': '18.0.3.0.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -27,10 +27,13 @@ Panel en tiempo real
 - Permisos por usuario: secciones visibles y acciones habilitadas.
 
 Análisis de proveedores y clientes
-- Scorecard de cumplimiento por proveedor: % a tiempo, lead time real, variación de precio.
-- Clasificación A–E automática de proveedores y clientes por volumen, frecuencia,
-  RFM, % entregas a tiempo, varianza de precio o calidad de cantidad.
-- Panel de ventas: gráfico de productos más vendidos y análisis de clientes A–E.
+- Scorecard de cumplimiento por proveedor: % a tiempo, lead time real, variación de precio
+  (referencia configurable: costo estándar, lista de proveedor o precio anterior pagado).
+- Clasificación A–E automática de proveedores por volumen, frecuencia, RFM,
+  % entregas a tiempo, variación de precio, exactitud de cantidad, devoluciones
+  o calidad combinada; y de clientes por volumen, frecuencia o RFM.
+- Panel de ventas: gráfico de productos más vendidos y análisis de clientes con
+  tasas de cumplimiento y física, ABC del período y segmentos de frecuencia.
 
 Forecast
 - Tabla mensual comparativa: forecast, OFs planificadas, entregas y stock.
@@ -40,9 +43,8 @@ Forecast
     'author': 'Deglia',
     'website': 'https://deglia.xyz',
     'license': 'OPL-1',
-    'currency': 'USD',
     'category': 'Manufacturing',
-    'depends': ['mrp', 'mrp_workorder', 'purchase', 'stock', 'mail', 'sale'],
+    'depends': ['mrp', 'mrp_subcontracting', 'purchase', 'stock', 'mail', 'sale'],
     'data': [
         'security/groups.xml',
         'security/ir_rules.xml',
@@ -63,16 +65,11 @@ Forecast
     'assets': {
         'web.assets_backend': [
             'odoo_mrp_planner/static/src/css/reschedule_gantt.css',
-            'odoo_mrp_planner/static/src/css/dashboard_kpi_tooltip.css',
             'odoo_mrp_planner/static/src/js/column_manager.js',
             'odoo_mrp_planner/static/src/js/planner_search_bar.js',
             'odoo_mrp_planner/static/src/xml/planner_search_bar.xml',
-            'odoo_mrp_planner/static/src/js/mo_list_widget.js',
-            'odoo_mrp_planner/static/src/xml/mo_list_widget.xml',
             'odoo_mrp_planner/static/src/js/po_dashboard_widget.js',
             'odoo_mrp_planner/static/src/xml/po_dashboard_widget.xml',
-            'odoo_mrp_planner/static/src/js/mrp_tooltip.js',
-            'odoo_mrp_planner/static/src/xml/mrp_tooltip.xml',
             'odoo_mrp_planner/static/src/js/alert_kpi_widget.js',
             'odoo_mrp_planner/static/src/xml/alert_kpi_widget.xml',
             'odoo_mrp_planner/static/src/js/mo_dashboard_widget.js',

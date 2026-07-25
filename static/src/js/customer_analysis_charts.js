@@ -109,7 +109,7 @@ export function drawTopChart(widget) {
         data: {
             labels: rows.map(r => r.partner_name.length > 18 ? r.partner_name.slice(0, 16) + '…' : r.partner_name),
             datasets: [{
-                label:           metric === 'pxq' ? 'PxQ' : metric === 'pedidos' ? 'Pedidos' : 'Ticket prom.',
+                label:           metric === 'pxq' ? 'Importe' : metric === 'pedidos' ? 'Pedidos' : 'Ticket prom.',
                 data:            rows.map(r => r[field]),
                 backgroundColor: rows.map(r => CAT_COLORS[r.abc_segment] ?? CAT_COLORS['']),
                 borderRadius:    3,

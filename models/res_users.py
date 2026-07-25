@@ -140,3 +140,12 @@ class ResUsers(models.Model):
                         f'El panel "{panel}" no puede quedar sin secciones visibles. '
                         f'Habilitá al menos una sección antes de guardar.'
                     )
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'mrp_planner_all_warehouses' in vals or 'mrp_planner_warehouse_ids' in vals:
+            # _get_allowed_wh_ids (mrp.planner.dashboard) está cacheado con ormcache:
+            # sin esta invalidación el usuario seguiría viendo los depósitos viejos
+            # hasta el próximo reinicio del registry.
+            self.env.registry.clear_cache()
+        return res

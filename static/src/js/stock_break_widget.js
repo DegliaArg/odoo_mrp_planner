@@ -6,9 +6,10 @@
  *   y por una o varias ubicaciones internas.
  * @fires RPC mrp.planner.dashboard.get_internal_locations — ubicaciones internas disponibles
  * @fires RPC mrp.planner.dashboard.get_stock_break_data — productos con rotura/sin mínimo
- *   Params: (filterType, sortField, sortDir, page, pageSize, search, locationIds)
+ *   Params: (search, locationIds) — el filtrado por tipo, ordenamiento y paginación
+ *   se aplican client-side sobre la lista completa devuelta.
  *   @returns {{ kpis: {total,broken,ok,no_min}, products: ProductRow[],
- *              location_name: string, total_filtered: number }}
+ *              location_name: string }} más flags de configuración (rotación, cat. venta)
  * @listens onMounted — carga ubicaciones y datos iniciales
  * @listens onWillUnmount — cancela timer de debounce de búsqueda
  */
@@ -18,6 +19,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { saleCatBadge } from "./forecast_formatters";
 
 const STOCK_COLS = [
     { key: '_expand',      label: '',             width:  32, fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
@@ -54,6 +56,7 @@ class StockBreakWidget extends Component {
         this.state = useState({
             loading:          true,
             error:            null,
+            loadError:        null,
             filterType:       "all",
             sortField:        null,
             sortDir:          "asc",
@@ -127,7 +130,8 @@ class StockBreakWidget extends Component {
     /** @returns {Promise<void>} Carga todos los productos del servidor y aplica sort/filtro/paginación client-side */
     async _load() {
         const seq = ++this._loadSeq;
-        this.state.loading = true;
+        this.state.loading   = true;
+        this.state.loadError = null;
         try {
             const d = await this.orm.call(
                 "mrp.planner.dashboard",
@@ -160,13 +164,18 @@ class StockBreakWidget extends Component {
         } catch (e) {
             if (seq !== this._loadSeq) return;
             console.error("[StockBreakWidget]", e);
+            this.state.loadError = (e && e.data && e.data.message) || e.message || String(e);
         } finally {
             if (seq === this._loadSeq) this.state.loading = false;
         }
     }
 
-    /** Aplica filtro de tipo, sort, filtro de tab activo y paginación sobre `state.allProducts` */
-    _applyClientSort() {
+    /**
+     * Devuelve el dataset completo con filtro de tipo, sort y filtro de tab activo
+     * aplicados (sin paginar). Base común de la tabla visible y del export CSV.
+     * @returns {Array<Object>} Filas filtradas y ordenadas
+     */
+    _filteredSortedRows() {
         let rows = [...this.state.allProducts];
 
         // Filtro de tipo
@@ -236,6 +245,12 @@ class StockBreakWidget extends Component {
             rows = rows.filter(r => (r[gb] || '') === this.state.selectedGroup);
         }
 
+        return rows;
+    }
+
+    /** Aplica filtro de tipo, sort, filtro de tab activo y paginación sobre `state.allProducts` */
+    _applyClientSort() {
+        const rows = this._filteredSortedRows();
         this.state.totalFiltered = rows.length;
 
         // Paginación
@@ -491,6 +506,14 @@ class StockBreakWidget extends Component {
         return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n || 0);
     }
 
+    /**
+     * Clases del badge de categoría de venta A–E. Delegado a forecast_formatters
+     * para usar la misma paleta en todos los widgets del planificador.
+     * @param {string} cat - Categoría 'A'…'E'
+     * @returns {string} Clases Bootstrap del badge
+     */
+    saleCatBadge(cat) { return saleCatBadge(cat); }
+
     fmtRotation(p) {
         if (this.state.rotation_unit === 'months') {
             const v = p.rotation_months;
@@ -688,13 +711,13 @@ class StockBreakWidget extends Component {
     }
 
     /**
-     * Exporta las filas actualmente visibles (post-sort/filtro) como archivo CSV.
+     * Exporta el dataset completo filtrado (post-sort/filtro, sin paginar) como archivo CSV.
      * Usa las columnas visibles del gestor de columnas para determinar headers y keys.
      * Omite la columna '_expand' (control de acordeón). Descarga el archivo directamente
      * en el navegador sin requerir intervención del servidor.
      */
     downloadExport() {
-        const rows = this.state.products;
+        const rows = this._filteredSortedRows();
         if (!rows || !rows.length) return;
         const visibleCols = this.colsStock.visibleCols().filter(col => {
             if (col.key === 'rotation')      return this.state.show_rotation;
@@ -707,7 +730,19 @@ class StockBreakWidget extends Component {
         for (const row of rows) {
             const vals = colKeys.map(key => {
                 if (key === '_expand') return '';
-                const v = row[key] ?? '';
+                let v;
+                if (key === 'rotation') {
+                    // Mismo valor que la celda visible ("N d" / "N m"); vacío si no calculable
+                    const r = this.fmtRotation(row);
+                    v = r === '—' ? '' : r;
+                } else if (key === 'bom_lead') {
+                    v = row.bom_lead_days ?? '';
+                } else if (key === 'status') {
+                    // Replica el estado derivado de la tabla visible
+                    v = row.is_broken ? 'Quiebre' : row.has_min ? 'OK' : 'Sin mínimo';
+                } else {
+                    v = row[key] ?? '';
+                }
                 const s = String(v);
                 return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
             });

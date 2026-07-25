@@ -155,7 +155,7 @@
                               decoration-danger="warning_type == 'confirmed_po'"
                               decoration-success="warning_type == 'child_adjusted'">
 
-                            <!-- FIX [FASE-6]: reschedule_sequence solo puede aparecer una vez; el widget handle ya gestiona el orden -->
+                            <!-- reschedule_sequence solo puede aparecer una vez; el widget handle ya gestiona el orden -->
                             <field name="reschedule_sequence"
                                    widget="handle"
                                    readonly="level != 0 or record_type != 'mrp' or is_anchor"/>

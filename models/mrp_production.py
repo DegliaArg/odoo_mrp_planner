@@ -310,7 +310,7 @@ class MrpProduction(models.Model):
         Fórmula: conteo de alertas activas (resolved=False) agrupadas por production_id.
         Depende de: mrp.reschedule.alert.production_id, mrp.reschedule.alert.resolved.
         """
-        # FIX [FASE-4]: read_group en lugar de N search_count individuales
+        # read_group en lugar de N search_count individuales
         data = self.env['mrp.reschedule.alert'].read_group(
             [('production_id', 'in', self.ids), ('resolved', '=', False)],
             ['production_id'],

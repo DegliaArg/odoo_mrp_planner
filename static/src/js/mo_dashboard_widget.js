@@ -9,7 +9,8 @@
  * @fires RPC mrp.planner.dashboard.get_request_widget_data — solicitudes de programación
  *   @returns {{ kpis: {active,calculated,reschedule,mos_delayed}, requests: ReqRow[] }}
  * @fires RPC mrp.planner.dashboard.get_comparison_data — comparativo plan vs producido
- *   @returns {{ kpis: {planned,produced,pct,ofs_done}, items: CmpRow[] }}
+ *   @returns {{ kpis: {planned,produced,pct,ofs_done,desvio,ofs_in_progress},
+ *              items: CmpRow[], total: number, mo_mode: string }}
  * @fires RPC mrp.planner.dashboard.get_mo_warehouses — lista de almacenes disponibles
  * @listens onMounted — carga almacenes y datos iniciales
  * @listens onPatched — resincroniza altura de paneles
@@ -374,7 +375,7 @@ class MoDashboardWidget extends Component {
 
     /** @param {number|string} id — ID de la OF a abrir */
     openMo(id) {
-        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
+        // res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "mrp.production",
@@ -458,7 +459,7 @@ class MoDashboardWidget extends Component {
 
     /** @param {number|string} id — ID de la solicitud de programación a abrir */
     openRequest(id) {
-        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
+        // res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "mrp.production.request",
@@ -653,7 +654,7 @@ class MoDashboardWidget extends Component {
                 case 'desvio':
                     return `Diferencia entre lo programado y lo producido en el período\nProgramado − Producido\n→ ${f2(k.planned)} − ${f2(k.produced)} = ${f2(k.desvio)} unidades`;
                 case 'ofs_in_progress':
-                    return `OFs con estado En progreso dentro del período seleccionado\nCampo: state = in_progress\n→ ${f(k.ofs_in_progress)} OFs en curso`;
+                    return `OFs con estado En progreso dentro del período seleccionado\nCampo: state = progress\n→ ${f(k.ofs_in_progress)} OFs en curso`;
             }
         }
         return '';

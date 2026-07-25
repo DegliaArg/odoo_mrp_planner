@@ -584,11 +584,11 @@
                                                    help="Tras el segmento A, los clientes que acumulan el siguiente X% del monto total se clasifican como B: el corte del segmento B es A% + B% acumulado (def. 20% + 50% = 70%). El resto queda en C."/>
                                         </group>
 
-                                        <group string="Umbrales semáforo — % Entrega">
+                                        <group string="Umbrales semáforo — % Cumplim. / % Físico">
                                             <field name="customer_analysis_delivery_warn_pct"
-                                                   help="Por debajo de este porcentaje de entrega (qty entregada ÷ qty pedida × 100), la celda se muestra en amarillo en el análisis de clientes."/>
+                                                   help="Por debajo de este porcentaje (qty entregada ÷ qty pedida × 100), la celda se muestra en amarillo en el análisis de clientes. Colorea tanto la tasa de cumplimiento como la tasa física."/>
                                             <field name="customer_analysis_delivery_crit_pct"
-                                                   help="Por debajo de este porcentaje de entrega, la celda se muestra en rojo."/>
+                                                   help="Por debajo de este porcentaje, la celda se muestra en rojo. Colorea tanto la tasa de cumplimiento como la tasa física."/>
                                         </group>
 
                                         <group string="Umbrales semáforo — % A tiempo">
@@ -601,8 +601,6 @@
                                         <group string="General">
                                             <field name="customer_analysis_risk_days"
                                                    help="Un cliente que no compra hace más de este número de días se clasifica como &quot;en riesgo&quot; en la columna de segmento de frecuencia."/>
-                                            <field name="customer_analysis_default_period"
-                                                   help="Rango de fechas preseleccionado al abrir el widget de análisis de clientes."/>
                                         </group>
 
                                     </group>
@@ -613,8 +611,6 @@
                                 <div class="col-6">
 
                                     <group string="Forecast — Visualización">
-                                        <field name="forecast_default_months"
-                                               help="Cantidad de meses a mostrar por defecto al abrir el widget de forecast."/>
                                         <field name="forecast_warning_pct"
                                                help="Cobertura por debajo de este % se muestra en amarillo (aviso)."/>
                                         <field name="forecast_critical_pct"

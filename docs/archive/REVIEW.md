@@ -1,3 +1,5 @@
+> ⚠️ DOCUMENTO HISTÓRICO — snapshot de una revisión pasada; NO refleja el estado actual del código. Conservado solo como referencia.
+
 # Revisión completa del módulo odoo_mrp_planner
 
 **Fecha:** 2026-07-02

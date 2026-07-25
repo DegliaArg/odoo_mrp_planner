@@ -5,10 +5,11 @@
  *   Soporta filtrado por tab (all/purchase/subcontract), fecha, tipo de OC y subtab.
  *   Paginado y ordenamiento server-side.
  * @fires RPC mrp.planner.dashboard.get_po_dashboard_data — datos de OCs y movimientos
- *   Params: (tab, dateFrom, dateTo, sortField, sortDir, page, pageSize)
- *   @returns {{ kpis: KpiPo, rfqs: PoRow[], to_approve: PoRow[], overdue: PoRow[],
- *              all_pos: PoRow[], pending_pos: PoRow[], receipts: PickRow[],
- *              deliveries: PickRow[], services: ServiceRow[], show_services_tab: boolean }}
+ *   Params: (tab, dateFrom, dateTo, sortField, sortDir, page, pageSize, search)
+ *   @returns {{ kpis: KpiPo, kpi_ids: Object, rfqs: PoRow[], to_approve: PoRow[],
+ *              overdue: PoRow[], all_pos: PoRow[], pending_pos: PoRow[],
+ *              receipts: PickRow[], deliveries: PickRow[], services: ServiceRow[],
+ *              show_services_tab: boolean }}
  * @listens onMounted — carga datos y sincroniza altura
  */
 
@@ -210,8 +211,9 @@ class PoDashboardWidget extends Component {
     }
 
     /**
-     * Actualiza la fecha de inicio del filtro y recarga desde la página 1.
-     * @param {Event} ev - Evento change del input date
+     * Actualiza el texto de búsqueda y recarga desde la página 1
+     * con un debounce de 300ms.
+     * @param {string} text - Texto de búsqueda
      */
     setSearch(text) {
         this.state.search = text;
@@ -220,6 +222,10 @@ class PoDashboardWidget extends Component {
         this._searchTimer = setTimeout(() => this._load(), 300);
     }
 
+    /**
+     * Actualiza la fecha de inicio del filtro y recarga desde la página 1.
+     * @param {Event} ev - Evento change del input date
+     */
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
         if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
@@ -303,7 +309,7 @@ class PoDashboardWidget extends Component {
 
     /** @param {number|string} id — ID de la OC a abrir */
     openPo(id) {
-        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
+        // res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type:      "ir.actions.act_window",
             res_model: "purchase.order",
@@ -326,7 +332,7 @@ class PoDashboardWidget extends Component {
 
     /** @param {number|string} id — ID del picking/recepción a abrir */
     openPicking(id) {
-        // FIX [FASE-3]: res_id abre el form directamente; domain+list_view era redundante
+        // res_id abre el form directamente; domain+list_view era redundante
         this.action.doAction({
             type:      "ir.actions.act_window",
             res_model: "stock.picking",

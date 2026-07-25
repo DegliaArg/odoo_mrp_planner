@@ -782,6 +782,20 @@ class CustomerAnalysisWidget extends Component {
         return (n >= 0 ? '▲ ' : '▼ ') + Math.abs(n).toFixed(1) + '%';
     }
 
+    /**
+     * Convierte una fecha ISO 'YYYY-MM-DD' a 'DD/MM/YYYY' para el render.
+     * Solo formateo visual: los valores del backend siguen en ISO (el sort
+     * client-side depende de ese formato).
+     * @param {string|null} iso - Fecha en formato ISO
+     * @returns {string} Fecha formateada o '—'
+     */
+    fmtDate(iso) {
+        if (!iso) return '—';
+        const [y, m, d] = String(iso).split('-');
+        if (!y || !m || !d) return String(iso);
+        return `${d}/${m}/${y}`;
+    }
+
     deliveryClass(pct) {
         if (pct === null || pct === undefined) return 'text-muted';
         const cfg = this.state.config;
@@ -817,7 +831,7 @@ class CustomerAnalysisWidget extends Component {
     }
 
     abcBadgeClass(seg) {
-        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-secondary' };
+        const map = { A: 'text-bg-success', B: 'text-bg-primary', C: 'text-bg-warning text-dark' };
         return map[seg] || 'text-bg-secondary';
     }
 
@@ -929,7 +943,7 @@ class CustomerAnalysisWidget extends Component {
         const titles = {
             partner_name:      'Nombre del cliente. Clic para ordenar.',
             customer_category: 'Categoría de cliente (A–E) calculada globalmente por el módulo según el método configurado en Ajustes.',
-            abc_segment:       'ABC del período — calculado al vuelo con las compras del rango de fechas visible.\nSe ordenan los clientes de mayor a menor facturación del período y se acumula su participación sobre el total: el primer tramo acumulado (A%, def. 20%) = A; hasta A%+B% (def. 20%+50% = 70%) = B; el resto = C. El cliente de mayor facturación siempre es A.\nEs independiente de la categoría permanente del contacto (columna "Categoría", que se calcula aparte) y cambia al cambiar el rango de fechas.\nUmbrales configurables en Ajustes → Análisis de clientes.',
+            abc_segment:       'ABC del período — calculado al vuelo con las compras del rango de fechas visible.\nSe ordenan los clientes de mayor a menor facturación del período y se acumula su participación sobre el total: el primer tramo acumulado (A%, def. 20%) = A; hasta A%+B% (def. 20%+50% = 70%) = B; el resto = C. El cliente de mayor facturación siempre es A.\nEs independiente de la categoría permanente del contacto (columna "Cat. global", que se calcula aparte) y cambia al cambiar el rango de fechas.\nUmbrales configurables en Ajustes → Análisis de clientes.',
             salesperson:       'Vendedor más frecuente en los pedidos del período.',
             country:           'País del cliente. Clic para ordenar.',
             province:          'Provincia del cliente. Clic para ordenar.',
@@ -963,7 +977,7 @@ class CustomerAnalysisWidget extends Component {
             { key: 'partner_tag',       label: 'Etiqueta'             },
         ];
         if (this.state.config.show_category) {
-            base.unshift({ key: 'customer_category', label: 'Categoría de cliente' });
+            base.unshift({ key: 'customer_category', label: 'Cat. global' });
         }
         return base;
     }

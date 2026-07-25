@@ -54,7 +54,9 @@ class MrpPartnerCategory(models.Model):
           (unidades en órdenes de venta confirmadas del período).
         - 'share': Pareto acumulado sobre unidades entregadas (units) o valor (pxq = precio × cantidad).
         - 'automatic' (por defecto): días de cobertura usando stock promedio del período
-          dividido por promedio mensual de entregas. Menor cobertura → categoría A.
+          dividido por el promedio mensual de la fuente configurada en
+          sale_cat_rotation_source: entregas realizadas o demanda de OVs confirmadas.
+          Menor cobertura → categoría A.
 
         El horizonte de análisis es sale_cat_lookback_months (por defecto 3 meses).
 
@@ -251,12 +253,18 @@ class MrpPartnerCategory(models.Model):
         - 'abc_volume': Pareto descendente sobre monto total de compras (12 meses).
         - 'abc_frequency': Pareto descendente sobre cantidad de órdenes de compra.
         - 'abc_rfm': Puntuación RFM (Recency, Frequency, Monetary) con score 3–9;
-          A ≥ 8, B ≥ 6, C ≥ 4, D ≥ 3, E < 3.
-        - 'abc_delivery_pct': Pareto descendente sobre % de recepciones a tiempo.
-        - 'abc_price_var': Pareto ascendente sobre varianza promedio de precio vs. costo
-          estándar (menor varianza = mejor proveedor = A).
+          los cortes de categoría son configurables (rfm_score_a/b/c/d), igual que
+          los de recencia (rfm_recency_*) y frecuencia (rfm_freq_*).
+        - 'abc_delivery_pct': Pareto descendente sobre % de recepciones a tiempo;
+          las recepciones sin fecha programada o de cierre se excluyen del denominador.
+        - 'abc_price_var': percentil de posición (menor variación = mejor categoría)
+          sobre la variación promedio de precio vs. la referencia configurable en
+          supplier_price_var_method: 'previous' (precio anterior pagado, default),
+          'standard' (costo estándar) o 'pricelist' (lista del proveedor).
         - 'abc_quality_qty': Pareto descendente sobre % de líneas recibidas con cantidad exacta.
-        - 'abc_quality_returns': Pareto ascendente sobre cantidad de devoluciones al proveedor.
+        - 'abc_quality_returns': percentil de posición sobre la cantidad de devoluciones
+          (menos devoluciones = mejor); los proveedores con compras y sin devoluciones
+          parten de 0 (mejor caso) y los sin actividad caen en E.
         - 'abc_quality_combo': Pareto descendente sobre promedio de % entregas a tiempo
           y % cantidad exacta (composite score).
 
@@ -386,9 +394,13 @@ class MrpPartnerCategory(models.Model):
                 # (tendencia de precio, independiente del costo estándar). Se lee el historial
                 # hasta el fin del período para tener referencia previa incluso en la primera
                 # compra del rango; solo se puntúan las compras cuya fecha cae en el período.
-                start_dt = fields.Datetime.to_datetime(str(start))
+                # El historial de referencia se acota a 6 meses antes del período: sin cota,
+                # con bases grandes esta consulta cargaba TODO el historial de compras.
+                start_dt   = fields.Datetime.to_datetime(str(start))
+                _ref_floor = str(start - relativedelta(months=6)) + ' 00:00:00'
                 po_lines = self.env['purchase.order.line'].sudo().search([
                     ('order_id.state', 'in', ('purchase', 'done')),
+                    ('order_id.date_order', '>=', _ref_floor),
                     ('order_id.date_order', '<=', end_str),
                     ('order_id.partner_id', 'in', suppliers.ids),
                     ('product_id', '!=', False),
@@ -594,7 +606,8 @@ class MrpPartnerCategory(models.Model):
         - 'abc_frequency': Pareto descendente sobre cantidad de órdenes de venta.
         - 'abc_rfm': Puntuación RFM (Recency, Frequency, Monetary) idéntica a la
           de proveedores pero usando sale.order en lugar de purchase.order.
-          Score total 3–9: A ≥ 8, B ≥ 6, C ≥ 4, D ≥ 3, E < 3.
+          Score total 3–9 con cortes configurables (rfm_score_a/b/c/d, rfm_recency_*,
+          rfm_freq_*).
 
         El horizonte de análisis es configurable mediante customer_cat_lookback_months
         (por defecto 12 meses).

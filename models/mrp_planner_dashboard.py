@@ -20,7 +20,6 @@ Relacionado con:
 - mrp_schedule_mixin.no_subcontract_domain: helper para excluir OFs de subcontratación.
 """
 import logging
-import pytz
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -274,6 +273,24 @@ class MrpPlannerDashboard(models.TransientModel):
             rec.show_customer_analysis_sec = u.mrp_planner_show_customer_analysis
 
     # ── Permisos por depósito ────────────────────────────────────────────────
+
+    def _ensure_planner_group(self, *group_xmlids):
+        """Guard de acceso para métodos RPC del dashboard.
+
+        El ACL del modelo transient es amplio (base.group_user) porque el panel
+        se abre para cualquier empleado; los métodos que leen datos sensibles con
+        sudo() deben verificar acá que el usuario pertenezca a alguno de los
+        grupos del planificador indicados. Admin y system siempre pasan.
+
+        :param group_xmlids: xml_ids de grupos aceptados (ej: 'odoo_mrp_planner.group_sales_read').
+        :raises AccessError: si el usuario no pertenece a ninguno.
+        """
+        u = self.env.user
+        if u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system'):
+            return
+        if any(u.has_group(g) for g in group_xmlids):
+            return
+        raise AccessError(_("No tenés permisos para ver esta sección del planificador."))
 
     @tools.ormcache('self.env.uid', 'self.env.company.id')
     def _get_allowed_wh_ids(self):
@@ -697,36 +714,6 @@ class MrpPlannerDashboard(models.TransientModel):
             raise AccessError(_("No tiene permisos para ejecutar esta acción"))
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open_compras()
-
-    # ── Accesos rápidos ──────────────────────────────────────────────────────
-
-    def action_new_request(self):
-        """
-        Abre el formulario de creación de una nueva programación de producción.
-
-        :returns: dict — acción ir.actions.act_window sobre mrp.production.request en modo form.
-        """
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Nueva programación'),
-            'res_model': 'mrp.production.request',
-            'view_mode': 'form',
-            'target': 'current',
-        }
-
-    def action_new_plan(self):
-        """
-        Abre el formulario de creación de un nuevo plan de reprogramación.
-
-        :returns: dict — acción ir.actions.act_window sobre mrp.reschedule.plan en modo form.
-        """
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Nuevo plan de reprogramación'),
-            'res_model': 'mrp.reschedule.plan',
-            'view_mode': 'form',
-            'target': 'current',
-        }
 
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 

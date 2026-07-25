@@ -6,7 +6,7 @@ class MrpRescheduleUserPermission(models.Model):
     _description = 'Permiso de usuario en el planificador'
     _rec_name = 'user_id'
 
-    # FIX [FASE-2]: constraint a nivel DB para evitar duplicados y auto-escalada de privilegios
+    # constraint a nivel DB para evitar duplicados y auto-escalada de privilegios
     _sql_constraints = [
         ('user_config_unique', 'unique(user_id, config_id)',
          'Ya existe un registro de permisos para este usuario en esta configuración.'),

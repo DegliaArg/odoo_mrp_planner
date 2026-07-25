@@ -104,10 +104,6 @@ class MrpRescheduleConfig(models.Model):
 
     # ── Forecast ─────────────────────────────────────────────────────────────
 
-    forecast_default_months = fields.Integer(
-        string='Meses por defecto en forecast', default=3,
-        help='Cantidad de meses que se muestran por defecto al abrir la vista de forecast. '
-             'El usuario puede cambiarla manualmente en la interfaz.')
     forecast_warning_pct = fields.Integer(
         string='Cobertura mínima (aviso %)', default=70,
         help='Por debajo de este % la celda se muestra en amarillo.')
@@ -395,7 +391,8 @@ class MrpRescheduleConfig(models.Model):
     sup_complete_yellow_pct = fields.Integer(string='% Completas — amarillo (≥)',   default=80,
         help='Umbral intermedio de completitud: entre este valor y el verde se muestra en amarillo; por debajo en rojo.')
     sup_price_var_green_pct  = fields.Float( string='Var. precio — verde (|%| ≤)',  default=3.0,
-        help='Variación de precio aceptable: |desviación| ≤ este % respecto al costo estándar se muestra en verde.')
+        help='Variación de precio aceptable: |desviación| ≤ este % respecto a la referencia configurada '
+             '(costo estándar, lista de proveedor o precio anterior pagado) se muestra en verde.')
     sup_price_var_yellow_pct = fields.Float( string='Var. precio — amarillo (|%| ≤)', default=10.0,
         help='Variación de precio tolerable: entre el umbral verde y este % se muestra en amarillo; por encima en rojo.')
     supplier_price_var_method = fields.Selection([
@@ -442,11 +439,13 @@ class MrpRescheduleConfig(models.Model):
         ('abc_quality_combo',   'ABC por calidad — combinado (entrega + cantidad)'),
     ], string='Método proveedor', default='manual',
        help='Manual: la categoría se asigna desde la ficha de cada proveedor.\n'
-            'ABC por volumen: Pareto por importe total de OCs del último año '
-            '(primero 20% = A, 50% = B, 80% = C, 95% = D, resto = E).\n'
+            'ABC por volumen: Pareto por importe total de OCs según el período de análisis '
+            'configurado y los umbrales Pareto configurados '
+            '(defaults: primero 20% = A, 50% = B, 80% = C, 95% = D, resto = E).\n'
             'ABC por frecuencia: igual que volumen pero por cantidad de OCs.\n'
             'ABC por RFM: scoring Recencia + Frecuencia + Monetario (1-3 pts c/u); '
-            'suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.\n'
+            'los cortes de score, recencia y frecuencia son configurables '
+            '(defaults: suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E).\n'
             'ABC por % de entrega a tiempo: Pareto por % de recepciones completadas '
             'antes o en la fecha planificada. Mayor % = mejor categoría.\n'
             'ABC por variación de precio: Ranking por percentil por |variación de precio vs. la referencia '
@@ -513,15 +512,16 @@ class MrpRescheduleConfig(models.Model):
     ], string='Método cliente', default='manual',
        help='Manual: la categoría se asigna desde la ficha de cada cliente.\n'
             'ABC por volumen: ordena los clientes por importe total de SOs confirmados '
-            'en los últimos 12 meses y aplica Pareto acumulado '
-            '(primero 20% del total = A, hasta 50% = B, hasta 80% = C, hasta 95% = D, resto = E).\n'
+            'según el período de análisis configurado y aplica Pareto acumulado con los '
+            'umbrales configurados (defaults: primero 20% del total = A, hasta 50% = B, '
+            'hasta 80% = C, hasta 95% = D, resto = E).\n'
             'ABC por frecuencia: igual que volumen pero pondera por cantidad de SOs en vez del importe. '
             'Favorece clientes con alta frecuencia de pedidos.\n'
             'ABC por RFM: scoring multidimensional — '
-            'Recencia (días desde el último SO: < 30d = 3pts, < 90d = 2pts, resto = 1pt), '
-            'Frecuencia (SOs en el año: > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
+            'Recencia (días desde el último SO, cortes configurables; defaults < 30d = 3pts, < 90d = 2pts, resto = 1pt), '
+            'Frecuencia (SOs del período, cortes configurables; defaults > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
             'Monetario (importe relativo al percentil 33/66 del grupo: alto = 3pts, medio = 2pts, bajo = 1pt). '
-            'Suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E.')
+            'Cortes de score configurables (defaults: suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E).')
     customer_cat_cron_number = fields.Integer(string='Cada', default=1,
         help='Número de unidades de tiempo entre cada recálculo automático de las categorías de cliente.')
     customer_cat_cron_type   = fields.Selection([
@@ -572,12 +572,6 @@ class MrpRescheduleConfig(models.Model):
         string='Días sin comprar (riesgo)', default=90,
         help='Un cliente que no compra hace más de este número de días '
              'se clasifica como "en riesgo" en la columna de frecuencia.')
-    customer_analysis_default_period = fields.Selection([
-        ('month',   'Mes actual'),
-        ('quarter', 'Trimestre actual'),
-        ('year',    'Año actual'),
-    ], string='Período por defecto', default='quarter',
-       help='Rango de fechas preseleccionado al abrir el análisis de clientes.')
     customer_analysis_abc_a_pct = fields.Integer(
         string='Segmento A — % acumulado', default=20,
         help='Clientes que suman el primer X% del monto total del período se clasifican como A. '
@@ -614,7 +608,7 @@ class MrpRescheduleConfig(models.Model):
         """
         param = self.env['ir.config_parameter'].sudo().get_param(
             'mrp_reschedule.stock_location_id')
-        # FIX [FASE-3]: int() puede lanzar ValueError si el parámetro fue editado manualmente
+        # int() puede lanzar ValueError si el parámetro fue editado manualmente
         try:
             loc_id = int(param) if param else False
         except (ValueError, TypeError):
@@ -804,7 +798,7 @@ class MrpRescheduleConfig(models.Model):
         # el singleton se crea como SUPERUSER, que aún no pertenece a group_admin) no falle.
         if not self.env.su and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
             raise AccessError(_("Solo los administradores pueden crear la configuración"))
-        # FIX [FASE-2]: prevenir múltiples singletons — solo puede existir un registro
+        # prevenir múltiples singletons — solo puede existir un registro
         if self.search_count([]) > 0:
             raise UserError(_(
                 'Solo puede existir una configuración del planificador. '

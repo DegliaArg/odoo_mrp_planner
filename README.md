@@ -1,6 +1,6 @@
 # Planificador de producción
 
-**Odoo 18 Enterprise · Fabricación · v18.0.1.0.0**  
+**Odoo 18 Enterprise · Fabricación · v18.0.3.0.0**  
 Desarrollado por [Deglia](https://deglia.xyz)
 
 Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
@@ -25,7 +25,7 @@ Panel de control centralizado para la gestión operativa de producción: program
 - [Programación desde demanda](#programación-desde-demanda)
 - [Reprogramación en cascada](#reprogramación-en-cascada)
 - [Sistema de alertas](#sistema-de-alertas)
-- [Permisos por usuario](#permisos-por-usuario)
+- [Permisos](#permisos)
 - [Dependencias](#dependencias)
 - [Licencia](#licencia)
 
@@ -54,77 +54,44 @@ Panel de control centralizado para la gestión operativa de producción: program
 3. **Aplicaciones → Actualizar lista de aplicaciones**.
 4. Buscar **Planificador de producción** e instalar.
 
-**Requisitos:** Odoo 18 Enterprise con los módulos `mrp`, `mrp_workorder`, `purchase`, `stock`, `mail` y `sale` instalados.
+**Requisitos:** Odoo 18 Enterprise con los módulos `mrp`, `mrp_subcontracting`, `purchase`, `stock`, `mail` y `sale` instalados.
 
 ---
 
 ## Configuración inicial
 
-Acceder desde **Planificador → Configuración**.
+Acceder desde **Planificador → Configuración**. La configuración es un registro único por empresa, organizado en cinco pestañas. Cada pestaña es visible solo para el grupo de seguridad correspondiente (ver [Permisos](#permisos)).
 
-### Pestaña General
+### Pestaña General *(Administrador)*
 
-| Campo | Descripción |
-|---|---|
-| Fallback de centro de trabajo | Qué hacer cuando una OF no tiene WC compatible: usar operaciones de la LdM o dejarla sin asignar |
-| Criterio de prioridad | Orden de reprogramación: cronológico, más cortas primero (SPT) o manual |
-| Frecuencia del cron | Cada cuántos minutos/horas se detectan alertas automáticamente |
-| Heurística por centro de trabajo | Si está activo, incluye en la reprogramación OFs que comparten WC con el pivot (puede generar reprogramaciones masivas) |
-| Pestaña de servicios en OCs | Separa OCs de tipo servicio en una pestaña propia dentro del widget |
-| Ubicación de stock (quiebres) | Almacén interno desde el cual se lee el stock actual para el análisis de quiebres |
+Frecuencia del cron de detección de alertas, activación global de las funciones de **programación y reprogramación** (al desactivar se ocultan menús, botones y KPIs asociados) y acceso a las **preferencias por usuario** (depósitos visibles y secciones del panel).
 
-### Pestaña Alertas
+### Pestaña Producción
 
-Configura umbrales independientes para cada tipo de documento:
+Umbrales de alertas de OFs (días críticos, días por vencer, tolerancia de cantidad) y ajustes de producción:
 
-| Campo | Descripción |
-|---|---|
-| Días críticos OF | Días de retraso para que una OF pase de aviso a crítica |
-| Días por vencer OF | Días de anticipación para generar alerta preventiva en OFs |
-| Días críticos OC | Días de retraso para que una OC pase de aviso a crítica |
-| Días por vencer OC | Días de anticipación para generar alerta preventiva en OCs |
-| Días críticos recepción | Días de retraso para que una recepción pase de aviso a crítica |
-| Tolerancia de cantidad | Diferencia porcentual máxima entre cantidad planificada y producida antes de alertar |
+- **Quiebres de stock**: ubicación desde la que se mide el stock y columna de rotación opcional (método, meses de historial y alertas por color).
+- **Estados de OF incluidos** como "Programado" en la comparativa y el forecast (borrador / confirmada / en progreso / por cerrar / terminada).
+- **Criterio de fechas de la comparativa** Producido vs. Programado: por fecha de cierre, por fecha de inicio, por solapamiento o proporcional por duración.
 
-### Pestaña Forecast
+### Pestaña Programación *(visible solo con programación activa)*
 
-| Campo | Descripción |
-|---|---|
-| Meses por defecto | Horizonte de meses que muestra el widget al abrirse |
-| Cobertura mínima (aviso %) | Por debajo de este % la celda de cobertura se muestra en amarillo |
-| Cobertura mínima (crítico %) | Por debajo de este % la celda de cobertura se muestra en rojo |
-| Estados de OF incluidos | Qué estados de OFs se suman como producción planificada (borrador, confirmada, en progreso, etc.) |
-| Unidad de rotación | Si el indicador de rotación de inventario se expresa en días o en meses |
-| Fórmula de precisión | Método para calcular el % de precisión del forecast: Simple, MAPE, WAPE, WMAPE o Sesgo |
-| Actualización automática | Si está activo, recalcula las categorías de venta automáticamente según el cron configurado |
+Fallback de centro de trabajo (usar operaciones de la LdM o dejar sin asignar), criterio de prioridad de reprogramación (cronológico / SPT / manual) y heurística por centro de trabajo (puede generar reprogramaciones masivas).
 
-### Pestaña Categoría de venta
+### Pestaña Compras
 
-Define cómo se clasifican los artículos en categorías A–E:
+- Umbrales de alertas de OCs y recepciones (días críticos y por vencer).
+- Panel de compras: pestaña de servicios separada, exclusión de OCs de solo servicios en KPIs y campo de fecha del análisis de proveedores.
+- **Referencia para variación de precio**: costo estándar, lista de precio del proveedor o precio anterior pagado (default). Se usa tanto en la columna del análisis de proveedores como en la clasificación ABC por variación de precio.
+- Umbrales de semáforo del análisis de proveedores (% a tiempo, retraso, % completas, variación de precio).
+- **Categorías de proveedor A–E**: método (manual, Pareto por importe o cantidad de OCs, RFM, % entrega a tiempo, variación de precio, calidad), período de análisis, umbrales Pareto, parámetros RFM y cron de actualización automática.
 
-| Modo | Criterio |
-|---|---|
-| Manual | El usuario asigna la categoría desde la ficha del artículo |
-| Automático por rotación | Días de stock ÷ promedio de ventas. Umbrales A/B/C/D configurables en días |
-| Automático por demanda | Unidades vendidas promedio por mes. Umbrales A/B/C/D configurables en qty |
-| Automático por participación | Ordena artículos por métrica (unidades o importe) y clasifica por % acumulado del total (Pareto A/B/C/D/E) |
+### Pestaña Ventas
 
-### Pestaña Permisos por usuario
-
-Define qué secciones puede ver cada usuario y qué acciones puede ejecutar. Ver [Permisos por usuario](#permisos-por-usuario).
-
-### Pestaña Análisis de proveedores
-
-| Campo | Descripción |
-|---|---|
-| % A tiempo — verde | Umbral mínimo de recepciones a tiempo para mostrar el indicador en verde |
-| % A tiempo — amarillo | Umbral mínimo para mostrar el indicador en amarillo (por debajo → rojo) |
-| Retraso — verde | Retraso promedio máximo (días) para semáforo verde |
-| Retraso — amarillo | Retraso promedio máximo para semáforo amarillo |
-| % Completas — verde | Umbral de recepciones completas (sin backorder) para semáforo verde |
-| % Completas — amarillo | Umbral para semáforo amarillo |
-| Var. precio — verde | Variación de precio máxima (%) para semáforo verde |
-| Var. precio — amarillo | Variación de precio máxima para semáforo amarillo |
+- **Categorías de venta A–E** de artículos: manual, por rotación de inventario (stock promedio del período ÷ promedio mensual de entregas o demanda, configurable), por volumen de demanda o por participación acumulada (Pareto), con umbrales y cron propios.
+- **Categorías de cliente A–E**: manual, Pareto por importe o cantidad de pedidos, o RFM (parámetros RFM compartidos con proveedores).
+- **Análisis de clientes**: método de entrega a tiempo (fecha pactada, fecha del picking o SLA en días), umbrales del ranking ABC del período, semáforos de % Cumplim. / % Físico y % A tiempo, y días para clasificar un cliente "en riesgo".
+- **Forecast**: umbrales de cobertura (aviso/crítico), método y unidad de rotación (unidades / COGS / ventas), cobertura de inventario (fuente de demanda y alertas), cobertura de OFs (denominador: forecast o demanda OV) y fuente/fórmula de precisión (Simple, MAPE, WAPE, WMAPE, Sesgo).
 
 ---
 
@@ -164,7 +131,8 @@ Widget con tres pestañas:
 
 **Comparativo**
 - Producción planificada vs. real por producto en el período seleccionado
-- Porcentaje de cumplimiento con semáforo visual
+- Un badge indica el criterio de fechas activo (fecha de cierre, fecha de inicio, solapamiento o proporcional; configurable en Ajustes → Producción)
+- Porcentaje de cumplimiento con semáforo visual; cuando hubo producción sin nada programado se muestra el estado **"s/plan"** (producido sin plan) en lugar de 0%
 
 ### Carga de centros de trabajo
 
@@ -211,6 +179,7 @@ Tabla de productos con stock actual por debajo del mínimo configurado:
 | Stock actual | Unidades disponibles en la ubicación seleccionada |
 | Mínimo | Punto de reorden configurado (ruta Fabricación) |
 | Diferencia | Stock actual − mínimo (negativo = quiebre) |
+| Rotación *(opcional)* | Rotación de inventario según el método y los meses de historial configurados; con alertas de color amarillo/rojo por umbrales de días (configurable en Ajustes → Producción) |
 
 ### Forecast
 
@@ -229,8 +198,8 @@ Tabla mensual que compara plan de ventas, producción programada, entregas reale
 | OFs planificadas | Producción programada en OFs confirmadas/en progreso |
 | Entregado | Cantidad real despachada en movimientos de salida |
 | Stock | Stock disponible al cierre del período |
-| Rotación | Stock ÷ ventas promedio (en días o meses según config) |
-| Cobertura % | Entregado ÷ Forecast × 100 (o fórmula avanzada configurada) |
+| Rotación | Stock promedio del período ÷ promedio mensual (en días o meses según config; método por unidades, COGS o ventas) |
+| Cobertura % | OFs planificadas ÷ Forecast (o demanda OV, configurable) × 100 |
 | Precisión % | Exactitud del forecast respecto a lo entregado |
 
 ### Análisis de proveedores
@@ -251,10 +220,10 @@ Scorecard de rendimiento de proveedores con columnas redimensionables y reordena
 | Retraso (d) | Promedio de días de retraso en recepciones tardías |
 | % Completas | Porcentaje de recepciones completadas sin backorder |
 | Lead time (d) | Lead time real promedio: días entre aprobación y recepción |
-| Var. precio | Variación promedio de precio OC vs. costo estándar del producto |
+| Var. precio | Variación promedio de precio OC vs. la referencia configurada: costo estándar, lista de precio del proveedor o precio anterior pagado (default). Ver "Referencia para variación de precio" en Ajustes → Compras |
 | Fact. pend. | Total de facturas de proveedor pendientes de pago |
 
-Los indicadores de cumplimiento muestran semáforo verde / amarillo / rojo según los umbrales configurados en la pestaña Análisis de proveedores de Configuración.
+Los indicadores de cumplimiento muestran semáforo verde / amarillo / rojo según los umbrales configurados en la pestaña Compras de Configuración.
 
 ### Gráfico de ventas
 
@@ -279,13 +248,16 @@ Clasificación A–E de clientes con drill-down a sus pedidos de venta del perí
 |---|---|
 | Cliente | Nombre del cliente |
 | Categoría | Clasificación A–E calculada automáticamente |
+| ABC período | Clasificación A/B/C calculada **al vuelo** por participación en el monto del período visible (no altera la categoría permanente del contacto) |
 | OVs | Cantidad de pedidos de venta en el período |
 | Artículos | Productos distintos comprados |
 | Monto | Importe total de pedidos confirmados |
+| % Cumplim. | Entregado de los pedidos del período ÷ pedido × 100 |
+| % Físico | Despachado dentro del período (de cualquier pedido) ÷ pedido × 100 — puede superar 100% |
 | Última compra | Días desde el último pedido de venta |
 | Puntaje RFM | Puntos de Recencia + Frecuencia + Monetario (solo en modo RFM) |
 
-Los umbrales de Pareto y los criterios de RFM se configuran en la pestaña Análisis de proveedores de Configuración (aplican también a clientes).
+Los umbrales de Pareto se configuran en las pestañas Compras y Ventas de Configuración; los criterios de RFM son configurables en **Ajustes → Parámetros RFM** (compartidos entre clientes y proveedores).
 
 ---
 
@@ -367,23 +339,34 @@ Las alertas se resuelven automáticamente cuando el registro vuelve a estado nor
 
 ---
 
-## Permisos por usuario
+## Permisos
 
-En **Planificador → Configuración → Permisos por usuario** se define, para cada usuario interno, qué puede ver y hacer:
+El control de acceso combina tres niveles:
 
-| Permiso | Descripción |
+### 1. Grupos de seguridad
+
+Ocho grupos definidos en la categoría **Planificador MRP** (`security/groups.xml`), asignables desde la ficha del usuario:
+
+| Grupo | Alcance |
 |---|---|
-| Alertas | Ver la sección de alertas en el panel |
-| OFs | Ver el widget de órdenes de fabricación |
-| OCs | Ver el widget de órdenes de compra |
-| Quiebres | Ver el widget de quiebres de stock |
-| Forecast | Ver el widget de forecast |
-| Programar | Crear nuevas solicitudes de programación |
-| Reprogramar | Crear planes de reprogramación |
-| Editar forecast | Modificar los valores de forecast directamente en la tabla |
-| Depósitos | Filtrar todos los datos a los depósitos asignados |
+| Producción - Lectura | Ve el panel de producción, alertas de OFs, quiebres de stock y carga de centros de trabajo |
+| Producción - Administrador | Lo anterior + configuración de alertas y quiebres (pestaña Producción) |
+| Compras - Lectura | Ve el panel de compras: alertas de OCs y recepciones, órdenes de compra y análisis de proveedores |
+| Compras - Administrador | Lo anterior + configuración de compras, análisis y categorías de proveedor |
+| Ventas - Lectura | Ve el panel de ventas, el forecast y el análisis de clientes, sin editar ni importar datos |
+| Ventas - Administrador | Lo anterior + edición e importación de forecast y configuración de ventas |
+| Programación | Habilita programación y reprogramación (menús, botones en OFs, KPIs) y su configuración |
+| Administrador | Acceso completo: implica todos los grupos anteriores |
 
-Los usuarios sin registro en esta tabla tienen **acceso completo** a todas las secciones por defecto.
+Los grupos controlan menús, pestañas de configuración y botones, y además se verifican **en el servidor** en los métodos RPC del dashboard.
+
+### 2. Visibilidad de secciones por usuario
+
+En la ficha del usuario (pestaña del planificador) — o desde **Configuración → General → "Gestionar preferencias por usuario"** — se puede ocultar individualmente cada sección de los paneles: alertas de producción, OFs, centros de trabajo, quiebres, alertas de compras, OCs, análisis de proveedores, gráfico de ventas, forecast y análisis de clientes.
+
+### 3. Restricción por depósitos
+
+Cada usuario puede limitarse a un conjunto de depósitos: todos los datos del panel (OFs, OCs, alertas, stock) se filtran automáticamente a los depósitos asignados. Por defecto el usuario ve todos los depósitos.
 
 ---
 
@@ -392,7 +375,7 @@ Los usuarios sin registro en esta tabla tienen **acceso completo** a todas las s
 | Módulo | Uso |
 |---|---|
 | `mrp` | Órdenes de fabricación, listas de materiales, órdenes de trabajo |
-| `mrp_workorder` | Planificación de órdenes de trabajo en centros de trabajo |
+| `mrp_subcontracting` | Subcontratación: envíos de componentes y recepciones de subcontratistas |
 | `purchase` | Órdenes de compra, recepciones, subcontratación |
 | `stock` | Ubicaciones, pickings, stock disponible |
 | `mail` | Chatter y notificaciones en planes y alertas |

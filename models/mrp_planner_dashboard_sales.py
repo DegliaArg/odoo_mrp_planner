@@ -76,12 +76,19 @@ class MrpPlannerDashboardSales(models.TransientModel):
         :returns: list[dict] — lista de dicts con claves ``tmpl_id``, ``name``,
             ``code``, ``sale_category``, ``qty`` y ``amount``, ordenada de mayor
             a menor según ``sort_by`` y recortada a ``top_n`` elementos.
-            Devuelve ``[]`` ante cualquier error o cuando no hay datos.
+            Devuelve ``[]`` cuando no hay datos; ante un error al leer
+            sale.order.line lo registra en el log y re-lanza la excepción.
         """
+        # Guard de grupo: lee ventas/movimientos con sudo(), no puede quedar abierto
+        # a cualquier empleado con acceso al modelo transient.
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
         tmpl_qty = {}
         allowed_ids = self._get_wh_domains().allowed_ids
         if allowed_ids is not None and not allowed_ids:
             return []
+        # Filtro de empresa activa en ambas fuentes (multiempresa).
+        company_id = self.env.company.id
 
         if doc_type in ('sales', 'rfq', 'all'):
             so_states = []
@@ -97,6 +104,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 ('order_id.date_order', '<=', date_to + ' 23:59:59'),
                 ('product_id', '!=', False),
                 ('product_id.sale_ok', '=', True),
+                ('company_id', '=', company_id),
             ]
             if allowed_ids is not None:
                 sol_domain.append(('order_id.warehouse_id', 'in', allowed_ids))
@@ -133,6 +141,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 ('date', '<=', date_to + ' 23:59:59'),
                 ('product_id', '!=', False),
                 ('product_id.sale_ok', '=', True),
+                ('company_id', '=', company_id),
             ]
             if allowed_ids is not None:
                 domain.append(('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids))
@@ -211,6 +220,8 @@ class MrpPlannerDashboardSales(models.TransientModel):
         Usa una sola read_group para obtener los categ_id activos, evitando el
         N+1 original (un search_count por categoría).
         """
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
         # sudo(): product.template y product.category no son accesibles para usuarios de producción/ventas sin permisos de catálogo
         groups = self.env['product.template'].sudo().read_group(
             [('sale_ok', '=', True)],

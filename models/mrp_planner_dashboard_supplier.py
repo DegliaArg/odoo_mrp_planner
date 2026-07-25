@@ -48,8 +48,9 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
           (costo estándar, lista de proveedor o precio anterior pagado).
         * Monto pendiente de factura (si el módulo account está disponible).
 
-        Los KPIs globales se calculan como promedios ponderados / agregaciones
-        sobre el total de pickings, no como promedios de promedios por proveedor.
+        En los KPIs globales, avg_on_time_pct se calcula ponderado sobre el total
+        de recepciones medibles; en cambio avg_lead_time_days y avg_price_var_pct
+        son promedios simples de los promedios por proveedor (ver _wavg).
 
         :param period_from: str — fecha de inicio, acepta ``'YYYY-MM'`` o
             ``'YYYY-MM-DD'``.
@@ -329,7 +330,8 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         rows.sort(key=lambda r: r['total_amount'], reverse=True)
 
         def _wavg(rows, key):
-            """Promedio simple de los valores no-nulos de ``key`` en ``rows``."""
+            """Promedio simple (pese al nombre, NO ponderado) de los valores
+            no-nulos de ``key`` en ``rows`` — un promedio de promedios por proveedor."""
             vals = [r[key] for r in rows if r[key] is not None]
             return round(sum(vals) / len(vals), 1) if vals else None
 
@@ -402,6 +404,9 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
             ``'YYYY-MM-DD'``.
         :param period_to: str — fecha de fin en formato ``'YYYY-MM'`` o
             ``'YYYY-MM-DD'`` (el mes se expande al último día).
+        :param date_field: str — campo de fecha de la OC sobre el que se aplica
+            el rango: ``'date_order'`` (default), ``'date_approve'`` o
+            ``'date_planned'``; cualquier otro valor cae en ``'date_order'``.
         :returns: list[dict] — lista de dicts con claves ``po_id``, ``name``,
             ``date_approve``, ``date_planned``, ``amount_total``,
             ``product_count`` y ``receipt_status``, ordenada por fecha de orden

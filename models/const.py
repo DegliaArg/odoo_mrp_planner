@@ -22,13 +22,6 @@ DEFAULT_ROTATION_WARN_DAYS = 90
 FORECAST_WARNING_PCT = 70
 FORECAST_CRITICAL_PCT = 50
 
-# Valores por defecto del scoring RFM. Son solo los defaults de los campos configurables
-# en mrp.reschedule.config (rfm_recency_*, rfm_freq_*, rfm_score_*); el cálculo lee la config.
-RFM_RECENCY_RECENT_DAYS = 30   # R: días desde última compra para "reciente" (3 pts)
-RFM_RECENCY_MEDIUM_DAYS = 90   # R: días desde última compra para "media" (2 pts)
-RFM_FREQ_HIGH = 10             # F: > N pedidos = alta frecuencia (3 pts)
-RFM_FREQ_MEDIUM = 3            # F: ≥ N pedidos = frecuencia media (2 pts)
-RFM_SCORE_A = 8                # Score total ≥ este valor = A
-RFM_SCORE_B = 6                # Score total ≥ este valor = B
-RFM_SCORE_C = 4                # Score total ≥ este valor = C
-RFM_SCORE_D = 3                # Score total ≥ este valor = D (resto con datos); menor = E
+# Nota: los parámetros del scoring RFM (recencia, frecuencia, cortes de score)
+# son campos configurables en mrp.reschedule.config (rfm_recency_*, rfm_freq_*,
+# rfm_score_*); sus defaults viven en la definición de cada campo.

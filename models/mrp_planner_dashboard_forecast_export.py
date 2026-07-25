@@ -122,6 +122,14 @@ class MrpPlannerDashboardForecastExport(models.TransientModel):
         wb.save(buf)
         content = base64.b64encode(buf.getvalue()).decode()
 
+        # Limpieza: borrar los exports previos del mismo usuario. Estos adjuntos no
+        # están vinculados a ningún registro (res_model vacío), así que el recolector
+        # de basura de Odoo nunca los eliminaría y se acumularían indefinidamente.
+        self.env['ir.attachment'].sudo().search([
+            ('res_model', '=', False),
+            ('create_uid', '=', self.env.uid),
+            ('name', '=like', 'forecast\\_%.xlsx'),
+        ]).unlink()
         attachment = self.env['ir.attachment'].create({
             'name': f'forecast_{period_from}_{period_to}.xlsx',
             'type': 'binary',

@@ -65,6 +65,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         """
         Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado.
 
+        Requiere pertenecer a un grupo de ventas del planificador (lee con sudo).
+
         Construye el payload completo que consume el widget de forecast del dashboard.
         El proceso interno sigue este orden:
         1. Parsear rango de fechas y convertir a UTC para dominios Datetime.
@@ -95,6 +97,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         from datetime import date as _date
         import calendar as _calendar
 
+        # Guard de grupo: lee ventas/stock con sudo(); panel de ventas.
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
         warehouse_ids = warehouse_ids or []
 
         def _parse_ym(ym):

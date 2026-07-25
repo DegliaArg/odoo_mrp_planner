@@ -82,7 +82,7 @@
                                 style="font-size:10px; padding:1px 5px;"
                                 title="En riesgo: clientes que solían comprar pero llevan tiempo sin hacerlo"
                                 t-on-click="() => this.setFilterFreq('en_riesgo')">Riesgo</button>
-                        <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                        <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
                                 style="font-size:10px; padding:1px 5px;"
                                 title="Inactivo: sin compras en el último año"
                                 t-on-click="() => this.setFilterFreq('inactivo')">Inact.</button>
@@ -93,7 +93,7 @@
 
                 <!-- Métrica del gráfico -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <t t-foreach="[['pxq','PxQ','Importe total (precio × cantidad vendida)'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','Ticket','Ticket promedio por cliente']]"
+                    <t t-foreach="[['pxq','Importe','Importe total sin impuestos de los pedidos del período'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','Ticket','Ticket promedio por cliente']]"
                        t-as="m" t-key="m[0]">
                         <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-primary' : 'btn-outline-secondary')"
                                 style="font-size:10px; padding:1px 5px;"
@@ -229,7 +229,7 @@
                                 <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_physical_pct)"
                                      t-esc="fmtPct(state.kpis.avg_physical_pct)"/>
-                                <div class="o_planner_label">% Física promedio</div>
+                                <div class="o_planner_label">% Físico prom.</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('delivery')">Ver →</button>

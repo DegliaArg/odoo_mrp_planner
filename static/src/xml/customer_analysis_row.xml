@@ -107,7 +107,7 @@
             <td t-elif="col.key === 'last_order_date'"
                 class="text-end" style="padding:3px 8px;"
                 t-att-title="cellTooltip('last_order_date', row)"
-                t-esc="row.last_order_date || '—'"/>
+                t-esc="fmtDate(row.last_order_date)"/>
 
             <td t-elif="col.key === 'distinct_products'"
                 class="text-end" style="padding:3px 8px;"
@@ -210,7 +210,7 @@
                                 <td style="padding:3px 8px 3px 40px;" class="text-primary fw-semibold">
                                     <t t-esc="ord.name"/>
                                 </td>
-                                <td style="padding:3px 8px; color:#6c757d;"><t t-esc="ord.date"/></td>
+                                <td style="padding:3px 8px; color:#6c757d;"><t t-esc="fmtDate(ord.date)"/></td>
                                 <td class="text-end" style="padding:3px 8px;">
                                     <t t-esc="fmtMoney(ord.amount)"/>
                                 </td>

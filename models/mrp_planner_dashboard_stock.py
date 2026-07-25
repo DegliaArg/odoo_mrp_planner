@@ -39,21 +39,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
     @api.model
     def get_stock_break_data(self, search='', location_ids=None):
         """
-        Devuelve KPIs y listado paginado de quiebres de stock para el widget del dashboard.
+        Devuelve KPIs y el listado COMPLETO de quiebres de stock para el widget del dashboard.
 
         Consulta productos con sale_ok=True activos (tipo 'consu'), compara su stock en
         las ubicaciones indicadas contra el punto de reorden mínimo con ruta Fabricación,
         y clasifica cada producto como: en quiebre (qty < min_qty), OK, o sin mínimo.
 
-        La carga de display_name se difiere al momento de la paginación para evitar
-        traer nombres de todos los productos cuando la lista es larga (optimización SB-02b).
+        El servidor devuelve el dataset completo (con display_name incluido); el filtrado
+        por estado, el ordenamiento y la paginación se hacen client-side en el widget.
 
-        :param filter_type: str — filtro a aplicar: 'all', 'broken', 'ok' o 'no_min'.
-        :param sort_field: str o None — campo de orden: 'name', 'qty', 'min_qty',
-            'qty_forecast', 'status' o None (orden por defecto: quiebres primero).
-        :param sort_dir: str — dirección de orden: 'asc' o 'desc'.
-        :param page: int — número de página (base 1).
-        :param page_size: int — cantidad de registros por página.
         :param search: str — texto para filtrar por nombre o referencia interna del producto.
         :param location_ids: list[int] | int | None — IDs de stock.location a considerar.
             Si es None o lista vacía, se usa el parámetro de sistema
@@ -61,12 +55,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
         :returns: dict con las claves:
             - 'error': None o 'no_location' si no se pudo resolver ninguna ubicación.
             - 'kpis': dict con 'total', 'broken', 'ok', 'no_min'.
-            - 'products': list[dict] con los registros de la página actual.
+            - 'products': list[dict] con todos los registros (el front pagina).
             - 'location_name': str con el nombre completo de la/s ubicación/es.
             - 'location_ids': list[int] con los IDs de ubicación resueltos.
             - 'location_id': int | False — ID de la primera ubicación (compatibilidad).
-            - 'total_filtered': int — total de registros tras aplicar el filtro activo.
+            - 'config': dict con flags/umbral de rotación para el widget.
         """
+        # Guard de grupo: lee stock/movimientos con sudo(); panel de producción.
+        self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
+                                   'odoo_mrp_planner.group_prod')
         # Estructura vacía reutilizada en los retornos anticipados cuando no hay datos
         _empty_kpis = {'total': 0, 'broken': 0, 'ok': 0, 'no_min': 0}
 
@@ -297,7 +294,7 @@ class MrpPlannerDashboardStock(models.TransientModel):
             raw_forecast = forecast_map.get(pid)
             rows.append({
                 'id':             pid,
-                'name':           None,   # se rellena sólo para la página (ver SB-02b)
+                'name':           None,   # se rellena más abajo para todo el dataset (el front pagina)
                 'qty':            qty,
                 'min_qty':        min_qty if has_min else None,
                 'has_min':        has_min,
@@ -418,10 +415,15 @@ class MrpPlannerDashboardStock(models.TransientModel):
             if broken_pids_set:
                 try:
                     # sudo(): stock.move requiere permisos de inventario; el dashboard se ejecuta para cualquier grupo
+                    # Cota de 365 días + filtro de empresa: sin la cota, con historial
+                    # grande esta consulta traía TODOS los movimientos históricos.
+                    _floor = (_date.today() - timedelta(days=365)).strftime('%Y-%m-%d 00:00:00')
                     SM = self.env['stock.move'].sudo()
                     out_moves = SM.search_read([
                         ('product_id', 'in', list(broken_pids_set)),
                         ('state', '=', 'done'),
+                        ('date', '>=', _floor),
+                        ('company_id', '=', self.env.company.id),
                         ('location_id.usage', '=', 'internal'),
                         ('location_dest_id.usage', '!=', 'internal'),
                     ], ['product_id', 'date', 'quantity'], order='date desc')

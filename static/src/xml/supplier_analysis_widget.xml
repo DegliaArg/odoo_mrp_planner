@@ -4,6 +4,12 @@
     <t t-name="odoo_mrp_planner.SupplierAnalysisWidget">
         <div class="o_supplier_analysis_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
+            <!-- Error de backend -->
+            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar análisis de proveedores: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
             <!-- KPI cards -->
             <t t-if="state.data and state.data.rows.length > 0">
                 <div class="row g-2 mb-3">
@@ -342,7 +348,7 @@
                                                   t-att-title="'Retraso promedio: ' + row.avg_delay_days + ' d'">
                                                 <t t-esc="row.avg_delay_days"/> d
                                             </span>
-                                            <span t-else="" class="text-success small">0 d</span>
+                                            <span t-else="" class="text-muted small">—</span>
                                         </t>
                                         <t t-elif="col.key === 'complete_pct'">
                                             <span t-if="row.complete_pct !== null"
@@ -372,7 +378,7 @@
                                                   t-att-title="'Facturas pendientes: ' + fmtMoney(row.pending_inv)">
                                                 <t t-esc="fmtMoney(row.pending_inv)"/>
                                             </span>
-                                            <span t-else="" class="text-success small">—</span>
+                                            <span t-else="" class="text-muted small">—</span>
                                         </t>
                                     </td>
                                 </tr>

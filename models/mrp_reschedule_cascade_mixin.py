@@ -21,7 +21,6 @@ from datetime import datetime, timedelta
 
 from odoo import models, fields, _
 
-from .mrp_schedule_mixin import INDENT_MAP
 
 _logger = logging.getLogger(__name__)
 

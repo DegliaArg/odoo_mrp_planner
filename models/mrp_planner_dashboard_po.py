@@ -10,8 +10,9 @@ Responsabilidades:
 - Consultar OCs en sus distintos estados (borrador, a aprobar, aprobadas, vencidas, pendientes).
 - Consultar recepciones (pickings entrantes) y entregas a subcontratistas vinculadas a OCs.
 - Calcular KPIs de resumen para el widget (cantidades por estado, vencimientos, criticidad).
-- Soportar filtrado por tipo (compra pura / subcontratación), rango de fechas, ordenamiento
-  por columna y paginación del lado servidor.
+- Soportar filtrado por tipo (compra pura / subcontratación), rango de fechas (cada KPI
+  usa su propio campo de fecha), búsqueda por texto, ordenamiento por columna y
+  paginación del lado servidor.
 - Detectar disponibilidad real de picking en Odoo 16+ donde 'partially_available' ya no
   existe como estado nativo.
 - Trazar la Orden de Fabricación (OF) de subcontratación asociada a una entrega mediante
@@ -53,17 +54,25 @@ class MrpPlannerDashboardPo(models.TransientModel):
 
         :param filter_type: str — 'all', 'purchase' (solo compra directa) o
             'subcontract' (solo subcontratación).
-        :param date_from: str|None — fecha mínima en formato 'YYYY-MM-DD'; filtra
-            date_order para OCs y scheduled_date para pickings.
-        :param date_to: str|None — fecha máxima en formato 'YYYY-MM-DD' (inclusive).
+        :param date_from: str|None — fecha mínima en formato 'YYYY-MM-DD'. Cada KPI
+            usa su propio campo de fecha para el rango: date_order (cotizaciones y
+            por aprobar), date_approve (aprobadas), date_planned (a tiempo, vencidas
+            y críticas) y scheduled_date (entregas a subcontratistas). Las
+            recepciones NO aplican filtro de fecha.
+        :param date_to: str|None — fecha máxima en formato 'YYYY-MM-DD' (inclusive),
+            aplicada sobre los mismos campos que date_from.
         :param sort_field: str|None — nombre de la columna a ordenar; valores válidos:
             'name', 'partner', 'date_planned', 'amount_total', 'scheduled_date',
             'overdue', 'availability', 'finished_product', 'po_name'.
         :param sort_dir: str — dirección de ordenamiento: 'asc' (default) o 'desc'.
         :param page: int — número de página base 1 para la paginación.
         :param page_size: int — cantidad de registros por página (default 50).
+        :param search: str|None — texto de búsqueda; filtra OCs por nombre o proveedor
+            y pickings por nombre, proveedor, OC o producto terminado.
         :returns: dict con claves:
             - 'kpis': dict con contadores de KPIs.
+            - 'kpi_ids': dict con los IDs exactos de purchase.order de cada KPI
+              (usados por el botón "Ver" para abrir justo esos registros).
             - 'show_services_tab': bool.
             - 'rfqs', 'to_approve', 'overdue', 'all_pos', 'pending_pos': list[dict] de OCs.
             - 'receipts', 'deliveries': list[dict] de pickings con líneas de movimiento.
@@ -187,6 +196,10 @@ class MrpPlannerDashboardPo(models.TransientModel):
         _has_raw_mo  = 'raw_material_production_id' in self.env['stock.move']._fields
         _has_po_line = 'purchase_line_id' in self.env['mrp.production']._fields
 
+        # Mapa procurement_group_id → mrp.production para la Estrategia 4 de
+        # _delivery_info. Se puebla en batch después de buscar las entregas.
+        _mo_by_group = {}
+
         # Límite de profundidad para el BFS de trazado de movimientos. Previene bucles
         # infinitos en estructuras de picking circular o datos corruptos.
         MAX_DEPTH = 20
@@ -238,11 +251,12 @@ class MrpPlannerDashboardPo(models.TransientModel):
                             break
                     if mo:
                         break
-            # Estrategia 4: por grupo de abastecimiento (fallback)
+            # Estrategia 4: por grupo de abastecimiento (fallback).
+            # Usa el mapa batcheado _mo_by_group (una sola búsqueda para todas las
+            # entregas) — antes hacía un search por picking dentro del loop, lo que
+            # con rangos amplios generaba miles de queries en una sola RPC.
             if not mo and p.group_id:
-                mo = self.env['mrp.production'].search(
-                    [('procurement_group_id', '=', p.group_id.id)], limit=1
-                )
+                mo = _mo_by_group.get(p.group_id.id)
 
             finished = (mo.product_id.display_name if mo and mo.product_id else None) or '—'
 
@@ -442,6 +456,19 @@ class MrpPlannerDashboardPo(models.TransientModel):
             deliveries.mapped('move_ids.raw_material_production_id.product_id')
             if _has_po_line:
                 deliveries.mapped('move_ids.raw_material_production_id.purchase_line_id.order_id')
+        if deliveries:
+            # Prefetch de las estrategias 2 y 3 de _delivery_info (primer nivel del
+            # trazado y líneas de la OC), y batcheo de la estrategia 4 (una sola
+            # búsqueda de OFs por grupo de abastecimiento para todas las entregas).
+            deliveries.mapped('move_ids.move_orig_ids')
+            if _has_raw_mo:
+                deliveries.mapped('purchase_id.order_line.move_ids.raw_material_production_id')
+            _grp_ids = deliveries.mapped('group_id').ids
+            if _grp_ids:
+                for _mo_rec in self.env['mrp.production'].search(
+                    [('procurement_group_id', 'in', _grp_ids)]
+                ):
+                    _mo_by_group.setdefault(_mo_rec.procurement_group_id.id, _mo_rec)
 
         # Sort por partner/availability/po_name en pickings (Python, cross-página)
         if sort_field == 'partner':

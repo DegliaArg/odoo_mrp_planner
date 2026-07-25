@@ -19,7 +19,7 @@ export function moTooltip(widget, cell) {
 export function svcTooltip(widget, cell) {
     if (cell.service_rate === null || cell.service_rate === undefined)
         return 'Sin pedidos de venta confirmados en el período';
-    return `Porcentaje de la demanda real entregada efectivamente al cliente\nTotal entregado ÷ Total pedidos de venta × 100\n→ ${widget.fmt(cell.delivered)} ÷ ${widget.fmt(cell.so_demand)} × 100 = ${widget.fmtPct(cell.service_rate)}`;
+    return `Entregas físicas del mes (de cualquier pedido) respecto a la demanda del mes — puede superar 100%\nEntregado en el mes ÷ demanda del mes × 100\n→ ${widget.fmt(cell.delivered)} ÷ ${widget.fmt(cell.so_demand)} × 100 = ${widget.fmtPct(cell.service_rate)}`;
 }
 
 export function rotHeaderTitle(widget) {

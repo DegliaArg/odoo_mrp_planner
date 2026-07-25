@@ -4,8 +4,14 @@
     <t t-name="odoo_mrp_planner.ForecastWidget">
         <div class="o_forecast_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
+            <!-- Error de backend -->
+            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el forecast: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
             <!-- Skeleton de carga inicial (reemplaza spinner plano) -->
-            <t t-if="state.loading || !state.data">
+            <t t-if="!state.loadError and (state.loading || !state.data)">
                 <div class="p-3">
                     <div class="o_mrp_skeleton o_mrp_skeleton_card mb-3"/>
                     <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 80%"/>
@@ -124,7 +130,7 @@
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted"
                                             style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
-                                            title="Unidades entregadas. % = tasa de servicio.">
+                                            title="Unidades entregadas. % = tasa física.">
                                             Entregado
                                         </th>
                                         <th t-if="state.visibleCols.demand_delivered"
@@ -338,7 +344,7 @@
                                                 <td t-if="state.visibleCols.delivered"
                                                     class="text-end fw-semibold"
                                                     style="padding:3px 5px;"
-                                                    t-att-title="'Tasa de servicio = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
+                                                    t-att-title="'Tasa física = ' + fmt(row.total_delivered) + ' entregado ÷ ' + fmt(row.total_so_demand) + ' pedidos × 100 = ' + fmtPct(row.total_service_rate)">
                                                     <t t-esc="fmt(row.total_delivered)"/>
                                                     <span t-if="row.total_service_rate !== null"
                                                           t-att-class="'ms-1 ' + svcClass(row.total_service_rate)"

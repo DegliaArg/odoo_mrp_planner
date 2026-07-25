@@ -37,7 +37,6 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'ontime_warn':     cfg.customer_analysis_ontime_warn_pct or 80,
             'ontime_crit':     cfg.customer_analysis_ontime_crit_pct or 60,
             'risk_days':       cfg.customer_analysis_risk_days or DEFAULT_RISK_DAYS,
-            'default_period':  cfg.customer_analysis_default_period or 'quarter',
             'abc_a_pct':       cfg.customer_analysis_abc_a_pct or 20,
             'abc_b_pct':       cfg.customer_analysis_abc_b_pct or 50,
             'show_category':   cfg.enable_customer_categories,
@@ -72,7 +71,18 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         """
         Retorna todas las filas de clientes con sus métricas para el período dado.
         El front carga todo de una vez y gestiona sort/filter/paginación en memoria.
+
+        Cada fila incluye, entre otras métricas, la tasa de cumplimiento
+        (delivery_pct: entregado de los pedidos del período ÷ pedido), la tasa
+        física (physical_pct: despachado dentro del período, de cualquier pedido,
+        ÷ pedido — puede superar 100%), puntualidad (ontime_pct) y el segmento
+        ABC del período (abc_segment, Pareto sobre el importe del rango, calculado
+        al vuelo en cada llamada).
         """
+        # Guard de grupo: este método lee ventas con sudo(), no puede quedar abierto
+        # a cualquier empleado con acceso al modelo transient.
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
         empty_kpis = {
             'total_customers': 0, 'avg_ticket': 0,
             'avg_delivery_pct': None, 'avg_physical_pct': None,
@@ -94,7 +104,14 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             if allowed is not None:
                 allowed_set = set(allowed)
                 warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
+                if not warehouse_ids:
+                    # Usuario restringido sin depósitos en la empresa activa → sin datos
+                    # (antes colapsaba a "sin filtro" y veía todo).
+                    return {'rows': [], 'kpis': empty_kpis, 'config': cfg}
             wh_domain  = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
+            # Todas las consultas sudo de este método filtran por la empresa activa:
+            # sin esto, en multiempresa el análisis mezclaría ventas de otras empresas.
+            company_dom = [('company_id', '=', self.env.company.id)]
 
             # ── 1. Órdenes confirmadas en el período ─────────────────────────
             # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
@@ -102,7 +119,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 ('state', 'in', ['sale', 'done']),
                 ('date_order', '>=', d_from_str),
                 ('date_order', '<=', d_to_str),
-            ] + wh_domain)
+            ] + wh_domain + company_dom)
             _logger.info('[CustomerAnalysis] %s – %s → %d orders', period_from, period_to, len(orders))
             if not orders:
                 return {'rows': [], 'kpis': empty_kpis, 'config': cfg}
@@ -182,7 +199,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             prev_groups   = self.env['sale.order'].sudo().read_group(
                 [('state', 'in', ['sale', 'done']),
                  ('date_order', '>=', d_prev_from),
-                 ('date_order', '<=', d_prev_to)] + wh_domain,
+                 ('date_order', '<=', d_prev_to)] + wh_domain + company_dom,
                 ['partner_id', 'amount_untaxed:sum'],
                 ['partner_id'],
             )
@@ -199,6 +216,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 ('sale_id', '!=', False),
                 ('date_done', '>=', d_from_str),
                 ('date_done', '<=', d_to_str),
+                ('company_id', '=', self.env.company.id),
             ]
             if warehouse_ids:
                 phys_pick_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
@@ -398,7 +416,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         except Exception as e:
             _logger.error('[CustomerAnalysis] error: %s', e, exc_info=True)
-            return {'rows': [], 'kpis': empty_kpis, 'config': cfg, 'error': str(e)}
+            # No exponer el detalle interno de la excepción al cliente (queda en el log).
+            return {'rows': [], 'kpis': empty_kpis, 'config': cfg,
+                    'error': _('Error al calcular el análisis de clientes. Revisá el registro del servidor.')}
 
     # ── Detalle de un cliente (panel lateral) ────────────────────────────────
 
@@ -412,15 +432,26 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         :param period_from: str 'YYYY-MM-DD'.
         :param period_to:   str 'YYYY-MM-DD'.
         :param warehouse_ids: list[int] | None.
-        :returns: dict con claves 'partner_name', 'monthly_data', 'family_mix', 'orders'.
+        :returns: dict con claves 'partner_name', 'monthly_data', 'family_mix',
+            'sale_category_mix', 'orders', 'top_products', 'total_qty_ordered',
+            'total_qty_delivered_phys', 'physical_pct' (tasa física agregada del
+            período) y 'phys_by_order_month' (desglose por mes del pedido).
         """
+        # Guard de grupo: mismo criterio que get_customer_analysis_data (lee con sudo).
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
         d_from_str = period_from + ' 00:00:00'
         d_to_str   = period_to   + ' 23:59:59'
         allowed = self._get_wh_domains().allowed_ids
+        _no_access = False
         if allowed is not None:
             allowed_set = set(allowed)
             warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
+            # Usuario restringido sin depósitos en la empresa activa → sin datos
+            _no_access = not warehouse_ids
         wh_domain = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
+        # Filtro de empresa activa para todas las consultas sudo (multiempresa).
+        company_dom = [('company_id', '=', self.env.company.id)]
 
         # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
         orders = self.env['sale.order'].sudo().search([
@@ -428,7 +459,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ('state', 'in', ['sale', 'done']),
             ('date_order', '>=', d_from_str),
             ('date_order', '<=', d_to_str),
-        ] + wh_domain)
+        ] + wh_domain + company_dom) if not _no_access else self.env['sale.order'].sudo().browse()
 
         partner = self.env['res.partner'].search([
             ('id', '=', partner_id),
@@ -486,6 +517,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ('sale_id.partner_id', '=', partner_id),
             ('date_done', '>=', d_from_str),
             ('date_done', '<=', d_to_str),
+            ('company_id', '=', self.env.company.id),
         ]
         if warehouse_ids:
             phys_pick_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))

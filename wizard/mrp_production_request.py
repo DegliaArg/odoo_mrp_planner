@@ -26,7 +26,7 @@ import pytz
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, AccessError
 
 from .mrp_demand_expansion_mixin import MrpDemandExpansionMixin
 from .mrp_demand_scheduling_mixin import MrpDemandSchedulingMixin
@@ -85,7 +85,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         string='Tipo de operación',
         domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
         required=True,
-        # FIX [FASE-3]: el ID 518 era específico de la instancia de desarrollo; buscar por código
+        # el ID 518 era específico de la instancia de desarrollo; buscar por código
         default=lambda self: self.env['stock.picking.type'].search(
             [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
         ),
@@ -204,6 +204,19 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
 
     # ── Acciones ─────────────────────────────────────────────────────────────
 
+    def _ensure_scheduling_group(self):
+        """Guard de servidor para las acciones de programación.
+
+        El flag can_schedule solo oculta los botones en la UI: sin este guard,
+        cualquier usuario con permisos MRP estándar podía calcular/confirmar
+        por RPC sin pertenecer al grupo de Programación.
+        """
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner.group_scheduling')
+                or u.has_group('odoo_mrp_planner.group_admin')
+                or u.has_group('base.group_system')):
+            raise AccessError(_('Solo los usuarios del grupo Programación pueden ejecutar esta acción.'))
+
     def action_calculate(self):
         """
         Calcula el plan de fabricación para todos los artículos de la solicitud.
@@ -219,8 +232,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
 
         :returns: dict — acción de ventana que recarga el formulario actual.
         :raises UserError: si no hay artículos o si algún artículo no tiene LdM.
+        :raises AccessError: si el usuario no tiene el grupo de Programación.
         """
         self.ensure_one()
+        self._ensure_scheduling_group()
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
 
@@ -325,15 +340,6 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             'target': 'current',
         }
 
-    def action_new(self):
-        """Vuelve a la lista para crear una nueva programación."""
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self._name,
-            'view_mode': 'list,form',
-            'target': 'current',
-        }
-
     def action_confirm(self):
         """
         Crea y confirma las OFs madre (nivel 0) del plan calculado.
@@ -346,8 +352,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         :returns: dict — acción de ventana con la lista de OFs creadas.
         :raises UserError: si el estado no es 'calculated' o si no se pudo
                            crear ninguna OF.
+        :raises AccessError: si el usuario no tiene el grupo de Programación.
         """
         self.ensure_one()
+        self._ensure_scheduling_group()
         if self.state != 'calculated':
             raise UserError(_('Calcule primero el plan.'))
 

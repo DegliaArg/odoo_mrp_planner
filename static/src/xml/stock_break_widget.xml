@@ -4,6 +4,12 @@
     <t t-name="odoo_mrp_planner.StockBreakWidget">
         <div class="o_stock_break_widget" t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
 
+            <!-- Error de backend -->
+            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar quiebres de stock: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
             <!-- Sin ubicación configurada -->
             <div t-if="state.error === 'no_location'" class="alert alert-warning d-flex align-items-center gap-2 py-2">
                 <i class="fa fa-map-marker fa-lg"/>
@@ -157,7 +163,7 @@
                                         style="font-size:12px; white-space:nowrap;"
                                         t-on-click="() => this.setGroup(g.key)">
                                     <t t-if="state.groupBy === 'sale_category'">
-                                        <span t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[g.key] || 'secondary')"
+                                        <span t-att-class="saleCatBadge(g.key)"
                                               style="font-size:10px; padding:1px 6px; margin-right:4px;">
                                             <t t-esc="g.label"/>
                                         </span>
@@ -234,7 +240,7 @@
                                             </t>
                                             <t t-elif="col.key === 'sale_category'">
                                                 <span t-if="prod.sale_category"
-                                                      t-att-class="'badge text-bg-' + ({'A':'success','B':'primary','C':'warning','D':'secondary','E':'danger'}[prod.sale_category] || 'secondary')"
+                                                      t-att-class="saleCatBadge(prod.sale_category)"
                                                       t-att-title="saleCatTooltip()"
                                                       t-esc="prod.sale_category"/>
                                                 <span t-else="" class="text-muted">—</span>

@@ -114,7 +114,7 @@ class MrpScheduleMixin(models.AbstractModel):
             # Sin calendario definido: fallback lineal (8h si no hay duración)
             return (after_dt, after_dt + timedelta(hours=duration_hours or 8.0))
         if not duration_hours:
-            # FIX [FASE-3]: duración 0 devolvía 8h incorrectamente
+            # duración 0 devolvía 8h incorrectamente
             return (after_dt, after_dt)
 
         tz = pytz.timezone(calendar.tz or 'UTC')

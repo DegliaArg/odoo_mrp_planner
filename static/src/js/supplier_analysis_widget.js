@@ -9,9 +9,11 @@
  *
  * Métodos RPC que consume:
  *   - get_supplier_analysis_data(date_from, date_to, search, po_type)
- *       → { rows: Array<SupplierRow>, config: Object, has_invoices: boolean, show_supplier_cat: boolean }
- *   - get_supplier_pos_for_analysis(partner_id, date_from, date_to)
+ *       → { rows: Array<SupplierRow>, kpis: Object, config: Object,
+ *           has_invoices: boolean, show_supplier_cat: boolean }
+ *   - get_supplier_pos_for_analysis(partner_id, date_from, date_to, date_field)
  *       → Array<{ po_id, name, date_approve, amount_total, receipt_status, ... }>
+ *       (date_field: campo de fecha de la OC para el rango, leído de config.date_field)
  *
  * Props esperados:
  *   - record: Object — registro del dashboard (mrp.planner.dashboard)
@@ -70,6 +72,7 @@ class SupplierAnalysisWidget extends Component {
 
         this.state = useState({
             loading:            true,
+            loadError:          null,
             periodFrom:         firstOfYearYMD(),
             periodTo:           todayYMD(),
             search:             '',
@@ -136,7 +139,8 @@ class SupplierAnalysisWidget extends Component {
      * @returns {Promise<void>}
      */
     async _load() {
-        this.state.loading = true;
+        this.state.loading   = true;
+        this.state.loadError = null;
         this.state.expandedSuppliers = {};
         this.state.posBySupplier     = {};
         try {
@@ -149,6 +153,7 @@ class SupplierAnalysisWidget extends Component {
             this.state.page = 1;
         } catch(e) {
             console.error("[SupplierAnalysis]", e);
+            this.state.loadError = (e && e.data && e.data.message) || e.message || String(e);
         } finally {
             this.state.loading = false;
         }

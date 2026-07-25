@@ -16,7 +16,6 @@ import logging
 from datetime import datetime, timedelta
 
 from odoo.tests.common import TransactionCase
-from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 

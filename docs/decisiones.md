@@ -240,8 +240,7 @@ Detalle de lo implementado en esta ronda:
   `mo_dashboard_widget.js` / `.xml`.)*
 
 Documentación (`docs/formulas.md`, `docs/docs.md`) actualizada para todos los ítems
-anteriores. Las secciones de A3 (referencia de precio) y B6 (fallback) se actualizarán al
-resolverse.
+anteriores.
 
 ---
 
@@ -275,3 +274,34 @@ resolverse.
 - ✔️ **Divisiones por cero y husos horarios en el comparativo.** Todas las divisiones
   tienen guarda; las fechas se comparan en UTC de forma coherente entre backend y frontend.
   **Sin problemas.**
+
+---
+
+## Revisión pre-producción (2026-07-25)
+
+Se ejecutó una auditoría de 6 dimensiones (seguridad, multiempresa, performance,
+dependencias, código muerto y configuración) previa al pase a producción. Fixes aplicados:
+
+- **Seguridad multiempresa:** filtros `company_id` + guards de grupo en el servidor
+  (`_ensure_planner_group`) en los RPCs de ventas, clientes, forecast y quiebres; colapso
+  del caso `allowed == []` (usuario sin depósitos permitidos no ve datos ajenos).
+- **Dependencias:** `mrp_subcontracting` agregado a `depends` y `mrp_workorder` eliminado.
+- **Migraciones:** carpeta `migrations/` (18.0.46.0.0) eliminada — el módulo se instala fresco.
+- **Performance:** batcheo de la estrategia 4 de entregas de OC, cota de 365 días en el
+  cálculo de días-en-quiebre, cota de 6 meses en el historial de "precio anterior pagado"
+  e invalidación correcta del `ormcache` de depósitos.
+- **Seguridad de registros:** record rules para los modelos hijos de
+  `mrp.production.request`; guard de `group_scheduling` en calcular/confirmar.
+- **Limpieza:** eliminación de adjuntos temporales de export, ajustes muertos
+  (meses por defecto del forecast, período preseleccionado de clientes) y código muerto
+  (`mo_list_widget`, `MrpTooltip`, 16 acciones sin uso del mixin, imports).
+
+## Backlog post-producción
+
+- **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los
+  configurables del análisis de clientes — diferencia aceptada por ahora.
+- **C5 — Días de retraso/vencimiento no aparecen en los KPI de alertas.** Los KPI de
+  alertas (producción y compras) solo muestran conteos, sin indicar cuántos días lleva el
+  retraso o cuántos faltan para vencer. Pendiente definir qué dato mostrar (máximo,
+  promedio u otro). *(`views/mrp_planner_dashboard_views.xml`,
+  `models/mrp_planner_dashboard.py`, `static/src/js/alert_kpi_widget.js`.)*

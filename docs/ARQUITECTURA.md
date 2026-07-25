@@ -16,7 +16,6 @@
 | `static/src/xml/` | Templates QWeb de cada widget OWL (ver sub-templates más abajo) |
 | `static/src/css/` | Estilos específicos del módulo (Gantt, tooltips KPI) |
 | `security/` | Grupos (`groups.xml`), reglas de acceso (`ir_rules.xml`, `ir.model.access.csv`) |
-| `migrations/` | Scripts de migración pre/post por versión semántica del módulo |
 
 ### Sub-templates XML por widget
 
@@ -24,8 +23,8 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 
 | Widget | Archivo principal | Sub-templates |
 |--------|------------------|---------------|
-| Forecast | `forecast_widget.xml` (522 L) | `forecast_kpis.xml` — dos filas de 5 KPI cards; `forecast_controls.xml` — barra de filtros (período, depósito, columnas, exportar) |
-| Análisis de clientes | `customer_analysis_widget.xml` (484 L) | `customer_analysis_row.xml` — fila de tabla con datos de columnas y lista de pedidos; `customer_analysis_detail_panel.xml` — panel de análisis individual (KPIs, gráficos, top artículos) |
+| Forecast | `forecast_widget.xml` | `forecast_kpis.xml` — dos filas de 5 KPI cards; `forecast_controls.xml` — barra de filtros (período, depósito, columnas, exportar) |
+| Análisis de clientes | `customer_analysis_widget.xml` | `customer_analysis_row.xml` — fila de tabla con datos de columnas y lista de pedidos; `customer_analysis_detail_panel.xml` — panel de análisis individual (KPIs, gráficos, top artículos) |
 
 ---
 
@@ -79,7 +78,7 @@ Todos heredan de `mrp.planner.dashboard` y exponen métodos RPC llamados por wid
 
 | Mixin | Archivo | Responsabilidad |
 |-------|---------|-----------------|
-| `mrp.planner.dashboard.actions.mixin` | `mrp_planner_dashboard_actions_mixin.py` | AbstractModel con los 22 métodos de drill-down (`action_view_*` + helpers `_open_alerts` / `_open_mos`). Importado por `mrp.planner.dashboard` via `_inherit`. Los `_wh_domain_*` y `_get_allowed_wh_ids` quedan en el coordinador porque los usan también los `_compute_*`. |
+| `mrp.planner.dashboard.actions.mixin` | `mrp_planner_dashboard_actions_mixin.py` | AbstractModel con los métodos de drill-down (`action_view_*` + helpers `_open_alerts` / `_open_mos`). Importado por `mrp.planner.dashboard` via `_inherit`. Los `_wh_domain_*` y `_get_allowed_wh_ids` quedan en el coordinador porque los usan también los `_compute_*`. |
 
 **Convención de filtrado por depósito**
 
@@ -99,12 +98,14 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 
 | Modelo / archivo | Dominio de datos |
 |-----------------|-----------------|
-| `mrp_planner_dashboard.py` (629 L) | Coordinador base: campos, `_compute_*`, helpers de depósito (`_wh_domain_*`, `_get_allowed_wh_ids`), navegación inter-panel (`action_open_*`, `action_refresh_*`, `action_new_*`), `get_internal_locations()`. Hereda `mrp.planner.dashboard.actions.mixin`. |
+| `mrp_planner_dashboard.py` | Coordinador base: campos, `_compute_*`, helpers de depósito (`_wh_domain_*`, `_get_allowed_wh_ids`), navegación inter-panel (`action_open_*`, `action_refresh_*`, `action_new_*`), `get_internal_locations()`. Hereda `mrp.planner.dashboard.actions.mixin`. |
 | `mrp_planner_dashboard_mo.py` | Órdenes de fabricación |
 | `mrp_planner_dashboard_po.py` | Órdenes de compra |
 | `mrp_planner_dashboard_wc.py` | Carga de centros de trabajo (gráfico) |
 | `mrp_planner_dashboard_stock.py` | Quiebres de stock |
 | `mrp_planner_dashboard_forecast.py` | Datos de forecast para el widget |
+| `mrp_forecast_calc_mixin.py` | Helpers de cálculo pesado del forecast, separados del archivo principal: rotación de inventario (`_fc_rotation_data`), construcción de filas con cobertura y precisión (`_fc_build_rows`), stats de productos sin forecast (`_fc_no_fc_stats`) |
+| `mrp_planner_dashboard_forecast_export.py` | Generación del archivo Excel de exportación del forecast (`get_forecast_export`) |
 | `mrp_planner_dashboard_sales.py` | Panel de ventas: gráfico de ventas por producto, categorías disponibles. Expone `_parse_date` como helper compartido. |
 | `mrp_planner_dashboard_supplier.py` | Análisis de proveedores: KPIs de cumplimiento, lead time, variación de precio. Importa `_parse_date` de sales. |
 | `mrp_planner_dashboard_customer.py` | Análisis de clientes |
@@ -115,7 +116,7 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
 | `mrp.reschedule.config` _(extend)_ | `mrp_partner_category.py` | Clasificación A–E automática de `product.template` (venta) y `res.partner` (proveedores y clientes) por múltiples métodos: volumen, frecuencia, RFM, % entrega a tiempo, varianza de precio, calidad de cantidad, rotación de inventario. Expone métodos de cron y acciones manuales. Usa helpers de `mrp_abc_helpers.py`. | `product.template`, `res.partner`, `stock.move.line`, `purchase.order`, `sale.order` |
-| `mrp.partner.company.category` | `mrp_partner_company_category.py` | Almacén por empresa de las categorías A–E de proveedor y cliente. `res.partner.x_supplier_category` / `x_customer_category` son campos computed que leen/escriben en esta tabla. Incluye migración automática desde columnas globales previas. | `res.partner`, `res.company` |
+| `mrp.partner.company.category` | `mrp_partner_company_category.py` | Almacén por empresa de las categorías A–E de proveedor y cliente. `res.partner.x_supplier_category` / `x_customer_category` son campos computed que leen/escriben en esta tabla. | `res.partner`, `res.company` |
 | `mrp.product.company.category` | `mrp_product_company_category.py` | Almacén por empresa de la categoría A–E de venta. `product.template.x_sale_category` es campo computed que lee/escribe en esta tabla. | `product.template`, `res.company` |
 
 ### Modelos extendidos (inherit)
@@ -230,13 +231,15 @@ Definidos en `security/groups.xml`. La visibilidad de menús, botones y pestaña
 | Grupo | Qué ve / puede hacer |
 |-------|---------------------|
 | `group_prod_read` | Dashboard de producción (solo lectura) |
-| `group_prod` | Dashboard de producción + acciones |
-| `group_scheduling` | Menús Programaciones y Reprogramaciones |
-| `group_sales` | Panel de Ventas + Análisis de clientes |
-| `group_purchase_admin` | Panel de Compras + config de proveedores |
-| `group_admin` | Todo lo anterior + Configuración completa |
+| `group_prod` | Dashboard de producción + config de pestaña Producción (implica `group_prod_read`) |
+| `group_purchase` | Panel de Compras (solo lectura) |
+| `group_purchase_admin` | Panel de Compras + config de proveedores (implica `group_purchase`) |
+| `group_sales_read` | Panel de Ventas, forecast y análisis de clientes (solo lectura) |
+| `group_sales` | Panel de Ventas + edición/importación de forecast y config (implica `group_sales_read`) |
+| `group_scheduling` | Menús Programaciones y Reprogramaciones + su configuración |
+| `group_admin` | Todo lo anterior + Configuración completa (implica todos los demás) |
 
-Cada vista XML declara `groups=` en sus `<page>`, `<menuitem>` y `<button>`. Los métodos RPC del dashboard NO verifican grupos — la visibilidad se controla en el cliente.
+Cada vista XML declara `groups=` en sus `<page>`, `<menuitem>` y `<button>`. Además, los métodos RPC del dashboard verifican grupos en el servidor vía `_ensure_planner_group()` (lectura o admin del área correspondiente).
 
 ### Patrón de widgets OWL
 

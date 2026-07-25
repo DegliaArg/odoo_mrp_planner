@@ -129,6 +129,7 @@ class ForecastWidget extends Component {
 
         this.state = useState({
             loading:            true,
+            loadError:          null,
             periodFrom:         firstOfMonthYMD(),
             periodTo:           lastOfMonthYMD(),
             warehouseIds:       [],
@@ -209,6 +210,7 @@ class ForecastWidget extends Component {
 
     async _load() {
         this.state.loading      = true;
+        this.state.loadError    = null;
         this.state.page         = 1;
         this.state.mosByProduct = {};
         this.state.expandedProducts = {};
@@ -221,6 +223,7 @@ class ForecastWidget extends Component {
             this.state.data = d;
         } catch (e) {
             console.error("[ForecastWidget]", e);
+            this.state.loadError = (e && e.data && e.data.message) || e.message || String(e);
         } finally {
             this.state.loading = false;
         }
@@ -446,7 +449,7 @@ class ForecastWidget extends Component {
     downloadExport() {
         const d = this.state.data;
         if (!d || !d.rows || !d.months) return;
-        downloadForecastExcel(this.baseFilteredRows, d.months, this.state.periodFrom, this.state.periodTo);
+        downloadForecastExcel(this.baseFilteredRows, d.months, this.state.periodFrom, this.state.periodTo, d);
     }
 }
 

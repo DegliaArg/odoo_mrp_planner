@@ -10,8 +10,8 @@
  *
  * Métodos RPC que consume:
  *   - get_product_categories_for_chart([]) → Array<{ id: number, name: string }>
- *   - get_sales_chart_data(date_from, date_to, top_n, sale_category, product_categ_id, metric, doc_type)
- *       → Array<{ name: string, code: string, qty: number, amount: number, sale_category: string }>
+ *   - get_sales_chart_data(date_from, date_to, top_n, sale_category, product_categ_id, sort_by, doc_type)
+ *       → Array<{ tmpl_id: number, name: string, code: string, qty: number, amount: number, sale_category: string }>
  *
  * Props esperados:
  *   - record: Object — registro activo del dashboard (requerido por la infraestructura de widgets)
@@ -353,7 +353,7 @@ class SalesChartWidget extends Component {
     /**
      * Cambia la métrica visualizada y recarga los datos si el valor difiere
      * del actual.
-     * @param {string} m - Métrica deseada: "qty" (unidades) | "amount" (importe).
+     * @param {string} m - Métrica deseada: "qty" (unidades) | "amount" (importe) | "sku" (cantidad de SKUs).
      */
     setMetric(m)   { if (this.state.metric !== m)          { this.state.metric = m;          this._load(); } }
 
@@ -374,7 +374,7 @@ class SalesChartWidget extends Component {
     /**
      * Cambia el tipo de documento origen de las ventas y recarga los datos
      * si el valor difiere del actual.
-     * @param {string} d - Tipo de documento: "sales" (órdenes de venta) | "invoices" (facturas).
+     * @param {string} d - Tipo de documento: "sales" (órdenes de venta) | "delivery" (entregas realizadas).
      */
     setDocType(d)  { if (this.state.docType !== d)         { this.state.docType = d;         this._load(); } }
 

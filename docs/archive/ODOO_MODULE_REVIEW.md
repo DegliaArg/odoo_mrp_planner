@@ -1,3 +1,5 @@
+> ⚠️ DOCUMENTO HISTÓRICO — snapshot de una revisión pasada; NO refleja el estado actual del código. Conservado solo como referencia.
+
 # ODOO_MODULE_REVIEW.md
 # Checklist de revisión completa — Módulos Odoo 18
 

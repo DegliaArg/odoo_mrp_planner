@@ -31,8 +31,10 @@ def _assign_abc_pareto(partners, value_by_id, field_name, thresholds=(0.20, 0.50
     """
     Clasifica registros A–E usando Pareto acumulado descendente (mayor valor = mejor categoría).
 
-    Ordena los partners de mayor a menor valor, acumula el porcentaje sobre el total
-    y asigna la categoría en el primer umbral superado. Partners sin valor → E.
+    Ordena los partners de mayor a menor valor y asigna la categoría según el
+    porcentaje acumulado ANTES de sumar el ítem actual (acumulado exclusivo):
+    el registro de mayor valor siempre cae en A, aunque por sí solo supere el
+    corte A. Partners sin valor → E.
 
     :param partners: recordset de los registros a clasificar.
     :param value_by_id: dict {partner_id: float} con la métrica a ordenar.

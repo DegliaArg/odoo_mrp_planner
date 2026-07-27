@@ -122,7 +122,10 @@ class MrpPlannerDashboardMo(models.TransientModel):
                   - critical (int): alertas con severidad 'critical'.
         """
         Alert = self.env['mrp.reschedule.alert']
-        base  = [('resolved', '=', False)]
+        # Acota a la empresa activa (consistente con el resto de los paneles): la regla de
+        # registro scopea a las empresas activas del selector, pero los KPIs deben reflejar
+        # solo la empresa activa como los demás widgets.
+        base  = [('resolved', '=', False), ('company_id', '=', self.env.company.id)]
         sc_loc_ids = self.env['stock.location'].search(
             [('is_subcontracting_location', '=', True)]
         ).ids

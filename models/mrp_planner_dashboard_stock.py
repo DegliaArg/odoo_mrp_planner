@@ -177,38 +177,39 @@ class MrpPlannerDashboardStock(models.TransientModel):
                         ('product_id', 'in', product_ids),
                         ('company_id', '=', self.env.company.id),
                     ]
-                    # Misma metodología que el forecast: 4 queries para reconstruir
-                    # stock_start (al inicio del período) y stock_end (al final = hoy),
-                    # ambos a nivel empresa (sin filtro de ubicación), para coherencia.
+                    # 4 queries para reconstruir stock_start (inicio del período) y stock_end
+                    # (final = hoy) sobre EXACTAMENTE las ubicaciones seleccionadas, para que el
+                    # stock promedio y las salidas queden consistentes con la columna de stock
+                    # actual (que usa child_of locations). Se cuenta el cruce de la frontera del
+                    # conjunto: entradas desde afuera (+) y salidas hacia afuera (−); las
+                    # transferencias internas dentro del conjunto no cruzan y se excluyen.
+                    set_loc_ids = self.env['stock.location'].sudo().search(
+                        [('id', 'child_of', locations.ids)]).ids
+                    in_dom  = [('location_dest_id', 'in', set_loc_ids),
+                               ('location_id', 'not in', set_loc_ids)]
+                    out_dom = [('location_id', 'in', set_loc_ids),
+                               ('location_dest_id', 'not in', set_loc_ids)]
                     qty_in_start  = {}
                     qty_out_start = {}
                     qty_in_end    = {}
                     qty_out_end   = {}
-                    for g in SM.read_group(_sm_base + [
+                    for g in SM.read_group(_sm_base + in_dom + [
                         ('date', '<', dt_rot_str),
-                        ('location_dest_id.usage', '=', 'internal'),
-                        ('location_id.usage', '!=', 'internal'),
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
                             qty_in_start[g['product_id'][0]] = g['product_qty'] or 0.0
-                    for g in SM.read_group(_sm_base + [
+                    for g in SM.read_group(_sm_base + out_dom + [
                         ('date', '<', dt_rot_str),
-                        ('location_id.usage', '=', 'internal'),
-                        ('location_dest_id.usage', '!=', 'internal'),
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
                             qty_out_start[g['product_id'][0]] = g['product_qty'] or 0.0
-                    for g in SM.read_group(_sm_base + [
+                    for g in SM.read_group(_sm_base + in_dom + [
                         ('date', '<=', dt_today_str),
-                        ('location_dest_id.usage', '=', 'internal'),
-                        ('location_id.usage', '!=', 'internal'),
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
                             qty_in_end[g['product_id'][0]] = g['product_qty'] or 0.0
-                    for g in SM.read_group(_sm_base + [
+                    for g in SM.read_group(_sm_base + out_dom + [
                         ('date', '<=', dt_today_str),
-                        ('location_id.usage', '=', 'internal'),
-                        ('location_dest_id.usage', '!=', 'internal'),
                     ], ['product_id', 'product_qty:sum'], ['product_id']):
                         if g['product_id']:
                             qty_out_end[g['product_id'][0]] = g['product_qty'] or 0.0

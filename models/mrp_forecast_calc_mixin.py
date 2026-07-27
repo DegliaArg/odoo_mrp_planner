@@ -18,10 +18,16 @@ def _cov_months(stock, period_days, demand):
 class MrpForecastCalcMixin(models.TransientModel):
     _inherit = 'mrp.planner.dashboard'
 
-    def _fc_rotation_data(self, all_product_ids_list, rotation_method, dt_from_str, dt_to_str):
+    def _fc_rotation_data(self, all_product_ids_list, rotation_method, dt_from_str, dt_to_str,
+                          location_ids=None):
         """
         Consulta los datos de rotación de inventario según el método configurado.
         Retorna un dict con los subdicts necesarios para el cálculo de rot_days/rot_months.
+
+        :param location_ids: list[int] | None — cuando se pasa (filtro de depósito), el stock
+            promedio se reconstruye como on-hand de EXACTAMENTE esas ubicaciones (entradas a
+            ellas − salidas de ellas), quedando consistente con el snapshot de stock actual.
+            Cuando es None se usa la frontera interno/externo a nivel compañía.
         """
         qty_in_start  = {}
         qty_out_start = {}
@@ -37,34 +43,39 @@ class MrpForecastCalcMixin(models.TransientModel):
                     ('product_id', 'in', all_product_ids_list),
                     ('company_id', '=', self.env.company.id),
                 ]
-                for g in SM.read_group(_sm_base + [
+                if location_ids:
+                    # On-hand del conjunto de ubicaciones del depósito: cuenta todo movimiento
+                    # que entra a esas ubicaciones (+) o sale de ellas (−). Las transferencias
+                    # internas dentro del conjunto se compensan (suman y restan).
+                    in_dom  = [('location_dest_id', 'in', location_ids)]
+                    out_dom = [('location_id', 'in', location_ids)]
+                else:
+                    # Frontera interno/externo a nivel compañía (comportamiento histórico).
+                    in_dom  = [('location_dest_id.usage', '=', 'internal'),
+                               ('location_id.usage', '!=', 'internal')]
+                    out_dom = [('location_id.usage', '=', 'internal'),
+                               ('location_dest_id.usage', '!=', 'internal')]
+
+                for g in SM.read_group(_sm_base + in_dom + [
                     ('date', '<', dt_from_str),
-                    ('location_dest_id.usage', '=', 'internal'),
-                    ('location_id.usage', '!=', 'internal'),
                 ], ['product_id', 'product_qty:sum'], ['product_id']):
                     if g['product_id']:
                         qty_in_start[g['product_id'][0]] = g['product_qty'] or 0.0
 
-                for g in SM.read_group(_sm_base + [
+                for g in SM.read_group(_sm_base + out_dom + [
                     ('date', '<', dt_from_str),
-                    ('location_id.usage', '=', 'internal'),
-                    ('location_dest_id.usage', '!=', 'internal'),
                 ], ['product_id', 'product_qty:sum'], ['product_id']):
                     if g['product_id']:
                         qty_out_start[g['product_id'][0]] = g['product_qty'] or 0.0
 
-                for g in SM.read_group(_sm_base + [
+                for g in SM.read_group(_sm_base + in_dom + [
                     ('date', '<=', dt_to_str),
-                    ('location_dest_id.usage', '=', 'internal'),
-                    ('location_id.usage', '!=', 'internal'),
                 ], ['product_id', 'product_qty:sum'], ['product_id']):
                     if g['product_id']:
                         qty_in_end[g['product_id'][0]] = g['product_qty'] or 0.0
 
-                for g in SM.read_group(_sm_base + [
+                for g in SM.read_group(_sm_base + out_dom + [
                     ('date', '<=', dt_to_str),
-                    ('location_id.usage', '=', 'internal'),
-                    ('location_dest_id.usage', '!=', 'internal'),
                 ], ['product_id', 'product_qty:sum'], ['product_id']):
                     if g['product_id']:
                         qty_out_end[g['product_id'][0]] = g['product_qty'] or 0.0
@@ -212,12 +223,16 @@ class MrpForecastCalcMixin(models.TransientModel):
 
                 actual  = del_qty if precision_source == 'delivery' else so_qty
                 abs_err = abs(actual - fc_qty)
+                # MAPE: promedio de la precisión por período; solo períodos con real > 0
+                # (la APE es indefinida cuando real = 0).
                 if actual > 0:
                     _mape_acc_sum   += max(0.0, 100.0 - abs_err / actual * 100)
                     _mape_acc_count += 1
-                    _wape_abs_err   += abs_err
-                if fc_qty > 0:
-                    _wmape_abs_err  += abs_err
+                # WAPE/WMAPE: el error absoluto se acumula sobre TODOS los períodos (incluye meses
+                # con real = 0 o forecast = 0); la ponderación la da el denominador global
+                # (Σreal para WAPE, Σforecast para WMAPE). Excluir esos meses subestimaba el error.
+                _wape_abs_err   += abs_err
+                _wmape_abs_err  += abs_err
                 if acc_formula in ('mape', 'wape'):
                     fc_acc = round(max(0.0, 100.0 - abs_err / actual * 100), 1) if actual > 0 else None
                 elif acc_formula == 'wmape':

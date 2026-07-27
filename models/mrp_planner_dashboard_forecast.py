@@ -441,11 +441,15 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             ('product_id', 'in', all_product_ids_list),
             ('company_id', '=', self.env.company.id),
         ]
+        # Ubicaciones del filtro de depósito; se reutilizan para que la rotación (stock
+        # promedio) tome exactamente el mismo alcance que el snapshot de stock actual.
+        rotation_loc_ids = None
         if warehouse_ids:
             wh_recs  = self.env['stock.warehouse'].browse(warehouse_ids)
             loc_ids  = wh_recs.mapped('lot_stock_id').ids
             if loc_ids:
                 quant_domain.append(('location_id', 'in', loc_ids))
+                rotation_loc_ids = loc_ids
         for _qg in self.env['stock.quant'].read_group(
                 quant_domain, ['product_id', 'quantity:sum'], ['product_id']):
             pid = _qg['product_id'][0] if _qg['product_id'] else False
@@ -456,7 +460,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         dt_from_str    = fields.Datetime.to_string(dt_from)
         dt_to_str      = fields.Datetime.to_string(dt_to)
         rotation_data  = self._fc_rotation_data(
-            all_product_ids_list, rotation_method, dt_from_str, dt_to_str)
+            all_product_ids_list, rotation_method, dt_from_str, dt_to_str,
+            location_ids=rotation_loc_ids)
 
         query = {
             'fc_data':           fc_data,

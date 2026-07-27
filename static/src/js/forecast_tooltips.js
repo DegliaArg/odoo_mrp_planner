@@ -85,17 +85,23 @@ export function accGlobalTooltip(widget) {
     const d = widget.state.data;
     if (!d) return '';
     const formula = d.acc_formula;
-    const dem = widget.fmt(d.kpis.total_so_demand), fc = widget.fmt(d.kpis.total_forecast);
-    const val = widget.fmtPct(d.kpis.overall_forecast_acc);
+    // Todo se calcula sobre las filas FILTRADAS (mismo alcance que el card y la fila Total).
+    const fk = widget.filteredKpis;
+    const t  = fk.acc_terms || {};
+    const src = d.precision_source === 'delivery' ? 'entregado' : 'demanda real';
+    const real = widget.fmt(t.sumActual || 0);
+    const fc   = widget.fmt(t.sumFc || 0);
+    const err  = widget.fmt(Math.round((t.wapeErr || 0) * 100) / 100);
+    const val  = widget.fmtPct(fk.overall_forecast_acc);
     if (formula === 'mape')
-        return `Precisión promedio por artículo (sensible a artículos de bajo volumen)\nPromedio de precisiones individuales vs demanda real por artículo\n→ promedio global = ${val}`;
+        return `Precisión promedio por período (todos pesan igual; sensible a bajo volumen)\nPromedio de las precisiones de cada período con ${src} > 0\n→ ${widget.fmt(Math.round((t.mapeSum||0)*10)/10)} ÷ ${t.mapeCount||0} = ${val}`;
     if (formula === 'wape')
-        return `Precisión ponderada por volumen de demanda real (menos sensible a bajo volumen)\n100 − (Σ|errores| ÷ demanda real × 100)\n→ 100 − (Σ|errores| ÷ ${dem} × 100) = ${val}`;
+        return `Precisión ponderada por volumen (Σ errores ÷ Σ ${src}); robusta a bajo volumen y ceros\n100 − (Σ|error| ÷ Σ ${src} × 100)\n→ 100 − (${err} ÷ ${real} × 100) = ${val}`;
     if (formula === 'wmape')
-        return `Precisión ponderada por volumen de forecast\n100 − (Σ|errores| ÷ Σforecast × 100)\n→ 100 − (Σ|errores| ÷ ${fc} × 100) = ${val}`;
+        return `Precisión ponderada por forecast (Σ errores ÷ Σ forecast)\n100 − (Σ|error| ÷ Σforecast × 100)\n→ 100 − (${widget.fmt(Math.round((t.wmapeErr||0)*100)/100)} ÷ ${fc} × 100) = ${val}`;
     if (formula === 'bias')
-        return `Sesgo del forecast: mide si se sobreestima o subestima la demanda real\n(demanda real − forecast) ÷ forecast × 100\n→ (${dem} − ${fc}) ÷ ${fc} × 100 = ${val}`;
-    return `Porcentaje de la demanda real cubierta por el forecast (puede superar 100%)\ndemanda real ÷ forecast × 100\n→ ${dem} ÷ ${fc} × 100 = ${val}`;
+        return `Sesgo del forecast: mide si se sobreestima o subestima la ${src} (agregado)\n(Σ ${src} − Σforecast) ÷ Σforecast × 100\n→ (${real} − ${fc}) ÷ ${fc} × 100 = ${val}`;
+    return `Porcentaje de la ${src} cubierta por el forecast (agregado; puede superar 100%)\nΣ ${src} ÷ Σforecast × 100\n→ ${real} ÷ ${fc} × 100 = ${val}`;
 }
 
 export function accTooltip(widget, row) {
@@ -188,8 +194,10 @@ export function mosGapTooltip(widget) {
 
 export function accSecondaryPills(widget) {
     const d = widget.state.data;
-    if (!d || !d.kpis.acc_all) return [];
-    const all = d.kpis.acc_all;
+    if (!d) return [];
+    // Usar el acc_all recalculado sobre las filas filtradas (consistente con el card y la fila Total).
+    const all = widget.filteredKpis.acc_all;
+    if (!all) return [];
     const configured = d.acc_formula || 'simple';
     const LABELS = { simple: 'Simple', mape: 'MAPE', wape: 'WAPE', wmape: 'WMAPE', bias: 'Sesgo' };
     return Object.entries(LABELS)

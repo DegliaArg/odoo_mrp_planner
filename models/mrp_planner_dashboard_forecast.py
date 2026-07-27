@@ -529,11 +529,11 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         }
         ovr_acc = acc_all[acc_formula]
 
-        # Limpiar campos internos antes de enviar al frontend
-        _internal = ('_mape_acc_sum', '_mape_acc_count', '_wape_abs_err', '_wmape_abs_err')
-        for r in rows:
-            for k in _internal:
-                r.pop(k, None)
+        # Los acumuladores por artículo (_mape_acc_sum, _mape_acc_count, _wape_abs_err,
+        # _wmape_abs_err) se ENVÍAN al frontend a propósito: el widget recalcula la
+        # precisión global (acc_all) sobre las filas filtradas con el mismo método
+        # agregado que usa el server, para que card, columna y fila Total sean
+        # consistentes entre sí y respeten el filtro/búsqueda de la tabla.
 
         return {
             'kpis': {
@@ -567,6 +567,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'rotation_method':  rotation_method,
             'rotation_n_months': round(n_months, 2),
             'acc_formula':      acc_formula,
+            'precision_source': precision_source,
             'mo_states':        mo_states,
             'coverage_unit':            coverage_unit,
             'coverage_demand_source':   coverage_demand_source,

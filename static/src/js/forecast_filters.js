@@ -52,10 +52,35 @@ export function filteredKpis(widget) {
     const mos_gap_pct = total_forecast > 0
         ? Math.round((total_mos - total_forecast) / total_forecast * 100) : null;
 
-    const accRows = rows.filter(r => r.total_forecast_acc !== null && r.total_forecast_acc !== undefined);
-    const overall_forecast_acc = accRows.length > 0
-        ? Math.round(accRows.reduce((s, r) => s + r.total_forecast_acc, 0) / accRows.length)
-        : null;
+    // Precisión global AGREGADA sobre las filas filtradas, con el MISMO método que el
+    // server (ratio de sumas, no promedio de porcentajes por artículo). Así el card, la
+    // columna y la fila Total son consistentes y respetan el filtro. El titular es la
+    // fórmula elegida en Ajustes (acc_formula).
+    const d0 = widget.state.data;
+    const acc_formula = (d0 && d0.acc_formula) || 'simple';
+    const precision_source = d0 && d0.precision_source;
+    let mapeSum = 0, mapeCount = 0, wapeErr = 0, wmapeErr = 0, sumFc = 0, sumFcPos = 0, sumActual = 0;
+    for (const r of rows) {
+        const actual = precision_source === 'delivery' ? (r.total_delivered || 0) : (r.total_so_demand || 0);
+        mapeSum   += r._mape_acc_sum  || 0;
+        mapeCount += r._mape_acc_count || 0;
+        wapeErr   += r._wape_abs_err  || 0;
+        wmapeErr  += r._wmape_abs_err || 0;
+        sumFc     += r.total_forecast || 0;
+        if ((r.total_forecast || 0) > 0) sumFcPos += r.total_forecast;
+        sumActual += actual;
+    }
+    const r1 = x => Math.round(x * 10) / 10;
+    const acc_all = {
+        simple: sumFc > 0      ? r1(sumActual / sumFc * 100) : null,
+        mape:   mapeCount > 0  ? r1(mapeSum / mapeCount) : null,
+        wape:   sumActual > 0  ? r1(Math.max(0, 100 - wapeErr / sumActual * 100)) : null,
+        wmape:  sumFcPos > 0   ? r1(Math.max(0, 100 - wmapeErr / sumFcPos * 100)) : null,
+        bias:   sumFc > 0      ? r1((sumActual - sumFc) / sumFc * 100) : null,
+    };
+    const overall_forecast_acc = acc_all[acc_formula];
+    // Términos crudos para los tooltips con números enchufados.
+    const acc_terms = { wapeErr, wmapeErr, mapeSum, mapeCount, sumActual, sumFc, sumFcPos };
 
     const del_by_order_month = {};
     for (const r of rows) {
@@ -72,6 +97,8 @@ export function filteredKpis(widget) {
         total_so_demand,
         total_demand_delivered,
         overall_forecast_acc,
+        acc_all,
+        acc_terms,
         overall_service_rate,
         overall_demand_service_rate,
         demand_gap_pct,

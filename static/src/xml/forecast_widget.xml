@@ -493,10 +493,10 @@
                                             <t t-esc="fmt(state.data.kpis.total_demand_delivered)"/>
                                         </td>
                                         <td t-if="showForecastAcc"
-                                            t-att-class="'text-end ' + accClass(state.data.kpis.overall_forecast_acc)"
+                                            t-att-class="'text-end ' + accClass(filteredKpis.overall_forecast_acc)"
                                             style="padding:3px 5px;"
                                             t-att-title="accGlobalTooltip()">
-                                            <t t-esc="fmtPct(state.data.kpis.overall_forecast_acc)"/>
+                                            <t t-esc="fmtPct(filteredKpis.overall_forecast_acc)"/>
                                         </td>
                                     </t>
                                 </tr>

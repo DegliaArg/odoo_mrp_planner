@@ -24,15 +24,21 @@ class MrpForecastCalcMixin(models.TransientModel):
         Consulta los datos de rotación de inventario según el método configurado.
         Retorna un dict con los subdicts necesarios para el cálculo de rot_days/rot_months.
 
-        :param location_ids: list[int] | None — cuando se pasa (filtro de depósito), el stock
-            promedio se reconstruye como on-hand de EXACTAMENTE esas ubicaciones (entradas a
-            ellas − salidas de ellas), quedando consistente con el snapshot de stock actual.
-            Cuando es None se usa la frontera interno/externo a nivel compañía.
+        :param location_ids: list[int] | None — cuando se pasa (filtro de depósito), los
+            flujos se miden cruzando la frontera de EXACTAMENTE esas ubicaciones, quedando
+            consistente con el snapshot de stock actual. Cuando es None se usa la frontera
+            interno/externo a nivel compañía.
         """
-        qty_in_start  = {}
-        qty_out_start = {}
-        qty_in_end    = {}
-        qty_out_end   = {}
+        # Roll-back desde el stock actual: en vez de reconstruir el on-hand sumando TODO el
+        # historial, se miden solo los flujos que cruzan la frontera del conjunto de
+        # ubicaciones DENTRO del período y en la cola (fin del período → hoy). El widget
+        # ancla en el stock actual (exacto, de stock.quant) y rueda hacia atrás:
+        #   stock_fin    = actual − entradas_cola   + salidas_cola
+        #   stock_inicio = stock_fin − entradas_per. + salidas_per.
+        qty_in_period  = {}
+        qty_out_period = {}
+        qty_in_tail    = {}
+        qty_out_tail   = {}
 
         if rotation_method == 'units' and all_product_ids_list:
             try:
@@ -44,41 +50,34 @@ class MrpForecastCalcMixin(models.TransientModel):
                     ('company_id', '=', self.env.company.id),
                 ]
                 if location_ids:
-                    # On-hand del conjunto de ubicaciones del depósito: cuenta todo movimiento
-                    # que entra a esas ubicaciones (+) o sale de ellas (−). Las transferencias
-                    # internas dentro del conjunto se compensan (suman y restan).
-                    in_dom  = [('location_dest_id', 'in', location_ids)]
-                    out_dom = [('location_id', 'in', location_ids)]
+                    # Cruce de la frontera del conjunto de ubicaciones: entradas desde afuera
+                    # (+) / salidas hacia afuera (−). Las transferencias internas dentro del
+                    # conjunto no cruzan y se excluyen. Consistente con el snapshot de stock.
+                    in_dom  = [('location_dest_id', 'in', location_ids),
+                               ('location_id', 'not in', location_ids)]
+                    out_dom = [('location_id', 'in', location_ids),
+                               ('location_dest_id', 'not in', location_ids)]
                 else:
-                    # Frontera interno/externo a nivel compañía (comportamiento histórico).
+                    # Frontera interno/externo a nivel compañía.
                     in_dom  = [('location_dest_id.usage', '=', 'internal'),
                                ('location_id.usage', '!=', 'internal')]
                     out_dom = [('location_id.usage', '=', 'internal'),
                                ('location_dest_id.usage', '!=', 'internal')]
 
-                for g in SM.read_group(_sm_base + in_dom + [
-                    ('date', '<', dt_from_str),
-                ], ['product_id', 'product_qty:sum'], ['product_id']):
-                    if g['product_id']:
-                        qty_in_start[g['product_id'][0]] = g['product_qty'] or 0.0
+                now_str    = fields.Datetime.to_string(fields.Datetime.now())
+                period_dom = [('date', '>=', dt_from_str), ('date', '<=', dt_to_str)]
+                tail_dom   = [('date', '>', dt_to_str), ('date', '<=', now_str)]  # vacío si el período termina en el futuro
 
-                for g in SM.read_group(_sm_base + out_dom + [
-                    ('date', '<', dt_from_str),
-                ], ['product_id', 'product_qty:sum'], ['product_id']):
-                    if g['product_id']:
-                        qty_out_start[g['product_id'][0]] = g['product_qty'] or 0.0
+                def _sum(loc_dom, date_dom, target):
+                    for g in SM.read_group(_sm_base + loc_dom + date_dom,
+                                           ['product_id', 'product_qty:sum'], ['product_id']):
+                        if g['product_id']:
+                            target[g['product_id'][0]] = g['product_qty'] or 0.0
 
-                for g in SM.read_group(_sm_base + in_dom + [
-                    ('date', '<=', dt_to_str),
-                ], ['product_id', 'product_qty:sum'], ['product_id']):
-                    if g['product_id']:
-                        qty_in_end[g['product_id'][0]] = g['product_qty'] or 0.0
-
-                for g in SM.read_group(_sm_base + out_dom + [
-                    ('date', '<=', dt_to_str),
-                ], ['product_id', 'product_qty:sum'], ['product_id']):
-                    if g['product_id']:
-                        qty_out_end[g['product_id'][0]] = g['product_qty'] or 0.0
+                _sum(in_dom,  period_dom, qty_in_period)
+                _sum(out_dom, period_dom, qty_out_period)
+                _sum(in_dom,  tail_dom,   qty_in_tail)
+                _sum(out_dom, tail_dom,   qty_out_tail)
             except Exception:
                 pass
 
@@ -136,10 +135,10 @@ class MrpForecastCalcMixin(models.TransientModel):
                 pass
 
         return {
-            'qty_in_start':  qty_in_start,
-            'qty_out_start': qty_out_start,
-            'qty_in_end':    qty_in_end,
-            'qty_out_end':   qty_out_end,
+            'qty_in_period':  qty_in_period,
+            'qty_out_period': qty_out_period,
+            'qty_in_tail':    qty_in_tail,
+            'qty_out_tail':   qty_out_tail,
             'cogs':          cogs,
             'inv_start':     inv_start,
             'inv_end':       inv_end,
@@ -285,10 +284,14 @@ class MrpForecastCalcMixin(models.TransientModel):
             rot_days   = None
             avg_stock_qty = stock_qty
             if rotation_method == 'units':
-                stock_start = max(0.0, rotation['qty_in_start'].get(pid, 0.0) - rotation['qty_out_start'].get(pid, 0.0))
-                stock_end   = max(0.0, rotation['qty_in_end'].get(pid, 0.0)   - rotation['qty_out_end'].get(pid, 0.0))
-                if stock_start > 0 or stock_end > 0:
-                    avg_stock_qty = (stock_start + stock_end) / 2.0
+                # Roll-back desde el stock actual (exacto, de quants) hacia atrás:
+                #   stock_fin    = actual − entradas_cola   + salidas_cola
+                #   stock_inicio = stock_fin − entradas_per. + salidas_per.
+                stock_end   = stock_qty - rotation['qty_in_tail'].get(pid, 0.0) \
+                                        + rotation['qty_out_tail'].get(pid, 0.0)
+                stock_start = stock_end - rotation['qty_in_period'].get(pid, 0.0) \
+                                        + rotation['qty_out_period'].get(pid, 0.0)
+                avg_stock_qty = (max(0.0, stock_start) + max(0.0, stock_end)) / 2.0
                 avg_monthly_del = tot_del / n_months
                 if avg_monthly_del > 0:
                     rot_months = round(avg_stock_qty / avg_monthly_del, 1)

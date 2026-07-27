@@ -388,15 +388,15 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 
 ---
 
-> **Modelo sin registro de tiempo real.** Como en planta no se loguea tiempo real, todo se mide en horas **estándar** (`duration_expected`), que es el único dato confiable. No se muestra "ejecutado en horas reales" (siempre daría 0 o valores cargados a dedo); en su lugar se mide **cuánto del plan se completó**. Los cortes del período se convierten a **UTC** según el huso del usuario, y la atribución es **simétrica** (Completado y Pendiente por solapamiento), por lo que los números reconcilian con la lista de OT.
+> **Zona horaria.** Los cortes del período se convierten a **UTC** según el huso del usuario, para que el borde coincida con la lista de OT.
 
-#### Completado
+#### Ejecutado
 
-| Concepto           | Detalle                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| **Fórmula**        | Suma de `duration_expected` de las operaciones **terminadas** que solapan el período    |
-| **Estado**         | `state = 'done'`                                                                        |
-| **Campo duración** | `mrp.workorder.duration_expected` (tiempo estándar, en minutos → horas)                 |
+| Concepto           | Detalle                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| **Fórmula**        | Suma de la duración **real** de las operaciones **terminadas** cuya fecha de fin cae en el período |
+| **Estado / fecha** | `state = 'done'` y `date_finished` dentro de `[inicio, fin]`                                    |
+| **Campo duración** | `mrp.workorder.duration` (duración real, en minutos → horas)                                   |
 
 ---
 
@@ -409,13 +409,13 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 
 ---
 
-#### Planificado, carga y avance
+#### Planificado, no planificado y carga
 
-| Indicador   | Fórmula en español                          | Nota                              |
-| ----------- | ------------------------------------------- | --------------------------------- |
-| Planificado | Completado + Pendiente                      | Todo el trabajo estándar del período |
-| Carga %     | Planificado ÷ Disponible × 100              | Qué fracción de la capacidad se planificó |
-| Avance %    | Completado ÷ Planificado × 100              | Qué fracción del plan se completó |
+| Indicador       | Fórmula en español                                                       | Nota                              |
+| --------------- | ------------------------------------------------------------------------ | --------------------------------- |
+| Planificado     | `duration_expected` de las terminadas del período + Pendiente            | Todo el trabajo estándar del período |
+| No planificado  | máximo(0, Ejecutado − `duration_expected` de las terminadas)             | Ejecución real que superó el plan |
+| Carga %         | Planificado ÷ Disponible × 100                                           | Qué fracción de la capacidad se planificó |
 
 **Colores de carga**
 
@@ -425,20 +425,19 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 | Amarillo | Carga entre 70 % y 89 % |
 | Rojo     | Carga ≥ 90 %            |
 
-> Caveat: una OT que cruza el borde del mes cuenta su `duration_expected` completa en cada período que toca (sin prorrateo), para mantener el número simple y reconciliable.
-
 ---
 
 #### Series del gráfico de carga (barras apiladas)
 
 El gráfico muestra dos stacks por cada centro de trabajo:
 
-| Serie          | Stack   | Valor                                    |
-| -------------- | ------- | ---------------------------------------- |
-| Planificado    | Plan    | horas planificadas (`duration_expected`) |
-| Sin planificar | Plan    | máximo(0, disponible − planificado)      |
-| Completado     | Avance  | horas estándar de OT terminadas          |
-| Pendiente      | Avance  | horas estándar de OT no terminadas       |
+| Serie          | Stack | Valor                                            |
+| -------------- | ----- | ------------------------------------------------ |
+| Planificado    | Plan  | horas planificadas (`duration_expected`)         |
+| Sin planificar | Plan  | máximo(0, disponible − planificado)              |
+| Ejecutado      | Real  | horas reales de OT terminadas                    |
+| Pendiente      | Real  | horas estándar de OT no terminadas               |
+| No planificado | Real  | ejecución fuera del plan (puede exceder el total) |
 
 ---
 

@@ -116,28 +116,30 @@ LABEL: Horas disponibles CT
 
 ---
 
-### 1.7 Completado y pendiente — centro de trabajo
-DESCRIPCION: Sin registro de tiempo real en planta, todo se mide en horas ESTÁNDAR (duration_expected). Completado es el tiempo estándar de las OT terminadas que solapan el período; Pendiente el de las OT no terminadas que solapan. Atribución simétrica por solapamiento; los cortes se convierten a UTC según el huso del usuario.
+### 1.7 Ejecutado, planificado y pendiente — centro de trabajo
+DESCRIPCION: Ejecutado es la duración REAL (workorder.duration) de las OT terminadas cuya fecha de fin cae en el período. Pendiente es el tiempo estándar de las OT no terminadas que solapan el período. Planificado es el estándar de las terminadas del período + Pendiente. Los cortes se convierten a UTC según el huso del usuario.
 VARIABLES:
-- H_comp = Σ duration_expected de las OT terminadas (state='done') que solapan el período
+- H_ej = Σ duración real (duration) de las OT terminadas (state='done') con fecha de fin dentro del período
+- H_exp_done = Σ duration_expected de esas OT terminadas
 - H_pend = Σ duration_expected de las OT no terminadas ni canceladas que solapan el período
-- H_plan = horas planificadas = H_comp + H_pend
-FORMULA: H_plan = H_comp + H_pend
-LABEL: Completado / pendiente (CT)
-NOTA: No se usa duración real (no hay tracking de tiempo). Una OT que cruza el borde del mes cuenta su duration_expected completa en cada período que toca (sin prorrateo).
+- H_plan = horas planificadas = H_exp_done + H_pend
+FORMULA: H_plan = H_exp_done + H_pend
+LABEL: Ejecutado / planificado / pendiente (CT)
+NOTA: Ejecutado usa la duración REAL (requiere que las OT tengan duración cargada). Una OT que cruza el borde del mes: Pendiente cuenta su duration_expected completa en cada período que toca; Ejecutado se atribuye al período de su fecha de fin.
 
 ---
 
-### 1.8 Carga y avance — centro de trabajo
-DESCRIPCION: La carga porcentual mide qué fracción de la capacidad disponible se planificó. El avance mide qué fracción del plan ya se completó.
+### 1.8 No planificado y carga — centro de trabajo
+DESCRIPCION: El tiempo no planificado es la ejecución real que superó lo planificado en las OT terminadas. La carga porcentual mide qué fracción de la capacidad disponible se planificó.
 VARIABLES:
-- H_disp = horas disponibles del CT en el período
-- H_plan = horas planificadas (Completado + Pendiente)
-- H_comp = horas completadas (estándar de las terminadas)
+- H_disp = horas disponibles del CT en el período (calendario × eficiencia)
+- H_plan = horas planificadas
+- H_ej = horas ejecutadas (reales de las terminadas)
+- H_exp_done = duration_expected de las terminadas
+- NP = tiempo no planificado
 - C_pct = carga porcentual
-- A_pct = avance porcentual
-FORMULA: C_pct = H_plan / H_disp * 100 ; A_pct = H_comp / H_plan * 100
-LABEL: Carga % y avance % (CT)
+FORMULA: NP = max(0, H_ej - H_exp_done) ; C_pct = H_plan / H_disp * 100
+LABEL: No planificado y carga % (CT)
 CONDICIONES:
 - C_pct < 70 -> verde
 - 70 <= C_pct < 90 -> amarillo

@@ -71,11 +71,11 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_success h-100" t-att-title="wcKpiTooltip('ejecutado')">
+                            <div class="card o_planner_card o_planner_card_success h-100" t-att-title="wcKpiTooltip('completado')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                    <div class="o_planner_number text-success" t-esc="fmtH(state.kpis.ejecutado)"/>
-                                    <div class="o_planner_label">Ejecutado</div>
+                                    <div class="o_planner_number text-success" t-esc="fmtH(state.kpis.completado)"/>
+                                    <div class="o_planner_label">Completado</div>
                                 </div>
                             </div>
                         </div>
@@ -91,11 +91,11 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card h-100" t-att-title="wcKpiTooltip('no_planificado')">
+                            <div class="card o_planner_card h-100" t-att-title="wcKpiTooltip('avance_pct')">
                                 <div class="card-body text-center py-3">
-                                    <i class="fa fa-bolt fa-lg mb-2 d-block" style="color:#6f42c1;"/>
-                                    <div class="o_planner_number" style="color:#6f42c1;" t-esc="fmtH(state.kpis.no_planificado)"/>
-                                    <div class="o_planner_label">No planificado</div>
+                                    <i class="fa fa-tasks fa-lg text-info mb-2 d-block"/>
+                                    <div class="o_planner_number text-info" t-esc="state.kpis.avance_pct + '%'"/>
+                                    <div class="o_planner_label">% Avance</div>
                                 </div>
                             </div>
                         </div>

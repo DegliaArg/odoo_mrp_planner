@@ -110,21 +110,20 @@ class MrpPlannerDashboardWc(models.TransientModel):
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):
         """Calcula la carga de Centros de Trabajo en el rango de fechas indicado.
 
+        Modelo sin registro de tiempo real: todo en horas ESTÁNDAR (duration_expected),
+        que es el único dato confiable cuando no se loguea tiempo en planta.
         Para cada CT activo (filtrado opcionalmente por tag) determina (en horas):
         - Disponible: horas del calendario laboral ajustadas por eficiencia.
-        - Ejecutado: Σ duración REAL de las OT terminadas dentro del período (por fecha de fin).
-        - Pendiente: Σ duración planificada (duration_expected) de las OT no terminadas que solapan.
-        - Planificado: duración planificada de las OT terminadas + Pendiente.
-        - Tiempo muerto = max(0, Disponible − Ejecutado − Pendiente) (capacidad ociosa).
-        - No planificado = max(0, Ejecutado − planificado de las terminadas) (ejecución fuera del plan).
+        - Completado: Σ duration_expected de las OT terminadas que solapan el período.
+        - Pendiente: Σ duration_expected de las OT no terminadas que solapan el período.
+        - Planificado: Completado + Pendiente.
+        - Carga %: Planificado ÷ Disponible × 100.
+        - Avance %: Completado ÷ Planificado × 100.
 
-        Los workorders se cargan en un único batch antes del loop para evitar queries N+1.
-        Las horas de calendario se cachean por (calendar_id, dt_start, dt_end) para no
-        recalcular el mismo intervalo varias veces cuando varios CTs comparten el mismo
-        calendario.
-
-        Los CTs donde todas las magnitudes son 0 se omiten del resultado para no
-        contaminar el gráfico con barras vacías.
+        La atribución es simétrica (Completado y Pendiente por solapamiento). Los cortes del
+        período se convierten a UTC según el huso del usuario. Los workorders se cargan en
+        un único batch (evita N+1) y las horas de calendario se cachean por intervalo.
+        Los CTs sin nada planificado en el período se omiten.
 
         :param date_from: str — fecha de inicio en formato ``'YYYY-MM-DD'``.
         :param date_to:   str — fecha de fin en formato ``'YYYY-MM-DD'`` (inclusive, hasta las 23:59:59).
@@ -133,22 +132,25 @@ class MrpPlannerDashboardWc(models.TransientModel):
                   - ``labels`` (list[str]): nombres de CTs incluidos.
                   - ``available_hours`` (list[float]): horas disponibles por CT.
                   - ``planificado`` (list[float]): horas planificadas por CT.
-                  - ``ejecutado`` (list[float]): horas reales ejecutadas por CT.
-                  - ``pendiente`` (list[float]): horas planificadas aún no ejecutadas por CT.
-                  - ``tiempo_muerto`` (list[float]): horas de capacidad ociosa por CT.
-                  - ``no_planificado`` (list[float]): horas ejecutadas fuera del plan por CT.
-                  - ``totals`` (dict): sumatorios globales y porcentaje de carga.
+                  - ``completado`` (list[float]): horas estándar de OT terminadas por CT.
+                  - ``pendiente`` (list[float]): horas estándar de OT no terminadas por CT.
+                  - ``totals`` (dict): sumatorios globales, carga % y avance %.
         """
-        first_day = datetime.strptime(date_from, '%Y-%m-%d')
-        last_day  = datetime.strptime(date_to,   '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        # Los cortes se interpretan en el huso del usuario y se convierten a UTC (los
+        # datetime de Odoo se almacenan en UTC). Así el borde del período coincide con lo
+        # que el usuario ve en la lista de OT y no se corre por diferencia horaria.
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        first_day = tz.localize(datetime.strptime(date_from, '%Y-%m-%d')) \
+            .astimezone(pytz.UTC).replace(tzinfo=None)
+        last_day = tz.localize(datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)) \
+            .astimezone(pytz.UTC).replace(tzinfo=None)
 
         domain = [('active', '=', True)]
         if tag_id:
             domain.append(('tag_ids', 'in', int(tag_id)))
         workcenters = self.env['mrp.workcenter'].search(domain)
 
-        labels, avail_list = [], []
-        ejecutado_list, pendiente_list, tiempo_muerto_list = [], [], []
+        labels, avail_list, pendiente_list = [], [], []
 
         # Caché de horas brutas de calendario: evita recalcular el mismo intervalo
         # cuando varios CTs comparten el mismo resource.calendar.
@@ -203,7 +205,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         for wo in all_wos:
             wos_by_wc[wo.workcenter_id.id].append(wo)
 
-        planificado_list, no_plan_list = [], []
+        planificado_list, completado_list = [], []
 
         for wc in workcenters:
             efficiency = wc.time_efficiency or 100.0
@@ -213,63 +215,53 @@ class MrpPlannerDashboardWc(models.TransientModel):
 
             wos = wos_by_wc.get(wc.id, [])  # cargado en batch antes del loop
 
-            # Definiciones (en horas):
-            #   Ejecutado   = Σ duración REAL de las OT terminadas DENTRO del período (por fecha de fin).
-            #   exp_done    = Σ duración planificada (duration_expected) de esas OT terminadas.
+            # Modelo sin registro de tiempo real (todo en horas ESTÁNDAR, duration_expected):
+            #   Completado  = Σ duration_expected de las OT terminadas que solapan el período.
             #   Pendiente   = Σ duration_expected de las OT no terminadas que solapan el período.
-            #   Planificado = exp_done + Pendiente (todo lo planificado del período).
-            ejecutado = pendiente = exp_done = 0.0
+            #   Planificado = Completado + Pendiente.
+            # Atribución simétrica: el universo ya está filtrado por solapamiento (state ≠ cancel).
+            completado = pendiente = 0.0
             for w in wos:
+                exp = (w.duration_expected or 0.0) / 60.0
                 if w.state == 'done':
-                    if w.date_finished and first_day <= w.date_finished <= last_day:
-                        ejecutado += (w.duration or 0.0) / 60.0
-                        exp_done  += (w.duration_expected or 0.0) / 60.0
-                elif w.state != 'cancel':
-                    pendiente += (w.duration_expected or 0.0) / 60.0
+                    completado += exp
+                else:
+                    pendiente += exp
 
-            planificado    = exp_done + pendiente
-            tiempo_muerto  = max(0.0, avail - ejecutado - pendiente)   # capacidad disponible ociosa
-            no_planificado = max(0.0, ejecutado - exp_done)            # ejecución que superó el plan (o sin plan)
+            planificado = completado + pendiente
 
-            # Para usuarios restringidos, excluir CTs sin actividad del depósito habilitado
-            # aunque tengan horas de calendario disponibles (esos CTs son de otros depósitos).
+            # Excluir CTs sin nada planificado en el período.
             if allowed_ids is not None:
-                if ejecutado == 0.0 and pendiente == 0.0:
+                if planificado == 0.0:
                     continue
-            elif avail == 0.0 and ejecutado == 0.0 and pendiente == 0.0:
+            elif avail == 0.0 and planificado == 0.0:
                 continue
 
             labels.append(wc.name)
             avail_list.append(round(avail, 1))
             planificado_list.append(round(planificado, 1))
-            ejecutado_list.append(round(ejecutado, 1))
+            completado_list.append(round(completado, 1))
             pendiente_list.append(round(pendiente, 1))
-            tiempo_muerto_list.append(round(tiempo_muerto, 1))
-            no_plan_list.append(round(no_planificado, 1))
 
         tot_avail = sum(avail_list)
         tot_plan  = sum(planificado_list)
-        tot_ejec  = sum(ejecutado_list)
+        tot_comp  = sum(completado_list)
         tot_pend  = sum(pendiente_list)
-        tot_muerto = sum(tiempo_muerto_list)
-        tot_noplan = sum(no_plan_list)
-        carga_pct = round(tot_plan / tot_avail * 100, 1) if tot_avail > 0 else 0.0
+        carga_pct  = round(tot_plan / tot_avail * 100, 1) if tot_avail > 0 else 0.0
+        avance_pct = round(tot_comp / tot_plan * 100, 1) if tot_plan > 0 else 0.0
 
         return {
             'labels':          labels,
             'available_hours': avail_list,
             'planificado':     planificado_list,
-            'ejecutado':       ejecutado_list,
+            'completado':      completado_list,
             'pendiente':       pendiente_list,
-            'tiempo_muerto':   tiempo_muerto_list,
-            'no_planificado':  no_plan_list,
             'totals': {
-                'disponible':      round(tot_avail,  1),
-                'planificado':     round(tot_plan,   1),
-                'carga_pct':       carga_pct,
-                'ejecutado':       round(tot_ejec,   1),
-                'pendiente':       round(tot_pend,   1),
-                'tiempo_muerto':   round(tot_muerto, 1),
-                'no_planificado':  round(tot_noplan, 1),
+                'disponible':   round(tot_avail, 1),
+                'planificado':  round(tot_plan,  1),
+                'carga_pct':    carga_pct,
+                'completado':   round(tot_comp,  1),
+                'pendiente':    round(tot_pend,  1),
+                'avance_pct':   avance_pct,
             },
         }

@@ -29,7 +29,7 @@ class WcLoadChartWidget extends Component {
             dateTo:   toDateStr(lastOfMonth),
             loading: false,
             empty: false,
-            kpis: { disponible: 0, planificado: 0, carga_pct: 0, ejecutado: 0, pendiente: 0, tiempo_muerto: 0, no_planificado: 0 },
+            kpis: { disponible: 0, planificado: 0, carga_pct: 0, completado: 0, pendiente: 0, avance_pct: 0 },
         });
 
         onMounted(async () => {
@@ -99,9 +99,9 @@ class WcLoadChartWidget extends Component {
 
         if (this.chart) this.chart.destroy();
 
-        // Barra "plan": Planificado (duration_expected) + lo que queda de la capacidad
-        // disponible sin planificar. Barra "real": Ejecutado + Pendiente + Tiempo muerto,
-        // más "No planificado" que puede exceder la capacidad (ejecución fuera del plan).
+        // Todo en horas estándar (duration_expected). Barra "plan": Planificado + lo que
+        // queda de la capacidad disponible sin planificar. Barra "avance": Completado +
+        // Pendiente (juntas suman el planificado; muestran qué fracción del plan se completó).
         const sinPlanificar = data.available_hours.map((a, i) => Math.max(0, a - data.planificado[i]));
 
         this.chart = new ChartJs(canvas, {
@@ -127,12 +127,12 @@ class WcLoadChartWidget extends Component {
                         stack: "plan",
                     },
                     {
-                        label: "Ejecutado",
-                        data: data.ejecutado,
+                        label: "Completado",
+                        data: data.completado,
                         backgroundColor: "rgba(25,135,84,0.75)",
                         borderColor: "rgba(25,135,84,1)",
                         borderWidth: 1,
-                        stack: "real",
+                        stack: "avance",
                     },
                     {
                         label: "Pendiente",
@@ -140,15 +140,7 @@ class WcLoadChartWidget extends Component {
                         backgroundColor: "rgba(255,193,7,0.85)",
                         borderColor: "rgba(200,150,0,1)",
                         borderWidth: 1,
-                        stack: "real",
-                    },
-                    {
-                        label: "No planificado",
-                        data: data.no_planificado,
-                        backgroundColor: "rgba(111,66,193,0.55)",
-                        borderColor: "rgba(111,66,193,0.85)",
-                        borderWidth: 1,
-                        stack: "real",
+                        stack: "avance",
                     },
                 ],
             },
@@ -173,9 +165,11 @@ class WcLoadChartWidget extends Component {
                             footer: (items) => {
                                 const i     = items[0].dataIndex;
                                 const avail = data.available_hours[i];
-                                const used  = data.ejecutado[i] + data.pendiente[i];
-                                const pct   = avail > 0 ? Math.round(used / avail * 100) : 0;
-                                return `  Ocupación real: ${pct}%  |  Disponible: ${avail}h`;
+                                const plan  = data.planificado[i];
+                                const comp  = data.completado[i];
+                                const carga = avail > 0 ? Math.round(plan / avail * 100) : 0;
+                                const avance = plan > 0 ? Math.round(comp / plan * 100) : 0;
+                                return `  Carga: ${carga}%  |  Avance: ${avance}%  |  Disponible: ${avail}h`;
                             },
                         },
                         padding: 10,
@@ -231,17 +225,15 @@ class WcLoadChartWidget extends Component {
             case 'disponible':
                 return `Horas calendario disponibles según el horario de trabajo configurado en cada CT\n→ ${h(k.disponible)} disponibles en el período`;
             case 'planificado':
-                return `Horas planificadas en las órdenes de trabajo del período (tiempo estándar, duration_expected), incluidas las ya terminadas\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+                return `Horas planificadas en las órdenes de trabajo del período (tiempo estándar, duration_expected), terminadas y pendientes\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
                 return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 70% | Amarillo 70–89.9% | Rojo ≥ 90%`;
-            case 'ejecutado':
-                return `Suma de la duración REAL de las órdenes de trabajo terminadas dentro del período (por fecha de fin)\n→ ${h(k.ejecutado)} ejecutadas`;
+            case 'completado':
+                return `Horas estándar (duration_expected) de las órdenes de trabajo ya TERMINADAS que solapan el período\n→ ${h(k.completado)} completadas`;
             case 'pendiente':
-                return `Horas planificadas (duration_expected) de las órdenes de trabajo no terminadas que solapan el período\n→ ${h(k.pendiente)} pendientes de ejecución`;
-            case 'tiempo_muerto':
-                return `Capacidad disponible ociosa: horas que no se ejecutaron ni están pendientes\nDisponible − Ejecutado − Pendiente\n→ ${h(k.disponible)} − ${h(k.ejecutado)} − ${h(k.pendiente)} = ${h(k.tiempo_muerto)}`;
-            case 'no_planificado':
-                return `Tiempo real trabajado que superó lo planificado (o sin plan) en las OT terminadas\nEjecutado − planificado de las terminadas\n→ ${h(k.no_planificado)} fuera del plan`;
+                return `Horas estándar (duration_expected) de las órdenes de trabajo NO terminadas que solapan el período\n→ ${h(k.pendiente)} pendientes`;
+            case 'avance_pct':
+                return `Fracción del plan que ya se completó\nCompletado ÷ Planificado × 100\n→ ${h(k.completado)} ÷ ${h(k.planificado)} × 100 = ${k.avance_pct}%`;
         }
         return '';
     }

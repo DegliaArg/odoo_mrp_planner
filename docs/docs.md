@@ -388,43 +388,34 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 
 ---
 
-#### Horas ejecutadas
+> **Modelo sin registro de tiempo real.** Como en planta no se loguea tiempo real, todo se mide en horas **estándar** (`duration_expected`), que es el único dato confiable. No se muestra "ejecutado en horas reales" (siempre daría 0 o valores cargados a dedo); en su lugar se mide **cuánto del plan se completó**. Los cortes del período se convierten a **UTC** según el huso del usuario, y la atribución es **simétrica** (Completado y Pendiente por solapamiento), por lo que los números reconcilian con la lista de OT.
 
-| Concepto           | Detalle                                                                                            |
-| ------------------ | -------------------------------------------------------------------------------------------------- |
-| **Fórmula**        | Suma de la duración **real** de las operaciones **terminadas dentro del período** (por fecha de fin) |
-| **Estado / fecha** | `state = 'done'` y `date_finished` dentro de `[inicio, fin]` del período                            |
-| **Campo duración** | `mrp.workorder.duration` (duración real, en minutos → horas dividiendo por 60)                      |
+#### Completado
 
-> No se prorratea por solapamiento: se suma la duración real completa de cada operación terminada en el período. Si las operaciones no registran tiempo real (`duration = 0`), las horas ejecutadas serán 0 aunque la operación esté terminada.
-
----
-
-#### Horas pendientes
-
-| Concepto           | Detalle                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------- |
-| **Fórmula**        | Suma de la duración **planificada** de las operaciones **no terminadas** que solapan el período |
-| **Estado**         | Cualquier estado excepto Terminada y Cancelada                                                   |
-| **Campo duración** | `mrp.workorder.duration_expected` (tiempo estándar, en minutos → horas)                         |
+| Concepto           | Detalle                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| **Fórmula**        | Suma de `duration_expected` de las operaciones **terminadas** que solapan el período    |
+| **Estado**         | `state = 'done'`                                                                        |
+| **Campo duración** | `mrp.workorder.duration_expected` (tiempo estándar, en minutos → horas)                 |
 
 ---
 
-#### Horas planificadas
+#### Pendiente
 
-| Concepto    | Detalle                                                                                             |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| **Fórmula** | `duration_expected` de las operaciones terminadas del período + horas pendientes (todo lo planificado) |
+| Concepto           | Detalle                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| **Fórmula**        | Suma de `duration_expected` de las operaciones **no terminadas** que solapan el período  |
+| **Estado**         | Cualquier estado excepto Terminada y Cancelada                                           |
 
 ---
 
-#### Tiempo muerto, tiempo no planificado y carga del CT
+#### Planificado, carga y avance
 
-| Indicador             | Fórmula en español                                                          | Nota                          |
-| --------------------- | --------------------------------------------------------------------------- | ----------------------------- |
-| Tiempo muerto         | máximo(0, horas disponibles − horas ejecutadas − horas pendientes)          | Capacidad disponible ociosa   |
-| Tiempo no planificado | máximo(0, horas ejecutadas − duración planificada de las operaciones terminadas) | Ejecución que superó el plan (o sin plan) |
-| Carga %               | horas planificadas ÷ horas disponibles × 100                                | Cero si no hay disponibles    |
+| Indicador   | Fórmula en español                          | Nota                              |
+| ----------- | ------------------------------------------- | --------------------------------- |
+| Planificado | Completado + Pendiente                      | Todo el trabajo estándar del período |
+| Carga %     | Planificado ÷ Disponible × 100              | Qué fracción de la capacidad se planificó |
+| Avance %    | Completado ÷ Planificado × 100              | Qué fracción del plan se completó |
 
 **Colores de carga**
 
@@ -434,20 +425,20 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 | Amarillo | Carga entre 70 % y 89 % |
 | Rojo     | Carga ≥ 90 %            |
 
+> Caveat: una OT que cruza el borde del mes cuenta su `duration_expected` completa en cada período que toca (sin prorrateo), para mantener el número simple y reconciliable.
+
 ---
 
 #### Series del gráfico de carga (barras apiladas)
 
 El gráfico muestra dos stacks por cada centro de trabajo:
 
-| Serie          | Stack | Valor                                            |
-| -------------- | ----- | ------------------------------------------------ |
-| Planificado    | Plan  | horas planificadas (`duration_expected`)         |
-| Sin planificar | Plan  | máximo(0, disponible − planificado)              |
-| Ejecutado      | Real  | horas ejecutadas (duración real de terminadas)   |
-| Pendiente      | Real  | horas pendientes                                 |
-| Tiempo muerto  | Real  | capacidad ociosa                                 |
-| No planificado | Real  | ejecución fuera del plan (puede exceder el total) |
+| Serie          | Stack   | Valor                                    |
+| -------------- | ------- | ---------------------------------------- |
+| Planificado    | Plan    | horas planificadas (`duration_expected`) |
+| Sin planificar | Plan    | máximo(0, disponible − planificado)      |
+| Completado     | Avance  | horas estándar de OT terminadas          |
+| Pendiente      | Avance  | horas estándar de OT no terminadas       |
 
 ---
 

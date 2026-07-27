@@ -29,7 +29,7 @@ class WcLoadChartWidget extends Component {
             dateTo:   toDateStr(lastOfMonth),
             loading: false,
             empty: false,
-            kpis: { disponible: 0, planificado: 0, carga_pct: 0, ejecutado: 0, pendiente: 0, tiempo_libre: 0 },
+            kpis: { disponible: 0, planificado: 0, carga_pct: 0, ejecutado: 0, pendiente: 0, tiempo_muerto: 0, no_planificado: 0 },
         });
 
         onMounted(async () => {
@@ -99,9 +99,10 @@ class WcLoadChartWidget extends Component {
 
         if (this.chart) this.chart.destroy();
 
-        const planificado   = data.ejecutado.map((e, i) => e + data.pendiente[i]);
-        const tiempoLibre   = data.tiempo_muerto;
-        const noplanificado = data.tiempo_muerto;
+        // Barra "plan": Planificado (duration_expected) + lo que queda de la capacidad
+        // disponible sin planificar. Barra "real": Ejecutado + Pendiente + Tiempo muerto,
+        // más "No planificado" que puede exceder la capacidad (ejecución fuera del plan).
+        const sinPlanificar = data.available_hours.map((a, i) => Math.max(0, a - data.planificado[i]));
 
         this.chart = new ChartJs(canvas, {
             type: "bar",
@@ -110,7 +111,7 @@ class WcLoadChartWidget extends Component {
                 datasets: [
                     {
                         label: "Planificado",
-                        data: planificado,
+                        data: data.planificado,
                         backgroundColor: "rgba(13,110,253,0.60)",
                         borderColor: "rgba(13,110,253,0.90)",
                         borderWidth: 1,
@@ -118,8 +119,8 @@ class WcLoadChartWidget extends Component {
                         stack: "plan",
                     },
                     {
-                        label: "No planificado",
-                        data: noplanificado,
+                        label: "Sin planificar",
+                        data: sinPlanificar,
                         backgroundColor: "rgba(200,200,200,0.35)",
                         borderColor: "rgba(160,160,160,0.50)",
                         borderWidth: 1,
@@ -142,10 +143,18 @@ class WcLoadChartWidget extends Component {
                         stack: "real",
                     },
                     {
-                        label: "Tiempo libre",
-                        data: tiempoLibre,
+                        label: "Tiempo muerto",
+                        data: data.tiempo_muerto,
                         backgroundColor: "rgba(255,153,153,0.50)",
                         borderColor: "rgba(220,80,80,0.70)",
+                        borderWidth: 1,
+                        stack: "real",
+                    },
+                    {
+                        label: "No planificado",
+                        data: data.no_planificado,
+                        backgroundColor: "rgba(111,66,193,0.55)",
+                        borderColor: "rgba(111,66,193,0.85)",
                         borderWidth: 1,
                         stack: "real",
                     },
@@ -230,15 +239,17 @@ class WcLoadChartWidget extends Component {
             case 'disponible':
                 return `Horas calendario disponibles según el horario de trabajo configurado en cada CT\n→ ${h(k.disponible)} disponibles en el período`;
             case 'planificado':
-                return `Suma de horas asignadas en órdenes de trabajo confirmadas o en progreso\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+                return `Horas planificadas en las órdenes de trabajo del período (tiempo estándar, duration_expected), incluidas las ya terminadas\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
-                return `Porcentaje de capacidad utilizada respecto al total disponible en los centros de trabajo\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 70% | Amarillo 70–89.9% | Rojo ≥ 90%`;
+                return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 70% | Amarillo 70–89.9% | Rojo ≥ 90%`;
             case 'ejecutado':
-                return `Horas efectivamente trabajadas y registradas en órdenes de trabajo completadas\n→ ${h(k.ejecutado)} ejecutadas de ${h(k.planificado)} planificadas`;
+                return `Suma de la duración REAL de las órdenes de trabajo terminadas dentro del período (por fecha de fin)\n→ ${h(k.ejecutado)} ejecutadas`;
             case 'pendiente':
-                return `Horas asignadas en órdenes de trabajo que aún no han sido ejecutadas ni registradas\nPlanificado − Ejecutado\n→ ${h(k.planificado)} − ${h(k.ejecutado)} = ${h(k.pendiente)} pendientes`;
-            case 'tiempo_libre':
-                return `Horas disponibles en el período sin ninguna orden de trabajo asignada\nDisponible − Planificado\n→ ${h(k.disponible)} − ${h(k.planificado)} = ${h(k.tiempo_libre)} sin asignar`;
+                return `Horas planificadas (duration_expected) de las órdenes de trabajo no terminadas que solapan el período\n→ ${h(k.pendiente)} pendientes de ejecución`;
+            case 'tiempo_muerto':
+                return `Capacidad disponible ociosa: horas que no se ejecutaron ni están pendientes\nDisponible − Ejecutado − Pendiente\n→ ${h(k.disponible)} − ${h(k.ejecutado)} − ${h(k.pendiente)} = ${h(k.tiempo_muerto)}`;
+            case 'no_planificado':
+                return `Tiempo real trabajado que superó lo planificado (o sin plan) en las OT terminadas\nEjecutado − planificado de las terminadas\n→ ${h(k.no_planificado)} fuera del plan`;
         }
         return '';
     }

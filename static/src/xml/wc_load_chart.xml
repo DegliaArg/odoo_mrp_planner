@@ -91,11 +91,21 @@
                         </div>
 
                         <div class="col-6">
-                            <div class="card o_planner_card o_planner_card_danger h-100" t-att-title="wcKpiTooltip('tiempo_libre')">
+                            <div class="card o_planner_card o_planner_card_danger h-100" t-att-title="wcKpiTooltip('tiempo_muerto')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-ban fa-lg text-danger mb-2 d-block"/>
-                                    <div class="o_planner_number text-danger" t-esc="fmtH(state.kpis.tiempo_libre)"/>
-                                    <div class="o_planner_label">Tiempo libre</div>
+                                    <div class="o_planner_number text-danger" t-esc="fmtH(state.kpis.tiempo_muerto)"/>
+                                    <div class="o_planner_label">Tiempo muerto</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card h-100" t-att-title="wcKpiTooltip('no_planificado')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-bolt fa-lg mb-2 d-block" style="color:#6f42c1;"/>
+                                    <div class="o_planner_number" style="color:#6f42c1;" t-esc="fmtH(state.kpis.no_planificado)"/>
+                                    <div class="o_planner_label">No planificado</div>
                                 </div>
                             </div>
                         </div>

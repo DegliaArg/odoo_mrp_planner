@@ -106,11 +106,12 @@
                             type="object"
                             string="Crear plan de reprogramación"
                             class="btn-primary"
-                            invisible="resolved or alert_type == 'qty_mismatch'"/>
+                            invisible="resolved or alert_type == 'qty_mismatch' or not scheduling_enabled"/>
                     <button name="action_resolve"
                             type="object"
                             string="Marcar como resuelta"
                             invisible="resolved"/>
+                    <field name="scheduling_enabled" invisible="1"/>
                 </header>
                 <sheet>
                     <!-- D-04: Banner de alerta crítica no resuelta -->
@@ -193,6 +194,7 @@
                 <field name="company_id"    string="Empresa"     optional="hide" groups="base.group_multi_company"/>
                 <field name="resolved"      string="Resuelta"/>
                 <field name="resolve_date"  string="Resuelta el" optional="hide"/>
+                <field name="scheduling_enabled" column_invisible="1"/>
                 <button name="action_view_impact_mos"
                         type="object"
                         string="Ver OFs"
@@ -202,7 +204,7 @@
                         type="object"
                         string="Reprogramar"
                         class="btn-primary btn-sm"
-                        invisible="resolved or alert_type == 'qty_mismatch'"/>
+                        invisible="resolved or alert_type == 'qty_mismatch' or not scheduling_enabled"/>
                 <button name="action_resolve"
                         type="object"
                         string="Resolver"

@@ -22,7 +22,7 @@ import logging
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, tools, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, AccessError
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 from .const import DEFAULT_PO_CRITICAL_DAYS
 
@@ -109,7 +109,27 @@ class MrpRescheduleAlert(models.Model):
     active = fields.Boolean(default=True,
                             help='Permite archivar alertas sin borrarlas. Las alertas inactivas no aparecen en las vistas estándar.')
 
+    scheduling_enabled = fields.Boolean(
+        string='Programación habilitada', compute='_compute_scheduling_enabled',
+        help='Refleja el flag enable_scheduling de la configuración de la empresa de la alerta. '
+             'Se usa para ocultar el botón de reprogramación cuando la función está desactivada.')
+
     # ── Computed ─────────────────────────────────────────────────────────────
+
+    def _compute_scheduling_enabled(self):
+        """Lee enable_scheduling de la config de cada empresa (con caché por empresa).
+
+        Si la empresa no tiene registro de configuración, se asume habilitado
+        (coincide con el default=True del campo enable_scheduling).
+        """
+        Config = self.env['mrp.reschedule.config']
+        cache = {}
+        for rec in self:
+            cid = rec.company_id.id
+            if cid not in cache:
+                cfg = Config.search([('company_id', '=', cid)], limit=1)
+                cache[cid] = bool(cfg.enable_scheduling) if cfg else True
+            rec.scheduling_enabled = cache[cid]
 
     @api.depends('alert_type', 'production_id', 'purchase_id', 'picking_id')
     def _compute_name(self):
@@ -201,6 +221,27 @@ class MrpRescheduleAlert(models.Model):
             'target': 'current',
         }
 
+    def _ensure_scheduling_enabled(self):
+        """Valida que la reprogramación esté habilitada y que el usuario tenga permiso.
+
+        Red de seguridad para la acción de reprogramar desde la alerta: aunque el
+        botón se oculta cuando enable_scheduling está en falso, este método impide
+        crear el plan por RPC directo o si la función fue desactivada.
+
+        :raises UserError: si las funciones de programación están desactivadas para la empresa.
+        :raises AccessError: si el usuario no pertenece al grupo de Programación ni es admin.
+        """
+        if not self.scheduling_enabled:
+            raise UserError(_(
+                'Las funciones de programación y reprogramación están desactivadas '
+                'en la configuración. Actívalas en Ajustes para crear planes de reprogramación.'
+            ))
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner.group_scheduling')
+                or u.has_group('odoo_mrp_planner.group_admin')
+                or u.has_group('base.group_system')):
+            raise AccessError(_('Solo los usuarios del grupo Programación pueden crear planes de reprogramación.'))
+
     def action_create_reschedule_plan(self):
         """
         Crea o abre el plan de reprogramación vinculado a esta alerta.
@@ -212,8 +253,11 @@ class MrpRescheduleAlert(models.Model):
         u origin (en ese orden de prioridad).
 
         :returns: Acción de ventana al formulario del plan de reprogramación.
+        :raises UserError: si las funciones de programación están desactivadas.
+        :raises AccessError: si el usuario no pertenece al grupo de Programación.
         """
         self.ensure_one()
+        self._ensure_scheduling_enabled()
         if self.plan_id and self.plan_id.state not in ('applied', 'cancelled'):
             return {
                 'type': 'ir.actions.act_window',

@@ -6,19 +6,28 @@
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_form_view"/>
         <field name="arch" type="xml">
+            <!-- Clasificación de venta: junto a la Categoría de producto en Información
+                 general (no es scheduling). Se oculta si las categorías de venta están
+                 desactivadas en la configuración. -->
+            <field name="categ_id" position="after">
+                <field name="mrp_enable_sale_cat" invisible="1"/>
+                <field name="mrp_enable_scheduling" invisible="1"/>
+                <field name="x_sale_category"
+                       string="Categoría de venta"
+                       invisible="not sale_ok or not mrp_enable_sale_cat"
+                       help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración del planificador."/>
+                <field name="x_product_type_ids"
+                       string="Tipo de producto"
+                       widget="many2many_tags"
+                       invisible="not sale_ok or not mrp_enable_sale_cat"
+                       options="{'color_field': 'color', 'no_quick_create': false}"
+                       help="Etiquetas de clasificación libre (ej. Materia prima, Producto terminado). Se pueden crear valores directamente desde aquí."/>
+            </field>
+            <!-- Pestaña de scheduling: solo centros de trabajo compatibles. Desaparece
+                 cuando la programación está desactivada. -->
             <xpath expr="//notebook" position="inside">
-                <page string="Planificador" name="mrp_planner_tab">
-                    <group string="Categoría de venta"
-                           invisible="not sale_ok or not mrp_enable_sale_cat">
-                        <field name="x_sale_category"
-                               string="Categoría"
-                               help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración del planificador."/>
-                        <field name="x_product_type_ids"
-                               string="Tipo de producto"
-                               widget="many2many_tags"
-                               options="{'color_field': 'color', 'no_quick_create': false}"
-                               help="Etiquetas de clasificación libre (ej. Materia prima, Producto terminado). Se pueden crear valores directamente desde aquí."/>
-                    </group>
+                <page string="Planificador" name="mrp_planner_tab"
+                      invisible="not mrp_enable_scheduling">
                     <group string="Centros de trabajo">
                         <field name="x_centros_compatibles" nolabel="1">
                             <list editable="bottom">

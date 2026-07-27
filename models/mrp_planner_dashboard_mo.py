@@ -75,7 +75,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
+        wh_mo = ([('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo) + [('company_id', '=', self.env.company.id)]
         domain = [
             ('state', 'not in', ('done', 'cancel')),
             ('date_start', '<=', fields.Datetime.to_string(last_day)),
@@ -134,7 +134,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
                  ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
         wh = self._get_wh_domains()
         wh_alert = wh.alert
-        wh_mo    = wh.mo
+        wh_mo    = wh.mo + [('company_id', '=', self.env.company.id)]
 
         def cnt(alert_type):
             return Alert.search_count(base + no_sc + wh_alert + [('alert_type', '=', alert_type)])
@@ -199,7 +199,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         mo_order = f'{mo_f} {_sd}'
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
+        wh_mo = ([('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo) + [('company_id', '=', self.env.company.id)]
         # Estados activos seleccionados (excluye 'done' que tiene su propio dominio)
         active_states = [s for s in (states or []) if s != 'done'] if states else []
         state_clause  = [('state', 'in', active_states)] if active_states else [('state', 'not in', ('done', 'cancel'))]
@@ -241,6 +241,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 ('product_id', 'in', product_ids),
                 ('state', 'not in', ('done', 'cancel')),
                 ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('company_id', '=', self.env.company.id),
             ])
             pending_out = {}
             for m in out_moves:
@@ -292,7 +293,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         now   = fields.Datetime.now()
         MO    = self.env['mrp.production']
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
+        wh_mo = ([('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo) + [('company_id', '=', self.env.company.id)]
         dFrom = fields.Datetime.to_string(_local_to_utc(self.env, date_from))
         dTo   = fields.Datetime.to_string(_local_to_utc(self.env, date_to, end_of_day=True))
         active = [('state', 'not in', ('done', 'cancel', 'draft'))]
@@ -347,8 +348,9 @@ class MrpPlannerDashboardMo(models.TransientModel):
         _REQ_FIELD = {'name': 'name', 'start_from': 'start_from', 'state': 'state'}
         req_f = _REQ_FIELD.get(sort_field, 'id')
 
-        confirmed  = Req.search([('state', '=', 'confirmed')])
-        calculated = Req.search([('state', '=', 'calculated')])
+        _req_co = [('company_id', '=', self.env.company.id)]
+        confirmed  = Req.search([('state', '=', 'confirmed')] + _req_co)
+        calculated = Req.search([('state', '=', 'calculated')] + _req_co)
         all_active = (confirmed | calculated).sorted(req_f, reverse=(_sd == 'desc'))
         all_mos    = confirmed.mapped('item_ids.production_id').filtered(lambda m: m.id)
 
@@ -439,7 +441,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         last_day  = _local_to_utc(self.env, date_to, end_of_day=True)
 
         no_sc = no_subcontract_domain(self.env)
-        wh_mo = [('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo
+        wh_mo = ([('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo) + [('company_id', '=', self.env.company.id)]
 
         cfg  = self.env['mrp.reschedule.config'].get_config()
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'

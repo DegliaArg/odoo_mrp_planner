@@ -601,16 +601,20 @@ LABEL: Cantidad vendida y monto por producto
 ---
 
 ### 3.2 Categoría de venta — Rotación (fuente: entregas)
-DESCRIPCION: Asigna una categoría A–E a cada artículo según sus días de cobertura, calculados a partir del stock actual y el promedio mensual de unidades entregadas en el período de análisis. Menor rotación corresponde a categoría más baja.
+DESCRIPCION: Asigna una categoría A–E a cada artículo según sus días de cobertura, calculados a partir del stock PROMEDIO del período (roll-back desde el stock actual) y el promedio mensual de unidades entregadas. Menor rotación corresponde a categoría más baja.
 VARIABLES:
 - sal = suma de unidades de salidas completadas del artículo en el período de análisis
 - n_m = número de meses del período de análisis (configurable, def: 3)
 - prom_m = promedio mensual de salidas
-- S = stock actual en ubicaciones internas
+- S_fin = stock actual en ubicaciones internas (a nivel compañía)
+- ent = entradas al stock interno en el período (compras + PRODUCCIÓN propia + ajustes; todo lo que cruza a ubicación interna)
+- S_ini = stock al inicio (roll-back) = S_fin − ent + sal
+- S_avg = stock promedio del período = (S_ini + S_fin) / 2
 - DIO = días de inventario
-FORMULA: prom_m = sal / n_m ; DIO = (S / prom_m) * 30
+FORMULA: S_ini = S_fin − ent + sal ; S_avg = (S_ini + S_fin) / 2 ; prom_m = sal / n_m ; DIO = (S_avg / prom_m) * 30
 LABEL: Días de inventario — rotación por entregas (categoría de venta)
 CONFIG: Categorías de venta — Fuente del denominador de rotación = Entregas completadas
+NOTA: las entradas cuentan todo lo que ingresa a stock interno (incluida la producción propia), no solo las recepciones de compra; si no, en artículos fabricados el stock inicial quedaría inflado.
 CONDICIONES:
 - DIO <= umbral_A_dias -> A
 - DIO <= umbral_B_dias -> B
@@ -622,14 +626,18 @@ CONDICIONES:
 ---
 
 ### 3.2b Categoría de venta — Rotación (fuente: demanda de pedidos)
-DESCRIPCION: Igual que el bloque anterior, pero el denominador de la rotación son las unidades en órdenes de venta confirmadas del período en lugar de las entregas completadas.
+DESCRIPCION: Igual que el bloque anterior (stock promedio por roll-back), pero el denominador de la rotación son las unidades en órdenes de venta confirmadas del período en lugar de las entregas completadas.
 VARIABLES:
 - dem = suma de unidades en órdenes de venta confirmadas del artículo en el período
 - n_m = número de meses del período de análisis
 - prom_m = promedio mensual de demanda
-- S = stock actual
+- S_fin = stock actual en ubicaciones internas
+- ent = entradas al stock interno en el período (compras + producción + ajustes)
+- sal = salidas físicas (entregas) del período — se usan solo para reconstruir el stock inicial, no como denominador
+- S_ini = stock al inicio (roll-back) = S_fin − ent + sal
+- S_avg = stock promedio del período = (S_ini + S_fin) / 2
 - DIO = días de inventario
-FORMULA: prom_m = dem / n_m ; DIO = (S / prom_m) * 30
+FORMULA: S_ini = S_fin − ent + sal ; S_avg = (S_ini + S_fin) / 2 ; prom_m = dem / n_m ; DIO = (S_avg / prom_m) * 30
 LABEL: Días de inventario — rotación por demanda OV (categoría de venta)
 CONFIG: Categorías de venta — Fuente del denominador de rotación = Demanda confirmada (órdenes de venta)
 CONDICIONES:

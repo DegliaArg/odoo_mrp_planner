@@ -958,8 +958,10 @@ El resultado se guarda en `product.template.x_sale_category`. La fuente son sali
 | ------------------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
 | Denominador período | Volumen del período (según `sale_cat_rotation_source`, ver abajo)         | Ver tabla inferior                               |
 | Promedio mensual    | Denominador período ÷ cantidad de meses del período                       | —                                                |
-| Stock actual        | Suma de cantidades en ubicaciones internas, por producto base             | `Σ stock.quant.quantity`                         |
-| Días de rotación    | (stock actual ÷ promedio mensual) × 30, redondeado. Si no hay ventas: 999 | Calculado                                        |
+| Stock al fin        | Stock actual: suma de cantidades en ubicaciones internas (a nivel compañía) | `Σ stock.quant.quantity`                        |
+| Stock al inicio     | Roll-back: stock al fin − entradas + salidas del período. Las **entradas incluyen producción** (todo lo que cruza a stock interno), no solo compras | Reconstruido |
+| Stock promedio      | (stock al inicio + stock al fin) ÷ 2                                       | Calculado                                        |
+| Días de rotación    | (stock **promedio** ÷ promedio mensual) × 30, redondeado. Si no hay ventas: 999 | Calculado                                   |
 
 **Fuente del denominador de rotación (`sale_cat_rotation_source`)**
 

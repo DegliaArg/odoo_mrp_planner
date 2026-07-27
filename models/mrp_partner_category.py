@@ -183,10 +183,14 @@ class MrpPartnerCategory(models.Model):
             )
             stock_now_by_pid = {g['product_id'][0]: (g['quantity'] or 0.0) for g in quants}
 
-            # Ingresos del período para reconstruir stock de inicio
+            # Ingresos del período para reconstruir el stock de inicio. Se cuenta TODO lo que
+            # entra a ubicaciones internas cruzando la frontera (compras, PRODUCCIÓN propia y
+            # ajustes), no solo las recepciones de compra: si no, en artículos que se fabrican
+            # la entrada por producción no se contaría y el stock inicial quedaría inflado.
             in_groups = self.env['stock.move.line'].read_group([
                 ('state', '=', 'done'),
-                ('picking_id.picking_type_code', '=', 'incoming'),
+                ('location_dest_id.usage', '=', 'internal'),
+                ('location_id.usage', '!=', 'internal'),
                 ('date', '>=', start_dt),
                 ('date', '<=', end_dt),
                 ('product_id', '!=', False),

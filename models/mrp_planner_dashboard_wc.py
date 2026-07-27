@@ -192,6 +192,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             ('date_finished', '>=', fields.Datetime.to_string(first_day)),
             ('date_finished', '=', False),
             ('production_id.location_src_id.is_subcontracting_location', '!=', True),
+            ('company_id', '=', self.env.company.id),
         ]
         if allowed_ids is not None:
             if not allowed_ids:

@@ -36,6 +36,8 @@ Se configura en Ajustes → Producción → "Comparativa Producido vs. Programad
 | Por COGS (a costo) | días del período × inventario promedio valorizado ÷ costo de lo vendido |
 | Por ventas (a precio) | días del período × inventario promedio valorizado ÷ ventas netas (precio de lista) |
 
+> El *stock promedio* (unidades) se calcula por **roll-back**: ancla en el stock actual y rueda hacia atrás con los flujos del período (ver detalle).
+
 → Ver *Rotación en quiebres de stock*
 
 ### Forecast — método de rotación de inventario
@@ -388,39 +390,41 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 
 #### Horas ejecutadas
 
-| Concepto           | Detalle                                                                                |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| **Fórmula**        | Suma de horas de operaciones ya terminadas que se solapan con el período seleccionado  |
-| **Estado**         | Solo operaciones con estado Terminada                                                  |
-| **Campo duración** | `mrp.workorder.duration_expected` (en minutos, se convierte a horas dividiendo por 60) |
-| **Campo estado**   | `mrp.workorder.state = 'done'`                                                         |
+| Concepto           | Detalle                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| **Fórmula**        | Suma de la duración **real** de las operaciones **terminadas dentro del período** (por fecha de fin) |
+| **Estado / fecha** | `state = 'done'` y `date_finished` dentro de `[inicio, fin]` del período                            |
+| **Campo duración** | `mrp.workorder.duration` (duración real, en minutos → horas dividiendo por 60)                      |
 
-**Solapamiento parcial de una operación con el período**
-
-| Concepto                    | Fórmula en español                                                                     |
-| --------------------------- | -------------------------------------------------------------------------------------- |
-| Inicio del solapamiento     | el mayor entre fecha inicio de la operación y fecha inicio del período                 |
-| Fin del solapamiento        | el menor entre fecha fin de la operación y fecha fin del período                       |
-| Proporción del solapamiento | (duración del solapamiento en segundos) ÷ (duración total de la operación en segundos) |
-| Horas aportadas             | duración esperada de la operación (en horas) × proporción del solapamiento             |
+> No se prorratea por solapamiento: se suma la duración real completa de cada operación terminada en el período. Si las operaciones no registran tiempo real (`duration = 0`), las horas ejecutadas serán 0 aunque la operación esté terminada.
 
 ---
 
 #### Horas pendientes
 
-| Concepto    | Detalle                                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Fórmula** | Mismo cálculo de solapamiento que horas ejecutadas, pero para operaciones que aún no terminaron ni se cancelaron |
-| **Estado**  | Operaciones con cualquier estado excepto Terminada y Cancelada                                                   |
+| Concepto           | Detalle                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| **Fórmula**        | Suma de la duración **planificada** de las operaciones **no terminadas** que solapan el período |
+| **Estado**         | Cualquier estado excepto Terminada y Cancelada                                                   |
+| **Campo duración** | `mrp.workorder.duration_expected` (tiempo estándar, en minutos → horas)                         |
 
 ---
 
-#### Tiempo libre y carga del CT
+#### Horas planificadas
 
-| Indicador    | Fórmula en español                                                 | Nota                             |
-| ------------ | ------------------------------------------------------------------ | -------------------------------- |
-| Tiempo libre | máximo(0, horas disponibles − horas ejecutadas − horas pendientes) | Nunca negativo                   |
-| Carga %      | (horas ejecutadas + horas pendientes) ÷ horas disponibles × 100    | Cero si no hay horas disponibles |
+| Concepto    | Detalle                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| **Fórmula** | `duration_expected` de las operaciones terminadas del período + horas pendientes (todo lo planificado) |
+
+---
+
+#### Tiempo muerto, tiempo no planificado y carga del CT
+
+| Indicador             | Fórmula en español                                                          | Nota                          |
+| --------------------- | --------------------------------------------------------------------------- | ----------------------------- |
+| Tiempo muerto         | máximo(0, horas disponibles − horas ejecutadas − horas pendientes)          | Capacidad disponible ociosa   |
+| Tiempo no planificado | máximo(0, horas ejecutadas − duración planificada de las operaciones terminadas) | Ejecución que superó el plan (o sin plan) |
+| Carga %               | horas planificadas ÷ horas disponibles × 100                                | Cero si no hay disponibles    |
 
 **Colores de carga**
 
@@ -436,19 +440,14 @@ Agrupa las OFs del período por producto. El criterio que determina qué OFs ent
 
 El gráfico muestra dos stacks por cada centro de trabajo:
 
-| Serie          | Stack | Valor                               |
-| -------------- | ----- | ----------------------------------- |
-| Planificado    | Plan  | horas ejecutadas + horas pendientes |
-| No planificado | Plan  | tiempo libre                        |
-| Ejecutado      | Real  | horas ejecutadas                    |
-| Pendiente      | Real  | horas pendientes                    |
-| Tiempo libre   | Real  | tiempo libre                        |
-
-**Tooltip de ocupación real**
-
-| Concepto    | Fórmula en español                                                          |
-| ----------- | --------------------------------------------------------------------------- |
-| % ocupación | (horas ejecutadas + horas pendientes) ÷ horas disponibles × 100, redondeado |
+| Serie          | Stack | Valor                                            |
+| -------------- | ----- | ------------------------------------------------ |
+| Planificado    | Plan  | horas planificadas (`duration_expected`)         |
+| Sin planificar | Plan  | máximo(0, disponible − planificado)              |
+| Ejecutado      | Real  | horas ejecutadas (duración real de terminadas)   |
+| Pendiente      | Real  | horas pendientes                                 |
+| Tiempo muerto  | Real  | capacidad ociosa                                 |
+| No planificado | Real  | ejecución fuera del plan (puede exceder el total) |
 
 ---
 
@@ -544,10 +543,12 @@ DIO   = S_avg / (salidas_periodo / n_meses) × 30
 
 | Variable | Detalle |
 |---|---|
-| `stock_inicio` | Stock al inicio del período (snapshot de `stock.quant`) |
-| `stock_fin` | Stock al final del período (snapshot de `stock.quant`) |
-| `salidas_periodo` | Suma de cantidades de movimientos de salida completados en el período |
+| `stock_fin` | Stock **actual** (el período de rotación termina hoy) — snapshot de `stock.quant`, warehouse-scoped |
+| `stock_inicio` | `stock_fin − entradas_periodo + salidas_periodo` (roll-back desde el stock actual) |
+| `salidas_periodo` | Suma de salidas que cruzan la frontera de las ubicaciones seleccionadas en el período |
 | `n_meses` | Número de meses del período configurado |
+
+> **Roll-back:** se ancla en el stock actual (exacto) y se rueda hacia atrás con los flujos del período, en vez de reconstruir sumando todo el historial. Consistente con la columna de stock actual (mismas ubicaciones).
 
 **Por COGS — a costo (`stock_break_rotation_method = 'cogs'`)**
 
@@ -705,6 +706,10 @@ Configurable en `mrp.reschedule.config.priority`. Determina en qué orden se col
 | A tiempo        | Del total aprobadas: con fecha de entrega futura o sin fecha | `date_planned > fecha actual`                                 |
 | Vencidas        | Del total aprobadas: con fecha de entrega en el pasado       | `date_planned ≤ fecha actual`                                 |
 | Críticas        | De las vencidas: con atraso mayor al umbral crítico          | `(fecha actual − date_planned).días ≥ alert_po_critical_days` |
+
+> **Alcance (multiempresa).** Todos los KPIs y listas del panel de OCs se acotan a la **empresa activa** (`company_id`), igual que el resto del módulo. Cada KPI filtra el rango de fechas por su propio campo (Cotizaciones/Por aprobar por `date_order`, Total aprobadas por `date_approve`, A tiempo/Vencidas/Críticas por `date_planned`), por eso Aprobadas ≠ A tiempo + Vencidas.
+>
+> **OCs de servicio.** Si `exclude_service_pos` está activo, las OCs cuyas líneas son **todas** de tipo servicio se excluyen de los contadores (aparecen en la pestaña «Servicios» si está habilitada). Este flag se lee de la configuración de **cada empresa**: cada compañía tiene su propio registro de configuración, creado automáticamente si no existía.
 
 ---
 
@@ -1111,10 +1116,14 @@ El método se configura en `mrp.reschedule.config.forecast_rotation_method`. El 
 | Concepto                   | Fórmula en español                                             | Campo Odoo                                       |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------ |
 | Promedio mensual entregado | Total de unidades entregadas en el período ÷ cantidad de meses | `Σ stock.move.line.quantity` salidas completadas |
-| Stock promedio del período | (stock al inicio + stock al fin del rango) ÷ 2                  | Reconstruido desde `stock.move`                  |
+| Stock al fin del período   | stock actual − entradas(fin→hoy) + salidas(fin→hoy)            | Ancla en `stock.quant` (roll-back)               |
+| Stock al inicio del período | stock al fin − entradas del período + salidas del período     | Roll-back sobre `stock.move`                     |
+| Stock promedio del período | (stock al inicio + stock al fin) ÷ 2                           | Calculado                                        |
 | Rotación en meses          | stock promedio ÷ promedio mensual, redondeado a 1 decimal      | Calculado                                        |
 | Rotación en días           | stock promedio ÷ promedio mensual × 30, redondeado a entero    | Calculado                                        |
 | Unidad de visualización    | Configurable: días o meses                                     | `mrp.reschedule.config.forecast_rotation_unit`   |
+
+> **Stock promedio (roll-back).** No se reconstruye sumando todo el historial: se ancla en el stock **actual** (exacto, de `stock.quant`, respetando el filtro de depósito) y se rueda hacia atrás con los flujos que cruzan la frontera de las ubicaciones. Si el período termina hoy o en el futuro, el stock al fin = stock actual. Solo se miran los movimientos del período (y una cola si el período es pasado), no toda la historia.
 
 **Por COGS — a costo (`forecast_rotation_method = 'cogs'`)**
 
@@ -1186,6 +1195,12 @@ Las 5 fórmulas usan el mismo concepto de **«real»**, cuya fuente es configura
 | `delivery` | Unidades entregadas (salidas de stock completadas) del período | `Σ stock.move.line.quantity` donde `state = 'done'` y `picking_type_code = 'outgoing'` |
 
 > Elegir `delivery` hace que la precisión mida qué tan bien el forecast anticipó los despachos reales en lugar de los pedidos colocados. Útil cuando la demanda confirmada y la entregada difieren significativamente.
+
+> **Dónde se muestra cada valor (agregación).** El módulo distingue dos niveles, y **no deben compararse entre sí** (agregar datos ≠ agregar métricas):
+> - **Columna por artículo**: la métrica calculada sobre los períodos de *ese* producto.
+> - **Card superior y fila Total**: la métrica **agregada** (ratio de sumas) sobre **todos los productos visibles**, respetando el filtro/búsqueda de la tabla. Es el mismo número en el card y en la fila Total.
+>
+> El indicador **titular** (el número grande del card y la columna) es la fórmula elegida en Ajustes (`forecast_acc_formula`); las demás aparecen como pills, todas con el mismo método de agregación. El promedio simple de la columna **no** es el valor del card: el card pondera por volumen.
 
 Valores de base para cada período y producto:
 

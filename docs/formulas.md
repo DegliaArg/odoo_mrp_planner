@@ -116,32 +116,32 @@ LABEL: Horas disponibles CT
 
 ---
 
-### 1.7 Solapamiento de operación con el período
-DESCRIPCION: Determina qué fracción de la duración de una operación cae dentro del período seleccionado. Se usa para asignar horas ejecutadas o pendientes a cada período de análisis.
+### 1.7 Horas ejecutadas, planificadas y pendientes — centro de trabajo
+DESCRIPCION: Ejecutado es el tiempo REAL trabajado en las operaciones terminadas dentro del período (por fecha de fin), sin prorrateo. Pendiente es el tiempo planificado de las operaciones no terminadas que solapan el período. Planificado es todo el tiempo estándar planificado del período.
 VARIABLES:
-- D_ini_op = inicio de la operación
-- D_fin_op = fin de la operación
-- D_ini_per = inicio del período
-- D_fin_per = fin del período
-- s_solap = segundos solapados entre la operación y el período
-- s_total_op = duración total de la operación en segundos
-- H_op = horas esperadas de la operación
-- H_aport = horas aportadas al período
-FORMULA: s_solap = min(D_fin_op, D_fin_per) - max(D_ini_op, D_ini_per) ; H_aport = H_op * (s_solap / s_total_op)
-LABEL: Horas de operación solapadas con el período
+- H_ej = Σ duración real (workorder.duration) de las OT terminadas con fecha de fin dentro del período
+- H_exp_done = Σ duración planificada (duration_expected) de esas OT terminadas
+- H_pend = Σ duración planificada de las OT no terminadas ni canceladas que solapan el período
+- H_plan = horas planificadas del período = H_exp_done + H_pend
+FORMULA: H_plan = H_exp_done + H_pend
+LABEL: Horas ejecutadas / planificadas / pendientes (CT)
+NOTA: Ejecutado usa la duración REAL (no la esperada) y no se prorratea; si las OT no registran tiempo real, H_ej = 0 aunque estén terminadas.
 
 ---
 
-### 1.8 Tiempo libre y carga — centro de trabajo
-DESCRIPCION: El tiempo libre es la capacidad no utilizada del centro de trabajo en el período. La carga porcentual mide qué fracción de la capacidad disponible está ocupada sumando las horas de operaciones ya realizadas y las planificadas en curso.
+### 1.8 Tiempo muerto, no planificado y carga — centro de trabajo
+DESCRIPCION: El tiempo muerto es la capacidad disponible ociosa. El tiempo no planificado es la ejecución real que superó lo planificado (o sin plan). La carga porcentual mide qué fracción de la capacidad disponible se planificó.
 VARIABLES:
 - H_disp = horas disponibles del CT en el período
-- H_ej = horas de operaciones terminadas que solapan el período
-- H_pend = horas de operaciones activas (no terminadas ni canceladas) que solapan el período
-- TL = tiempo libre en horas
+- H_ej = horas ejecutadas (reales de las terminadas)
+- H_pend = horas pendientes (planificadas de las no terminadas)
+- H_plan = horas planificadas
+- H_exp_done = horas planificadas de las OT terminadas
+- TM = tiempo muerto (capacidad ociosa)
+- NP = tiempo no planificado
 - C_pct = carga porcentual
-FORMULA: TL = max(0, H_disp - H_ej - H_pend) ; C_pct = (H_ej + H_pend) / H_disp * 100
-LABEL: Tiempo libre y carga % (CT)
+FORMULA: TM = max(0, H_disp - H_ej - H_pend) ; NP = max(0, H_ej - H_exp_done) ; C_pct = H_plan / H_disp * 100
+LABEL: Tiempo muerto, no planificado y carga % (CT)
 CONDICIONES:
 - C_pct < 70 -> verde
 - 70 <= C_pct < 90 -> amarillo
@@ -174,13 +174,15 @@ LABEL: Diferencia stock vs. mínimo
 ### 1.11 Rotación en quiebres de stock — por unidades
 DESCRIPCION: Estima los días de inventario disponible dividiendo el stock promedio del período por el promedio mensual de salidas, expresado en días. El período es el configurado para el análisis de quiebres.
 VARIABLES:
-- S_ini = stock al inicio del período (unidades)
-- S_fin = stock al final del período (unidades)
+- S_fin = stock actual (el período de rotación termina hoy) — de stock.quant, warehouse-scoped
+- ent = entradas que cruzan la frontera de las ubicaciones en el período
+- sal = salidas que cruzan la frontera de las ubicaciones en el período
+- S_ini = stock al inicio del período (roll-back) = S_fin − ent + sal
 - S_avg = stock promedio del período
-- sal = suma de unidades de salidas completadas en el período
 - n_m = número de meses del período configurado
 - DIO = días de inventario
-FORMULA: S_avg = (S_ini + S_fin) / 2 ; DIO = S_avg / (sal / n_m) * 30
+FORMULA: S_ini = S_fin − ent + sal ; S_avg = (S_ini + S_fin) / 2 ; DIO = S_avg / (sal / n_m) * 30
+NOTA: El stock promedio se calcula por roll-back: ancla en el stock actual (exacto) y rueda hacia atrás con los flujos del período, no reconstruye todo el historial.
 LABEL: Días de inventario — por unidades (quiebres)
 CONFIG: Método de rotación en quiebres de stock = Por unidades
 
@@ -782,12 +784,13 @@ VARIABLES:
 - E_per = suma de unidades entregadas del artículo en el rango del forecast
 - n_m = número de meses del rango del forecast
 - prom_m = promedio mensual de unidades entregadas
-- S_ini = stock del artículo al inicio del rango (reconstruido desde stock.move)
-- S_fin = stock del artículo al fin del rango (reconstruido desde stock.move)
+- S_fin = stock del artículo al fin del rango = stock actual − entradas(fin→hoy) + salidas(fin→hoy) (roll-back desde stock.quant; si el rango termina hoy o en el futuro, S_fin = stock actual)
+- S_ini = stock al inicio del rango = S_fin − entradas del período + salidas del período
 - S = stock promedio del período = (S_ini + S_fin) / 2
 - rot_m = rotación en meses
 - rot_d = rotación en días
 FORMULA: S = (S_ini + S_fin) / 2 ; prom_m = E_per / n_m ; rot_m = S / prom_m ; rot_d = rot_m * 30
+NOTA: Stock promedio por roll-back — ancla en el stock actual (exacto, warehouse-scoped) y rueda hacia atrás con los flujos del período; no reconstruye todo el historial de movimientos.
 LABEL: Rotación de inventario — por unidades (forecast)
 CONFIG: Forecast — Método de rotación de inventario = Por unidades
 CONDICIONES:
@@ -890,6 +893,8 @@ LABEL: Fuente del real — entregas completadas
 CONFIG: Forecast — Fuente del «real» para precisión = Entregas completadas
 
 ---
+
+NOTA GENERAL (agregación de las 5 fórmulas): Cada fórmula se calcula a dos niveles que NO deben compararse entre sí (agregar datos ≠ agregar métricas). (1) Por artículo: la fórmula sobre los períodos de ese producto (columna de la tabla). (2) Global: la fórmula AGREGADA (ratio de sumas) sobre todos los productos visibles, respetando el filtro de la tabla — es el número del card superior y de la fila Total. El promedio simple de la columna no es el valor del card: el card pondera por volumen. El indicador titular es el elegido en Ajustes (forecast_acc_formula).
 
 ### 3.12 Precisión de forecast — Simple
 DESCRIPCION: Mide la precisión de cada celda como el cociente entre el volumen real y el forecast planificado. Un resultado del 100 % indica coincidencia exacta; más del 100 % indica que la demanda superó el forecast.

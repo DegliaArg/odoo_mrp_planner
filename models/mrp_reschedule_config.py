@@ -593,8 +593,18 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model
     def get_config(self):
-        """Retorna la configuración de la empresa actual; None si no existe."""
-        return self.search([('company_id', '=', self.env.company.id)], limit=1)
+        """Retorna la configuración de la empresa actual; la crea si no existe.
+
+        En multiempresa, cada compañía tiene su propio registro. Antes se creaba de
+        forma perezosa solo al abrir Ajustes, así que una empresa donde nunca se abrió
+        corría con los defaults hardcodeados en TODO el módulo (umbrales, métodos,
+        exclusión de servicios, etc.), dando comportamientos distintos por empresa.
+        Ahora se crea al vuelo (sudo) para garantizar consistencia entre compañías.
+        """
+        config = self.search([('company_id', '=', self.env.company.id)], limit=1)
+        if not config:
+            config = self.sudo().create({'company_id': self.env.company.id})
+        return config
 
     @api.depends()
     def _compute_stock_location_id(self):
@@ -798,12 +808,15 @@ class MrpRescheduleConfig(models.Model):
         # el singleton se crea como SUPERUSER, que aún no pertenece a group_admin) no falle.
         if not self.env.su and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
             raise AccessError(_("Solo los administradores pueden crear la configuración"))
-        # prevenir múltiples singletons — solo puede existir un registro
-        if self.search_count([]) > 0:
-            raise UserError(_(
-                'Solo puede existir una configuración del planificador. '
-                'Editá el registro existente en lugar de crear uno nuevo.'
-            ))
+        # Singleton POR EMPRESA: una configuración por compañía (no una global). La unicidad
+        # real la garantiza el _sql_constraints UNIQUE(singleton_check, company_id).
+        for vals in vals_list:
+            cid = vals.get('company_id') or self.env.company.id
+            if self.search_count([('company_id', '=', cid)]) > 0:
+                raise UserError(_(
+                    'Ya existe una configuración del planificador para esta empresa. '
+                    'Editá el registro existente en lugar de crear uno nuevo.'
+                ))
         records = super().create(vals_list)
         for rec in records:
             if rec.enable_scheduling:

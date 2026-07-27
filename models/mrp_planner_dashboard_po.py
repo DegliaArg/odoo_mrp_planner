@@ -100,7 +100,12 @@ class MrpPlannerDashboardPo(models.TransientModel):
         pick_order = f'{pick_f} {_sd}'
         offset     = (max(1, page) - 1) * page_size
 
-        wh_po = self._get_wh_domains().po
+        # Scope multiempresa: el resto del módulo trabaja sobre la empresa activa. Sin este
+        # filtro, con "todos los depósitos" (allowed_ids=None → wh_po=[]) las búsquedas de
+        # OCs y recepciones traían registros de todas las compañías activas del selector,
+        # y se les aplicaba el flag de servicios de la config de la empresa activa → conteos
+        # inconsistentes entre empresas.
+        wh_po = self._get_wh_domains().po + [('company_id', '=', self.env.company.id)]
 
         sc_domain = []
         if filter_type == 'purchase':

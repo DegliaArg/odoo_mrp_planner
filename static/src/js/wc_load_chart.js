@@ -143,14 +143,6 @@ class WcLoadChartWidget extends Component {
                         stack: "real",
                     },
                     {
-                        label: "Tiempo muerto",
-                        data: data.tiempo_muerto,
-                        backgroundColor: "rgba(255,153,153,0.50)",
-                        borderColor: "rgba(220,80,80,0.70)",
-                        borderWidth: 1,
-                        stack: "real",
-                    },
-                    {
                         label: "No planificado",
                         data: data.no_planificado,
                         backgroundColor: "rgba(111,66,193,0.55)",

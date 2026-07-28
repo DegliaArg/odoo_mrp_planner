@@ -544,6 +544,13 @@ class MrpRescheduleConfig(models.Model):
              'Afecta al botón "Calcular ahora" y al cron automático.')
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
+    customer_unify_by_vat = fields.Boolean(
+        string='Unificar clientes por CUIT',
+        default=False,
+        help='En el análisis de clientes, fusiona en una sola fila los contactos que '
+             'comparten el mismo CUIT/NIF (razones sociales distintas del mismo cliente). '
+             'Se muestran con el nombre de la razón social de mayor facturación del período. '
+             'Los contactos sin CUIT no se unifican.')
     customer_analysis_ontime_method = fields.Selection([
         ('commitment_date', 'Fecha compromiso del pedido'),
         ('scheduled_date',  'Fecha programada del envío'),

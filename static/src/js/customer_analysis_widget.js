@@ -26,7 +26,7 @@ const CA_STATIC_COLS = [
     { key: 'province',          label: 'Provincia',         width: 120, align: 'start'  },
     { key: 'order_count',       label: 'Pedidos',           width:  75, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
-    { key: 'avg_ticket',        label: 'Ticket prom.',      width: 110, align: 'end'    },
+    { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
     { key: 'physical_pct',      label: '% Físico',          width:  90, align: 'end'    },
     { key: 'ontime_pct',        label: '% A tiempo',        width:  90, align: 'end'    },
@@ -50,7 +50,7 @@ const CA_SORT_KEYS = {
     province:          'province',
     order_count:       'order_count',
     total_amount:      'total_amount',
-    avg_ticket:        'avg_ticket',
+    avg_price:         'avg_price',
     delivery_pct:      'delivery_pct',
     physical_pct:      'physical_pct',
     ontime_pct:        'ontime_pct',
@@ -131,7 +131,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, avg_ticket: 0, avg_delivery_pct: null, avg_physical_pct: null, avg_ontime_pct: null, avg_days_between: null },
+            kpis:          { total_customers: 0, total_orders: 0, avg_price: 0, avg_delivery_pct: null, avg_physical_pct: null, avg_ontime_pct: null, avg_days_between: null },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -176,7 +176,7 @@ class CustomerAnalysisWidget extends Component {
                 province:          false,
                 order_count:       true,
                 total_amount:      true,
-                avg_ticket:        true,
+                avg_price:         true,
                 delivery_pct:      true,
                 physical_pct:      true,
                 ontime_pct:        false,
@@ -395,6 +395,7 @@ class CustomerAnalysisWidget extends Component {
     _computeKpis(rows) {
         const totalOrders = rows.reduce((s, r) => s + (r.order_count || 0), 0);
         const totalAmount = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
+        const totalQty    = rows.reduce((s, r) => s + (r.qty_ordered  || 0), 0);
         const avg = (key) => {
             const vals = rows.map(r => r[key]).filter(v => v !== null && v !== undefined);
             return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
@@ -404,7 +405,8 @@ class CustomerAnalysisWidget extends Component {
             total_customers:  rows.length,
             total_orders:     totalOrders,
             total_amount:     Math.round(totalAmount * 100) / 100,
-            avg_ticket:       totalOrders ? Math.round(totalAmount / totalOrders * 100) / 100 : 0,
+            total_qty:        Math.round(totalQty * 10) / 10,
+            avg_price:        totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
             avg_delivery_pct: avg('delivery_pct'),
             avg_physical_pct: avg('physical_pct'),
             avg_ontime_pct:   avg('ontime_pct'),
@@ -534,10 +536,14 @@ class CustomerAnalysisWidget extends Component {
             this.state.expandedRows[partnerId] = false;
         }
         try {
+            // Con "Unificar por CUIT" la fila puede agrupar varios partners:
+            // el panel agrega los pedidos de todos ellos.
+            const row = this.state.allRows.find(r => r.partner_id === partnerId);
+            const partnerIds = (row && row.partner_ids) || [partnerId];
             const data = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_detail',
-                [partnerId, this.state.dateFrom, this.state.dateTo, null]
+                [partnerId, this.state.dateFrom, this.state.dateTo, null, partnerIds]
             );
             this.state.panelData = data;
         } catch (e) {
@@ -687,10 +693,12 @@ class CustomerAnalysisWidget extends Component {
         if (!isOpen && !this.state.rowOrders[partnerId]) {
             this.state.rowOrdersLoading[partnerId] = true;
             try {
+                const row = this.state.allRows.find(r => r.partner_id === partnerId);
+                const partnerIds = (row && row.partner_ids) || [partnerId];
                 const data = await this.orm.call(
                     'mrp.planner.dashboard',
                     'get_customer_detail',
-                    [partnerId, this.state.dateFrom, this.state.dateTo, null]
+                    [partnerId, this.state.dateFrom, this.state.dateTo, null, partnerIds]
                 );
                 this.state.rowOrders[partnerId] = data.orders || [];
             } catch (e) {
@@ -714,13 +722,16 @@ class CustomerAnalysisWidget extends Component {
     }
 
     openCustomerOrders(partnerId) {
+        // Con "Unificar por CUIT" la fila puede agrupar varios partners.
+        const row = this.state.allRows.find(r => r.partner_id === partnerId);
+        const partnerIds = (row && row.partner_ids) || [partnerId];
         this.action.doAction({
             type:      'ir.actions.act_window',
             name:      'Pedidos del período',
             res_model: 'sale.order',
             views:     [[false, 'list'], [false, 'form']],
             domain: [
-                ['partner_id', 'child_of', partnerId],
+                ['partner_id', 'child_of', partnerIds],
                 ['state', 'in', ['sale', 'done']],
                 ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
                 ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
@@ -921,8 +932,8 @@ class CustomerAnalysisWidget extends Component {
                 return `Pedidos confirmados (estado: Confirmado o Hecho) en el período.\nTotal: ${f(k.total_orders)} pedidos`;
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos`;
-            case 'avg_ticket':
-                return `Importe promedio por pedido del período\nMonto total ÷ Total pedidos\n→ ${m(k.total_amount)} ÷ ${f(k.total_orders)} = ${m(k.avg_ticket)}`;
+            case 'avg_price':
+                return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}`;
             case 'avg_delivery_pct':
                 return `Tasa de cumplimiento promedio entre ${f(k.delivery_n)} clientes del período\nEntregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido × 100, por cliente y luego promediado\n→ ${p(k.avg_delivery_pct)}`;
             case 'avg_physical_pct':
@@ -954,8 +965,8 @@ class CustomerAnalysisWidget extends Component {
                 return `Tasa física: despachado DENTRO del período (de cualquier pedido) ÷ pedido en el período\n→ ${n(row.qty_delivered_phys)} u ÷ ${n(row.qty_ordered)} u = ${row.physical_pct != null ? row.physical_pct + '%' : '—'}${this._physBreak(row.phys_by_order_month)}\nPuede superar 100% si se despacharon pedidos de períodos anteriores.`;
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
-            case 'avg_ticket':
-                return `Importe promedio por pedido del cliente en el período\nMonto total ÷ Pedidos\n→ ${m(row.total_amount)} ÷ ${row.order_count} = ${m(row.avg_ticket)}`;
+            case 'avg_price':
+                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Piezas pedidas\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}`;
             case 'trend_pct':
                 return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
@@ -1013,7 +1024,7 @@ class CustomerAnalysisWidget extends Component {
             province:          'Provincia del cliente. Clic para ordenar.',
             order_count:       'Cantidad de pedidos de venta confirmados en el período.',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
-            avg_ticket:        'Monto total ÷ cantidad de pedidos del período.',
+            avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
             physical_pct:      'Tasa física: despachado DENTRO del período (salidas validadas de cualquier pedido, incluso anteriores) ÷ pedido en el período × 100. Responde "¿cuánto le despaché este período?". Puede superar 100% si se despacharon pedidos viejos. El tooltip de cada celda desglosa de qué mes son los pedidos entregados. Mismo semáforo que la tasa de cumplimiento.',
             ontime_pct:        'Porcentaje de entregas realizadas dentro del plazo acordado. El plazo se define según el método configurado en Ajustes (fecha compromiso, fecha programada o SLA en días).',

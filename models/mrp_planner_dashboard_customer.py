@@ -40,6 +40,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'abc_a_pct':       cfg.customer_analysis_abc_a_pct or 20,
             'abc_b_pct':       cfg.customer_analysis_abc_b_pct or 50,
             'show_category':   cfg.enable_customer_categories,
+            'unify_by_vat':    bool(cfg.customer_unify_by_vat),
         }
 
     @staticmethod
@@ -84,7 +85,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
         empty_kpis = {
-            'total_customers': 0, 'avg_ticket': 0,
+            'total_customers': 0, 'avg_price': 0, 'total_qty': 0,
             'avg_delivery_pct': None, 'avg_physical_pct': None,
             'avg_ontime_pct': None, 'avg_days_between': None,
         }
@@ -259,7 +260,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 p['id']: p
                 # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
                 for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
-                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id', 'category_id']
+                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id', 'category_id', 'vat']
                 )
             }
 
@@ -334,6 +335,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
                 rows.append({
                     'partner_id':        pid,
+                    'partner_ids':       [pid],
                     'partner_name':      pinfo.get('display_name') or pinfo.get('name', ''),
                     'customer_category': pinfo.get('x_customer_category') or '',
                     'salesperson':       max(sp_counts, key=sp_counts.get) if sp_counts else '',
@@ -341,7 +343,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'province':          (pinfo.get('state_id')    or (0, ''))[1],
                     'order_count':       order_count,
                     'total_amount':      round(total_amount, 2),
-                    'avg_ticket':        round(total_amount / order_count, 2) if order_count else 0.0,
+                    'avg_price':         round(total_amount / total_ordered, 2) if total_ordered else 0.0,
                     'qty_ordered':       round(total_ordered, 1),
                     'qty_delivered':     round(total_deliv, 1),
                     'delivery_pct':      delivery_pct,
@@ -364,6 +366,64 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'partner_tag':       tag.get('name', '') or '',
                     'partner_tag_color': tag.get('color', 0),
                 })
+
+            # ── Unificación por CUIT (opcional) ───────────────────────────────
+            # Fusiona filas de contactos que comparten CUIT/NIF (razones sociales
+            # del mismo cliente). Importes y contadores se suman; los porcentajes
+            # se recalculan sobre los acumulados (no promediando porcentajes). El
+            # nombre visible es la razón social de mayor facturación del período.
+            # Se hace ANTES del ABC para que la segmentación aplique al unificado.
+            if cfg.get('unify_by_vat'):
+                def _vat_key(pid):
+                    vat = partner_info.get(pid, {}).get('vat') or ''
+                    return ''.join(ch for ch in vat if ch.isdigit())
+
+                by_vat  = defaultdict(list)
+                unified = []
+                for r in rows:
+                    key = _vat_key(r['partner_id'])
+                    if key:
+                        by_vat[key].append(r)
+                    else:
+                        unified.append(r)   # sin CUIT: nunca se unifica
+
+                for group in by_vat.values():
+                    if len(group) == 1:
+                        unified.append(group[0])
+                        continue
+                    group.sort(key=lambda r: r['total_amount'], reverse=True)
+                    base = dict(group[0])
+                    base['partner_ids']   = [r['partner_id'] for r in group]
+                    base['unified_names'] = [r['partner_name'] for r in group]
+                    base['partner_name']  = f"{group[0]['partner_name']} ({len(group)} razones sociales)"
+                    for f in ('order_count', 'total_amount', 'qty_ordered', 'qty_delivered',
+                              'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount'):
+                        base[f] = sum(r[f] or 0 for r in group)
+                    base['total_amount']       = round(base['total_amount'], 2)
+                    base['prev_amount']        = round(base['prev_amount'], 2)
+                    base['qty_ordered']        = round(base['qty_ordered'], 1)
+                    base['qty_delivered']      = round(base['qty_delivered'], 1)
+                    base['qty_delivered_phys'] = round(base['qty_delivered_phys'], 1)
+                    base['avg_price']    = round(base['total_amount'] / base['qty_ordered'], 2) if base['qty_ordered'] else 0.0
+                    base['delivery_pct'] = round(base['qty_delivered'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
+                    base['physical_pct'] = round(base['qty_delivered_phys'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
+                    base['ontime_pct']   = round(base['ontime_ok'] / base['ontime_total'] * 100, 1) if base['ontime_total'] > 0 else None
+                    base['trend_pct']    = round((base['total_amount'] - base['prev_amount']) / base['prev_amount'] * 100, 1) if base['prev_amount'] > 0 else None
+                    # Frecuencia: promedio ponderado por pedidos; recencia = la más reciente
+                    _fr   = [(r['avg_days_between'], r['order_count']) for r in group if r['avg_days_between'] is not None]
+                    _fr_w = sum(w for _, w in _fr)
+                    base['avg_days_between']  = round(sum(v * w for v, w in _fr) / _fr_w, 1) if _fr_w else None
+                    base['days_since_last']   = min(r['days_since_last'] for r in group)
+                    base['last_order_date']   = max(r['last_order_date'] for r in group)
+                    base['distinct_products'] = max(r['distinct_products'] for r in group)
+                    base['frequency_segment'] = self._freq_segment(base['avg_days_between'], base['days_since_last'], risk_days)
+                    _pm = defaultdict(float)
+                    for r in group:
+                        for _k, _v in (r.get('phys_by_order_month') or {}).items():
+                            _pm[_k] += _v
+                    base['phys_by_order_month'] = {k: round(v, 1) for k, v in sorted(_pm.items())}
+                    unified.append(base)
+                rows = unified
 
             # ── ABC del período: clasificación al vuelo sobre el importe del rango ──
             # Independiente de la categoría permanente del contacto. Se ordena por
@@ -389,7 +449,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)
-            avg_ticket_global = round(sum(r['total_amount'] for r in rows) / total_orders, 2) if total_orders else 0.0
+            total_qty_global  = sum(r['qty_ordered'] for r in rows)
+            avg_price_global  = round(sum(r['total_amount'] for r in rows) / total_qty_global, 2) if total_qty_global else 0.0
             delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
             physical_vals     = [r['physical_pct'] for r in rows if r['physical_pct'] is not None]
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
@@ -402,7 +463,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'total_customers':  total_customers,
                     'total_orders':     total_orders,
                     'total_amount':     total_amount_global,
-                    'avg_ticket':       avg_ticket_global,
+                    'total_qty':        round(total_qty_global, 1),
+                    'avg_price':        avg_price_global,
                     'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
                     'avg_physical_pct': round(sum(physical_vals) / len(physical_vals), 1) if physical_vals else None,
                     'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,
@@ -423,15 +485,19 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
     # ── Detalle de un cliente (panel lateral) ────────────────────────────────
 
     @api.model
-    def get_customer_detail(self, partner_id, period_from, period_to, warehouse_ids=None):
+    def get_customer_detail(self, partner_id, period_from, period_to, warehouse_ids=None,
+                            partner_ids=None):
         """
         Retorna datos detallados de un cliente para el panel lateral:
         evolución mensual, mix de familias y lista de OVs.
 
-        :param partner_id:  int — ID del partner.
+        :param partner_id:  int — ID del partner (representativo si está unificado).
         :param period_from: str 'YYYY-MM-DD'.
         :param period_to:   str 'YYYY-MM-DD'.
         :param warehouse_ids: list[int] | None.
+        :param partner_ids: list[int] | None — con "Unificar clientes por CUIT"
+            activo, todos los partners fusionados en la fila; el panel agrega los
+            pedidos de todos ellos.
         :returns: dict con claves 'partner_name', 'monthly_data', 'family_mix',
             'sale_category_mix', 'orders', 'top_products', 'total_qty_ordered',
             'total_qty_delivered_phys', 'physical_pct' (tasa física agregada del
@@ -440,6 +506,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         # Guard de grupo: mismo criterio que get_customer_analysis_data (lee con sudo).
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
+        pids = [int(p) for p in (partner_ids or [partner_id])]
+        if int(partner_id) not in pids:
+            pids.append(int(partner_id))
+        # Guard IDOR sobre la lista completa (no solo partner_id): se descartan
+        # partners de empresas a las que el usuario no tiene acceso.
+        pids = self.env['res.partner'].search([
+            ('id', 'in', pids),
+            '|', ('company_id', '=', False), ('company_id', 'in', self.env.user.company_ids.ids),
+        ]).ids
         d_from_str = period_from + ' 00:00:00'
         d_to_str   = period_to   + ' 23:59:59'
         allowed = self._get_wh_domains().allowed_ids
@@ -455,7 +530,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
         # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
         orders = self.env['sale.order'].sudo().search([
-            ('partner_id', '=', partner_id),
+            ('partner_id', 'in', pids),
             ('state', 'in', ['sale', 'done']),
             ('date_order', '>=', d_from_str),
             ('date_order', '<=', d_to_str),
@@ -514,7 +589,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         phys_pick_domain = [
             ('state', '=', 'done'),
             ('picking_type_code', '=', 'outgoing'),
-            ('sale_id.partner_id', '=', partner_id),
+            ('sale_id.partner_id', 'in', pids),
             ('date_done', '>=', d_from_str),
             ('date_done', '<=', d_to_str),
             ('company_id', '=', self.env.company.id),

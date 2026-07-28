@@ -55,10 +55,10 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('avg_ticket', row)">
+                        <div class="card h-100" t-att-title="cellTooltip('avg_price', row)">
                             <div class="card-body text-center py-2">
-                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmtMoney(row.avg_ticket)"/>
-                                <div class="small text-muted">Ticket promedio</div>
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
+                                <div class="small text-muted">Precio promedio</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>

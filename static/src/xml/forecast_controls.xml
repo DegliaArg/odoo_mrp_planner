@@ -116,6 +116,12 @@
                         <label class="form-check-label small" for="col_prod_types">Tipo de producto</label>
                     </div>
                     <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="col_list_price"
+                               t-att-checked="state.visibleCols.listPrice"
+                               t-on-change="() => this.toggleCol('listPrice')"/>
+                        <label class="form-check-label small" for="col_list_price">Precio de venta</label>
+                    </div>
+                    <div class="form-check mb-1">
                         <input type="checkbox" class="form-check-input" id="col_stock"
                                t-att-checked="state.visibleCols.stock"
                                t-on-change="() => this.toggleCol('stock')"/>

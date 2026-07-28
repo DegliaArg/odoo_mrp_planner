@@ -95,7 +95,7 @@ export function drawTopChart(widget) {
     if (typeof ChartJs === 'undefined') return;
     if (widget._topChart) { widget._topChart.destroy(); widget._topChart = null; }
 
-    const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_ticket' };
+    const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_price' };
     const field    = fieldMap[metric] || 'total_amount';
     const sorted   = [...allFiltered].sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0));
     const rows     = topN !== null ? sorted.slice(0, topN) : sorted;
@@ -109,7 +109,7 @@ export function drawTopChart(widget) {
         data: {
             labels: rows.map(r => r.partner_name.length > 18 ? r.partner_name.slice(0, 16) + '…' : r.partner_name),
             datasets: [{
-                label:           metric === 'pxq' ? 'Importe' : metric === 'pedidos' ? 'Pedidos' : 'Ticket prom.',
+                label:           metric === 'pxq' ? 'Importe' : metric === 'pedidos' ? 'Pedidos' : 'P. prom.',
                 data:            rows.map(r => r[field]),
                 backgroundColor: rows.map(r => CAT_COLORS[r.abc_segment] ?? CAT_COLORS['']),
                 borderRadius:    3,

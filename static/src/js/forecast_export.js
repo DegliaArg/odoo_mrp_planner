@@ -27,6 +27,7 @@ export function downloadForecastExcel(rows, months, periodFrom, periodTo, data) 
 
     xml += `<Cell><Data ss:Type="String">Artículo</Data></Cell>`;
     xml += `<Cell><Data ss:Type="String">Cat. venta</Data></Cell>`;
+    xml += `<Cell><Data ss:Type="String">Precio venta</Data></Cell>`;
     months.forEach(ym => {
         const [y, m] = ym.split('-');
         const label = `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
@@ -53,6 +54,7 @@ export function downloadForecastExcel(rows, months, periodFrom, periodTo, data) 
         xml += '<Row>';
         xml += `<Cell><Data ss:Type="String">${esc(row.product)}</Data></Cell>`;
         xml += `<Cell><Data ss:Type="String">${esc(row.sale_category || '')}</Data></Cell>`;
+        xml += `<Cell><Data ss:Type="Number">${row.list_price || 0}</Data></Cell>`;
         months.forEach(ym => {
             const cell = (row.cells || []).find(c => c.month === ym) || {};
             const covPct = cell.month ? moCovPctCell(cell, covDenominator) : 0;

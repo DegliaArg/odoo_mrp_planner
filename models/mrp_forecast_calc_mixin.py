@@ -175,7 +175,7 @@ class MrpForecastCalcMixin(models.TransientModel):
         if tmpl_ids:
             tmpl_info = {}
             _tmpl_rows = self.env['product.template'].browse(tmpl_ids).read(
-                ['id', 'x_sale_category', 'categ_id', 'x_product_type_ids']
+                ['id', 'x_sale_category', 'categ_id', 'x_product_type_ids', 'list_price']
             )
             _categ_ids = list({r['categ_id'][0] for r in _tmpl_rows if r['categ_id']})
             _categ_names = {c['id']: c['name'] for c in
@@ -190,6 +190,7 @@ class MrpForecastCalcMixin(models.TransientModel):
                     'sale_category': _tr.get('x_sale_category') or '',
                     'product_categ': _categ_names.get(_categ_id, '') if _categ_id else '',
                     'product_types': ', '.join(_type_names.get(tid, '') for tid in (_tr['x_product_type_ids'] or [])),
+                    'list_price':    round(_tr.get('list_price') or 0.0, 2),
                 }
         else:
             tmpl_info = {}
@@ -343,6 +344,7 @@ class MrpForecastCalcMixin(models.TransientModel):
                 'sale_category':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('sale_category', ''),
                 'product_categ':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_categ', ''),
                 'product_types':      tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('product_types', ''),
+                'list_price':         tmpl_info.get(fc_data[pid].get('product_tmpl_id'), {}).get('list_price', 0.0),
                 '_mape_acc_sum':      _mape_acc_sum,
                 '_mape_acc_count':    _mape_acc_count,
                 '_wape_abs_err':      _wape_abs_err,

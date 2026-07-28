@@ -101,9 +101,14 @@ class SalesChartWidget extends Component {
         this._chart   = null;
         this._pie     = null;
 
+        const now          = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastOfMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
         this.state = useState({
             loading:         true,
-            period:          "3m",
+            dateFrom:        toDateStr(firstOfMonth),
+            dateTo:          toDateStr(lastOfMonth),
             metric:          "sku",
             topN:            20,
             saleCategory:    "",
@@ -142,18 +147,39 @@ class SalesChartWidget extends Component {
     }
 
     /**
-     * Calcula el rango de fechas [desde, hasta] en formato "YYYY-MM-DD"
-     * a partir del período seleccionado en el estado.
-     * "Hasta" es siempre la fecha de hoy; "Desde" se retrocede el número
-     * de meses indicado por `state.period` (1m / 3m / 6m / 12m).
-     * @returns {[string, string]} Tupla [date_from, date_to].
+     * Rango de fechas [desde, hasta] de los gráficos, tomado de los inputs
+     * de fecha propios del widget (independiente del filtro de la tabla).
+     * @returns {[string, string]} Tupla [date_from, date_to] en "YYYY-MM-DD".
      */
     _dateRange() {
-        const to   = new Date();
-        const from = new Date(to);
-        const m    = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 }[this.state.period] || 3;
-        from.setMonth(from.getMonth() - m);
-        return [toDateStr(from), toDateStr(to)];
+        return [this.state.dateFrom, this.state.dateTo];
+    }
+
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value;
+        if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
+        this._load();
+    }
+
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value;
+        if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
+        this._load();
+    }
+
+    /** Preset: fija el rango al mes calendario en curso y recarga. */
+    setCurrentMonth() {
+        const now = new Date();
+        this.state.dateFrom = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        this.state.dateTo   = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        this._load();
+    }
+
+    /** True si el rango activo coincide con el mes en curso (para pintar el preset). */
+    get isCurrentMonth() {
+        const now = new Date();
+        return this.state.dateFrom === toDateStr(new Date(now.getFullYear(), now.getMonth(), 1))
+            && this.state.dateTo   === toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     }
 
     /**
@@ -348,7 +374,6 @@ class SalesChartWidget extends Component {
      * del actual, evitando peticiones RPC redundantes.
      * @param {string} p - Período deseado: "1m" | "3m" | "6m" | "12m".
      */
-    setPeriod(p)   { if (this.state.period !== p)          { this.state.period = p;          this._load(); } }
 
     /**
      * Cambia la métrica visualizada y recarga los datos si el valor difiere

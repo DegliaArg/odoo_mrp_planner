@@ -136,6 +136,13 @@ class MrpRescheduleConfig(models.Model):
             'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
             'el producido usa los movimientos reales de stock con fecha en el período.')
 
+    comparison_force_integer = fields.Boolean(
+        string='Forzar cantidades enteras en el comparativo',
+        default=False,
+        help='Redondea a enteros las cantidades de Producido vs Programado en el modo '
+             'Proporcional por duración, en lugar de usar la precisión de la UdM de cada '
+             'producto. Es solo presentación del tablero: no modifica OFs ni movimientos.')
+
     forecast_rotation_unit = fields.Selection([
         ('days',   'Días'),
         ('months', 'Meses'),

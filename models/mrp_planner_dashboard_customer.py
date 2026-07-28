@@ -638,6 +638,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'qty_ordered':   round(v['qty_ordered'],  1),
                 'qty_delivered': round(v['qty_delivered'], 1),
                 'amount':        round(v['amount'], 2),
+                # Promedio ponderado del período: el mismo artículo puede haberse
+                # vendido a precios distintos en varios pedidos.
+                'unit_price':    round(v['amount'] / v['qty_ordered'], 2)
+                                 if v['qty_ordered'] > 0 else None,
                 'order_count':   len(v['orders']),
                 'delivery_pct':  round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
                                  if v['qty_ordered'] > 0 else None,

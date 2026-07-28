@@ -7,18 +7,26 @@
             <!-- Fila única de filtros -->
             <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
 
-                <!-- Período -->
-                <div class="btn-group btn-group-sm" role="group" aria-label="Período de análisis">
-                    <t t-foreach="[['1m','1 mes'],['3m','3 meses'],['6m','6 meses'],['12m','12 meses']]"
-                       t-as="p" t-key="p[0]">
-                        <button t-att-class="'btn ' + (state.period === p[0] ? 'btn-primary' : 'btn-outline-secondary')"
-                                t-att-title="'Ver ventas de los últimos ' + p[1]"
-                                t-att-aria-pressed="state.period === p[0] ? 'true' : 'false'"
-                                style="font-size:10px; padding:1px 5px; white-space:nowrap;"
-                                t-on-click="() => this.setPeriod(p[0])">
-                            <t t-esc="p[1]"/>
-                        </button>
-                    </t>
+                <!-- Rango de fechas propio de los gráficos (independiente de la tabla) -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de análisis">
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha inicial del rango de los gráficos"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha final del rango de los gráficos"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Fijar el rango al mes calendario en curso"
+                            t-att-aria-pressed="isCurrentMonth ? 'true' : 'false'"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            t-on-click="setCurrentMonth">
+                        Mes en curso
+                    </button>
                 </div>
 
                 <div class="vr" style="height:20px;"/>

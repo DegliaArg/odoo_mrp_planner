@@ -133,12 +133,18 @@ export function fcKpiTooltip(widget, key) {
         case 'delivered': {
             const fk = widget.filteredKpis;
             const byMonth = fk.del_by_order_month || {};
-            const sortedMonths = Object.keys(byMonth).sort();
+            // La clave '' agrupa salidas sin pedido de venta vinculado (devoluciones a
+            // proveedor, remitos manuales); va al final para que el desglose cierre
+            // contra el total.
+            const sortedMonths = Object.keys(byMonth).filter(k => k).sort();
             const lines = sortedMonths.map(ym => {
                 const [y, m] = ym.split('-');
                 const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
                 return `  ${label}: ${widget.fmt(byMonth[ym])} u`;
             });
+            if (byMonth['']) {
+                lines.push(`  Sin pedido asociado: ${widget.fmt(byMonth[''])} u`);
+            }
             const breakdown = lines.length
                 ? '\nPor mes de confirmación del pedido:\n' + lines.join('\n')
                 : '';

@@ -347,14 +347,19 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             del_data.setdefault(pid, {})
             del_data[pid][ym] = del_data[pid].get(ym, 0.0) + qty
 
-            # Acumular por mes de confirmación del pedido origen
+            # Acumular por mes de confirmación del pedido origen. Las salidas sin
+            # pedido de venta vinculado (devoluciones a proveedor, remitos manuales,
+            # transferencias de tipo salida) van a la clave '' para que el desglose
+            # del tooltip siempre sume igual que el total.
             _pick_id  = _ml['picking_id'][0] if _ml['picking_id'] else None
             _sale_id  = _pick_to_sale.get(_pick_id) if _pick_id else None
             _order_dt = _del_sale_dates.get(_sale_id) if _sale_id else None
             if _order_dt:
                 _oym = _order_dt.strftime('%Y-%m') if hasattr(_order_dt, 'strftime') else str(_order_dt)[:7]
-                del_by_order_month.setdefault(pid, {})
-                del_by_order_month[pid][_oym] = del_by_order_month[pid].get(_oym, 0.0) + qty
+            else:
+                _oym = ''
+            del_by_order_month.setdefault(pid, {})
+            del_by_order_month[pid][_oym] = del_by_order_month[pid].get(_oym, 0.0) + qty
 
         # ── Demanda real: pedidos de venta confirmados ─────────────────────────
         so_data = {}    # {product_id: {ym: qty}}

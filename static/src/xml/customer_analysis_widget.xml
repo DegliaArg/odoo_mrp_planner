@@ -390,6 +390,22 @@
                     Error: <strong><t t-esc="state.loadError"/></strong>
                 </div>
 
+                <!-- Pestañas de agrupamiento (mismo patrón que quiebres de stock) -->
+                <t t-if="state.groupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-esc="g.label"/>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+
                 <!-- Tabla -->
                 <div class="border rounded" style="max-height:72vh; overflow-y:auto;">
                     <table class="table table-sm table-bordered mb-0 align-middle"
@@ -422,28 +438,8 @@
                         </thead>
 
                         <tbody>
-                            <t t-if="state.groupBy">
-                                <t t-foreach="groupedRows" t-as="group" t-key="group.label">
-                                    <tr style="background:#e9ecef;">
-                                        <td t-att-colspan="staticVisibleCols.length + 2"
-                                            style="padding:4px 8px; font-weight:600;">
-                                            <i class="fa fa-folder-open-o me-1 text-muted"/>
-                                            <t t-esc="group.label"/>
-                                            <span class="text-muted fw-normal ms-2 small">
-                                                <t t-esc="group.items.length"/> clientes ·
-                                                <t t-esc="fmtMoney(group.total_amount)"/>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <t t-foreach="group.items" t-as="row" t-key="row.partner_id">
-                                        <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
-                                    </t>
-                                </t>
-                            </t>
-                            <t t-else="">
-                                <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
-                                    <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
-                                </t>
+                            <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
+                                <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
                             </t>
                             <tr t-if="state.totalFiltered === 0 and !state.loading">
                                 <td t-att-colspan="staticVisibleCols.length + 2"
@@ -453,18 +449,22 @@
                             </tr>
                         </tbody>
 
-                        <tfoot t-if="!state.groupBy and state.allRows.length > 0"
+                        <!-- Totales de lo que muestra la tabla: conjunto filtrado/buscado
+                             y, si hay agrupamiento, solo la pestaña activa. -->
+                        <tfoot t-if="state.totalFiltered > 0"
                                class="fw-bold" style="background:#f8f9fa;">
                             <tr>
                                 <td/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                                     <td style="padding:3px 6px;"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
-                                        <t t-if="col.key === 'partner_name'">Total</t>
+                                        <t t-if="col.key === 'partner_name'">
+                                            Total (<t t-esc="state.tableTotals.count"/>)
+                                        </t>
                                         <t t-elif="col.key === 'order_count'"
-                                           t-esc="fmt(state.allRows.reduce((s, r) => s + r.order_count, 0))"/>
+                                           t-esc="fmt(state.tableTotals.orders)"/>
                                         <t t-elif="col.key === 'total_amount'"
-                                           t-esc="fmtMoney(state.allRows.reduce((s, r) => s + r.total_amount, 0))"/>
+                                           t-esc="fmtMoney(state.tableTotals.amount)"/>
                                     </td>
                                 </t>
                                 <td/>

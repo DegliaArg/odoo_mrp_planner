@@ -548,6 +548,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 product_data[pid]['produced_qty'] += mo.qty_produced
 
         items = sorted(product_data.values(), key=lambda x: x['planned_qty'], reverse=True)
+        force_integer = bool(cfg and cfg.comparison_force_integer and mode == 'proportional')
         for item in items:
             # pct = None señala "sin plan / sobreproducción": se produjo sin cantidad
             # programada, caso en que un 0% sería engañoso. El frontend lo muestra como "s/plan".
@@ -560,7 +561,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
             # Redondeo según la precisión de la UdM del producto: en unidades queda
             # entero, en kg/l conserva los decimales de la unidad. Relevante en modo
             # proporcional, donde el prorrateo por duración genera fracciones.
-            rounding = item.pop('uom_rounding', 0.01)
+            # Con comparison_force_integer activo (solo modo proporcional) se fuerza
+            # entero sin importar la UdM — presentación del tablero, no toca las OFs.
+            if force_integer:
+                rounding = 1.0
+                item.pop('uom_rounding', None)
+            else:
+                rounding = item.pop('uom_rounding', 0.01)
             item['planned_qty']  = round(float_round(item['planned_qty'],  precision_rounding=rounding), 2)
             item['produced_qty'] = round(float_round(item['produced_qty'], precision_rounding=rounding), 2)
 

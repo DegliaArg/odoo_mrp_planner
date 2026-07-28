@@ -141,6 +141,8 @@ class CustomerAnalysisWidget extends Component {
             productSearch: '',
             activeFilter:  null,
             groupBy:       null,
+            selectedGroup: null,
+            tableTotals:   { count: 0, orders: 0, amount: 0 },
             colsDropdownOpen: false,
             // Filtros de los gráficos superiores
             chartMetric: 'pxq',
@@ -279,7 +281,12 @@ class CustomerAnalysisWidget extends Component {
         }
     }
 
-    _applySort() {
+    /**
+     * Filas con búsqueda de texto y filtros de segmento aplicados (sin filtro de
+     * pestaña ni orden). Base común de la tabla y de las pestañas de agrupamiento.
+     * @returns {Array} Filas filtradas
+     */
+    _baseFiltered() {
         let rows = [...this.state.allRows];
         // Búsqueda de texto
         const q = this.state.productSearch.trim().toLowerCase();
@@ -301,6 +308,11 @@ class CustomerAnalysisWidget extends Component {
         if (this.state.filterFreq !== null) {
             rows = rows.filter(r => r.frequency_segment === this.state.filterFreq);
         }
+        return rows;
+    }
+
+    _applySort() {
+        let rows = this._baseFiltered();
         // Ordenamiento
         const col = this.state.sortCol;
         const dir = this.state.sortDir === 'asc' ? 1 : -1;
@@ -316,21 +328,61 @@ class CustomerAnalysisWidget extends Component {
             return dir * (va - vb);
         });
 
-        this.state.totalFiltered = rows.length;
-        this._filteredRows = rows;
-
-        // Los KPIs siguen el conjunto filtrado/buscado (mismas fórmulas que el backend).
+        // Los KPIs siguen el conjunto filtrado/buscado (sin filtro de pestaña),
+        // mismas fórmulas que el backend.
         this.state.kpis = { ...this.state.kpis, ...this._computeKpis(rows) };
 
-        // Agrupamiento (sólo afecta la vista, no el orden interno del grupo)
+        // Pestaña activa del agrupamiento: la tabla muestra solo el grupo activo,
+        // mismo patrón que quiebres de stock y forecast.
         if (this.state.groupBy) {
-            this._groupedRows = this._buildGroups(rows);
-            this.state.rows   = [];  // se usa _groupedRows en el template
-        } else {
-            this._groupedRows = null;
-            const offset      = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
-            this.state.rows   = rows.slice(offset, offset + this.state.pageSize);
+            const groups = this.allGroupsForTabs;
+            if (groups.length && !groups.some(g => g.key === this.state.selectedGroup)) {
+                this.state.selectedGroup = groups[0].key;
+            }
+            const gb = this.state.groupBy;
+            rows = rows.filter(r => (r[gb] || '—') === this.state.selectedGroup);
         }
+
+        this.state.totalFiltered = rows.length;
+        this._filteredRows = rows;   // tabla visible y export (incluye pestaña activa)
+
+        // Totales del pie: reflejan exactamente lo que muestra la tabla.
+        this.state.tableTotals = {
+            count:  rows.length,
+            orders: rows.reduce((s, r) => s + (r.order_count || 0), 0),
+            amount: Math.round(rows.reduce((s, r) => s + (r.total_amount || 0), 0) * 100) / 100,
+        };
+
+        // Paginación (si la página quedó fuera de rango tras filtrar, volver a la 1)
+        if ((Math.max(1, this.state.page) - 1) * this.state.pageSize >= rows.length && rows.length) {
+            this.state.page = 1;
+        }
+        const offset    = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
+        this.state.rows = rows.slice(offset, offset + this.state.pageSize);
+    }
+
+    /**
+     * Pestañas de agrupamiento: un grupo por valor del campo activo, con conteo,
+     * calculadas sobre el conjunto filtrado/buscado (sin la pestaña aplicada).
+     * @returns {Array<{key: string, label: string, count: number}>|null}
+     */
+    get allGroupsForTabs() {
+        const gb = this.state.groupBy;
+        if (!gb) return null;
+        const counts = new Map();
+        for (const r of this._baseFiltered()) {
+            const key = r[gb] || '—';
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        return [...counts.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }))
+            .map(([key, count]) => ({ key, label: key, count }));
+    }
+
+    setGroup(key) {
+        this.state.selectedGroup = key;
+        this.state.page = 1;
+        this._applySort();
     }
 
     /**
@@ -361,24 +413,6 @@ class CustomerAnalysisWidget extends Component {
             physical_n:       nOf('physical_pct'),
             ontime_n:         nOf('ontime_pct'),
         };
-    }
-
-    _buildGroups(rows) {
-        const gb = this.state.groupBy;
-        const groups = new Map();
-        for (const r of rows) {
-            const key = r[gb] || '—';
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(r);
-        }
-        return Array.from(groups.entries())
-            .sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }))
-            .map(([label, items]) => ({
-                label,
-                items,
-                total_amount:  items.reduce((s, r) => s + (r.total_amount || 0), 0),
-                order_count:   items.reduce((s, r) => s + (r.order_count  || 0), 0),
-            }));
     }
 
     // ── Handlers de controles ─────────────────────────────────────────────────
@@ -422,6 +456,7 @@ class CustomerAnalysisWidget extends Component {
 
     setGroupBy(key) {
         this.state.groupBy = key;
+        this.state.selectedGroup = null;   // _applySort selecciona la primera pestaña
         this.state.page = 1;
         this._applySort();
     }
@@ -478,10 +513,6 @@ class CustomerAnalysisWidget extends Component {
 
     get hasPrevPage() { return this.state.page > 1; }
     get hasNextPage()  { return this.state.page < this.totalPages; }
-
-    get groupedRows() {
-        return this._groupedRows || [];
-    }
 
     // ── Panel lateral ─────────────────────────────────────────────────────────
 

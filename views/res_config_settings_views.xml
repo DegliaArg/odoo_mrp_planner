@@ -139,6 +139,9 @@
                                             · <i>Ejemplo: OF de 120 uds del 1/Jul al 31/Ago (62 días). En julio (31 días) aporta 120 × 31/62 = 60 uds programadas, y el producido es lo que realmente ingresó al stock en julio.</i><br/>
                                             · <i>El método más preciso para OFs que cruzan meses.</i>
                                         </div>
+                                        <field name="comparison_force_integer" widget="boolean_toggle"
+                                               invisible="comparison_date_mode != 'proportional'"
+                                               help="El prorrateo por duración genera cantidades con decimales. Con esta opción el comparativo las redondea a enteros en lugar de usar la precisión de la UdM de cada producto. Solo afecta la presentación del tablero."/>
                                         <!-- Opción futura: visible solo si scheduling está activo, no clickeable -->
                                         <div class="d-flex align-items-center gap-2 mt-2 ps-1"
                                              invisible="not enable_scheduling"

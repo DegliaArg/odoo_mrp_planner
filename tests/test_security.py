@@ -204,8 +204,10 @@ class TestMrpPlannerSecurity(TransactionCase):
     # ── Test 4: mrp.reschedule.config.write requiere administrador ────────────
 
     def test_config_write_requires_admin(self):
-        """Un usuario con group_prod pero sin group_admin no puede hacer write()
-        en mrp.reschedule.config. Un usuario con group_admin sí puede.
+        """Un usuario sin ningún grupo del planificador no puede hacer write()
+        en mrp.reschedule.config. Los administradores de área (group_prod,
+        group_purchase_admin, etc.) y group_admin sí pueden, en línea con los
+        permisos de escritura declarados en ir.model.access.csv.
         """
         # Crear el singleton de config si no existe
         config = self.env['mrp.reschedule.config'].sudo().search(
@@ -216,13 +218,21 @@ class TestMrpPlannerSecurity(TransactionCase):
                 'company_id': self.env.company.id,
             })
 
-        # Usuario con group_prod pero sin group_admin → debe fallar
+        # Usuario interno sin grupos del planificador → debe fallar
+        user_plain = self._new_user('test_config_write_plain', groups=[])
+
+        with self.assertRaises(AccessError,
+                               msg="config.write debe lanzar AccessError sin grupos del planificador"):
+            config.with_user(user_plain).write({'alert_mo_critical_days': 5})
+
+        # Usuario con group_prod (administrador de área) → debe poder escribir
         user_prod = self._new_user('test_config_write_prod',
                                    groups=['odoo_mrp_planner.group_prod'])
 
-        with self.assertRaises(AccessError,
-                               msg="config.write debe lanzar AccessError sin group_admin"):
+        try:
             config.with_user(user_prod).write({'alert_mo_critical_days': 5})
+        except AccessError:
+            self.fail("config.write no debería lanzar AccessError para group_prod")
 
         # Usuario con group_admin → debe poder escribir sin AccessError
         user_admin = self._new_user('test_config_write_admin',

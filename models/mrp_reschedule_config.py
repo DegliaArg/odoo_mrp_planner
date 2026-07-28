@@ -706,6 +706,25 @@ class MrpRescheduleConfig(models.Model):
             # sudo(): ir.groups pertenece al sistema; el admin del módulo no tiene acceso directo
             group.sudo().write({'users': [(5,)]})
 
+    def _user_can_edit_config(self):
+        """True si el usuario actual puede editar la configuración del planificador.
+
+        Además del Administrador del módulo, los administradores de área
+        (Producción, Programación, Ventas y Compras) pueden guardar la
+        configuración: son los mismos grupos con permiso de escritura en
+        ir.model.access.csv y a los que el menú Configuración les muestra
+        su sección editable.
+        """
+        u = self.env.user
+        return any(u.has_group(g) for g in (
+            'odoo_mrp_planner.group_admin',
+            'odoo_mrp_planner.group_prod',
+            'odoo_mrp_planner.group_scheduling',
+            'odoo_mrp_planner.group_sales',
+            'odoo_mrp_planner.group_purchase_admin',
+            'base.group_system',
+        ))
+
     def write(self, vals):
         """
         Guarda los cambios y propaga la configuración a ir.config_parameter y a los ir.cron del módulo.
@@ -720,7 +739,7 @@ class MrpRescheduleConfig(models.Model):
         :returns: bool — resultado del super().write().
         """
         # Modo superusuario permitido para la carga de datos del módulo (instalación/upgrade).
-        if not self.env.su and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+        if not self.env.su and not self._user_can_edit_config():
             raise AccessError(_("Solo los administradores pueden modificar la configuración"))
         res = super().write(vals)
         if 'enable_scheduling' in vals:
@@ -847,7 +866,7 @@ class MrpRescheduleConfig(models.Model):
         :returns: dict — acción ir.actions.act_window con res_id del singleton o
                   False si aún no fue creado.
         """
-        if not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+        if not self._user_can_edit_config():
             raise AccessError(_("Solo los administradores pueden acceder a la configuración"))
         config = self.search([('company_id', '=', self.env.company.id)], limit=1)
         if not config:

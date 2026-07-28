@@ -309,14 +309,16 @@ class MrpRescheduleAlert(models.Model):
 
     @api.model
     def action_run_cron_manual(self):
-        """Botón manual: ejecuta el chequeo de alertas ahora (solo para administradores del planificador)."""
+        """Botón manual: ejecuta el chequeo de alertas ahora (administradores del planificador o de producción)."""
         # Usar group_admin del módulo propio para consistencia con el resto de controles de acceso.
         # mrp.group_mrp_manager fue el grupo original pero excluía a usuarios con group_admin
         # del planificador que no tenían rol nativo de fabricación.
+        # group_prod incluido: según groups.xml administra la configuración de alertas.
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
+                self.env.user.has_group('odoo_mrp_planner.group_prod') or
                 self.env.user.has_group('base.group_system')):
             raise UserError(_(
-                'Solo los administradores del planificador pueden ejecutar el chequeo de alertas manualmente.'
+                'Solo los administradores del planificador o de producción pueden ejecutar el chequeo de alertas manualmente.'
             ))
         self._cron_check_delays()
         return self.env.ref('odoo_mrp_planner.action_mrp_reschedule_alert').read()[0]

@@ -697,15 +697,19 @@ class SupplierAnalysisWidget extends Component {
      */
     openPOs(ev, row) {
         ev.stopPropagation();
+        // El proveedor viaja como faceta de búsqueda removible; el alcance del
+        // período y los estados quedan fijos en el dominio (mismo patrón que el
+        // comparativo Producido vs Programado).
         this.action.doAction({
             type:      'ir.actions.act_window',
+            name:      `OCs de ${row.partner_name || 'proveedor'}`,
             res_model: 'purchase.order',
             views:     [[false, 'list'], [false, 'form']],
             target:    'current',
-            domain:    [['partner_id', '=', row.partner_id],
-                        ['state', 'in', ['purchase', 'done']],
+            domain:    [['state', 'in', ['purchase', 'done']],
                         ['date_approve', '>=', `${this.state.periodFrom} 00:00:00`],
                         ['date_approve', '<=', `${this.state.periodTo} 23:59:59`]],
+            context:   { search_default_partner_id: row.partner_id },
         });
     }
 

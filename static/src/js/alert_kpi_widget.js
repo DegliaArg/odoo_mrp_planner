@@ -47,13 +47,18 @@ class AlertKpiWidget extends Component {
             res_model: "mrp.reschedule.alert",
             view_mode: "list,form",
             views: [[false, "list"], [false, "form"]],
+            // Alcance fijo: solo la exclusión de subcontratación. El tipo de alerta
+            // y "Sin resolver" viajan como facetas removibles (filtros con nombre de
+            // la vista de búsqueda), para poder ampliar la vista desde la lista.
             domain: [
-                ["resolved", "=", false],
-                ["alert_type", "=", alertType],
                 "|",
                 ["production_id", "=", false],
                 ["production_id.location_src_id.is_subcontracting_location", "!=", true],
             ],
+            context: {
+                search_default_unresolved: 1,
+                ["search_default_" + alertType]: 1,
+            },
             target: "current",
         });
     }

@@ -725,17 +725,27 @@ class CustomerAnalysisWidget extends Component {
         // Con "Unificar por CUIT" la fila puede agrupar varios partners.
         const row = this.state.allRows.find(r => r.partner_id === partnerId);
         const partnerIds = (row && row.partner_ids) || [partnerId];
+        // Cliente simple: viaja como faceta de búsqueda removible (se puede sacar
+        // para ver todos los pedidos del período). Cliente unificado por CUIT:
+        // queda en el dominio porque la faceta no soporta varios partners.
+        const domain = [
+            ['state', 'in', ['sale', 'done']],
+            ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+            ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+        ];
+        const context = {};
+        if (partnerIds.length === 1) {
+            context.search_default_partner_id = partnerIds[0];
+        } else {
+            domain.unshift(['partner_id', 'child_of', partnerIds]);
+        }
         this.action.doAction({
             type:      'ir.actions.act_window',
             name:      'Pedidos del período',
             res_model: 'sale.order',
             views:     [[false, 'list'], [false, 'form']],
-            domain: [
-                ['partner_id', 'child_of', partnerIds],
-                ['state', 'in', ['sale', 'done']],
-                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
-            ],
+            domain,
+            context,
             target: 'current',
         });
     }

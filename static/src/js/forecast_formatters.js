@@ -238,6 +238,7 @@ export function colTitle(col, rotTitle, covTitle) {
     if (col.key === 'saleCategory') return 'Categoría de venta (A=alta rotación, E=baja). Clic para ordenar.';
     if (col.key === 'productCateg') return 'Familia de producto (product.template.categ_id). Clic para ordenar.';
     if (col.key === 'productTypes') return 'Tipos de producto asignados en la ficha (x_product_type_ids). Clic para ordenar.';
+    if (col.key === 'listPrice')    return 'Precio de venta de la ficha del artículo (tarifa base, sin impuestos). Clic para ordenar.';
     if (col.key === 'stock')        return 'Stock disponible en ubicaciones internas. Clic para ordenar.';
     if (col.key === 'demand')       return 'Demanda del período: cantidad total de pedidos de venta confirmados. Clic para ordenar.';
     return '';

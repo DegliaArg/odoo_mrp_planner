@@ -397,6 +397,7 @@
                             <li class="nav-item">
                                 <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
                                         style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo los ' + g.count + ' cliente(s) del grupo: ' + g.label"
                                         t-on-click="() => this.setGroup(g.key)">
                                     <t t-esc="g.label"/>
                                     <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
@@ -459,12 +460,18 @@
                                     <td style="padding:3px 6px;"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
                                         <t t-if="col.key === 'partner_name'">
-                                            Total (<t t-esc="state.tableTotals.count"/>)
+                                            <span title="Cantidad de clientes que muestra la tabla (filtro, búsqueda y pestaña activa aplicados).">
+                                                Total (<t t-esc="state.tableTotals.count"/>)
+                                            </span>
                                         </t>
-                                        <t t-elif="col.key === 'order_count'"
-                                           t-esc="fmt(state.tableTotals.orders)"/>
-                                        <t t-elif="col.key === 'total_amount'"
-                                           t-esc="fmtMoney(state.tableTotals.amount)"/>
+                                        <t t-elif="col.key === 'order_count'">
+                                            <span title="Suma de pedidos de los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.orders)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'total_amount'">
+                                            <span title="Suma del importe sin impuestos de los clientes visibles en la tabla."
+                                                  t-esc="fmtMoney(state.tableTotals.amount)"/>
+                                        </t>
                                     </td>
                                 </t>
                                 <td/>

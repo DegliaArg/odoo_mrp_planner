@@ -555,8 +555,10 @@
                                     <!-- ── Análisis de clientes (izquierda, debajo de categorías) ── -->
                                     <group string="Análisis de clientes">
 
-                                        <field name="customer_unify_by_vat" widget="boolean_toggle"
-                                               help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>
+                                        <group string="Clientes con varias razones sociales">
+                                            <field name="customer_unify_by_vat" widget="boolean_toggle"
+                                                   help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>
+                                        </group>
 
                                         <group string="Método — Entrega a tiempo">
                                             <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"

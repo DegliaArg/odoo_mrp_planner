@@ -237,7 +237,7 @@
                                                     class="text-end" style="padding:3px 6px;"
                                                     title="Precio de venta de la ficha del artículo (tarifa base, sin impuestos).">
                                                     <t t-if="row.list_price">
-                                                        <t t-esc="fmt(row.list_price)"/>
+                                                        <t t-esc="fmtMoney(row.list_price)"/>
                                                     </t>
                                                     <span t-else="" class="text-muted">—</span>
                                                 </td>

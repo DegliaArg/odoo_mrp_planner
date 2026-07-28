@@ -407,6 +407,12 @@ class ForecastWidget extends Component {
     mosGapClass(pct)    { return mosGapClass(pct); }
     fmtGapPct(n)        { return fmtGapPct(n); }
     fmt(n)              { return fmt(n); }
+
+    /** Formato monetario es-AR con símbolo, ej. "$ 1.234,56". */
+    fmtMoney(n) {
+        if (n === null || n === undefined) return '—';
+        return '$ ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
     fmtPct(n)           { return fmtPct(n); }
     fmtDate(d)          { return fmtDate(d); }
 

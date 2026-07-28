@@ -161,6 +161,7 @@
                             <li class="nav-item">
                                 <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
                                         style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo los ' + g.count + ' artículo(s) del grupo: ' + g.label"
                                         t-on-click="() => this.setGroup(g.key)">
                                     <t t-if="state.groupBy === 'sale_category'">
                                         <span t-att-class="saleCatBadge(g.key)"

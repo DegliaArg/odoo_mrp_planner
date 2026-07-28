@@ -20,6 +20,15 @@ import { Component, useState, onMounted, onPatched, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { restoreFilters, saveFilters } from "./filter_persistence";
+
+// Estado de filtros que sobrevive al remontaje del widget (volver de una sublista)
+// y a la sesión del navegador.
+const MO_PERSIST_KEYS = [
+    'tab', 'selectedWarehouseId', 'dateFrom', 'dateTo',
+    'sortField', 'sortDir', 'page', 'pageSize',
+    'ofsSearch', 'cmpSearch', 'reqSearch',
+];
 
 const MO_OF_COLS = [
     { key: 'name',             label: 'Referencia',    width: 130, sortKey: 'name',             title: 'Número de la orden de fabricación.' },
@@ -105,6 +114,12 @@ class MoDashboardWidget extends Component {
             ofsSearch:     '',
         });
 
+        // Restaurar filtros de la última visita (por empresa). Se guarda en cada
+        // _loadData(), el punto único por el que pasa todo cambio de filtro.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `mo_dashboard.${companyId}`;
+        restoreFilters(this._persistKey, this.state, MO_PERSIST_KEYS);
+
         onMounted(async () => {
             try {
                 await Promise.all([this._loadWarehouses(), this._loadData()]);
@@ -128,6 +143,7 @@ class MoDashboardWidget extends Component {
 
     /** @returns {Promise<void>} Carga datos desde el servidor y actualiza state */
     async _loadData() {
+        saveFilters(this._persistKey, this.state, MO_PERSIST_KEYS);
         this.state.loading = true;
         try {
             if (this.state.tab === "ofs") {
@@ -278,8 +294,10 @@ class MoDashboardWidget extends Component {
      * Excluye siempre las OFs de subcontratación para no mezclar flujos.
      * @param {string} name - Título de la ventana de acción.
      * @param {Array} domain - Dominio Odoo adicional para filtrar las OFs.
+     * @param {Object} [context] - Contexto opcional (ej. search_default_* para
+     *   facetas de búsqueda que el usuario puede quitar desde la barra).
      */
-    _navigate(name, domain) {
+    _navigate(name, domain, context) {
         const baseDomain = [...domain, ["location_src_id.is_subcontracting_location", "!=", true]];
         if (this.state.selectedWarehouseId) {
             baseDomain.push(["picking_type_id.warehouse_id", "=", parseInt(this.state.selectedWarehouseId)]);
@@ -289,6 +307,7 @@ class MoDashboardWidget extends Component {
             res_model: "mrp.production", view_mode: "list,form",
             views: [[false, "list"], [false, "form"]],
             domain: baseDomain,
+            context: context || {},
             target: "current",
         });
     }
@@ -423,7 +442,12 @@ class MoDashboardWidget extends Component {
         ]);
     }
 
-    onClickAllComparison() {
+    /**
+     * Dominio de OFs equivalente al alcance del comparativo: mismo criterio de
+     * fechas que el backend (cmp_mode) sobre el período seleccionado, sin canceladas.
+     * @returns {Array} Dominio Odoo.
+     */
+    _cmpDomain() {
         const mode     = this.state.cmp_mode || 'finish_date';
         const dateFrom = this._toUtcStr(this.state.dateFrom);
         const dateTo   = this._toUtcStr(this.state.dateTo, true);
@@ -440,7 +464,25 @@ class MoDashboardWidget extends Component {
         if (wh && wh.length) {
             domain.push(["picking_type_id.warehouse_id", "in", wh]);
         }
-        this._navigate("Producido vs Programado", domain);
+        return domain;
+    }
+
+    onClickAllComparison() {
+        this._navigate("Producido vs Programado", this._cmpDomain());
+    }
+
+    /**
+     * Abre las OFs del período para un artículo del comparativo. El producto viaja
+     * como faceta de búsqueda (search_default) para que el usuario pueda quitarla
+     * y ver todas las OFs del período; el alcance del período queda en el dominio.
+     * @param {Object} item - Fila del comparativo (product_id, product).
+     */
+    openCmpProduct(item) {
+        this._navigate(
+            `OFs de ${item.product}`,
+            this._cmpDomain(),
+            { search_default_product_id: item.product_id },
+        );
     }
 
     /**

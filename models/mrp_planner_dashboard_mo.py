@@ -30,6 +30,7 @@ from pytz import timezone as _tz, utc as _pytz_utc
 
 from odoo import models, fields, api, _
 from odoo.exceptions import AccessError
+from odoo.tools import float_round
 from odoo.addons.odoo_mrp_planner.models.mrp_schedule_mixin import no_subcontract_domain
 
 
@@ -523,6 +524,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
                         'product_id':   pid,
                         'product':      mo.product_id.display_name,
                         'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+                        'uom_rounding': mo.product_uom_id.rounding or 0.01,
                         'planned_qty':  0.0,
                         'produced_qty': 0.0,
                     }
@@ -538,6 +540,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
                         'product_id':   pid,
                         'product':      mo.product_id.display_name,
                         'uom':          mo.product_uom_id.name if mo.product_uom_id else '',
+                        'uom_rounding': mo.product_uom_id.rounding or 0.01,
                         'planned_qty':  0.0,
                         'produced_qty': 0.0,
                     }
@@ -554,8 +557,12 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 item['pct'] = None
             else:
                 item['pct'] = 0.0
-            item['planned_qty']  = round(item['planned_qty'],  2)
-            item['produced_qty'] = round(item['produced_qty'], 2)
+            # Redondeo según la precisión de la UdM del producto: en unidades queda
+            # entero, en kg/l conserva los decimales de la unidad. Relevante en modo
+            # proporcional, donde el prorrateo por duración genera fracciones.
+            rounding = item.pop('uom_rounding', 0.01)
+            item['planned_qty']  = round(float_round(item['planned_qty'],  precision_rounding=rounding), 2)
+            item['produced_qty'] = round(float_round(item['produced_qty'], precision_rounding=rounding), 2)
 
         total_planned  = sum(x['planned_qty']  for x in items)
         total_produced = sum(x['produced_qty'] for x in items)

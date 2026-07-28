@@ -333,10 +333,17 @@ class MrpPlannerDashboardStock(models.TransientModel):
                 t.id: ', '.join(t.x_product_type_ids.mapped('name'))
                 for t in all_tmpls
             }
+            # Lista de nombres por separado (además del string unido): el agrupado
+            # por tipo del widget necesita los valores individuales del M2M.
+            tmpl_type_list_map = {
+                t.id: t.x_product_type_ids.mapped('name')
+                for t in all_tmpls
+            }
             prod_to_tmpl = {p.id: p.product_tmpl_id.id for p in all_prods}
             for r in rows:
                 tmpl_id = prod_to_tmpl.get(r['id'])
-                r['product_types'] = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
+                r['product_types']     = tmpl_type_map.get(tmpl_id, '') if tmpl_id else ''
+                r['product_type_list'] = tmpl_type_list_map.get(tmpl_id, []) if tmpl_id else []
 
             # Categoría de venta (x_sale_category, solo si está habilitada en config)
             sale_cat_map = {}

@@ -363,6 +363,42 @@
                                     </tr>
                                 </t>
                             </tbody>
+                            <!-- Totales del dataset filtrado (todas las páginas). Sumas como
+                                 las listas de Odoo (sin distinguir UdM); promedios en plazo
+                                 de fabricación y rotación. -->
+                            <tfoot t-if="state.products.length" class="table-light fw-semibold"
+                                   style="border-top:2px solid #dee2e6;">
+                                <tr>
+                                    <td t-foreach="visibleStockCols" t-as="col" t-key="col.key"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'name'">
+                                            Totales (<t t-esc="stockTotals.count"/>)
+                                        </t>
+                                        <t t-elif="col.key === 'qty'">
+                                            <span title="Suma del stock actual de las filas filtradas (mezcla UdM si los artículos difieren)."
+                                                  t-esc="fmt(stockTotals.qty)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'min_qty'">
+                                            <span title="Suma de los mínimos de reorden de las filas filtradas."
+                                                  t-esc="fmt(stockTotals.min_qty)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_forecast'">
+                                            <span title="Suma del pronóstico de las filas filtradas."
+                                                  t-esc="fmt(stockTotals.qty_forecast)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'bom_lead'">
+                                            <span t-if="stockTotals.bom_lead_avg !== null"
+                                                  title="Promedio del plazo de fabricación de las filas con BoM."
+                                                  t-esc="'⌀ ' + stockTotals.bom_lead_avg + ' d'"/>
+                                        </t>
+                                        <t t-elif="col.key === 'rotation'">
+                                            <span t-if="stockTotals.rotation_avg !== null"
+                                                  title="Promedio de rotación de las filas con dato."
+                                                  t-esc="'⌀ ' + fmt(stockTotals.rotation_avg) + (state.rotation_unit === 'months' ? ' m' : ' d')"/>
+                                        </t>
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 

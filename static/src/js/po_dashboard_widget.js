@@ -17,6 +17,14 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
+import { restoreFilters, saveFilters } from "./filter_persistence";
+
+// Estado de filtros que sobrevive al remontaje del widget (volver de una sublista)
+// y a la sesión del navegador.
+const PO_PERSIST_KEYS = [
+    'tab', 'ocFilter', 'listTab', 'dateFrom', 'dateTo',
+    'search', 'sortField', 'sortDir', 'page', 'pageSize',
+];
 
 const PO_OC_COLS = [
     { key: 'name',         label: 'Referencia',      width: 130, sortKey: 'name',         title: 'Número de la orden de compra.' },
@@ -122,6 +130,12 @@ class PoDashboardWidget extends Component {
             expandedIds: {},
         });
 
+        // Restaurar filtros de la última visita (por empresa). Se guarda en cada
+        // _load(), el punto único por el que pasa todo cambio de filtro.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `po_dashboard.${companyId}`;
+        restoreFilters(this._persistKey, this.state, PO_PERSIST_KEYS);
+
         onMounted(async () => {
             try {
                 await this._load();
@@ -147,6 +161,7 @@ class PoDashboardWidget extends Component {
      * @returns {Promise<void>}
      */
     async _load() {
+        saveFilters(this._persistKey, this.state, PO_PERSIST_KEYS);
         const seq = ++this._loadSeq;
         this.state.loading = true;
         try {
@@ -169,6 +184,10 @@ class PoDashboardWidget extends Component {
             this.state.deliveries      = d.deliveries || [];
             this.state.services        = d.services   || [];
             this.state.show_services_tab   = d.show_services_tab   || false;
+            // listTab 'services' restaurado de otra sesión con la pestaña ya deshabilitada
+            if (this.state.listTab === 'services' && !this.state.show_services_tab) {
+                this.state.listTab = null;
+            }
             this.state.exclude_service_pos = d.kpis.exclude_service_pos || false;
         } catch (e) {
             if (seq !== this._loadSeq) return;

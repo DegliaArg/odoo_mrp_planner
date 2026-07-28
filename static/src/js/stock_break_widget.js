@@ -20,6 +20,15 @@ import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { saleCatBadge } from "./forecast_formatters";
+import { restoreFilters, saveFilters } from "./filter_persistence";
+
+// Estado de filtros que sobrevive al remontaje del widget (volver de una sublista)
+// y a la sesión del navegador.
+const STOCK_PERSIST_KEYS = [
+    'filterType', 'search', 'locationIds',
+    'sortField', 'sortDir', 'page', 'pageSize',
+    'groupBy', 'selectedGroup',
+];
 
 const STOCK_COLS = [
     { key: '_expand',      label: '',             width:  32, fixed: true, noResize: true, title: 'Expandir para ver OFs activas' },
@@ -89,6 +98,12 @@ class StockBreakWidget extends Component {
             mosLoading:       {},
         });
         this.colsStock = useColManager('stock_break', STOCK_COLS);
+
+        // Restaurar filtros de la última visita (por empresa). Se guarda en cada
+        // _applyClientSort(), el punto único por el que pasa todo cambio de filtro.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `stock_break.${companyId}`;
+        restoreFilters(this._persistKey, this.state, STOCK_PERSIST_KEYS);
 
         this._searchTimer = null;
         this._loadSeq     = 0;
@@ -248,20 +263,68 @@ class StockBreakWidget extends Component {
         // Filtro de tab activo (cuando groupBy está en uso)
         if (this.state.groupBy && this.state.selectedGroup !== null) {
             const gb = this.state.groupBy;
-            rows = rows.filter(r => (r[gb] || '') === this.state.selectedGroup);
+            if (gb === 'product_types') {
+                // M2M: un artículo con varios tipos aparece en la pestaña de cada uno;
+                // la pestaña '' agrupa los artículos sin tipo asignado.
+                const sel = this.state.selectedGroup;
+                rows = rows.filter(r => sel === ''
+                    ? !(r.product_type_list || []).length
+                    : (r.product_type_list || []).includes(sel));
+            } else {
+                rows = rows.filter(r => (r[gb] || '') === this.state.selectedGroup);
+            }
         }
 
         return rows;
     }
 
+    /**
+     * Totales del dataset filtrado (todas las páginas, no solo la visible):
+     * suma de stock/mínimo/pronóstico —como las listas de Odoo, sin distinguir
+     * UdM— y promedio de plazo de fabricación y rotación sobre las filas con dato.
+     * @returns {{count:number, qty:number, min_qty:number, qty_forecast:number,
+     *            bom_lead_avg:number|null, rotation_avg:number|null}}
+     */
+    get stockTotals() {
+        const rows = this._filteredSortedRows();
+        const t = { count: rows.length, qty: 0, min_qty: 0, qty_forecast: 0,
+                    bom_lead_avg: null, rotation_avg: null };
+        let leadSum = 0, leadN = 0, rotSum = 0, rotN = 0;
+        for (const r of rows) {
+            t.qty += r.qty || 0;
+            if (r.has_min && r.min_qty !== null && r.min_qty !== undefined) t.min_qty += r.min_qty;
+            if (r.qty_forecast !== null && r.qty_forecast !== undefined)    t.qty_forecast += r.qty_forecast;
+            if (r.bom_lead_days !== null && r.bom_lead_days !== undefined) { leadSum += r.bom_lead_days; leadN++; }
+            const rot = this.state.rotation_unit === 'months' ? r.rotation_months : r.rotation_days;
+            if (rot !== null && rot !== undefined) { rotSum += rot; rotN++; }
+        }
+        if (leadN) t.bom_lead_avg = Math.round(leadSum / leadN);
+        if (rotN)  t.rotation_avg = Math.round(rotSum / rotN * 10) / 10;
+        return t;
+    }
+
     /** Aplica filtro de tipo, sort, filtro de tab activo y paginación sobre `state.allProducts` */
     _applyClientSort() {
+        // Con groupBy restaurado de otra sesión, la pestaña guardada puede ya no
+        // existir en el dataset actual: caer a la primera disponible.
+        if (this.state.groupBy && this.state.selectedGroup !== null) {
+            const groups = this.allGroupsForTabs;
+            if (groups && groups.length && !groups.some(g => g.key === this.state.selectedGroup)) {
+                this.state.selectedGroup = groups[0].key;
+            }
+        }
+
         const rows = this._filteredSortedRows();
         this.state.totalFiltered = rows.length;
 
-        // Paginación
+        // Paginación (si la página guardada quedó fuera de rango, volver a la 1)
+        if ((Math.max(1, this.state.page) - 1) * this.state.pageSize >= rows.length && rows.length) {
+            this.state.page = 1;
+        }
         const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
         this.state.products = rows.slice(offset, offset + this.state.pageSize);
+
+        saveFilters(this._persistKey, this.state, STOCK_PERSIST_KEYS);
     }
 
     /**
@@ -296,7 +359,10 @@ class StockBreakWidget extends Component {
     }
 
     get stockGroupByDefs() {
-        const defs = [{ key: 'categ_name', label: 'Categoría' }];
+        const defs = [
+            { key: 'categ_name',    label: 'Categoría' },
+            { key: 'product_types', label: 'Tipo' },
+        ];
         if (this.state.show_sale_cat) defs.push({ key: 'sale_category', label: 'Cat. venta' });
         return defs;
     }
@@ -333,6 +399,14 @@ class StockBreakWidget extends Component {
         if (!gb) return null;
         const counts = new Map();
         for (const row of this.baseFilteredForGroups) {
+            if (gb === 'product_types') {
+                // M2M: el artículo cuenta en cada uno de sus tipos, por lo que la suma
+                // de las pestañas puede superar el total de artículos.
+                const types = row.product_type_list || [];
+                if (!types.length) counts.set('', (counts.get('') || 0) + 1);
+                for (const t of types) counts.set(t, (counts.get(t) || 0) + 1);
+                continue;
+            }
             const key = row[gb] || '';
             counts.set(key, (counts.get(key) || 0) + 1);
         }
@@ -347,7 +421,8 @@ class StockBreakWidget extends Component {
         } else {
             entries.sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
         }
-        return entries.map(([key, count]) => ({ key, label: key || 'Sin categoría', count }));
+        const emptyLabel = gb === 'product_types' ? 'Sin tipo' : 'Sin categoría';
+        return entries.map(([key, count]) => ({ key, label: key || emptyLabel, count }));
     }
 
     /**

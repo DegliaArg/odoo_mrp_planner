@@ -629,7 +629,12 @@
                                             <tr>
                                                 <td t-foreach="colsComp.visibleCols()" t-as="col" t-key="col.key"
                                                     t-att-class="col.align ? 'text-' + col.align : ''">
-                                                    <t t-if="col.key === 'product'"><t t-esc="item.product"/></t>
+                                                    <t t-if="col.key === 'product'">
+                                                        <a href="#" class="text-decoration-none"
+                                                           title="Ver las OFs de este artículo en el período"
+                                                           t-on-click.prevent.stop="() => this.openCmpProduct(item)"
+                                                           t-esc="item.product"/>
+                                                    </t>
                                                     <t t-elif="col.key === 'planned_qty'"><t t-esc="fmt(item.planned_qty)"/></t>
                                                     <t t-elif="col.key === 'produced_qty'"><t t-esc="fmt(item.produced_qty)"/></t>
                                                     <t t-elif="col.key === 'pct'">

@@ -18,6 +18,7 @@ Relacionado con:
 """
 
 from odoo import models, fields, api
+from odoo.tools import SQL
 from odoo.addons.odoo_mrp_planner.models.const import SALE_CAT_SELECTION
 
 
@@ -85,6 +86,26 @@ class ProductTemplate(models.Model):
                 })
         if to_create:
             Cat.create(to_create)
+
+    def _field_to_sql(self, alias, fname, query=None, flush=True):
+        # x_sale_category no está almacenado en product_template (vive por
+        # empresa en mrp.product.company.category), pero agrupar por él en
+        # vistas kanban/lista requiere una expresión SQL. Se resuelve con un
+        # LEFT JOIN a la tabla por empresa, filtrado por la compañía activa.
+        if fname != 'x_sale_category':
+            return super()._field_to_sql(alias, fname, query, flush)
+        if flush:
+            self.env['mrp.product.company.category'].flush_model(
+                ['product_tmpl_id', 'company_id', 'sale_category'])
+        cat_alias = query.make_alias(alias, 'x_sale_category')
+        query.add_join('LEFT JOIN', cat_alias, 'mrp_product_company_category', SQL(
+            "%s = %s AND %s = %s",
+            SQL.identifier(cat_alias, 'product_tmpl_id'),
+            SQL.identifier(alias, 'id'),
+            SQL.identifier(cat_alias, 'company_id'),
+            self.env.company.id,
+        ))
+        return SQL.identifier(cat_alias, 'sale_category')
 
     def _search_sale_category(self, operator, value):
         cats = self.env['mrp.product.company.category'].search([

@@ -301,6 +301,14 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                                 mo_data[pid] = {}
                             mo_data[pid][ym] = mo_data[pid].get(ym, 0.0) + qty
 
+        # Con "Forzar cantidades enteras" activo, el prorrateo proporcional se
+        # redondea a entero por producto y mes (mismo criterio que el comparativo
+        # Producido vs Programado); celdas, totales y KPI suman los enteros.
+        if cfg and cfg.comparison_force_integer and mo_mode == 'proportional':
+            for _pid, _by_ym in mo_data.items():
+                for _ym in _by_ym:
+                    _by_ym[_ym] = round(_by_ym[_ym])
+
         # ── Ids de productos con forecast ──────────────────────────────────────
         all_product_ids      = set(fc_data.keys())
         all_product_ids_list = list(all_product_ids)
@@ -712,6 +720,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 qty_period          = mo.product_qty
                 qty_produced_period = mo.qty_produced
 
+            # Con "Forzar cantidades enteras" activo, la cantidad prorrateada del
+            # período se redondea a entero (consistente con las celdas del forecast).
+            if cfg and cfg.comparison_force_integer and mo_mode == 'proportional':
+                qty_period = round(qty_period)
             result.append({
                 'id':                 mo.id,
                 'name':               mo.name,

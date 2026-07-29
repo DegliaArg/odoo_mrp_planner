@@ -26,7 +26,7 @@
                     <div class="col">
                         <div class="card h-100" title="Pedidos confirmados del cliente en el período.">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.order_count))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.order_count), true)"
                                      style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
                                 <div class="small text-muted">Pedidos</div>
                             </div>
@@ -40,7 +40,7 @@
                     <div class="col">
                         <div class="card h-100" t-att-title="'Total de unidades pedidas en el período (suma de qty de todas las líneas).' + svcNote()">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtQty(state.panelData.total_qty_ordered))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtQty(state.panelData.total_qty_ordered), true)"
                                      style="font-size:1rem;" t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
                                 <div class="small text-muted">Piezas</div>
                             </div>
@@ -55,7 +55,7 @@
                         <div class="card h-100"
                              t-att-title="'Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador del % Cumplimiento.' + svcNote()">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered), true)"
                                      style="font-size:1rem;" t-esc="fmt(row.qty_delivered)"/>
                                 <div class="small text-muted">Entregado</div>
                             </div>
@@ -68,7 +68,7 @@
                         <div class="card h-100"
                              title="Unidades despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador del % Físico.">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys), true)"
                                      style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys)"/>
                                 <div class="small text-muted">Despachado</div>
                             </div>
@@ -80,7 +80,7 @@
                     <div class="col">
                         <div class="card h-100" t-att-title="'Suma del importe sin impuestos de todos los pedidos del cliente en el período.' + svcNote()">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.total_amount))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.total_amount), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.total_amount)"/>
                                 <div class="small text-muted">Monto total</div>
                             </div>
@@ -96,7 +96,7 @@
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('avg_price', row)">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price))"
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
                                 <div class="small text-muted">Precio promedio</div>
                             </div>

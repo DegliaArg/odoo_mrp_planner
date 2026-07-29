@@ -842,10 +842,15 @@ class CustomerAnalysisWidget extends Component {
      * @param {string} text - Número ya formateado.
      * @returns {string} '' | 'o_planner_num_md' | 'o_planner_num_sm'
      */
-    numSizeClass(text) {
+    numSizeClass(text, narrow = false) {
         const len = String(text ?? '').length;
-        if (len > 14) return 'o_planner_num_sm';
-        if (len > 10) return 'o_planner_num_md';
+        // Cards anchas (4 por fila): recién achicar con números muy largos.
+        // Cards angostas (5 por fila, detalle): umbral agresivo porque ahí
+        // los montos con $ se partían en dos renglones.
+        const md = narrow ? 10 : 17;
+        const sm = narrow ? 14 : 21;
+        if (len > sm) return 'o_planner_num_sm';
+        if (len > md) return 'o_planner_num_md';
         return '';
     }
 

@@ -25,11 +25,10 @@ const CA_STATIC_COLS = [
     { key: 'country',           label: 'País',              width: 110, align: 'start'  },
     { key: 'province',          label: 'Provincia',         width: 120, align: 'start'  },
     { key: 'order_count',       label: 'Pedidos',           width:  75, align: 'end'    },
-    { key: 'qty_ordered',       label: 'Piezas',            width:  90, align: 'end'    },
+    { key: 'qty_ordered',       label: 'Demanda real',      width: 100, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
     { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
-    { key: 'physical_pct',      label: '% Físico',          width:  90, align: 'end'    },
     { key: 'ontime_pct',        label: '% A tiempo',        width:  90, align: 'end'    },
     { key: 'avg_days_between',  label: 'Frecuencia',        width:  95, align: 'end'    },
     { key: 'days_since_last',   label: 'Días sin comprar',  width: 110, align: 'end'    },
@@ -54,7 +53,6 @@ const CA_SORT_KEYS = {
     total_amount:      'total_amount',
     avg_price:         'avg_price',
     delivery_pct:      'delivery_pct',
-    physical_pct:      'physical_pct',
     ontime_pct:        'ontime_pct',
     avg_days_between:  'avg_days_between',
     days_since_last:   'days_since_last',
@@ -132,12 +130,11 @@ class CustomerAnalysisWidget extends Component {
         this.state = useState({
             loading:       true,
             loadError:     null,
-            lastUpdated:   '',
             dateFrom:      period.from,
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, avg_price: 0, avg_delivery_pct: null, avg_physical_pct: null, avg_ontime_pct: null, avg_days_between: null },
+            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, avg_price: 0 },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -190,7 +187,6 @@ class CustomerAnalysisWidget extends Component {
                 total_amount:      true,
                 avg_price:         true,
                 delivery_pct:      true,
-                physical_pct:      true,
                 ontime_pct:        false,
                 avg_days_between:  false,
                 days_since_last:   false,
@@ -285,7 +281,6 @@ class CustomerAnalysisWidget extends Component {
                 this.state.visibleCols.customer_category = false;
             }
             this._applySort();
-            this.state.lastUpdated = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
             // Resetear las llaves de redraw DESPUÉS del await: el patch intermedio
             // (mientras carga) las consumía y los gráficos quedaban en blanco.
             this._topChartKey  = '';
@@ -412,33 +407,15 @@ class CustomerAnalysisWidget extends Component {
      * @returns {Object} dict de KPIs
      */
     _computeKpis(rows) {
-        const totalOrders    = rows.reduce((s, r) => s + (r.order_count || 0), 0);
-        const totalAmount    = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
-        const totalQty       = rows.reduce((s, r) => s + (r.qty_ordered  || 0), 0);
-        const totalDelivered = rows.reduce((s, r) => s + (r.qty_delivered || 0), 0);
-        const totalPhys      = rows.reduce((s, r) => s + (r.qty_delivered_phys || 0), 0);
-        const otOk           = rows.reduce((s, r) => s + (r.ontime_ok || 0), 0);
-        const otTotal        = rows.reduce((s, r) => s + (r.ontime_total || 0), 0);
-        const avg = (key) => {
-            const vals = rows.map(r => r[key]).filter(v => v !== null && v !== undefined);
-            return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null;
-        };
+        const totalOrders = rows.reduce((s, r) => s + (r.order_count || 0), 0);
+        const totalAmount = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
+        const totalQty    = rows.reduce((s, r) => s + (r.qty_ordered  || 0), 0);
         return {
-            total_customers:  rows.length,
-            total_orders:     totalOrders,
-            total_amount:     Math.round(totalAmount * 100) / 100,
-            total_qty:        Math.round(totalQty * 10) / 10,
-            total_delivered:  Math.round(totalDelivered * 10) / 10,
-            total_phys:       Math.round(totalPhys * 10) / 10,
-            ontime_ok_sum:    otOk,
-            ontime_total_sum: otTotal,
-            avg_price:        totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
-            // Tasas ponderadas por volumen (ratio de sumas), mismo criterio que el
-            // panel de ventas — no promedio simple de porcentajes por cliente.
-            avg_delivery_pct: totalQty ? Math.round(totalDelivered / totalQty * 1000) / 10 : null,
-            avg_physical_pct: totalQty ? Math.round(totalPhys / totalQty * 1000) / 10 : null,
-            avg_ontime_pct:   otTotal ? Math.round(otOk / otTotal * 1000) / 10 : null,
-            avg_days_between: avg('avg_days_between'),
+            total_customers: rows.length,
+            total_orders:    totalOrders,
+            total_amount:    Math.round(totalAmount * 100) / 100,
+            total_qty:       Math.round(totalQty * 10) / 10,
+            avg_price:       totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
         };
     }
 
@@ -905,67 +882,8 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
-    /**
-     * Remitos de salida validados DENTRO del período del cliente (de cualquier
-     * pedido, incluso anteriores). Es lo que respalda la card "Entregas físicas".
-     * @param {number} partnerId - Partner de la fila (representativo si está unificado).
-     */
-    openCustomerPhysPickings(partnerId) {
-        const row = this.state.allRows.find(r => r.partner_id === partnerId);
-        const partnerIds = (row && row.partner_ids) || [partnerId];
-        this.action.doAction({
-            type:      'ir.actions.act_window',
-            name:      'Despachos del período (líneas)',
-            res_model: 'stock.move.line',
-            views:     [[false, 'list']],
-            domain: [
-                ['state', '=', 'done'],
-                ['picking_id.picking_type_id.code', '=', 'outgoing'],
-                ['picking_id.sale_id.partner_id', 'child_of', partnerIds],
-                ['date', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date', '<=', this.state.dateTo   + ' 23:59:59'],
-            ],
-            target: 'current',
-        });
-    }
 
-    /** Remitos de los pedidos del período (cualquier fecha de entrega), de todos
-     *  los clientes visibles del análisis. Respalda el KPI Cumplimiento de demanda. */
-    openPeriodDemandPickings() {
-        this.action.doAction({
-            type:      'ir.actions.act_window',
-            name:      'Entregas de pedidos del período (líneas)',
-            res_model: 'stock.move.line',
-            views:     [[false, 'list']],
-            domain: [
-                ['state', '=', 'done'],
-                ['picking_id.picking_type_id.code', '=', 'outgoing'],
-                ['picking_id.sale_id.state', 'in', ['sale', 'done']],
-                ['picking_id.sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['picking_id.sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
-            ],
-            target: 'current',
-        });
-    }
 
-    /** Despachos validados DENTRO del período (de cualquier pedido). Respalda el
-     *  KPI Entregas físicas. */
-    openPeriodPhysPickings() {
-        this.action.doAction({
-            type:      'ir.actions.act_window',
-            name:      'Despachos del período (líneas)',
-            res_model: 'stock.move.line',
-            views:     [[false, 'list']],
-            domain: [
-                ['state', '=', 'done'],
-                ['picking_id.picking_type_id.code', '=', 'outgoing'],
-                ['picking_id.sale_id', '!=', false],
-                ['date', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date', '<=', this.state.dateTo   + ' 23:59:59'],
-            ],
-            target: 'current',
-        });
-    }
 
     /** Preset del gráfico: fija su rango al mes calendario en curso. */
     setChartCurrentMonth() {
@@ -1051,7 +969,7 @@ class CustomerAnalysisWidget extends Component {
         const cellVal = (row, key) => {
             const v = row[key];
             if (v === null || v === undefined) return '';
-            if (['delivery_pct', 'physical_pct', 'ontime_pct', 'trend_pct'].includes(key))
+            if (['delivery_pct', 'ontime_pct', 'trend_pct'].includes(key))
                 return v.toFixed(1) + '%';
             if (['avg_days_between', 'days_since_last'].includes(key) && v !== null)
                 return v + ' d';
@@ -1210,19 +1128,9 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos` + this.svcNote();
             case 'total_qty':
-                return `Piezas pedidas en el período: suma de cantidades de todas las líneas de los clientes visibles.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
-            case 'total_phys':
-                return `Piezas despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador de la Tasa física.\nTotal: ${f(k.total_phys)} Pz`;
-            case 'total_delivered':
-                return `Piezas entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador de la Tasa de cumplimiento.\nTotal: ${f(k.total_delivered)} Pz` + this.svcNote();
+                return `Demanda real: piezas pedidas en el período (suma de cantidades de todas las líneas de los clientes visibles). Mismo concepto que "Demanda real" del panel de ventas.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
             case 'avg_price':
                 return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.svcNote();
-            case 'avg_delivery_pct':
-                return `Tasa de cumplimiento del período, ponderada por volumen (mismo criterio que el panel de ventas)\nΣ entregado de los pedidos del período (cualquier fecha de entrega) ÷ Σ pedido × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${p(k.avg_delivery_pct)}` + this.svcNote();
-            case 'avg_physical_pct':
-                return `Tasa física del período, ponderada por volumen (mismo criterio que el panel de ventas)\nΣ despachado dentro del período (de cualquier pedido) ÷ Σ pedido × 100\nPuede superar 100% si se despacharon pedidos de períodos anteriores\n→ ${f(k.total_phys)} ÷ ${f(k.total_qty)} = ${p(k.avg_physical_pct)}`;
-            case 'avg_ontime_pct':
-                return `Entregas a tiempo del período, ponderado por entregas (no promedio por cliente). Criterio: fecha entrega ≤ fecha compromiso (configurable en Ajustes)\nΣ entregas a tiempo ÷ Σ entregas evaluadas × 100\n→ ${f(k.ontime_ok_sum)} ÷ ${f(k.ontime_total_sum)} = ${p(k.avg_ontime_pct)}`;
             case 'avg_days_between':
                 return `Promedio de días entre pedidos consecutivos, calculado entre todos los clientes con más de 1 pedido\n→ ${k.avg_days_between != null ? k.avg_days_between + ' días promedio' : '—'}`;
             default:
@@ -1246,8 +1154,6 @@ class CustomerAnalysisWidget extends Component {
                 return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.svcNote();
             case 'delivery_pct':
                 return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
-            case 'physical_pct':
-                return `Tasa física: despachado DENTRO del período (de cualquier pedido) ÷ pedido en el período\n→ ${n(row.qty_delivered_phys)} u ÷ ${n(row.qty_ordered)} u = ${row.physical_pct != null ? row.physical_pct + '%' : '—'}${this._physBreak(row.phys_by_order_month)}\nPuede superar 100% si se despacharon pedidos de períodos anteriores.`;
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_price':
@@ -1275,11 +1181,6 @@ class CustomerAnalysisWidget extends Component {
         return `Tasa de cumplimiento: entregado de los pedidos del período respecto a lo pedido de este artículo\nQty entregada ÷ Qty pedida × 100\n→ ${n(prod.qty_delivered)} u ÷ ${n(prod.qty_ordered)} u = ${prod.delivery_pct != null ? prod.delivery_pct + '%' : '—'}`;
     }
 
-    prodPhysTooltip(prod) {
-        if (!prod || prod.qty_ordered == null) return '';
-        const n = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
-        return `Tasa física: despachado DENTRO del período de este artículo ÷ pedido en el período\n→ ${n(prod.qty_delivered_phys)} u ÷ ${n(prod.qty_ordered)} u = ${prod.physical_pct != null ? prod.physical_pct + '%' : '—'}\nPuede superar 100% si se despacharon pedidos de períodos anteriores.`;
-    }
 
     /**
      * Desglose "por mes de confirmación del pedido" para los tooltips de la tasa
@@ -1308,11 +1209,10 @@ class CustomerAnalysisWidget extends Component {
             country:           'País del cliente. Clic para ordenar.',
             province:          'Provincia del cliente. Clic para ordenar.',
             order_count:       'Cantidad de pedidos de venta confirmados en el período.',
-            qty_ordered:       'Total de piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas).',
+            qty_ordered:       'Demanda real: total de piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas).',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
             avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
-            physical_pct:      'Tasa física: despachado DENTRO del período (salidas validadas de cualquier pedido, incluso anteriores) ÷ pedido en el período × 100. Responde "¿cuánto le despaché este período?". Puede superar 100% si se despacharon pedidos viejos. El tooltip de cada celda desglosa de qué mes son los pedidos entregados. Mismo semáforo que la tasa de cumplimiento.',
             ontime_pct:        'Porcentaje de entregas realizadas dentro del plazo acordado. El plazo se define según el método configurado en Ajustes (fecha compromiso, fecha programada o SLA en días).',
             avg_days_between:  'Promedio de días entre pedidos consecutivos del cliente en el período.',
             days_since_last:   'Días desde el último pedido hasta hoy. Se resalta en rojo si supera el umbral de riesgo configurado en Ajustes.',

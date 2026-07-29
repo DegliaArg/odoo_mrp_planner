@@ -38,7 +38,8 @@
                             <div class="col">
                                 <h4 class="mb-0 fw-bold">Panel de Producción</h4>
                             </div>
-                            <div class="col-auto d-flex gap-2">
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
                                 <button name="action_refresh" type="object"
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
@@ -112,7 +113,8 @@
                             <div class="col">
                                 <h4 class="mb-0 fw-bold">Panel de Compras</h4>
                             </div>
-                            <div class="col-auto">
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
                                 <button name="action_refresh_compras" type="object"
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>

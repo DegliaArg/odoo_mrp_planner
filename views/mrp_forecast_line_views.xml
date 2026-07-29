@@ -97,7 +97,8 @@
                             <div class="col">
                                 <h4 class="mb-0 fw-bold">Panel de Ventas</h4>
                             </div>
-                            <div class="col-auto">
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
                                 <button name="action_refresh" type="object"
                                         string="Actualizar"
                                         class="btn btn-outline-primary btn-sm"/>
@@ -144,6 +145,12 @@
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
                                 <h4 class="mb-0 fw-bold">Análisis de Clientes</h4>
+                            </div>
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
+                                <button name="action_refresh_customers" type="object"
+                                        string="Actualizar"
+                                        class="btn btn-outline-primary btn-sm"/>
                             </div>
                             <field name="show_customer_analysis_sec" invisible="1"/>
                         </div>

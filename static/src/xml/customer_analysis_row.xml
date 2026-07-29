@@ -84,11 +84,6 @@
                 t-att-title="cellTooltip('delivery_pct', row)"
                 t-esc="fmtPct(row.delivery_pct)"/>
 
-            <td t-elif="col.key === 'physical_pct'"
-                t-att-class="'text-end ' + deliveryClass(row.physical_pct)"
-                style="padding:3px 8px;"
-                t-att-title="cellTooltip('physical_pct', row)"
-                t-esc="fmtPct(row.physical_pct)"/>
 
             <td t-elif="col.key === 'ontime_pct'"
                 t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"

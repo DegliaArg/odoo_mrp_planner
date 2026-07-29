@@ -352,4 +352,7 @@ th[draggable="true"]:active { cursor: grabbing; }
    card (el espaciador invisible dejaba el contenido corrido hacia arriba). */
 .o_planner_kpi_card_lg { min-height: 132px; }
 .o_planner_kpi_card_sm { min-height: 102px; }
+.o_planner_kpi_card_xs { min-height: 84px; }
+.o_planner_kpi_card_xs .card-body { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.o_planner_kpi_card_xs .small { font-size: 0.72rem; }
 .o_planner_footer_spacer { visibility: hidden; }

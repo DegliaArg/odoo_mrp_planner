@@ -702,6 +702,11 @@ class MrpPlannerDashboard(models.TransientModel):
         self.env['mrp.reschedule.alert']._cron_check_delays()
         return self.env['mrp.planner.dashboard'].action_open()
 
+    def action_refresh_customers(self):
+        """Reabre el panel de Análisis de Clientes (el cálculo es en vivo: recargar
+        el panel equivale a recalcular todo con datos actuales)."""
+        return self.action_open_customer_analysis()
+
     def action_refresh_compras(self):
         """
         Recalcula las alertas de demoras y reabre el panel de compras.

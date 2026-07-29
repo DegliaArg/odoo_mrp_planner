@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.RefreshStampWidget">
+        <span class="text-muted small align-self-center"
+              title="Hora de la última carga del panel. El botón Actualizar lo recarga con datos actuales.">
+            Actualizado <t t-esc="time"/>
+        </span>
+    </t>
+
+</templates>

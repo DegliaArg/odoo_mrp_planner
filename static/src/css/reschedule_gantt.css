@@ -347,5 +347,9 @@ th[draggable="true"]:active { cursor: grabbing; }
 .o_planner_num_md { font-size: 1.1rem !important; }
 .o_planner_num_sm { font-size: 0.9rem !important; }
 
-/* Espaciador invisible para igualar la altura de cards sin botón "Ver" */
+/* Altura mínima uniforme para las grillas de KPIs: las cards sin botón "Ver"
+   miden lo mismo que las que lo tienen, y su contenido se centra en toda la
+   card (el espaciador invisible dejaba el contenido corrido hacia arriba). */
+.o_planner_kpi_card_lg { min-height: 132px; }
+.o_planner_kpi_card_sm { min-height: 102px; }
 .o_planner_footer_spacer { visibility: hidden; }

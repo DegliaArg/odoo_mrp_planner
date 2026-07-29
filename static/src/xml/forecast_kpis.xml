@@ -34,7 +34,7 @@
                         <div class="card-body text-center py-3">
                             <i t-att-class="'fa fa-lg mb-2 d-block ' + (r.key === '' ? 'fa-question-circle text-warning' : 'fa-calendar text-info')"/>
                             <div t-att-class="'o_planner_number ' + (r.key === '' ? 'text-warning' : 'text-info')">
-                                <t t-esc="fmt(r.qty)"/>
+                                <t t-esc="fmt(r.qty) + ' Pz'"/>
                             </div>
                             <div class="o_planner_label" t-esc="r.label"/>
                         </div>
@@ -53,7 +53,7 @@
                         <div class="card-body text-center py-3">
                             <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
                             <div class="o_planner_number text-info fw-bold">
-                                <t t-esc="fmt(filteredKpis.total_delivered)"/>
+                                <t t-esc="fmt(filteredKpis.total_delivered) + ' Pz'"/>
                             </div>
                             <div class="o_planner_label fw-semibold">Total del período</div>
                         </div>
@@ -83,7 +83,7 @@
                      t-on-click="openDrillForecast">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-bar-chart fa-lg text-primary mb-2 d-block"/>
-                        <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_forecast)"/></div>
+                        <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_forecast) + ' Pz'"/></div>
                         <div class="o_planner_label">Demanda forecast</div>
                     </div>
                     <div class="card-footer p-0">
@@ -98,7 +98,7 @@
                      t-on-click="openDrillSoDemand">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-shopping-cart fa-lg mb-2 d-block" style="color:#7952b3;"/>
-                        <div class="o_planner_number" style="color:#7952b3;"><t t-esc="fmt(filteredKpis.total_so_demand)"/></div>
+                        <div class="o_planner_number" style="color:#7952b3;"><t t-esc="fmt(filteredKpis.total_so_demand) + ' Pz'"/></div>
                         <div class="o_planner_label">Demanda real</div>
                         <div t-if="state.data.kpis.so_demand_no_fc > 0"
                              class="text-warning mt-1"
@@ -120,7 +120,7 @@
                      t-on-click="openDrillMos">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-industry fa-lg text-secondary mb-2 d-block"/>
-                        <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_mos)"/></div>
+                        <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_mos) + ' Pz'"/></div>
                         <div class="o_planner_label">Producción planificada</div>
                         <div t-if="state.data.kpis.mos_no_fc > 0"
                              class="text-warning mt-1"
@@ -144,7 +144,7 @@
                      t-on-click="openDelBreakdown">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
-                        <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
+                        <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered) + ' Pz'"/></div>
                         <div class="o_planner_label">Entregas físicas</div>
                         <div t-if="state.data.kpis.delivered_no_fc > 0"
                              class="text-warning mt-1"
@@ -168,7 +168,7 @@
                      t-on-click="openDrillDemandDelivered">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                        <div class="o_planner_number text-success"><t t-esc="fmt(filteredKpis.total_demand_delivered)"/></div>
+                        <div class="o_planner_number text-success"><t t-esc="fmt(filteredKpis.total_demand_delivered) + ' Pz'"/></div>
                         <div class="o_planner_label">Cumplimiento de demanda</div>
                         <div t-if="state.data.kpis.demand_delivered_no_fc > 0"
                              class="text-warning mt-1"

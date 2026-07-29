@@ -926,6 +926,43 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    /** Remitos de los pedidos del período (cualquier fecha de entrega), de todos
+     *  los clientes visibles del análisis. Respalda el KPI Cumplimiento de demanda. */
+    openPeriodDemandPickings() {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Remitos de pedidos del período',
+            res_model: 'stock.picking',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['picking_type_code', '=', 'outgoing'],
+                ['sale_id.state', 'in', ['sale', 'done']],
+                ['sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Despachos validados DENTRO del período (de cualquier pedido). Respalda el
+     *  KPI Entregas físicas. */
+    openPeriodPhysPickings() {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Despachos del período',
+            res_model: 'stock.picking',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['state', '=', 'done'],
+                ['picking_type_code', '=', 'outgoing'],
+                ['sale_id', '!=', false],
+                ['date_done', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date_done', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
     /** Preset del gráfico: fija su rango al mes calendario en curso. */
     setChartCurrentMonth() {
         const now = new Date();
@@ -1169,7 +1206,11 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos` + this.svcNote();
             case 'total_qty':
-                return `Piezas pedidas en el período: suma de cantidades de todas las líneas de los clientes visibles.\nTotal: ${f(k.total_qty)} piezas en ${f(k.total_orders)} pedidos` + this.svcNote();
+                return `Piezas pedidas en el período: suma de cantidades de todas las líneas de los clientes visibles.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
+            case 'total_phys':
+                return `Piezas despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador de la Tasa física.\nTotal: ${f(k.total_phys)} Pz`;
+            case 'total_delivered':
+                return `Piezas entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador de la Tasa de cumplimiento.\nTotal: ${f(k.total_delivered)} Pz` + this.svcNote();
             case 'avg_price':
                 return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.svcNote();
             case 'avg_delivery_pct':

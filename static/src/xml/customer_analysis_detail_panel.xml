@@ -24,8 +24,8 @@
                      invisibles igualan la altura de las cards sin botón Ver. -->
                 <div class="row row-cols-2 row-cols-md-5 g-2 mb-2">
                     <div class="col">
-                        <div class="card h-100" title="Pedidos confirmados del cliente en el período.">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_kpi_card_sm h-100" title="Pedidos confirmados del cliente en el período.">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.order_count), true)"
                                      style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
                                 <div class="small text-muted">Total pedidos</div>
@@ -38,10 +38,10 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="'Total de unidades pedidas en el período (suma de qty de todas las líneas).' + svcNote()">
-                            <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtQty(state.panelData.total_qty_ordered), true)"
-                                     style="font-size:1rem;" t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="'Total de unidades pedidas en el período (suma de qty de todas las líneas).' + svcNote()">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtQty(state.panelData.total_qty_ordered) + ' Pz', true)"
+                                     style="font-size:1rem;" t-esc="fmtQty(state.panelData.total_qty_ordered) + ' Pz'"/>
                                 <div class="small text-muted">Piezas pedidas</div>
                             </div>
                             <div class="card-footer p-0">
@@ -52,11 +52,11 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100"
+                        <div class="card o_planner_kpi_card_sm h-100"
                              title="Unidades despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador de la Tasa física.">
-                            <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys), true)"
-                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys)"/>
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys) + ' Pz', true)"
+                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys) + ' Pz'"/>
                                 <div class="small text-muted">Entregas físicas</div>
                             </div>
                             <div class="card-footer p-0">
@@ -67,11 +67,11 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100"
+                        <div class="card o_planner_kpi_card_sm h-100"
                              t-att-title="'Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador de la Tasa de cumplimiento.' + svcNote()">
-                            <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered), true)"
-                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered)"/>
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered) + ' Pz', true)"
+                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered) + ' Pz'"/>
                                 <div class="small text-muted">Cumplimiento de demanda</div>
                             </div>
                             <div class="card-footer p-0">
@@ -82,8 +82,8 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="'Suma del importe sin impuestos de todos los pedidos del cliente en el período.' + svcNote()">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="'Suma del importe sin impuestos de todos los pedidos del cliente en el período.' + svcNote()">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.total_amount), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.total_amount)"/>
                                 <div class="small text-muted">Monto total (PxQ)</div>
@@ -98,64 +98,49 @@
                 </div>
                 <div class="row row-cols-2 row-cols-md-5 g-2 mb-3">
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('avg_price', row)">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="cellTooltip('avg_price', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
                                 <div class="small text-muted">Precio promedio</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('physical_pct', row)">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="cellTooltip('physical_pct', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + deliveryClass(row.physical_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.physical_pct)"/>
                                 <div class="small text-muted">Tasa física</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('delivery_pct', row)">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="cellTooltip('delivery_pct', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + deliveryClass(row.delivery_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
                                 <div class="small text-muted">Tasa de cumplimiento</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('ontime_pct', row)">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="cellTooltip('ontime_pct', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + ontimeClass(row.ontime_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
                                 <div class="small text-muted">% A tiempo</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card h-100" t-att-title="cellTooltip('days_since_last', row)">
+                        <div class="card o_planner_kpi_card_sm h-100" t-att-title="cellTooltip('days_since_last', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + riskClass(row.days_since_last)"
                                      style="font-size:1rem;">
                                     <t t-esc="row.days_since_last"/> d
                                 </div>
                                 <div class="small text-muted">Sin comprar</div>
-                            </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
                             </div>
                         </div>
                     </div>

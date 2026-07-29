@@ -332,3 +332,12 @@ th.o_col_drag_over {
 th[draggable="true"] { cursor: grab; }
 th[draggable="true"]:active { cursor: grabbing; }
 
+
+/* Transición al alternar KPIs ↔ desglose de entregas (forecast) */
+.o_planner_fade_in {
+    animation: plannerFadeIn 0.18s ease-out;
+}
+@keyframes plannerFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}

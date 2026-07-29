@@ -9,6 +9,8 @@
              Reemplaza las cards de KPIs al apretar "Ver →" en Entregas físicas;
              "← Volver" restaura los KPIs. -->
         <t t-if="state.delBreakdownOpen">
+            <div class="o_planner_fade_in"
+                 t-att-style="state.kpiZoneMinHeight ? ('min-height:' + state.kpiZoneMinHeight + 'px') : ''">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <button class="btn btn-sm btn-outline-secondary"
                         title="Volver a los indicadores"
@@ -66,9 +68,11 @@
                     <div class="text-muted small py-3">Sin entregas físicas en el período seleccionado.</div>
                 </div>
             </div>
+            </div><!-- /fade + min-height -->
         </t>
 
         <t t-else="">
+        <div t-ref="kpiZone" class="o_planner_fade_in">
 
         <!-- Fila 1: volúmenes -->
         <div class="row row-cols-2 row-cols-md-5 g-2 mb-2">
@@ -137,7 +141,7 @@
             <div class="col">
                 <div class="card o_planner_card h-100 o_planner_card_clickable"
                      t-att-title="fcKpiTooltip('delivered')"
-                     t-on-click="() => state.delBreakdownOpen = true">
+                     t-on-click="openDelBreakdown">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
                         <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
@@ -153,7 +157,7 @@
                     <div class="card-footer p-0">
                         <button class="btn btn-sm btn-link w-100 py-1 text-info"
                                 title="Ver el desglose por mes de pedido"
-                                t-on-click.stop="() => state.delBreakdownOpen = true">Ver →</button>
+                                t-on-click.stop="openDelBreakdown">Ver →</button>
                     </div>
                 </div>
             </div>
@@ -269,6 +273,7 @@
             </div>
         </div>
 
+        </div><!-- /kpiZone -->
         </t><!-- /t-else (cards de KPIs) -->
 
     </t>

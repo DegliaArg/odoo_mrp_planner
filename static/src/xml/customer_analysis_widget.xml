@@ -15,6 +15,26 @@
             <!-- ── Barra de filtros unificada ──────────────────────────────── -->
             <div class="d-flex align-items-center gap-1 mb-3 flex-nowrap">
 
+                <!-- Rango de fechas propio de los gráficos: mientras coincida con el de
+                     la tabla van sincronizados; al cambiarlo, los gráficos cargan su
+                     propio dataset. Igualarlo a la tabla vuelve a sincronizar. -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de los gráficos">
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold"
+                          title="Rango de fechas de los gráficos superiores, independiente del de la tabla. Mientras coincida con el de la tabla se mueven juntos; si lo igualás de nuevo, se re-sincronizan.">Gráf.:</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha inicial del rango de los gráficos. Independiente de la tabla: mientras coincidan, van sincronizados."
+                           t-att-value="state.chartDateFrom"
+                           t-on-change="onChartDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha final del rango de los gráficos. Independiente de la tabla: mientras coincidan, van sincronizados."
+                           t-att-value="state.chartDateTo"
+                           t-on-change="onChartDateToChange"/>
+                    <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted" title="Cargando datos del rango del gráfico…"/>
+                </div>
+
                 <!-- Categoría de cliente -->
                 <t t-if="availableCategories.length">
                     <div class="vr" style="height:20px;"/>
@@ -87,30 +107,6 @@
                                 title="Inactivo: sin compras en el último año"
                                 t-on-click="() => this.setFilterFreq('inactivo')">Inact.</button>
                     </div>
-                </div>
-
-                <div class="vr" style="height:20px;"/>
-
-                <!-- Rango de fechas propio de los gráficos (independiente de la tabla) -->
-                <div class="d-flex align-items-center gap-1" aria-label="Período de los gráficos">
-                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Gráf.:</span>
-                    <input type="date" class="form-control form-control-sm"
-                           style="font-size:10px; padding:1px 4px; width:108px;"
-                           title="Fecha inicial del rango de los gráficos (independiente de la tabla)"
-                           t-att-value="state.chartDateFrom"
-                           t-on-change="onChartDateFromChange"/>
-                    <span class="text-muted" style="font-size:10px;">→</span>
-                    <input type="date" class="form-control form-control-sm"
-                           style="font-size:10px; padding:1px 4px; width:108px;"
-                           title="Fecha final del rango de los gráficos"
-                           t-att-value="state.chartDateTo"
-                           t-on-change="onChartDateToChange"/>
-                    <button t-att-class="'btn btn-sm ' + (state.chartSynced ? 'btn-primary' : 'btn-outline-secondary')"
-                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
-                            title="Usar el mismo rango de fechas que la tabla (sin costo extra de carga)"
-                            t-att-aria-pressed="state.chartSynced ? 'true' : 'false'"
-                            t-on-click="syncChartDates">= Tabla</button>
-                    <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted" title="Cargando datos del rango del gráfico…"/>
                 </div>
 
                 <div class="vr" style="height:20px;"/>

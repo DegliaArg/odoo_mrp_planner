@@ -33,7 +33,7 @@
 
 /** @odoo-module **/
 
-import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { PlannerSearchBar } from "./planner_search_bar";
@@ -171,6 +171,7 @@ class ForecastWidget extends Component {
             mosByProduct:     {},
             mosLoading:       {},
             delBreakdownOpen: false,   // "Ver →" de Entregas físicas reemplaza los KPIs por el desglose
+            kpiZoneMinHeight: 0,       // alto del bloque de KPIs, para que el desglose no achique el contenedor
         });
 
         this._closeAll = () => {
@@ -296,6 +297,14 @@ class ForecastWidget extends Component {
     get baseFilteredRows() { return baseFilteredRows(this); }
     get filteredRowsAll()  { return filteredRowsAll(this); }
     get filteredKpis()     { return filteredKpis(this); }
+
+    /** Abre el desglose de entregas fijando el alto actual del bloque de KPIs
+     *  para que el contenedor no se achique al reemplazarlos. */
+    openDelBreakdown() {
+        const el = this.kpiZoneRef && this.kpiZoneRef.el;
+        if (el) this.state.kpiZoneMinHeight = el.offsetHeight;
+        this.state.delBreakdownOpen = true;
+    }
 
     /**
      * Filas del resumen "Entregas físicas por mes de pedido": una por mes de

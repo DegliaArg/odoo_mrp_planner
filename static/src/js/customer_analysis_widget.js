@@ -460,16 +460,6 @@ class CustomerAnalysisWidget extends Component {
         this._onChartRangeChange();
     }
 
-    /** Preset "= Tabla": re-sincroniza los gráficos con el rango de la tabla (sin RPC extra). */
-    syncChartDates() {
-        this.state.chartSynced   = true;
-        this.state.chartDateFrom = this.state.dateFrom;
-        this.state.chartDateTo   = this.state.dateTo;
-        this._chartAllRows = null;
-        this._topChartKey  = '';
-        this._topDonutKey  = '';
-    }
-
     /**
      * Al cambiar el rango del gráfico: si coincide con el de la tabla vuelve al
      * modo sincronizado (sin dataset propio); si difiere, pide al backend el
@@ -801,6 +791,40 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Abre las líneas de pedido (piezas) del cliente en el período. Usado por el
+     * "Ver →" de la card Piezas del detalle: muestra qué pidió línea por línea,
+     * no los pedidos. Respeta la exclusión de servicios de Ajustes.
+     * @param {number} partnerId - Partner de la fila (representativo si está unificado).
+     */
+    openCustomerOrderLines(partnerId) {
+        const row = this.state.allRows.find(r => r.partner_id === partnerId);
+        const partnerIds = (row && row.partner_ids) || [partnerId];
+        const domain = [
+            ['order_id.partner_id', 'child_of', partnerIds],
+            ['order_id.state', 'in', ['sale', 'done']],
+            ['order_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+            ['order_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+        ];
+        if (this.state.config && this.state.config.exclude_services) {
+            domain.push(['product_id.type', '!=', 'service']);
+        }
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Piezas pedidas del período',
+            res_model: 'sale.order.line',
+            views:     [[false, 'list']],
+            domain,
+            target: 'current',
+        });
+    }
+
+    /** Nota para tooltips de montos/piezas cuando los servicios están excluidos en Ajustes. */
+    svcNote() {
+        return this.state.config && this.state.config.exclude_services
+            ? '\n(Líneas de servicios excluidas según Ajustes → Ventas)' : '';
+    }
+
     openCustomerOrders(partnerId) {
         // Con "Unificar por CUIT" la fila puede agrupar varios partners.
         const row = this.state.allRows.find(r => r.partner_id === partnerId);
@@ -1023,7 +1047,7 @@ class CustomerAnalysisWidget extends Component {
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos`;
             case 'avg_price':
-                return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}`;
+                return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.svcNote();
             case 'avg_delivery_pct':
                 return `Tasa de cumplimiento promedio entre ${f(k.delivery_n)} clientes del período\nEntregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido × 100, por cliente y luego promediado\n→ ${p(k.avg_delivery_pct)}`;
             case 'avg_physical_pct':
@@ -1048,9 +1072,9 @@ class CustomerAnalysisWidget extends Component {
             case 'order_count':
                 return `Pedidos confirmados del cliente en el período\n→ ${f(row.order_count)} pedidos de ${f(k.total_orders)} totales${pct(row.order_count, k.total_orders)}`;
             case 'qty_ordered':
-                return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}`;
+                return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}` + this.svcNote();
             case 'total_amount':
-                return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}`;
+                return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.svcNote();
             case 'delivery_pct':
                 return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
             case 'physical_pct':
@@ -1058,7 +1082,7 @@ class CustomerAnalysisWidget extends Component {
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_price':
-                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Piezas pedidas\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}`;
+                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Piezas pedidas\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.svcNote();
             case 'trend_pct':
                 return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
@@ -1131,7 +1155,11 @@ class CustomerAnalysisWidget extends Component {
             frequency_segment: 'Segmento de frecuencia: Frecuente (< 30 días entre pedidos), Ocasional (30–90 días), Inactivo (> 90 días), En riesgo (sin comprar hace más días que el umbral configurado).',
             partner_tag:       'Primera etiqueta de contacto asignada al cliente en Odoo (res.partner.category_id). Clic para ordenar.',
         };
-        return titles[col.key] || '';
+        const base = titles[col.key] || '';
+        if (['qty_ordered', 'total_amount', 'avg_price'].includes(col.key)) {
+            return base + this.svcNote();
+        }
+        return base;
     }
 
     get groupByDefs() {

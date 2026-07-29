@@ -84,10 +84,10 @@ export function drawTopChart(widget) {
     if (!el) return;
     const metric      = widget.state.chartMetric;
     const topN        = widget.state.chartTopN;   // null = todos
-    const allFiltered = widget._filteredRows || widget.state.allRows;
+    const allFiltered = widget.chartSourceRows;
     if (!allFiltered.length) return;
 
-    const key = `${widget.state.dateFrom}_${widget.state.dateTo}_${allFiltered.length}_${metric}_${topN}_${widget.state.filterCategory}_${widget.state.filterABC}_${widget.state.filterFreq}`;
+    const key = `${widget.state.chartDateFrom}_${widget.state.chartDateTo}_${allFiltered.length}_${metric}_${topN}_${widget.state.filterCategory}_${widget.state.filterABC}_${widget.state.filterFreq}`;
     if (key === widget._topChartKey) return;
     widget._topChartKey = key;
 
@@ -149,11 +149,11 @@ export function drawTopChart(widget) {
 export function drawTopDonut(widget) {
     const el = widget.topDonutRef.el;
     if (!el) return;
-    const rows = widget._filteredRows || widget.state.allRows;
+    const rows = widget.chartSourceRows;
     if (!rows.length) return;
 
     const donutType = widget.state.chartDonut;
-    const key = `${widget.state.dateFrom}_${widget.state.dateTo}_${rows.length}_${donutType}_${widget.state.filterCategory}_${widget.state.filterABC}_${widget.state.filterFreq}`;
+    const key = `${widget.state.chartDateFrom}_${widget.state.chartDateTo}_${rows.length}_${donutType}_${widget.state.filterCategory}_${widget.state.filterABC}_${widget.state.filterFreq}`;
     if (key === widget._topDonutKey) return;
     widget._topDonutKey = key;
 

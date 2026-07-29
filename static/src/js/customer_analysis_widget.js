@@ -25,6 +25,7 @@ const CA_STATIC_COLS = [
     { key: 'country',           label: 'País',              width: 110, align: 'start'  },
     { key: 'province',          label: 'Provincia',         width: 120, align: 'start'  },
     { key: 'order_count',       label: 'Pedidos',           width:  75, align: 'end'    },
+    { key: 'qty_ordered',       label: 'Piezas',            width:  90, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
     { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
@@ -49,6 +50,7 @@ const CA_SORT_KEYS = {
     country:           'country',
     province:          'province',
     order_count:       'order_count',
+    qty_ordered:       'qty_ordered',
     total_amount:      'total_amount',
     avg_price:         'avg_price',
     delivery_pct:      'delivery_pct',
@@ -121,6 +123,9 @@ class CustomerAnalysisWidget extends Component {
         this._saleCatChart = null;
 
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
+        // Dataset propio de los gráficos cuando su rango difiere del de la tabla
+        // (null = sincronizado: los gráficos usan el dataset de la tabla).
+        this._chartAllRows = null;
         this.caSortKeys = CA_SORT_KEYS;
 
         const period = defaultPeriod();
@@ -142,12 +147,17 @@ class CustomerAnalysisWidget extends Component {
             activeFilter:  null,
             groupBy:       null,
             selectedGroup: null,
-            tableTotals:   { count: 0, orders: 0, amount: 0 },
+            tableTotals:   { count: 0, orders: 0, qty: 0, amount: 0 },
             colsDropdownOpen: false,
             // Filtros de los gráficos superiores
             chartMetric: 'pxq',
             chartTopN:   10,
             chartDonut:  'abc',
+            // Rango de fechas propio de los gráficos (arranca sincronizado con la tabla)
+            chartDateFrom: period.from,
+            chartDateTo:   period.to,
+            chartSynced:   true,
+            chartLoading:  false,
             // Filas expandibles
             expandedRows:      {},
             rowOrders:         {},
@@ -175,6 +185,7 @@ class CustomerAnalysisWidget extends Component {
                 country:           false,
                 province:          false,
                 order_count:       true,
+                qty_ordered:       true,
                 total_amount:      true,
                 avg_price:         true,
                 delivery_pct:      true,
@@ -286,8 +297,8 @@ class CustomerAnalysisWidget extends Component {
      * pestaña ni orden). Base común de la tabla y de las pestañas de agrupamiento.
      * @returns {Array} Filas filtradas
      */
-    _baseFiltered() {
-        let rows = [...this.state.allRows];
+    _baseFiltered(src = null) {
+        let rows = [...(src || this.state.allRows)];
         // Búsqueda de texto
         const q = this.state.productSearch.trim().toLowerCase();
         if (q) {
@@ -350,6 +361,7 @@ class CustomerAnalysisWidget extends Component {
         this.state.tableTotals = {
             count:  rows.length,
             orders: rows.reduce((s, r) => s + (r.order_count || 0), 0),
+            qty:    Math.round(rows.reduce((s, r) => s + (r.qty_ordered || 0), 0) * 10) / 10,
             amount: Math.round(rows.reduce((s, r) => s + (r.total_amount || 0), 0) * 100) / 100,
         };
 
@@ -423,13 +435,81 @@ class CustomerAnalysisWidget extends Component {
         this.state.dateFrom = ev.target.value;
         if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
         savePeriod(this.state.dateFrom, this.state.dateTo);
+        if (this.state.chartSynced) { this.state.chartDateFrom = this.state.dateFrom; this.state.chartDateTo = this.state.dateTo; }
         this._load();
     }
     onDateToChange(ev) {
         this.state.dateTo = ev.target.value;
         if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         savePeriod(this.state.dateFrom, this.state.dateTo);
+        if (this.state.chartSynced) { this.state.chartDateFrom = this.state.dateFrom; this.state.chartDateTo = this.state.dateTo; }
         this._load();
+    }
+
+    // ── Rango propio de los gráficos ──────────────────────────────────────────
+
+    onChartDateFromChange(ev) {
+        this.state.chartDateFrom = ev.target.value;
+        if (this.state.chartDateFrom > this.state.chartDateTo) this.state.chartDateTo = this.state.chartDateFrom;
+        this._onChartRangeChange();
+    }
+
+    onChartDateToChange(ev) {
+        this.state.chartDateTo = ev.target.value;
+        if (this.state.chartDateTo < this.state.chartDateFrom) this.state.chartDateFrom = this.state.chartDateTo;
+        this._onChartRangeChange();
+    }
+
+    /** Preset "= Tabla": re-sincroniza los gráficos con el rango de la tabla (sin RPC extra). */
+    syncChartDates() {
+        this.state.chartSynced   = true;
+        this.state.chartDateFrom = this.state.dateFrom;
+        this.state.chartDateTo   = this.state.dateTo;
+        this._chartAllRows = null;
+        this._topChartKey  = '';
+        this._topDonutKey  = '';
+    }
+
+    /**
+     * Al cambiar el rango del gráfico: si coincide con el de la tabla vuelve al
+     * modo sincronizado (sin dataset propio); si difiere, pide al backend el
+     * dataset del rango del gráfico y lo guarda aparte.
+     */
+    async _onChartRangeChange() {
+        const synced = this.state.chartDateFrom === this.state.dateFrom
+                    && this.state.chartDateTo   === this.state.dateTo;
+        this.state.chartSynced = synced;
+        this._topChartKey = '';
+        this._topDonutKey = '';
+        if (synced) {
+            this._chartAllRows = null;
+            return;
+        }
+        this.state.chartLoading = true;
+        try {
+            const res = await this.orm.call(
+                'mrp.planner.dashboard',
+                'get_customer_analysis_data',
+                [this.state.chartDateFrom, this.state.chartDateTo, null]
+            );
+            this._chartAllRows = res.rows || [];
+        } catch (e) {
+            console.error('[CustomerAnalysis] rango del gráfico', e);
+            this._chartAllRows = null;
+        } finally {
+            this.state.chartLoading = false;
+        }
+    }
+
+    /**
+     * Filas que alimentan los gráficos superiores. Sincronizado: las mismas de la
+     * tabla (con todos sus filtros). Con rango propio: el dataset del rango del
+     * gráfico con la misma búsqueda y filtros de segmento aplicados.
+     * @returns {Array}
+     */
+    get chartSourceRows() {
+        if (!this._chartAllRows) return this._filteredRows || this.state.allRows;
+        return this._baseFiltered(this._chartAllRows);
     }
 
     toggleColsDropdown(ev) {
@@ -967,6 +1047,8 @@ class CustomerAnalysisWidget extends Component {
         switch (key) {
             case 'order_count':
                 return `Pedidos confirmados del cliente en el período\n→ ${f(row.order_count)} pedidos de ${f(k.total_orders)} totales${pct(row.order_count, k.total_orders)}`;
+            case 'qty_ordered':
+                return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}`;
             case 'total_amount':
                 return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}`;
             case 'delivery_pct':
@@ -1033,6 +1115,7 @@ class CustomerAnalysisWidget extends Component {
             country:           'País del cliente. Clic para ordenar.',
             province:          'Provincia del cliente. Clic para ordenar.',
             order_count:       'Cantidad de pedidos de venta confirmados en el período.',
+            qty_ordered:       'Total de piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas).',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
             avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',

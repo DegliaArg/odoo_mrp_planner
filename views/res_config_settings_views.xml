@@ -560,6 +560,11 @@
                                                    help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>
                                         </group>
 
+                                        <group string="Servicios">
+                                            <field name="customer_analysis_exclude_services" widget="boolean_toggle"
+                                                   help="Cuando está activo, las líneas de productos de tipo Servicio no se cuentan en el análisis de clientes: montos, piezas, precio promedio y top de artículos se calculan solo sobre bienes. Los porcentajes de entrega no cambian (los servicios no generan remitos)."/>
+                                        </group>
+
                                         <group string="Método — Entrega a tiempo">
                                             <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"
                                                    help="Define cómo se calcula si una entrega fue a tiempo: comparando con la fecha pactada en el pedido, con la fecha del picking de salida, o con un plazo fijo en días desde la confirmación."/>

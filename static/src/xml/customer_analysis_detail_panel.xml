@@ -60,9 +60,6 @@
                                 <div class="fw-bold" style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
                                 <div class="small text-muted">Precio promedio</div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
@@ -70,9 +67,6 @@
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold ' + deliveryClass(row.delivery_pct)" style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
                                 <div class="small text-muted">% Cumplim.</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -82,9 +76,6 @@
                                 <div t-att-class="'fw-bold ' + deliveryClass(row.physical_pct)" style="font-size:1rem;" t-esc="fmtPct(row.physical_pct)"/>
                                 <div class="small text-muted">% Físico</div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col">
@@ -92,9 +83,6 @@
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold ' + ontimeClass(row.ontime_pct)" style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
                                 <div class="small text-muted">% A tiempo</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -105,9 +93,6 @@
                                     <t t-esc="row.days_since_last"/> d
                                 </div>
                                 <div class="small text-muted">Sin comprar</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openCustomerOrders(row.partner_id)">Ver →</button>
                             </div>
                         </div>
                     </div>

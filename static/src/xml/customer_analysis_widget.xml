@@ -91,6 +91,30 @@
 
                 <div class="vr" style="height:20px;"/>
 
+                <!-- Rango de fechas propio de los gráficos (independiente de la tabla) -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de los gráficos">
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Gráf.:</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha inicial del rango de los gráficos (independiente de la tabla)"
+                           t-att-value="state.chartDateFrom"
+                           t-on-change="onChartDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha final del rango de los gráficos"
+                           t-att-value="state.chartDateTo"
+                           t-on-change="onChartDateToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (state.chartSynced ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            title="Usar el mismo rango de fechas que la tabla (sin costo extra de carga)"
+                            t-att-aria-pressed="state.chartSynced ? 'true' : 'false'"
+                            t-on-click="syncChartDates">= Tabla</button>
+                    <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted" title="Cargando datos del rango del gráfico…"/>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
                 <!-- Métrica del gráfico -->
                 <div class="btn-group btn-group-sm" role="group">
                     <t t-foreach="[['pxq','Importe','Importe total sin impuestos de los pedidos del período'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','P. prom.','Precio promedio por unidad (monto ÷ piezas) por cliente']]"
@@ -203,9 +227,6 @@
                                      t-esc="fmtMoney(state.kpis.avg_price)"/>
                                 <div class="o_planner_label">Precio promedio</div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1 text-success" t-on-click="() => this.openKpiDrilldown('ticket')">Ver →</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col-6 col-md">
@@ -216,9 +237,6 @@
                                 <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
                                      t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
                                 <div class="o_planner_label">% Cumplim. promedio</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('delivery')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -231,9 +249,6 @@
                                      t-esc="fmtPct(state.kpis.avg_physical_pct)"/>
                                 <div class="o_planner_label">% Físico prom.</div>
                             </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('delivery')">Ver →</button>
-                            </div>
                         </div>
                     </div>
                     <div class="col-6 col-md">
@@ -244,9 +259,6 @@
                                 <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
                                      t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
                                 <div class="o_planner_label">% A tiempo promedio</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" t-on-click="() => this.openKpiDrilldown('ontime')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -317,6 +329,7 @@
                             <p class="small text-muted mb-1 px-1">Compras</p>
                             <t t-foreach="[
                                 ['order_count',  'Pedidos'],
+                                ['qty_ordered',  'Piezas'],
                                 ['total_amount', 'Monto total'],
                                 ['avg_price',    'Precio promedio'],
                                 ['trend_pct',    'Tendencia vs período anterior'],
@@ -467,6 +480,10 @@
                                         <t t-elif="col.key === 'order_count'">
                                             <span title="Suma de pedidos de los clientes visibles en la tabla."
                                                   t-esc="fmt(state.tableTotals.orders)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_ordered'">
+                                            <span title="Suma de piezas pedidas por los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.qty)"/>
                                         </t>
                                         <t t-elif="col.key === 'total_amount'">
                                             <span title="Suma del importe sin impuestos de los clientes visibles en la tabla."

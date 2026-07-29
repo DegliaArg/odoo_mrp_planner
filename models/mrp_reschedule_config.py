@@ -544,6 +544,13 @@ class MrpRescheduleConfig(models.Model):
              'Afecta al botón "Calcular ahora" y al cron automático.')
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
+    customer_analysis_exclude_services = fields.Boolean(
+        string='Excluir servicios del análisis de clientes',
+        default=False,
+        help='Cuando está activo, las líneas de productos de tipo Servicio no se '
+             'cuentan en el análisis de clientes: montos, piezas, precio promedio y '
+             'top de artículos se calculan solo sobre bienes. Los porcentajes de '
+             'entrega no cambian (los servicios no generan remitos).')
     customer_unify_by_vat = fields.Boolean(
         string='Unificar clientes por CUIT',
         default=False,

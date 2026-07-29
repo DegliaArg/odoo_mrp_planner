@@ -169,6 +169,7 @@ class ForecastWidget extends Component {
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
+            periodSummaryOpen: false,
         });
 
         this._closeAll = () => {
@@ -294,6 +295,26 @@ class ForecastWidget extends Component {
     get baseFilteredRows() { return baseFilteredRows(this); }
     get filteredRowsAll()  { return filteredRowsAll(this); }
     get filteredKpis()     { return filteredKpis(this); }
+
+    /**
+     * Filas del resumen "Entregas físicas por mes de pedido": una por mes de
+     * confirmación del pedido de origen (ordenadas cronológicamente) más la
+     * cubeta '' de salidas sin pedido asociado al final. Mismo dato agregado
+     * que el tooltip del KPI Entregas físicas.
+     * @returns {Array<{key: string, label: string, qty: number}>}
+     */
+    get delByOrderMonthRows() {
+        const byMonth = this.filteredKpis.del_by_order_month || {};
+        const rows = Object.keys(byMonth).filter(k => k).sort().map(ym => {
+            const [y, m] = ym.split('-');
+            const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
+            return { key: ym, label: label.charAt(0).toUpperCase() + label.slice(1), qty: byMonth[ym] };
+        });
+        if (byMonth['']) {
+            rows.push({ key: '', label: 'Sin pedido asociado', qty: byMonth[''] });
+        }
+        return rows;
+    }
     get allGroupsForTabs() { return allGroupsForTabs(this); }
 
     // ── Paginación ────────────────────────────────────────────────────────────

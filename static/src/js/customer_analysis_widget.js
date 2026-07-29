@@ -339,10 +339,6 @@ class CustomerAnalysisWidget extends Component {
             return dir * (va - vb);
         });
 
-        // Los KPIs siguen el conjunto filtrado/buscado (sin filtro de pestaña),
-        // mismas fórmulas que el backend.
-        this.state.kpis = { ...this.state.kpis, ...this._computeKpis(rows) };
-
         // Pestaña activa del agrupamiento: la tabla muestra solo el grupo activo,
         // mismo patrón que quiebres de stock y forecast.
         if (this.state.groupBy) {
@@ -353,6 +349,10 @@ class CustomerAnalysisWidget extends Component {
             const gb = this.state.groupBy;
             rows = rows.filter(r => (r[gb] || '—') === this.state.selectedGroup);
         }
+
+        // Los KPIs describen exactamente lo que la tabla muestra: filtros, búsqueda
+        // Y pestaña activa (mismo criterio que el forecast). Sin agrupar, no cambia nada.
+        this.state.kpis = { ...this.state.kpis, ...this._computeKpis(rows) };
 
         this.state.totalFiltered = rows.length;
         this._filteredRows = rows;   // tabla visible y export (incluye pestaña activa)

@@ -553,6 +553,16 @@ class MrpRescheduleConfig(models.Model):
     customer_cat_last_run = fields.Datetime(string='Última asignación — categorías de cliente', readonly=True)
     customer_cat_last_count = fields.Integer(string='Clientes actualizados (última corrida)', readonly=True)
 
+    sales_amount_method = fields.Selection([
+        ('pxq',  'PxQ a precio de lista'),
+        ('real', 'Importe real de pedidos'),
+    ], string='Valorización monetaria de ventas', default='pxq',
+       help='Cómo se valorizan los montos del análisis de clientes.\n'
+            'PxQ a precio de lista: cantidad × precio de venta ACTUAL de la ficha del '
+            'artículo. Precios constantes: no lo afectan descuentos ni inflación, pero '
+            'NO considera precios históricos ni cuadra con la facturación.\n'
+            'Importe real: precio efectivo de cada línea de pedido (con descuentos, '
+            'sin impuestos). Cuadra con los pedidos/facturación.')
     customer_analysis_exclude_services = fields.Boolean(
         string='Excluir servicios del análisis de clientes',
         default=False,

@@ -42,6 +42,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'show_category':   cfg.enable_customer_categories,
             'unify_by_vat':    bool(cfg.customer_unify_by_vat),
             'exclude_services': bool(cfg.customer_analysis_exclude_services),
+            'amount_method':   cfg.sales_amount_method or 'pxq',
         }
 
     @staticmethod
@@ -139,23 +140,26 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_groups = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)] + svc_dom,
-                ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum', 'price_subtotal:sum'],
+                ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
                 ['order_id'],
             )
             sol_qty_by_order = {
                 g['order_id'][0]: {
                     'ordered':   g['product_uom_qty'] or 0.0,
                     'delivered': g['qty_delivered']   or 0.0,
-                    'amount':    g['price_subtotal']  or 0.0,
                 }
                 for g in sol_groups
             }
 
-            # ── 3. Top producto / familia ────────────────────────────────────
+            # ── 3. Top producto / familia + montos por método de valorización ─
+            # Los montos salen SIEMPRE de las líneas, valorizados según Ajustes:
+            # 'pxq' = cantidad × precio de lista actual (precios constantes);
+            # 'real' = price_subtotal (precio efectivo con descuentos).
+            use_pxq = cfg.get('amount_method', 'pxq') == 'pxq'
             # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_detail = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)] + svc_dom,
-                ['order_id', 'product_id', 'price_subtotal:sum'],
+                ['order_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum'],
                 ['order_id', 'product_id'],
                 lazy=False,
             )
@@ -165,12 +169,22 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 p['id']: p
                 # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
                 for p in self.env['product.product'].sudo().browse(prod_ids).read(
-                    ['id', 'product_tmpl_id', 'categ_id']
+                    ['id', 'product_tmpl_id', 'categ_id', 'lst_price']
                 )
             }
+
+            def _line_amount(g):
+                if use_pxq:
+                    _pi = prod_info.get(g['product_id'][0], {}) if g.get('product_id') else {}
+                    return (g.get('product_uom_qty') or 0.0) * (_pi.get('lst_price') or 0.0)
+                return g.get('price_subtotal') or 0.0
+
+            order_amount = defaultdict(float)   # importe por pedido según el método
             partner_prod = defaultdict(lambda: defaultdict(float))
             partner_fam  = defaultdict(lambda: defaultdict(float))
             for g in sol_detail:
+                amt = _line_amount(g)
+                order_amount[g['order_id'][0]] += amt
                 if not g.get('product_id'):
                     continue
                 pid = order_to_partner.get(g['order_id'][0])
@@ -179,7 +193,6 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 pi = prod_info.get(g['product_id'][0], {})
                 tmpl  = (pi.get('product_tmpl_id') or (0, ''))[1]
                 categ = (pi.get('categ_id')        or (0, ''))[1]
-                amt   = g.get('price_subtotal') or 0.0
                 if tmpl:
                     partner_prod[pid][tmpl]  += amt
                 if categ:
@@ -202,29 +215,34 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             dur           = max(1, (d_to - d_from).days)
             d_prev_from   = (d_from - timedelta(days=dur + 1)).strftime('%Y-%m-%d 00:00:00')
             d_prev_to     = (d_from - timedelta(days=1)).strftime('%Y-%m-%d 23:59:59')
-            if exclude_services:
-                # sudo(): mismo criterio de agregado; el monto sale de las líneas para poder excluir servicios
-                prev_groups = self.env['sale.order.line'].sudo().read_group(
-                    [('order_id.state', 'in', ['sale', 'done']),
-                     ('order_id.date_order', '>=', d_prev_from),
-                     ('order_id.date_order', '<=', d_prev_to),
-                     ('product_id.type', '!=', 'service')]
-                    + [('order_id.' + k, op, v) for (k, op, v) in wh_domain]
-                    + [('order_id.company_id', '=', self.env.company.id)],
-                    ['order_partner_id', 'price_subtotal:sum'],
-                    ['order_partner_id'],
-                )
-                prev_amount = {g['order_partner_id'][0]: (g['price_subtotal'] or 0.0) for g in prev_groups}
-            else:
-                # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
-                prev_groups   = self.env['sale.order'].sudo().read_group(
-                    [('state', 'in', ['sale', 'done']),
-                     ('date_order', '>=', d_prev_from),
-                     ('date_order', '<=', d_prev_to)] + wh_domain + company_dom,
-                    ['partner_id', 'amount_untaxed:sum'],
-                    ['partner_id'],
-                )
-                prev_amount = {g['partner_id'][0]: (g['amount_untaxed'] or 0.0) for g in prev_groups}
+            # Mismo método de valorización y filtro de servicios que el período actual,
+            # para que la tendencia compare peras con peras.
+            # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
+            prev_line_groups = self.env['sale.order.line'].sudo().read_group(
+                [('order_id.state', 'in', ['sale', 'done']),
+                 ('order_id.date_order', '>=', d_prev_from),
+                 ('order_id.date_order', '<=', d_prev_to)] + svc_dom
+                + [('order_id.' + k, op, v) for (k, op, v) in wh_domain]
+                + [('order_id.company_id', '=', self.env.company.id)],
+                ['order_partner_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum'],
+                ['order_partner_id', 'product_id'],
+                lazy=False,
+            )
+            _prev_lst = {}
+            if use_pxq:
+                _prev_pids = list({g['product_id'][0] for g in prev_line_groups if g.get('product_id')})
+                if _prev_pids:
+                    _prev_lst = {p['id']: (p['lst_price'] or 0.0) for p in
+                                 self.env['product.product'].sudo().browse(_prev_pids).read(['id', 'lst_price'])}
+            prev_amount = defaultdict(float)
+            for g in prev_line_groups:
+                if not g.get('order_partner_id'):
+                    continue
+                if use_pxq:
+                    _amt = (g.get('product_uom_qty') or 0.0) * (_prev_lst.get(g['product_id'][0], 0.0) if g.get('product_id') else 0.0)
+                else:
+                    _amt = g.get('price_subtotal') or 0.0
+                prev_amount[g['order_partner_id'][0]] += _amt
 
             # ── 5b. Entregas físicas del período (tasa física) ────────────────
             # Salidas completadas cuya fecha de efectivización cae DENTRO del
@@ -313,10 +331,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 gaps = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
                 avg_days_between = round(sum(gaps) / len(gaps), 1) if gaps else None
 
-                if exclude_services:
-                    total_amount = sum(sol_qty_by_order.get(s['id'], {}).get('amount', 0.0) for s in sos)
-                else:
-                    total_amount = sum(s['amount_untaxed'] or 0.0 for s in sos)
+                total_amount = sum(order_amount.get(s['id'], 0.0) for s in sos)
                 total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
                 total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
                 delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
@@ -584,19 +599,30 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         so_data   = orders.read(['id', 'name', 'date_order', 'amount_untaxed', 'state'])
         # Con "Excluir servicios" activo, las líneas de tipo Servicio quedan fuera
         # del panel (evolución mensual, mix, top de artículos y piezas).
-        exclude_services = bool(self._ca_config().get('exclude_services'))
+        _cfg_detail      = self._ca_config()
+        exclude_services = bool(_cfg_detail.get('exclude_services'))
+        use_pxq          = _cfg_detail.get('amount_method', 'pxq') == 'pxq'
         svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
         # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
         lines     = self.env['sale.order.line'].sudo().search([('order_id', 'in', orders.ids)] + svc_dom)
         lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'])
-        # Monto por pedido desde líneas (sin servicios) para reemplazar el header
-        _order_amount = defaultdict(float)
-        for _l in lines_data:
-            _order_amount[_l['order_id'][0]] += _l['price_subtotal'] or 0.0
 
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
         # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
-        prods     = self.env['product.product'].sudo().browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id'])
+        prods     = self.env['product.product'].sudo().browse(prod_ids).read(['id', 'categ_id', 'product_tmpl_id', 'lst_price'])
+        _lst_by_prod = {p['id']: (p['lst_price'] or 0.0) for p in prods}
+
+        def _line_amt(l):
+            """Monto de una línea según la valorización de Ajustes: PxQ a precio de
+            lista actual o importe real (price_subtotal)."""
+            if use_pxq:
+                _pid = l['product_id'][0] if l.get('product_id') else None
+                return (l['product_uom_qty'] or 0.0) * (_lst_by_prod.get(_pid, 0.0) if _pid else 0.0)
+            return l['price_subtotal'] or 0.0
+
+        _order_amount = defaultdict(float)
+        for _l in lines_data:
+            _order_amount[_l['order_id'][0]] += _line_amt(_l)
         tmpl_by_prod  = {p['id']: (p.get('product_tmpl_id') or (0,))[0] for p in prods}
 
         # Leer nombre hoja de categoría (no complete_name con jerarquía)
@@ -675,7 +701,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         monthly = defaultdict(lambda: {'amount': 0.0, 'orders': 0, 'qty_ordered': 0.0, 'qty_delivered': 0.0})
         for s in so_data:
             mk = str(s['date_order'])[:7]
-            monthly[mk]['amount']  += _order_amount[s['id']] if exclude_services else (s['amount_untaxed'] or 0.0)
+            monthly[mk]['amount']  += _order_amount[s['id']]
             monthly[mk]['orders']  += 1
             for l in sol_by_order.get(s['id'], []):
                 monthly[mk]['qty_ordered']   += l['product_uom_qty'] or 0.0
@@ -710,7 +736,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             if not l.get('product_id'):
                 continue
             categ = categ_by_prod.get(l['product_id'][0], 'Sin familia')
-            amt   = l['price_subtotal'] or 0.0
+            amt   = _line_amt(l)
             qty   = l['product_uom_qty'] or 0.0
             fam_amounts[categ] += amt
             fam_qty[categ]     += qty
@@ -740,7 +766,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             prod_names[pid] = l['product_id'][1]
             prod_totals[pid]['qty_ordered']   += l['product_uom_qty'] or 0.0
             prod_totals[pid]['qty_delivered'] += l['qty_delivered']   or 0.0
-            prod_totals[pid]['amount']        += l['price_subtotal']  or 0.0
+            prod_totals[pid]['amount']        += _line_amt(l)
             prod_totals[pid]['orders'].add(l['order_id'][0])
 
         top_products = sorted([
@@ -778,7 +804,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             order_list.append({
                 'name':         s['name'],
                 'date':         str(s['date_order'])[:10],
-                'amount':       round(_order_amount[s['id']] if exclude_services else (s['amount_untaxed'] or 0.0), 2),
+                'amount':       round(_order_amount[s['id']], 2),
                 'delivery_pct': dp,
                 'state':        state_map.get(s['state'], s['state']),
                 'order_id':     s['id'],
@@ -794,7 +820,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             tmpl_id = tmpl_by_prod.get(pid, 0)
             cat     = sale_cat_by_tmpl.get(tmpl_id, '') or ''
             sale_cat_totals[cat]['qty']      += l['product_uom_qty'] or 0.0
-            sale_cat_totals[cat]['amount']   += l['price_subtotal']  or 0.0
+            sale_cat_totals[cat]['amount']   += _line_amt(l)
             sale_cat_totals[cat]['products'].add(pid)
         total_sc_qty    = sum(v['qty']    for v in sale_cat_totals.values())
         total_sc_amount = sum(v['amount'] for v in sale_cat_totals.values())

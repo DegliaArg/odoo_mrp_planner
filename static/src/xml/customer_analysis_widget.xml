@@ -251,7 +251,7 @@
                                 <i class="fa fa-money fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.total_amount))"
                                      t-esc="fmtMoney(state.kpis.total_amount)"/>
-                                <div class="o_planner_label">Monto total (PxQ)</div>
+                                <div class="o_planner_label" t-esc="'Monto total' + amountLabelSuffix"/>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"

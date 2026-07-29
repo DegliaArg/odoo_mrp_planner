@@ -900,6 +900,24 @@ class CustomerAnalysisWidget extends Component {
             && this.state.chartDateTo   === toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     }
 
+    /**
+     * Nota del método de valorización activo para los tooltips de montos.
+     * En PxQ incluye el aviso de que no considera precios históricos.
+     */
+    amountNote() {
+        const m = this.state.config && this.state.config.amount_method;
+        if (m === 'real') {
+            return '\nValorización: importe real de pedidos (con descuentos, sin impuestos) — configurable en Ajustes → Ventas.';
+        }
+        return '\nValorización: PxQ a precio de lista ACTUAL de la ficha (cantidad × precio de venta).'
+             + '\n⚠ No considera precios históricos: si cambia la lista, el pasado se revaloriza. No cuadra con la facturación. Configurable en Ajustes → Ventas.';
+    }
+
+    /** Sufijo del label de los montos según el método activo. */
+    get amountLabelSuffix() {
+        return (this.state.config && this.state.config.amount_method) === 'real' ? '' : ' (PxQ)';
+    }
+
     /** Nota para tooltips de montos/piezas cuando los servicios están excluidos en Ajustes. */
     svcNote() {
         return this.state.config && this.state.config.exclude_services
@@ -1126,11 +1144,11 @@ class CustomerAnalysisWidget extends Component {
             case 'total_orders':
                 return `Pedidos confirmados (estado: Confirmado o Hecho) en el período.\nTotal: ${f(k.total_orders)} pedidos`;
             case 'total_amount':
-                return `Suma del importe sin impuestos de todos los pedidos del período.\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos` + this.svcNote();
+                return `Monto total de ventas del período (suma dinámica de la tabla visible).\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos` + this.amountNote() + this.svcNote();
             case 'total_qty':
                 return `Demanda real: piezas pedidas en el período (suma de cantidades de todas las líneas de los clientes visibles). Mismo concepto que "Demanda real" del panel de ventas.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
             case 'avg_price':
-                return `Precio promedio por unidad del período\nMonto total ÷ Piezas pedidas\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.svcNote();
+                return `Precio promedio por unidad del período\nMonto total ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
             case 'avg_days_between':
                 return `Promedio de días entre pedidos consecutivos, calculado entre todos los clientes con más de 1 pedido\n→ ${k.avg_days_between != null ? k.avg_days_between + ' días promedio' : '—'}`;
             default:
@@ -1151,13 +1169,13 @@ class CustomerAnalysisWidget extends Component {
             case 'qty_ordered':
                 return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}` + this.svcNote();
             case 'total_amount':
-                return `Suma del importe sin impuestos de todos sus pedidos en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.svcNote();
+                return `Monto de ventas del cliente en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.amountNote() + this.svcNote();
             case 'delivery_pct':
                 return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_price':
-                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Piezas pedidas\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.svcNote();
+                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Demanda real\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.amountNote() + this.svcNote();
             case 'trend_pct':
                 return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
@@ -1225,7 +1243,10 @@ class CustomerAnalysisWidget extends Component {
             partner_tag:       'Primera etiqueta de contacto asignada al cliente en Odoo (res.partner.category_id). Clic para ordenar.',
         };
         const base = titles[col.key] || '';
-        if (['qty_ordered', 'total_amount', 'avg_price'].includes(col.key)) {
+        if (['total_amount', 'avg_price', 'trend_pct'].includes(col.key)) {
+            return base + this.amountNote() + this.svcNote();
+        }
+        if (col.key === 'qty_ordered') {
             return base + this.svcNote();
         }
         return base;

@@ -574,6 +574,20 @@
                                     <!-- ── Análisis de clientes (izquierda, debajo de categorías) ── -->
                                     <group string="Análisis de clientes">
 
+                                        <group string="Valorización monetaria">
+                                            <field name="sales_amount_method" widget="radio" nolabel="1"
+                                                   help="Cómo se valorizan todos los montos del análisis de clientes (columna Monto, KPI, precio promedio, tendencia, ABC del período, gráficos y panel del cliente)."/>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="sales_amount_method != 'pxq'">
+                                                <b>PxQ a precio de lista</b> — cantidad × precio de venta <b>actual</b> de la ficha del artículo. Precios constantes: no lo afectan descuentos ni inflación.<br/>
+                                                · <i>Aviso: NO considera precios históricos (si cambia la lista, el pasado se revaloriza) y no cuadra con la facturación.</i>
+                                            </div>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="sales_amount_method != 'real'">
+                                                <b>Importe real</b> — precio efectivo de cada línea de pedido, con descuentos, sin impuestos. Cuadra con los pedidos y la facturación.
+                                            </div>
+                                        </group>
+
                                         <group string="Clientes con varias razones sociales">
                                             <field name="customer_unify_by_vat" widget="boolean_toggle"
                                                    help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>

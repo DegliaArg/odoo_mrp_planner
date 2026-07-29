@@ -67,11 +67,11 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="'Suma del importe sin impuestos de todos los pedidos del cliente en el período.' + svcNote()">
+                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="'Monto de ventas del cliente en el período.' + amountNote() + svcNote()">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.total_amount), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.total_amount)"/>
-                                <div class="small text-muted">Monto total (PxQ)</div>
+                                <div class="small text-muted" t-esc="'Monto total' + amountLabelSuffix"/>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"

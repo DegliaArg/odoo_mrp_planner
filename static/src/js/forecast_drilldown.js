@@ -24,6 +24,13 @@ function forecastProductIds(widget) {
     return (widget.state.data && widget.state.data.rows || []).map(r => r.product_id);
 }
 
+// Filtro de servicios para los drills de demanda (líneas de pedido), según el
+// toggle de Ajustes que viaja en el payload del forecast.
+function svcDom(widget) {
+    return (widget.state.data && widget.state.data.exclude_services)
+        ? [['product_id.type', '!=', 'service']] : [];
+}
+
 // Productos actualmente VISIBLES en la tabla (tras búsqueda, filtro y agrupamiento).
 // Los drills de los KPIs usan este conjunto para reflejar lo que el usuario ve.
 function visibleProductIds(widget) {
@@ -81,6 +88,7 @@ export function openDrillSoDemand(widget) {
             ['order_id.date_order', '>=', dateFrom],
             ['order_id.date_order', '<=', dateTo],
             ['product_id', 'in', pids],
+            ...svcDom(widget),
         ],
         target: 'current',
     });
@@ -183,6 +191,7 @@ export function openDrillSoDemandNoFc(widget) {
             ['order_id.date_order', '<=', dateTo],
             ['product_id.sale_ok', '=', true],
             ['product_id', 'not in', pids],
+            ...svcDom(widget),
         ],
         target: 'current',
     });

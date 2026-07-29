@@ -354,10 +354,15 @@ class MrpForecastCalcMixin(models.TransientModel):
         rows.sort(key=lambda r: r['product'].lower())
         return rows
 
-    def _fc_no_fc_stats(self, mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to):
+    def _fc_no_fc_stats(self, mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to,
+                        exclude_services=False):
         """
         Calcula estadísticas de OFs, entregas y demanda para productos SIN línea de forecast.
         Retorna la tupla (mos_no_fc, delivered_no_fc, demand_delivered_no_fc, so_demand_no_fc).
+
+        :param exclude_services: bool — con el toggle de Ajustes activo, la demanda
+            sin FC no cuenta líneas de productos de tipo Servicio (que inflan el
+            denominador de las tasas sin aportar entregas).
         """
         # Producción de OFs para productos SIN línea de forecast (solo vendibles)
         no_fc_mo_pids = [pid for pid in mo_data if pid not in all_product_ids]
@@ -426,6 +431,8 @@ class MrpForecastCalcMixin(models.TransientModel):
                 ('product_id.sale_ok', '=', True),
                 ('company_id', '=', self.env.company.id),
             ]
+            if exclude_services:
+                no_fc_domain.append(('product_id.type', '!=', 'service'))
             if all_product_ids_list:
                 no_fc_domain.append(('product_id', 'not in', all_product_ids_list))
             groups = self.env['sale.order.line'].read_group(no_fc_domain, ['product_uom_qty:sum'], [])

@@ -595,7 +595,7 @@
 
                                         <group string="Servicios">
                                             <field name="customer_analysis_exclude_services" widget="boolean_toggle"
-                                                   help="Cuando está activo, las líneas de productos de tipo Servicio no se cuentan en el análisis de clientes: montos, piezas, precio promedio y top de artículos se calculan solo sobre bienes. Los porcentajes de entrega no cambian (los servicios no generan remitos)."/>
+                                                   help="Cuando está activo, las líneas de productos de tipo Servicio no se cuentan ni en el análisis de clientes ni en el panel de ventas (Demanda real, Cumplimiento de demanda y agregados sin FC de las tasas). Las entregas físicas no cambian: los servicios no generan remitos."/>
                                         </group>
 
                                         <group string="Método — Entrega a tiempo">

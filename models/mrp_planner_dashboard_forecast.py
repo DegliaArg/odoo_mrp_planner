@@ -131,6 +131,11 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         months = _months_between(d_from, d_to)
 
         cfg = self.env['mrp.reschedule.config'].get_config()
+        # Exclusión de servicios compartida con el análisis de clientes: aplica a la
+        # demanda real (con y sin FC) — las entregas no cambian (los servicios no
+        # generan remitos).
+        _exclude_services = bool(cfg and cfg.customer_analysis_exclude_services)
+        _svc_dom = [('product_id.type', '!=', 'service')] if _exclude_services else []
         warning_pct    = cfg.forecast_warning_pct    if cfg else FORECAST_WARNING_PCT    # umbral de alerta (cobertura aceptable mínima)
         critical_pct   = cfg.forecast_critical_pct   if cfg else FORECAST_CRITICAL_PCT   # umbral crítico (cobertura insuficiente)
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
@@ -378,7 +383,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('product_id', 'in', all_product_ids_list),
                 ('company_id', '=', self.env.company.id),
-            ]
+            ] + _svc_dom
             sol_rows = self.env['sale.order.line'].search(so_domain).read(
                 ['product_id', 'product_uom_qty', 'order_id']
             )
@@ -520,7 +525,8 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         total_so   = sum(r['total_so_demand'] for r in rows)
 
         (mos_no_fc, delivered_no_fc, demand_delivered_no_fc, so_demand_no_fc) = \
-            self._fc_no_fc_stats(mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to)
+            self._fc_no_fc_stats(mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to,
+                                 exclude_services=_exclude_services)
 
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
@@ -591,6 +597,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'mo_coverage_denominator':  mo_coverage_denominator,
             'mo_coverage_color_scope':  mo_coverage_color_scope,
             'mo_mode':                  mo_mode,
+            'exclude_services':         _exclude_services,
         }
 
     @api.model

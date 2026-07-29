@@ -123,11 +123,13 @@ export function fcKpiTooltip(widget, key) {
     const d = widget.state.data;
     if (!d) return '';
     const k = d.kpis;
+    const svcNote = d.exclude_services
+        ? '\n(Líneas de servicios excluidas según Ajustes → Ventas)' : '';
     switch (key) {
         case 'forecast':
             return `Unidades planificadas en líneas de forecast activas para el período seleccionado\n→ ${widget.fmt(k.total_forecast)} u`;
         case 'so_demand':
-            return `Unidades pedidas en órdenes de venta confirmadas de productos con línea de forecast\n→ ${widget.fmt(k.total_so_demand)} u en el período`;
+            return `Unidades pedidas en órdenes de venta confirmadas de productos con línea de forecast\n→ ${widget.fmt(k.total_so_demand)} u en el período` + svcNote;
         case 'mos':
             return `Unidades en OFs activas con fecha de fin en el período, de productos con línea de forecast\n→ ${widget.fmt(k.total_mos)} u planificadas`;
         case 'delivered': {
@@ -151,7 +153,7 @@ export function fcKpiTooltip(widget, key) {
             return `Unidades entregadas físicamente en el período seleccionado (albaranes validados), de cualquier pedido${breakdown}`;
         }
         case 'demand_delivered':
-            return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega\n→ ${widget.fmt(widget.filteredKpis.total_demand_delivered)} u`;
+            return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega\n→ ${widget.fmt(widget.filteredKpis.total_demand_delivered)} u` + svcNote;
         case 'svc': {
             const fk = widget.filteredKpis;
             const kpi = widget.state.data.kpis;
@@ -163,7 +165,7 @@ export function fcKpiTooltip(widget, key) {
                 ? `\n  Entregas: ${widget.fmt(fk.total_delivered)} FC + ${widget.fmt(noFcDel)} sin FC = ${widget.fmt(totalDel)}`
                 + `\n  Demanda:  ${widget.fmt(fk.total_so_demand)} FC + ${widget.fmt(noFcDem)} sin FC = ${widget.fmt(totalDem)}`
                 : '';
-            return `Entregas físicas del período ÷ demanda real total${noFcPart}\n→ ${widget.fmt(totalDel)} ÷ ${widget.fmt(totalDem)} × 100 = ${widget.fmtPct(fk.overall_service_rate)}`;
+            return `Entregas físicas del período ÷ demanda real total${noFcPart}\n→ ${widget.fmt(totalDel)} ÷ ${widget.fmt(totalDem)} × 100 = ${widget.fmtPct(fk.overall_service_rate)}` + svcNote;
         }
         case 'demand_svc': {
             const fk = widget.filteredKpis;
@@ -176,7 +178,7 @@ export function fcKpiTooltip(widget, key) {
                 ? `\n  Entregado: ${widget.fmt(fk.total_demand_delivered)} FC + ${widget.fmt(noFcDel)} sin FC = ${widget.fmt(totalDel)}`
                 + `\n  Demanda:   ${widget.fmt(fk.total_so_demand)} FC + ${widget.fmt(noFcDem)} sin FC = ${widget.fmt(totalDem)}`
                 : '';
-            return `Cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${widget.fmt(totalDel)} ÷ ${widget.fmt(totalDem)} × 100 = ${widget.fmtPct(fk.overall_demand_service_rate)}`;
+            return `Cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${widget.fmt(totalDel)} ÷ ${widget.fmt(totalDem)} × 100 = ${widget.fmtPct(fk.overall_demand_service_rate)}` + svcNote;
         }
     }
     return '';

@@ -132,6 +132,7 @@ class CustomerAnalysisWidget extends Component {
         this.state = useState({
             loading:       true,
             loadError:     null,
+            lastUpdated:   '',
             dateFrom:      period.from,
             dateTo:        period.to,
             allRows:       [],
@@ -284,6 +285,7 @@ class CustomerAnalysisWidget extends Component {
                 this.state.visibleCols.customer_category = false;
             }
             this._applySort();
+            this.state.lastUpdated = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
             // Resetear las llaves de redraw DESPUÉS del await: el patch intermedio
             // (mientras carga) las consumía y los gráficos quedaban en blanco.
             this._topChartKey  = '';
@@ -888,15 +890,16 @@ class CustomerAnalysisWidget extends Component {
         const partnerIds = (row && row.partner_ids) || [partnerId];
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Remitos de pedidos del período',
-            res_model: 'stock.picking',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Entregas de pedidos del período (líneas)',
+            res_model: 'stock.move.line',
+            views:     [[false, 'list']],
             domain: [
-                ['picking_type_code', '=', 'outgoing'],
-                ['sale_id.partner_id', 'child_of', partnerIds],
-                ['sale_id.state', 'in', ['sale', 'done']],
-                ['sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.partner_id', 'child_of', partnerIds],
+                ['picking_id.sale_id.state', 'in', ['sale', 'done']],
+                ['picking_id.sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['picking_id.sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
             target: 'current',
         });
@@ -912,15 +915,15 @@ class CustomerAnalysisWidget extends Component {
         const partnerIds = (row && row.partner_ids) || [partnerId];
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Despachos del período',
-            res_model: 'stock.picking',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Despachos del período (líneas)',
+            res_model: 'stock.move.line',
+            views:     [[false, 'list']],
             domain: [
                 ['state', '=', 'done'],
-                ['picking_type_code', '=', 'outgoing'],
-                ['sale_id.partner_id', 'child_of', partnerIds],
-                ['date_done', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date_done', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.partner_id', 'child_of', partnerIds],
+                ['date', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
             target: 'current',
         });
@@ -931,14 +934,15 @@ class CustomerAnalysisWidget extends Component {
     openPeriodDemandPickings() {
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Remitos de pedidos del período',
-            res_model: 'stock.picking',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Entregas de pedidos del período (líneas)',
+            res_model: 'stock.move.line',
+            views:     [[false, 'list']],
             domain: [
-                ['picking_type_code', '=', 'outgoing'],
-                ['sale_id.state', 'in', ['sale', 'done']],
-                ['sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.state', 'in', ['sale', 'done']],
+                ['picking_id.sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['picking_id.sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
             target: 'current',
         });
@@ -949,15 +953,15 @@ class CustomerAnalysisWidget extends Component {
     openPeriodPhysPickings() {
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Despachos del período',
-            res_model: 'stock.picking',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Despachos del período (líneas)',
+            res_model: 'stock.move.line',
+            views:     [[false, 'list']],
             domain: [
                 ['state', '=', 'done'],
-                ['picking_type_code', '=', 'outgoing'],
-                ['sale_id', '!=', false],
-                ['date_done', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date_done', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id', '!=', false],
+                ['date', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
             target: 'current',
         });

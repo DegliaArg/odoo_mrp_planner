@@ -229,6 +229,10 @@ class MrpPartnerCategory(models.Model):
                 prods.write({'x_sale_category': cat})
                 updated += len(prods)
 
+        # Registro de la corrida para el log de Ajustes (sudo: el cron y los
+        # admins de área no siempre pueden escribir estos campos técnicos).
+        config.sudo().write({'sale_cat_last_run': fields.Datetime.now(),
+                             'sale_cat_last_count': updated})
         return {
             'type':   'ir.actions.client',
             'tag':    'display_notification',
@@ -589,6 +593,8 @@ class MrpPartnerCategory(models.Model):
             _assign_abc_pareto(suppliers, value_by_id, 'x_supplier_category', _abc_thresholds(config))
             updated = len(suppliers)
 
+        config.sudo().write({'supplier_cat_last_run': fields.Datetime.now(),
+                             'supplier_cat_last_count': updated})
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Categorías de proveedor asignadas',
                            'message': f'{updated} proveedores actualizados.', 'type': 'success'}}
@@ -703,6 +709,8 @@ class MrpPartnerCategory(models.Model):
                 p.x_customer_category = cat
                 updated += 1
 
+        config.sudo().write({'customer_cat_last_run': fields.Datetime.now(),
+                             'customer_cat_last_count': updated})
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Categorías de cliente asignadas',
                            'message': f'{updated} clientes actualizados.', 'type': 'success'}}

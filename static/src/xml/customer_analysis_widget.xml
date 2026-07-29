@@ -220,7 +220,7 @@
                                 <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_qty) + ' Pz')"
                                      style="color:#7952b3;"
                                      t-esc="fmt(state.kpis.total_qty) + ' Pz'"/>
-                                <div class="o_planner_label">Piezas pedidas</div>
+                                <div class="o_planner_label">Demanda real</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1" style="color:#7952b3;"
@@ -466,6 +466,16 @@
                         <t t-esc="state.totalFiltered"/> cliente(s)
                     </span>
 
+                    <span t-if="state.lastUpdated" class="text-muted small"
+                          title="Hora del último cálculo. Los datos se calculan en vivo en cada carga o cambio de fechas.">
+                        Actualizado <t t-esc="state.lastUpdated"/>
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            title="Recargar los datos del análisis (se calculan en vivo contra la base)"
+                            t-on-click="() => this._load()">
+                        <i class="fa fa-refresh"/>
+                        <span>Actualizar</span>
+                    </button>
                     <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
                             title="Exportar tabla a Excel (.xls) con las columnas visibles"
                             t-on-click="exportToExcel">

@@ -56,6 +56,25 @@
                                                 string="Gestionar preferencias por usuario →"
                                                 class="btn btn-primary"/>
                                     </group>
+                                    <group string="Registro — Asignación automática de categorías">
+                                        <div class="text-muted small mb-2">
+                                            Última corrida (manual o por cron) de cada clasificación y cuántos
+                                            registros actualizó. Los paneles de análisis se calculan en vivo y
+                                            no requieren actualización.
+                                        </div>
+                                        <field name="sale_cat_last_run" readonly="1"
+                                               help="Fecha y hora de la última asignación de categorías de venta (A–E) a artículos."/>
+                                        <field name="sale_cat_last_count" readonly="1"
+                                               help="Artículos actualizados en la última corrida."/>
+                                        <field name="supplier_cat_last_run" readonly="1"
+                                               help="Fecha y hora de la última asignación de categorías de proveedor."/>
+                                        <field name="supplier_cat_last_count" readonly="1"
+                                               help="Proveedores actualizados en la última corrida."/>
+                                        <field name="customer_cat_last_run" readonly="1"
+                                               help="Fecha y hora de la última asignación de categorías de cliente."/>
+                                        <field name="customer_cat_last_count" readonly="1"
+                                               help="Clientes actualizados en la última corrida."/>
+                                    </group>
                                 </div>
                             </div>
                         </page>

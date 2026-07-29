@@ -544,6 +544,15 @@ class MrpRescheduleConfig(models.Model):
              'Afecta al botón "Calcular ahora" y al cron automático.')
 
     # ── Análisis de clientes ─────────────────────────────────────────────────
+    # Última corrida (manual o por cron) de cada asignación automática de
+    # categorías; se muestran como registro en Ajustes → General.
+    sale_cat_last_run = fields.Datetime(string='Última asignación — categorías de venta', readonly=True)
+    sale_cat_last_count = fields.Integer(string='Artículos actualizados (última corrida)', readonly=True)
+    supplier_cat_last_run = fields.Datetime(string='Última asignación — categorías de proveedor', readonly=True)
+    supplier_cat_last_count = fields.Integer(string='Proveedores actualizados (última corrida)', readonly=True)
+    customer_cat_last_run = fields.Datetime(string='Última asignación — categorías de cliente', readonly=True)
+    customer_cat_last_count = fields.Integer(string='Clientes actualizados (última corrida)', readonly=True)
+
     customer_analysis_exclude_services = fields.Boolean(
         string='Excluir servicios del análisis de clientes',
         default=False,

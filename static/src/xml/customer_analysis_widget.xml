@@ -32,6 +32,11 @@
                            title="Fecha final del rango de los gráficos. Independiente de la tabla: mientras coincidan, van sincronizados."
                            t-att-value="state.chartDateTo"
                            t-on-change="onChartDateToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isChartCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            title="Fijar el rango de los gráficos al mes calendario en curso"
+                            t-att-aria-pressed="isChartCurrentMonth ? 'true' : 'false'"
+                            t-on-click="setChartCurrentMonth">Mes en curso</button>
                     <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted" title="Cargando datos del rango del gráfico…"/>
                 </div>
 
@@ -261,7 +266,7 @@
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_price')">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-tag fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.avg_price))"
                                      t-esc="fmtMoney(state.kpis.avg_price)"/>
@@ -275,11 +280,11 @@
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_physical_pct')">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-truck fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_physical_pct)"
                                      t-esc="fmtPct(state.kpis.avg_physical_pct)"/>
-                                <div class="o_planner_label">% Físico</div>
+                                <div class="o_planner_label">Tasa física</div>
                             </div>
                             <div class="card-footer p-0 o_planner_footer_spacer">
                                 <button class="btn btn-sm btn-link w-100 py-1">·</button>
@@ -289,11 +294,11 @@
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_delivery_pct')">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-check-circle fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
                                      t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                                <div class="o_planner_label">% Cumplimiento</div>
+                                <div class="o_planner_label">Tasa de cumplimiento</div>
                             </div>
                             <div class="card-footer p-0 o_planner_footer_spacer">
                                 <button class="btn btn-sm btn-link w-100 py-1">·</button>
@@ -303,7 +308,7 @@
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_ontime_pct')">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-clock-o fa-lg mb-1 d-block text-secondary"/>
                                 <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
                                      t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>

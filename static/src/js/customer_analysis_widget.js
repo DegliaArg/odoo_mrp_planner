@@ -878,6 +878,69 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Remitos de salida de los pedidos del período del cliente (cualquier fecha
+     * de entrega). Es lo que respalda la card "Cumplimiento de demanda".
+     * @param {number} partnerId - Partner de la fila (representativo si está unificado).
+     */
+    openCustomerDemandPickings(partnerId) {
+        const row = this.state.allRows.find(r => r.partner_id === partnerId);
+        const partnerIds = (row && row.partner_ids) || [partnerId];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Remitos de pedidos del período',
+            res_model: 'stock.picking',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['picking_type_code', '=', 'outgoing'],
+                ['sale_id.partner_id', 'child_of', partnerIds],
+                ['sale_id.state', 'in', ['sale', 'done']],
+                ['sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
+    /**
+     * Remitos de salida validados DENTRO del período del cliente (de cualquier
+     * pedido, incluso anteriores). Es lo que respalda la card "Entregas físicas".
+     * @param {number} partnerId - Partner de la fila (representativo si está unificado).
+     */
+    openCustomerPhysPickings(partnerId) {
+        const row = this.state.allRows.find(r => r.partner_id === partnerId);
+        const partnerIds = (row && row.partner_ids) || [partnerId];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Despachos del período',
+            res_model: 'stock.picking',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['state', '=', 'done'],
+                ['picking_type_code', '=', 'outgoing'],
+                ['sale_id.partner_id', 'child_of', partnerIds],
+                ['date_done', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date_done', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
+    /** Preset del gráfico: fija su rango al mes calendario en curso. */
+    setChartCurrentMonth() {
+        const now = new Date();
+        this.state.chartDateFrom = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        this.state.chartDateTo   = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        this._onChartRangeChange();
+    }
+
+    /** True si el rango del gráfico coincide con el mes en curso (para pintar el preset). */
+    get isChartCurrentMonth() {
+        const now = new Date();
+        return this.state.chartDateFrom === toDateStr(new Date(now.getFullYear(), now.getMonth(), 1))
+            && this.state.chartDateTo   === toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    }
+
     /** Nota para tooltips de montos/piezas cuando los servicios están excluidos en Ajustes. */
     svcNote() {
         return this.state.config && this.state.config.exclude_services

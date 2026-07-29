@@ -280,7 +280,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 p['id']: p
                 # sudo(): usuario no tiene acceso directo a res.partner; se lee sólo el agregado para el dashboard
                 for p in self.env['res.partner'].sudo().browse(list(partner_sos.keys())).read(
-                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id', 'category_id', 'vat']
+                    ['id', 'name', 'display_name', 'x_customer_category', 'country_id', 'state_id', 'category_id', 'vat', 'parent_id']
                 )
             }
 
@@ -418,7 +418,14 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     base = dict(group[0])
                     base['partner_ids']   = [r['partner_id'] for r in group]
                     base['unified_names'] = [r['partner_name'] for r in group]
-                    base['partner_name']  = f"{group[0]['partner_name']} ({len(group)} razones sociales)"
+                    # Nombre visible: la casa matriz (contacto sin padre); si hay varias
+                    # o ninguna, la de mayor facturación. Sin sufijo — las razones
+                    # sociales agrupadas se listan en el tooltip.
+                    _roots = [r for r in group
+                              if not partner_info.get(r['partner_id'], {}).get('parent_id')]
+                    _main  = _roots[0] if _roots else group[0]
+                    base['partner_id']   = _main['partner_id']
+                    base['partner_name'] = _main['partner_name']
                     for f in ('order_count', 'total_amount', 'qty_ordered', 'qty_delivered',
                               'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount'):
                         base[f] = sum(r[f] or 0 for r in group)

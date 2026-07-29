@@ -28,7 +28,7 @@
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.order_count), true)"
                                      style="font-size:1rem;" t-esc="fmt(row.order_count)"/>
-                                <div class="small text-muted">Pedidos</div>
+                                <div class="small text-muted">Total pedidos</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
@@ -42,7 +42,7 @@
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtQty(state.panelData.total_qty_ordered), true)"
                                      style="font-size:1rem;" t-esc="fmtQty(state.panelData.total_qty_ordered)"/>
-                                <div class="small text-muted">Piezas</div>
+                                <div class="small text-muted">Piezas pedidas</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
@@ -53,27 +53,31 @@
                     </div>
                     <div class="col">
                         <div class="card h-100"
-                             t-att-title="'Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador del % Cumplimiento.' + svcNote()">
+                             title="Unidades despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador de la Tasa física.">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered), true)"
-                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered)"/>
-                                <div class="small text-muted">Entregado</div>
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys), true)"
+                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys)"/>
+                                <div class="small text-muted">Entregas físicas</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver los despachos validados dentro del período del cliente"
+                                        t-on-click="() => this.openCustomerPhysPickings(row.partner_id)">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="col">
                         <div class="card h-100"
-                             title="Unidades despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador del % Físico.">
+                             t-att-title="'Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador de la Tasa de cumplimiento.' + svcNote()">
                             <div class="card-body text-center py-2">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered_phys), true)"
-                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys)"/>
-                                <div class="small text-muted">Despachado</div>
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmt(row.qty_delivered), true)"
+                                     style="font-size:1rem;" t-esc="fmt(row.qty_delivered)"/>
+                                <div class="small text-muted">Cumplimiento de demanda</div>
                             </div>
-                            <div class="card-footer p-0 o_planner_footer_spacer">
-                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver los remitos de los pedidos del período del cliente"
+                                        t-on-click="() => this.openCustomerDemandPickings(row.partner_id)">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -82,7 +86,7 @@
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.total_amount), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.total_amount)"/>
-                                <div class="small text-muted">Monto total</div>
+                                <div class="small text-muted">Monto total (PxQ)</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
@@ -95,7 +99,7 @@
                 <div class="row row-cols-2 row-cols-md-5 g-2 mb-3">
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('avg_price', row)">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
                                 <div class="small text-muted">Precio promedio</div>
@@ -107,10 +111,10 @@
                     </div>
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('physical_pct', row)">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + deliveryClass(row.physical_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.physical_pct)"/>
-                                <div class="small text-muted">% Físico</div>
+                                <div class="small text-muted">Tasa física</div>
                             </div>
                             <div class="card-footer p-0 o_planner_footer_spacer">
                                 <button class="btn btn-sm btn-link w-100 py-1">·</button>
@@ -119,10 +123,10 @@
                     </div>
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('delivery_pct', row)">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + deliveryClass(row.delivery_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
-                                <div class="small text-muted">% Cumplim.</div>
+                                <div class="small text-muted">Tasa de cumplimiento</div>
                             </div>
                             <div class="card-footer p-0 o_planner_footer_spacer">
                                 <button class="btn btn-sm btn-link w-100 py-1">·</button>
@@ -131,7 +135,7 @@
                     </div>
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('ontime_pct', row)">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + ontimeClass(row.ontime_pct)"
                                      style="font-size:1rem;" t-esc="fmtPct(row.ontime_pct)"/>
                                 <div class="small text-muted">% A tiempo</div>
@@ -143,7 +147,7 @@
                     </div>
                     <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('days_since_last', row)">
-                            <div class="card-body text-center py-2">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + riskClass(row.days_since_last)"
                                      style="font-size:1rem;">
                                     <t t-esc="row.days_since_last"/> d

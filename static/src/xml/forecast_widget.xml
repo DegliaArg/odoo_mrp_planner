@@ -534,53 +534,6 @@
 
                 </t><!-- /filteredRowsAll or tabs -->
 
-                <!-- ── Resumen del período: entregas físicas por mes de pedido ── -->
-                <div t-if="delByOrderMonthRows.length" class="border rounded mt-2">
-                    <button class="btn btn-link w-100 text-start text-decoration-none d-flex align-items-center gap-2 py-1 px-2"
-                            style="font-size:12px; color:inherit;"
-                            title="Desglose de las unidades entregadas físicamente en el período, según el mes en que se confirmó el pedido de origen. Mismo dato que el tooltip del KPI Entregas físicas."
-                            t-on-click="() => state.periodSummaryOpen = !state.periodSummaryOpen">
-                        <i t-att-class="'fa fa-fw ' + (state.periodSummaryOpen ? 'fa-chevron-down' : 'fa-chevron-right')"/>
-                        <span class="fw-semibold">Entregas físicas por mes de pedido</span>
-                        <span class="text-muted ms-auto">
-                            Total: <t t-esc="fmt(filteredKpis.total_delivered)"/> u
-                        </span>
-                    </button>
-                    <div t-if="state.periodSummaryOpen" class="px-3 pb-2">
-                        <table class="table table-sm mb-0" style="font-size:12px; max-width:420px;">
-                            <thead>
-                                <tr class="text-muted">
-                                    <th style="padding:3px 8px;">Mes de confirmación del pedido</th>
-                                    <th class="text-end" style="padding:3px 8px;">Unidades entregadas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr t-foreach="delByOrderMonthRows" t-as="r" t-key="r.key"
-                                    style="cursor:pointer;"
-                                    t-att-title="r.key === ''
-                                        ? 'Salidas validadas sin pedido de venta vinculado (devoluciones a proveedor, remitos manuales). Clic para ver los movimientos.'
-                                        : 'Clic para ver los movimientos de salida de esta fila.'"
-                                    t-on-click="() => this.openDrillDeliveredByOrderMonth(r)">
-                                    <td style="padding:2px 8px;"
-                                        t-att-class="'text-primary ' + (r.key === '' ? 'fst-italic' : '')">
-                                        <i class="fa fa-external-link me-1" style="font-size:10px;"/>
-                                        <t t-esc="r.label"/>
-                                    </td>
-                                    <td class="text-end" style="padding:2px 8px;" t-esc="fmt(r.qty)"/>
-                                </tr>
-                            </tbody>
-                            <tfoot class="fw-semibold" style="border-top:2px solid #dee2e6;">
-                                <tr>
-                                    <td style="padding:2px 8px;">Total</td>
-                                    <td class="text-end" style="padding:2px 8px;"
-                                        title="Coincide con el KPI Entregas físicas (albaranes validados en el período)."
-                                        t-esc="fmt(filteredKpis.total_delivered)"/>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-
             </t>
         </div>
     </t>

@@ -170,7 +170,7 @@ class ForecastWidget extends Component {
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
-            periodSummaryOpen: false,
+            delBreakdownOpen: false,   // "Ver →" de Entregas físicas reemplaza los KPIs por el desglose
         });
 
         this._closeAll = () => {

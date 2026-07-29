@@ -5,6 +5,66 @@
          Llamado desde ForecastWidget dentro de un t-if="state.data". -->
     <t t-name="odoo_mrp_planner.ForecastKpis">
 
+        <!-- Vista alternativa: desglose de entregas físicas por mes de pedido.
+             Reemplaza las cards de KPIs al apretar "Ver →" en Entregas físicas;
+             "← Volver" restaura los KPIs. -->
+        <t t-if="state.delBreakdownOpen">
+            <div class="border rounded mb-2 p-2">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            title="Volver a los indicadores"
+                            t-on-click="() => state.delBreakdownOpen = false">
+                        <i class="fa fa-arrow-left me-1"/>Volver
+                    </button>
+                    <span class="fw-semibold">Entregas físicas por mes de pedido</span>
+                    <span class="text-muted small ms-auto"
+                          title="Unidades entregadas físicamente en el período (albaranes validados), desglosadas por el mes en que se confirmó el pedido de origen.">
+                        <i class="fa fa-info-circle"/>
+                    </span>
+                </div>
+                <table class="table table-sm table-hover mb-0" style="font-size:12px; max-width:480px;">
+                    <thead>
+                        <tr class="text-muted">
+                            <th style="padding:3px 8px;">Mes de confirmación del pedido</th>
+                            <th class="text-end" style="padding:3px 8px;">Unidades entregadas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="delByOrderMonthRows" t-as="r" t-key="r.key"
+                            style="cursor:pointer;"
+                            t-att-title="r.key === ''
+                                ? 'Salidas validadas sin pedido de venta en el sistema (pedido eliminado, devolución a proveedor o remito manual). Clic para ver los movimientos.'
+                                : 'Clic para ver los movimientos de salida de esta fila.'"
+                            t-on-click="() => this.openDrillDeliveredByOrderMonth(r)">
+                            <td style="padding:3px 8px;"
+                                t-att-class="'text-primary ' + (r.key === '' ? 'fst-italic' : '')">
+                                <i class="fa fa-external-link me-1" style="font-size:10px;"/>
+                                <t t-esc="r.label"/>
+                            </td>
+                            <td class="text-end" style="padding:3px 8px;" t-esc="fmt(r.qty)"/>
+                        </tr>
+                        <tr t-if="!delByOrderMonthRows.length">
+                            <td colspan="2" class="text-muted text-center py-2">
+                                Sin entregas físicas en el período seleccionado.
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot class="fw-semibold" style="border-top:2px solid #dee2e6; cursor:pointer;">
+                        <tr title="Coincide con el KPI Entregas físicas. Clic para ver todos los movimientos del período."
+                            t-on-click="openDrillDelivered">
+                            <td style="padding:3px 8px;" class="text-primary">
+                                <i class="fa fa-external-link me-1" style="font-size:10px;"/>Total
+                            </td>
+                            <td class="text-end" style="padding:3px 8px;"
+                                t-esc="fmt(filteredKpis.total_delivered)"/>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </t>
+
+        <t t-else="">
+
         <!-- Fila 1: volúmenes -->
         <div class="row row-cols-2 row-cols-md-5 g-2 mb-2">
             <!-- Card 1: Demanda forecast -->
@@ -66,11 +126,13 @@
                     </div>
                 </div>
             </div>
-            <!-- Card 4: Entregas Físicas -->
+            <!-- Card 4: Entregas Físicas — "Ver →" abre el desglose por mes de
+                 pedido (reemplaza los KPIs); la sublista completa se alcanza
+                 desde la fila Total del desglose. -->
             <div class="col">
                 <div class="card o_planner_card h-100 o_planner_card_clickable"
                      t-att-title="fcKpiTooltip('delivered')"
-                     t-on-click="openDrillDelivered">
+                     t-on-click="() => state.delBreakdownOpen = true">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
                         <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered)"/></div>
@@ -84,7 +146,9 @@
                         </div>
                     </div>
                     <div class="card-footer p-0">
-                        <button class="btn btn-sm btn-link w-100 py-1 text-info" t-on-click.stop="openDrillDelivered">Ver →</button>
+                        <button class="btn btn-sm btn-link w-100 py-1 text-info"
+                                title="Ver el desglose por mes de pedido"
+                                t-on-click.stop="() => state.delBreakdownOpen = true">Ver →</button>
                     </div>
                 </div>
             </div>
@@ -205,6 +269,8 @@
                 </div>
             </div>
         </div>
+
+        </t><!-- /t-else (cards de KPIs) -->
 
     </t>
 

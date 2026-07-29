@@ -53,6 +53,7 @@ import {
 import { downloadForecastExcel } from "./forecast_export";
 import {
     openDrillForecast, openDrillMos, openDrillSoDemand, openDrillDelivered,
+    openDrillDeliveredByOrderMonth,
     openDrillDemandDelivered, openDrillSoDemandNoFc, openDrillMosNoFc,
     openDrillDemandDeliveredNoFc, openDrillDeliveredNoFc,
 } from "./forecast_drilldown";
@@ -470,6 +471,7 @@ class ForecastWidget extends Component {
     openDrillMos()                 { return openDrillMos(this); }
     openDrillSoDemand()            { return openDrillSoDemand(this); }
     openDrillDelivered()           { return openDrillDelivered(this); }
+    openDrillDeliveredByOrderMonth(r) { return openDrillDeliveredByOrderMonth(this, r.key, r.label); }
     openDrillDemandDelivered()     { return openDrillDemandDelivered(this); }
     openDrillSoDemandNoFc()        { return openDrillSoDemandNoFc(this); }
     openDrillMosNoFc()             { return openDrillMosNoFc(this); }

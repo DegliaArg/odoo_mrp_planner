@@ -555,11 +555,17 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr t-foreach="delByOrderMonthRows" t-as="r" t-key="r.key">
+                                <tr t-foreach="delByOrderMonthRows" t-as="r" t-key="r.key"
+                                    style="cursor:pointer;"
+                                    t-att-title="r.key === ''
+                                        ? 'Salidas validadas sin pedido de venta vinculado (devoluciones a proveedor, remitos manuales). Clic para ver los movimientos.'
+                                        : 'Clic para ver los movimientos de salida de esta fila.'"
+                                    t-on-click="() => this.openDrillDeliveredByOrderMonth(r)">
                                     <td style="padding:2px 8px;"
-                                        t-att-class="r.key === '' ? 'text-muted fst-italic' : ''"
-                                        t-att-title="r.key === '' ? 'Salidas validadas sin pedido de venta vinculado (devoluciones a proveedor, remitos manuales).' : ''"
-                                        t-esc="r.label"/>
+                                        t-att-class="'text-primary ' + (r.key === '' ? 'fst-italic' : '')">
+                                        <i class="fa fa-external-link me-1" style="font-size:10px;"/>
+                                        <t t-esc="r.label"/>
+                                    </td>
                                     <td class="text-end" style="padding:2px 8px;" t-esc="fmt(r.qty)"/>
                                 </tr>
                             </tbody>

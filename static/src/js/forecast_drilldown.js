@@ -106,6 +106,48 @@ export function openDrillDelivered(widget) {
     });
 }
 
+/**
+ * Movimientos de salida del período que componen una fila del resumen
+ * "Entregas físicas por mes de pedido".
+ * @param {Object} widget - Widget de forecast.
+ * @param {string} ymKey - 'YYYY-MM' (mes de confirmación del pedido de origen)
+ *   o '' para las salidas sin pedido de venta vinculado.
+ * @param {string} label - Etiqueta de la fila, usada como título de la ventana.
+ */
+export function openDrillDeliveredByOrderMonth(widget, ymKey, label) {
+    const { dateFrom, dateTo } = periodDateRange(widget);
+    const pids = visibleProductIds(widget);
+    const domain = [
+        ['state', '=', 'done'],
+        ['picking_id.picking_type_id.code', '=', 'outgoing'],
+        ['date', '>=', dateFrom],
+        ['date', '<=', dateTo],
+        ['product_id', 'in', pids],
+    ];
+    if (ymKey) {
+        // Mismo corte de mes que el backend: strftime('%Y-%m') sobre el datetime
+        // UTC de date_order, por eso los límites van en UTC sin conversión local.
+        const [y, m] = ymKey.split('-').map(Number);
+        const pad = n => String(n).padStart(2, '0');
+        const next = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`;
+        domain.push(
+            ['picking_id.sale_id.date_order', '>=', `${ymKey}-01 00:00:00`],
+            ['picking_id.sale_id.date_order', '<', `${next}-01 00:00:00`],
+        );
+    } else {
+        domain.push(['picking_id.sale_id', '=', false]);
+    }
+    widget.action.doAction({
+        type:      'ir.actions.act_window',
+        name:      `Entregas físicas — ${label}`,
+        res_model: 'stock.move.line',
+        view_mode: 'list',
+        views:     [[false, 'list']],
+        domain,
+        target: 'current',
+    });
+}
+
 export function openDrillDemandDelivered(widget) {
     const { dateFrom, dateTo } = periodDateRange(widget);
     const pids = visibleProductIds(widget);

@@ -341,3 +341,11 @@ th[draggable="true"]:active { cursor: grabbing; }
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: none; }
 }
+
+/* Números de KPI: nunca dos renglones; el tamaño baja por longitud del texto */
+.o_planner_number { white-space: nowrap; }
+.o_planner_num_md { font-size: 1.1rem !important; }
+.o_planner_num_sm { font-size: 0.9rem !important; }
+
+/* Espaciador invisible para igualar la altura de cards sin botón "Ver" */
+.o_planner_footer_spacer { visibility: hidden; }

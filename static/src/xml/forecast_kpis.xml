@@ -221,6 +221,9 @@
                         </div>
                         <div class="o_planner_label">Brecha demanda vs fc.</div>
                     </div>
+                    <div class="card-footer p-0 o_planner_footer_spacer">
+                        <button class="btn btn-sm btn-link w-100 py-1">·</button>
+                    </div>
                 </div>
             </div>
             <!-- Card 3: Brecha OF vs fc — indicador puro, sin drill (era un
@@ -234,6 +237,9 @@
                             <t t-esc="fmtGapPct(filteredKpis.mos_gap_pct)"/>
                         </div>
                         <div class="o_planner_label">Brecha OF vs fc.</div>
+                    </div>
+                    <div class="card-footer p-0 o_planner_footer_spacer">
+                        <button class="btn btn-sm btn-link w-100 py-1">·</button>
                     </div>
                 </div>
             </div>

@@ -836,6 +836,43 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    /**
+     * Clase de tamaño para números de KPI según su longitud, para que nunca
+     * ocupen dos renglones (el signo $ suele empujar el ancho).
+     * @param {string} text - Número ya formateado.
+     * @returns {string} '' | 'o_planner_num_md' | 'o_planner_num_sm'
+     */
+    numSizeClass(text) {
+        const len = String(text ?? '').length;
+        if (len > 14) return 'o_planner_num_sm';
+        if (len > 10) return 'o_planner_num_md';
+        return '';
+    }
+
+    /**
+     * Abre las líneas de pedido (piezas) del período de todos los clientes.
+     * Usado por el "Ver →" del KPI Piezas pedidas. Respeta la exclusión de
+     * servicios de Ajustes.
+     */
+    openPeriodOrderLines() {
+        const domain = [
+            ['order_id.state', 'in', ['sale', 'done']],
+            ['order_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+            ['order_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+        ];
+        if (this.state.config && this.state.config.exclude_services) {
+            domain.push(['product_id.type', '!=', 'service']);
+        }
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Piezas pedidas del período',
+            res_model: 'sale.order.line',
+            views:     [[false, 'list']],
+            domain,
+            target: 'current',
+        });
+    }
+
     /** Nota para tooltips de montos/piezas cuando los servicios están excluidos en Ajustes. */
     svcNote() {
         return this.state.config && this.state.config.exclude_services

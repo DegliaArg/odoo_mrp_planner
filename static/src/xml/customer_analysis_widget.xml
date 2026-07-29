@@ -186,14 +186,18 @@
             </div>
             <hr class="mt-0 mb-3"/>
 
-            <!-- ── KPI cards globales: fila 1 volúmenes, fila 2 calidad ─────── -->
+            <!-- ── KPI cards globales: fila 1 volúmenes, fila 2 calidad.
+                 Colores: verde/amarillo/rojo reservados para KPIs con umbral
+                 (semáforos); violeta = identidad compartida con panel de ventas
+                 (Demanda real). Volúmenes sin semáforo van neutros. ─────────── -->
                 <div class="row row-cols-2 row-cols-md-4 g-2 mb-2">
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('total_customers')">
                             <div class="card-body text-center py-2">
                                 <i class="fa fa-users fa-lg text-primary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(state.kpis.total_customers)"/>
+                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_customers))"
+                                     t-esc="fmt(state.kpis.total_customers)"/>
                                 <div class="o_planner_label">Clientes activos</div>
                             </div>
                             <div class="card-footer p-0">
@@ -207,12 +211,13 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('total_orders')">
                             <div class="card-body text-center py-2">
-                                <i class="fa fa-shopping-cart fa-lg text-warning mb-1 d-block"/>
-                                <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.total_orders)"/>
+                                <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_orders))"
+                                     t-esc="fmt(state.kpis.total_orders)"/>
                                 <div class="o_planner_label">Total pedidos</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                <button class="btn btn-sm btn-link w-100 py-1"
                                         title="Ver los pedidos del período"
                                         t-on-click="() => this.openKpiDrilldown('orders')">Ver →</button>
                             </div>
@@ -222,9 +227,16 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('total_qty')">
                             <div class="card-body text-center py-2">
-                                <i class="fa fa-cubes fa-lg text-info mb-1 d-block"/>
-                                <div class="o_planner_number text-info" t-esc="fmt(state.kpis.total_qty)"/>
+                                <i class="fa fa-cubes fa-lg mb-1 d-block" style="color:#7952b3;"/>
+                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_qty))"
+                                     style="color:#7952b3;"
+                                     t-esc="fmt(state.kpis.total_qty)"/>
                                 <div class="o_planner_label">Piezas pedidas</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" style="color:#7952b3;"
+                                        title="Ver las líneas de pedido (piezas) del período"
+                                        t-on-click="openPeriodOrderLines">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -232,13 +244,13 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('total_amount')">
                             <div class="card-body text-center py-2">
-                                <i class="fa fa-money fa-lg text-success mb-1 d-block"/>
-                                <div class="o_planner_number text-success" style="white-space:nowrap;"
+                                <i class="fa fa-money fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.total_amount))"
                                      t-esc="fmtMoney(state.kpis.total_amount)"/>
                                 <div class="o_planner_label">Monto total (PxQ)</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1 text-success"
+                                <button class="btn btn-sm btn-link w-100 py-1"
                                         title="Ver los pedidos del período"
                                         t-on-click="() => this.openKpiDrilldown('orders')">Ver →</button>
                             </div>
@@ -250,21 +262,13 @@
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('avg_price')">
                             <div class="card-body text-center py-2">
-                                <i class="fa fa-tag fa-lg text-success mb-1 d-block"/>
-                                <div class="o_planner_number text-success" style="white-space:nowrap;"
+                                <i class="fa fa-tag fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.avg_price))"
                                      t-esc="fmtMoney(state.kpis.avg_price)"/>
                                 <div class="o_planner_label">Precio promedio</div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <div class="card o_planner_card h-100"
-                             t-att-title="kpiTooltip('avg_delivery_pct')">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-check-circle fa-lg mb-1 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
-                                     t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
-                                <div class="o_planner_label">% Cumplimiento</div>
+                            <div class="card-footer p-0 o_planner_footer_spacer">
+                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
                             </div>
                         </div>
                     </div>
@@ -277,6 +281,23 @@
                                      t-esc="fmtPct(state.kpis.avg_physical_pct)"/>
                                 <div class="o_planner_label">% Físico</div>
                             </div>
+                            <div class="card-footer p-0 o_planner_footer_spacer">
+                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card o_planner_card h-100"
+                             t-att-title="kpiTooltip('avg_delivery_pct')">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-check-circle fa-lg mb-1 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + deliveryClass(state.kpis.avg_delivery_pct)"
+                                     t-esc="fmtPct(state.kpis.avg_delivery_pct)"/>
+                                <div class="o_planner_label">% Cumplimiento</div>
+                            </div>
+                            <div class="card-footer p-0 o_planner_footer_spacer">
+                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
+                            </div>
                         </div>
                     </div>
                     <div class="col">
@@ -287,6 +308,9 @@
                                 <div t-att-class="'o_planner_number ' + ontimeClass(state.kpis.avg_ontime_pct)"
                                      t-esc="fmtPct(state.kpis.avg_ontime_pct)"/>
                                 <div class="o_planner_label">% A tiempo</div>
+                            </div>
+                            <div class="card-footer p-0 o_planner_footer_spacer">
+                                <button class="btn btn-sm btn-link w-100 py-1">·</button>
                             </div>
                         </div>
                     </div>

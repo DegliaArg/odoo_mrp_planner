@@ -69,10 +69,28 @@
                         </div>
                     </div>
                     <div class="col">
+                        <div class="card h-100"
+                             t-att-title="'Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega). Es el numerador del % Cumplimiento.' + svcNote()">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.qty_delivered)"/>
+                                <div class="small text-muted">Entregado</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
                         <div class="card h-100" t-att-title="cellTooltip('delivery_pct', row)">
                             <div class="card-body text-center py-2">
                                 <div t-att-class="'fw-bold ' + deliveryClass(row.delivery_pct)" style="font-size:1rem;" t-esc="fmtPct(row.delivery_pct)"/>
                                 <div class="small text-muted">% Cumplim.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card h-100"
+                             title="Unidades despachadas DENTRO del período (salidas validadas, de cualquier pedido, incluso anteriores). Es el numerador del % Físico.">
+                            <div class="card-body text-center py-2">
+                                <div class="fw-bold" style="font-size:1rem;" t-esc="fmt(row.qty_delivered_phys)"/>
+                                <div class="small text-muted">Despachado</div>
                             </div>
                         </div>
                     </div>

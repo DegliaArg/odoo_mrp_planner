@@ -431,16 +431,32 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                         continue
                     group.sort(key=lambda r: r['total_amount'], reverse=True)
                     base = dict(group[0])
-                    base['partner_ids']   = [r['partner_id'] for r in group]
-                    base['unified_names'] = [r['partner_name'] for r in group]
-                    # Nombre visible: la casa matriz (contacto sin padre); si hay varias
-                    # o ninguna, la de mayor facturación. Sin sufijo — las razones
-                    # sociales agrupadas se listan en el tooltip.
+                    base['partner_ids'] = [r['partner_id'] for r in group]
+                    # Nombre visible: SIEMPRE la casa matriz. Si un miembro del grupo
+                    # es raíz (sin padre), es la matriz; si no —caso típico: la matriz
+                    # no compra directamente y operan solo las sucursales—, se sube al
+                    # padre común de las sucursales aunque no tenga fila propia.
+                    # El tooltip lista las sucursales agrupadas.
                     _roots = [r for r in group
                               if not partner_info.get(r['partner_id'], {}).get('parent_id')]
-                    _main  = _roots[0] if _roots else group[0]
-                    base['partner_id']   = _main['partner_id']
-                    base['partner_name'] = _main['partner_name']
+                    if _roots:
+                        _main_id, _main_name = _roots[0]['partner_id'], _roots[0]['partner_name']
+                    else:
+                        _parent_votes = {}
+                        for r in group:
+                            _p = partner_info.get(r['partner_id'], {}).get('parent_id')
+                            if _p:
+                                _parent_votes.setdefault(_p[0], [0, _p[1]])
+                                _parent_votes[_p[0]][0] += 1
+                        if _parent_votes:
+                            _main_id, (_n, _main_name) = max(
+                                _parent_votes.items(), key=lambda kv: kv[1][0])
+                        else:
+                            _main_id, _main_name = group[0]['partner_id'], group[0]['partner_name']
+                    base['partner_id']    = _main_id
+                    base['partner_name']  = _main_name
+                    base['unified_names'] = [r['partner_name'] for r in group
+                                             if r['partner_id'] != _main_id]
                     for f in ('order_count', 'total_amount', 'qty_ordered', 'qty_delivered',
                               'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount'):
                         base[f] = sum(r[f] or 0 for r in group)

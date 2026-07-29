@@ -24,8 +24,8 @@
             <td t-if="col.key === 'partner_name'"
                 class="text-primary"
                 style="padding:3px 8px; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; cursor:pointer;"
-                t-att-title="row.unified_names and row.unified_names.length > 1
-                             ? 'Cliente unificado por CUIT. Razones sociales: ' + row.unified_names.join(' · ')
+                t-att-title="row.unified_names and row.unified_names.length
+                             ? 'Casa matriz (unificado por CUIT). Sucursales: ' + row.unified_names.join(' · ')
                              : 'Abrir contacto: ' + row.partner_name"
                 t-on-click="() => this.openCustomer(row.partner_id)"
                 t-esc="row.partner_name"/>

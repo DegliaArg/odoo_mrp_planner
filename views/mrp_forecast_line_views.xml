@@ -133,6 +133,24 @@
         </field>
     </record>
 
+    <!-- Lista de líneas de pedido para los drills de Demanda real (sin las
+         columnas de entrega/facturación de la vista estándar). -->
+    <record id="view_sale_order_line_planner_list" model="ir.ui.view">
+        <field name="name">sale.order.line.planner.list</field>
+        <field name="model">sale.order.line</field>
+        <field name="arch" type="xml">
+            <list string="Piezas pedidas" create="false" edit="false">
+                <field name="order_id" string="Referencia"/>
+                <field name="order_partner_id" string="Cliente"/>
+                <field name="product_id" string="Artículo" optional="show"/>
+                <field name="name" string="Descripción" optional="hide"/>
+                <field name="salesman_id" string="Vendedor" optional="show"/>
+                <field name="product_uom_qty" string="Cant." sum="Total"/>
+                <field name="product_uom" string="Unidad"/>
+            </list>
+        </field>
+    </record>
+
     <!-- ── Vista Análisis de Clientes ──────────────────────────────────── -->
     <record id="mrp_customer_analysis_form" model="ir.ui.view">
         <field name="name">mrp.customer.analysis.form</field>

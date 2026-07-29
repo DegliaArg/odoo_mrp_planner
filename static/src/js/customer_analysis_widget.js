@@ -810,6 +810,7 @@ class CustomerAnalysisWidget extends Component {
             name:      'Piezas pedidas del período',
             res_model: 'sale.order.line',
             views:     [[false, 'list']],
+            context:   { list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list' },
             domain,
             target: 'current',
         });
@@ -852,6 +853,7 @@ class CustomerAnalysisWidget extends Component {
             name:      'Piezas pedidas del período',
             res_model: 'sale.order.line',
             views:     [[false, 'list']],
+            context:   { list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list' },
             domain,
             target: 'current',
         });

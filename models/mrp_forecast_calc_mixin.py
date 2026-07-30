@@ -2,7 +2,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 """
 Mixin: cálculos pesados de forecast separados de mrp_planner_dashboard_forecast.py.
-Contiene _fc_rotation_data, _fc_build_rows y _fc_no_fc_stats.
+Contiene _fc_rotation_data y _fc_build_rows.
 """
 from odoo import models, fields
 
@@ -354,90 +354,3 @@ class MrpForecastCalcMixin(models.TransientModel):
         rows.sort(key=lambda r: r['product'].lower())
         return rows
 
-    def _fc_no_fc_stats(self, mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to,
-                        exclude_services=False):
-        """
-        Calcula estadísticas de OFs, entregas y demanda para productos SIN línea de forecast.
-        Retorna la tupla (mos_no_fc, delivered_no_fc, demand_delivered_no_fc, so_demand_no_fc).
-
-        :param exclude_services: bool — con el toggle de Ajustes activo, la demanda
-            sin FC no cuenta líneas de productos de tipo Servicio (que inflan el
-            denominador de las tasas sin aportar entregas).
-        """
-        # Producción de OFs para productos SIN línea de forecast (solo vendibles)
-        no_fc_mo_pids = [pid for pid in mo_data if pid not in all_product_ids]
-        mos_no_fc = 0.0
-        if no_fc_mo_pids:
-            sale_ok_pids = set(
-                self.env['product.product'].browse(no_fc_mo_pids)
-                .filtered(lambda p: p.sale_ok).ids
-            )
-            mos_no_fc = round(sum(
-                sum(v.values()) for pid, v in mo_data.items()
-                if pid not in all_product_ids and pid in sale_ok_pids
-            ), 2)
-
-        # Entregado para productos SIN línea de forecast (solo vendibles)
-        delivered_no_fc = 0.0
-        try:
-            no_fc_del_domain = [
-                ('state', '=', 'done'),
-                ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                ('date', '>=', fields.Datetime.to_string(dt_from)),
-                ('date', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', '=', self.env.company.id),
-            ]
-            if all_product_ids_list:
-                no_fc_del_domain.append(('product_id', 'not in', all_product_ids_list))
-            groups = self.env['stock.move.line'].read_group(no_fc_del_domain, ['quantity:sum'], [])
-            delivered_no_fc = round((groups[0]['quantity'] or 0.0) if groups else 0.0, 2)
-        except Exception:
-            delivered_no_fc = 0.0
-
-        # Cumplimiento de demanda para productos SIN línea de forecast
-        demand_delivered_no_fc = 0.0
-        try:
-            if all_product_ids_list:
-                _so_no_fc = self.env['sale.order'].search([
-                    ('state', 'in', ('sale', 'done')),
-                    ('date_order', '>=', fields.Datetime.to_string(dt_from)),
-                    ('date_order', '<=', fields.Datetime.to_string(dt_to)),
-                    ('company_id', '=', self.env.company.id),
-                ])
-                _so_no_fc_ids = _so_no_fc.ids
-                if _so_no_fc_ids:
-                    _dd_no_fc_domain = [
-                        ('state', '=', 'done'),
-                        ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                        ('picking_id.sale_id', 'in', _so_no_fc_ids),
-                        ('product_id.sale_ok', '=', True),
-                        ('product_id', 'not in', all_product_ids_list),
-                        ('company_id', '=', self.env.company.id),
-                    ]
-                    _dd_groups = self.env['stock.move.line'].read_group(_dd_no_fc_domain, ['quantity:sum'], [])
-                    demand_delivered_no_fc = round(
-                        (_dd_groups[0]['quantity'] or 0.0) if _dd_groups else 0.0, 2)
-        except Exception:
-            demand_delivered_no_fc = 0.0
-
-        # Demanda de SOs en el período para productos SIN línea de forecast (solo vendibles)
-        so_demand_no_fc = 0.0
-        try:
-            no_fc_domain = [
-                ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', '=', self.env.company.id),
-            ]
-            if exclude_services:
-                no_fc_domain.append(('product_id.type', '!=', 'service'))
-            if all_product_ids_list:
-                no_fc_domain.append(('product_id', 'not in', all_product_ids_list))
-            groups = self.env['sale.order.line'].read_group(no_fc_domain, ['product_uom_qty:sum'], [])
-            so_demand_no_fc = round((groups[0]['product_uom_qty'] or 0.0) if groups else 0.0, 2)
-        except Exception:
-            so_demand_no_fc = 0.0
-
-        return mos_no_fc, delivered_no_fc, demand_delivered_no_fc, so_demand_no_fc

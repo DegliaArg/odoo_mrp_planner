@@ -317,6 +317,9 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         # ── Ids de productos con forecast ──────────────────────────────────────
         all_product_ids      = set(fc_data.keys())
         all_product_ids_list = list(all_product_ids)
+        # Conjunto "solo con línea de forecast": los chips "sin FC" y sus drills
+        # distinguen contra este set aunque el universo de la tabla se amplíe después.
+        fc_only_product_ids  = list(all_product_ids)
         # n_months para cálculo de rotación: duración real en meses, no meses de calendario tocados.
         # Ej: 08/04 → 08/07 = 91 días ≈ 3,03 meses, pero len(months) = 4 (abr, may, jun, jul).
         _period_days = max(1, (last_day_of_to - d_from).days)
@@ -328,7 +331,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             ('picking_id.picking_type_id.code', '=', 'outgoing'),
             ('date', '>=', fields.Datetime.to_string(dt_from)),
             ('date', '<=', fields.Datetime.to_string(dt_to)),
-            ('product_id', 'in', all_product_ids_list),
+            ('product_id.sale_ok', '=', True),
             ('company_id', '=', self.env.company.id),
         ]
         del_data = {}           # {product_id: {ym: qty}}
@@ -381,7 +384,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 ('order_id.state', 'in', ('sale', 'done')),
                 ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
                 ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id', 'in', all_product_ids_list),
+                ('product_id.sale_ok', '=', True),
                 ('company_id', '=', self.env.company.id),
             ] + _svc_dom
             sol_rows = self.env['sale.order.line'].search(so_domain).read(
@@ -422,12 +425,12 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 so.id: so.date_order.strftime('%Y-%m')
                 for so in _period_sos if so.date_order
             }
-            if _period_so_ids and all_product_ids_list:
+            if _period_so_ids:
                 demand_del_dom = [
                     ('state', '=', 'done'),
                     ('picking_id.picking_type_id.code', '=', 'outgoing'),
                     ('picking_id.sale_id', 'in', _period_so_ids),
-                    ('product_id', 'in', all_product_ids_list),
+                    ('product_id.sale_ok', '=', True),
                     ('company_id', '=', self.env.company.id),
                 ]
                 _dd_lines = self.env['stock.move.line'].search(demand_del_dom).read(
@@ -451,6 +454,24 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                         demand_del_data[_pid][_ym] = demand_del_data[_pid].get(_ym, 0.0) + _ml['quantity']
         except Exception:
             pass
+
+        # ── Universo de la tabla: productos con forecast ∪ vendibles con
+        #    actividad en el período (pedidos, OFs, entregas). Los que no tienen
+        #    línea de forecast aparecen como filas con forecast 0: los KPIs y la
+        #    tabla muestran el negocio completo aunque no haya plan cargado.
+        _activity_pids = set(del_data) | set(so_data) | set(demand_del_data) | set(mo_data)
+        _extra_pids = [p for p in _activity_pids if p and p not in all_product_ids]
+        if _extra_pids:
+            for _pr in self.env['product.product'].browse(_extra_pids).read(
+                    ['id', 'display_name', 'product_tmpl_id', 'sale_ok']):
+                if not _pr['sale_ok']:
+                    continue
+                fc_data[_pr['id']] = {
+                    'product':         _pr['display_name'],
+                    'product_tmpl_id': (_pr['product_tmpl_id'] or [False])[0],
+                }
+            all_product_ids      = set(fc_data.keys())
+            all_product_ids_list = list(all_product_ids)
 
         # ── Stock actual (snapshot) ───────────────────────────────────────────
         stock_data = {}   # {product_id: qty}
@@ -524,10 +545,6 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         total_del  = sum(r['total_delivered'] for r in rows)
         total_so   = sum(r['total_so_demand'] for r in rows)
 
-        (mos_no_fc, delivered_no_fc, demand_delivered_no_fc, so_demand_no_fc) = \
-            self._fc_no_fc_stats(mo_data, all_product_ids, all_product_ids_list, dt_from, dt_to,
-                                 exclude_services=_exclude_services)
-
         coverage   = round(total_mos / total_fc * 100, 1) if total_fc > 0 else 0.0
         at_risk    = sum(1 for r in rows if r['total_forecast'] > 0 and r['total_pct'] < warning_pct)
         ovr_svc         = round(total_del / total_so * 100, 1) if total_so > 0 else None
@@ -572,10 +589,6 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 'overall_demand_service_rate': ovr_demand_svc,
                 'overall_forecast_acc': ovr_acc,
                 'acc_all':              acc_all,
-                'so_demand_no_fc':           so_demand_no_fc,
-                'mos_no_fc':                mos_no_fc,
-                'delivered_no_fc':          delivered_no_fc,
-                'demand_delivered_no_fc':   demand_delivered_no_fc,
             },
             'months':        months,
             'month_totals':  month_totals,
@@ -598,6 +611,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'mo_coverage_color_scope':  mo_coverage_color_scope,
             'mo_mode':                  mo_mode,
             'exclude_services':         _exclude_services,
+            # Productos con línea de forecast: el frontend desglosa los chips
+            # "sin FC" de los KPIs contra este conjunto (el universo de filas
+            # ahora incluye también los vendibles con actividad sin forecast).
+            'fc_product_ids':           fc_only_product_ids,
         }
 
     @api.model

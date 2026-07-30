@@ -18,10 +18,11 @@ function periodDateRange(widget) {
     };
 }
 
-// Todos los productos con línea de forecast (para los drills "sin forecast",
-// que necesitan el universo completo para el 'not in').
+// Productos con línea de forecast (para los drills "sin forecast", que
+// necesitan el 'not in'). Viene del payload: las filas de la tabla ahora
+// incluyen también artículos sin forecast, así que no sirven para esto.
 function forecastProductIds(widget) {
-    return (widget.state.data && widget.state.data.rows || []).map(r => r.product_id);
+    return (widget.state.data && widget.state.data.fc_product_ids) || [];
 }
 
 // Filtro de servicios para los drills de demanda (líneas de pedido), según el

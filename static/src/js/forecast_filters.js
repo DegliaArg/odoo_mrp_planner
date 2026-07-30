@@ -37,16 +37,23 @@ export function filteredKpis(widget) {
     const total_so_demand        = rows.reduce((s, r) => s + (r.total_so_demand        || 0), 0);
     const total_demand_delivered = rows.reduce((s, r) => s + (r.total_demand_delivered || 0), 0);
 
-    const kpis0 = widget.state.data.kpis;
-    const no_fc_demand     = kpis0.so_demand_no_fc        || 0;
-    const no_fc_delivered  = kpis0.delivered_no_fc        || 0;
-    const no_fc_demand_del = kpis0.demand_delivered_no_fc || 0;
-    const total_demand_all = total_so_demand + no_fc_demand;
+    // Las filas ahora cubren el negocio completo (con y sin forecast): los KPIs
+    // son la suma de la tabla visible y los chips "sin FC" desglosan cuánto del
+    // total viene de artículos sin línea de forecast — respondiendo a los filtros.
+    const fcSet = new Set(widget.state.data.fc_product_ids || []);
+    let so_demand_no_fc = 0, mos_no_fc = 0, delivered_no_fc = 0, demand_delivered_no_fc = 0;
+    for (const r of rows) {
+        if (fcSet.has(r.product_id)) continue;
+        so_demand_no_fc        += r.total_so_demand        || 0;
+        mos_no_fc              += r.total_mos              || 0;
+        delivered_no_fc        += r.total_delivered        || 0;
+        demand_delivered_no_fc += r.total_demand_delivered || 0;
+    }
 
-    const overall_service_rate        = total_demand_all > 0
-        ? Math.round((total_delivered        + no_fc_delivered)  / total_demand_all * 100) : null;
-    const overall_demand_service_rate = total_demand_all > 0
-        ? Math.round((total_demand_delivered + no_fc_demand_del) / total_demand_all * 100) : null;
+    const overall_service_rate        = total_so_demand > 0
+        ? Math.round(total_delivered        / total_so_demand * 100) : null;
+    const overall_demand_service_rate = total_so_demand > 0
+        ? Math.round(total_demand_delivered / total_so_demand * 100) : null;
     const demand_gap_pct = total_forecast > 0
         ? Math.round((total_so_demand - total_forecast) / total_forecast * 100) : null;
     const mos_gap_pct = total_forecast > 0
@@ -104,6 +111,10 @@ export function filteredKpis(widget) {
         demand_gap_pct,
         mos_gap_pct,
         del_by_order_month,
+        so_demand_no_fc:        Math.round(so_demand_no_fc * 10) / 10,
+        mos_no_fc:              Math.round(mos_no_fc * 10) / 10,
+        delivered_no_fc:        Math.round(delivered_no_fc * 10) / 10,
+        demand_delivered_no_fc: Math.round(demand_delivered_no_fc * 10) / 10,
     };
 }
 

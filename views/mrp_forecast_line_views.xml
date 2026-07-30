@@ -53,11 +53,14 @@
                 <filter string="Este mes" name="this_month"
                         domain="[('period', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
                                   ('period', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Próximos 2 meses" name="next_2m"
+                        domain="[('period', '&gt;=', context_today().strftime('%Y-%m-01')),
+                                  ('period', '&lt;=', (context_today() + relativedelta(months=1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <!-- Nota: relativedelta(months=1, day=31) produce el último día del segundo mes
+                     completo (julio=hoy → fin = ago-31), cubriendo correctamente 2 meses. -->
                 <filter string="Próximos 3 meses" name="next_3m"
                         domain="[('period', '&gt;=', context_today().strftime('%Y-%m-01')),
                                   ('period', '&lt;=', (context_today() + relativedelta(months=2, day=31)).strftime('%Y-%m-%d'))]"/>
-                <!-- Nota: relativedelta(months=2, day=31) produce el último día del tercer mes
-                     completo (julio=hoy → fin = sep-30), cubriendo correctamente 3 meses. -->
                 <group expand="0" string="Agrupar por">
                     <filter string="Artículo"   name="by_product"   context="{'group_by': 'product_id'}"/>
                     <filter string="Período"    name="by_period"    context="{'group_by': 'period:month'}"/>
@@ -72,7 +75,7 @@
         <field name="name">Forecast de Ventas</field>
         <field name="res_model">mrp.forecast.line</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_next_3m': 1}</field>
+        <field name="context">{'search_default_next_2m': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No hay líneas de forecast aún.

@@ -646,6 +646,9 @@ class StockBreakWidget extends Component {
         if (!val || val === '—') {
             if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
             if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
+            if ((prod.rotation_period_out || 0) > 0) {
+                return `Hubo salidas (${this.fmt(prod.rotation_period_out)}) pero el stock promedio del período fue 0 — rotación no calculable (posible quiebre permanente o venta directa sin stock).`;
+            }
             return `Sin salidas en los últimos ${months * 30} días — rotación no calculable`;
         }
 

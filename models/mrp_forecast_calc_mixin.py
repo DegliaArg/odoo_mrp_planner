@@ -294,7 +294,9 @@ class MrpForecastCalcMixin(models.TransientModel):
                                         + rotation['qty_out_period'].get(pid, 0.0)
                 avg_stock_qty = (max(0.0, stock_start) + max(0.0, stock_end)) / 2.0
                 avg_monthly_del = tot_del / n_months
-                if avg_monthly_del > 0:
+                # Sin stock promedio la rotación no es calculable (mostrar 0 días
+                # pintaba verde a artículos que venden sin inventario: engañoso).
+                if avg_monthly_del > 0 and avg_stock_qty > 0:
                     rot_months = round(avg_stock_qty / avg_monthly_del, 1)
                     rot_days   = int(round(avg_stock_qty / avg_monthly_del * 30))
             elif rotation_method in ('cogs', 'sales'):

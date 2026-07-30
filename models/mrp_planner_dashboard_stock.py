@@ -207,11 +207,14 @@ class MrpPlannerDashboardStock(models.TransientModel):
                         stock_start  = current - qty_in_period.get(_pid, 0.0) + _out
                         avg_stock    = (max(0.0, stock_start) + max(0.0, stock_end)) / 2.0
                         _avg_monthly = _out / rotation_months_cfg
+                        # Las salidas se exponen siempre: el tooltip distingue
+                        # "sin salidas" de "hubo salidas pero sin stock promedio".
+                        if _out > 0:
+                            rotation_period_out_map[_pid] = round(_out, 2)
                         if _avg_monthly > 0 and avg_stock > 0:
                             rotation_days_map[_pid]      = int(round(avg_stock / _avg_monthly * 30))
                             rotation_months_map[_pid]    = round(avg_stock / _avg_monthly, 1)
                             rotation_avg_stock_map[_pid] = round(avg_stock, 2)
-                            rotation_period_out_map[_pid]= round(_out, 2)
                 except Exception:
                     pass
 

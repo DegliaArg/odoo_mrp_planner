@@ -39,6 +39,10 @@ export function rotTooltip(widget, row) {
     if (!val || val === '—') {
         if (method === 'cogs')  return 'Sin inventario promedio valorizado — rotación no calculable';
         if (method === 'sales') return 'Sin ventas o sin inventario valorizado — rotación no calculable';
+        if ((row.total_delivered || 0) > 0) {
+            return 'Hubo entregas pero el stock promedio del período fue 0 — rotación no calculable '
+                 + '(posible quiebre permanente o venta directa sin stock).';
+        }
         return 'Sin entregas en el período — rotación no calculable';
     }
     if (method === 'cogs') {

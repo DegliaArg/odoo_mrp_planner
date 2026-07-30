@@ -106,6 +106,9 @@
                 <!-- Gráfico -->
                 <div class="col-12 col-lg-8 d-flex">
                     <div class="position-relative w-100" style="min-height:200px;">
+                        <i class="fa fa-info-circle text-muted position-absolute"
+                           style="top:2px; right:4px; z-index:5; cursor:help;"
+                           t-att-title="chartInfoTooltip()"/>
                         <canvas t-ref="chartCanvas"/>
 
                         <div t-if="state.loading"

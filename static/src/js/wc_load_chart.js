@@ -230,30 +230,58 @@ class WcLoadChartWidget extends Component {
     wcKpiTooltip(key) {
         const k = this.state.kpis;
         const h = v => this.fmtH(v);
-        // Frase del criterio activo (el mismo de la comparativa y el forecast).
         const ASSIGN = {
-            finish_date:  'Una OT entra completa al período si su fecha de fin cae dentro.',
-            start_date:   'Una OT entra completa al período si su fecha de inicio cae dentro.',
-            overlap:      'Una OT entra completa al período si estuvo activa en algún momento del rango.',
-            proportional: 'Cada OT aporta solo la fracción de su ventana (inicio → fin, o "ahora" si sigue abierta) que cae dentro del período.',
+            finish_date:  'una OT entra completa al período si su fecha de FIN cae dentro',
+            start_date:   'una OT entra completa al período si su fecha de INICIO cae dentro',
+            overlap:      'una OT entra completa al período si estuvo activa en algún momento del rango',
+            proportional: 'cada OT aporta solo la fracción de su duración que cae dentro del período',
         };
-        const assign = (ASSIGN[k.date_mode] || ASSIGN.finish_date)
-            + ' (Criterio configurable en Ajustes; aplica igual en la comparativa y el forecast.)';
+        const assign = `Criterio de asignación: ${ASSIGN[k.date_mode] || ASSIGN.finish_date} (el mismo de la comparativa y el forecast; se cambia en Ajustes).`;
         switch (key) {
             case 'disponible':
-                return `Horas del calendario laboral de cada CT en el período, descontando feriados y licencias\n→ ${h(k.disponible)} disponibles`;
+                return `QUÉ ES: la capacidad teórica del centro de trabajo — cuántas horas puede trabajar en el período.`
+                    + `\nCÓMO SE CALCULA: horas del horario laboral configurado en cada CT, descontando feriados y licencias del calendario.`
+                    + `\nCÓMO LEERLO: es el techo contra el que se mide la carga; no depende de las órdenes de trabajo.`
+                    + `\n→ ${h(k.disponible)} disponibles en el período`;
             case 'planificado':
-                return `Horas ESPERADAS (duration_expected) de las OT asignadas al período\n${assign}\nLas OT en progreso incluyen su plan completo: lo ya trabajado está en Ejecutado y lo restante en Pendiente.\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+                return `QUÉ ES: el trabajo comprometido — cuánta capacidad reservan las órdenes de trabajo del período.`
+                    + `\nCÓMO SE CALCULA: suma del tiempo ESTÁNDAR (duration_expected) de cada OT asignada al período. Las OT en curso incluyen su plan completo: lo ya trabajado aparece en Ejecutado y lo restante en Pendiente.`
+                    + `\nCÓMO LEERLO: compáralo contra Disponible — si lo supera, el plan no entra en la capacidad del CT.`
+                    + `\n${assign}`
+                    + `\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
-                return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nAmarillo ≥ ${k.warn_pct || 70}% | Rojo ≥ ${k.crit_pct || 90}% (configurable en Ajustes)`;
+                return `QUÉ ES: qué porcentaje de la capacidad del período está ocupado por el plan.`
+                    + `\nCÓMO SE CALCULA: Planificado ÷ Disponible × 100 → ${h(k.planificado)} ÷ ${h(k.disponible)} = ${k.carga_pct}%.`
+                    + `\nCÓMO LEERLO: cerca de 100% el CT está al límite; por encima, hay más plan que horas y algo se va a atrasar.`
+                    + `\nAmarillo ≥ ${k.warn_pct || 70}% | Rojo ≥ ${k.crit_pct || 90}% (umbrales configurables en Ajustes)`;
             case 'ejecutado':
-                return `Horas REALES trabajadas de las OT asignadas al período — terminadas y en progreso (estas aportan lo ya trabajado)\n${assign}\n→ ${h(k.ejecutado)} ejecutadas`;
+                return `QUÉ ES: el trabajo que realmente se hizo en el período.`
+                    + `\nCÓMO SE CALCULA: suma de la duración REAL registrada en las OT asignadas al período — terminadas Y en progreso (estas aportan lo que llevan trabajado hasta ahora).`
+                    + `\nCÓMO LEERLO: contra Planificado te dice si el CT va al ritmo del plan; puede superarlo (ver No planificado).`
+                    + `\n${assign}`
+                    + `\n→ ${h(k.ejecutado)} ejecutadas`;
             case 'pendiente':
-                return `Lo que falta del plan de las OT ABIERTAS asignadas al período\nPor OT: max(0, plan − real ya trabajado). Una OT en curso se parte: lo trabajado va a Ejecutado y esto es su resto.\n${assign}\n→ ${h(k.pendiente)} pendientes`;
+                return `QUÉ ES: el trabajo comprometido que todavía falta hacer.`
+                    + `\nCÓMO SE CALCULA: por cada OT abierta del período, max(0, plan − real ya trabajado). Una OT en curso se parte: lo trabajado está en Ejecutado y esto es su resto.`
+                    + `\nCÓMO LEERLO: es la cola de trabajo del CT — si Pendiente + Ejecutado supera Disponible, no llega.`
+                    + `\n${assign}`
+                    + `\n→ ${h(k.pendiente)} pendientes`;
             case 'no_planificado':
-                return `Ejecución que superó el plan, OT por OT: max(0, real − plan), sin netear entre OT (una que ahorró horas no tapa a otra que se pasó)\nIncluye OT trabajadas SIN duración esperada cargada: sirve para detectar operaciones sin estándar.\n→ ${h(k.no_planificado)} fuera del plan`;
+                return `QUÉ ES: horas trabajadas que el plan no preveía.`
+                    + `\nCÓMO SE CALCULA: por cada OT, max(0, real − plan), sin netear entre OT (una que ahorró horas no tapa a otra que se pasó).`
+                    + `\nCÓMO LEERLO: mide el desvío contra los estándares. Incluye OT trabajadas SIN duración esperada cargada — si es alto, revisá los tiempos estándar de las rutas.`
+                    + `\n→ ${h(k.no_planificado)} fuera del plan`;
         }
         return '';
+    }
+
+    /** Explicación de los segmentos de las barras, para el ícono ⓘ del gráfico. */
+    chartInfoTooltip() {
+        return `Cada CT tiene dos barras:`
+            + `\n• Barra PLAN — Planificado (azul): tiempo estándar comprometido en el período. Sin planificar (gris): capacidad disponible que quedó libre.`
+            + `\n• Barra REAL — Ejecutado (verde): trabajo hecho dentro del plan. Pendiente (amarillo): lo que falta del plan. No planificado (violeta): horas trabajadas que excedieron el plan o no tenían estándar.`
+            + `\nLa altura de la barra REAL = horas ejecutadas + pendientes. Si supera a la barra PLAN, el CT trabajó más de lo planificado.`
+            + `\nEl detalle de cada concepto está en los tooltips de las tarjetas de la izquierda.`;
     }
 
     cargaClass(pct) {

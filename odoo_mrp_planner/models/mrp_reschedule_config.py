@@ -588,6 +588,21 @@ class MrpRescheduleConfig(models.Model):
         string='SLA en días', default=5,
         help='Solo aplica cuando el método es "Días desde confirmación". '
              'Define cuántos días tiene la empresa para entregar desde que se confirma el pedido.')
+    customer_leadtime_method = fields.Selection([
+        ('weighted', 'Ponderado por cantidades entregadas'),
+        ('first',    'Primera entrega'),
+        ('complete', 'Pedido completo'),
+    ], string='Método — Lead time de entrega', default='weighted',
+       help='Cómo se calcula el tiempo promedio de entrega de los pedidos con entregas '
+            'parciales. Todos los métodos miden días desde la confirmación del pedido '
+            'hasta la fecha efectiva de cada remito de salida.\n'
+            '• Ponderado: promedia los días de cada parcial pesándolos por la cantidad '
+            'entregada — cuántos días esperó la pieza promedio.\n'
+            '• Primera entrega: días hasta el primer remito — velocidad de reacción.\n'
+            '• Pedido completo: días hasta el remito que completó el pedido; solo cuenta '
+            'pedidos totalmente entregados.\n'
+            'El método elegido manda en el KPI y la columna; los otros dos se muestran '
+            'como referencia secundaria y en el tooltip.')
     customer_analysis_delivery_warn_pct = fields.Integer(
         string='Tasas — umbral verde (%)', default=80,
         help='Desde este porcentaje, las tasas de entrega se muestran en verde. Aplica a las tasas del análisis de clientes y a las tasas física y de cumplimiento del panel de ventas.'

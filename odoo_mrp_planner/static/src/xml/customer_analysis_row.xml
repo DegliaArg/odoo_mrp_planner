@@ -91,6 +91,12 @@
                 t-esc="fmtPct(row.delivery_pct)"/>
 
 
+            <td t-elif="col.key === 'lead_time'"
+                class="text-end"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('lead_time', row)"
+                t-esc="fmtDays(row.lead_time)"/>
+
             <td t-elif="col.key === 'ontime_pct'"
                 t-att-class="'text-end ' + ontimeClass(row.ontime_pct)"
                 style="padding:3px 8px;"

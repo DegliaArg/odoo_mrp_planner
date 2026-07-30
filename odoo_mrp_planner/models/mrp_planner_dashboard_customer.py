@@ -31,6 +31,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         cfg = self.env['mrp.reschedule.config'].get_config()
         return {
             'ontime_method':   cfg.customer_analysis_ontime_method or 'commitment_date',
+            'leadtime_method': cfg.customer_leadtime_method or 'weighted',
             'sla_days':        cfg.customer_analysis_sla_days or 5,
             'delivery_warn':   cfg.customer_analysis_delivery_warn_pct or 80,
             'delivery_crit':   cfg.customer_analysis_delivery_crit_pct or 60,
@@ -208,6 +209,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             pick_by_so    = defaultdict(list)
             for p in pickings:
                 pick_by_so[p['sale_id'][0]].append(p)
+            # Cantidad entregada por remito, para el lead time ponderado.
+            # sudo(): mismo criterio que la lectura de pickings de arriba.
+            qty_by_pick = {}
+            if pickings:
+                for g in self.env['stock.move.line'].sudo()._read_group(
+                    [('picking_id', 'in', [p['id'] for p in pickings]), ('state', '=', 'done')],
+                    ['picking_id'], ['quantity:sum'],
+                ):
+                    qty_by_pick[g[0].id] = g[1] or 0.0
             so_commitment = {s['id']: s.get('commitment_date') for s in so_data}
             so_date_order = {s['id']: s['date_order']          for s in so_data}
 
@@ -363,6 +373,31 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                             ot_ok += 1
                 ontime_pct = round(ot_ok / ot_total * 100, 1) if ot_total > 0 else None
 
+                # ── Lead time de entrega (3 métodos; el principal lo elige Ajustes) ──
+                lt_w_num = lt_w_den = 0.0          # ponderado: Σ(qty × días) / Σ(qty)
+                lt_first_sum, lt_first_n = 0.0, 0  # primera entrega: promedio simple por pedido
+                lt_comp_sum, lt_comp_n = 0.0, 0    # pedido completo: solo pedidos 100% entregados
+                for s_ in sos:
+                    pks = [pk for pk in pick_by_so.get(s_['id'], []) if pk.get('date_done')]
+                    if not pks:
+                        continue
+                    od = self._to_date(s_['date_order'])
+                    per_pick = [
+                        (max(0, (self._to_date(pk['date_done']) - od).days),
+                         qty_by_pick.get(pk['id'], 0.0))
+                        for pk in pks
+                    ]
+                    for dys, q in per_pick:
+                        if q > 0:
+                            lt_w_num += q * dys
+                            lt_w_den += q
+                    lt_first_sum += min(d for d, _ in per_pick)
+                    lt_first_n   += 1
+                    oq = sol_qty_by_order.get(s_['id'], {})
+                    if oq.get('ordered', 0) > 0 and oq.get('delivered', 0.0) >= oq['ordered'] - 1e-6:
+                        lt_comp_sum += max(d for d, _ in per_pick)
+                        lt_comp_n   += 1
+
                 prods      = partner_prod.get(pid, {})
                 fams       = partner_fam.get(pid, {})
                 prev_amt   = prev_amount.get(pid, 0.0)
@@ -391,6 +426,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'ontime_ok':         ot_ok,
                     'ontime_total':      ot_total,
                     'ontime_pct':        ontime_pct,
+                    'lt_w_num':          round(lt_w_num, 2),
+                    'lt_w_den':          round(lt_w_den, 2),
+                    'lt_first_sum':      round(lt_first_sum, 1),
+                    'lt_first_n':        lt_first_n,
+                    'lt_comp_sum':       round(lt_comp_sum, 1),
+                    'lt_comp_n':         lt_comp_n,
+                    'lead_weighted':     round(lt_w_num / lt_w_den, 1) if lt_w_den > 0 else None,
+                    'lead_first':        round(lt_first_sum / lt_first_n, 1) if lt_first_n else None,
+                    'lead_complete':     round(lt_comp_sum / lt_comp_n, 1) if lt_comp_n else None,
                     'avg_days_between':  avg_days_between,
                     'days_since_last':   days_since,
                     'last_order_date':   last_date.isoformat(),
@@ -458,7 +502,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     base['unified_names'] = [r['partner_name'] for r in group
                                              if r['partner_id'] != _main_id]
                     for f in ('order_count', 'total_amount', 'qty_ordered', 'qty_delivered',
-                              'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount'):
+                              'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount',
+                              'lt_w_num', 'lt_w_den', 'lt_first_sum', 'lt_first_n',
+                              'lt_comp_sum', 'lt_comp_n'):
                         base[f] = sum(r[f] or 0 for r in group)
                     base['total_amount']       = round(base['total_amount'], 2)
                     base['prev_amount']        = round(base['prev_amount'], 2)
@@ -469,6 +515,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     base['delivery_pct'] = round(base['qty_delivered'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
                     base['physical_pct'] = round(base['qty_delivered_phys'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
                     base['ontime_pct']   = round(base['ontime_ok'] / base['ontime_total'] * 100, 1) if base['ontime_total'] > 0 else None
+                    base['lead_weighted'] = round(base['lt_w_num'] / base['lt_w_den'], 1) if base['lt_w_den'] > 0 else None
+                    base['lead_first']    = round(base['lt_first_sum'] / base['lt_first_n'], 1) if base['lt_first_n'] else None
+                    base['lead_complete'] = round(base['lt_comp_sum'] / base['lt_comp_n'], 1) if base['lt_comp_n'] else None
                     base['trend_pct']    = round((base['total_amount'] - base['prev_amount']) / base['prev_amount'] * 100, 1) if base['prev_amount'] > 0 else None
                     # Frecuencia: promedio ponderado por pedidos; recencia = la más reciente
                     _fr   = [(r['avg_days_between'], r['order_count']) for r in group if r['avg_days_between'] is not None]
@@ -492,6 +541,12 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # EXCLUSIVO (se evalúa antes de sumar al propio cliente), de modo que el
             # cliente de mayor facturación siempre queda en A. Cortes: A ≤ a_pct%,
             # B ≤ (a_pct + b_pct)%, C = resto (configurables en Ajustes).
+            # Lead time principal según el método configurado (KPI, columna y orden).
+            _lt_key = {'weighted': 'lead_weighted', 'first': 'lead_first', 'complete': 'lead_complete'}[
+                cfg.get('leadtime_method', 'weighted')]
+            for r in rows:
+                r['lead_time'] = r.get(_lt_key)
+
             abc_a_cut  = (cfg.get('abc_a_pct') or 20) / 100.0
             abc_b_cut  = abc_a_cut + (cfg.get('abc_b_pct') or 50) / 100.0
             _abc_total = sum(r['total_amount'] for r in rows)

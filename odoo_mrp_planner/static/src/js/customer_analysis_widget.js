@@ -30,6 +30,7 @@ const CA_STATIC_COLS = [
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
     { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
+    { key: 'lead_time',         label: 'Lead entrega',      width:  95, align: 'end'    },
     { key: 'ontime_pct',        label: '% A tiempo',        width:  90, align: 'end'    },
     { key: 'avg_days_between',  label: 'Frecuencia',        width:  95, align: 'end'    },
     { key: 'days_since_last',   label: 'Días sin comprar',  width: 110, align: 'end'    },
@@ -55,6 +56,7 @@ const CA_SORT_KEYS = {
     total_amount:      'total_amount',
     avg_price:         'avg_price',
     delivery_pct:      'delivery_pct',
+    lead_time:         'lead_time',
     ontime_pct:        'ontime_pct',
     avg_days_between:  'avg_days_between',
     days_since_last:   'days_since_last',
@@ -136,7 +138,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, total_delivered: 0, fulfillment_pct: null, avg_price: 0 },
+            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, total_delivered: 0, fulfillment_pct: null, avg_price: 0, lead_weighted: null, lead_first: null, lead_complete: null, lead_time: null },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -190,6 +192,7 @@ class CustomerAnalysisWidget extends Component {
                 total_amount:      true,
                 avg_price:         true,
                 delivery_pct:      true,
+                lead_time:         true,
                 ontime_pct:        false,
                 avg_days_between:  false,
                 days_since_last:   false,
@@ -423,7 +426,48 @@ class CustomerAnalysisWidget extends Component {
             total_delivered: Math.round(totalDelivered * 10) / 10,
             fulfillment_pct: totalQty > 0 ? Math.round(totalDelivered / totalQty * 1000) / 10 : null,
             avg_price:       totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
+            ...this._computeLeadKpis(rows),
         };
+    }
+
+    /** Agregados de lead time de entrega sobre las filas visibles (3 métodos). */
+    _computeLeadKpis(rows) {
+        const wNum   = rows.reduce((a, r) => a + (r.lt_w_num     || 0), 0);
+        const wDen   = rows.reduce((a, r) => a + (r.lt_w_den     || 0), 0);
+        const fSum   = rows.reduce((a, r) => a + (r.lt_first_sum || 0), 0);
+        const fN     = rows.reduce((a, r) => a + (r.lt_first_n   || 0), 0);
+        const cSum   = rows.reduce((a, r) => a + (r.lt_comp_sum  || 0), 0);
+        const cN     = rows.reduce((a, r) => a + (r.lt_comp_n    || 0), 0);
+        const k = {
+            lead_weighted: wDen > 0 ? Math.round(wNum / wDen * 10) / 10 : null,
+            lead_first:    fN   > 0 ? Math.round(fSum / fN   * 10) / 10 : null,
+            lead_complete: cN   > 0 ? Math.round(cSum / cN   * 10) / 10 : null,
+        };
+        const key = { weighted: 'lead_weighted', first: 'lead_first', complete: 'lead_complete' }[
+            this.state.config.leadtime_method || 'weighted'];
+        k.lead_time = k[key];
+        return k;
+    }
+
+    /** Etiqueta corta del método de lead time configurado en Ajustes. */
+    leadMethodLabel(method) {
+        const m = method || this.state.config.leadtime_method || 'weighted';
+        return { weighted: 'ponderado', first: '1ª entrega', complete: 'pedido completo' }[m] || m;
+    }
+
+    /** Pills secundarias del KPI de lead time: los métodos NO elegidos en Ajustes. */
+    leadPills() {
+        const main = this.state.config.leadtime_method || 'weighted';
+        const k = this.state.kpis;
+        return [
+            { key: 'weighted', label: 'Pond.',    value: k.lead_weighted },
+            { key: 'first',    label: '1ª',       value: k.lead_first },
+            { key: 'complete', label: 'Completo', value: k.lead_complete },
+        ].filter(p => p.key !== main);
+    }
+
+    fmtDays(v) {
+        return v !== null && v !== undefined ? this.fmt(v) + ' d' : '—';
     }
 
     // ── Handlers de controles ─────────────────────────────────────────────────
@@ -1162,6 +1206,8 @@ class CustomerAnalysisWidget extends Component {
                 return `Tasa de cumplimiento del período: de lo pedido en el período, cuánto ya se entregó\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${k.fulfillment_pct != null ? k.fulfillment_pct + '%' : '—'}\nVerde ≥ ${this.state.config.delivery_warn || 80}% | Amarillo ≥ ${this.state.config.delivery_crit || 60}% (umbrales configurables en Ajustes)` + this.svcNote();
             case 'avg_price':
                 return `Precio promedio por unidad del período\nMonto total ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
+            case 'lead_time':
+                return `Lead time de entrega de los pedidos del período (clientes visibles). Días desde la confirmación hasta la fecha efectiva de cada remito de salida.\nMétodo principal (${this.leadMethodLabel()}, configurable en Ajustes): ${this.fmtDays(k.lead_time)}\n• Ponderado por cantidad: ${this.fmtDays(k.lead_weighted)} — promedia cada entrega parcial pesada por sus piezas; es lo que esperó la pieza promedio\n• Primera entrega: ${this.fmtDays(k.lead_first)} — promedio de días hasta el primer remito de cada pedido (velocidad de reacción)\n• Pedido completo: ${this.fmtDays(k.lead_complete)} — promedio de punta a punta, solo pedidos totalmente entregados`;
             case 'avg_days_between':
                 return `Promedio de días entre pedidos consecutivos, calculado entre todos los clientes con más de 1 pedido\n→ ${k.avg_days_between != null ? k.avg_days_between + ' días promedio' : '—'}`;
             default:
@@ -1187,6 +1233,8 @@ class CustomerAnalysisWidget extends Component {
                 return `Monto de ventas del cliente en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.amountNote() + this.svcNote();
             case 'delivery_pct':
                 return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+            case 'lead_time':
+                return `Lead time de entrega (método principal: ${this.leadMethodLabel()}, configurable en Ajustes). Días desde la confirmación del pedido hasta la fecha efectiva de cada remito.\nPonderado por cantidad: ${this.fmtDays(row.lead_weighted)} (cuántos días esperó la pieza promedio)\nPrimera entrega: ${this.fmtDays(row.lead_first)} (promedio de días hasta el primer remito)\nPedido completo: ${this.fmtDays(row.lead_complete)} (solo pedidos 100% entregados: ${row.lt_comp_n || 0} de ${row.order_count})`;
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_price':
@@ -1247,6 +1295,7 @@ class CustomerAnalysisWidget extends Component {
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
             avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
+            lead_time:         'Lead time de entrega (' + this.leadMethodLabel() + '): días desde la confirmación del pedido hasta la fecha efectiva de entrega. Método principal configurable en Ajustes; el tooltip de cada celda muestra los tres métodos.',
             ontime_pct:        'Porcentaje de entregas realizadas dentro del plazo acordado. El plazo se define según el método configurado en Ajustes (fecha compromiso, fecha programada o SLA en días).',
             avg_days_between:  'Promedio de días entre pedidos consecutivos del cliente en el período.',
             days_since_last:   'Días desde el último pedido hasta hoy. Se resalta en rojo si supera el umbral de riesgo configurado en Ajustes.',

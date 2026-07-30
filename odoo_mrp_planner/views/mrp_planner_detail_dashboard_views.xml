@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="mrp_planner_detail_dashboard_form" model="ir.ui.view">
+        <field name="name">mrp.planner.detail.dashboard.form</field>
+        <field name="model">mrp.planner.detail.dashboard</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+
+                        <!-- ── Encabezado con botón volver ─────────────────── -->
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col-auto">
+                                <button name="action_back" type="object"
+                                        string="← Panel"
+                                        class="btn btn-outline-secondary btn-sm"/>
+                            </div>
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">
+                                    <field name="name" nolabel="1"/>
+                                </h4>
+                            </div>
+                        </div>
+
+                        <!-- ════════════════════════════════════════════════ -->
+                        <!-- ── ÓRDENES DE FABRICACIÓN ──────────────────── -->
+                        <!-- ════════════════════════════════════════════════ -->
+                        <div invisible="category != 'mos'">
+
+                            <!-- Fila 1: estados -->
+                            <div class="o_planner_section mb-4">
+                                <div class="o_planner_section_title mb-3">
+                                    <i class="fa fa-industry me-2 text-muted" title="Estado general"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Estado general</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-list fa-lg text-secondary mb-2 d-block" title="Activas total"/>
+                                                <div class="o_planner_number">
+                                                    <field name="mo_total" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Activas total</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_all_mos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-check-square-o fa-lg text-secondary mb-2 d-block" title="Confirmadas"/>
+                                                <div class="o_planner_number">
+                                                    <field name="mo_confirmed" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Confirmadas</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card o_planner_card_info h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-cog fa-lg text-info mb-2 d-block" title="En progreso"/>
+                                                <div class="o_planner_number text-info">
+                                                    <field name="mo_in_progress" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">En progreso</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card o_planner_card_success h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-check-circle fa-lg text-success mb-2 d-block" title="Completadas"/>
+                                                <div class="o_planner_number text-success">
+                                                    <field name="mo_done" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Completadas</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card o_planner_card_danger h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-warning fa-lg text-danger mb-2 d-block" title="Atrasadas"/>
+                                                <div class="o_planner_number text-danger">
+                                                    <field name="mo_delayed" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Atrasadas</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_delayed_mos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="card o_planner_card o_planner_card_warning h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-refresh fa-lg text-warning mb-2 d-block" title="Para reprogramar"/>
+                                                <div class="o_planner_number text-warning">
+                                                    <field name="mo_reschedule_needed" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Para reprogramar</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_reschedule_mos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-warning">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                        </div>
+
+                        <!-- ════════════════════════════════════════════════ -->
+                        <!-- ── ÓRDENES DE COMPRA ────────────────────────── -->
+                        <!-- ════════════════════════════════════════════════ -->
+                        <div invisible="category != 'pos'">
+
+                            <div class="o_planner_section mb-4">
+                                <div class="o_planner_section_title mb-3">
+                                    <i class="fa fa-shopping-cart me-2 text-muted" title="Estado general"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Estado general</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-list fa-lg text-secondary mb-2 d-block" title="Total activas"/>
+                                                <div class="o_planner_number">
+                                                    <field name="po_total" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Total activas</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_all_pos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_success h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-check fa-lg text-success mb-2 d-block" title="A tiempo"/>
+                                                <div class="o_planner_number text-success">
+                                                    <field name="po_pending" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">A tiempo</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_danger h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block" title="Vencidas"/>
+                                                <div class="o_planner_number text-danger">
+                                                    <field name="po_overdue" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Vencidas</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_overdue_pos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_danger h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block" title="Críticas (según umbral)"/>
+                                                <div class="o_planner_number text-danger">
+                                                    <field name="po_overdue_critical" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Críticas (según umbral)</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_critical_pos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <data noupdate="1">
+        <record id="seq_mrp_production_request" model="ir.sequence">
+            <field name="name">Programación de fabricación</field>
+            <field name="code">mrp.production.request</field>
+            <field name="prefix">PROG/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+
+    <!-- ── Vista lista ── -->
+    <record id="mrp_production_request_list" model="ir.ui.view">
+        <field name="name">mrp.production.request.list</field>
+        <field name="model">mrp.production.request</field>
+        <field name="arch" type="xml">
+            <list string="Programaciones"
+                  decoration-muted="state == 'draft'"
+                  decoration-success="state == 'confirmed'">
+                <field name="name"/>
+                <field name="start_from" string="Disponible desde"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'calculated'"
+                       decoration-success="state == 'confirmed'"/>
+                <field name="create_uid" string="Creado por" optional="show"/>
+                <field name="create_date" string="Fecha" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="mrp_production_request_form" model="ir.ui.view">
+        <field name="name">mrp.production.request.form</field>
+        <field name="model">mrp.production.request</field>
+        <field name="arch" type="xml">
+            <form string="Programación de fabricación">
+
+                <header>
+                    <button name="action_calculate"
+                            type="object"
+                            string="Calcular"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_calculate"
+                            type="object"
+                            string="Recalcular"
+                            class="btn-secondary"
+                            invisible="state != 'calculated'"/>
+                    <button name="action_confirm"
+                            type="object"
+                            string="Crear órdenes de fabricación"
+                            class="btn-primary"
+                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
+                            invisible="state != 'calculated'"
+                            confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
+                    <button name="action_plan_all_mos"
+                            type="object"
+                            string="Planificar OFs"
+                            class="btn-secondary"
+                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
+                            invisible="state != 'confirmed'"
+                            confirm="Se recalcularán las fechas de todos los centros de trabajo para las OFs de este plan (madres e hijas). ¿Continuar?"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,calculated,confirmed"/>
+                </header>
+
+                <sheet>
+
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_planner_dashboard"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-tachometer"
+                                invisible="state != 'confirmed'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Panel</span>
+                            </div>
+                        </button>
+                        <button name="action_view_workorders"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-industry"
+                                invisible="state != 'confirmed' or workorder_count == 0">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="workorder_count"/>
+                                </span>
+                                <span class="o_stat_text">Órdenes de trabajo</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <group>
+                        <field name="start_from"
+                               readonly="state == 'confirmed'"/>
+                        <field name="picking_type_id"
+                               required="1"
+                               readonly="state == 'confirmed'"/>
+                    </group>
+
+                    <!-- Banner de factibilidad global -->
+                    <div invisible="state == 'draft'">
+                        <div class="alert alert-success mb-2 mt-2" role="status" invisible="not all_feasible">
+                            <i class="fa fa-check-circle me-2" title="Programación factible"/>
+                            <field name="feasibility_summary" readonly="1" nolabel="1"/>
+                        </div>
+                        <div class="alert alert-warning mb-2 mt-2" role="status" invisible="all_feasible">
+                            <i class="fa fa-exclamation-triangle me-2" title="Atención"/>
+                            <field name="feasibility_summary" readonly="1" nolabel="1"/>
+                        </div>
+                    </div>
+
+                    <!-- Artículos a programar -->
+                    <field name="item_ids" nolabel="1"
+                           readonly="state == 'confirmed'">
+                        <list string="Artículos" editable="bottom"
+                              decoration-success="feasible and projected_end"
+                              decoration-danger="(not feasible and projected_end) or bom_warning">
+                            <field name="sequence"        widget="handle"/>
+                            <field name="product_id"      string="Producto"/>
+                            <field name="product_qty"     string="Cantidad planificada"/>
+                            <field name="date_deadline"   string="Fecha requerida"/>
+                            <field name="bom_warning"     string="LdM" readonly="1"
+                                   optional="show"
+                                   decoration-danger="bom_warning"/>
+                            <field name="projected_start" string="Inicio planificado" readonly="1"
+                                   optional="show"
+                                   column_invisible="parent.state == 'draft'"/>
+                            <field name="projected_end"   string="Fin planificado"
+                                   readonly="parent.state == 'confirmed' or not earliest_end"/>
+                            <field name="earliest_end"    string="Mínimo alcanzable" readonly="1"
+                                   optional="show"
+                                   column_invisible="parent.state == 'draft'"/>
+                            <field name="feasibility_msg" string="Info"            readonly="1"
+                                   column_invisible="parent.state == 'draft'"/>
+                            <button name="action_adelantar"
+                                    type="object"
+                                    string="Adelantar"
+                                    class="btn-link btn-sm"
+                                    invisible="not earliest_end or projected_end == earliest_end or parent.state == 'confirmed'"/>
+                            <field name="production_id"   string="OF madre"        readonly="1"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="mo_state"        string="Estado OF"       readonly="1"
+                                   widget="badge"
+                                   decoration-success="mo_state == 'done'"
+                                   decoration-warning="mo_state in ('progress', 'to_close')"
+                                   decoration-info="mo_state == 'confirmed'"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="qty_produced"    string="Producido"       readonly="1"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="qty_delta"       string="Δ Cant."         readonly="1"
+                                   decoration-danger="qty_delta &lt; 0 and mo_state == 'done'"
+                                   decoration-success="qty_delta >= 0 and mo_state == 'done'"
+                                   column_invisible="parent.state != 'confirmed'"/>
+                            <field name="feasible"    column_invisible="True"/>
+                        </list>
+                    </field>
+
+                    <!-- Plan calculado: desglose en pestaña separada -->
+                    <notebook invisible="state == 'draft'">
+                        <page string="Plan de fabricación" name="plan_detail">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <field name="hide_auto_reorder" widget="boolean_toggle"/>
+                                <label for="hide_auto_reorder"
+                                       string="Ocultar reabastecimiento automático (mín/máx)"/>
+                            </div>
+
+                            <!-- Vista filtrada: oculta líneas con reabastecimiento automático -->
+                            <field name="line_ids_plan" nolabel="1"
+                                   invisible="not hide_auto_reorder"
+                                   readonly="state == 'confirmed'">
+                                <list string="Plan de fabricación propuesto"
+                                      create="0" delete="0" editable="bottom"
+                                      decoration-bf="level == 0 and record_type == 'mrp'"
+                                      decoration-warning="record_type == 'purchase'"
+                                      decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
+                                      decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
+                                      decoration-muted="level > 0 and record_type == 'mrp'">
+                                    <field name="type_label"        string="Tipo"           readonly="1"/>
+                                    <field name="description_label" string="Producto"       readonly="1"/>
+                                    <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                    <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="workcenter_id"     string="Centro de trabajo"
+                                           domain="[('id', 'in', compatible_workcenter_ids)]"
+                                           readonly="record_type != 'mrp'"
+                                           optional="show"/>
+                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                           optional="show"
+                                           column_invisible="True"/>
+                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
+                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
+                                    <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
+                                    <field name="item_id"                   column_invisible="True"/>
+                                    <field name="record_type"               column_invisible="True"/>
+                                    <field name="level"                     column_invisible="True"/>
+                                    <field name="warning_type"              column_invisible="True"/>
+                                    <field name="compatible_workcenter_ids" column_invisible="True"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <field name="type_label"        string="Tipo"           readonly="1"/>
+                                        <field name="description_label" string="Producto"       readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="workcenter_id"     string="Centro de trabajo"
+                                               domain="[('id', 'in', compatible_workcenter_ids)]"
+                                               invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                               invisible="not workcenter_chain"/>
+                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                               invisible="record_type != 'purchase'"/>
+                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                               invisible="not warning_message"/>
+                                    </group>
+                                    <field name="compatible_workcenter_ids" invisible="1"/>
+                                    <field name="record_type"               invisible="1"/>
+                                </form>
+                            </field>
+
+                            <!-- Vista completa: incluye todas las líneas -->
+                            <field name="line_ids" nolabel="1"
+                                   invisible="hide_auto_reorder"
+                                   readonly="state == 'confirmed'">
+                                <list string="Plan de fabricación propuesto"
+                                      create="0" delete="0" editable="bottom"
+                                      decoration-bf="level == 0 and record_type == 'mrp'"
+                                      decoration-warning="record_type == 'purchase'"
+                                      decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
+                                      decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
+                                      decoration-muted="level > 0 and record_type == 'mrp'">
+                                    <field name="type_label"        string="Tipo"           readonly="1"/>
+                                    <field name="description_label" string="Producto"       readonly="1"/>
+                                    <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                    <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="workcenter_id"     string="Centro de trabajo"
+                                           domain="[('id', 'in', compatible_workcenter_ids)]"
+                                           readonly="record_type != 'mrp'"
+                                           optional="show"/>
+                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                           optional="show"
+                                           column_invisible="True"/>
+                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
+                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
+                                    <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
+                                    <field name="item_id"                   column_invisible="True"/>
+                                    <field name="record_type"               column_invisible="True"/>
+                                    <field name="level"                     column_invisible="True"/>
+                                    <field name="warning_type"              column_invisible="True"/>
+                                    <field name="compatible_workcenter_ids" column_invisible="True"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <field name="type_label"        string="Tipo"           readonly="1"/>
+                                        <field name="description_label" string="Producto"       readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="workcenter_id"     string="Centro de trabajo"
+                                               domain="[('id', 'in', compatible_workcenter_ids)]"
+                                               invisible="record_type != 'mrp'"/>
+                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                               invisible="not workcenter_chain"/>
+                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                               invisible="record_type != 'purchase'"/>
+                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                               invisible="not warning_message"/>
+                                    </group>
+                                    <field name="compatible_workcenter_ids" invisible="1"/>
+                                    <field name="record_type"               invisible="1"/>
+                                </form>
+                            </field>
+                        </page>
+
+                        <page string="Carga por WC" name="wc_load"
+                              invisible="not wc_load_ids">
+                            <field name="wc_load_ids" nolabel="1" readonly="1">
+                                <list string="Carga por centro de trabajo"
+                                      create="0" delete="0">
+                                    <field name="workcenter_id" string="Centro de trabajo"/>
+                                    <field name="total_hours"   string="Horas totales"/>
+                                    <field name="date_start"    string="Inicio"/>
+                                    <field name="date_end"      string="Fin"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mrp_production_request" model="ir.actions.act_window">
+        <field name="name">Programación de fabricación</field>
+        <field name="res_model">mrp.production.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="target">current</field>
+    </record>
+
+    <!-- noupdate="1": active se gestiona programáticamente por _sync_scheduling_group -->
+    <data noupdate="1">
+        <menuitem id="mrp_reschedule_menu_request"
+                  name="Programaciones"
+                  parent="odoo_mrp_planner.mrp_produccion_menu"
+                  sequence="10"
+                  action="action_mrp_production_request"
+                  groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+    </data>
+
+</odoo>

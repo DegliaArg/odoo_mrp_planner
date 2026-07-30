@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Restringe la visibilidad de mrp.forecast.line a la empresa propia del usuario. -->
+    <record id="rule_forecast_line_company" model="ir.rule">
+        <field name="name">Forecast Line: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_forecast_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.config — cada empresa solo ve su propia configuración del planificador. -->
+    <record id="rule_reschedule_config_company" model="ir.rule">
+        <field name="name">Reschedule Config: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.alert — alertas de planificación por empresa. -->
+    <record id="rule_reschedule_alert_company" model="ir.rule">
+        <field name="name">Reschedule Alert: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_alert"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.reschedule.user.permission — permisos por usuario, filtrados por empresa. -->
+    <record id="rule_reschedule_user_permission_company" model="ir.rule">
+        <field name="name">Reschedule User Permission: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_reschedule_user_permission"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.partner.company.category — categorías ABC de proveedor/cliente, por empresa. -->
+    <record id="rule_partner_company_category_company" model="ir.rule">
+        <field name="name">Partner Company Category: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_partner_company_category"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.product.company.category — categoría ABC de venta, por empresa. -->
+    <record id="rule_product_company_category_company" model="ir.rule">
+        <field name="name">Product Company Category: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_product_company_category"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- mrp.product.type — tipos de producto del planificador, por empresa.
+         Usa '|' con False para permitir tipos globales (company_id no obligatorio). -->
+    <record id="mrp_product_type_company_rule" model="ir.rule">
+        <field name="name">MRP Product Type: Multi-Company</field>
+        <field name="model_id" ref="model_mrp_product_type"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+</odoo>

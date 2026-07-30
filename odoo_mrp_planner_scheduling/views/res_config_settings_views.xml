@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Ajustes del planificador: sección de Programación ── -->
+    <record id="mrp_reschedule_config_form_view_scheduling" model="ir.ui.view">
+        <field name="name">mrp.reschedule.config.form.scheduling</field>
+        <field name="model">mrp.reschedule.config</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_config_form_view"/>
+        <field name="arch" type="xml">
+
+            <!-- Toggle maestro en la pestaña General, debajo del grupo de alertas -->
+            <xpath expr="//field[@name='cron_interval_type']/ancestor::group[1]" position="after">
+                                    <group string="Programación y reprogramación">
+                                        <field name="enable_scheduling" widget="scheduling_toggle"
+                                               help="Activa o desactiva todas las funciones de programación y reprogramación: menús, botones en OFs y KPIs en el panel de producción. Al desactivar, los usuarios dejan de ver estas opciones."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1">
+                                            Cuando está <b>desactivado</b> se ocultan el menú de Reprogramación, los botones de reprogramación en las OFs y las tarjetas KPI "Para reprogramar" y "Con reprogramación" del panel de producción.
+                                        </div>
+                                    </group>
+            </xpath>
+
+            <!-- Criterio "Por operaciones programadas" (próximamente) en Producción -->
+            <field name="comparison_force_integer" position="after">
+                                        <!-- Opción futura: visible solo si scheduling está activo, no clickeable -->
+                                        <div class="d-flex align-items-center gap-2 mt-2 ps-1"
+                                             invisible="not enable_scheduling"
+                                             style="cursor: not-allowed; opacity: 0.45; pointer-events: none; user-select: none;">
+                                            <input type="radio" disabled="disabled" style="cursor:not-allowed;"/>
+                                            <span class="small">Por operaciones programadas
+                                                <span class="badge text-bg-secondary ms-1" style="font-size:10px;">Próximamente</span>
+                                            </span>
+                                        </div>
+            </field>
+
+            <!-- Pestaña Programación completa -->
+            <page name="production" position="after">
+                        <!-- ══ PROGRAMACIÓN ═════════════════════════════════════ -->
+                        <page string="Programación" name="scheduling" invisible="not enable_scheduling"
+                              groups="odoo_mrp_planner_scheduling.group_scheduling,odoo_mrp_planner.group_admin,base.group_system">
+                            <div class="row">
+
+                                <div class="col-6">
+                                    <group string="Reprogramación — Centro de trabajo sin configurar">
+                                        <field name="wc_fallback" widget="radio" nolabel="1"
+                                               help="Qué hace el planificador cuando un producto no tiene centros de trabajo compatibles configurados."/>
+                                    </group>
+                                    <group string="Reprogramación — Criterio de prioridad">
+                                        <field name="priority" widget="radio" nolabel="1"
+                                               help="Criterio con que se ordenan las OFs cuando compiten por el mismo centro de trabajo. Cronológico: prioriza la OF con fecha de inicio más próxima. SPT (más cortas primero): minimiza el tiempo de espera promedio. Manual: el operador arrastra y ordena las OFs en el wizard de reprogramación."/>
+                                    </group>
+                                    <group string="Reprogramación — Opciones avanzadas">
+                                        <field name="include_wc_heuristic" widget="boolean_toggle"
+                                               help="Incluye OFs que comparten centros de trabajo con el pivot como dependientes. Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs."/>
+                                    </group>
+                                </div>
+
+                            </div>
+                        </page>
+            </page>
+
+            <!-- El grupo de Programación también accede al menú Configuración -->
+        </field>
+    </record>
+
+    <!-- Menú Configuración visible para el grupo Programación -->
+    <record id="odoo_mrp_planner.mrp_reschedule_menu_config" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('odoo_mrp_planner_scheduling.group_scheduling'))]"/>
+    </record>
+
+</odoo>

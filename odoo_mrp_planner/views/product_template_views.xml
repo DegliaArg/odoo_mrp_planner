@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="product_template_form_mrp_workcenters" model="ir.ui.view">
+        <field name="name">product.template.form.mrp.workcenters</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Clasificación de venta: junto a la Categoría de producto en Información
+                 general (no es scheduling). Se oculta si las categorías de venta están
+                 desactivadas en la configuración. -->
+            <field name="categ_id" position="after">
+                <field name="mrp_enable_sale_cat" invisible="1"/>
+                <field name="x_sale_category"
+                       string="Categoría de venta"
+                       invisible="not sale_ok or not mrp_enable_sale_cat"
+                       help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración del planificador."/>
+                <field name="x_product_type_ids"
+                       string="Tipo de producto"
+                       widget="many2many_tags"
+                       invisible="not sale_ok or not mrp_enable_sale_cat"
+                       options="{'color_field': 'color', 'no_quick_create': false}"
+                       help="Etiquetas de clasificación libre (ej. Materia prima, Producto terminado). Se pueden crear valores directamente desde aquí."/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

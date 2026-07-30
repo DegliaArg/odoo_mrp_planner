@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Extensión del form de mrp.production: indicadores del planificador ── -->
+    <record id="mrp_production_form_inherit_planner" model="ir.ui.view">
+        <field name="name">mrp.production.form.inherit.planner</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp.mrp_production_form_view"/>
+        <field name="arch" type="xml">
+
+            <!-- Botón inteligente de alertas activas de la OF -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_alerts"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exclamation-triangle"
+                        invisible="alert_count == 0">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="alert_count"/>
+                        </span>
+                        <span class="o_stat_text">Alertas</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!--
+                Campo x_parent_mo_id junto al campo Origen.
+                Readonly, solo visible cuando está definido.
+            -->
+            <xpath expr="//page[@name='miscellaneous']//field[@name='origin']" position="after">
+                <field name="x_parent_mo_id"
+                       readonly="1"
+                       invisible="not x_parent_mo_id"
+                       string="OF madre"/>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

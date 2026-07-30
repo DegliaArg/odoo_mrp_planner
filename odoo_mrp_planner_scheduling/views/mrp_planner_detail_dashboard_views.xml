@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Panel de detalle: sección Programaciones ── -->
+    <record id="mrp_planner_detail_dashboard_form_scheduling" model="ir.ui.view">
+        <field name="name">mrp.planner.detail.dashboard.form.scheduling</field>
+        <field name="model">mrp.planner.detail.dashboard</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_planner_detail_dashboard_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@invisible=&quot;category != 'pos'&quot;]" position="after">
+
+                        <!-- ════════════════════════════════════════════════ -->
+                        <!-- ── PROGRAMACIONES ───────────────────────────── -->
+                        <!-- ════════════════════════════════════════════════ -->
+                        <div invisible="category != 'requests'">
+
+                            <!-- Programaciones -->
+                            <div class="o_planner_section mb-4">
+                                <div class="o_planner_section_title mb-3">
+                                    <i class="fa fa-calendar me-2 text-muted" title="Programaciones"/>
+                                    <span class="text-uppercase fw-bold text-muted small">Programaciones</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-list-alt fa-lg text-secondary mb-2 d-block" title="En curso"/>
+                                                <div class="o_planner_number">
+                                                    <field name="req_total" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">En curso</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_all_requests" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_warning h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-random fa-lg text-warning mb-2 d-block" title="Con reprogramación"/>
+                                                <div class="o_planner_number text-warning">
+                                                    <field name="req_reschedule" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Con reprogramación</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_reschedule_requests" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-warning">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- OFs en programaciones -->
+                            <div class="o_planner_section mb-4">
+                                <div class="o_planner_section_title mb-3">
+                                    <i class="fa fa-industry me-2 text-muted" title="OFs en estas programaciones"/>
+                                    <span class="text-uppercase fw-bold text-muted small">OFs en estas programaciones</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-list fa-lg text-secondary mb-2 d-block" title="Total OFs"/>
+                                                <div class="o_planner_number">
+                                                    <field name="req_mos_total" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Total OFs</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_req_mos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_success h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-check-circle fa-lg text-success mb-2 d-block" title="Completadas"/>
+                                                <div class="o_planner_number text-success">
+                                                    <field name="req_mos_done" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Completadas</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <div class="card o_planner_card o_planner_card_danger h-100">
+                                            <div class="card-body text-center py-3">
+                                                <i class="fa fa-clock-o fa-lg text-danger mb-2 d-block" title="Atrasadas"/>
+                                                <div class="o_planner_number text-danger">
+                                                    <field name="req_mos_delayed" nolabel="1"/>
+                                                </div>
+                                                <div class="o_planner_label">Atrasadas</div>
+                                            </div>
+                                            <div class="card-footer p-0">
+                                                <button name="action_view_req_delayed_mos" type="object"
+                                                        class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

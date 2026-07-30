@@ -15,8 +15,8 @@ action = records.action_open_reschedule_plan()
     </record>
 
     <!-- ── Extensión del form de mrp.production: botones de reprogramación ── -->
-    <record id="mrp_production_form_inherit_reschedule" model="ir.ui.view">
-        <field name="name">mrp.production.form.inherit.reschedule</field>
+    <record id="mrp_production_form_reschedule_buttons" model="ir.ui.view">
+        <field name="name">mrp.production.form.reschedule.buttons</field>
         <field name="model">mrp.production</field>
         <field name="inherit_id" ref="mrp.mrp_production_form_view"/>
         <field name="arch" type="xml">

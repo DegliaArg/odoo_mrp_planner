@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Extensión del form de mrp.production: indicadores del planificador ── -->
-    <record id="mrp_production_form_inherit_planner" model="ir.ui.view">
+    <!-- ── Extensión del form de mrp.production: indicadores del planificador ──
+         El id externo conserva el nombre histórico (mrp_production_form_inherit_reschedule)
+         a propósito: así el upgrade sobreescribe el registro existente en lugar de
+         crear una vista nueva y dejar la vieja (que referencia campos movidos a
+         odoo_mrp_planner_scheduling) rompiendo la validación del formulario. -->
+    <record id="mrp_production_form_inherit_reschedule" model="ir.ui.view">
         <field name="name">mrp.production.form.inherit.planner</field>
         <field name="model">mrp.production</field>
         <field name="inherit_id" ref="mrp.mrp_production_form_view"/>

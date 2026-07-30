@@ -45,14 +45,14 @@ class MrpReschedulePlanWcLine(models.Model):
 
     record_label = fields.Char(string='OF',        compute='_compute_display', store=True,
                                help='Nombre de la MO, con código viejo si aplica.')
-    wo_name      = fields.Char(string='Operación', compute='_compute_display', store=True,
+    wo_name      = fields.Char(string='Operación (nombre)', compute='_compute_display', store=True,
                                help='Nombre de la operación o del producto si no hay WO.')
     color        = fields.Integer(compute='_compute_color', store=True,
                                   help='Color según estado del plan: verde=aplicado, azul=calculado, gris=otro.')
 
     plan_state = fields.Selection(related='plan_id.state', store=True, string='Estado plan',
                                   help='Estado del plan padre, denormalizado para filtros en vista.')
-    plan_name  = fields.Char(related='plan_id.name',  store=True, string='Plan',
+    plan_name  = fields.Char(related='plan_id.name',  store=True, string='Plan (nombre)',
                              help='Referencia del plan padre, denormalizada para búsquedas.')
 
     @api.depends('production_id', 'workorder_id')

@@ -123,7 +123,7 @@ class MrpProductionRequestLine(models.Model):
         help='Secuencia concatenada de centros de trabajo involucrados en la ruta de fabricación.',
     )
     description_label = fields.Char(
-        string='Producto',
+        string='Producto (descripción)',
         help='Etiqueta descriptiva del producto para mostrar en vistas de solo lectura.',
     )
     type_label        = fields.Char(

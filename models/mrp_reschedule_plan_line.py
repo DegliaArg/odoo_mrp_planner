@@ -92,7 +92,7 @@ class MrpReschedulePlanLine(models.Model):
     description_label = fields.Char(string='Producto / Proveedor', compute='_compute_display', store=True)
     workcenter_label  = fields.Char(string='Centros de trabajo',   compute='_compute_display', store=True)
     product_qty_display = fields.Char(string='Cantidad',           compute='_compute_display', store=True)
-    type_label        = fields.Char(string='Tipo',                 compute='_compute_display', store=True)
+    type_label        = fields.Char(string='Tipo (etiqueta)',      compute='_compute_display', store=True)
     state_display     = fields.Char(string='Estado',               compute='_compute_state_display', store=False)
     date_delta_display = fields.Char(string='Δ Tiempo',            compute='_compute_delta_display_line', store=False)
 

@@ -91,7 +91,7 @@ class MrpRescheduleAlert(models.Model):
         string='OFs afectadas',
         help='OFs confirmadas/en progreso cuya demanda acumulada supera el stock disponible del producto afectado.'
     )
-    impact_mo_count = fields.Integer(compute='_compute_impact_mo_count', string='OFs afectadas',
+    impact_mo_count = fields.Integer(compute='_compute_impact_mo_count', string='Cantidad de OFs afectadas',
                                      help='Cantidad de OFs impactadas por este desvío. Calculado a partir de impact_mo_ids.')
 
     days_late = fields.Integer(string='Días de atraso', compute='_compute_days_late', store=False,

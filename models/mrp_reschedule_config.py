@@ -78,14 +78,14 @@ class MrpRescheduleConfig(models.Model):
             'Manual: el operador define el orden en el wizard.'
     )
 
-    cron_interval_number = fields.Integer(string='Cada', default=30,
+    cron_interval_number = fields.Integer(string='Revisar alertas cada', default=30,
         help='Frecuencia con que el cron de detección revisa las OFs y OCs '
              'para generar o resolver alertas automáticamente. '
              'Valores bajos = más reactivo, mayor carga en el servidor.')
     cron_interval_type = fields.Selection([
         ('minutes', 'Minutos'),
         ('hours', 'Horas'),
-    ], string='Unidad', default='minutes',
+    ], string='Unidad del intervalo de alertas', default='minutes',
        help='Unidad de tiempo para el intervalo del cron de detección de retrasos. '
             'Combinar con "Cada" para definir la frecuencia total.')
 
@@ -207,13 +207,13 @@ class MrpRescheduleConfig(models.Model):
     )
 
     forecast_coverage_warn_days = fields.Integer(
-        string='Umbral amarillo (días)', default=30,
+        string='Cobertura — umbral amarillo (días)', default=30,
         help='Cobertura menor a este valor se muestra en amarillo (aviso). '
              'Si la unidad es meses, se convierte internamente a días (× 30).'
     )
 
     forecast_coverage_critical_days = fields.Integer(
-        string='Umbral rojo (días)', default=15,
+        string='Cobertura — umbral rojo (días)', default=15,
         help='Cobertura menor a este valor se muestra en rojo (crítico). '
              'Si la unidad es meses, se convierte internamente a días (× 30).'
     )
@@ -265,11 +265,11 @@ class MrpRescheduleConfig(models.Model):
         help='Activa colores e ícono de advertencia en la columna de rotación según los umbrales configurados.'
     )
     stock_break_rotation_warn_days = fields.Integer(
-        string='Umbral amarillo (días)', default=90,
+        string='Rotación — umbral amarillo (días)', default=90,
         help='Rotación mayor a este valor → amarillo.'
     )
     stock_break_rotation_critical_days = fields.Integer(
-        string='Umbral rojo (días)', default=180,
+        string='Rotación — umbral rojo (días)', default=180,
         help='Rotación mayor a este valor → rojo con ícono de advertencia.'
     )
 
@@ -312,7 +312,7 @@ class MrpRescheduleConfig(models.Model):
             'Participación: ordena por métrica y clasifica por % acumulado del total.')
 
     sale_cat_lookback_months = fields.Integer(
-        string='Período de análisis (meses)', default=3,
+        string='Cat. de venta — período de análisis (meses)', default=3,
         help='Cantidad de meses hacia atrás que se analizan las entregas para calcular '
              'la demanda, rotación o participación. Por defecto 3 meses.')
     sale_cat_rotation_source = fields.Selection([
@@ -438,16 +438,16 @@ class MrpRescheduleConfig(models.Model):
             'que puede ser muy volátil).')
 
     # ── Auto-actualización categoría de venta ─────────────────────────────────
-    sale_cat_auto_cron   = fields.Boolean(string='Actualización automática', default=False,
+    sale_cat_auto_cron   = fields.Boolean(string='Actualización automática (cat. de venta)', default=False,
         help='Recalcula las categorías de venta automáticamente según el intervalo configurado. '
              'Si está desactivado, las categorías solo se actualizan con el botón manual.')
-    sale_cat_cron_number = fields.Integer(string='Cada', default=1,
+    sale_cat_cron_number = fields.Integer(string='Cat. de venta — cada', default=1,
         help='Número de unidades de tiempo entre cada recálculo automático de las categorías de venta.')
     sale_cat_cron_type   = fields.Selection([
         ('days',   'Días'),
         ('weeks',  'Semanas'),
         ('months', 'Meses'),
-    ], string='Unidad', default='weeks',
+    ], string='Cat. de venta — unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de venta.')
 
     # ── Categorías de proveedor ───────────────────────────────────────────────
@@ -484,17 +484,17 @@ class MrpRescheduleConfig(models.Model):
             'ABC por calidad — devoluciones: Ranking por percentil por cantidad de devoluciones al proveedor. '
             'Menos devoluciones = mejor categoría.\n'
             'ABC por calidad — combinado: promedio de % entrega a tiempo y % sin diferencia de cantidad.')
-    supplier_cat_cron_number = fields.Integer(string='Cada', default=1,
+    supplier_cat_cron_number = fields.Integer(string='Cat. de proveedor — cada', default=1,
         help='Número de unidades de tiempo entre cada recálculo automático de las categorías de proveedor.')
     supplier_cat_cron_type   = fields.Selection([
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
-    ], string='Unidad', default='weeks',
+    ], string='Cat. de proveedor — unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de proveedor.')
     supplier_cat_auto_cron = fields.Boolean(
-        string='Actualización automática', default=False,
+        string='Actualización automática (cat. de proveedor)', default=False,
         help='Recalcula las categorías de proveedor automáticamente según el intervalo configurado.')
     supplier_cat_lookback_months = fields.Integer(
-        string='Período de análisis (meses)', default=12,
+        string='Cat. de proveedor — período de análisis (meses)', default=12,
         help='Cantidad de meses de historial que se consideran al calcular las categorías de proveedor. '
              'Afecta al botón "Calcular ahora" y al cron automático.')
 
@@ -550,17 +550,17 @@ class MrpRescheduleConfig(models.Model):
             'Frecuencia (SOs del período, cortes configurables; defaults > 10 = 3pts, ≥ 3 = 2pts, resto = 1pt), '
             'Monetario (importe relativo al percentil 33/66 del grupo: alto = 3pts, medio = 2pts, bajo = 1pt). '
             'Cortes de score configurables (defaults: suma 8-9 = A, 6-7 = B, 4-5 = C, 3 = D, < 3 = E).')
-    customer_cat_cron_number = fields.Integer(string='Cada', default=1,
+    customer_cat_cron_number = fields.Integer(string='Cat. de cliente — cada', default=1,
         help='Número de unidades de tiempo entre cada recálculo automático de las categorías de cliente.')
     customer_cat_cron_type   = fields.Selection([
         ('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'),
-    ], string='Unidad', default='weeks',
+    ], string='Cat. de cliente — unidad', default='weeks',
        help='Unidad de tiempo para el intervalo de recálculo automático de categorías de cliente.')
     customer_cat_auto_cron = fields.Boolean(
-        string='Actualización automática', default=False,
+        string='Actualización automática (cat. de cliente)', default=False,
         help='Recalcula las categorías de cliente automáticamente según el intervalo configurado.')
     customer_cat_lookback_months = fields.Integer(
-        string='Período de análisis (meses)', default=12,
+        string='Cat. de cliente — período de análisis (meses)', default=12,
         help='Cantidad de meses de historial que se consideran al calcular las categorías de cliente. '
              'Afecta al botón "Calcular ahora" y al cron automático.')
 

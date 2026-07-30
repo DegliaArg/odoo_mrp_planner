@@ -117,7 +117,7 @@
                     <!-- D-04: Banner de alerta crítica no resuelta -->
                     <div class="alert alert-danger d-flex align-items-center mb-3" role="alert"
                          invisible="severity != 'critical' or resolved">
-                        <i class="fa fa-exclamation-circle me-2 fs-5"/>
+                        <i class="fa fa-exclamation-circle me-2 fs-5" title="Alerta"/>
                         <strong>Alerta crítica sin resolver</strong> — Esta alerta requiere atención inmediata.
                     </div>
                     <div class="oe_title">

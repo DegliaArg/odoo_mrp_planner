@@ -111,7 +111,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
         """Calcula la carga de Centros de Trabajo en el rango de fechas indicado.
 
         Para cada CT activo (filtrado opcionalmente por tag) determina (en horas),
-        con atribución proporcional al período según el solape de cada OT:
+        asignando cada OT al período con el MISMO criterio de fechas configurado en
+        Ajustes para la comparativa y el forecast (comparison_date_mode):
         - Disponible: horas del calendario laboral (descontando feriados/licencias).
         - Ejecutado: duración real prorrateada al período (todas las OT, incl. en progreso).
         - Planificado: duration_expected prorrateado al período.
@@ -210,6 +211,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
 
         planificado_list, ejecutado_list, no_plan_list = [], [], []
         now_utc = fields.Datetime.now()
+        _cfg    = self.env['mrp.reschedule.config'].get_config()
+        wc_mode = (_cfg.comparison_date_mode if _cfg else None) or 'finish_date'
 
         def _overlap_frac(w_start, w_end, p_start, p_end):
             """Fracción de la ventana [w_start, w_end] que cae dentro del período.
@@ -229,21 +232,30 @@ class MrpPlannerDashboardWc(models.TransientModel):
 
             wos = wos_by_wc.get(wc.id, [])  # cargado en batch antes del loop
 
-            # Definiciones (en horas), con atribución PROPORCIONAL al período según
-            # el solape de la ventana de cada OT (date_start → date_finished, o
-            # "ahora" si sigue abierta). Esto evita el todo-o-nada por fecha de
-            # fin: una OT que cruza el borde del mes reparte sus horas, las OT en
-            # progreso aportan lo ya trabajado, y una OT abierta no cuenta su plan
-            # completo en cada mes que toca.
-            #   Ejecutado      = Σ duración real × fracción del período (todas las OT).
-            #   Planificado    = Σ duration_expected × fracción del período.
+            # Cada OT recibe un peso según el MISMO criterio de fechas configurado
+            # en Ajustes para la comparativa y el forecast (comparison_date_mode):
+            #   - finish_date:  entra completa si su fecha de fin cae en el período.
+            #   - start_date:   entra completa si su fecha de inicio cae en el período.
+            #   - overlap:      entra completa si solapa el período.
+            #   - proportional: entra la fracción de su ventana que cae en el período
+            #                   (ventana = inicio → fin real, o "ahora" si sigue abierta).
+            # Con ese peso:
+            #   Ejecutado      = Σ duración real × peso (todas las OT, incl. en progreso).
+            #   Planificado    = Σ duration_expected × peso.
             #   Pendiente      = Σ max(0, plan del período − real del período) de OT abiertas.
-            #   No planificado = Σ max(0, real del período − plan del período): ejecución
-            #                    que superó (o no tenía) plan en el período.
+            #   No planificado = Σ max(0, real del período − plan del período).
             ejecutado = pendiente = planificado = no_planificado = 0.0
             for w in wos:
                 w_end = w.date_finished if (w.state == 'done' and w.date_finished) else now_utc
-                frac  = _overlap_frac(w.date_start, w_end, first_day, last_day)
+                if wc_mode == 'proportional':
+                    frac = _overlap_frac(w.date_start, w_end, first_day, last_day)
+                elif wc_mode == 'start_date':
+                    frac = 1.0 if (w.date_start and first_day <= w.date_start <= last_day) else 0.0
+                elif wc_mode == 'overlap':
+                    frac = 1.0 if _overlap_frac(w.date_start, w_end, first_day, last_day) > 0.0 else 0.0
+                else:  # finish_date: fin real si terminó; fin planificado si sigue abierta
+                    _ref = w.date_finished or (now_utc if w.state != 'done' else None)
+                    frac = 1.0 if (_ref and first_day <= _ref <= last_day) else 0.0
                 if frac <= 0.0:
                     continue
                 real_p = (w.duration or 0.0) / 60.0 * frac
@@ -268,7 +280,6 @@ class MrpPlannerDashboardWc(models.TransientModel):
             pendiente_list.append(round(pendiente, 1))
             no_plan_list.append(round(no_planificado, 1))
 
-        cfg_thr = self.env['mrp.reschedule.config'].get_config()
         tot_avail = sum(avail_list)
         tot_plan  = sum(planificado_list)
         tot_ejec  = sum(ejecutado_list)
@@ -290,7 +301,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
                 'ejecutado':       round(tot_ejec,   1),
                 'pendiente':       round(tot_pend,   1),
                 'no_planificado':  round(tot_noplan, 1),
-                'warn_pct':        (cfg_thr.wc_load_warn_pct if cfg_thr else 0) or 70,
-                'crit_pct':        (cfg_thr.wc_load_crit_pct if cfg_thr else 0) or 90,
+                'warn_pct':        (_cfg.wc_load_warn_pct if _cfg else 0) or 70,
+                'crit_pct':        (_cfg.wc_load_crit_pct if _cfg else 0) or 90,
+                'date_mode':       wc_mode,
             },
         }

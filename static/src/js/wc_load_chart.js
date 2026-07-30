@@ -230,17 +230,24 @@ class WcLoadChartWidget extends Component {
     wcKpiTooltip(key) {
         const k = this.state.kpis;
         const h = v => this.fmtH(v);
+        const MODE_LABELS = {
+            finish_date:  'por fecha de cierre',
+            start_date:   'por fecha de inicio',
+            overlap:      'por solapamiento completo',
+            proportional: 'proporcional por duración',
+        };
+        const modeNote = `\nCriterio de asignación: ${MODE_LABELS[k.date_mode] || 'por fecha de cierre'} (el mismo de la comparativa y el forecast, configurable en Ajustes).`;
         switch (key) {
             case 'disponible':
                 return `Horas del calendario laboral de cada CT en el período, descontando feriados y licencias\n→ ${h(k.disponible)} disponibles`;
             case 'planificado':
-                return `Horas planificadas (duration_expected) prorrateadas al período según el solape de cada OT\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+                return `Horas planificadas (duration_expected) de las OT asignadas al período\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles` + modeNote;
             case 'carga_pct':
                 return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nAmarillo ≥ ${k.warn_pct || 70}% | Rojo ≥ ${k.crit_pct || 90}% (configurable en Ajustes)`;
             case 'ejecutado':
-                return `Horas reales trabajadas dentro del período, prorrateadas por el solape de cada OT (incluye OT en progreso)\n→ ${h(k.ejecutado)} ejecutadas`;
+                return `Horas reales trabajadas de las OT asignadas al período (incluye OT en progreso)\n→ ${h(k.ejecutado)} ejecutadas` + modeNote;
             case 'pendiente':
-                return `Plan del período aún no ejecutado, de OT abiertas\nΣ max(0, plan del período − real del período)\n→ ${h(k.pendiente)} pendientes`;
+                return `Plan del período aún no ejecutado, de OT abiertas\nΣ max(0, plan del período − real del período)\n→ ${h(k.pendiente)} pendientes` + modeNote;
             case 'no_planificado':
                 return `Ejecución del período que superó (o no tenía) plan\nΣ max(0, real del período − plan del período)\n→ ${h(k.no_planificado)} fuera del plan`;
         }

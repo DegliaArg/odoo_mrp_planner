@@ -142,8 +142,8 @@ class MrpRescheduleConfig(models.Model):
         ('start_date',   'Por fecha de inicio'),
         ('overlap',      'Por solapamiento completo'),
         ('proportional', 'Proporcional por duración'),
-    ], string='Criterio de OFs en comparativa y forecast', default='finish_date',
-       help='Define cómo se asignan las OFs a un período en la comparativa y el forecast.\n'
+    ], string='Criterio de OFs en comparativa, forecast y carga de CT', default='finish_date',
+       help='Define cómo se asignan las OFs/OTs a un período en la comparativa, el forecast y el análisis de carga de centros de trabajo.\n'
             'Por fecha de cierre: solo OFs cuya fecha de fin cae dentro del período.\n'
             'Por fecha de inicio: solo OFs cuya fecha de inicio cae dentro del período.\n'
             'Por solapamiento: toda OF activa durante el período (puede aparecer en varios).\n'

@@ -150,6 +150,13 @@ class MrpRescheduleConfig(models.Model):
             'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
             'el producido usa los movimientos reales de stock con fecha en el período.')
 
+    wc_load_warn_pct = fields.Integer(
+        string='Carga de CT — umbral amarillo (%)', default=70,
+        help='La carga de centros de trabajo (planificado ÷ disponible) se muestra en amarillo desde este %.')
+    wc_load_crit_pct = fields.Integer(
+        string='Carga de CT — umbral rojo (%)', default=90,
+        help='La carga de centros de trabajo se muestra en rojo desde este %.')
+
     comparison_pct_green = fields.Integer(
         string='Cumplimiento bueno (%)', default=90,
         help='Comparativo Producido vs Programado: desde este % de cumplimiento se muestra en verde.')

@@ -99,10 +99,12 @@ class WcLoadChartWidget extends Component {
 
         if (this.chart) this.chart.destroy();
 
-        // Barra "plan": Planificado (duration_expected) + capacidad disponible sin planificar.
-        // Barra "real": Ejecutado (duración real de las terminadas) + Pendiente + No planificado
-        // (ejecución que superó el plan; puede exceder la capacidad).
-        const sinPlanificar = data.available_hours.map((a, i) => Math.max(0, a - data.planificado[i]));
+        // Barra "plan": Planificado (plan prorrateado al período) + capacidad sin planificar.
+        // Barra "real": Ejecutado dentro del plan + Pendiente + No planificado (el exceso).
+        // "No planificado" es un subconjunto del ejecutado: se resta del segmento
+        // "Ejecutado" para no contarlo dos veces (la barra mide ejecutado + pendiente).
+        const sinPlanificar   = data.available_hours.map((a, i) => Math.max(0, a - data.planificado[i]));
+        const ejecutadoEnPlan = data.ejecutado.map((e, i) => Math.max(0, e - data.no_planificado[i]));
 
         this.chart = new ChartJs(canvas, {
             type: "bar",
@@ -128,7 +130,7 @@ class WcLoadChartWidget extends Component {
                     },
                     {
                         label: "Ejecutado",
-                        data: data.ejecutado,
+                        data: ejecutadoEnPlan,
                         backgroundColor: "rgba(25,135,84,0.75)",
                         borderColor: "rgba(25,135,84,1)",
                         borderWidth: 1,
@@ -174,8 +176,9 @@ class WcLoadChartWidget extends Component {
                                 const i     = items[0].dataIndex;
                                 const avail = data.available_hours[i];
                                 const plan  = data.planificado[i];
+                                const ejec  = data.ejecutado[i];
                                 const carga = avail > 0 ? Math.round(plan / avail * 100) : 0;
-                                return `  Carga: ${carga}%  |  Disponible: ${avail}h`;
+                                return `  Carga: ${carga}%  |  Disponible: ${avail}h  |  Ejecutado total: ${ejec}h`;
                             },
                         },
                         padding: 10,
@@ -229,24 +232,26 @@ class WcLoadChartWidget extends Component {
         const h = v => this.fmtH(v);
         switch (key) {
             case 'disponible':
-                return `Horas calendario disponibles según el horario de trabajo configurado en cada CT\n→ ${h(k.disponible)} disponibles en el período`;
+                return `Horas del calendario laboral de cada CT en el período, descontando feriados y licencias\n→ ${h(k.disponible)} disponibles`;
             case 'planificado':
-                return `Horas planificadas en las órdenes de trabajo del período (tiempo estándar, duration_expected), terminadas y pendientes\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
+                return `Horas planificadas (duration_expected) prorrateadas al período según el solape de cada OT\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
-                return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nVerde < 70% | Amarillo 70–89.9% | Rojo ≥ 90%`;
+                return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nAmarillo ≥ ${k.warn_pct || 70}% | Rojo ≥ ${k.crit_pct || 90}% (configurable en Ajustes)`;
             case 'ejecutado':
-                return `Suma de la duración REAL (workorder.duration) de las OT TERMINADAS cuya fecha de fin cae en el período\n→ ${h(k.ejecutado)} ejecutadas`;
+                return `Horas reales trabajadas dentro del período, prorrateadas por el solape de cada OT (incluye OT en progreso)\n→ ${h(k.ejecutado)} ejecutadas`;
             case 'pendiente':
-                return `Horas estándar (duration_expected) de las OT NO terminadas que solapan el período\n→ ${h(k.pendiente)} pendientes`;
+                return `Plan del período aún no ejecutado, de OT abiertas\nΣ max(0, plan del período − real del período)\n→ ${h(k.pendiente)} pendientes`;
             case 'no_planificado':
-                return `Tiempo real trabajado que superó lo planificado en las OT terminadas\nEjecutado − duración planificada de las terminadas\n→ ${h(k.no_planificado)} fuera del plan`;
+                return `Ejecución del período que superó (o no tenía) plan\nΣ max(0, real del período − plan del período)\n→ ${h(k.no_planificado)} fuera del plan`;
         }
         return '';
     }
 
     cargaClass(pct) {
-        if (pct >= 90) return "text-danger fw-bold";
-        if (pct >= 70) return "text-warning fw-bold";
+        const warn = this.state.kpis.warn_pct || 70;
+        const crit = this.state.kpis.crit_pct || 90;
+        if (pct >= crit) return "text-danger fw-bold";
+        if (pct >= warn) return "text-warning fw-bold";
         return "text-success fw-bold";
     }
 }

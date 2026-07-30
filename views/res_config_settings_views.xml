@@ -158,6 +158,10 @@
                                             · <i>Ejemplo: OF de 120 uds del 1/Jul al 31/Ago (62 días). En julio (31 días) aporta 120 × 31/62 = 60 uds programadas, y el producido es lo que realmente ingresó al stock en julio.</i><br/>
                                             · <i>El método más preciso para OFs que cruzan meses.</i>
                                         </div>
+                                        <field name="wc_load_warn_pct"
+                                               help="La carga de centros de trabajo (planificado ÷ disponible) se muestra en amarillo desde este porcentaje."/>
+                                        <field name="wc_load_crit_pct"
+                                               help="La carga de centros de trabajo se muestra en rojo desde este porcentaje."/>
                                         <field name="comparison_pct_green"
                                                help="El % de cumplimiento del comparativo se muestra en verde desde este valor."/>
                                         <field name="comparison_pct_warn"

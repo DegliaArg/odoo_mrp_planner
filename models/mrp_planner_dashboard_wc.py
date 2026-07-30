@@ -110,13 +110,14 @@ class MrpPlannerDashboardWc(models.TransientModel):
     def get_wc_chart_data(self, date_from, date_to, tag_id=None):
         """Calcula la carga de Centros de Trabajo en el rango de fechas indicado.
 
-        Para cada CT activo (filtrado opcionalmente por tag) determina (en horas):
-        - Disponible: horas del calendario laboral ajustadas por eficiencia del CT.
-        - Ejecutado: Σ duración REAL (workorder.duration) de las OT terminadas cuya fecha de fin cae en el período.
-        - Pendiente: Σ duration_expected de las OT no terminadas que solapan el período.
-        - Planificado: duration_expected de las terminadas del período + Pendiente.
-        - No planificado: max(0, Ejecutado − duration_expected de las terminadas).
-        - Carga %: Planificado ÷ Disponible × 100.
+        Para cada CT activo (filtrado opcionalmente por tag) determina (en horas),
+        con atribución proporcional al período según el solape de cada OT:
+        - Disponible: horas del calendario laboral (descontando feriados/licencias).
+        - Ejecutado: duración real prorrateada al período (todas las OT, incl. en progreso).
+        - Planificado: duration_expected prorrateado al período.
+        - Pendiente: plan del período aún no ejecutado, de OT abiertas.
+        - No planificado: ejecución del período que superó (o no tenía) plan.
+        - Carga %: Planificado ÷ Disponible × 100 (umbrales configurables en Ajustes).
 
         Los cortes del período se convierten a UTC según el huso del usuario. Los workorders
         se cargan en un único batch (evita N+1) y las horas de calendario se cachean por
@@ -154,7 +155,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         # cuando varios CTs comparten el mismo resource.calendar.
         _cal_hours_cache = {}  # (calendar_id, dt_start, dt_end) -> raw hours (sin efficiency)
 
-        def _avail_hours(calendar, dt_start, dt_end, efficiency):
+        def _avail_hours(calendar, dt_start, dt_end):
             """Devuelve las horas efectivas del calendario ajustadas por eficiencia del CT.
 
             Primero intenta ``get_work_hours_count`` del recurso; si falla (calendario
@@ -167,7 +168,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
                     h = calendar.get_work_hours_count(
                         dt_start.replace(tzinfo=pytz.UTC),
                         dt_end.replace(tzinfo=pytz.UTC),
-                        compute_leaves=False,
+                        compute_leaves=True,   # descuenta feriados y licencias del calendario
                     )
                 except Exception as e:
                     _logger.debug("WC chart: error calendario %s: %s", calendar.name, e)
@@ -179,7 +180,10 @@ class MrpPlannerDashboardWc(models.TransientModel):
                     span = (dt_end - dt_start).days + 1
                     h = weekly * (span / 7.0)
                 _cal_hours_cache[key] = h
-            return _cal_hours_cache[key] * (efficiency or 100.0) / 100.0
+            # La eficiencia del CT NO multiplica la capacidad: en el estándar de
+            # Odoo ajusta la duración esperada de las operaciones, no las horas
+            # del calendario. Multiplicarla inflaba/deflaba el disponible.
+            return _cal_hours_cache[key]
 
         # Fix 19: cargar todos los workorders en 1 query batch antes del loop
         allowed_ids = self._get_wh_domains().allowed_ids
@@ -205,33 +209,50 @@ class MrpPlannerDashboardWc(models.TransientModel):
             wos_by_wc[wo.workcenter_id.id].append(wo)
 
         planificado_list, ejecutado_list, no_plan_list = [], [], []
+        now_utc = fields.Datetime.now()
+
+        def _overlap_frac(w_start, w_end, p_start, p_end):
+            """Fracción de la ventana [w_start, w_end] que cae dentro del período.
+            Ventana puntual o invertida: 1.0 si el inicio cae dentro del período."""
+            if not w_start:
+                return 0.0
+            if not w_end or w_end <= w_start:
+                return 1.0 if p_start <= w_start <= p_end else 0.0
+            total = (w_end - w_start).total_seconds()
+            ov = (min(w_end, p_end) - max(w_start, p_start)).total_seconds()
+            return max(0.0, min(1.0, ov / total))
 
         for wc in workcenters:
-            efficiency = wc.time_efficiency or 100.0
             avail = 0.0
             if wc.resource_calendar_id:
-                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day, efficiency)
+                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day)
 
             wos = wos_by_wc.get(wc.id, [])  # cargado en batch antes del loop
 
-            # Definiciones (en horas):
-            #   Ejecutado   = Σ duración REAL (workorder.duration) de las OT terminadas cuya
-            #                 fecha de fin cae DENTRO del período.
-            #   exp_done    = Σ duración planificada (duration_expected) de esas OT terminadas.
-            #   Pendiente   = Σ duration_expected de las OT no terminadas que solapan el período.
-            #   Planificado = exp_done + Pendiente.
-            #   No planificado = max(0, Ejecutado − exp_done): ejecución real que superó el plan.
-            ejecutado = pendiente = exp_done = 0.0
+            # Definiciones (en horas), con atribución PROPORCIONAL al período según
+            # el solape de la ventana de cada OT (date_start → date_finished, o
+            # "ahora" si sigue abierta). Esto evita el todo-o-nada por fecha de
+            # fin: una OT que cruza el borde del mes reparte sus horas, las OT en
+            # progreso aportan lo ya trabajado, y una OT abierta no cuenta su plan
+            # completo en cada mes que toca.
+            #   Ejecutado      = Σ duración real × fracción del período (todas las OT).
+            #   Planificado    = Σ duration_expected × fracción del período.
+            #   Pendiente      = Σ max(0, plan del período − real del período) de OT abiertas.
+            #   No planificado = Σ max(0, real del período − plan del período): ejecución
+            #                    que superó (o no tenía) plan en el período.
+            ejecutado = pendiente = planificado = no_planificado = 0.0
             for w in wos:
-                if w.state == 'done':
-                    if w.date_finished and first_day <= w.date_finished <= last_day:
-                        ejecutado += (w.duration or 0.0) / 60.0
-                        exp_done  += (w.duration_expected or 0.0) / 60.0
-                else:
-                    pendiente += (w.duration_expected or 0.0) / 60.0
-
-            planificado    = exp_done + pendiente
-            no_planificado = max(0.0, ejecutado - exp_done)
+                w_end = w.date_finished if (w.state == 'done' and w.date_finished) else now_utc
+                frac  = _overlap_frac(w.date_start, w_end, first_day, last_day)
+                if frac <= 0.0:
+                    continue
+                real_p = (w.duration or 0.0) / 60.0 * frac
+                plan_p = (w.duration_expected or 0.0) / 60.0 * frac
+                ejecutado   += real_p
+                planificado += plan_p
+                if w.state != 'done':
+                    pendiente += max(0.0, plan_p - real_p)
+                no_planificado += max(0.0, real_p - plan_p)
 
             # Excluir CTs sin actividad en el período.
             if allowed_ids is not None:
@@ -247,6 +268,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             pendiente_list.append(round(pendiente, 1))
             no_plan_list.append(round(no_planificado, 1))
 
+        cfg_thr = self.env['mrp.reschedule.config'].get_config()
         tot_avail = sum(avail_list)
         tot_plan  = sum(planificado_list)
         tot_ejec  = sum(ejecutado_list)
@@ -268,5 +290,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
                 'ejecutado':       round(tot_ejec,   1),
                 'pendiente':       round(tot_pend,   1),
                 'no_planificado':  round(tot_noplan, 1),
+                'warn_pct':        (cfg_thr.wc_load_warn_pct if cfg_thr else 0) or 70,
+                'crit_pct':        (cfg_thr.wc_load_crit_pct if cfg_thr else 0) or 90,
             },
         }

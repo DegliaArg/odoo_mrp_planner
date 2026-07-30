@@ -90,7 +90,7 @@
                                      t-att-title="moKpiTooltip('ofs', 'in_progress')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cog fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="fmt(state.ofs_kpis.in_progress)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.in_progress)"/>
                                         <div class="o_planner_label">En progreso</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -135,7 +135,7 @@
                                      t-att-title="moKpiTooltip('ofs', 'done')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number text-success" t-esc="fmt(state.ofs_kpis.done)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.done)"/>
                                         <div class="o_planner_label">Finalizadas</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -150,7 +150,7 @@
                                      t-att-title="moKpiTooltip('ofs', 'partial')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-hourglass-half fa-lg text-secondary mb-2 d-block"/>
-                                        <div class="o_planner_number text-secondary" t-esc="fmt(state.ofs_kpis.partial)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.ofs_kpis.partial)"/>
                                         <div class="o_planner_label">Por cerrar</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -278,7 +278,7 @@
                                      t-att-title="moKpiTooltip('req', 'active')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number text-success" t-esc="fmt(state.req_kpis.active)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.req_kpis.active)"/>
                                         <div class="o_planner_label">OFs creadas</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -293,7 +293,7 @@
                                      t-att-title="moKpiTooltip('req', 'calculated')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-calculator fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="fmt(state.req_kpis.calculated)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.req_kpis.calculated)"/>
                                         <div class="o_planner_label">Calculadas</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -498,7 +498,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'produced')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number text-success" t-esc="fmt(state.cmp_kpis.produced) + ' Pz'"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.produced) + ' Pz'"/>
                                         <div class="o_planner_label">Producido</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -525,7 +525,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'ofs_done')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-flag-checkered fa-lg text-info mb-2 d-block"/>
-                                        <div class="o_planner_number text-info" t-esc="fmt(state.cmp_kpis.ofs_done)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.ofs_done)"/>
                                         <div class="o_planner_label">OFs completadas</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -540,7 +540,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'desvio')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-arrows-h fa-lg text-warning mb-2 d-block"/>
-                                        <div class="o_planner_number text-warning" t-esc="fmt(state.cmp_kpis.desvio) + ' Pz'"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.desvio) + ' Pz'"/>
                                         <div class="o_planner_label">Desvío</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -555,7 +555,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'ofs_in_progress')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cogs fa-lg text-primary mb-2 d-block"/>
-                                        <div class="o_planner_number text-primary" t-esc="fmt(state.cmp_kpis.ofs_in_progress)"/>
+                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.ofs_in_progress)"/>
                                         <div class="o_planner_label">OFs en curso</div>
                                     </div>
                                     <div class="card-footer p-0">

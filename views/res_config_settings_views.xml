@@ -158,6 +158,10 @@
                                             · <i>Ejemplo: OF de 120 uds del 1/Jul al 31/Ago (62 días). En julio (31 días) aporta 120 × 31/62 = 60 uds programadas, y el producido es lo que realmente ingresó al stock en julio.</i><br/>
                                             · <i>El método más preciso para OFs que cruzan meses.</i>
                                         </div>
+                                        <field name="comparison_pct_green"
+                                               help="El % de cumplimiento del comparativo se muestra en verde desde este valor."/>
+                                        <field name="comparison_pct_warn"
+                                               help="El % de cumplimiento del comparativo se muestra en amarillo desde este valor; por debajo, rojo."/>
                                         <field name="comparison_force_integer" widget="boolean_toggle"
                                                invisible="comparison_date_mode != 'proportional'"
                                                help="El prorrateo por duración genera cantidades con decimales. Con esta opción el comparativo las redondea a enteros en lugar de usar la precisión de la UdM de cada producto. Solo afecta la presentación del tablero."/>
@@ -631,9 +635,9 @@
                                         </group>
 
                                         <group string="Umbrales semáforo — % Cumplim. / % Físico">
-                                            <field name="customer_analysis_delivery_warn_pct"
+                                            <field name="customer_analysis_delivery_warn_pct" string="Tasas — umbral verde (%)"
                                                    help="Por debajo de este porcentaje (qty entregada ÷ qty pedida × 100), la celda se muestra en amarillo en el análisis de clientes. Colorea tanto la tasa de cumplimiento como la tasa física."/>
-                                            <field name="customer_analysis_delivery_crit_pct"
+                                            <field name="customer_analysis_delivery_crit_pct" string="Tasas — umbral amarillo (%)"
                                                    help="Por debajo de este porcentaje, la celda se muestra en rojo. Colorea tanto la tasa de cumplimiento como la tasa física."/>
                                         </group>
 
@@ -661,6 +665,14 @@
                                                help="Cobertura por debajo de este % se muestra en amarillo (aviso)."/>
                                         <field name="forecast_critical_pct"
                                                help="Cobertura por debajo de este % se muestra en rojo (crítico)."/>
+                                        <field name="forecast_gap_ok_pct"
+                                               help="Brechas demanda/OF vs forecast: hasta este % (absoluto) se muestran en verde."/>
+                                        <field name="forecast_gap_warn_pct"
+                                               help="Brechas demanda/OF vs forecast: hasta este % en amarillo; por encima, rojo."/>
+                                        <field name="forecast_acc_green_pct"
+                                               help="Precisión del forecast: desde este % se muestra en verde. Para la fórmula Sesgo se usan los complementos (desvío ≤ 100−verde)."/>
+                                        <field name="forecast_acc_warn_pct"
+                                               help="Precisión del forecast: desde este % en amarillo; por debajo, rojo."/>
                                     </group>
 
                                     <group string="Forecast — Método de rotación">

@@ -104,6 +104,20 @@ class MrpRescheduleConfig(models.Model):
 
     # ── Forecast ─────────────────────────────────────────────────────────────
 
+    # Umbrales de color de brechas y precisión del forecast (antes hardcodeados)
+    forecast_gap_ok_pct = fields.Integer(
+        string='Brecha aceptable (%)', default=10,
+        help='Brecha demanda/OF vs forecast: hasta este % (en valor absoluto) se muestra en verde.')
+    forecast_gap_warn_pct = fields.Integer(
+        string='Brecha de aviso (%)', default=25,
+        help='Brecha demanda/OF vs forecast: hasta este % se muestra en amarillo; por encima, rojo.')
+    forecast_acc_green_pct = fields.Integer(
+        string='Precisión buena (%)', default=90,
+        help='Precisión del forecast: desde este % se muestra en verde.')
+    forecast_acc_warn_pct = fields.Integer(
+        string='Precisión aceptable (%)', default=70,
+        help='Precisión del forecast: desde este % (y por debajo del verde) se muestra en amarillo; menos, rojo.')
+
     forecast_warning_pct = fields.Integer(
         string='Cobertura mínima (aviso %)', default=70,
         help='Por debajo de este % la celda se muestra en amarillo.')
@@ -135,6 +149,13 @@ class MrpRescheduleConfig(models.Model):
             'Por solapamiento: toda OF activa durante el período (puede aparecer en varios).\n'
             'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
             'el producido usa los movimientos reales de stock con fecha en el período.')
+
+    comparison_pct_green = fields.Integer(
+        string='Cumplimiento bueno (%)', default=90,
+        help='Comparativo Producido vs Programado: desde este % de cumplimiento se muestra en verde.')
+    comparison_pct_warn = fields.Integer(
+        string='Cumplimiento aceptable (%)', default=50,
+        help='Comparativo Producido vs Programado: desde este % (y por debajo del verde) se muestra en amarillo; menos, rojo.')
 
     comparison_force_integer = fields.Boolean(
         string='Forzar cantidades enteras en el comparativo',
@@ -594,12 +615,12 @@ class MrpRescheduleConfig(models.Model):
         help='Solo aplica cuando el método es "Días desde confirmación". '
              'Define cuántos días tiene la empresa para entregar desde que se confirma el pedido.')
     customer_analysis_delivery_warn_pct = fields.Integer(
-        string='% entrega — umbral amarillo', default=80,
-        help='Por debajo de este porcentaje de entrega (qty entregada / qty pedida), '
+        string='Tasas — umbral verde (%)', default=80,
+        help='Desde este porcentaje, las tasas de entrega se muestran en verde. Aplica a las tasas del análisis de clientes y a las tasas física y de cumplimiento del panel de ventas.'
              'la celda se muestra en amarillo en el análisis de clientes.')
     customer_analysis_delivery_crit_pct = fields.Integer(
-        string='% entrega — umbral rojo', default=60,
-        help='Por debajo de este porcentaje de entrega (qty entregada / qty pedida), '
+        string='Tasas — umbral amarillo (%)', default=60,
+        help='Desde este porcentaje (y por debajo del verde), las tasas se muestran en amarillo; menos, rojo. Aplica al análisis de clientes y al panel de ventas.'
              'la celda se muestra en rojo en el análisis de clientes.')
     customer_analysis_ontime_warn_pct = fields.Integer(
         string='% a tiempo — umbral amarillo', default=80,

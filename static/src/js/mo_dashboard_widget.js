@@ -571,8 +571,10 @@ class MoDashboardWidget extends Component {
      */
     pctClass(pct) {
         if (pct === null || pct === undefined) return "text-info fw-semibold";  // sin plan / sobreproducción
-        if (pct >= 90) return "text-success fw-semibold";
-        if (pct >= 50) return "text-warning fw-semibold";
+        const green = this.state.cmp_kpis.pct_green || 90;
+        const warn  = this.state.cmp_kpis.pct_warn  || 50;
+        if (pct >= green) return "text-success fw-semibold";
+        if (pct >= warn)  return "text-warning fw-semibold";
         return "text-danger fw-semibold";
     }
 
@@ -690,7 +692,7 @@ class MoDashboardWidget extends Component {
                 case 'pct':
                     if (k.pct === null)
                         return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${f2(k.produced)} u producidas, 0 programadas${this._cmpModeNote()}`;
-                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%${this._cmpModeNote()}`;
+                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ ${k.pct_green || 90}% | Amarillo ≥ ${k.pct_warn || 50}% (configurable en Ajustes)${this._cmpModeNote()}`;
                 case 'ofs_done':
                     return `OFs con estado Completada (done) cuya fecha de fin cae en el período.\nSe cuenta siempre por fecha de fin, sin importar el criterio de fechas elegido, por eso puede no coincidir con las OFs del comparativo de cantidades.\n→ ${f(k.ofs_done)} OFs completadas`;
                 case 'desvio':
@@ -706,7 +708,7 @@ class MoDashboardWidget extends Component {
         const f = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
         if (item.pct === null)
             return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${f(item.produced_qty)} u producidas, 0 programadas${this._cmpModeNote()}`;
-        return `Relación entre producido y programado para este artículo en el período\nProducido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ 90% | Amarillo ≥ 50% | Rojo < 50%${this._cmpModeNote()}`;
+        return `Relación entre producido y programado para este artículo en el período\nProducido ÷ Programado × 100\n→ ${f(item.produced_qty)} ÷ ${f(item.planned_qty)} × 100 = ${item.pct}%\nVerde ≥ ${this.state.cmp_kpis.pct_green || 90}% | Amarillo ≥ ${this.state.cmp_kpis.pct_warn || 50}% (configurable en Ajustes)${this._cmpModeNote()}`;
     }
 
     /**

@@ -615,6 +615,8 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'kpis': {
                 'planned':         round(total_planned,  2),
                 'produced':        round(total_produced, 2),
+                'pct_green':       (cfg.comparison_pct_green if cfg else 0) or 90,
+                'pct_warn':        (cfg.comparison_pct_warn if cfg else 0) or 50,
                 'pct':             pct,
                 'ofs_done':        ofs_done,
                 'desvio':          desvio,

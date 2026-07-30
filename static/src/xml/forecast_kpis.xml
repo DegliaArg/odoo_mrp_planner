@@ -168,7 +168,7 @@
                      t-on-click="openDrillDemandDelivered">
                     <div class="card-body text-center py-3">
                         <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                        <div class="o_planner_number text-success"><t t-esc="fmt(filteredKpis.total_demand_delivered) + ' Pz'"/></div>
+                        <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_demand_delivered) + ' Pz'"/></div>
                         <div class="o_planner_label">Cumplimiento de demanda</div>
                         <div t-if="filteredKpis.demand_delivered_no_fc > 0"
                              class="text-warning mt-1"

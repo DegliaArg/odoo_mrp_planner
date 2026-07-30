@@ -611,6 +611,15 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             'mo_coverage_color_scope':  mo_coverage_color_scope,
             'mo_mode':                  mo_mode,
             'exclude_services':         _exclude_services,
+            # Umbrales de color configurables (Ajustes). Las tasas reusan los
+            # umbrales de entrega del análisis de clientes: mismo criterio en
+            # ambos paneles.
+            'rate_green_pct':           (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
+            'rate_warn_pct':            (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
+            'gap_ok_pct':               (cfg.forecast_gap_ok_pct if cfg else 0) or 10,
+            'gap_warn_pct':             (cfg.forecast_gap_warn_pct if cfg else 0) or 25,
+            'acc_green_pct':            (cfg.forecast_acc_green_pct if cfg else 0) or 90,
+            'acc_warn_pct':             (cfg.forecast_acc_warn_pct if cfg else 0) or 70,
             # Productos con línea de forecast: el frontend desglosa los chips
             # "sin FC" de los KPIs contra este conjunto (el universo de filas
             # ahora incluye también los vendibles con actividad sin forecast).

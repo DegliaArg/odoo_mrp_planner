@@ -428,14 +428,26 @@ class ForecastWidget extends Component {
         const d = this.state.data;
         return d ? cellClass(cell, d.warning_pct, d.mo_coverage_denominator) : '';
     }
-    svcClass(rate)      { return svcClass(rate); }
-    accClass(acc)       { return accClass(acc, this.state.data && this.state.data.acc_formula); }
+    svcClass(rate) {
+        const d = this.state.data || {};
+        return svcClass(rate, d.rate_green_pct || 80, d.rate_warn_pct || 60);
+    }
+    accClass(acc) {
+        const d = this.state.data || {};
+        return accClass(acc, d.acc_formula, d.acc_green_pct || 90, d.acc_warn_pct || 70);
+    }
     fmtRotation(row)    { return fmtRotation(row, this.state.data && this.state.data.rotation_unit); }
     rotClass(row)       { return rotClass(row, this.state.data && this.state.data.rotation_unit); }
     fmtCoverage(row)    { return fmtCoverage(row, this.state.data && this.state.data.coverage_unit); }
     covClass(row)       { return covClass(row, this.state.data); }
-    demandGapClass(pct) { return demandGapClass(pct); }
-    mosGapClass(pct)    { return mosGapClass(pct); }
+    demandGapClass(pct) {
+        const d = this.state.data || {};
+        return demandGapClass(pct, d.gap_ok_pct || 10, d.gap_warn_pct || 25);
+    }
+    mosGapClass(pct) {
+        const d = this.state.data || {};
+        return mosGapClass(pct, d.gap_ok_pct || 10);
+    }
     fmtGapPct(n)        { return fmtGapPct(n); }
     fmt(n)              { return fmt(n); }
 

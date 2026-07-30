@@ -128,27 +128,31 @@ export function cellClass(cell, warning_pct, mo_coverage_denominator) {
 
 /**
  * Clase CSS para la tasa de servicio al cliente.
- * Verde ≥ 95 %, amarillo ≥ 80 %, rojo por debajo.
+ * Umbrales configurables en Ajustes (reusa los de entrega del análisis de clientes).
  * @param {number|null} rate - Tasa de servicio en porcentaje.
+ * @param {number} green - Desde este % se muestra verde.
+ * @param {number} warn - Desde este % se muestra amarillo; por debajo, rojo.
  * @returns {string} Clase Bootstrap de color.
  */
-export function svcClass(rate) {
+export function svcClass(rate, green = 80, warn = 60) {
     if (rate === null || rate === undefined) return 'text-muted';
-    if (rate >= 95) return 'text-success';
-    if (rate >= 80) return 'text-warning';
+    if (rate >= green) return 'text-success';
+    if (rate >= warn)  return 'text-warning';
     return 'text-danger';
 }
 
-export function accClass(acc, formula) {
+export function accClass(acc, formula, green = 90, warn = 70) {
     if (acc === null || acc === undefined) return 'text-muted';
     if (formula === 'bias') {
+        // El sesgo mide desviación absoluta: se colorea con los complementos
+        // de los mismos umbrales (verde ≤ 100−green, amarillo ≤ 100−warn).
         const abs = Math.abs(acc);
-        if (abs <= 10) return 'text-success';
-        if (abs <= 20) return 'text-warning';
+        if (abs <= 100 - green) return 'text-success';
+        if (abs <= 100 - warn)  return 'text-warning';
         return 'text-danger';
     }
-    if (acc >= 90) return 'text-success';
-    if (acc >= 70) return 'text-warning';
+    if (acc >= green) return 'text-success';
+    if (acc >= warn)  return 'text-warning';
     return 'text-danger';
 }
 
@@ -188,18 +192,18 @@ export function covClass(row, d) {
     return 'text-success';
 }
 
-export function demandGapClass(pct) {
+export function demandGapClass(pct, ok = 10, warn = 25) {
     if (pct === null || pct === undefined) return 'text-muted';
     const abs = Math.abs(pct);
-    if (abs <= 10) return 'text-success fw-semibold';
-    if (abs <= 25) return 'text-warning fw-semibold';
+    if (abs <= ok)   return 'text-success fw-semibold';
+    if (abs <= warn) return 'text-warning fw-semibold';
     return 'text-danger fw-semibold';
 }
 
-export function mosGapClass(pct) {
+export function mosGapClass(pct, ok = 10) {
     if (pct === null || pct === undefined) return 'text-muted';
-    if (pct >= 0) return 'text-success fw-semibold';
-    if (pct >= -10) return 'text-warning fw-semibold';
+    if (pct >= 0)   return 'text-success fw-semibold';
+    if (pct >= -ok) return 'text-warning fw-semibold';
     return 'text-danger fw-semibold';
 }
 

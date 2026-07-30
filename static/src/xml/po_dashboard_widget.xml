@@ -70,7 +70,7 @@
                                  t-att-title="poKpiTooltip('rfq')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
-                                    <div class="o_planner_number text-info" t-esc="fmt(state.kpis.rfq)"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.rfq)"/>
                                     <div class="o_planner_label">Cotizaciones</div>
                                 </div>
                                 <div class="card-footer p-0">
@@ -115,7 +115,7 @@
                                  t-att-title="poKpiTooltip('pending')">
                                 <div class="card-body text-center py-3">
                                     <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
-                                    <div class="o_planner_number text-success" t-esc="fmt(state.kpis.pending)"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.pending)"/>
                                     <div class="o_planner_label">A tiempo</div>
                                 </div>
                                 <div class="card-footer p-0">

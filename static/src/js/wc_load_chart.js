@@ -230,26 +230,28 @@ class WcLoadChartWidget extends Component {
     wcKpiTooltip(key) {
         const k = this.state.kpis;
         const h = v => this.fmtH(v);
-        const MODE_LABELS = {
-            finish_date:  'por fecha de cierre',
-            start_date:   'por fecha de inicio',
-            overlap:      'por solapamiento completo',
-            proportional: 'proporcional por duración',
+        // Frase del criterio activo (el mismo de la comparativa y el forecast).
+        const ASSIGN = {
+            finish_date:  'Una OT entra completa al período si su fecha de fin cae dentro.',
+            start_date:   'Una OT entra completa al período si su fecha de inicio cae dentro.',
+            overlap:      'Una OT entra completa al período si estuvo activa en algún momento del rango.',
+            proportional: 'Cada OT aporta solo la fracción de su ventana (inicio → fin, o "ahora" si sigue abierta) que cae dentro del período.',
         };
-        const modeNote = `\nCriterio de asignación: ${MODE_LABELS[k.date_mode] || 'por fecha de cierre'} (el mismo de la comparativa y el forecast, configurable en Ajustes).`;
+        const assign = (ASSIGN[k.date_mode] || ASSIGN.finish_date)
+            + ' (Criterio configurable en Ajustes; aplica igual en la comparativa y el forecast.)';
         switch (key) {
             case 'disponible':
                 return `Horas del calendario laboral de cada CT en el período, descontando feriados y licencias\n→ ${h(k.disponible)} disponibles`;
             case 'planificado':
-                return `Horas planificadas (duration_expected) de las OT asignadas al período\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles` + modeNote;
+                return `Horas ESPERADAS (duration_expected) de las OT asignadas al período\n${assign}\nLas OT en progreso incluyen su plan completo: lo ya trabajado está en Ejecutado y lo restante en Pendiente.\n→ ${h(k.planificado)} planificadas de ${h(k.disponible)} disponibles`;
             case 'carga_pct':
                 return `Porcentaje de la capacidad disponible que se planificó\nPlanificado ÷ Disponible × 100\n→ ${h(k.planificado)} ÷ ${h(k.disponible)} × 100 = ${k.carga_pct}%\nAmarillo ≥ ${k.warn_pct || 70}% | Rojo ≥ ${k.crit_pct || 90}% (configurable en Ajustes)`;
             case 'ejecutado':
-                return `Horas reales trabajadas de las OT asignadas al período (incluye OT en progreso)\n→ ${h(k.ejecutado)} ejecutadas` + modeNote;
+                return `Horas REALES trabajadas de las OT asignadas al período — terminadas y en progreso (estas aportan lo ya trabajado)\n${assign}\n→ ${h(k.ejecutado)} ejecutadas`;
             case 'pendiente':
-                return `Plan del período aún no ejecutado, de OT abiertas\nΣ max(0, plan del período − real del período)\n→ ${h(k.pendiente)} pendientes` + modeNote;
+                return `Lo que falta del plan de las OT ABIERTAS asignadas al período\nPor OT: max(0, plan − real ya trabajado). Una OT en curso se parte: lo trabajado va a Ejecutado y esto es su resto.\n${assign}\n→ ${h(k.pendiente)} pendientes`;
             case 'no_planificado':
-                return `Ejecución del período que superó (o no tenía) plan\nΣ max(0, real del período − plan del período)\n→ ${h(k.no_planificado)} fuera del plan`;
+                return `Ejecución que superó el plan, OT por OT: max(0, real − plan), sin netear entre OT (una que ahorró horas no tapa a otra que se pasó)\nIncluye OT trabajadas SIN duración esperada cargada: sirve para detectar operaciones sin estándar.\n→ ${h(k.no_planificado)} fuera del plan`;
         }
         return '';
     }

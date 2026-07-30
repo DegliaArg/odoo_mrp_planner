@@ -136,7 +136,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, avg_price: 0 },
+            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, total_delivered: 0, fulfillment_pct: null, avg_price: 0 },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -414,11 +414,14 @@ class CustomerAnalysisWidget extends Component {
         const totalOrders = rows.reduce((s, r) => s + (r.order_count || 0), 0);
         const totalAmount = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
         const totalQty    = rows.reduce((s, r) => s + (r.qty_ordered  || 0), 0);
+        const totalDelivered = rows.reduce((s, r) => s + (r.qty_delivered || 0), 0);
         return {
             total_customers: rows.length,
             total_orders:    totalOrders,
             total_amount:    Math.round(totalAmount * 100) / 100,
             total_qty:       Math.round(totalQty * 10) / 10,
+            total_delivered: Math.round(totalDelivered * 10) / 10,
+            fulfillment_pct: totalQty > 0 ? Math.round(totalDelivered / totalQty * 1000) / 10 : null,
             avg_price:       totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
         };
     }
@@ -1153,6 +1156,10 @@ class CustomerAnalysisWidget extends Component {
                 return `Monto total de ventas del período (suma dinámica de la tabla visible).\nTotal: ${m(k.total_amount)} en ${f(k.total_orders)} pedidos` + this.amountNote() + this.svcNote();
             case 'total_qty':
                 return `Demanda real: piezas pedidas en el período (suma de cantidades de todas las líneas de los clientes visibles). Mismo concepto que "Demanda real" del panel de ventas.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
+            case 'total_delivered':
+                return `Cumplimiento de demanda: piezas ya entregadas de los pedidos del período (acumulado a la fecha, cualquier fecha de entrega). Suma dinámica de la tabla visible — mismo criterio que la columna "Cumpl. demanda".\nTotal: ${f(k.total_delivered)} Pz entregadas de ${f(k.total_qty)} pedidas` + this.svcNote();
+            case 'fulfillment_pct':
+                return `Tasa de cumplimiento del período: de lo pedido en el período, cuánto ya se entregó\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${k.fulfillment_pct != null ? k.fulfillment_pct + '%' : '—'}\nVerde ≥ ${this.state.config.delivery_warn || 80}% | Amarillo ≥ ${this.state.config.delivery_crit || 60}% (umbrales configurables en Ajustes)` + this.svcNote();
             case 'avg_price':
                 return `Precio promedio por unidad del período\nMonto total ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
             case 'avg_days_between':

@@ -12,7 +12,18 @@ function _load(tableKey, defaultCols) {
         if (!s || !Array.isArray(s.order) || typeof s.widths !== 'object') return null;
         const valid = new Set(defaultCols.map(c => c.key));
         const order = s.order.filter(k => valid.has(k));
-        for (const c of defaultCols) if (!order.includes(c.key)) order.push(c.key);
+        // Columnas nuevas (no presentes en la config guardada): se insertan en su
+        // posición por defecto — después de la columna default anterior que el
+        // usuario ya tenga — en lugar de mandarlas al final de la tabla.
+        defaultCols.forEach((c, idx) => {
+            if (order.includes(c.key)) return;
+            let insertAt = order.length;
+            for (let i = idx - 1; i >= 0; i--) {
+                const pos = order.indexOf(defaultCols[i].key);
+                if (pos !== -1) { insertAt = pos + 1; break; }
+            }
+            order.splice(insertAt, 0, c.key);
+        });
         return { order, widths: { ...s.widths } };
     } catch(e) { return null; }
 }

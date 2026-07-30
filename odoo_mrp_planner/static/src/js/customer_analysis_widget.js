@@ -26,6 +26,7 @@ const CA_STATIC_COLS = [
     { key: 'province',          label: 'Provincia',         width: 120, align: 'start'  },
     { key: 'order_count',       label: 'Pedidos',           width:  75, align: 'end'    },
     { key: 'qty_ordered',       label: 'Demanda real',      width: 100, align: 'end'    },
+    { key: 'qty_delivered',     label: 'Cumpl. demanda',    width: 110, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
     { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
@@ -50,6 +51,7 @@ const CA_SORT_KEYS = {
     province:          'province',
     order_count:       'order_count',
     qty_ordered:       'qty_ordered',
+    qty_delivered:     'qty_delivered',
     total_amount:      'total_amount',
     avg_price:         'avg_price',
     delivery_pct:      'delivery_pct',
@@ -145,7 +147,7 @@ class CustomerAnalysisWidget extends Component {
             activeFilter:  null,
             groupBy:       null,
             selectedGroup: null,
-            tableTotals:   { count: 0, orders: 0, qty: 0, amount: 0 },
+            tableTotals:   { count: 0, orders: 0, qty: 0, delivered: 0, amount: 0 },
             colsDropdownOpen: false,
             // Filtros de los gráficos superiores
             chartMetric: 'pxq',
@@ -184,6 +186,7 @@ class CustomerAnalysisWidget extends Component {
                 province:          false,
                 order_count:       true,
                 qty_ordered:       true,
+                qty_delivered:     true,
                 total_amount:      true,
                 avg_price:         true,
                 delivery_pct:      true,
@@ -364,6 +367,7 @@ class CustomerAnalysisWidget extends Component {
             count:  rows.length,
             orders: rows.reduce((s, r) => s + (r.order_count || 0), 0),
             qty:    Math.round(rows.reduce((s, r) => s + (r.qty_ordered || 0), 0) * 10) / 10,
+            delivered: Math.round(rows.reduce((s, r) => s + (r.qty_delivered || 0), 0) * 10) / 10,
             amount: Math.round(rows.reduce((s, r) => s + (r.total_amount || 0), 0) * 100) / 100,
         };
 
@@ -1170,6 +1174,8 @@ class CustomerAnalysisWidget extends Component {
                 return `Pedidos confirmados del cliente en el período\n→ ${f(row.order_count)} pedidos de ${f(k.total_orders)} totales${pct(row.order_count, k.total_orders)}`;
             case 'qty_ordered':
                 return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}` + this.svcNote();
+            case 'qty_delivered':
+                return `Cumplimiento de demanda: piezas ya entregadas de los pedidos del período del cliente (acumulado a la fecha, cualquier fecha de entrega). Mismo concepto que "Cumplimiento de demanda" del panel del cliente.\nQty entregada de las líneas de sus pedidos del período\n→ ${n(row.qty_delivered)} Pz entregadas de ${n(row.qty_ordered)} pedidas${row.delivery_pct != null ? ' (' + row.delivery_pct + '%)' : ''}` + this.svcNote();
             case 'total_amount':
                 return `Monto de ventas del cliente en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.amountNote() + this.svcNote();
             case 'delivery_pct':
@@ -1230,6 +1236,7 @@ class CustomerAnalysisWidget extends Component {
             province:          'Provincia del cliente. Clic para ordenar.',
             order_count:       'Cantidad de pedidos de venta confirmados en el período.',
             qty_ordered:       'Demanda real: total de piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas).',
+            qty_delivered:     'Cumplimiento de demanda: piezas ya entregadas de los pedidos del período (acumulado a la fecha, cualquier fecha de entrega). Es el numerador de la tasa de cumplimiento.',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
             avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
@@ -1248,7 +1255,7 @@ class CustomerAnalysisWidget extends Component {
         if (['total_amount', 'avg_price', 'trend_pct'].includes(col.key)) {
             return base + this.amountNote() + this.svcNote();
         }
-        if (col.key === 'qty_ordered') {
+        if (['qty_ordered', 'qty_delivered'].includes(col.key)) {
             return base + this.svcNote();
         }
         return base;

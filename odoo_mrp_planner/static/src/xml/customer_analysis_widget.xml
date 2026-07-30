@@ -339,6 +339,7 @@
                             <t t-foreach="[
                                 ['order_count',  'Pedidos'],
                                 ['qty_ordered',  'Demanda real'],
+                                ['qty_delivered', 'Cumplimiento de demanda'],
                                 ['total_amount', 'Monto total'],
                                 ['avg_price',    'Precio promedio'],
                                 ['trend_pct',    'Tendencia vs período anterior'],
@@ -492,6 +493,10 @@
                                         <t t-elif="col.key === 'qty_ordered'">
                                             <span title="Suma de piezas pedidas por los clientes visibles en la tabla."
                                                   t-esc="fmt(state.tableTotals.qty)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_delivered'">
+                                            <span title="Suma de piezas ya entregadas de los pedidos del período de los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.delivered)"/>
                                         </t>
                                         <t t-elif="col.key === 'total_amount'">
                                             <span title="Suma del importe sin impuestos de los clientes visibles en la tabla."

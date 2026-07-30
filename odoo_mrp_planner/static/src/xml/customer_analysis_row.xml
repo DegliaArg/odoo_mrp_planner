@@ -68,6 +68,12 @@
                 t-att-title="cellTooltip('qty_ordered', row)"
                 t-esc="fmt(row.qty_ordered)"/>
 
+            <td t-elif="col.key === 'qty_delivered'"
+                class="text-end"
+                style="padding:3px 8px;"
+                t-att-title="cellTooltip('qty_delivered', row)"
+                t-esc="fmt(row.qty_delivered)"/>
+
             <td t-elif="col.key === 'total_amount'"
                 class="text-end" style="padding:3px 8px;"
                 t-att-title="cellTooltip('total_amount', row)"

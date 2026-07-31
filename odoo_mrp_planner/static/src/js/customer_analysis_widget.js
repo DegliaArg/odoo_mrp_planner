@@ -964,6 +964,30 @@ class CustomerAnalysisWidget extends Component {
 
 
 
+    /** Entregas (líneas) de los pedidos del período de TODOS los clientes visibles.
+     *  Mismo criterio que el KPI "Cumpl. de demanda": pedidos confirmados en el
+     *  período, entregas efectivizadas a cualquier fecha. */
+    openKpiDemandDeliveries() {
+        const pids = [...new Set(
+            (this._filteredRows || []).flatMap(r => r.partner_ids || [r.partner_id])
+        )];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Entregas de pedidos del período (líneas)',
+            res_model: 'stock.move.line',
+            views:     [[false, 'list']],
+            domain: [
+                ['state', '=', 'done'],
+                ['picking_id.picking_type_id.code', '=', 'outgoing'],
+                ['picking_id.sale_id.partner_id', 'child_of', pids],
+                ['picking_id.sale_id.state', 'in', ['sale', 'done']],
+                ['picking_id.sale_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['picking_id.sale_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            target: 'current',
+        });
+    }
+
     /** Preset del gráfico: fija su rango al mes calendario en curso. */
     setChartCurrentMonth() {
         const now = new Date();

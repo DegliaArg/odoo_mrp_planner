@@ -221,9 +221,6 @@
                         </div>
                         <div class="o_planner_label">Brecha demanda vs fc.</div>
                     </div>
-                    <div class="card-footer p-0 o_planner_footer_spacer">
-                        <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                    </div>
                 </div>
             </div>
             <!-- Card 3: Brecha OF vs fc — indicador puro, sin drill (era un
@@ -238,42 +235,31 @@
                         </div>
                         <div class="o_planner_label">Brecha OF vs fc.</div>
                     </div>
-                    <div class="card-footer p-0 o_planner_footer_spacer">
-                        <button class="btn btn-sm btn-link w-100 py-1">·</button>
-                    </div>
                 </div>
             </div>
             <!-- Card 4: Tasa física -->
             <div class="col">
-                <div class="card o_planner_card h-100 o_planner_card_clickable"
-                     t-att-title="fcKpiTooltip('svc')"
-                     t-on-click="openDrillDelivered">
-                    <div class="card-body text-center py-3">
+                <div class="card o_planner_card h-100"
+                     t-att-title="fcKpiTooltip('svc')">
+                    <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
                         <i class="fa fa-truck fa-lg mb-2 d-block text-secondary"/>
                         <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_service_rate)">
                             <t t-esc="fmtPct(filteredKpis.overall_service_rate)"/>
                         </div>
                         <div class="o_planner_label">Tasa física</div>
                     </div>
-                    <div class="card-footer p-0">
-                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="openDrillDelivered">Ver →</button>
-                    </div>
                 </div>
             </div>
             <!-- Card 5: Tasa de cumplimiento -->
             <div class="col">
-                <div class="card o_planner_card h-100 o_planner_card_clickable"
-                     t-att-title="fcKpiTooltip('demand_svc')"
-                     t-on-click="openDrillDemandDelivered">
-                    <div class="card-body text-center py-3">
+                <div class="card o_planner_card h-100"
+                     t-att-title="fcKpiTooltip('demand_svc')">
+                    <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
                         <i class="fa fa-check-circle fa-lg mb-2 d-block text-secondary"/>
                         <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)">
                             <t t-esc="fmtPct(filteredKpis.overall_demand_service_rate)"/>
                         </div>
                         <div class="o_planner_label">Tasa de cumplimiento</div>
-                    </div>
-                    <div class="card-footer p-0">
-                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="openDrillDemandDelivered">Ver →</button>
                     </div>
                 </div>
             </div>

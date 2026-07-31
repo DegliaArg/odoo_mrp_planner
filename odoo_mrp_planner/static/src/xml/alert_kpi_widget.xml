@@ -80,7 +80,7 @@
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.qty_mismatch > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
+                                    class="btn btn-sm btn-link w-100 py-1"
                                     aria-label="Ver OFs con cantidades diferentes"
                                     t-on-click="onViewMismatch">Ver →</button>
                         </div>

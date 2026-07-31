@@ -99,6 +99,15 @@
                         </div>
                     </div>
                     <div class="col">
+                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('lead_time', row)">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div class="fw-bold o_planner_number" style="font-size:1rem;"
+                                     t-esc="fmtDays(row.lead_time)"/>
+                                <div class="small text-muted" t-esc="'Lead entrega (' + leadMethodLabel() + ')'"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
                         <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('ontime_pct', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + ontimeClass(row.ontime_pct)"

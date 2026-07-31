@@ -46,8 +46,11 @@ export function openDrillForecast(widget) {
         view_mode: 'list,form',
         views:     [[false, 'list'], [false, 'form']],
         domain:    [
+            // Mismos límites que usa el panel (fc_domain): piso del mes inicial y
+            // fecha EXACTA final — las líneas están imputadas al último día del mes,
+            // con '<= día 1' quedaban todas fuera y el drill abría vacío.
             ['period', '>=', widget.state.periodFrom.substring(0, 7) + '-01'],
-            ['period', '<=', widget.state.periodTo.substring(0, 7)   + '-01'],
+            ['period', '<=', widget.state.periodTo],
             ['product_id', 'in', visibleProductIds(widget)],
         ],
         target: 'current',

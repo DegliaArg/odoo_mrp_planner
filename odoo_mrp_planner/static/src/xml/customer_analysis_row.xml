@@ -203,6 +203,7 @@
                                 {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px',          tip:'Fecha de confirmación de la orden.'},
                                 {key:'amount',       label:'Monto',      cls:'text-end', pad:'3px 8px',          tip:'Importe sin impuestos del pedido.'},
                                 {key:'delivery_pct', label:'% Cumplim.', cls:'text-end', pad:'3px 8px',          tip:'Cumplimiento del pedido: qty entregada (a la fecha) ÷ qty pedida × 100.'},
+                                {key:'lead_time',    label:'Lead entrega', cls:'text-end', pad:'3px 8px',         tip:'Lead time del pedido según el método configurado en Ajustes. El tooltip de cada celda muestra los tres métodos.'},
                                 {key:'state',        label:'Estado',     cls:'',         pad:'3px 8px',          tip:'Estado actual de la orden de venta.'},
                             ]" t-as="col" t-key="col.key">
                                 <th t-att-class="col.cls + ' user-select-none'"
@@ -231,6 +232,9 @@
                                 </td>
                                 <td t-att-class="'text-end ' + deliveryClass(ord.delivery_pct)"
                                     style="padding:3px 8px;" t-esc="fmtPct(ord.delivery_pct)"/>
+                                <td class="text-end" style="padding:3px 8px;"
+                                    t-att-title="orderLeadTooltip(ord)"
+                                    t-esc="fmtDays(ord.lead_time)"/>
                                 <td style="padding:3px 8px;">
                                     <span t-att-class="orderStateBadgeClass(ord.state)"
                                           style="font-size:10px;" t-esc="ord.state"/>

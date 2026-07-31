@@ -317,7 +317,14 @@ class CustomerAnalysisWidget extends Component {
                 (r.salesperson    || '').toLowerCase().includes(q)
             );
         }
-        // Filtros de segmento
+        return rows;
+    }
+
+    /**
+     * Filtros de segmento (Categoría / ABC / Frecuencia). Afectan SOLO a los
+     * gráficos superiores: la tabla, sus KPIs y el pie de totales no cambian.
+     */
+    _segmentFiltered(rows) {
         if (this.state.filterCategory !== null) {
             rows = rows.filter(r => r.customer_category === this.state.filterCategory);
         }
@@ -470,6 +477,11 @@ class CustomerAnalysisWidget extends Component {
         return v !== null && v !== undefined ? this.fmt(v) + ' d' : '—';
     }
 
+    /** Tooltip del lead time de un pedido de la tabla inline: los 3 métodos. */
+    orderLeadTooltip(ord) {
+        return `Lead time del pedido (método principal: ${this.leadMethodLabel()}). Días desde la confirmación hasta la fecha efectiva de cada remito.\nPonderado por cantidad: ${this.fmtDays(ord.lead_weighted)}\nPrimera entrega: ${this.fmtDays(ord.lead_first)}\nPedido completo: ${this.fmtDays(ord.lead_complete)}${ord.lead_complete == null ? ' (aún sin entregar por completo)' : ''}`;
+    }
+
     // ── Handlers de controles ─────────────────────────────────────────────────
 
     onDateFromChange(ev) {
@@ -545,8 +557,8 @@ class CustomerAnalysisWidget extends Component {
      * @returns {Array}
      */
     get chartSourceRows() {
-        if (!this._chartAllRows) return this._filteredRows || this.state.allRows;
-        return this._baseFiltered(this._chartAllRows);
+        if (!this._chartAllRows) return this._segmentFiltered(this._filteredRows || this.state.allRows);
+        return this._segmentFiltered(this._baseFiltered(this._chartAllRows));
     }
 
     toggleColsDropdown(ev) {
@@ -561,9 +573,10 @@ class CustomerAnalysisWidget extends Component {
         this._applySort();
     }
 
-    setFilterCategory(v) { this.state.filterCategory = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
-    setFilterABC(v)      { this.state.filterABC      = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
-    setFilterFreq(v)     { this.state.filterFreq     = v; this.state.page = 1; this._topChartKey = ''; this._topDonutKey = ''; this._applySort(); }
+    // Solo redibujan los gráficos: la tabla no se refiltra ni se resetea la página.
+    setFilterCategory(v) { this.state.filterCategory = v; this._topChartKey = ''; this._topDonutKey = ''; }
+    setFilterABC(v)      { this.state.filterABC      = v; this._topChartKey = ''; this._topDonutKey = ''; }
+    setFilterFreq(v)     { this.state.filterFreq     = v; this._topChartKey = ''; this._topDonutKey = ''; }
 
     get availableCategories() {
         const seen = new Set();

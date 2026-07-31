@@ -865,6 +865,27 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         ], key=lambda x: x['amount'], reverse=True)
 
         # Lista de OVs
+        # ── Lead time por pedido: remitos hechos de los pedidos del período ──
+        # sudo(): mismo criterio que las demás lecturas de picking del dashboard.
+        det_picks = self.env['stock.picking'].sudo().search_read(
+            [('sale_id', 'in', [s['id'] for s in so_data]),
+             ('state', '=', 'done'),
+             ('picking_type_code', '=', 'outgoing')],
+            ['id', 'sale_id', 'date_done'])
+        det_pick_by_so = defaultdict(list)
+        for p in det_picks:
+            det_pick_by_so[p['sale_id'][0]].append(p)
+        det_qty_by_pick = defaultdict(float)
+        if det_picks:
+            for g in self.env['stock.move.line'].sudo().read_group(
+                [('picking_id', 'in', [p['id'] for p in det_picks]), ('state', '=', 'done')],
+                ['picking_id', 'quantity:sum'], ['picking_id'],
+            ):
+                if g.get('picking_id'):
+                    det_qty_by_pick[g['picking_id'][0]] = g.get('quantity') or 0.0
+        _lt_main_key = {'weighted': 'lead_weighted', 'first': 'lead_first', 'complete': 'lead_complete'}[
+            _cfg_detail.get('leadtime_method', 'weighted')]
+
         order_list = []
         for s in sorted(so_data, key=lambda x: x['date_order'], reverse=True):
             sols      = sol_by_order.get(s['id'], [])
@@ -872,13 +893,31 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             del_qty   = sum(l['qty_delivered']   or 0 for l in sols)
             dp        = round(del_qty / ord_qty * 100, 1) if ord_qty > 0 else None
             state_map = {'sale': 'Confirmado', 'done': 'Hecho', 'cancel': 'Cancelado', 'draft': 'Borrador'}
+            # Lead time del pedido (días desde confirmación a cada remito hecho)
+            lw = lf = lc = None
+            pks = det_pick_by_so.get(s['id'], [])
+            if pks:
+                od  = self._to_date(s['date_order'])
+                per = [(max(0, (self._to_date(p['date_done']) - od).days),
+                        det_qty_by_pick.get(p['id'], 0.0)) for p in pks]
+                num = sum(q * d for d, q in per if q > 0)
+                den = sum(q for _, q in per if q > 0)
+                lw  = round(num / den, 1) if den > 0 else None
+                lf  = float(min(d for d, _ in per))
+                if ord_qty > 0 and del_qty >= ord_qty - 1e-6:
+                    lc = float(max(d for d, _ in per))
+            _leads = {'lead_weighted': lw, 'lead_first': lf, 'lead_complete': lc}
             order_list.append({
-                'name':         s['name'],
-                'date':         str(s['date_order'])[:10],
-                'amount':       round(_order_amount[s['id']], 2),
-                'delivery_pct': dp,
-                'state':        state_map.get(s['state'], s['state']),
-                'order_id':     s['id'],
+                'name':          s['name'],
+                'date':          str(s['date_order'])[:10],
+                'amount':        round(_order_amount[s['id']], 2),
+                'delivery_pct':  dp,
+                'state':         state_map.get(s['state'], s['state']),
+                'order_id':      s['id'],
+                'lead_weighted': lw,
+                'lead_first':    lf,
+                'lead_complete': lc,
+                'lead_time':     _leads[_lt_main_key],
             })
 
         # Mix por categoría de venta

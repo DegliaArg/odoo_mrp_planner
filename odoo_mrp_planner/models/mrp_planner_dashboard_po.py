@@ -384,7 +384,15 @@ class MrpPlannerDashboardPo(models.TransientModel):
         kpi_critical   = len(kpi_critical_rs)
 
         if show_svc:
-            services_rs = (rfqs_svc | approve_svc | approved_svc).sorted(po_f, reverse=_rev)
+            # Dominio propio de la pestaña: OCs 100% servicio del período por fecha
+            # de pedido, en cualquier estado activo y SIN filtro de recepción — los
+            # servicios no generan remitos, por lo que receipt_status ('full' al
+            # marcarse recibidos/facturados) los sacaba de los conjuntos de bienes
+            # y la pestaña quedaba vacía.
+            svc_pool = PO.search(
+                [('state', 'in', ('draft', 'sent', 'to approve', 'purchase', 'done'))]
+                + sc_domain + dord_dom + wh_po)
+            services_rs = svc_pool.filtered(_is_svc).sorted(po_f, reverse=_rev)
         else:
             services_rs = self.env['purchase.order']
 

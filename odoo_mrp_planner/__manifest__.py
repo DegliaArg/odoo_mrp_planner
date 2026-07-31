@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Indicadores y análisis',
-    'version': '18.0.5.1.0',
+    'version': '18.0.5.1.1',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -47,11 +47,11 @@ Programación y reprogramación
         'views/mrp_planner_dashboard_views.xml',
         'views/mrp_reschedule_alert_views.xml',
         'views/mrp_production_views.xml',
+        'views/mrp_planner_run_log_views.xml',
         'views/res_config_settings_views.xml',
         'views/res_partner_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',
         'views/mrp_forecast_line_views.xml',
-        'views/mrp_planner_run_log_views.xml',
         'views/res_users_views.xml',
         'wizard/mrp_forecast_import_wizard_views.xml',
     ],

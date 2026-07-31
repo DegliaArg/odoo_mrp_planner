@@ -96,6 +96,20 @@ export function filteredKpis(widget) {
         }
     }
 
+    // Despachados (módulo de despacho): mismos agregados que las entregas
+    // validadas pero solo sobre remitos marcados como despachados.
+    const dispatch_by_order_month = {};
+    let total_delivered_dispatched = 0, dispatched_no_fc = 0;
+    for (const r of rows) {
+        total_delivered_dispatched += r.total_delivered_dispatched || 0;
+        if (!fcSet.has(r.product_id)) dispatched_no_fc += r.total_delivered_dispatched || 0;
+        for (const [ym, qty] of Object.entries(r.dispatch_by_order_month || {})) {
+            dispatch_by_order_month[ym] = (dispatch_by_order_month[ym] || 0) + qty;
+        }
+    }
+    const overall_dispatch_rate = total_so_demand > 0
+        ? Math.round(total_delivered_dispatched / total_so_demand * 100) : null;
+
     return {
         ...widget.state.data.kpis,
         total_forecast,
@@ -111,6 +125,10 @@ export function filteredKpis(widget) {
         demand_gap_pct,
         mos_gap_pct,
         del_by_order_month,
+        dispatch_by_order_month,
+        total_delivered_dispatched: Math.round(total_delivered_dispatched * 10) / 10,
+        dispatched_no_fc:           Math.round(dispatched_no_fc * 10) / 10,
+        overall_dispatch_rate,
         so_demand_no_fc:        Math.round(so_demand_no_fc * 10) / 10,
         mos_no_fc:              Math.round(mos_no_fc * 10) / 10,
         delivered_no_fc:        Math.round(delivered_no_fc * 10) / 10,

@@ -170,7 +170,8 @@ class ForecastWidget extends Component {
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
-            delBreakdownOpen: false,   // "Ver →" de Entregas físicas reemplaza los KPIs por el desglose
+            delBreakdownOpen: false,   // "Ver →" de Entregas validadas/físicas reemplaza los KPIs por el desglose
+            delBreakdownMode: 'validated',  // 'validated' | 'dispatched' (despachados)
             kpiZoneMinHeight: 0,       // alto del bloque de KPIs, para que el desglose no achique el contenedor
         });
 
@@ -300,7 +301,8 @@ class ForecastWidget extends Component {
 
     /** Abre el desglose de entregas fijando el alto actual del bloque de KPIs
      *  para que el contenedor no se achique al reemplazarlos. */
-    openDelBreakdown() {
+    openDelBreakdown(mode = 'validated') {
+        this.state.delBreakdownMode = mode === 'dispatched' ? 'dispatched' : 'validated';
         const el = this.kpiZoneRef && this.kpiZoneRef.el;
         if (el) this.state.kpiZoneMinHeight = el.offsetHeight;
         this.state.delBreakdownOpen = true;
@@ -314,7 +316,10 @@ class ForecastWidget extends Component {
      * @returns {Array<{key: string, label: string, qty: number}>}
      */
     get delByOrderMonthRows() {
-        const byMonth = this.filteredKpis.del_by_order_month || {};
+        const dispatched = this.state.delBreakdownMode === 'dispatched';
+        const byMonth = (dispatched
+            ? this.filteredKpis.dispatch_by_order_month
+            : this.filteredKpis.del_by_order_month) || {};
         const rows = Object.keys(byMonth).filter(k => k).sort().map(ym => {
             const [y, m] = ym.split('-');
             const label = new Date(+y, +m - 1, 1).toLocaleString('es', { month: 'long', year: 'numeric' });
@@ -491,8 +496,10 @@ class ForecastWidget extends Component {
     openDrillForecast()            { return openDrillForecast(this); }
     openDrillMos()                 { return openDrillMos(this); }
     openDrillSoDemand()            { return openDrillSoDemand(this); }
-    openDrillDelivered()           { return openDrillDelivered(this); }
-    openDrillDeliveredByOrderMonth(r) { return openDrillDeliveredByOrderMonth(this, r.key, r.label); }
+    openDrillDelivered()           { return openDrillDelivered(this, this.state.delBreakdownMode === 'dispatched'); }
+    openDrillDeliveredByOrderMonth(r) { return openDrillDeliveredByOrderMonth(this, r.key, r.label, this.state.delBreakdownMode === 'dispatched'); }
+    openDispatchBreakdown()        { return this.openDelBreakdown('dispatched'); }
+    openDrillDispatchedNoFc()      { return openDrillDeliveredNoFc(this, true); }
     openDrillDemandDelivered()     { return openDrillDemandDelivered(this); }
     openDrillSoDemandNoFc()        { return openDrillSoDemandNoFc(this); }
     openDrillMosNoFc()             { return openDrillMosNoFc(this); }

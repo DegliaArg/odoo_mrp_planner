@@ -98,12 +98,17 @@ export function openDrillSoDemand(widget) {
     });
 }
 
-export function openDrillDelivered(widget) {
+/** Dominio extra cuando el drill es sobre remitos despachados (módulo de despacho). */
+function dispatchDom(dispatched) {
+    return dispatched ? [['picking_id.x_dispatch_state', '=', 'dispatched']] : [];
+}
+
+export function openDrillDelivered(widget, dispatched = false) {
     const { dateFrom, dateTo } = periodDateRange(widget);
     const pids = visibleProductIds(widget);
     widget.action.doAction({
         type:      'ir.actions.act_window',
-        name:      'Entregas Físicas (movimientos de salida)',
+        name:      dispatched ? 'Entregas físicas (despachadas)' : 'Entregas validadas (movimientos de salida)',
         res_model: 'stock.move.line',
         view_mode: 'list',
         views:     [[false, 'list']],
@@ -113,6 +118,7 @@ export function openDrillDelivered(widget) {
             ['date', '>=', dateFrom],
             ['date', '<=', dateTo],
             ['product_id', 'in', pids],
+            ...dispatchDom(dispatched),
         ],
         target: 'current',
     });
@@ -126,7 +132,7 @@ export function openDrillDelivered(widget) {
  *   o '' para las salidas sin pedido de venta vinculado.
  * @param {string} label - Etiqueta de la fila, usada como título de la ventana.
  */
-export function openDrillDeliveredByOrderMonth(widget, ymKey, label) {
+export function openDrillDeliveredByOrderMonth(widget, ymKey, label, dispatched = false) {
     const { dateFrom, dateTo } = periodDateRange(widget);
     const pids = visibleProductIds(widget);
     const domain = [
@@ -149,9 +155,10 @@ export function openDrillDeliveredByOrderMonth(widget, ymKey, label) {
     } else {
         domain.push(['picking_id.sale_id', '=', false]);
     }
+    domain.push(...dispatchDom(dispatched));
     widget.action.doAction({
         type:      'ir.actions.act_window',
-        name:      `Entregas físicas — ${label}`,
+        name:      `${dispatched ? 'Entregas físicas (despachadas)' : 'Entregas validadas'} — ${label}`,
         res_model: 'stock.move.line',
         view_mode: 'list',
         views:     [[false, 'list']],
@@ -239,17 +246,18 @@ export function openDrillDemandDeliveredNoFc(widget) {
             ['picking_id.sale_id.date_order', '<=', dateTo],
             ['product_id.sale_ok', '=', true],
             ['product_id', 'not in', pids],
+            ...dispatchDom(dispatched),
         ],
         target: 'current',
     });
 }
 
-export function openDrillDeliveredNoFc(widget) {
+export function openDrillDeliveredNoFc(widget, dispatched = false) {
     const { dateFrom, dateTo } = periodDateRange(widget);
     const pids = forecastProductIds(widget);
     widget.action.doAction({
         type:      'ir.actions.act_window',
-        name:      'Entregas físicas – productos sin forecast',
+        name:      (dispatched ? 'Entregas físicas (despachadas)' : 'Entregas validadas') + ' – productos sin forecast',
         res_model: 'stock.move.line',
         view_mode: 'list',
         views:     [[false, 'list']],
@@ -260,6 +268,7 @@ export function openDrillDeliveredNoFc(widget) {
             ['date', '<=', dateTo],
             ['product_id.sale_ok', '=', true],
             ['product_id', 'not in', pids],
+            ...dispatchDom(dispatched),
         ],
         target: 'current',
     });

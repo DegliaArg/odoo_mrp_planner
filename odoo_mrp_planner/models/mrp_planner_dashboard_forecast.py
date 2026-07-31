@@ -61,6 +61,17 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         return [{'id': w.id, 'name': w.name} for w in whs]
 
     @api.model
+    @api.model
+    def _forecast_dispatch_enabled(self):
+        """Hook del módulo de despacho: sin odoo_mrp_planner_dispatch instalado
+        (o con el toggle apagado) no existen los KPIs de despachados."""
+        return False
+
+    @api.model
+    def _forecast_dispatched_picking_ids(self, picking_ids):
+        """Hook del módulo de despacho: subconjunto de pickings despachados."""
+        return set()
+
     def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):
         """
         Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado.
@@ -345,6 +356,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         if _del_pick_ids:
             for _p in self.env['stock.picking'].browse(_del_pick_ids).read(['id', 'sale_id']):
                 _pick_to_sale[_p['id']] = _p['sale_id'][0] if _p['sale_id'] else None
+        # Remitos despachados (módulo de despacho): mismo universo y filtros
+        # que las entregas validadas — el subconjunto se define por picking.
+        _dispatched_picks = self._forecast_dispatched_picking_ids(_del_pick_ids)
+        dispatch_del_by_order_month = {}  # {product_id: {order_ym: qty}} solo despachados
         _del_sale_ids = list({sid for sid in _pick_to_sale.values() if sid})
         _del_sale_dates = {}
         if _del_sale_ids:
@@ -376,6 +391,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 _oym = ''
             del_by_order_month.setdefault(pid, {})
             del_by_order_month[pid][_oym] = del_by_order_month[pid].get(_oym, 0.0) + qty
+            if _pick_id in _dispatched_picks:
+                dispatch_del_by_order_month.setdefault(pid, {})
+                dispatch_del_by_order_month[pid][_oym] = \
+                    dispatch_del_by_order_month[pid].get(_oym, 0.0) + qty
 
         # ── Demanda real: pedidos de venta confirmados ─────────────────────────
         so_data = {}    # {product_id: {ym: qty}}
@@ -524,6 +543,13 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         # ── Construir filas ────────────────────────────────────────────────────
         rows = self._fc_build_rows(query, cfg_build, months, n_months, _period_days)
 
+        # Despachados por fila (KPIs de "Entregas físicas" con módulo de despacho)
+        _dispatch_on = self._forecast_dispatch_enabled()
+        for r in rows:
+            _dm = dispatch_del_by_order_month.get(r['product_id'], {})
+            r['dispatch_by_order_month']    = _dm
+            r['total_delivered_dispatched'] = round(sum(_dm.values()), 2)
+
         # ── Totales por mes ────────────────────────────────────────────────────
         month_totals = []
         for i, ym in enumerate(months):
@@ -623,6 +649,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             # Productos con línea de forecast: el frontend desglosa los chips
             # "sin FC" de los KPIs contra este conjunto (el universo de filas
             # ahora incluye también los vendibles con actividad sin forecast).
+            'dispatch_enabled': _dispatch_on,
             'fc_product_ids':           fc_only_product_ids,
         }
 

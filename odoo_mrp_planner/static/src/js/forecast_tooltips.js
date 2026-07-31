@@ -154,7 +154,7 @@ export function fcKpiTooltip(widget, key) {
             const breakdown = lines.length
                 ? '\nPor mes de confirmación del pedido:\n' + lines.join('\n')
                 : '';
-            return `Unidades entregadas físicamente en el período seleccionado (albaranes validados), de cualquier pedido y de todos los artículos vendibles (con y sin forecast)${breakdown}`;
+            return `Entregas validadas: unidades que salieron por remitos VALIDADOS en el período, de cualquier pedido y de todos los artículos vendibles (con y sin forecast). Con el módulo de despacho activo, las que además fueron despachadas se ven en "Entregas físicas"${breakdown}`;
         }
         case 'demand_delivered':
             return `Todo lo entregado de pedidos confirmados en el período, sin importar la fecha de entrega (todos los artículos vendibles, con y sin forecast)\n→ ${widget.fmt(widget.filteredKpis.total_demand_delivered)} Pz` + svcNote;
@@ -166,7 +166,19 @@ export function fcKpiTooltip(widget, key) {
                 ? `\n  Entregas: ${widget.fmt(fk.total_delivered - noFcDel)} con FC + ${widget.fmt(noFcDel)} sin FC = ${widget.fmt(fk.total_delivered)}`
                 + `\n  Demanda:  ${widget.fmt(fk.total_so_demand - noFcDem)} con FC + ${widget.fmt(noFcDem)} sin FC = ${widget.fmt(fk.total_so_demand)}`
                 : '';
-            return `Entregas físicas del período ÷ demanda real total${noFcPart}\n→ ${widget.fmt(fk.total_delivered)} ÷ ${widget.fmt(fk.total_so_demand)} × 100 = ${widget.fmtPct(fk.overall_service_rate)}` + svcNote;
+            return `Tasa validada: entregas validadas del período ÷ demanda real total${noFcPart}\n→ ${widget.fmt(fk.total_delivered)} ÷ ${widget.fmt(fk.total_so_demand)} × 100 = ${widget.fmtPct(fk.overall_service_rate)}` + svcNote;
+        }
+        case 'dispatched': {
+            const fk = widget.filteredKpis;
+            const noFc = fk.dispatched_no_fc || 0;
+            const noFcPart = noFc > 0
+                ? `\n  ${widget.fmt(fk.total_delivered_dispatched - noFc)} con FC + ${widget.fmt(noFc)} sin FC = ${widget.fmt(fk.total_delivered_dispatched)}`
+                : '';
+            return `Entregas físicas: unidades de remitos validados Y DESPACHADOS en el período (circuito de despacho de Inventario). Es el subconjunto de "Entregas validadas" que ya salió físicamente${noFcPart}\n→ ${widget.fmt(fk.total_delivered_dispatched)} Pz de ${widget.fmt(fk.total_delivered)} validadas`;
+        }
+        case 'dispatch_svc': {
+            const fk = widget.filteredKpis;
+            return `Tasa física: entregas despachadas del período ÷ demanda real total (mismo denominador que la tasa validada)\n→ ${widget.fmt(fk.total_delivered_dispatched)} ÷ ${widget.fmt(fk.total_so_demand)} × 100 = ${widget.fmtPct(fk.overall_dispatch_rate)}` + svcNote;
         }
         case 'demand_svc': {
             const fk = widget.filteredKpis;

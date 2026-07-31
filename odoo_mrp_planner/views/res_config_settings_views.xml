@@ -35,8 +35,6 @@
                                             <field name="cron_interval_type" class="ms-2" nolabel="1"/>
                                         </div>
                                     </group>
-                                </div>
-                                <div class="col-6">
                                     <group string="Preferencias por usuario">
                                         <div class="text-muted small mb-3">
                                             Configurá qué depósitos puede ver cada usuario y qué secciones
@@ -47,6 +45,8 @@
                                                 string="Gestionar preferencias por usuario →"
                                                 class="btn btn-primary"/>
                                     </group>
+                                </div>
+                                <div class="col-6">
                                     <group string="Registro — Asignación automática de categorías">
                                         <div class="text-muted small mb-2">
                                             Última corrida (manual o por cron) de cada clasificación y cuántos
@@ -81,7 +81,7 @@
                               groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system">
                             <div class="row">
 
-                                <!-- Columna única: alertas y quiebres -->
+                                <!-- Columna izquierda: alertas, quiebres y despacho -->
                                 <div class="col-6">
                                     <group string="Alertas — Órdenes de fabricación">
                                         <field name="alert_mo_critical_days"
@@ -95,6 +95,10 @@
                                         <field name="stock_location_id"
                                                help="Ubicación interna desde la cual se mide el stock en el widget de quiebres."/>
                                     </group>
+                                </div>
+
+                                <!-- Columna derecha: qué OFs entran y cómo se comparan -->
+                                <div class="col-6">
                                     <group string="OFs incluidas en comparativa y forecast">
                                         <div class="text-muted small border-start border-2 ps-2 mb-2">
                                             Define qué estados de OF se suman como <b>Programado</b> tanto en <i>Producido vs. Programado</i> como en el <i>Forecast</i>. Las OFs canceladas nunca se incluyen.
@@ -544,7 +548,12 @@
                                         </div>
                                     </group>
 
-                                    <!-- ── Análisis de clientes (izquierda, debajo de categorías) ── -->
+                                </div>
+
+                                <!-- ── Columna derecha: análisis de clientes + forecast ── -->
+                                <div class="col-6">
+
+                                    <!-- ── Análisis de clientes (junto al forecast) ── -->
                                     <group string="Análisis de clientes">
 
                                         <group string="Valorización monetaria">
@@ -641,10 +650,6 @@
 
                                     </group>
 
-                                </div>
-
-                                <!-- ── Columna derecha: forecast ──────────────────── -->
-                                <div class="col-6">
 
                                     <group string="Forecast — Visualización">
                                         <field name="forecast_warning_pct"

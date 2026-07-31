@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Ajustes del planificador → Producción: toggle de despacho ── -->
+    <record id="mrp_reschedule_config_form_view_dispatch" model="ir.ui.view">
+        <field name="name">mrp.reschedule.config.form.dispatch</field>
+        <field name="model">mrp.reschedule.config</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_config_form_view"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//field[@name='stock_location_id']/ancestor::group[1]" position="after">
+                <group string="Despacho de entregas">
+                    <field name="enable_dispatch_validation" widget="boolean_toggle"/>
+                    <div class="text-muted small border-start border-2 ps-2 mt-1">
+                        Agrega a las salidas el estado <b>Sin despachar / Despachado</b> y el botón
+                        "Marcar despachado" (solo con el remito validado y para usuarios del grupo
+                        <i>Inventario: validación de despacho</i>). Al <b>activar</b>, las salidas ya
+                        validadas que nunca entraron al circuito se marcan como despachadas, así la
+                        cola pendiente arranca vacía. Al desactivar no se pierde nada: los estados
+                        se conservan ocultos.
+                    </div>
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

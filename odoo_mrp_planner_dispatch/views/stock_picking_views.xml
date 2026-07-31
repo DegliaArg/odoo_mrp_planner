@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Form de la orden de entrega: botones y auditoría de despacho ── -->
+    <record id="view_picking_form_dispatch" model="ir.ui.view">
+        <field name="name">stock.picking.form.dispatch</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//header" position="inside">
+                <field name="x_dispatch_enabled" invisible="1"/>
+                <button name="action_mark_dispatched"
+                        type="object"
+                        string="Marcar despachado"
+                        class="btn-primary"
+                        groups="odoo_mrp_planner_dispatch.group_dispatch_validation"
+                        invisible="not x_dispatch_enabled or state != 'done' or x_dispatch_state != 'to_dispatch'"
+                        help="Confirma que la mercadería salió físicamente. Solo disponible con la entrega validada."/>
+                <button name="action_reset_dispatch"
+                        type="object"
+                        string="Volver a Sin despachar"
+                        groups="odoo_mrp_planner.group_admin"
+                        invisible="not x_dispatch_enabled or x_dispatch_state != 'dispatched'"
+                        confirm="¿Revertir el despacho de esta entrega? La reversa queda registrada en el chatter."
+                        help="Reversa de un despacho marcado por error. Solo administradores del planificador."/>
+            </xpath>
+
+            <!-- Estado + auditoría en Información adicional -->
+            <xpath expr="//page[@name='extra']" position="inside">
+                <group string="Despacho" invisible="not x_dispatch_enabled">
+                    <field name="x_dispatch_state" readonly="1" widget="badge"
+                           decoration-warning="x_dispatch_state == 'to_dispatch'"
+                           decoration-success="x_dispatch_state == 'dispatched'"/>
+                    <field name="x_dispatch_date" readonly="1"
+                           invisible="x_dispatch_state != 'dispatched'"/>
+                    <field name="x_dispatch_user_id" readonly="1"
+                           invisible="x_dispatch_state != 'dispatched'"/>
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ── Lista de entregas: columna de despacho ── -->
+    <record id="vpicktree_dispatch" model="ir.ui.view">
+        <field name="name">stock.picking.list.dispatch</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <field name="state" position="before">
+                <field name="x_dispatch_enabled" column_invisible="1"/>
+                <field name="x_dispatch_state" string="Despacho" optional="show" widget="badge"
+                       decoration-warning="x_dispatch_state == 'to_dispatch'"
+                       decoration-success="x_dispatch_state == 'dispatched'"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── Búsqueda: filtros de despacho ── -->
+    <record id="view_picking_search_dispatch" model="ir.ui.view">
+        <field name="name">stock.picking.search.dispatch</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter name="filter_to_dispatch" string="Sin despachar"
+                        domain="[('x_dispatch_state', '=', 'to_dispatch'), ('state', '=', 'done')]"
+                        help="Salidas validadas pendientes de despacho."/>
+                <filter name="filter_dispatched" string="Despachado"
+                        domain="[('x_dispatch_state', '=', 'dispatched')]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Acción masiva: despachar varios remitos desde la lista ── -->
+    <record id="action_server_mark_dispatched" model="ir.actions.server">
+        <field name="name">Marcar despachado</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="groups_id" eval="[(4, ref('odoo_mrp_planner_dispatch.group_dispatch_validation'))]"/>
+        <field name="code">
+action = records.action_mark_dispatched()
+        </field>
+    </record>
+
+</odoo>

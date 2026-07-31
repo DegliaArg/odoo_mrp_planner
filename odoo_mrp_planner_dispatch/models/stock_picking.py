@@ -1,0 +1,133 @@
+"""
+Módulo: stock_picking.py (odoo_mrp_planner_dispatch)
+Modelo: extensión de stock.picking
+
+Agrega a las órdenes de entrega (salidas) el circuito de despacho:
+estado Sin despachar / Despachado, botón de despacho con doble control
+(remito validado + grupo de seguridad, verificado también en servidor),
+reversa para administradores y auditoría de fecha/usuario/chatter.
+
+Relacionado con:
+- mrp.reschedule.config: enable_dispatch_validation activa la función por
+  empresa (agregado por este módulo).
+- res.groups (group_dispatch_validation): habilita el botón de despacho.
+"""
+from odoo import models, fields, api, _
+from odoo.exceptions import AccessError, UserError
+
+
+class StockPicking(models.Model):
+    _inherit = 'stock.picking'
+
+    x_dispatch_state = fields.Selection([
+        ('to_dispatch', 'Sin despachar'),
+        ('dispatched',  'Despachado'),
+    ], string='Despacho', copy=False, index=True,
+       help='Circuito de despacho de las salidas: el remito nace "Sin despachar" y '
+            'pasa a "Despachado" cuando un usuario del grupo Inventario: validación '
+            'de despacho lo confirma (solo posible con el remito ya validado). '
+            'Las operaciones que no son salidas no llevan este estado.')
+    x_dispatch_date = fields.Datetime(
+        string='Despachado el', readonly=True, copy=False,
+        help='Fecha y hora en que se marcó el despacho.')
+    x_dispatch_user_id = fields.Many2one(
+        'res.users', string='Despachado por', readonly=True, copy=False,
+        help='Usuario que confirmó el despacho.')
+    x_dispatch_enabled = fields.Boolean(
+        compute='_compute_x_dispatch_enabled',
+        help='Indicador calculado: True si la función de despacho está habilitada '
+             'en los Ajustes del planificador de la empresa del remito y la operación '
+             'es una salida. Controla la visibilidad del estado y los botones.')
+
+    @api.depends('company_id', 'picking_type_code')
+    def _compute_x_dispatch_enabled(self):
+        # sudo(): la config del planificador puede no ser accesible para usuarios de depósito.
+        Config = self.env['mrp.reschedule.config'].sudo()
+        cache = {}
+        for pick in self:
+            cid = pick.company_id.id
+            if cid not in cache:
+                cfg = Config.with_company(pick.company_id).get_config() if cid else False
+                cache[cid] = bool(cfg and cfg.enable_dispatch_validation)
+            pick.x_dispatch_enabled = cache[cid] and pick.picking_type_code == 'outgoing'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Las salidas nacen "Sin despachar" (aunque la función esté apagada:
+        el estado queda oculto y disponible si se activa después)."""
+        pickings = super().create(vals_list)
+        outgoing = pickings.filtered(
+            lambda p: p.picking_type_code == 'outgoing' and not p.x_dispatch_state)
+        if outgoing:
+            # sudo(): el estado es técnico; el creador del remito puede no tener
+            # permisos de escritura ampliados según sus reglas.
+            outgoing.sudo().write({'x_dispatch_state': 'to_dispatch'})
+        return pickings
+
+    # ── Guards ───────────────────────────────────────────────────────────────
+
+    def _dispatch_check_rights(self):
+        """El botón oculto no es seguridad: verifica grupo y función activa en servidor.
+
+        :raises AccessError: si el usuario no pertenece al grupo de despacho.
+        :raises UserError: si la función está desactivada para alguna empresa.
+        """
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner_dispatch.group_dispatch_validation')
+                or u.has_group('odoo_mrp_planner.group_admin')
+                or u.has_group('base.group_system')):
+            raise AccessError(_('Solo los usuarios del grupo "Inventario: validación '
+                                'de despacho" pueden despachar entregas.'))
+        Config = self.env['mrp.reschedule.config'].sudo()
+        for company in self.mapped('company_id'):
+            cfg = Config.with_company(company).get_config()
+            if not (cfg and cfg.enable_dispatch_validation):
+                raise UserError(_('La validación de despacho está desactivada para %s. '
+                                  'Activala en Ajustes del planificador → Producción.',
+                                  company.display_name))
+
+    # ── Acciones ─────────────────────────────────────────────────────────────
+
+    def action_mark_dispatched(self):
+        """Marca como despachadas las salidas seleccionadas.
+
+        Funciona desde el botón del formulario y desde la acción masiva de la
+        lista. Exige que TODOS los remitos a despachar estén validados (done):
+        si alguno no lo está, se rechaza la operación completa para que el
+        error no pase inadvertido en un despacho en lote.
+        """
+        self._dispatch_check_rights()
+        todo = self.filtered(
+            lambda p: p.picking_type_code == 'outgoing' and p.x_dispatch_state != 'dispatched')
+        if not todo:
+            raise UserError(_('Nada para despachar: las salidas seleccionadas ya están despachadas.'))
+        not_done = todo.filtered(lambda p: p.state != 'done')
+        if not_done:
+            raise UserError(_('No se puede despachar una entrega sin validar: %s',
+                              ', '.join(not_done.mapped('name'))))
+        now = fields.Datetime.now()
+        todo.write({
+            'x_dispatch_state':   'dispatched',
+            'x_dispatch_date':    now,
+            'x_dispatch_user_id': self.env.user.id,
+        })
+        for pick in todo:
+            pick.message_post(body=_('Entrega despachada por %s.', self.env.user.display_name))
+        return True
+
+    def action_reset_dispatch(self):
+        """Reversa a "Sin despachar" — solo administradores (queda en el chatter)."""
+        u = self.env.user
+        if not (u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')):
+            raise AccessError(_('Solo los administradores del planificador pueden '
+                                'revertir un despacho.'))
+        todo = self.filtered(lambda p: p.x_dispatch_state == 'dispatched')
+        todo.write({
+            'x_dispatch_state':   'to_dispatch',
+            'x_dispatch_date':    False,
+            'x_dispatch_user_id': False,
+        })
+        for pick in todo:
+            pick.message_post(body=_('Despacho revertido a "Sin despachar" por %s.',
+                                     self.env.user.display_name))
+        return True

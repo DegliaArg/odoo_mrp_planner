@@ -26,8 +26,13 @@ _no_subcontract_domain_cache: dict = {}
 
 
 def _make_cache_cleanup(cr_id: int):
-    """Retorna un callback de weakref que elimina la entrada del cache al liberar el cursor."""
-    def _cleanup(_):
+    """Retorna un callback para weakref.finalize que limpia la entrada del cache.
+
+    finalize() invoca el callback SIN argumentos (a diferencia de weakref.ref):
+    la firma anterior recibía un parámetro y explotaba con TypeError al
+    recolectarse el cursor, dejando la entrada sin limpiar.
+    """
+    def _cleanup():
         _no_subcontract_domain_cache.pop(cr_id, None)
     return _cleanup
 

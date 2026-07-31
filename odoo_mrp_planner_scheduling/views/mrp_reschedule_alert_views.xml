@@ -18,7 +18,7 @@
             <xpath expr="//header" position="inside">
                 <field name="scheduling_enabled" invisible="1"/>
             </xpath>
-            <xpath expr="//group[@string='Resolución']/field[@name='resolve_date']" position="after">
+            <xpath expr="//form//field[@name='resolve_date']" position="after">
                 <field name="plan_id" readonly="1"/>
             </xpath>
 

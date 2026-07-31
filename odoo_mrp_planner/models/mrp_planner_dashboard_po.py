@@ -392,7 +392,16 @@ class MrpPlannerDashboardPo(models.TransientModel):
             svc_pool = PO.search(
                 [('state', 'in', ('draft', 'sent', 'to approve', 'purchase', 'done'))]
                 + sc_domain + dord_dom + wh_po)
-            services_rs = svc_pool.filtered(_is_svc).sorted(po_f, reverse=_rev)
+
+            def _svc_sort_key(r):
+                # Las OC en borrador no tienen date_planned (False): sin este
+                # fallback, sorted() compara bool contra datetime y explota.
+                v = r[po_f]
+                if v is False or v is None:
+                    return r.date_order or datetime(1970, 1, 1)
+                return v
+
+            services_rs = svc_pool.filtered(_is_svc).sorted(_svc_sort_key, reverse=_rev)
         else:
             services_rs = self.env['purchase.order']
 

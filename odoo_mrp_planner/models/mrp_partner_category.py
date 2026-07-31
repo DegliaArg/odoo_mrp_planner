@@ -26,7 +26,7 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import models, fields, api, _
+from odoo import models, fields, api, SUPERUSER_ID, _
 from odoo.exceptions import UserError
 
 from .mrp_abc_helpers import _abc_thresholds, _assign_abc_pareto, _assign_abc_pareto_lower
@@ -56,7 +56,10 @@ class MrpPartnerCategory(models.Model):
         mensaje y se relanzan para que el usuario/cron los vea igual.
         """
         t0 = time.monotonic()
-        trigger = self.env.context.get('planner_run_trigger', 'manual')
+        # Origen: marca explícita del contexto; sin marca, decide el usuario
+        # que ejecuta (los cron corren como OdooBot/superusuario).
+        trigger = self.env.context.get('planner_run_trigger') or (
+            'cron' if self.env.uid == SUPERUSER_ID else 'manual')
         Log = self.env['mrp.planner.run.log']
         try:
             res = fn()

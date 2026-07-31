@@ -22,7 +22,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 
-from odoo import models, fields, api, tools, _
+from odoo import models, fields, api, tools, SUPERUSER_ID, _
 from odoo.exceptions import UserError, AccessError
 from odoo.addons.odoo_mrp_planner.models.mrp_planner_helpers import no_subcontract_domain
 from .const import DEFAULT_PO_CRITICAL_DAYS
@@ -333,7 +333,8 @@ class MrpRescheduleAlert(models.Model):
         """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas (una vez por empresa activa)."""
         # sudo() necesario: el cron corre en contexto de empresa activa y el multi-company record rule restringe res.company.
         companies = self.env['res.company'].sudo().search([])
-        trigger = self.env.context.get('planner_run_trigger', 'cron')
+        trigger = self.env.context.get('planner_run_trigger') or (
+            'cron' if self.env.uid == SUPERUSER_ID else 'manual')
         Log = self.env['mrp.planner.run.log']
         for company in companies:
             _logger.info('MRP Planner cron: chequeo desvíos — empresa %s', company.name)

@@ -83,11 +83,5 @@
         </field>
     </record>
 
-    <menuitem id="mrp_planner_run_log_menu"
-              name="Registro de ejecuciones"
-              parent="mrp_planner_menu_root"
-              sequence="98"
-              action="action_mrp_planner_run_log"
-              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
 </odoo>

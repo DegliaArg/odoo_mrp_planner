@@ -541,6 +541,12 @@ class MrpRescheduleConfig(models.Model):
     # ── Análisis de clientes ─────────────────────────────────────────────────
     # Última corrida (manual o por cron) de cada asignación automática de
     # categorías; se muestran como registro en Ajustes → General.
+    run_log_keep = fields.Integer(
+        string='Ejecuciones a conservar (por proceso)', default=100,
+        help='Cantidad de corridas que guarda el Registro de ejecuciones por cada '
+             'proceso y empresa (categorías, chequeo de alertas, importación de '
+             'forecast). Al superar el límite se borran las más antiguas.')
+
     sale_cat_last_run = fields.Datetime(string='Última asignación — categorías de venta', readonly=True)
     sale_cat_last_count = fields.Integer(string='Artículos actualizados (última corrida)', readonly=True)
     supplier_cat_last_run = fields.Datetime(string='Última asignación — categorías de proveedor', readonly=True)

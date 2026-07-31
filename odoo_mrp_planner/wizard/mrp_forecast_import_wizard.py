@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import time
 from datetime import date
 
 from odoo import models, fields, api, _
@@ -79,6 +80,17 @@ class MrpForecastImportWizard(models.TransientModel):
             self.sheet_names_hint = False
 
     def action_import(self):
+        """Importa el archivo registrando la corrida en el historial de ejecuciones."""
+        t0 = time.monotonic()
+        try:
+            return self._action_import_impl(t0)
+        except Exception as e:
+            self.env['mrp.planner.run.log'].log_run(
+                'forecast_import', 'manual', status='error',
+                duration=time.monotonic() - t0, message=str(e)[:2000])
+            raise
+
+    def _action_import_impl(self, t0):
         self.ensure_one()
         # Solo Ventas-Administrador o Administrador del módulo pueden importar masivamente.
         # group_sales tiene CRUD en mrp.forecast.line; group_admin es el rol superior.
@@ -175,6 +187,10 @@ class MrpForecastImportWizard(models.TransientModel):
         if errors and not to_create:
             self.result_message = 'No se importó ningún registro.\n\nErrores:\n' + '\n'.join(errors)
             self.state = 'done'
+            self.env['mrp.planner.run.log'].log_run(
+                'forecast_import', 'manual', status='error',
+                duration=time.monotonic() - t0,
+                message=('No se importó ningún registro. ' + ' | '.join(errors))[:2000])
             return self._reopen()
 
         # Eliminar registros existentes para las claves importadas
@@ -197,6 +213,11 @@ class MrpForecastImportWizard(models.TransientModel):
             msg_parts.append(f'\n{len(errors)} advertencia(s):\n' + '\n'.join(errors))
         self.result_message = '\n'.join(msg_parts)
         self.state = 'done'
+        self.env['mrp.planner.run.log'].log_run(
+            'forecast_import', 'manual', status='ok', updated=len(to_create),
+            duration=time.monotonic() - t0,
+            message=(f'{len(to_create)} línea(s) importada(s)'
+                     + (f' — {len(errors)} advertencia(s)' if errors else '')))
         return self._reopen()
 
     def _reopen(self):

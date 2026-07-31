@@ -21,6 +21,7 @@ Relacionado con:
   para los distintos métodos de clasificación.
 """
 import logging
+import time
 from datetime import date
 
 from dateutil.relativedelta import relativedelta
@@ -45,7 +46,34 @@ class MrpPartnerCategory(models.Model):
 
     _inherit = 'mrp.reschedule.config'
 
+
+    def _run_with_log(self, process, count_field, fn):
+        """Ejecuta una corrida de categorías registrándola en el historial.
+
+        El origen (manual/cron) llega por contexto (planner_run_trigger); la
+        cantidad actualizada se lee del campo "última corrida" que la
+        implementación escribe en la config. Los errores se registran con su
+        mensaje y se relanzan para que el usuario/cron los vea igual.
+        """
+        t0 = time.monotonic()
+        trigger = self.env.context.get('planner_run_trigger', 'manual')
+        Log = self.env['mrp.planner.run.log']
+        try:
+            res = fn()
+        except Exception as e:
+            Log.log_run(process, trigger, status='error',
+                        duration=time.monotonic() - t0, message=str(e)[:2000])
+            raise
+        cfg = self.get_config()
+        Log.log_run(process, trigger, status='ok',
+                    updated=cfg[count_field] if cfg else 0,
+                    duration=time.monotonic() - t0)
+        return res
+
     def action_auto_assign_sale_categories(self):
+        return self._run_with_log('sale_cat', 'sale_cat_last_count', self._auto_assign_sale_categories_impl)
+
+    def _auto_assign_sale_categories_impl(self):
         """
         Asigna categorías de venta A–E a todos los productos con sale_ok=True.
 
@@ -240,6 +268,9 @@ class MrpPartnerCategory(models.Model):
                 'title':   'Categorías asignadas',
                 'message': f'{updated} artículos actualizados.',
                 'type':    'success',
+                # Recarga el formulario de Ajustes: sin esto, los campos de
+                # "última corrida" quedaban en blanco hasta reabrir la pantalla.
+                'next':    {'type': 'ir.actions.client', 'tag': 'soft_reload'},
             },
         }
 
@@ -252,10 +283,13 @@ class MrpPartnerCategory(models.Model):
             if not config or not config.sale_cat_auto_cron or config.sale_cat_mode == 'manual':
                 continue
             _logger.info('MRP Planner cron: categorías de venta para empresa %s', company.name)
-            config.action_auto_assign_sale_categories()
+            config.with_context(planner_run_trigger='cron').action_auto_assign_sale_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de venta')
 
     def action_compute_supplier_categories(self):
+        return self._run_with_log('supplier_cat', 'supplier_cat_last_count', self._compute_supplier_categories_impl)
+
+    def _compute_supplier_categories_impl(self):
         """
         Asigna categorías A–E a todos los proveedores activos (supplier_rank > 0).
 
@@ -597,7 +631,8 @@ class MrpPartnerCategory(models.Model):
                              'supplier_cat_last_count': updated})
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Categorías de proveedor asignadas',
-                           'message': f'{updated} proveedores actualizados.', 'type': 'success'}}
+                           'message': f'{updated} proveedores actualizados.', 'type': 'success',
+                           'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'}}}
 
     @api.model
     def _cron_compute_supplier_categories(self):
@@ -608,10 +643,13 @@ class MrpPartnerCategory(models.Model):
             if not config or not config.enable_supplier_categories or config.supplier_cat_method == 'manual':
                 continue
             _logger.info('MRP Planner cron: categorías de proveedor para empresa %s', company.name)
-            config.action_compute_supplier_categories()
+            config.with_context(planner_run_trigger='cron').action_compute_supplier_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de proveedor')
 
     def action_compute_customer_categories(self):
+        return self._run_with_log('customer_cat', 'customer_cat_last_count', self._compute_customer_categories_impl)
+
+    def _compute_customer_categories_impl(self):
         """
         Asigna categorías A–E a todos los clientes activos (customer_rank > 0).
 
@@ -713,7 +751,8 @@ class MrpPartnerCategory(models.Model):
                              'customer_cat_last_count': updated})
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'title': 'Categorías de cliente asignadas',
-                           'message': f'{updated} clientes actualizados.', 'type': 'success'}}
+                           'message': f'{updated} clientes actualizados.', 'type': 'success',
+                           'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'}}}
 
     @api.model
     def _cron_compute_customer_categories(self):
@@ -724,5 +763,5 @@ class MrpPartnerCategory(models.Model):
             if not config or not config.enable_customer_categories or config.customer_cat_method == 'manual':
                 continue
             _logger.info('MRP Planner cron: categorías de cliente para empresa %s', company.name)
-            config.action_compute_customer_categories()
+            config.with_context(planner_run_trigger='cron').action_compute_customer_categories()
         _logger.info('MRP Planner cron: fin actualización categorías de cliente')

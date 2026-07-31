@@ -6,6 +6,7 @@ from . import mrp_forecast_line
 from . import res_users
 from . import mrp_abc_helpers
 from . import mrp_reschedule_config
+from . import mrp_planner_run_log
 from . import mrp_partner_category
 from . import mrp_reschedule_user_permission
 from . import mrp_reschedule_alert

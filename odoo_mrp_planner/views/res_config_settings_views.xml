@@ -65,6 +65,12 @@
                                                help="Fecha y hora de la última asignación de categorías de cliente."/>
                                         <field name="customer_cat_last_count" readonly="1"
                                                help="Clientes actualizados en la última corrida."/>
+                                        <field name="run_log_keep"
+                                               help="Cantidad de corridas que guarda el Registro de ejecuciones por cada proceso y empresa. Al superar el límite se borran las más antiguas."/>
+                                        <button name="%(odoo_mrp_planner.action_mrp_planner_run_log)d"
+                                                type="action" string="Ver historial de ejecuciones"
+                                                icon="fa-history" class="btn btn-link ps-0"
+                                                help="Abre el registro completo: categorías, chequeo de alertas e importaciones de forecast, con origen y resultado de cada corrida."/>
                                     </group>
                                 </div>
                             </div>

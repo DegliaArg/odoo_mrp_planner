@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Registro de ejecuciones: lista de solo lectura ── -->
+    <record id="mrp_planner_run_log_list" model="ir.ui.view">
+        <field name="name">mrp.planner.run.log.list</field>
+        <field name="model">mrp.planner.run.log</field>
+        <field name="arch" type="xml">
+            <list string="Registro de ejecuciones" create="false" edit="false"
+                  decoration-danger="status == 'error'">
+                <field name="run_date"/>
+                <field name="process"/>
+                <field name="trigger" optional="show"/>
+                <field name="user_id" optional="show" widget="many2one_avatar_user"/>
+                <field name="status" widget="badge"
+                       decoration-success="status == 'ok'"
+                       decoration-danger="status == 'error'"/>
+                <field name="updated_count" string="Actualizados"/>
+                <field name="duration" string="Duración (s)" optional="show"/>
+                <field name="message" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="mrp_planner_run_log_form" model="ir.ui.view">
+        <field name="name">mrp.planner.run.log.form</field>
+        <field name="model">mrp.planner.run.log</field>
+        <field name="arch" type="xml">
+            <form string="Ejecución" create="false" edit="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="run_date"/>
+                            <field name="process"/>
+                            <field name="trigger"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="status"/>
+                            <field name="updated_count"/>
+                            <field name="duration"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Detalle">
+                        <field name="message" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="mrp_planner_run_log_search" model="ir.ui.view">
+        <field name="name">mrp.planner.run.log.search</field>
+        <field name="model">mrp.planner.run.log</field>
+        <field name="arch" type="xml">
+            <search string="Registro de ejecuciones">
+                <field name="process"/>
+                <field name="user_id"/>
+                <field name="message"/>
+                <filter name="filter_errors" string="Con error" domain="[('status', '=', 'error')]"/>
+                <filter name="filter_manual" string="Manuales" domain="[('trigger', '=', 'manual')]"/>
+                <filter name="filter_cron" string="Por cron" domain="[('trigger', '=', 'cron')]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_process" string="Proceso" context="{'group_by': 'process'}"/>
+                    <filter name="group_status" string="Resultado" context="{'group_by': 'status'}"/>
+                    <filter name="group_date" string="Fecha" context="{'group_by': 'run_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_mrp_planner_run_log" model="ir.actions.act_window">
+        <field name="name">Registro de ejecuciones</field>
+        <field name="res_model">mrp.planner.run.log</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="mrp_planner_run_log_search"/>
+        <field name="context">{'create': False, 'edit': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">Sin ejecuciones registradas todavía</p>
+            <p>Acá quedan las corridas de asignación de categorías, el chequeo de alertas y las importaciones de forecast — manuales o por cron — con su resultado.</p>
+        </field>
+    </record>
+
+    <menuitem id="mrp_planner_run_log_menu"
+              name="Registro de ejecuciones"
+              parent="mrp_planner_menu_root"
+              sequence="98"
+              action="action_mrp_planner_run_log"
+              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+
+</odoo>

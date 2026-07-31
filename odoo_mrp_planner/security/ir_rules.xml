@@ -58,4 +58,11 @@
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
+    <!-- mrp.planner.run.log — historial de ejecuciones por empresa. -->
+    <record id="rule_planner_run_log_company" model="ir.rule">
+        <field name="name">Registro de ejecuciones: multiempresa</field>
+        <field name="model_id" ref="model_mrp_planner_run_log"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
 </odoo>

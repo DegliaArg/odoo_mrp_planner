@@ -19,6 +19,7 @@ Relacionado con:
 - mrp.reschedule.config: Configuración de umbrales (días críticos, tolerancia de cantidad).
 """
 import logging
+import time
 from datetime import datetime, timedelta
 
 from odoo import models, fields, api, tools, _
@@ -211,7 +212,7 @@ class MrpRescheduleAlert(models.Model):
             raise UserError(_(
                 'Solo los administradores del planificador o de producción pueden ejecutar el chequeo de alertas manualmente.'
             ))
-        self._cron_check_delays()
+        self.with_context(planner_run_trigger='manual')._cron_check_delays()
         return self.env.ref('odoo_mrp_planner.action_mrp_reschedule_alert').read()[0]
 
     # ── Helpers — upsert ─────────────────────────────────────────────────────
@@ -332,12 +333,23 @@ class MrpRescheduleAlert(models.Model):
         """Ejecutado periódicamente. Detecta desvíos y crea/actualiza alertas (una vez por empresa activa)."""
         # sudo() necesario: el cron corre en contexto de empresa activa y el multi-company record rule restringe res.company.
         companies = self.env['res.company'].sudo().search([])
+        trigger = self.env.context.get('planner_run_trigger', 'cron')
+        Log = self.env['mrp.planner.run.log']
         for company in companies:
             _logger.info('MRP Planner cron: chequeo desvíos — empresa %s', company.name)
+            t0 = time.monotonic()
             try:
                 self.with_company(company)._cron_check_delays_for_company()
             except Exception as e:
                 _logger.warning('MRP Planner cron: error en empresa %s: %s', company.name, e)
+                Log.log_run('alerts_check', trigger, status='error',
+                            duration=time.monotonic() - t0, message=str(e)[:2000], company=company)
+            else:
+                active = self.sudo().search_count([
+                    ('resolved', '=', False), ('company_id', '=', company.id)])
+                Log.log_run('alerts_check', trigger, status='ok', updated=active,
+                            duration=time.monotonic() - t0,
+                            message=f'{active} alertas activas tras el chequeo', company=company)
 
     def _cron_check_delays_for_company(self):
         """Detecta desvíos para la empresa activa en self.env.company."""

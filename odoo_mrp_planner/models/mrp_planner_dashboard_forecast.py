@@ -61,7 +61,6 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         return [{'id': w.id, 'name': w.name} for w in whs]
 
     @api.model
-    @api.model
     def _forecast_dispatch_enabled(self):
         """Hook del módulo de despacho: sin odoo_mrp_planner_dispatch instalado
         (o con el toggle apagado) no existen los KPIs de despachados."""
@@ -72,6 +71,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         """Hook del módulo de despacho: subconjunto de pickings despachados."""
         return set()
 
+    @api.model
     def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):
         """
         Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado.

@@ -145,7 +145,7 @@
                                         </div>
                                         <div class="card-footer p-0">
                                             <button name="action_view_po_delayed_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
+                                                    class="btn btn-sm btn-link w-100 py-1"
                                                     string="Ver →" invisible="alert_po_delayed == 0"/>
                                         </div>
                                     </div>
@@ -160,7 +160,7 @@
                                         </div>
                                         <div class="card-footer p-0">
                                             <button name="action_view_po_upcoming_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                                    class="btn btn-sm btn-link w-100 py-1"
                                                     string="Ver →" invisible="alert_po_upcoming == 0"/>
                                         </div>
                                     </div>
@@ -175,7 +175,7 @@
                                         </div>
                                         <div class="card-footer p-0">
                                             <button name="action_view_to_approve" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-info"
+                                                    class="btn btn-sm btn-link w-100 py-1"
                                                     string="Ver →" invisible="po_to_approve == 0"/>
                                         </div>
                                     </div>
@@ -190,7 +190,7 @@
                                         </div>
                                         <div class="card-footer p-0">
                                             <button name="action_view_receipt_alerts" type="object"
-                                                    class="btn btn-sm btn-link w-100 py-1 text-secondary"
+                                                    class="btn btn-sm btn-link w-100 py-1"
                                                     string="Ver →" invisible="alert_receipt_delayed == 0"/>
                                         </div>
                                     </div>

@@ -20,7 +20,7 @@
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.mo_delayed > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-danger"
+                                    class="btn btn-sm btn-link w-100 py-1"
                                     aria-label="Ver OFs atrasadas"
                                     t-on-click="onViewDelayed">Ver →</button>
                         </div>
@@ -40,7 +40,7 @@
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.mo_upcoming > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-warning"
+                                    class="btn btn-sm btn-link w-100 py-1"
                                     aria-label="Ver OFs por vencer"
                                     t-on-click="onViewUpcoming">Ver →</button>
                         </div>
@@ -60,7 +60,7 @@
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.mo_in_progress > 0"
-                                    class="btn btn-sm btn-link w-100 py-1 text-info"
+                                    class="btn btn-sm btn-link w-100 py-1"
                                     aria-label="Ver OFs en curso"
                                     t-on-click="onViewInProgress">Ver →</button>
                         </div>

@@ -109,7 +109,7 @@
                                         <div class="o_planner_label">Atrasadas</div>
                                     </div>
                                     <div class="card-footer p-0">
-                                        <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickDelayed">Ver →</button>
+                                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickDelayed">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -124,7 +124,7 @@
                                         <div class="o_planner_label">Para reprogramar</div>
                                     </div>
                                     <div class="card-footer p-0">
-                                        <button class="btn btn-sm btn-link w-100 py-1 text-warning" t-on-click.stop="onClickReschedule">Ver →</button>
+                                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickReschedule">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -312,7 +312,7 @@
                                         <div class="o_planner_label">Con reprogramación</div>
                                     </div>
                                     <div class="card-footer p-0">
-                                        <button class="btn btn-sm btn-link w-100 py-1 text-warning" t-on-click.stop="onClickReqReschedule">Ver →</button>
+                                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickReqReschedule">Ver →</button>
                                     </div>
                                 </div>
                             </div>
@@ -339,7 +339,7 @@
                                         <div class="o_planner_label">Tasa de ejecución</div>
                                     </div>
                                     <div class="card-footer p-0">
-                                        <button t-att-class="'btn btn-sm btn-link w-100 py-1 ' + (state.req_kpis.exec_rate >= 70 ? 'text-success' : state.req_kpis.exec_rate >= 40 ? 'text-warning' : 'text-danger')"
+                                        <button class="btn btn-sm btn-link w-100 py-1"
                                                 t-on-click.stop="onClickReqExecRate">Ver →</button>
                                     </div>
                                 </div>
@@ -356,7 +356,7 @@
                                         <div class="o_planner_label">Sin materiales</div>
                                     </div>
                                     <div class="card-footer p-0">
-                                        <button t-att-class="'btn btn-sm btn-link w-100 py-1 ' + (state.req_kpis.no_materials > 0 ? 'text-danger' : 'text-success')"
+                                        <button class="btn btn-sm btn-link w-100 py-1"
                                                 t-on-click.stop="onClickReqNoMaterials">Ver →</button>
                                     </div>
                                 </div>

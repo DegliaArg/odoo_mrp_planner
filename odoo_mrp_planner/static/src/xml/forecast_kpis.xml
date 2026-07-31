@@ -39,7 +39,7 @@
                             <div class="o_planner_label" t-esc="r.label"/>
                         </div>
                         <div class="card-footer p-0">
-                            <button t-att-class="'btn btn-sm btn-link w-100 py-1 ' + (r.key === '' ? 'text-warning' : 'text-info')"
+                            <button class="btn btn-sm btn-link w-100 py-1"
                                     title="Ver los movimientos de salida de este grupo"
                                     t-on-click.stop="() => this.openDrillDeliveredByOrderMonth(r)">Ver →</button>
                         </div>
@@ -58,7 +58,7 @@
                             <div class="o_planner_label fw-semibold">Total del período</div>
                         </div>
                         <div class="card-footer p-0">
-                            <button class="btn btn-sm btn-link w-100 py-1 text-info"
+                            <button class="btn btn-sm btn-link w-100 py-1"
                                     title="Ver todos los movimientos de salida del período"
                                     t-on-click.stop="openDrillDelivered">Ver →</button>
                         </div>
@@ -109,7 +109,7 @@
                         </div>
                     </div>
                     <div class="card-footer p-0">
-                        <button class="btn btn-sm btn-link w-100 py-1" style="color:#7952b3;" t-on-click.stop="openDrillSoDemand">Ver →</button>
+                        <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="openDrillSoDemand">Ver →</button>
                     </div>
                 </div>
             </div>
@@ -155,7 +155,7 @@
                         </div>
                     </div>
                     <div class="card-footer p-0">
-                        <button class="btn btn-sm btn-link w-100 py-1 text-info"
+                        <button class="btn btn-sm btn-link w-100 py-1"
                                 title="Ver el desglose por mes de pedido"
                                 t-on-click.stop="openDelBreakdown">Ver →</button>
                     </div>

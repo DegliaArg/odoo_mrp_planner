@@ -32,7 +32,7 @@
                                             </div>
                                             <div class="card-footer p-0">
                                                 <button name="action_view_all_requests" type="object"
-                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                                        class="btn btn-sm btn-link w-100 py-1">Ver →</button>
                                             </div>
                                         </div>
                                     </div>
@@ -47,7 +47,7 @@
                                             </div>
                                             <div class="card-footer p-0">
                                                 <button name="action_view_reschedule_requests" type="object"
-                                                        class="btn btn-sm btn-link w-100 py-1 text-warning">Ver →</button>
+                                                        class="btn btn-sm btn-link w-100 py-1">Ver →</button>
                                             </div>
                                         </div>
                                     </div>
@@ -72,7 +72,7 @@
                                             </div>
                                             <div class="card-footer p-0">
                                                 <button name="action_view_req_mos" type="object"
-                                                        class="btn btn-sm btn-link w-100 py-1 text-secondary">Ver →</button>
+                                                        class="btn btn-sm btn-link w-100 py-1">Ver →</button>
                                             </div>
                                         </div>
                                     </div>
@@ -98,7 +98,7 @@
                                             </div>
                                             <div class="card-footer p-0">
                                                 <button name="action_view_req_delayed_mos" type="object"
-                                                        class="btn btn-sm btn-link w-100 py-1 text-danger">Ver →</button>
+                                                        class="btn btn-sm btn-link w-100 py-1">Ver →</button>
                                             </div>
                                         </div>
                                     </div>

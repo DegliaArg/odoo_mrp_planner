@@ -200,7 +200,7 @@
                              t-att-title="kpiTooltip('total_customers')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-users fa-lg text-primary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_customers))"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_customers))"
                                      t-esc="fmt(state.kpis.total_customers)"/>
                                 <div class="o_planner_label">Clientes activos</div>
                             </div>
@@ -216,7 +216,7 @@
                              t-att-title="kpiTooltip('total_orders')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_orders))"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_orders))"
                                      t-esc="fmt(state.kpis.total_orders)"/>
                                 <div class="o_planner_label">Total pedidos</div>
                             </div>
@@ -232,13 +232,13 @@
                              t-att-title="kpiTooltip('total_qty')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-cubes fa-lg mb-1 d-block" style="color:#7952b3;"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_qty) + ' Pz')"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_qty) + ' Pz')"
                                      style="color:#7952b3;"
                                      t-esc="fmt(state.kpis.total_qty) + ' Pz'"/>
                                 <div class="o_planner_label">Demanda real</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" style="color:#7952b3;"
+                                <button class="btn btn-sm btn-link w-100 py-1"
                                         title="Ver las líneas de pedido (piezas) del período"
                                         t-on-click="openPeriodOrderLines">Ver →</button>
                             </div>
@@ -249,7 +249,7 @@
                              t-att-title="kpiTooltip('total_delivered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmt(state.kpis.total_delivered) + ' Pz')"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_delivered) + ' Pz')"
                                      t-esc="fmt(state.kpis.total_delivered) + ' Pz'"/>
                                 <div class="o_planner_label">Cumpl. de demanda</div>
                             </div>
@@ -260,7 +260,7 @@
                              t-att-title="kpiTooltip('fulfillment_pct')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + deliveryClass(state.kpis.fulfillment_pct)"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtPct(state.kpis.fulfillment_pct)) + ' ' + deliveryClass(state.kpis.fulfillment_pct)"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPct(state.kpis.fulfillment_pct)) + ' ' + deliveryClass(state.kpis.fulfillment_pct)"
                                      t-esc="fmtPct(state.kpis.fulfillment_pct)"/>
                                 <div class="o_planner_label">Tasa de cumplimiento</div>
                             </div>
@@ -271,7 +271,7 @@
                              t-att-title="kpiTooltip('lead_time')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtDays(state.kpis.lead_time))"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtDays(state.kpis.lead_time))"
                                      t-esc="fmtDays(state.kpis.lead_time)"/>
                                 <div class="o_planner_label" t-esc="'Lead entrega (' + leadMethodLabel() + ')'"/>
                                 <div class="d-flex flex-wrap justify-content-center gap-1 mt-1">
@@ -290,7 +290,7 @@
                              t-att-title="kpiTooltip('total_amount')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-money fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.total_amount))"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.total_amount))"
                                      t-esc="fmtMoney(state.kpis.total_amount)"/>
                                 <div class="o_planner_label" t-esc="'Monto total' + amountLabelSuffix"/>
                             </div>
@@ -306,7 +306,7 @@
                              t-att-title="kpiTooltip('avg_price')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-tag fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + numSizeClass(fmtMoney(state.kpis.avg_price))"
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.avg_price))"
                                      t-esc="fmtMoney(state.kpis.avg_price)"/>
                                 <div class="o_planner_label">Precio promedio</div>
                             </div>

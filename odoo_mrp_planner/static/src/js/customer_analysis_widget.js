@@ -477,6 +477,19 @@ class CustomerAnalysisWidget extends Component {
         return v !== null && v !== undefined ? this.fmt(v) + ' d' : '—';
     }
 
+    /**
+     * Clase de tamaño para los KPIs generales del panel (cards angostas, 8 por
+     * fila): los números cortos suben a XL (escala con el ancho de la card),
+     * los medianos usan la base y los largos ($ con miles de millones) bajan
+     * a md para no cortarse. Siempre un solo renglón.
+     */
+    kpiNumClass(text) {
+        const len = String(text ?? '').length;
+        if (len <= 10) return 'o_planner_num_xl';
+        if (len <= 14) return '';
+        return 'o_planner_num_md';
+    }
+
     /** Tooltip del lead time de un pedido de la tabla inline: los 3 métodos. */
     orderLeadTooltip(ord) {
         return `Lead time del pedido (método principal: ${this.leadMethodLabel()}). Días desde la confirmación hasta la fecha efectiva de cada remito.\nPonderado por cantidad: ${this.fmtDays(ord.lead_weighted)}\nPrimera entrega: ${this.fmtDays(ord.lead_first)}\nPedido completo: ${this.fmtDays(ord.lead_complete)}${ord.lead_complete == null ? ' (aún sin entregar por completo)' : ''}`;

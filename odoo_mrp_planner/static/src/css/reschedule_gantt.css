@@ -346,6 +346,9 @@ th[draggable="true"]:active { cursor: grabbing; }
 .o_planner_number { white-space: nowrap; }
 .o_planner_num_md { font-size: 1.1rem !important; }
 .o_planner_num_sm { font-size: 0.9rem !important; }
+/* Números cortos en cards angostas (fila de KPIs de clientes): escala más
+   agresiva con el ancho del contenedor; los textos largos usan la base. */
+.o_planner_num_xl { font-size: clamp(1rem, 14.5cqi, 1.75rem) !important; }
 
 /* Altura mínima uniforme para las grillas de KPIs: las cards sin botón "Ver"
    miden lo mismo que las que lo tienen, y su contenido se centra en toda la

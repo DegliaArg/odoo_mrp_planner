@@ -89,7 +89,7 @@
                                     <div class="o_planner_label">Por aprobar</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-1 text-warning" t-on-click.stop="onClickToApprove">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickToApprove">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -134,7 +134,7 @@
                                     <div class="o_planner_label">Vencidas</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickOverdue">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickOverdue">Ver →</button>
                                 </div>
                             </div>
                         </div>
@@ -149,7 +149,7 @@
                                     <div class="o_planner_label">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
                                 </div>
                                 <div class="card-footer p-0">
-                                    <button class="btn btn-sm btn-link w-100 py-1 text-danger" t-on-click.stop="onClickCritical">Ver →</button>
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickCritical">Ver →</button>
                                 </div>
                             </div>
                         </div>

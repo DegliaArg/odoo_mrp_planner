@@ -87,7 +87,7 @@
                      t-att-title="fcKpiTooltip('forecast')"
                      t-on-click="openDrillForecast">
                     <div class="card-body text-center py-3">
-                        <i class="fa fa-bar-chart fa-lg text-primary mb-2 d-block"/>
+                        <i class="fa fa-bar-chart fa-lg mb-2 d-block"/>
                         <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_forecast) + ' Pz'"/></div>
                         <div class="o_planner_label">Demanda forecast</div>
                     </div>
@@ -124,7 +124,7 @@
                      t-att-title="fcKpiTooltip('mos')"
                      t-on-click="openDrillMos">
                     <div class="card-body text-center py-3">
-                        <i class="fa fa-industry fa-lg text-secondary mb-2 d-block"/>
+                        <i class="fa fa-industry fa-lg mb-2 d-block"/>
                         <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_mos) + ' Pz'"/></div>
                         <div class="o_planner_label">Producción planificada</div>
                         <div t-if="filteredKpis.mos_no_fc > 0"
@@ -148,7 +148,7 @@
                      t-att-title="fcKpiTooltip('delivered')"
                      t-on-click="openDelBreakdown">
                     <div class="card-body text-center py-3">
-                        <i class="fa fa-truck fa-lg text-info mb-2 d-block"/>
+                        <i class="fa fa-truck fa-lg mb-2 d-block"/>
                         <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_delivered) + ' Pz'"/></div>
                         <div class="o_planner_label">Entregas validadas</div>
                         <div t-if="filteredKpis.delivered_no_fc > 0"
@@ -173,8 +173,8 @@
                      t-att-title="fcKpiTooltip('dispatched')"
                      t-on-click="openDispatchBreakdown">
                     <div class="card-body text-center py-3">
-                        <i class="fa fa-send fa-lg mb-2 d-block" style="color:#7952b3;"/>
-                        <div class="o_planner_number" style="color:#7952b3;"><t t-esc="fmt(filteredKpis.total_delivered_dispatched) + ' Pz'"/></div>
+                        <i class="fa fa-send fa-lg text-info mb-2 d-block"/>
+                        <div class="o_planner_number text-info"><t t-esc="fmt(filteredKpis.total_delivered_dispatched) + ' Pz'"/></div>
                         <div class="o_planner_label">Entregas físicas</div>
                         <div t-if="filteredKpis.dispatched_no_fc > 0"
                              class="text-warning mt-1"
@@ -197,7 +197,7 @@
                      t-att-title="fcKpiTooltip('demand_delivered')"
                      t-on-click="openDrillDemandDelivered">
                     <div class="card-body text-center py-3">
-                        <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
+                        <i class="fa fa-check-circle fa-lg mb-2 d-block"/>
                         <div class="o_planner_number"><t t-esc="fmt(filteredKpis.total_demand_delivered) + ' Pz'"/></div>
                         <div class="o_planner_label">Cumplimiento de demanda</div>
                         <div t-if="filteredKpis.demand_delivered_no_fc > 0"

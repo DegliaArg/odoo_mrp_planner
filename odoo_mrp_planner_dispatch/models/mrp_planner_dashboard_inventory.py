@@ -77,6 +77,24 @@ class MrpPlannerDashboard(models.TransientModel):
     def _inventory_wh_domain(self, warehouse_ids, field='picking_type_id.warehouse_id'):
         return [(field, 'in', warehouse_ids)] if warehouse_ids else []
 
+    @api.model
+    def _inventory_effective_whs(self, warehouse_ids):
+        """Combina la selección del widget con los depósitos permitidos del
+        usuario (Ajustes → permisos por usuario), mismo criterio server-side
+        que el resto de los paneles.
+
+        :returns: list[int] — depósitos a filtrar; [] = sin restricción;
+                  [0] = usuario sin acceso a ningún depósito (dominio vacío).
+        """
+        allowed = self._get_allowed_wh_ids()  # None = ve todos
+        selected = warehouse_ids or []
+        if allowed is None:
+            return selected
+        if not selected:
+            return allowed or [0]
+        effective = [w for w in selected if w in allowed]
+        return effective or [0]
+
     # ── Llamada 1: KPIs + gráficos ────────────────────────────────────────────
 
     @api.model
@@ -94,7 +112,7 @@ class MrpPlannerDashboard(models.TransientModel):
               (disponible vs. sin stock) por depósito.
         """
         self._inventory_ensure_group()
-        warehouse_ids = warehouse_ids or []
+        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
         log_enabled = bool(cfg and cfg.enable_dispatch_validation
@@ -298,7 +316,7 @@ class MrpPlannerDashboard(models.TransientModel):
         :returns: dict {'rows': list[dict], 'can_dispatch': bool}
         """
         self._inventory_ensure_group()
-        warehouse_ids = warehouse_ids or []
+        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         dom = [
             ('company_id', '=', company.id),
@@ -400,7 +418,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('company_id', '=', self.env.company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('state', 'in', list(PENDING_PICKING_STATES)),
-        ] + self._inventory_wh_domain(warehouse_ids or [])
+        ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
         name = _('Salidas pendientes')
         if mode == 'available':
             dom.append(('state', '=', 'assigned'))
@@ -429,7 +447,7 @@ class MrpPlannerDashboard(models.TransientModel):
             ('x_dispatch_state', '=', 'dispatched'),
             ('x_dispatch_date', '>=', dt_from),
             ('x_dispatch_date', '<', dt_to),
-        ] + self._inventory_wh_domain(warehouse_ids or [])
+        ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
         return {
             'type': 'ir.actions.act_window',
             'name': _('Salidas despachadas del período'),

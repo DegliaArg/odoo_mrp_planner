@@ -19,6 +19,9 @@
                         <div class="col-6">
                             <group string="Despacho de entregas">
                                 <field name="enable_dispatch_validation" widget="boolean_toggle"/>
+                                <field name="dispatch_picking_type_ids" widget="many2many_tags"
+                                       options="{'no_create': true}"
+                                       invisible="not enable_dispatch_validation"/>
                                 <div class="text-muted small border-start border-2 ps-2 mt-1">
                                     Agrega a las salidas el estado <b>Sin despachar / Despachado</b> y el botón
                                     "Marcar despachado" (solo con el remito validado y para usuarios del grupo
@@ -26,6 +29,15 @@
                                     validadas que nunca entraron al circuito se marcan como despachadas, así la
                                     cola pendiente arranca vacía. Al desactivar no se pierde nada: los estados
                                     se conservan ocultos.
+                                </div>
+                                <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                     invisible="not enable_dispatch_validation">
+                                    <b>Tipos de operación con despacho</b>: solo las salidas de estos tipos
+                                    entran al circuito. Se precarga con todos los tipos de salida de la
+                                    empresa: sacá los que no son entregas a clientes (p. ej. transferencias
+                                    entre depósitos). Al sacar un tipo, su cola "Sin despachar" se limpia;
+                                    al agregarlo, sus salidas validadas viejas se marcan como despachadas
+                                    para arrancar con la cola vacía.
                                 </div>
                             </group>
                         </div>

@@ -26,7 +26,8 @@ class StockPicking(models.Model):
        help='Circuito de despacho de las salidas: el remito nace "Sin despachar" y '
             'pasa a "Despachado" cuando un usuario del grupo Inventario: validación '
             'de despacho lo confirma (solo posible con el remito ya validado). '
-            'Las operaciones que no son salidas no llevan este estado.')
+            'Las operaciones que no son salidas, o cuyo tipo quedó fuera de los '
+            '"Tipos de operación con despacho" de Ajustes, no llevan este estado.')
     x_dispatch_date = fields.Datetime(
         string='Despachado el', readonly=True, copy=False,
         help='Fecha y hora en que se marcó el despacho.')
@@ -39,25 +40,45 @@ class StockPicking(models.Model):
              'en los Ajustes del planificador de la empresa del remito y la operación '
              'es una salida. Controla la visibilidad del estado y los botones.')
 
-    @api.depends('company_id', 'picking_type_code')
-    def _compute_x_dispatch_enabled(self):
-        # sudo(): la config del planificador puede no ser accesible para usuarios de depósito.
+    def _dispatch_type_cache(self):
+        """Cache por empresa para decidir si un remito entra al circuito:
+        {company_id: (función activa, set de tipos con despacho)}. Un set
+        vacío significa lista sin configurar = todas las salidas."""
         Config = self.env['mrp.reschedule.config'].sudo()
         cache = {}
-        for pick in self:
+
+        def lookup(pick):
             cid = pick.company_id.id
             if cid not in cache:
                 cfg = Config.with_company(pick.company_id).get_config() if cid else False
-                cache[cid] = bool(cfg and cfg.enable_dispatch_validation)
-            pick.x_dispatch_enabled = cache[cid] and pick.picking_type_code == 'outgoing'
+                cache[cid] = (bool(cfg and cfg.enable_dispatch_validation),
+                              set(cfg.dispatch_picking_type_ids.ids) if cfg else set())
+            return cache[cid]
+
+        def allowed(pick):
+            type_ids = lookup(pick)[1]
+            return (pick.picking_type_code == 'outgoing'
+                    and (not type_ids or pick.picking_type_id.id in type_ids))
+
+        return lookup, allowed
+
+    @api.depends('company_id', 'picking_type_code', 'picking_type_id')
+    def _compute_x_dispatch_enabled(self):
+        # sudo() en la cache: la config del planificador puede no ser accesible
+        # para usuarios de depósito.
+        lookup, allowed = self._dispatch_type_cache()
+        for pick in self:
+            pick.x_dispatch_enabled = lookup(pick)[0] and allowed(pick)
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Las salidas nacen "Sin despachar" (aunque la función esté apagada:
-        el estado queda oculto y disponible si se activa después)."""
+        """Las salidas de los tipos con despacho nacen "Sin despachar" (aunque
+        la función esté apagada: el estado queda oculto y disponible si se
+        activa después). Los tipos excluidos en Ajustes no entran al circuito."""
         pickings = super().create(vals_list)
+        _lookup, allowed = self._dispatch_type_cache()
         outgoing = pickings.filtered(
-            lambda p: p.picking_type_code == 'outgoing' and not p.x_dispatch_state)
+            lambda p: not p.x_dispatch_state and allowed(p))
         if outgoing:
             # sudo(): el estado es técnico; el creador del remito puede no tener
             # permisos de escritura ampliados según sus reglas.
@@ -97,8 +118,9 @@ class StockPicking(models.Model):
         error no pase inadvertido en un despacho en lote.
         """
         self._dispatch_check_rights()
+        _lookup, allowed = self._dispatch_type_cache()
         todo = self.filtered(
-            lambda p: p.picking_type_code == 'outgoing' and p.x_dispatch_state != 'dispatched')
+            lambda p: allowed(p) and p.x_dispatch_state != 'dispatched')
         if not todo:
             raise UserError(_('Nada para despachar: las salidas seleccionadas ya están despachadas.'))
         not_done = todo.filtered(lambda p: p.state != 'done')

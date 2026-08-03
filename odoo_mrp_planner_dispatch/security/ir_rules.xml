@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Snapshots de disponibilidad: cada empresa solo ve los propios. -->
+    <record id="rule_dispatch_stock_log_company" model="ir.rule">
+        <field name="name">Dispatch Stock Log: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_dispatch_stock_log"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- KPIs mensuales consolidados: cada empresa solo ve los propios. -->
+    <record id="rule_planner_kpi_monthly_company" model="ir.rule">
+        <field name="name">Planner KPI Monthly: solo empresa propia</field>
+        <field name="model_id" ref="model_mrp_planner_kpi_monthly"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+</odoo>

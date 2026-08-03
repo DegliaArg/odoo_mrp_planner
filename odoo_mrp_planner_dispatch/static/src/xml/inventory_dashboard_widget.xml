@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner_dispatch.InventoryDashboardWidget">
+        <div class="o_inventory_dashboard_widget">
+
+            <!-- ════ ZONA 1: filtros de gráficos + KPIs + gráficos ════ -->
+
+            <!-- Barra de filtros de gráficos -->
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <input type="date" class="form-control form-control-sm" style="width:auto;"
+                       t-att-value="state.chartFrom" t-on-change="onChartFromChange"/>
+                <span class="text-muted">→</span>
+                <input type="date" class="form-control form-control-sm" style="width:auto;"
+                       t-att-value="state.chartTo" t-on-change="onChartToChange"/>
+                <button class="btn btn-sm btn-outline-secondary" t-on-click="setCurrentMonth">
+                    Mes en curso
+                </button>
+                <div class="position-relative">
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="toggleWhDropdown">
+                        <i class="fa fa-building-o me-1"/><t t-esc="whFilterLabel"/>
+                        <i class="fa fa-caret-down ms-1"/>
+                    </button>
+                    <div t-if="state.whDropdownOpen"
+                         class="position-absolute bg-white border rounded shadow-sm p-2 mt-1"
+                         style="z-index:20; min-width:220px;" t-on-click.stop="">
+                        <div t-foreach="state.warehouses" t-as="wh" t-key="wh.id"
+                             class="form-check">
+                            <input type="checkbox" class="form-check-input"
+                                   t-att-id="'inv_wh_' + wh.id"
+                                   t-att-checked="state.chartWhIds.includes(wh.id)"
+                                   t-on-change="() => this.toggleWarehouse(wh.id)"/>
+                            <label class="form-check-label small" t-att-for="'inv_wh_' + wh.id"
+                                   t-esc="wh.name"/>
+                        </div>
+                        <div t-if="!state.warehouses.length" class="text-muted small">Sin depósitos.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error de backend (zona gráficos) -->
+            <div t-if="state.chartError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el panel: <strong><t t-esc="state.chartError"/></strong>
+            </div>
+
+            <!-- Cargando: mismo patrón que el resto de los paneles -->
+            <t t-if="!state.chartError and (state.chartLoading or !state.data)">
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
+                </div>
+            </t>
+
+            <t t-if="state.data and !state.chartLoading">
+                <div t-att-class="'o_planner_fade_in ' + (state.chartLoading ? 'opacity-50 pe-none' : '')">
+
+                <!-- Aviso: registro de disponibilidad apagado -->
+                <div t-if="!state.data.enabled" class="alert alert-warning py-2 mb-3" role="alert">
+                    <i class="fa fa-info-circle me-2"/>
+                    El <b>registro de disponibilidad</b> está desactivado: la tasa física s/ disponible
+                    y su evolución no tienen datos. Se activa en Ajustes del planificador →
+                    Despacho de entregas.
+                </div>
+
+                <!-- KPIs -->
+                <div class="row row-cols-2 row-cols-md-6 g-2 mb-3">
+                    <!-- Card 1: Pendiente total -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="kpiTooltip('pending')"
+                             t-on-click="() => this.openPending('all')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-clock-o fa-lg mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.pending_total) + ' Pz'"/></div>
+                                <div class="o_planner_label">Pendiente total</div>
+                                <div class="text-muted mt-1" style="font-size:10px;">
+                                    <t t-esc="state.data.kpis.pending_pickings"/> remito(s)
+                                </div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        t-on-click.stop="() => this.openPending('all')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 2: Disponible para despachar -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="kpiTooltip('available')"
+                             t-on-click="() => this.openPending('available')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-check-square-o fa-lg text-info mb-2 d-block"/>
+                                <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.pending_available) + ' Pz'"/></div>
+                                <div class="o_planner_label">Disponible p/ despachar</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        t-on-click.stop="() => this.openPending('available')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 3: Frenado sin stock -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="kpiTooltip('blocked')"
+                             t-on-click="() => this.openPending('blocked')">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-ban fa-lg mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.pending_blocked) + ' Pz'"/></div>
+                                <div class="o_planner_label">Frenado sin stock</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        t-on-click.stop="() => this.openPending('blocked')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 4: Despachado del período -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100 o_planner_card_clickable"
+                             t-att-title="kpiTooltip('dispatched')"
+                             t-on-click="openDispatched">
+                            <div class="card-body text-center py-3">
+                                <i class="fa fa-send fa-lg mb-2 d-block"/>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.dispatched_qty) + ' Pz'"/></div>
+                                <div class="o_planner_label">Despachado del período</div>
+                                <div class="text-muted mt-1" style="font-size:10px;">
+                                    <t t-esc="state.data.kpis.dispatched_pickings"/> remito(s)
+                                </div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        t-on-click.stop="openDispatched">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 5: Tasa física s/ disponible -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100"
+                             t-att-title="kpiTooltip('rate')">
+                            <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
+                                <i class="fa fa-tachometer fa-lg mb-2 d-block text-secondary"/>
+                                <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.rate_available)">
+                                    <t t-esc="fmtPct(state.data.kpis.rate_available)"/>
+                                </div>
+                                <div class="o_planner_label">Tasa física s/ disponible</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Card 6: Lag validación → despacho -->
+                    <div class="col">
+                        <div class="card o_planner_card h-100"
+                             t-att-title="kpiTooltip('lag')">
+                            <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
+                                <i class="fa fa-hourglass-half fa-lg mb-2 d-block text-secondary"/>
+                                <div class="o_planner_number">
+                                    <t t-esc="state.data.kpis.avg_dispatch_lag_days !== null
+                                              ? fmt(state.data.kpis.avg_dispatch_lag_days) + ' d'
+                                              : '—'"/>
+                                </div>
+                                <div class="o_planner_label">Validación → despacho</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="fw-semibold small">Evolución — Tasa física s/ disponible</span>
+                                    <span class="text-muted small ms-2"
+                                          title="Un punto por mes del rango. Meses cerrados: valor consolidado (congelado). Mes en curso: cálculo en vivo desde los snapshots (punto vacío).">
+                                        <i class="fa fa-info-circle"/>
+                                    </span>
+                                </div>
+                                <div style="position:relative; height:260px;">
+                                    <canvas t-ref="trendCanvas"/>
+                                    <div t-if="state.data.enabled and (!state.data.trend or !state.data.trend.length)"
+                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                        <div class="text-center">
+                                            <i class="fa fa-line-chart fa-2x mb-2 d-block"/>
+                                            <span class="small">Sin meses con datos en el rango seleccionado.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="fw-semibold small">Pendiente actual por depósito</span>
+                                    <span class="text-muted small ms-2"
+                                          title="Composición del pendiente de despacho de HOY: con stock reservado (podría salir) vs. sin stock (frenado). No depende del rango de fechas.">
+                                        <i class="fa fa-info-circle"/>
+                                    </span>
+                                </div>
+                                <div style="position:relative; height:260px;">
+                                    <canvas t-ref="pendingCanvas"/>
+                                    <div t-if="!state.data.pending_by_wh or !state.data.pending_by_wh.length"
+                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                        <div class="text-center">
+                                            <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                                            <span class="small">No hay salidas pendientes.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div><!-- /fade -->
+            </t>
+
+            <!-- ════ ZONA 2: barra de filtros de tabla + tabla operativa ════ -->
+
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="text-muted small">Prog. desde</span>
+                <input type="date" class="form-control form-control-sm" style="width:auto;"
+                       t-att-value="state.tblFrom" t-on-change="onTblFromChange"/>
+                <span class="text-muted small">hasta</span>
+                <input type="date" class="form-control form-control-sm" style="width:auto;"
+                       t-att-value="state.tblTo" t-on-change="onTblToChange"/>
+                <input type="text" class="form-control form-control-sm flex-grow-1"
+                       style="min-width:180px;" placeholder="Buscar remito, cliente u origen…"
+                       t-att-value="state.tblSearch" t-on-input="onTblSearchInput"/>
+                <div class="position-relative">
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="toggleTblWhDropdown">
+                        <i class="fa fa-building-o me-1"/><t t-esc="tblWhFilterLabel"/>
+                        <i class="fa fa-caret-down ms-1"/>
+                    </button>
+                    <div t-if="state.tblWhDropdownOpen"
+                         class="position-absolute bg-white border rounded shadow-sm p-2 mt-1 end-0"
+                         style="z-index:20; min-width:220px;" t-on-click.stop="">
+                        <div t-foreach="state.warehouses" t-as="wh" t-key="wh.id"
+                             class="form-check">
+                            <input type="checkbox" class="form-check-input"
+                                   t-att-id="'inv_tbl_wh_' + wh.id"
+                                   t-att-checked="state.tblWhIds.includes(wh.id)"
+                                   t-on-change="() => this.toggleTblWarehouse(wh.id)"/>
+                            <label class="form-check-label small" t-att-for="'inv_tbl_wh_' + wh.id"
+                                   t-esc="wh.name"/>
+                        </div>
+                        <div t-if="!state.warehouses.length" class="text-muted small">Sin depósitos.</div>
+                    </div>
+                </div>
+                <div class="position-relative">
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns me-1"/>Columnas <i class="fa fa-caret-down ms-1"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="position-absolute bg-white border rounded shadow-sm p-2 mt-1 end-0"
+                         style="z-index:20; min-width:200px;" t-on-click.stop="">
+                        <div t-foreach="tableCols" t-as="col" t-key="col.key" class="form-check">
+                            <input type="checkbox" class="form-check-input"
+                                   t-att-id="'inv_col_' + col.key"
+                                   t-att-checked="state.visibleCols[col.key]"
+                                   t-on-change="() => this.toggleCol(col.key)"/>
+                            <label class="form-check-label small" t-att-for="'inv_col_' + col.key"
+                                   t-esc="col.label"/>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-success" t-on-click="exportCsv"
+                        title="Exportar la tabla visible a CSV">
+                    <i class="fa fa-download me-1"/>Exportar
+                </button>
+                <button t-if="state.canDispatch and selectedIds.length"
+                        class="btn btn-sm btn-primary"
+                        t-att-disabled="state.dispatching"
+                        t-on-click="markDispatched"
+                        title="Marca como despachados los remitos preparados seleccionados">
+                    <i t-att-class="'fa me-1 ' + (state.dispatching ? 'fa-spinner fa-spin' : 'fa-send')"/>
+                    Marcar despachado (<t t-esc="selectedIds.length"/>)
+                </button>
+            </div>
+
+            <!-- Error de backend (tabla) -->
+            <div t-if="state.tableError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar las salidas pendientes: <strong><t t-esc="state.tableError"/></strong>
+            </div>
+
+            <div t-if="state.tableLoading" class="text-center text-muted py-4">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+
+            <t t-if="!state.tableLoading and !state.tableError">
+                <div t-if="!state.rows.length" class="text-center text-muted py-4 border rounded">
+                    <i class="fa fa-inbox fa-2x mb-2 d-block"/>
+                    No hay salidas pendientes para los filtros seleccionados.
+                </div>
+
+                <div t-if="state.rows.length" class="table-responsive border rounded">
+                    <table class="table table-sm table-hover mb-0" style="font-size:13px;">
+                        <thead class="table-light">
+                            <tr>
+                                <th t-if="state.canDispatch" style="width:28px;" class="text-center">
+                                    <input type="checkbox" class="form-check-input"
+                                           title="Seleccionar todos los remitos preparados"
+                                           t-att-checked="allSelected"
+                                           t-on-change="toggleSelectAll"/>
+                                </th>
+                                <th t-foreach="visibleColsList" t-as="col" t-key="col.key"
+                                    style="cursor:pointer; white-space:nowrap;"
+                                    t-on-click="() => this.setSort(col.key)">
+                                    <t t-esc="col.label"/><i t-att-class="sortIcon(col.key)"/>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="sortedRows" t-as="row" t-key="row.picking_id">
+                                <td t-if="state.canDispatch" class="text-center">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-checked="state.selected[row.picking_id]"
+                                           t-att-disabled="row.state !== 'assigned'"
+                                           t-att-title="row.state !== 'assigned'
+                                                        ? 'Solo se pueden despachar remitos preparados y validados'
+                                                        : 'Seleccionar para despachar'"
+                                           t-on-change="() => this.toggleSelect(row)"/>
+                                </td>
+                                <t t-foreach="visibleColsList" t-as="col" t-key="col.key">
+                                    <td t-if="col.key === 'name'">
+                                        <a href="#" class="fw-semibold"
+                                           t-on-click.prevent="() => this.openPicking(row)"
+                                           t-esc="row.name"/>
+                                    </td>
+                                    <td t-elif="col.key === 'scheduled'" style="white-space:nowrap;">
+                                        <t t-esc="row.scheduled"/>
+                                        <span t-if="row.overdue_days > 0"
+                                              class="badge text-bg-danger ms-1"
+                                              t-att-title="'Vencida hace ' + row.overdue_days + ' día(s)'">
+                                            +<t t-esc="row.overdue_days"/> d
+                                        </span>
+                                    </td>
+                                    <td t-elif="col.key === 'qty_pending'" class="text-end">
+                                        <t t-esc="fmt(row.qty_pending)"/>
+                                    </td>
+                                    <td t-elif="col.key === 'qty_available'" class="text-end">
+                                        <span t-att-class="row.qty_available >= row.qty_pending ? 'text-success fw-semibold'
+                                                           : (row.qty_available > 0 ? 'text-warning fw-semibold' : 'text-muted')"
+                                              t-esc="fmt(row.qty_available)"/>
+                                    </td>
+                                    <td t-elif="col.key === 'days_available'" class="text-end"
+                                        t-att-title="row.days_available !== null
+                                                     ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según los snapshots'
+                                                     : 'Sin snapshots con stock para este remito'">
+                                        <t t-esc="row.days_available !== null ? row.days_available : '—'"/>
+                                    </td>
+                                    <td t-elif="col.key === 'state'">
+                                        <span t-att-class="'badge ' + (row.state === 'assigned'
+                                                           ? 'text-bg-success' : 'text-bg-secondary')"
+                                              t-esc="stateLabel(row.state)"/>
+                                    </td>
+                                    <td t-elif="col.key === 'product_names'"
+                                        t-att-title="row.products + ' artículo(s)'">
+                                        <t t-esc="row.product_names"/>
+                                    </td>
+                                    <td t-else="">
+                                        <t t-esc="row[col.key]"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div t-if="state.rows.length" class="text-muted small mt-1">
+                    <t t-esc="state.rows.length"/> remito(s) pendiente(s)
+                </div>
+            </t>
+
+        </div>
+    </t>
+
+</templates>

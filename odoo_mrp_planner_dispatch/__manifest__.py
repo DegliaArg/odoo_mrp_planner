@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Despacho de entregas',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'summary': 'Estado de despacho (sin despachar / despachado) en las órdenes de entrega',
     'description': """
 Extensión de despacho del Planificador de producción.
@@ -27,9 +27,19 @@ exactamente como estaban (solo se pierde el historial de despacho).
     'depends': ['odoo_mrp_planner', 'stock'],
     'data': [
         'security/groups.xml',
+        'security/ir.model.access.csv',
+        'security/ir_rules.xml',
+        'data/ir_cron.xml',
         'views/stock_picking_views.xml',
         'views/res_config_settings_views.xml',
+        'views/mrp_inventory_dashboard_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'odoo_mrp_planner_dispatch/static/src/js/inventory_dashboard_widget.js',
+            'odoo_mrp_planner_dispatch/static/src/xml/inventory_dashboard_widget.xml',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

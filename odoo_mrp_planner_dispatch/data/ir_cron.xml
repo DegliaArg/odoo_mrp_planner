@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Cron diario de disponibilidad para despacho. noupdate="1": la hora
+         (nextcall) la administra la configuración del planificador y el estado
+         activo no debe pisarse en cada upgrade. El método sale solo si ninguna
+         empresa tiene el registro activado. -->
+    <data noupdate="1">
+        <record id="ir_cron_dispatch_stock_snapshot" model="ir.cron">
+            <field name="name">Planificador: snapshot de disponibilidad para despacho</field>
+            <field name="model_id" ref="model_mrp_dispatch_stock_log"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_dispatch_snapshot()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active">True</field>
+        </record>
+    </data>
+
+</odoo>

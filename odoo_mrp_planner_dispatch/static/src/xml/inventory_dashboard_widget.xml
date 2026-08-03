@@ -284,7 +284,7 @@
                 <!-- Barra de búsqueda unificada -->
                 <PlannerSearchBar
                     widgetKey="'inventory_pending'"
-                    placeholder="'Buscar remito, cliente u origen…'"
+                    placeholder="'Buscar remito u origen…'"
                     t-props="{
                         search:         state.tblSearch,
                         activeFilter:   state.tblFilter,
@@ -296,7 +296,6 @@
                             { key: 'available_days', label: 'Disponibles hace 3+ días' }
                         ],
                         groupByDefs: [
-                            { key: 'partner',     label: 'Cliente' },
                             { key: 'warehouse',   label: 'Depósito' },
                             { key: 'state',       label: 'Estado' },
                             { key: 'sched_month', label: 'Mes programado' }
@@ -522,7 +521,24 @@
                         </tbody>
                     </table>
                 </div>
-                <div t-if="sortedRows.length" class="text-muted small mt-1">
+                <!-- Paginación (mismo patrón que el forecast) -->
+                <div t-if="totalPages > 1"
+                     class="d-flex align-items-center justify-content-between px-2 py-1 border-top">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <small class="text-muted">
+                        Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                        · <t t-esc="sortedRows.length"/> remito(s)<t
+                            t-if="sortedRows.length !== state.rows.length"> (de <t t-esc="state.rows.length"/>)</t>
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
+                </div>
+                <div t-if="totalPages &lt;= 1 and sortedRows.length" class="text-muted small mt-1">
                     <t t-esc="sortedRows.length"/> remito(s) pendiente(s)<t
                         t-if="sortedRows.length !== state.rows.length"> (de <t t-esc="state.rows.length"/>)</t>
                 </div>

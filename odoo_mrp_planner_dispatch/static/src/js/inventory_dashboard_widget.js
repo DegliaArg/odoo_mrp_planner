@@ -42,7 +42,6 @@ function lastOfMonth()  { const d = new Date(); return toDateStr(new Date(d.getF
 // la visibilidad vive en state.visibleCols (mismo esquema que el forecast).
 const COLS = [
     { key: "name",           label: "Remito",      width: 110, fixed: true, align: "start" },
-    { key: "partner",        label: "Cliente",     width: 170, align: "start" },
     { key: "origin",         label: "Origen",      width: 110, align: "start" },
     { key: "warehouse",      label: "Depósito",    width: 120, align: "start" },
     { key: "scheduled",      label: "Fecha prog.", width: 120, align: "start" },
@@ -86,9 +85,9 @@ class InventoryDashboardWidget extends Component {
             data:           null,
             chartLoading:   true,
             chartError:     null,
-            // ── Zona tabla ──
-            tblFrom:        "",
-            tblTo:          "",
+            // ── Zona tabla ── (arranca en el mes en curso)
+            tblFrom:        firstOfMonth(),
+            tblTo:          lastOfMonth(),
             tblSearch:      "",
             tblFilter:      null,   // filtro client-side de la barra de búsqueda
             tblGroupBy:     null,   // agrupación client-side de la barra de búsqueda
@@ -96,10 +95,12 @@ class InventoryDashboardWidget extends Component {
             tblWhDropdownOpen: false,
             colsDropdownOpen:  false,
             visibleCols: {
-                name: true, partner: true, origin: true, warehouse: false,
+                name: true, origin: true, warehouse: false,
                 scheduled: true, product_names: true, qty_pending: true,
                 qty_available: true, days_available: true, state: true,
             },
+            page:           1,
+            pageSize:       50,
             rows:           [],
             canDispatch:    false,
             tableLoading:   true,
@@ -354,6 +355,7 @@ class InventoryDashboardWidget extends Component {
             this.state.rows        = res.rows || [];
             this.state.canDispatch = !!res.can_dispatch;
             this.state.selected    = {};
+            this.state.page        = 1;
         } catch (e) {
             console.error("[InventoryPanel]", e);
             this.state.tableError = (e && e.data && e.data.message) || e.message || String(e);
@@ -372,8 +374,8 @@ class InventoryDashboardWidget extends Component {
     // La búsqueda de texto sigue resolviéndose en el servidor (con debounce);
     // filtro y agrupación son client-side, así que no requieren RPC.
     setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
-    setTblFilter(key)     { this.state.tblFilter  = key; }
-    setTblGroupBy(key)    { this.state.tblGroupBy = key; }
+    setTblFilter(key)     { this.state.tblFilter  = key; this.state.page = 1; }
+    setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.page = 1; }
     toggleTblWhDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.tblWhDropdownOpen;
@@ -452,7 +454,6 @@ class InventoryDashboardWidget extends Component {
     /** Clave de agrupación de una fila según state.tblGroupBy. */
     _groupKey(row) {
         const gb = this.state.tblGroupBy;
-        if (gb === "partner")   return row.partner   || "Sin cliente";
         if (gb === "warehouse") return row.warehouse || "Sin depósito";
         if (gb === "state")     return this.stateLabel(row.state);
         if (gb === "sched_month") {
@@ -464,13 +465,26 @@ class InventoryDashboardWidget extends Component {
         return "";
     }
 
+    // ── Paginación (mismo esquema que el forecast: 50 filas por página) ───────
+
+    get pagedRows() {
+        const start = (this.state.page - 1) * this.state.pageSize;
+        return this.sortedRows.slice(start, start + this.state.pageSize);
+    }
+    get totalPages()  { return Math.max(1, Math.ceil(this.filteredRows.length / this.state.pageSize)); }
+    get hasNextPage() { return this.state.page < this.totalPages; }
+    get hasPrevPage() { return this.state.page > 1; }
+    nextPage() { if (this.hasNextPage) this.state.page++; }
+    prevPage() { if (this.hasPrevPage) this.state.page--; }
+
     /**
-     * Ítems a renderizar en el tbody. Sin agrupación: solo filas. Con
-     * agrupación: una fila de encabezado por grupo (con conteo y sumas)
+     * Ítems a renderizar en el tbody (la página actual). Sin agrupación:
+     * solo filas. Con agrupación: una fila de encabezado por grupo (con
+     * conteo y sumas de las filas del grupo presentes en la página)
      * seguida de sus filas, respetando el orden del sort actual.
      */
     get tableItems() {
-        const rows = this.sortedRows;
+        const rows = this.pagedRows;
         if (!this.state.tblGroupBy) {
             return rows.map(r => ({ _type: "row", row: r }));
         }
@@ -514,7 +528,8 @@ class InventoryDashboardWidget extends Component {
     get selectedIds() {
         return Object.keys(this.state.selected).filter(k => this.state.selected[k]).map(Number);
     }
-    get selectableRows() { return this.sortedRows.filter(r => r.state === "assigned"); }
+    // "Seleccionar todos" opera sobre la página visible, para no despachar filas fuera de vista
+    get selectableRows() { return this.pagedRows.filter(r => r.state === "assigned"); }
     get allSelected() {
         const sel = this.selectableRows;
         return sel.length > 0 && sel.every(r => this.state.selected[r.picking_id]);

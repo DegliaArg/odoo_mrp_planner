@@ -345,7 +345,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         :param date_from/date_to: filtro opcional sobre la fecha programada.
         :param warehouse_ids: filtro opcional de depósitos.
-        :param search: texto contra remito / cliente / origen.
+        :param search: texto contra remito / origen.
         :returns: dict {'rows': list[dict], 'can_dispatch': bool}
         """
         self._inventory_ensure_group()
@@ -363,9 +363,8 @@ class MrpPlannerDashboard(models.TransientModel):
         if date_to:
             dom.append(('scheduled_date', '<=', f'{date_to} 23:59:59'))
         if search:
-            dom += ['|', '|',
+            dom += ['|',
                     ('name', 'ilike', search),
-                    ('partner_id', 'ilike', search),
                     ('origin', 'ilike', search)]
         picks = self.env['stock.picking'].sudo().search(dom, order='scheduled_date asc')
         if not picks:

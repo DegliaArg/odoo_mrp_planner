@@ -3,9 +3,14 @@ Módulo: mrp_dispatch_stock_log.py (odoo_mrp_planner_dispatch)
 Modelos: mrp.dispatch.stock.log y mrp.planner.kpi.monthly
 
 Snapshots diarios de disponibilidad de stock de las salidas pendientes y
-consolidado mensual de KPIs. Alimentan la "Tasa física s/ disponible" del
-Panel de Inventario: el mes en curso se calcula desde los snapshots crudos;
-los meses cerrados se leen del consolidado, que nunca se purga.
+consolidado mensual de KPIs. Alimentan la "Tasa de entrega s/ disponible"
+del Panel de Inventario: el mes en curso se calcula desde los snapshots
+crudos; los meses cerrados se leen del consolidado, que nunca se purga.
+
+El panel usa solo datos estándar de Odoo: pendiente = demanda en eslabones
+sin validar, entregado = salida validada (state done, por date_done) con
+destino cliente. No depende del circuito de despacho (x_dispatch_state),
+que es una extensión opcional.
 
 Ciclo del cron diario (_cron_dispatch_snapshot):
 1. Snapshot: una fila por remito-producto pendiente con su cantidad
@@ -22,7 +27,6 @@ Relacionado con:
 - mrp.reschedule.config: dispatch_stock_log_enabled / dispatch_snapshot_hour /
   dispatch_log_retention_months (agregados por este módulo).
 - mrp.planner.run.log: cada corrida del cron queda en el historial.
-- stock.picking (x_dispatch_state / x_dispatch_date): definen el numerador.
 """
 import logging
 from datetime import datetime, time as dt_time, timedelta
@@ -194,6 +198,32 @@ class MrpDispatchStockLog(models.Model):
         return list(info), info
 
     @api.model
+    def _dispatch_chain_domain(self, type_info, prefix=''):
+        """Dominio del universo de demanda de clientes sobre los eslabones.
+
+        Los eslabones de recolección/embalaje entran por tipo de operación;
+        las salidas exigen además destino en una ubicación de cliente: el
+        mismo tipo "Órdenes de entrega" puede usarse para transferencias
+        entre depósitos (rutas de reabastecimiento, destino en tránsito) y
+        esos remitos no son demanda de clientes.
+
+        :param type_info: mapa de _dispatch_chain_types.
+        :param prefix: '' para dominios sobre stock.picking,
+                       'picking_id.' para dominios sobre stock.move.
+        :returns: list — dominio a sumar a la búsqueda.
+        """
+        ship_ids  = [t for t, info in type_info.items() if info[2] == 'ship']
+        other_ids = [t for t, info in type_info.items() if info[2] != 'ship']
+        f_type = f'{prefix}picking_type_id'
+        f_dest = f'{prefix}location_dest_id.usage'
+        dom_ship = ['&', (f_type, 'in', ship_ids), (f_dest, '=', 'customer')]
+        if not ship_ids:
+            return [(f_type, 'in', other_ids)]
+        if not other_ids:
+            return dom_ship
+        return ['|', (f_type, 'in', other_ids)] + dom_ship
+
+    @api.model
     def _dispatch_chain_keys(self, picking_ids):
         """Clave de cadena por remito: el pedido de venta si existe (todos los
         eslabones de una misma entrega comparten sale_id vía el grupo de
@@ -210,10 +240,11 @@ class MrpDispatchStockLog(models.Model):
         return keys
 
     @api.model
-    def _dispatch_dispatched_chain_products(self, chain_keys, dt_to):
-        """Pares (clave de cadena, producto) que ya alcanzaron un despacho
-        antes de dt_to. Se usa para excluir del denominador la demanda cuyos
-        snapshots quedaron en eslabones anteriores pero terminó despachada.
+    def _dispatch_delivered_chain_products(self, chain_keys, dt_to):
+        """Pares (clave de cadena, producto) que ya alcanzaron una entrega
+        (salida a cliente validada) antes de dt_to. Se usa para excluir del
+        denominador la demanda cuyos snapshots quedaron en eslabones
+        anteriores pero terminó entregada.
 
         :param chain_keys: iterable de claves ('s', sale_id) / ('p', picking_id).
         :returns: set de (clave, product_id).
@@ -223,8 +254,9 @@ class MrpDispatchStockLog(models.Model):
         result = set()
         dom_common = [
             ('picking_type_code', '=', 'outgoing'),
-            ('x_dispatch_state', '=', 'dispatched'),
-            ('x_dispatch_date', '<', dt_to),
+            ('location_dest_id.usage', '=', 'customer'),
+            ('state', '=', 'done'),
+            ('date_done', '<', dt_to),
         ]
         picks = self.env['stock.picking'].sudo()
         if sale_ids:
@@ -254,7 +286,7 @@ class MrpDispatchStockLog(models.Model):
         Config = self.env['mrp.reschedule.config'].sudo()
         for company in self.env['res.company'].sudo().search([]):
             cfg = Config.with_company(company).get_config()
-            if not (cfg and cfg.enable_dispatch_validation and cfg.dispatch_stock_log_enabled):
+            if not (cfg and cfg.dispatch_stock_log_enabled):
                 continue
             started = fields.Datetime.now()
             try:
@@ -313,30 +345,19 @@ class MrpDispatchStockLog(models.Model):
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
 
         # ── Demanda pendiente en cualquier eslabón (recolección/embalaje/salida).
-        # sudo(): mismo criterio que las demás lecturas de stock del planificador.
+        # Las salidas solo con destino cliente (excluye transferencias entre
+        # depósitos). sudo(): mismo criterio que las demás lecturas de stock.
         moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
-            ('picking_id.picking_type_id', 'in', chain_type_ids),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + cutoff_dom)
+        ] + self._dispatch_chain_domain(type_info, 'picking_id.') + cutoff_dom)
         move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty']) if moves else []
         # Disponibilidad evaluada en el eslabón donde está parada la demanda
         chain_avail = self._chain_available_qty(moves) if moves else {}
 
-        # ── Salidas validadas sin despachar: 100 % disponibles para despachar.
-        ready_moves = self.env['stock.move'].sudo().search([
-            ('company_id', '=', company.id),
-            ('picking_id.picking_type_id', 'in', chain_type_ids),
-            ('picking_id.state', '=', 'done'),
-            ('picking_id.x_dispatch_state', '=', 'to_dispatch'),
-            ('state', '=', 'done'),
-        ] + cutoff_dom)
-        ready_rows = ready_moves.read(['picking_id', 'product_id', 'quantity']) if ready_moves else []
-
         # Depósito por picking vía el mapa de tipos de la cadena
-        all_pick_ids = ({r['picking_id'][0] for r in move_rows if r['picking_id']}
-                        | {r['picking_id'][0] for r in ready_rows if r['picking_id']})
+        all_pick_ids = {r['picking_id'][0] for r in move_rows if r['picking_id']}
         pick_type = {p['id']: p['picking_type_id'][0] if p['picking_type_id'] else False
                      for p in self.env['stock.picking'].sudo()
                                   .browse(list(all_pick_ids)).read(['picking_type_id'])}
@@ -352,16 +373,6 @@ class MrpDispatchStockLog(models.Model):
             agg.setdefault(key, [0.0, 0.0])
             agg[key][0] += r['product_uom_qty'] or 0.0
             agg[key][1] += chain_avail.get(r['id'], 0.0)
-        for r in ready_rows:
-            pick = r['picking_id'][0] if r['picking_id'] else False
-            prod = r['product_id'][0] if r['product_id'] else False
-            if not pick or not prod:
-                continue
-            qty = r['quantity'] or 0.0
-            key = (pick, prod)
-            agg.setdefault(key, [0.0, 0.0])
-            agg[key][0] += qty
-            agg[key][1] += qty
 
         vals_list = []
         for (pick, prod), (pending, available) in agg.items():
@@ -421,12 +432,13 @@ class MrpDispatchStockLog(models.Model):
     def _dispatch_month_figures(self, company, month_start, warehouse_ids=None):
         """Numerador y denominador extra de un mes, por depósito y producto.
 
-        - Numerador: cantidad despachada en el mes (por fecha de despacho).
+        - Numerador: cantidad entregada en el mes — salidas a cliente
+          validadas, por fecha de validación (date_done).
         - Denominador extra: demanda que estuvo disponible en algún snapshot
-          del mes y NO llegó a despacharse antes de fin de mes. Se deduplica
+          del mes y NO llegó a entregarse antes de fin de mes. Se deduplica
           por (clave de cadena, producto) con la máxima cantidad vista: así
           una misma entrega que avanza de recolección a salida entre
-          snapshots cuenta una sola vez, y si terminó despachada se excluye
+          snapshots cuenta una sola vez, y si terminó entregada se excluye
           aunque sus snapshots hayan quedado en eslabones anteriores.
 
         Lo comparten el cierre mensual (consolidado) y el cálculo en vivo del
@@ -436,13 +448,14 @@ class MrpDispatchStockLog(models.Model):
         """
         dt_from, dt_to = self._month_utc_bounds(month_start.year, month_start.month, company)
 
-        # ── Numerador: despachado en el mes ───────────────────────────────────
+        # ── Numerador: entregado en el mes ────────────────────────────────────
         disp_dom = [
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('x_dispatch_state', '=', 'dispatched'),
-            ('x_dispatch_date', '>=', dt_from),
-            ('x_dispatch_date', '<', dt_to),
+            ('location_dest_id.usage', '=', 'customer'),
+            ('state', '=', 'done'),
+            ('date_done', '>=', dt_from),
+            ('date_done', '<', dt_to),
         ]
         if warehouse_ids:
             disp_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
@@ -491,7 +504,7 @@ class MrpDispatchStockLog(models.Model):
                 key = (ck, prod)
                 if key not in best or r['qty_reserved'] > best[key][1]:
                     best[key] = (wh, r['qty_reserved'])
-            dispatched = self._dispatch_dispatched_chain_products(
+            dispatched = self._dispatch_delivered_chain_products(
                 {ck for ck, _prod in best}, dt_to)
             for (ck, prod), (wh, qty) in best.items():
                 if (ck, prod) in dispatched:
@@ -501,8 +514,8 @@ class MrpDispatchStockLog(models.Model):
 
     @api.model
     def _dispatch_consolidate_one_month(self, company, month_start):
-        """Congela un mes: numerador (despachado en el mes) y denominador extra
-        (disponible en algún snapshot del mes y no despachado hasta fin de mes),
+        """Congela un mes: numerador (entregado en el mes) y denominador extra
+        (disponible en algún snapshot del mes y no entregado hasta fin de mes),
         por depósito y producto, más la fila resumen global."""
         Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
         num, den = self._dispatch_month_figures(company, month_start)
@@ -583,7 +596,7 @@ class MrpPlannerKpiMonthly(models.Model):
     _order = 'period desc, id'
 
     kpi = fields.Selection([
-        ('dispatch_available', 'Tasa física s/ disponible'),
+        ('dispatch_available', 'Tasa de entrega s/ disponible'),
     ], string='KPI', required=True, index=True)
     period = fields.Date(string='Mes', required=True, index=True,
                          help='Primer día del mes consolidado.')
@@ -593,10 +606,11 @@ class MrpPlannerKpiMonthly(models.Model):
     product_id = fields.Many2one('product.product', string='Artículo', ondelete='cascade',
                                  help='Vacío en la fila resumen global del mes.')
     qty_num = fields.Float(string='Numerador', digits='Product Unit of Measure',
-                           help='Tasa física s/ disponible: cantidad despachada en el mes.')
+                           help='Tasa de entrega s/ disponible: cantidad entregada en el mes '
+                                '(salidas a cliente validadas, por fecha de validación).')
     qty_den_extra = fields.Float(string='Denominador extra', digits='Product Unit of Measure',
-                                 help='Tasa física s/ disponible: cantidad que estuvo disponible '
-                                      'en algún snapshot del mes y no se despachó.')
+                                 help='Tasa de entrega s/ disponible: cantidad que estuvo disponible '
+                                      'en algún snapshot del mes y no se entregó.')
     rate = fields.Float(string='Tasa (%)', compute='_compute_rate', digits=(12, 1))
 
     _sql_constraints = [

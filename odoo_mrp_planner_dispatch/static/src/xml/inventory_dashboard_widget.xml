@@ -89,9 +89,9 @@
                 <!-- Aviso: registro de disponibilidad apagado -->
                 <div t-if="!state.data.enabled" class="alert alert-warning py-2 mb-3" role="alert">
                     <i class="fa fa-info-circle me-2"/>
-                    El <b>registro de disponibilidad</b> está desactivado: la tasa física s/ disponible
-                    y su evolución no tienen datos. Se activa en Ajustes del planificador →
-                    Despacho de entregas.
+                    El <b>registro de disponibilidad</b> está desactivado: la tasa de entrega
+                    s/ disponible y su evolución no tienen datos. Se activa en Ajustes del
+                    planificador → pestaña Inventario.
                 </div>
 
                 <!-- KPIs -->
@@ -117,7 +117,7 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Card 2: Disponible para despachar -->
+                    <!-- Card 2: Disponible para entregar -->
                     <div class="col">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
                              t-att-title="kpiTooltip('available')"
@@ -125,7 +125,7 @@
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-check-square-o fa-lg text-info mb-2 d-block"/>
                                 <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.pending_available) + ' Pz'"/></div>
-                                <div class="o_planner_label">Disponible p/ despachar</div>
+                                <div class="o_planner_label">Disponible p/ entregar</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
@@ -149,28 +149,28 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Card 4: Despachado del período -->
+                    <!-- Card 4: Entregado del período -->
                     <div class="col">
                         <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="kpiTooltip('dispatched')"
-                             t-on-click="openDispatched">
+                             t-att-title="kpiTooltip('delivered')"
+                             t-on-click="openDelivered">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-send fa-lg mb-2 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.dispatched_qty) + ' Pz'"/></div>
-                                <div class="o_planner_label">Despachado del período</div>
+                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.delivered_qty) + ' Pz'"/></div>
+                                <div class="o_planner_label">Entregado del período</div>
                                 <div class="text-muted mt-1" style="font-size:10px; cursor:pointer;"
-                                     title="Cantidad de remitos de salida despachados — clic para ver la lista"
-                                     t-on-click.stop="openDispatched">
-                                    <t t-esc="state.data.kpis.dispatched_pickings"/> remito(s)
+                                     title="Cantidad de remitos de salida entregados — clic para ver la lista"
+                                     t-on-click.stop="openDelivered">
+                                    <t t-esc="state.data.kpis.delivered_pickings"/> remito(s)
                                 </div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
-                                        t-on-click.stop="openDispatched">Ver →</button>
+                                        t-on-click.stop="openDelivered">Ver →</button>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 5: Tasa física s/ disponible -->
+                    <!-- Card 5: Tasa de entrega s/ disponible -->
                     <div class="col">
                         <div class="card o_planner_card h-100"
                              t-att-title="kpiTooltip('rate')">
@@ -179,22 +179,22 @@
                                 <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.rate_available)">
                                     <t t-esc="fmtPct(state.data.kpis.rate_available)"/>
                                 </div>
-                                <div class="o_planner_label">Tasa física s/ disponible</div>
+                                <div class="o_planner_label">Tasa de entrega s/ disponible</div>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 6: Lag validación → despacho -->
+                    <!-- Card 6: Atraso promedio de entrega -->
                     <div class="col">
                         <div class="card o_planner_card h-100"
-                             t-att-title="kpiTooltip('lag')">
+                             t-att-title="kpiTooltip('delay')">
                             <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
                                 <i class="fa fa-hourglass-half fa-lg mb-2 d-block text-secondary"/>
                                 <div class="o_planner_number">
-                                    <t t-esc="state.data.kpis.avg_dispatch_lag_days !== null
-                                              ? fmt(state.data.kpis.avg_dispatch_lag_days) + ' d'
+                                    <t t-esc="state.data.kpis.avg_delivery_delay_days !== null
+                                              ? fmt(state.data.kpis.avg_delivery_delay_days) + ' d'
                                               : '—'"/>
                                 </div>
-                                <div class="o_planner_label">Validación → despacho</div>
+                                <div class="o_planner_label">Atraso prom. de entrega</div>
                             </div>
                         </div>
                     </div>
@@ -206,7 +206,7 @@
                         <div class="card o_planner_card h-100">
                             <div class="card-body">
                                 <div class="d-flex align-items-center mb-2">
-                                    <span class="fw-semibold small">Evolución — Tasa física s/ disponible</span>
+                                    <span class="fw-semibold small">Evolución — Tasa de entrega s/ disponible</span>
                                     <span class="text-muted small ms-2"
                                           title="Un punto por mes del rango. Meses cerrados: valor consolidado (congelado). Mes en curso: cálculo en vivo desde los snapshots (punto vacío).">
                                         <i class="fa fa-info-circle"/>
@@ -231,7 +231,7 @@
                                 <div class="d-flex align-items-center mb-2">
                                     <span class="fw-semibold small">Pendiente actual por depósito</span>
                                     <span class="text-muted small ms-2"
-                                          title="Composición del pendiente de despacho de HOY: con stock reservado (podría salir) vs. sin stock (frenado). No depende del rango de fechas.">
+                                          title="Composición del pendiente de entrega de HOY: con stock reservado (podría salir) vs. sin stock (frenado). No depende del rango de fechas.">
                                         <i class="fa fa-info-circle"/>
                                     </span>
                                 </div>
@@ -258,6 +258,13 @@
             <div class="o_planner_section_title mb-3">
                 <i class="fa fa-truck me-2 text-muted"/>
                 <span class="text-uppercase fw-bold text-muted small">Salidas pendientes</span>
+                <!-- Cola operativa del circuito de despacho: no participa de los
+                     KPIs (una salida validada ya está entregada) -->
+                <span t-if="state.dispatchEnabled and readyCount"
+                      class="badge text-bg-info ms-2"
+                      title="Salidas ya validadas (entregadas) que aún no se marcaron como despachadas. No suman al pendiente de los KPIs.">
+                    <t t-esc="readyCount"/> validada(s) s/ despachar
+                </span>
             </div>
 
             <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->
@@ -289,13 +296,7 @@
                         search:         state.tblSearch,
                         activeFilter:   state.tblFilter,
                         activeGroupBy:  state.tblGroupBy,
-                        filterDefs: [
-                            { key: 'assigned',       label: 'Preparados' },
-                            { key: 'waiting',        label: 'En espera' },
-                            { key: 'overdue',        label: 'Vencidas' },
-                            { key: 'available_days', label: 'Disponibles hace 3+ días' },
-                            { key: 'ready',          label: 'Validadas s/ despachar' }
-                        ],
+                        filterDefs: tblFilterDefs,
                         groupByDefs: [
                             { key: 'warehouse',   label: 'Depósito' },
                             { key: 'state',       label: 'Estado' },

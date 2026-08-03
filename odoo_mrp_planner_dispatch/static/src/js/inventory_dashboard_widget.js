@@ -1,13 +1,18 @@
 /**
  * inventory_dashboard_widget.js (odoo_mrp_planner_dispatch)
  *
- * Widget del Panel de Inventario. Dos zonas con barras de filtros
- * independientes (misma estructura que el panel de ventas):
- *   - Zona superior: KPIs de despacho + gráficos (evolución mensual de la
- *     tasa física s/ disponible y composición del pendiente por depósito).
+ * Widget del Panel de Inventario. Los números usan solo datos estándar de
+ * Odoo (pendiente = eslabones sin validar, entregado = salida validada por
+ * date_done); el circuito de despacho, si está activo, agrega únicamente la
+ * cola "Validado s/ despachar" y el botón masivo en la tabla.
+ *
+ * Dos zonas con barras de filtros independientes (misma estructura que el
+ * panel de ventas):
+ *   - Zona superior: KPIs de entregas + gráficos (evolución mensual de la
+ *     tasa de entrega s/ disponible y composición del pendiente por depósito).
  *     RPC: get_inventory_dashboard_data(periodFrom, periodTo, warehouseIds).
- *   - Zona inferior: tabla operativa de salidas pendientes con selección y
- *     "Marcar despachado" masivo.
+ *   - Zona inferior: tabla operativa de salidas pendientes (con selección y
+ *     "Marcar despachado" masivo solo si el circuito está activo).
  *     RPC: get_inventory_pending_table(dateFrom, dateTo, warehouseIds, search).
  *
  * Reutiliza los patrones compartidos del módulo base para mantener la
@@ -105,6 +110,7 @@ class InventoryDashboardWidget extends Component {
             pageSize:       30,
             rows:           [],
             canDispatch:    false,
+            dispatchEnabled: false,
             tableLoading:   true,
             tableError:     null,
             selected:       {},
@@ -227,7 +233,7 @@ class InventoryDashboardWidget extends Component {
                 data: {
                     labels,
                     datasets: [{
-                        label: "Tasa física s/ disponible",
+                        label: "Tasa de entrega s/ disponible",
                         data: d.trend.map(m => m.rate),
                         borderColor: "#0d6efd",
                         backgroundColor: "rgba(13,110,253,0.10)",
@@ -253,7 +259,7 @@ class InventoryDashboardWidget extends Component {
                                     const src = m.source === "monthly" ? "consolidado" : "en vivo";
                                     return m.rate === null
                                         ? "Sin datos"
-                                        : `${m.rate}% (${src}) — desp. ${fmt(m.num)} / disp. no desp. ${fmt(m.den_extra)}`;
+                                        : `${m.rate}% (${src}) — entr. ${fmt(m.num)} / disp. no entr. ${fmt(m.den_extra)}`;
                                 },
                             },
                         },
@@ -297,17 +303,17 @@ class InventoryDashboardWidget extends Component {
         const k = (this.state.data && this.state.data.kpis) || {};
         switch (key) {
             case "pending":
-                return `Demanda aún no despachada, en cualquier eslabón de la cadena de entrega (recolección, embalaje, salida y validadas sin despachar)\n${k.pending_pickings || 0} remito(s) pendiente(s)`;
+                return `Demanda aún no entregada, en cualquier eslabón de la cadena de entrega (recolección, embalaje o salida a cliente)\n${k.pending_pickings || 0} remito(s) pendiente(s)`;
             case "available":
-                return "Del pendiente actual, cantidad con stock reservado en su eslabón (más lo validado sin despachar): podría despacharse hoy. Clic para ver los remitos.";
+                return "Del pendiente actual, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.";
             case "blocked":
                 return "Del pendiente actual, cantidad sin stock reservado en su eslabón: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
-            case "dispatched":
-                return `Cantidad de remitos marcados como despachados en el período (por fecha de despacho)\n${k.dispatched_pickings || 0} remito(s)`;
+            case "delivered":
+                return `Cantidad entregada en el período: salidas a cliente validadas, por fecha de validación\n${k.delivered_pickings || 0} remito(s)`;
             case "rate":
-                return `Despachado ÷ (despachado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
-            case "lag":
-                return "Días promedio entre la validación del remito y su despacho, para los despachos del período.";
+                return `Entregado ÷ (entregado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
+            case "delay":
+                return "Días promedio entre la fecha programada y la validación de las salidas entregadas del período (negativo = se entregó antes de lo programado).";
             default:
                 return "";
         }
@@ -320,8 +326,8 @@ class InventoryDashboardWidget extends Component {
             [mode, this.state.chartWhIds]);
         this.action.doAction(act);
     }
-    async openDispatched() {
-        const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_dispatched",
+    async openDelivered() {
+        const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
             [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds]);
         this.action.doAction(act);
     }
@@ -363,9 +369,10 @@ class InventoryDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_inventory_pending_table",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblSearch]);
-            this.state.rows        = res.rows || [];
-            this.state.canDispatch = !!res.can_dispatch;
-            this.state.selected    = {};
+            this.state.rows            = res.rows || [];
+            this.state.canDispatch     = !!res.can_dispatch;
+            this.state.dispatchEnabled = !!res.dispatch_enabled;
+            this.state.selected        = {};
             this.state.page        = 1;
         } catch (e) {
             console.error("[InventoryPanel]", e);
@@ -439,6 +446,27 @@ class InventoryDashboardWidget extends Component {
     }
 
     // ── Filtros y agrupación client-side (barra de búsqueda) ──────────────────
+
+    /** Remitos de la cola operativa "Validado s/ despachar" (solo existe con
+     *  el circuito de despacho activo; no participan de los KPIs). */
+    get readyCount() {
+        return this.state.rows.filter(r => r.stage === "ready").length;
+    }
+
+    /** Filtros de la barra de búsqueda; la cola de despacho solo aparece con
+     *  el circuito activo. */
+    get tblFilterDefs() {
+        const defs = [
+            { key: "assigned",       label: "Preparados" },
+            { key: "waiting",        label: "En espera" },
+            { key: "overdue",        label: "Vencidas" },
+            { key: "available_days", label: "Disponibles hace 3+ días" },
+        ];
+        if (this.state.dispatchEnabled) {
+            defs.push({ key: "ready", label: "Validadas s/ despachar" });
+        }
+        return defs;
+    }
 
     get filteredRows() {
         let rows = this.state.rows;

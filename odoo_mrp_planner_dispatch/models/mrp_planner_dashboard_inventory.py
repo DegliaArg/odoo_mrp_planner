@@ -6,14 +6,21 @@ Backend del Panel de Inventario: KPIs y gráficos de despacho (llamada 1) y
 tabla operativa de salidas pendientes (llamada 2), cada uno detrás de su
 propia barra de filtros en el widget.
 
+Los números usan solo datos estándar de Odoo (estados nativos, date_done,
+scheduled_date), esté o no activo el circuito de despacho. El circuito, si
+está activo, agrega únicamente una capa operativa en la tabla: la cola
+"Validado s/ despachar" y el botón masivo "Marcar despachado".
+
 Fuentes de datos:
 - Estado actual de stock.picking / stock.move: pendiente, disponible, frenado.
   La disponibilidad se evalúa en el primer eslabón de la cadena de cada
   movimiento (mrp.dispatch.stock.log._chain_available_qty), y las salidas más
   viejas que el corte de antigüedad configurado quedan fuera de todo el panel.
-- x_dispatch_state / x_dispatch_date: despachado del período.
-- mrp.dispatch.stock.log: denominador de la "Tasa física s/ disponible" del
-  mes en curso (y meses aún no consolidados).
+  Las salidas cuentan solo con destino cliente (excluye transferencias entre
+  depósitos que usan un tipo de salida).
+- state='done' / date_done: entregado del período y atraso de entrega.
+- mrp.dispatch.stock.log: denominador de la "Tasa de entrega s/ disponible"
+  del mes en curso (y meses aún no consolidados).
 - mrp.planner.kpi.monthly: meses cerrados (histórico congelado).
 
 Todas las lecturas de stock/ventas usan sudo() con guard de grupo previo,
@@ -120,66 +127,55 @@ class MrpPlannerDashboard(models.TransientModel):
         :returns: dict con:
             - 'enabled' (bool): registro de disponibilidad activo en Ajustes.
             - 'kpis' (dict): pendiente/disponible/frenado (estado actual),
-              despachado del período, tasa física s/ disponible y lag promedio.
+              entregado del período, tasa de entrega s/ disponible y atraso
+              promedio de entrega.
             - 'trend' (list[dict]): evolución mensual de la tasa en el rango,
               cada mes con su origen ('monthly' congelado o 'live').
             - 'pending_by_wh' (list[dict]): composición actual del pendiente
               (disponible vs. sin stock) por depósito.
 
         El disponible del pendiente se evalúa en el primer eslabón de la cadena
-        de cada movimiento (_chain_available_qty); el numerador de la tasa
-        (despachado) no cambia. Las salidas más viejas que el corte de
-        antigüedad configurado quedan fuera, y las cantidades en piezas
-        respetan "Forzar cantidades enteras" de Ajustes.
+        de cada movimiento (_chain_available_qty). Las salidas más viejas que
+        el corte de antigüedad configurado quedan fuera, y las cantidades en
+        piezas respetan "Forzar cantidades enteras" de Ajustes.
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        log_enabled = bool(cfg and cfg.enable_dispatch_validation
-                           and cfg.dispatch_stock_log_enabled)
+        log_enabled = bool(cfg and cfg.dispatch_stock_log_enabled)
         d_from, d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
 
         # ── Estado actual del pendiente (no depende del período) ─────────────
         # Universo = demanda parada en cualquier eslabón de la cadena de
-        # entrega (recolección/embalaje/salida, según los pasos del depósito)
-        # + salidas validadas sin despachar. En el flujo lazy de Odoo 17+ los
-        # eslabones se crean al validar el anterior, así que son disjuntos.
+        # entrega (recolección/embalaje/salida, según los pasos del depósito),
+        # con las salidas solo a destino cliente. En el flujo lazy de Odoo 17+
+        # los eslabones se crean al validar el anterior, así que son disjuntos.
         Log = self.env['mrp.dispatch.stock.log']
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
         pending_moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
-            ('picking_id.picking_type_id', 'in', chain_type_ids),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
-        ready_moves = self.env['stock.move'].sudo().search([
-            ('company_id', '=', company.id),
-            ('picking_id.picking_type_id', 'in', chain_type_ids),
-            ('picking_id.state', '=', 'done'),
-            ('picking_id.x_dispatch_state', '=', 'to_dispatch'),
-            ('state', '=', 'done'),
-        ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
+        ] + Log._dispatch_chain_domain(type_info, 'picking_id.') + cutoff_dom) \
+            if chain_type_ids else self.env['stock.move'].sudo()
         pending_total = pending_available = 0.0
         pending_pick_ids = set()
         by_wh = {}  # {(wh_id, wh_name): [available, blocked]}
-        if pending_moves or ready_moves:
-            rows = pending_moves.read(['picking_id', 'product_uom_qty']) \
-                if pending_moves else []
-            ready_rows = ready_moves.read(['picking_id', 'quantity']) \
-                if ready_moves else []
+        if pending_moves:
+            rows = pending_moves.read(['picking_id', 'product_uom_qty'])
             # Disponible evaluado en el eslabón donde está parada la demanda
-            chain_avail = Log._chain_available_qty(pending_moves) if pending_moves else {}
-            all_pick_ids = ({r['picking_id'][0] for r in rows if r['picking_id']}
-                            | {r['picking_id'][0] for r in ready_rows if r['picking_id']})
+            chain_avail = Log._chain_available_qty(pending_moves)
+            all_pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
             pick_type = {p['id']: p['picking_type_id'][0] if p['picking_type_id'] else False
                          for p in self.env['stock.picking'].sudo()
                                       .browse(list(all_pick_ids)).read(['picking_type_id'])}
-
-            def _acc(pick, qty, avail):
-                nonlocal pending_total, pending_available
+            for r in rows:
+                qty = r['product_uom_qty'] or 0.0
+                avail = min(chain_avail.get(r['id'], 0.0), qty)
+                pick = r['picking_id'][0] if r['picking_id'] else False
                 pending_total     += qty
                 pending_available += avail
                 if pick:
@@ -190,36 +186,29 @@ class MrpPlannerDashboard(models.TransientModel):
                 by_wh[wh_key][0] += avail
                 by_wh[wh_key][1] += qty - avail
 
-            for r in rows:
-                qty = r['product_uom_qty'] or 0.0
-                _acc(r['picking_id'][0] if r['picking_id'] else False,
-                     qty, min(chain_avail.get(r['id'], 0.0), qty))
-            # Validadas sin despachar: 100 % disponibles para despachar
-            for r in ready_rows:
-                qty = r['quantity'] or 0.0
-                _acc(r['picking_id'][0] if r['picking_id'] else False, qty, qty)
-
-        # ── Despachado del período + lag validación→despacho ─────────────────
-        dispatched_picks = self.env['stock.picking'].sudo().search([
+        # ── Entregado del período + atraso promedio de entrega ───────────────
+        # Estándar: salidas a cliente validadas, por fecha de validación.
+        delivered_picks = self.env['stock.picking'].sudo().search([
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('x_dispatch_state', '=', 'dispatched'),
-            ('x_dispatch_date', '>=', dt_from),
-            ('x_dispatch_date', '<', dt_to),
+            ('location_dest_id.usage', '=', 'customer'),
+            ('state', '=', 'done'),
+            ('date_done', '>=', dt_from),
+            ('date_done', '<', dt_to),
         ] + self._inventory_wh_domain(warehouse_ids))
-        dispatched_qty = 0.0
-        lag_sum, lag_count = 0.0, 0
-        if dispatched_picks:
+        delivered_qty = 0.0
+        delay_sum, delay_count = 0.0, 0
+        if delivered_picks:
             d_moves = self.env['stock.move'].sudo().search([
-                ('picking_id', 'in', dispatched_picks.ids),
+                ('picking_id', 'in', delivered_picks.ids),
                 ('state', '=', 'done'),
             ])
-            dispatched_qty = sum(r['quantity'] or 0.0
-                                 for r in d_moves.read(['quantity']))
-            for p in dispatched_picks.read(['date_done', 'x_dispatch_date']):
-                if p['date_done'] and p['x_dispatch_date']:
-                    lag_sum += (p['x_dispatch_date'] - p['date_done']).total_seconds() / 86400.0
-                    lag_count += 1
+            delivered_qty = sum(r['quantity'] or 0.0
+                                for r in d_moves.read(['quantity']))
+            for p in delivered_picks.read(['scheduled_date', 'date_done']):
+                if p['scheduled_date'] and p['date_done']:
+                    delay_sum += (p['date_done'] - p['scheduled_date']).total_seconds() / 86400.0
+                    delay_count += 1
 
         # ── Evolución mensual de la tasa s/ disponible ────────────────────────
         trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg) \
@@ -237,9 +226,9 @@ class MrpPlannerDashboard(models.TransientModel):
                 'pending_available':  qround(pending_available),
                 'pending_blocked':    qround(pending_total - pending_available),
                 'pending_pickings':   len(pending_pick_ids),
-                'dispatched_qty':     qround(dispatched_qty),
-                'dispatched_pickings': len(dispatched_picks),
-                'avg_dispatch_lag_days': round(lag_sum / lag_count, 1) if lag_count else None,
+                'delivered_qty':      qround(delivered_qty),
+                'delivered_pickings': len(delivered_picks),
+                'avg_delivery_delay_days': round(delay_sum / delay_count, 1) if delay_count else None,
                 'rate_available':     rate_available,
                 'rate_available_num': qround(rate_num),
                 'rate_available_den': qround(rate_den),
@@ -319,49 +308,66 @@ class MrpPlannerDashboard(models.TransientModel):
     def get_inventory_pending_table(self, date_from=None, date_to=None,
                                     warehouse_ids=None, search=''):
         """
-        Demanda pendiente de despacho (una fila por remito) para la tabla
+        Demanda pendiente de entrega (una fila por remito) para la tabla
         operativa. El universo cubre todos los eslabones de la cadena de
-        entrega de cada depósito — recolección, embalaje y salida, según sus
-        pasos — más las salidas validadas que aún no se despacharon. Cada fila
-        lleva su etapa ('pick'/'pack'/'ship'/'ready'); solo las 'ready' pueden
-        marcarse como despachadas.
+        entrega de cada depósito — recolección, embalaje y salida (esta última
+        solo a destino cliente), según sus pasos. Con el circuito de despacho
+        activo se suman además las salidas validadas sin despachar (etapa
+        'ready', la única que puede marcarse como despachada); es una capa
+        operativa que no participa de los KPIs.
 
         La columna de disponible se evalúa en el eslabón donde está parada la
         demanda (_chain_available_qty; las 'ready' están 100 % disponibles) y
         los remitos más viejos que el corte de antigüedad quedan fuera.
 
-        :param date_from/date_to: filtro opcional sobre la fecha programada.
+        :param date_from/date_to: filtro opcional sobre la fecha programada
+                                  (días locales del usuario).
         :param warehouse_ids: filtro opcional de depósitos.
         :param search: texto contra remito / origen.
-        :returns: dict {'rows': list[dict], 'can_dispatch': bool}
+        :returns: dict {'rows': list[dict], 'can_dispatch': bool,
+                        'dispatch_enabled': bool}
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
+        dispatch_enabled = bool(cfg and cfg.enable_dispatch_validation)
         Log = self.env['mrp.dispatch.stock.log']
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
+        empty = {'rows': [], 'can_dispatch': self._inventory_can_dispatch(),
+                 'dispatch_enabled': dispatch_enabled}
         if not chain_type_ids:
-            return {'rows': [], 'can_dispatch': self._inventory_can_dispatch()}
+            return empty
         dom = [
             ('company_id', '=', company.id),
-            ('picking_type_id', 'in', chain_type_ids),
-        ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+        ] + Log._dispatch_chain_domain(type_info) \
+          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+        # Fechas del filtro interpretadas como días locales del usuario
+        # (scheduled_date se guarda en UTC)
+        tz = self._inventory_tz()
+        to_utc = lambda d: tz.localize(datetime.combine(d, datetime.min.time())) \
+            .astimezone(pytz.utc).replace(tzinfo=None)
         if date_from:
-            dom.append(('scheduled_date', '>=', date_from))
+            dom.append(('scheduled_date', '>=',
+                        to_utc(fields.Date.from_string(date_from))))
         if date_to:
-            dom.append(('scheduled_date', '<=', f'{date_to} 23:59:59'))
+            dom.append(('scheduled_date', '<',
+                        to_utc(fields.Date.from_string(date_to) + timedelta(days=1))))
         if search:
             dom += ['|',
                     ('name', 'ilike', search),
                     ('origin', 'ilike', search)]
-        # Eslabones pendientes O salidas validadas sin despachar
-        dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES)),
-                '&', ('state', '=', 'done'), ('x_dispatch_state', '=', 'to_dispatch')]
+        # Eslabones pendientes; con el circuito activo, también las salidas
+        # validadas sin despachar (cola operativa)
+        if dispatch_enabled:
+            dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES)),
+                    '&', ('state', '=', 'done'), ('x_dispatch_state', '=', 'to_dispatch')]
+        else:
+            dom.append(('state', 'in', list(PENDING_PICKING_STATES)))
         picks = self.env['stock.picking'].sudo().search(dom, order='scheduled_date asc')
         if not picks:
-            return {'rows': [], 'can_dispatch': self._inventory_can_dispatch()}
+            return empty
 
         # sale_id (vía grupo de abastecimiento, sale_stock) resuelve el origen a
         # la venta en cualquier eslabón de la cadena; si no está el módulo o el
@@ -464,10 +470,16 @@ class MrpPlannerDashboard(models.TransientModel):
                 'products_detail': detail,
                 'days_available': (today - avail_since).days if avail_since else None,
             })
-        return {'rows': rows, 'can_dispatch': self._inventory_can_dispatch()}
+        return {'rows': rows, 'can_dispatch': self._inventory_can_dispatch(),
+                'dispatch_enabled': dispatch_enabled}
 
     @api.model
     def _inventory_can_dispatch(self):
+        """Despacho masivo desde la tabla: requiere el circuito activo en la
+        empresa además del grupo (sin circuito la tabla es de solo lectura)."""
+        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
+        if not (cfg and cfg.enable_dispatch_validation):
+            return False
         u = self.env.user
         return (u.has_group('odoo_mrp_planner_dispatch.group_dispatch_validation')
                 or u.has_group('odoo_mrp_planner.group_admin')
@@ -477,33 +489,31 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def action_inventory_pending(self, mode='all', warehouse_ids=None):
-        """Lista nativa de la demanda pendiente de despacho en cualquier
-        eslabón de la cadena (+ validadas sin despachar): todas / con stock /
-        sin stock. Respeta el corte de antigüedad, igual que los KPIs.
+        """Lista nativa de la demanda pendiente de entrega en cualquier
+        eslabón de la cadena: todas / con stock / sin stock. Respeta el corte
+        de antigüedad y el destino cliente en las salidas, igual que los KPIs.
 
         Aproximación del modo 'available': remitos "Preparado" (reserva
-        completa en su eslabón) más las validadas sin despachar — la
-        disponibilidad parcial por cadena no es expresable en un dominio."""
+        completa en su eslabón) — la disponibilidad parcial por cadena no es
+        expresable en un dominio."""
         self._inventory_ensure_group()
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        chain_type_ids, _info = self.env['mrp.dispatch.stock.log'] \
-            ._dispatch_chain_types(self.env.company,
-                                   self._inventory_effective_whs(warehouse_ids) or None)
+        Log = self.env['mrp.dispatch.stock.log']
+        chain_type_ids, type_info = Log._dispatch_chain_types(
+            self.env.company, self._inventory_effective_whs(warehouse_ids) or None)
         dom = [
             ('company_id', '=', self.env.company.id),
-            ('picking_type_id', 'in', chain_type_ids),
-        ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
-        _ready_leaf = ['&', ('state', '=', 'done'),
-                       ('x_dispatch_state', '=', 'to_dispatch')]
-        name = _('Demanda pendiente de despacho')
+        ] + Log._dispatch_chain_domain(type_info) \
+          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+        name = _('Demanda pendiente de entrega')
         if mode == 'available':
-            dom += ['|', ('state', '=', 'assigned')] + _ready_leaf
+            dom.append(('state', '=', 'assigned'))
             name = _('Demanda pendiente con stock')
         elif mode == 'blocked':
             dom.append(('state', 'in', ('confirmed', 'waiting')))
             name = _('Demanda pendiente sin stock')
         else:
-            dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES))] + _ready_leaf
+            dom.append(('state', 'in', list(PENDING_PICKING_STATES)))
         return {
             'type': 'ir.actions.act_window',
             'name': name,
@@ -517,20 +527,21 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def action_inventory_dispatched(self, period_from, period_to, warehouse_ids=None):
-        """Lista nativa de salidas despachadas en el período."""
+    def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None):
+        """Lista nativa de salidas a cliente entregadas (validadas) en el período."""
         self._inventory_ensure_group()
         _d_from, _d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
         dom = [
             ('company_id', '=', self.env.company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('x_dispatch_state', '=', 'dispatched'),
-            ('x_dispatch_date', '>=', dt_from),
-            ('x_dispatch_date', '<', dt_to),
+            ('location_dest_id.usage', '=', 'customer'),
+            ('state', '=', 'done'),
+            ('date_done', '>=', dt_from),
+            ('date_done', '<', dt_to),
         ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Salidas despachadas del período'),
+            'name': _('Salidas entregadas del período'),
             'res_model': 'stock.picking',
             'view_mode': 'list,form',
             'views': [[False, 'list'], [False, 'form']],

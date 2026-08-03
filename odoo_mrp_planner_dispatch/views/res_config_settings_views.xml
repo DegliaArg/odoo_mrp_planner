@@ -43,21 +43,20 @@
                             </group>
                         </div>
 
-                        <!-- ── Columna derecha: registro de disponibilidad ──── -->
+                        <!-- ── Columna derecha: registro de disponibilidad ────
+                             Independiente del circuito de despacho: el Panel de
+                             Inventario usa solo datos estándar de Odoo. -->
                         <div class="col-6">
                             <group string="Registro de disponibilidad">
-                                <field name="dispatch_stock_log_enabled" widget="boolean_toggle"
-                                       invisible="not enable_dispatch_validation"/>
+                                <field name="dispatch_stock_log_enabled" widget="boolean_toggle"/>
                                 <field name="dispatch_snapshot_hour" widget="float_time"
-                                       invisible="not enable_dispatch_validation or not dispatch_stock_log_enabled"/>
+                                       invisible="not dispatch_stock_log_enabled"/>
                                 <field name="dispatch_log_retention_months"
-                                       invisible="not enable_dispatch_validation or not dispatch_stock_log_enabled"/>
-                                <field name="dispatch_pending_cutoff_months"
-                                       invisible="not enable_dispatch_validation"/>
-                                <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                     invisible="not enable_dispatch_validation">
+                                       invisible="not dispatch_stock_log_enabled"/>
+                                <field name="dispatch_pending_cutoff_months"/>
+                                <div class="text-muted small border-start border-2 ps-2 mt-1">
                                     Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
-                                    alimenta la <b>Tasa física s/ disponible</b> del Panel de Inventario.
+                                    alimenta la <b>Tasa de entrega s/ disponible</b> del Panel de Inventario.
                                     Los meses cerrados se consolidan en un histórico mensual que no se purga;
                                     los snapshots crudos se conservan según la retención configurada. Cada
                                     corrida queda en el Registro de ejecuciones. Con <b>Ignorar pendientes

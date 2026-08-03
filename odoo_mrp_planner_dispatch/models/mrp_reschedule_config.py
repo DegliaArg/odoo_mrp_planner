@@ -10,8 +10,9 @@ nunca entraron al circuito se consideran despachadas, para que la cola de
 "Sin despachar" arranque vacía en lugar de arrastrar todo el histórico.
 
 También los ajustes del registro de disponibilidad (snapshots diarios que
-alimentan la "Tasa física s/ disponible" del Panel de Inventario): toggle,
-hora del snapshot y retención de los registros crudos.
+alimentan la "Tasa de entrega s/ disponible" del Panel de Inventario): toggle,
+hora del snapshot y retención de los registros crudos. El registro es
+independiente del circuito de despacho.
 """
 import logging
 from datetime import datetime, timedelta
@@ -28,11 +29,11 @@ class MrpRescheduleConfig(models.Model):
     _inherit = 'mrp.reschedule.config'
 
     dispatch_stock_log_enabled = fields.Boolean(
-        string='Registrar disponibilidad de stock para despacho',
+        string='Registrar disponibilidad de stock para entregas',
         default=False,
         help='Activa el snapshot diario de las salidas pendientes (cantidad pendiente '
-             'vs. reservada). Alimenta la "Tasa física s/ disponible" del Panel de '
-             'Inventario: sin registro no hay tasa. Requiere la validación de despacho activa.')
+             'vs. reservada). Alimenta la "Tasa de entrega s/ disponible" del Panel de '
+             'Inventario: sin registro no hay tasa. No requiere el circuito de despacho.')
     dispatch_snapshot_hour = fields.Float(
         string='Hora del snapshot', default=20.0,
         help='Hora local (0-23.99) en que corre el snapshot diario de disponibilidad. '

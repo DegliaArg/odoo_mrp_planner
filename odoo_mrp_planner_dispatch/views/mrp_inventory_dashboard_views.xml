@@ -51,13 +51,13 @@
               name="Inventario"
               parent="odoo_mrp_planner.mrp_planner_menu_root"
               sequence="25"
-              groups="odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_inventario_panel_menu"
               name="Panel de Inventario"
               parent="mrp_inventario_menu"
               sequence="1"
               action="action_mrp_inventory_dashboard_open"
-              groups="odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
 
 </odoo>

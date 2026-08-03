@@ -52,7 +52,10 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Guard común ───────────────────────────────────────────────────────────
 
     def _inventory_ensure_group(self):
-        self._ensure_planner_group('odoo_mrp_planner_dispatch.group_dispatch_validation')
+        self._ensure_planner_group(
+            'odoo_mrp_planner_dispatch.group_inventory_read',
+            'odoo_mrp_planner_dispatch.group_inventory_admin',
+            'odoo_mrp_planner_dispatch.group_dispatch_validation')
 
     # ── Helpers de calendario / filtros ──────────────────────────────────────
 
@@ -431,6 +434,8 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': name,
             'res_model': 'stock.picking',
             'view_mode': 'list,form',
+            # doAction del lado cliente exige 'views' en acciones armadas a mano
+            'views': [[False, 'list'], [False, 'form']],
             'domain': dom,
             'context': {'create': False},
             'target': 'current',
@@ -453,6 +458,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'name': _('Salidas despachadas del período'),
             'res_model': 'stock.picking',
             'view_mode': 'list,form',
+            'views': [[False, 'list'], [False, 'form']],
             'domain': dom,
             'context': {'create': False},
             'target': 'current',

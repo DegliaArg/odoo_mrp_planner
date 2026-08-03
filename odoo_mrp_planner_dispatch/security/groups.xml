@@ -9,9 +9,26 @@
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- El Administrador del planificador implica el grupo de despacho -->
+    <!-- Inventario – Lectura -->
+    <record id="group_inventory_read" model="res.groups">
+        <field name="name">Inventario - Lectura</field>
+        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
+        <field name="comment">Ve el Panel de Inventario: KPIs de despacho, evolución de la tasa física s/ disponible, composición del pendiente y la tabla de salidas pendientes. No puede despachar ni cambiar la configuración.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Inventario – Administrador -->
+    <record id="group_inventory_admin" model="res.groups">
+        <field name="name">Inventario - Administrador</field>
+        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
+        <field name="comment">Ve el Panel de Inventario, puede despachar entregas y modifica la pestaña Inventario de los Ajustes del planificador (validación de despacho, registro de disponibilidad, hora del snapshot y retención).</field>
+        <field name="users" eval="[]"/>
+        <field name="implied_ids" eval="[(4, ref('group_inventory_read')), (4, ref('group_dispatch_validation'))]"/>
+    </record>
+
+    <!-- El Administrador del planificador implica despacho e Inventario completo -->
     <record id="odoo_mrp_planner.group_admin" model="res.groups">
-        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation')), (4, ref('group_inventory_admin'))]"/>
     </record>
 
 </odoo>

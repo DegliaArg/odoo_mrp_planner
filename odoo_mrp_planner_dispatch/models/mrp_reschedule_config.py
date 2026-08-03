@@ -130,8 +130,9 @@ class MrpRescheduleConfig(models.Model):
         Los tipos que ENTRAN reciben su estado: salidas validadas viejas →
         despachadas (misma regla que el marcado retroactivo, para que la cola
         arranque vacía) y salidas abiertas → "Sin despachar". Los tipos que
-        SALEN pierden la cola "Sin despachar" (dejan de ser demanda de
-        despacho); lo ya despachado conserva su historial de fecha/usuario.
+        SALEN quedan totalmente fuera del circuito: se limpian estado, fecha y
+        usuario de despacho (la auditoría de los despachos reales queda en el
+        chatter de cada remito).
         """
         self._dispatch_mark_legacy()
         Picking = self.env['stock.picking'].sudo()
@@ -150,10 +151,14 @@ class MrpRescheduleConfig(models.Model):
                 entering.write({'x_dispatch_state': 'to_dispatch'})
             leaving = Picking.search(base + [
                 ('picking_type_id', 'not in', types.ids),
-                ('x_dispatch_state', '=', 'to_dispatch'),
+                ('x_dispatch_state', '!=', False),
             ]) if types else Picking
             if leaving:
-                leaving.write({'x_dispatch_state': False})
+                leaving.write({
+                    'x_dispatch_state':   False,
+                    'x_dispatch_date':    False,
+                    'x_dispatch_user_id': False,
+                })
             if entering or leaving:
                 _logger.info('Despacho: sincronización de tipos en %s — %s remito(s) '
                              'incorporado(s), %s excluido(s).',

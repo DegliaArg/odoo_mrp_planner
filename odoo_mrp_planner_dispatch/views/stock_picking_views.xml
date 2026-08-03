@@ -58,7 +58,10 @@
             </xpath>
             <field name="state" position="before">
                 <field name="x_dispatch_enabled" column_invisible="1"/>
+                <!-- invisible por registro: los remitos fuera del circuito (función
+                     apagada o tipo excluido en Ajustes) muestran la celda vacía -->
                 <field name="x_dispatch_state" string="Despacho" optional="show" widget="badge"
+                       invisible="not x_dispatch_enabled"
                        decoration-warning="x_dispatch_state == 'to_dispatch'"
                        decoration-success="x_dispatch_state == 'dispatched'"/>
             </field>

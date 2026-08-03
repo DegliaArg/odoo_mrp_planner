@@ -35,7 +35,8 @@
                                     <b>Tipos de operación con despacho</b>: solo las salidas de estos tipos
                                     entran al circuito. Se precarga con todos los tipos de salida de la
                                     empresa: sacá los que no son entregas a clientes (p. ej. transferencias
-                                    entre depósitos). Al sacar un tipo, su cola "Sin despachar" se limpia;
+                                    entre depósitos). Al sacar un tipo, sus remitos quedan sin estado de
+                                    despacho (la columna aparece vacía; la auditoría queda en el chatter);
                                     al agregarlo, sus salidas validadas viejas se marcan como despachadas
                                     para arrancar con la cola vacía.
                                 </div>

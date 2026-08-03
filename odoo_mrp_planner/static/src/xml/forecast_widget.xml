@@ -10,13 +10,11 @@
                 Error al cargar el forecast: <strong><t t-esc="state.loadError"/></strong>
             </div>
 
-            <!-- Skeleton de carga inicial (reemplaza spinner plano) -->
+            <!-- Cargando: mismo patrón que el resto de los paneles -->
             <t t-if="!state.loadError and (state.loading || !state.data)">
-                <div class="p-3">
-                    <div class="o_mrp_skeleton o_mrp_skeleton_card mb-3"/>
-                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 80%"/>
-                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 60%"/>
-                    <div class="o_mrp_skeleton o_mrp_skeleton_line" style="width: 70%"/>
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
                 </div>
             </t>
 

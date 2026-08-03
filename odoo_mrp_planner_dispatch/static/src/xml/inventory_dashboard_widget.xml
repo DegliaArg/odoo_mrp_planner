@@ -464,6 +464,14 @@
                                                    t-on-click.prevent="() => this.openPicking(row)"
                                                    t-esc="row.name"/>
                                             </td>
+                                            <td t-elif="col.key === 'origin'">
+                                                <!-- Origen con hipervínculo a la venta (sale_id);
+                                                     texto plano si el remito no viene de una venta -->
+                                                <a t-if="row.origin_id" href="#"
+                                                   t-on-click.prevent="() => this.openOrigin(row)"
+                                                   t-esc="row.origin"/>
+                                                <t t-else="" t-esc="row.origin"/>
+                                            </td>
                                             <td t-elif="col.key === 'scheduled'" style="white-space:nowrap;">
                                                 <t t-esc="row.scheduled"/>
                                                 <span t-if="row.overdue_days > 0"

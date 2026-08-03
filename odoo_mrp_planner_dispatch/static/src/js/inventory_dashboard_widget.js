@@ -343,6 +343,15 @@ class InventoryDashboardWidget extends Component {
             target: "current",
         });
     }
+    openOrigin(row) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "sale.order",
+            res_id: row.origin_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
 
     // ── Zona tabla ────────────────────────────────────────────────────────────
 

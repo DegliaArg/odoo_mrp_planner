@@ -363,8 +363,13 @@ class MrpPlannerDashboard(models.TransientModel):
         if not picks:
             return {'rows': [], 'can_dispatch': self._inventory_can_dispatch()}
 
+        # sale_id (vía grupo de abastecimiento, sale_stock) resuelve el origen a
+        # la venta en cualquier eslabón de la cadena; si no está el módulo o el
+        # remito no viene de una venta, la columna Origen queda como texto plano.
+        has_sale = 'sale_id' in picks._fields
         pick_rows = picks.read(['name', 'partner_id', 'origin', 'scheduled_date',
-                                'state', 'picking_type_id'])
+                                'state', 'picking_type_id']
+                               + (['sale_id'] if has_sale else []))
         ready_ids   = {r['id'] for r in pick_rows if r['state'] == 'done'}
         pending_ids = [r['id'] for r in pick_rows if r['state'] != 'done']
 
@@ -445,6 +450,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'name':          r['name'],
                 'partner':       r['partner_id'][1] if r['partner_id'] else '',
                 'origin':        r['origin'] or '',
+                'origin_id':     r['sale_id'][0] if has_sale and r.get('sale_id') else False,
                 'warehouse':     info[1] if info else '',
                 'scheduled':     sched_str,
                 'overdue_days':  max(0, overdue),

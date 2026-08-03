@@ -50,14 +50,16 @@ export function filteredKpis(widget) {
         demand_delivered_no_fc += r.total_demand_delivered || 0;
     }
 
+    // Tasas y brechas con 1 decimal (mismo criterio que el análisis de clientes)
+    const r1 = x => Math.round(x * 10) / 10;
     const overall_service_rate        = total_so_demand > 0
-        ? Math.round(total_delivered        / total_so_demand * 100) : null;
+        ? r1(total_delivered        / total_so_demand * 100) : null;
     const overall_demand_service_rate = total_so_demand > 0
-        ? Math.round(total_demand_delivered / total_so_demand * 100) : null;
+        ? r1(total_demand_delivered / total_so_demand * 100) : null;
     const demand_gap_pct = total_forecast > 0
-        ? Math.round((total_so_demand - total_forecast) / total_forecast * 100) : null;
+        ? r1((total_so_demand - total_forecast) / total_forecast * 100) : null;
     const mos_gap_pct = total_forecast > 0
-        ? Math.round((total_mos - total_forecast) / total_forecast * 100) : null;
+        ? r1((total_mos - total_forecast) / total_forecast * 100) : null;
 
     // Precisión global AGREGADA sobre las filas filtradas, con el MISMO método que el
     // server (ratio de sumas, no promedio de porcentajes por artículo). Así el card, la
@@ -77,7 +79,6 @@ export function filteredKpis(widget) {
         if ((r.total_forecast || 0) > 0) sumFcPos += r.total_forecast;
         sumActual += actual;
     }
-    const r1 = x => Math.round(x * 10) / 10;
     const acc_all = {
         simple: sumFc > 0      ? r1(sumActual / sumFc * 100) : null,
         mape:   mapeCount > 0  ? r1(mapeSum / mapeCount) : null,
@@ -108,7 +109,7 @@ export function filteredKpis(widget) {
         }
     }
     const overall_dispatch_rate = total_so_demand > 0
-        ? Math.round(total_delivered_dispatched / total_so_demand * 100) : null;
+        ? r1(total_delivered_dispatched / total_so_demand * 100) : null;
 
     return {
         ...widget.state.data.kpis,

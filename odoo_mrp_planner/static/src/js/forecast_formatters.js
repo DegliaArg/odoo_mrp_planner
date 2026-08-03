@@ -209,7 +209,7 @@ export function mosGapClass(pct, ok = 10) {
 
 export function fmtGapPct(n) {
     if (n === null || n === undefined) return '—';
-    return `${n > 0 ? '+' : ''}${n}%`;
+    return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 }
 
 export function fmt(n) {
@@ -219,7 +219,7 @@ export function fmt(n) {
 
 export function fmtPct(n) {
     if (n === null || n === undefined) return '—';
-    return `${Math.round(n)}%`;
+    return `${n.toFixed(1)}%`;
 }
 
 export function fmtDate(d) {

@@ -283,7 +283,7 @@
                                 <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + deliveryClass(state.kpis.fulfillment_pct)"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPct(state.kpis.fulfillment_pct)) + ' ' + deliveryClass(state.kpis.fulfillment_pct)"
                                      t-esc="fmtPct(state.kpis.fulfillment_pct)"/>
-                                <div class="o_planner_label">Tasa de cumplimiento</div>
+                                <div class="o_planner_label text-nowrap">Tasa cumplimiento</div>
                             </div>
                         </div>
                     </div>

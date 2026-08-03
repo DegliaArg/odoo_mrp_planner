@@ -42,6 +42,7 @@ function lastOfMonth()  { const d = new Date(); return toDateStr(new Date(d.getF
 // la visibilidad vive en state.visibleCols (mismo esquema que el forecast).
 const COLS = [
     { key: "name",           label: "Remito",      width: 110, fixed: true, align: "start" },
+    { key: "stage_label",    label: "Etapa",       width: 120, align: "start" },
     { key: "origin",         label: "Origen",      width: 110, align: "start" },
     { key: "warehouse",      label: "Depósito",    width: 120, align: "start" },
     { key: "scheduled",      label: "Fecha prog.", width: 120, align: "start" },
@@ -56,6 +57,7 @@ const STATE_LABELS = {
     confirmed: "En espera",
     waiting:   "Esperando otra op.",
     assigned:  "Preparado",
+    done:      "Validado",
 };
 
 class InventoryDashboardWidget extends Component {
@@ -95,7 +97,7 @@ class InventoryDashboardWidget extends Component {
             tblWhDropdownOpen: false,
             colsDropdownOpen:  false,
             visibleCols: {
-                name: true, origin: true, warehouse: false,
+                name: true, stage_label: true, origin: true, warehouse: false,
                 scheduled: true, product_names: true, qty_pending: true,
                 qty_available: true, days_available: true, state: true,
             },
@@ -295,11 +297,11 @@ class InventoryDashboardWidget extends Component {
         const k = (this.state.data && this.state.data.kpis) || {};
         switch (key) {
             case "pending":
-                return `Cantidad pendiente en salidas sin validar (estado actual)\n${k.pending_pickings || 0} remito(s) pendiente(s)`;
+                return `Demanda aún no despachada, en cualquier eslabón de la cadena de entrega (recolección, embalaje, salida y validadas sin despachar)\n${k.pending_pickings || 0} remito(s) pendiente(s)`;
             case "available":
-                return "Del pendiente actual, cantidad con stock reservado: podría despacharse hoy. Clic para ver los remitos preparados.";
+                return "Del pendiente actual, cantidad con stock reservado en su eslabón (más lo validado sin despachar): podría despacharse hoy. Clic para ver los remitos.";
             case "blocked":
-                return "Del pendiente actual, cantidad sin stock reservado: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
+                return "Del pendiente actual, cantidad sin stock reservado en su eslabón: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
             case "dispatched":
                 return `Cantidad de remitos marcados como despachados en el período (por fecha de despacho)\n${k.dispatched_pickings || 0} remito(s)`;
             case "rate":
@@ -434,6 +436,7 @@ class InventoryDashboardWidget extends Component {
         const f = this.state.tblFilter;
         if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")        rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
+        if (f === "ready")          rows = rows.filter(r => r.stage === "ready");
         if (f === "overdue")        rows = rows.filter(r => r.overdue_days > 0);
         if (f === "available_days") rows = rows.filter(r => r.days_available !== null && r.days_available >= 3);
         return rows;
@@ -454,6 +457,7 @@ class InventoryDashboardWidget extends Component {
     /** Clave de agrupación de una fila según state.tblGroupBy. */
     _groupKey(row) {
         const gb = this.state.tblGroupBy;
+        if (gb === "stage")     return row.stage_label || "Sin etapa";
         if (gb === "warehouse") return row.warehouse || "Sin depósito";
         if (gb === "state")     return this.stateLabel(row.state);
         if (gb === "sched_month") {
@@ -521,15 +525,15 @@ class InventoryDashboardWidget extends Component {
     // ── Selección + despacho masivo ───────────────────────────────────────────
 
     toggleSelect(row) {
-        // Solo tiene sentido seleccionar lo preparado (despachable)
-        if (row.state !== "assigned") return;
+        // Solo lo validado sin despachar puede marcarse como despachado
+        if (row.stage !== "ready") return;
         this.state.selected[row.picking_id] = !this.state.selected[row.picking_id];
     }
     get selectedIds() {
         return Object.keys(this.state.selected).filter(k => this.state.selected[k]).map(Number);
     }
     // "Seleccionar todos" opera sobre la página visible, para no despachar filas fuera de vista
-    get selectableRows() { return this.pagedRows.filter(r => r.state === "assigned"); }
+    get selectableRows() { return this.pagedRows.filter(r => r.stage === "ready"); }
     get allSelected() {
         const sel = this.selectableRows;
         return sel.length > 0 && sel.every(r => this.state.selected[r.picking_id]);

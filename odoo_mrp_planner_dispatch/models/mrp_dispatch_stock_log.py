@@ -164,6 +164,88 @@ class MrpDispatchStockLog(models.Model):
                         stack.append((o, False))
         return {m: memo.get(m, 0.0) for m in move_ids}
 
+    # ── Cadena de entrega: tipos de operación y claves ────────────────────────
+
+    @api.model
+    def _dispatch_chain_types(self, company, warehouse_ids=None):
+        """Tipos de operación de la cadena de entrega de cada depósito.
+
+        El flujo lazy de Odoo 17+ crea cada paso al validar el anterior, así
+        que la demanda pendiente vive repartida entre recolección, embalaje y
+        salida según delivery_steps del depósito. Se identifican los eslabones
+        por los tipos de operación de la ruta de entrega (pick/pack/out) para
+        no confundir transferencias internas ajenas con demanda de clientes.
+
+        :returns: (type_ids, info) — info = {type_id: (wh_id, wh_name, stage)}
+                  con stage en ('pick', 'pack', 'ship').
+        """
+        dom = [('company_id', '=', company.id)]
+        if warehouse_ids:
+            dom.append(('id', 'in', warehouse_ids))
+        info = {}
+        for w in self.env['stock.warehouse'].sudo().search(dom).read(
+                ['name', 'delivery_steps', 'pick_type_id', 'pack_type_id', 'out_type_id']):
+            if w['out_type_id']:
+                info[w['out_type_id'][0]] = (w['id'], w['name'], 'ship')
+            if w['delivery_steps'] in ('pick_ship', 'pick_pack_ship') and w['pick_type_id']:
+                info[w['pick_type_id'][0]] = (w['id'], w['name'], 'pick')
+            if w['delivery_steps'] == 'pick_pack_ship' and w['pack_type_id']:
+                info[w['pack_type_id'][0]] = (w['id'], w['name'], 'pack')
+        return list(info), info
+
+    @api.model
+    def _dispatch_chain_keys(self, picking_ids):
+        """Clave de cadena por remito: el pedido de venta si existe (todos los
+        eslabones de una misma entrega comparten sale_id vía el grupo de
+        abastecimiento), o el propio remito como fallback. Permite deduplicar
+        la misma demanda cuando avanza de eslabón entre snapshots.
+
+        :returns: {picking_id: ('s', sale_id) | ('p', picking_id)}
+        """
+        keys = {}
+        if not picking_ids:
+            return keys
+        for p in self.env['stock.picking'].sudo().browse(list(picking_ids)).read(['sale_id']):
+            keys[p['id']] = ('s', p['sale_id'][0]) if p['sale_id'] else ('p', p['id'])
+        return keys
+
+    @api.model
+    def _dispatch_dispatched_chain_products(self, chain_keys, dt_to):
+        """Pares (clave de cadena, producto) que ya alcanzaron un despacho
+        antes de dt_to. Se usa para excluir del denominador la demanda cuyos
+        snapshots quedaron en eslabones anteriores pero terminó despachada.
+
+        :param chain_keys: iterable de claves ('s', sale_id) / ('p', picking_id).
+        :returns: set de (clave, product_id).
+        """
+        sale_ids = [k[1] for k in chain_keys if k and k[0] == 's']
+        pick_ids = [k[1] for k in chain_keys if k and k[0] == 'p']
+        result = set()
+        dom_common = [
+            ('picking_type_code', '=', 'outgoing'),
+            ('x_dispatch_state', '=', 'dispatched'),
+            ('x_dispatch_date', '<', dt_to),
+        ]
+        picks = self.env['stock.picking'].sudo()
+        if sale_ids:
+            picks |= picks.search(dom_common + [('sale_id', 'in', sale_ids)])
+        if pick_ids:
+            picks |= picks.search(dom_common + [('id', 'in', pick_ids)])
+        if not picks:
+            return result
+        sale_by_pick = {p['id']: (p['sale_id'][0] if p['sale_id'] else None)
+                        for p in picks.read(['sale_id'])}
+        d_moves = self.env['stock.move'].sudo().search([
+            ('picking_id', 'in', picks.ids), ('state', '=', 'done')])
+        for r in d_moves.read(['picking_id', 'product_id']):
+            pick = r['picking_id'][0] if r['picking_id'] else None
+            prod = r['product_id'][0] if r['product_id'] else None
+            if not pick or not prod:
+                continue
+            sale = sale_by_pick.get(pick)
+            result.add((('s', sale) if sale else ('p', pick), prod))
+        return result
+
     # ── Cron ──────────────────────────────────────────────────────────────────
 
     @api.model
@@ -225,26 +307,39 @@ class MrpDispatchStockLog(models.Model):
         if stale:
             stale.unlink()
 
+        chain_type_ids, type_info = self._dispatch_chain_types(company)
+        if not chain_type_ids:
+            return 0
+        cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
+
+        # ── Demanda pendiente en cualquier eslabón (recolección/embalaje/salida).
         # sudo(): mismo criterio que las demás lecturas de stock del planificador.
         moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
-            ('picking_id.picking_type_code', '=', 'outgoing'),
+            ('picking_id.picking_type_id', 'in', chain_type_ids),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date'))
-        if not moves:
-            return 0
-        move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty'])
-        # Disponibilidad evaluada en el primer eslabón de la cadena de cada movimiento
-        chain_avail = self._chain_available_qty(moves)
+        ] + cutoff_dom)
+        move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty']) if moves else []
+        # Disponibilidad evaluada en el eslabón donde está parada la demanda
+        chain_avail = self._chain_available_qty(moves) if moves else {}
 
-        # Depósito por picking en dos SELECT (picking → tipo → depósito)
-        pick_ids = list({r['picking_id'][0] for r in move_rows if r['picking_id']})
+        # ── Salidas validadas sin despachar: 100 % disponibles para despachar.
+        ready_moves = self.env['stock.move'].sudo().search([
+            ('company_id', '=', company.id),
+            ('picking_id.picking_type_id', 'in', chain_type_ids),
+            ('picking_id.state', '=', 'done'),
+            ('picking_id.x_dispatch_state', '=', 'to_dispatch'),
+            ('state', '=', 'done'),
+        ] + cutoff_dom)
+        ready_rows = ready_moves.read(['picking_id', 'product_id', 'quantity']) if ready_moves else []
+
+        # Depósito por picking vía el mapa de tipos de la cadena
+        all_pick_ids = ({r['picking_id'][0] for r in move_rows if r['picking_id']}
+                        | {r['picking_id'][0] for r in ready_rows if r['picking_id']})
         pick_type = {p['id']: p['picking_type_id'][0] if p['picking_type_id'] else False
-                     for p in self.env['stock.picking'].sudo().browse(pick_ids).read(['picking_type_id'])}
-        type_ids = list({t for t in pick_type.values() if t})
-        type_wh = {t['id']: t['warehouse_id'][0] if t['warehouse_id'] else False
-                   for t in self.env['stock.picking.type'].sudo().browse(type_ids).read(['warehouse_id'])}
+                     for p in self.env['stock.picking'].sudo()
+                                  .browse(list(all_pick_ids)).read(['picking_type_id'])}
 
         # Agregar por remito-producto (un remito puede tener varias líneas del mismo artículo)
         agg = {}  # {(picking_id, product_id): [pending, available]}
@@ -257,13 +352,24 @@ class MrpDispatchStockLog(models.Model):
             agg.setdefault(key, [0.0, 0.0])
             agg[key][0] += r['product_uom_qty'] or 0.0
             agg[key][1] += chain_avail.get(r['id'], 0.0)
+        for r in ready_rows:
+            pick = r['picking_id'][0] if r['picking_id'] else False
+            prod = r['product_id'][0] if r['product_id'] else False
+            if not pick or not prod:
+                continue
+            qty = r['quantity'] or 0.0
+            key = (pick, prod)
+            agg.setdefault(key, [0.0, 0.0])
+            agg[key][0] += qty
+            agg[key][1] += qty
 
         vals_list = []
         for (pick, prod), (pending, available) in agg.items():
+            wh_info = type_info.get(pick_type.get(pick))
             vals_list.append({
                 'snapshot_date': today,
                 'company_id':    company.id,
-                'warehouse_id':  type_wh.get(pick_type.get(pick)) or False,
+                'warehouse_id':  wh_info[0] if wh_info else False,
                 'picking_id':    pick,
                 'product_id':    prod,
                 'qty_pending':   round(pending, 2),
@@ -312,21 +418,35 @@ class MrpDispatchStockLog(models.Model):
         return done
 
     @api.model
-    def _dispatch_consolidate_one_month(self, company, month_start):
-        """Congela un mes: numerador (despachado en el mes) y denominador extra
-        (disponible en algún snapshot del mes y no despachado hasta fin de mes),
-        por depósito y producto, más la fila resumen global."""
-        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
+    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None):
+        """Numerador y denominador extra de un mes, por depósito y producto.
+
+        - Numerador: cantidad despachada en el mes (por fecha de despacho).
+        - Denominador extra: demanda que estuvo disponible en algún snapshot
+          del mes y NO llegó a despacharse antes de fin de mes. Se deduplica
+          por (clave de cadena, producto) con la máxima cantidad vista: así
+          una misma entrega que avanza de recolección a salida entre
+          snapshots cuenta una sola vez, y si terminó despachada se excluye
+          aunque sus snapshots hayan quedado en eslabones anteriores.
+
+        Lo comparten el cierre mensual (consolidado) y el cálculo en vivo del
+        panel, para que ambos den el mismo número.
+
+        :returns: (num, den) — dicts {(warehouse_id, product_id): qty}.
+        """
         dt_from, dt_to = self._month_utc_bounds(month_start.year, month_start.month, company)
 
-        # ── Numerador: despachado en el mes (por fecha de despacho) ──────────
-        dispatched_picks = self.env['stock.picking'].sudo().search([
+        # ── Numerador: despachado en el mes ───────────────────────────────────
+        disp_dom = [
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('x_dispatch_state', '=', 'dispatched'),
             ('x_dispatch_date', '>=', dt_from),
             ('x_dispatch_date', '<', dt_to),
-        ])
+        ]
+        if warehouse_ids:
+            disp_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+        dispatched_picks = self.env['stock.picking'].sudo().search(disp_dom)
         num = {}  # {(warehouse_id, product_id): qty}
         if dispatched_picks:
             wh_by_pick = {p.id: p.picking_type_id.warehouse_id.id or False
@@ -343,38 +463,49 @@ class MrpDispatchStockLog(models.Model):
                 key = (wh_by_pick.get(pick) or False, prod)
                 num[key] = num.get(key, 0.0) + (r['quantity'] or 0.0)
 
-        # ── Denominador extra: máxima reserva vista en el mes por remito-línea,
-        #    excluyendo lo despachado hasta fin de mes (ya es numerador de algún mes) ──
+        # ── Denominador extra: disponible no despachado, deduplicado por cadena ──
         month_end = (month_start.replace(day=28) + timedelta(days=6)).replace(day=1)
-        logs = self.sudo().search([
+        log_dom = [
             ('company_id', '=', company.id),
             ('snapshot_date', '>=', month_start),
             ('snapshot_date', '<', month_end),
             ('qty_reserved', '>', 0),
-        ])
+        ]
+        if warehouse_ids:
+            log_dom.append(('warehouse_id', 'in', warehouse_ids))
+        logs = self.sudo().search(log_dom)
         den = {}  # {(warehouse_id, product_id): qty}
         if logs:
             log_rows = logs.read(['picking_id', 'product_id', 'warehouse_id', 'qty_reserved'])
-            log_pick_ids = list({r['picking_id'][0] for r in log_rows if r['picking_id']})
-            dispatched_by_eom = set()
-            if log_pick_ids:
-                dispatched_by_eom = set(self.env['stock.picking'].sudo().search([
-                    ('id', 'in', log_pick_ids),
-                    ('x_dispatch_state', '=', 'dispatched'),
-                    ('x_dispatch_date', '<', dt_to),
-                ]).ids)
-            best = {}  # {(picking, product): (warehouse, max_reserved)}
+            log_pick_ids = {r['picking_id'][0] for r in log_rows if r['picking_id']}
+            chain_key = self._dispatch_chain_keys(log_pick_ids)
+            # Máxima cantidad disponible vista por (cadena, producto)
+            best = {}  # {(chain_key, product): (warehouse, max_qty)}
             for r in log_rows:
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 prod = r['product_id'][0] if r['product_id'] else False
-                if not pick or not prod or pick in dispatched_by_eom:
+                if not pick or not prod:
                     continue
+                ck = chain_key.get(pick, ('p', pick))
                 wh = r['warehouse_id'][0] if r['warehouse_id'] else False
-                key = (pick, prod)
+                key = (ck, prod)
                 if key not in best or r['qty_reserved'] > best[key][1]:
                     best[key] = (wh, r['qty_reserved'])
-            for (_pick, prod), (wh, qty) in best.items():
+            dispatched = self._dispatch_dispatched_chain_products(
+                {ck for ck, _prod in best}, dt_to)
+            for (ck, prod), (wh, qty) in best.items():
+                if (ck, prod) in dispatched:
+                    continue
                 den[(wh, prod)] = den.get((wh, prod), 0.0) + qty
+        return num, den
+
+    @api.model
+    def _dispatch_consolidate_one_month(self, company, month_start):
+        """Congela un mes: numerador (despachado en el mes) y denominador extra
+        (disponible en algún snapshot del mes y no despachado hasta fin de mes),
+        por depósito y producto, más la fila resumen global."""
+        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
+        num, den = self._dispatch_month_figures(company, month_start)
 
         # ── Filas por depósito-producto + fila resumen (marcador) ────────────
         vals_list = []

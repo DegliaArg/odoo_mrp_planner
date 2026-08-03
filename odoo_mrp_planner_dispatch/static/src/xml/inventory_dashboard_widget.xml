@@ -293,7 +293,8 @@
                             { key: 'assigned',       label: 'Preparados' },
                             { key: 'waiting',        label: 'En espera' },
                             { key: 'overdue',        label: 'Vencidas' },
-                            { key: 'available_days', label: 'Disponibles hace 3+ días' }
+                            { key: 'available_days', label: 'Disponibles hace 3+ días' },
+                            { key: 'ready',          label: 'Validadas s/ despachar' }
                         ],
                         groupByDefs: [
                             { key: 'warehouse',   label: 'Depósito' },
@@ -451,9 +452,9 @@
                                         <td t-if="state.canDispatch" class="text-center">
                                             <input type="checkbox" class="form-check-input"
                                                    t-att-checked="state.selected[row.picking_id]"
-                                                   t-att-disabled="row.state !== 'assigned'"
-                                                   t-att-title="row.state !== 'assigned'
-                                                                ? 'Solo se pueden despachar remitos preparados y validados'
+                                                   t-att-disabled="row.stage !== 'ready'"
+                                                   t-att-title="row.stage !== 'ready'
+                                                                ? 'Solo las salidas validadas sin despachar pueden marcarse como despachadas'
                                                                 : 'Seleccionar para despachar'"
                                                    t-on-change="() => this.toggleSelect(row)"/>
                                         </td>
@@ -486,9 +487,14 @@
                                                 <t t-esc="row.days_available !== null ? row.days_available : '—'"/>
                                             </td>
                                             <td t-elif="col.key === 'state'">
-                                                <span t-att-class="'badge ' + (row.state === 'assigned'
+                                                <span t-att-class="'badge ' + (row.state === 'assigned' || row.state === 'done'
                                                                    ? 'text-bg-success' : 'text-bg-secondary')"
                                                       t-esc="stateLabel(row.state)"/>
+                                            </td>
+                                            <td t-elif="col.key === 'stage_label'">
+                                                <span t-att-class="'badge ' + (row.stage === 'ready'
+                                                                   ? 'text-bg-info' : 'text-bg-light text-dark border')"
+                                                      t-esc="row.stage_label"/>
                                             </td>
                                             <td t-elif="col.key === 'product_names'"
                                                 t-att-title="row.products + ' artículo(s)'">

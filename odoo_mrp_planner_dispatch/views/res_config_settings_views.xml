@@ -39,13 +39,17 @@
                                        invisible="not enable_dispatch_validation or not dispatch_stock_log_enabled"/>
                                 <field name="dispatch_log_retention_months"
                                        invisible="not enable_dispatch_validation or not dispatch_stock_log_enabled"/>
+                                <field name="dispatch_pending_cutoff_months"
+                                       invisible="not enable_dispatch_validation"/>
                                 <div class="text-muted small border-start border-2 ps-2 mt-1"
                                      invisible="not enable_dispatch_validation">
                                     Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
                                     alimenta la <b>Tasa física s/ disponible</b> del Panel de Inventario.
                                     Los meses cerrados se consolidan en un histórico mensual que no se purga;
                                     los snapshots crudos se conservan según la retención configurada. Cada
-                                    corrida queda en el Registro de ejecuciones.
+                                    corrida queda en el Registro de ejecuciones. Con <b>Ignorar pendientes
+                                    anteriores a (meses)</b> &gt; 0, las salidas con fecha programada más
+                                    vieja que ese corte no cuentan en el panel ni en los snapshots.
                                 </div>
                             </group>
                         </div>

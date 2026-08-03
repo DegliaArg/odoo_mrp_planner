@@ -10,8 +10,15 @@
  *     "Marcar despachado" masivo.
  *     RPC: get_inventory_pending_table(dateFrom, dateTo, warehouseIds, search).
  *
- * Reutiliza los formateadores del módulo base (números es-AR, tasas con un
- * decimal y semáforo) para mantener la estética de los demás paneles.
+ * Reutiliza los patrones compartidos del módulo base para mantener la
+ * estética de los demás paneles:
+ *   - formateadores (números es-AR, tasas con un decimal y semáforo),
+ *   - PlannerSearchBar (búsqueda + Filtros/Agrupar por/Favoritos),
+ *   - useColManager (columnas reordenables por drag & drop, resize y
+ *     persistencia en localStorage — mismo uso que el forecast).
+ *
+ * La búsqueda de texto de la tabla sigue yendo al servidor; los filtros y la
+ * agrupación de la barra de búsqueda se aplican client-side sobre state.rows.
  */
 
 /** @odoo-module **/
@@ -21,6 +28,8 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, svcClass, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
+import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
+import { useColManager } from "@odoo_mrp_planner/js/column_manager";
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -28,17 +37,20 @@ function toDateStr(d) {
 function firstOfMonth() { const d = new Date(); return toDateStr(new Date(d.getFullYear(), d.getMonth(), 1)); }
 function lastOfMonth()  { const d = new Date(); return toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
 
-const TABLE_COLS = [
-    { key: "name",           label: "Remito" },
-    { key: "partner",        label: "Cliente" },
-    { key: "origin",         label: "Origen" },
-    { key: "warehouse",      label: "Depósito" },
-    { key: "scheduled",      label: "Fecha prog." },
-    { key: "product_names",  label: "Artículos" },
-    { key: "qty_pending",    label: "Pendiente" },
-    { key: "qty_available",  label: "Con stock" },
-    { key: "days_available", label: "Días disp." },
-    { key: "state",          label: "Estado" },
+// Columnas de la tabla de salidas pendientes. El orden y el ancho los
+// gestiona useColManager (drag & drop + resize, persistidos en localStorage);
+// la visibilidad vive en state.visibleCols (mismo esquema que el forecast).
+const COLS = [
+    { key: "name",           label: "Remito",      width: 110, fixed: true, align: "start" },
+    { key: "partner",        label: "Cliente",     width: 170, align: "start" },
+    { key: "origin",         label: "Origen",      width: 110, align: "start" },
+    { key: "warehouse",      label: "Depósito",    width: 120, align: "start" },
+    { key: "scheduled",      label: "Fecha prog.", width: 120, align: "start" },
+    { key: "product_names",  label: "Artículos",   width: 230, align: "start" },
+    { key: "qty_pending",    label: "Pendiente",   width:  90, align: "end" },
+    { key: "qty_available",  label: "Con stock",   width:  90, align: "end" },
+    { key: "days_available", label: "Días disp.",  width:  85, align: "end" },
+    { key: "state",          label: "Estado",      width: 105, align: "start" },
 ];
 
 const STATE_LABELS = {
@@ -49,6 +61,7 @@ const STATE_LABELS = {
 
 class InventoryDashboardWidget extends Component {
     static template = "odoo_mrp_planner_dispatch.InventoryDashboardWidget";
+    static components = { PlannerSearchBar };
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
@@ -59,7 +72,9 @@ class InventoryDashboardWidget extends Component {
         this.pendingRef   = useRef("pendingCanvas");
         this.trendChart   = null;
         this.pendingChart = null;
-        this.tableCols    = TABLE_COLS;
+        this.tableCols    = COLS;
+        // Columnas reordenables/redimensionables — mismo hook que el forecast
+        this.cols         = useColManager("inventory_static", COLS);
 
         this.state = useState({
             // ── Zona gráficos ──
@@ -75,6 +90,8 @@ class InventoryDashboardWidget extends Component {
             tblFrom:        "",
             tblTo:          "",
             tblSearch:      "",
+            tblFilter:      null,   // filtro client-side de la barra de búsqueda
+            tblGroupBy:     null,   // agrupación client-side de la barra de búsqueda
             tblWhIds:       [],
             tblWhDropdownOpen: false,
             colsDropdownOpen:  false,
@@ -109,6 +126,7 @@ class InventoryDashboardWidget extends Component {
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
             clearTimeout(this._tblDebounceTimer);
+            this.cols.cancelResize();
             this._destroyCharts();
         });
     }
@@ -154,6 +172,10 @@ class InventoryDashboardWidget extends Component {
         this.state.chartTo   = lastOfMonth();
         this._loadCharts();
     }
+    /** True si el rango activo coincide con el mes en curso (para pintar el preset). */
+    get isCurrentMonth() {
+        return this.state.chartFrom === firstOfMonth() && this.state.chartTo === lastOfMonth();
+    }
     toggleWhDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.whDropdownOpen;
@@ -164,6 +186,11 @@ class InventoryDashboardWidget extends Component {
         const ids = this.state.chartWhIds;
         const i = ids.indexOf(whId);
         if (i >= 0) ids.splice(i, 1); else ids.push(whId);
+        this._loadCharts();
+    }
+    clearChartWhs() {
+        if (!this.state.chartWhIds.length) return;
+        this.state.chartWhIds = [];
         this._loadCharts();
     }
     get whFilterLabel() {
@@ -304,6 +331,15 @@ class InventoryDashboardWidget extends Component {
             target: "current",
         });
     }
+    openProduct(productId) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "product.product",
+            res_id: productId,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
 
     // ── Zona tabla ────────────────────────────────────────────────────────────
 
@@ -333,7 +369,11 @@ class InventoryDashboardWidget extends Component {
 
     onTblFromChange(ev)   { this.state.tblFrom   = ev.target.value; this._loadTable(); }
     onTblToChange(ev)     { this.state.tblTo     = ev.target.value; this._loadTable(); }
-    onTblSearchInput(ev)  { this.state.tblSearch = ev.target.value; this._loadTableDebounced(); }
+    // La búsqueda de texto sigue resolviéndose en el servidor (con debounce);
+    // filtro y agrupación son client-side, así que no requieren RPC.
+    setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
+    setTblFilter(key)     { this.state.tblFilter  = key; }
+    setTblGroupBy(key)    { this.state.tblGroupBy = key; }
     toggleTblWhDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.tblWhDropdownOpen;
@@ -344,6 +384,11 @@ class InventoryDashboardWidget extends Component {
         const ids = this.state.tblWhIds;
         const i = ids.indexOf(whId);
         if (i >= 0) ids.splice(i, 1); else ids.push(whId);
+        this._loadTable();
+    }
+    clearTblWhs() {
+        if (!this.state.tblWhIds.length) return;
+        this.state.tblWhIds = [];
         this._loadTable();
     }
     get tblWhFilterLabel() {
@@ -362,7 +407,14 @@ class InventoryDashboardWidget extends Component {
         this.state.colsDropdownOpen = open;
     }
     toggleCol(key) { this.state.visibleCols[key] = !this.state.visibleCols[key]; }
-    get visibleColsList() { return TABLE_COLS.filter(c => this.state.visibleCols[c.key]); }
+
+    /** Columnas visibles en el orden gestionado por el col manager (como el forecast). */
+    get staticVisibleCols() {
+        return this.cols.visibleCols().filter(col => {
+            if (col.fixed) return true;
+            return !!this.state.visibleCols[col.key];
+        });
+    }
 
     setSort(col) {
         if (this.state.sortCol === col) {
@@ -373,16 +425,83 @@ class InventoryDashboardWidget extends Component {
         }
     }
 
+    // ── Filtros y agrupación client-side (barra de búsqueda) ──────────────────
+
+    get filteredRows() {
+        let rows = this.state.rows;
+        const f = this.state.tblFilter;
+        if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");
+        if (f === "waiting")        rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
+        if (f === "overdue")        rows = rows.filter(r => r.overdue_days > 0);
+        if (f === "available_days") rows = rows.filter(r => r.days_available !== null && r.days_available >= 3);
+        return rows;
+    }
+
     get sortedRows() {
         const { sortCol, sortDir } = this.state;
         const dir = sortDir === "asc" ? 1 : -1;
-        return [...this.state.rows].sort((a, b) => {
+        return [...this.filteredRows].sort((a, b) => {
             const va = a[sortCol], vb = b[sortCol];
             if (va === null || va === undefined) return 1;
             if (vb === null || vb === undefined) return -1;
             if (typeof va === "number") return (va - vb) * dir;
             return String(va).localeCompare(String(vb), "es") * dir;
         });
+    }
+
+    /** Clave de agrupación de una fila según state.tblGroupBy. */
+    _groupKey(row) {
+        const gb = this.state.tblGroupBy;
+        if (gb === "partner")   return row.partner   || "Sin cliente";
+        if (gb === "warehouse") return row.warehouse || "Sin depósito";
+        if (gb === "state")     return this.stateLabel(row.state);
+        if (gb === "sched_month") {
+            // scheduled llega como 'dd/mm/yyyy' → agrupar por 'mm/yyyy'
+            if (!row.scheduled) return "Sin fecha";
+            const parts = String(row.scheduled).split("/");
+            return parts.length === 3 ? `${parts[1]}/${parts[2]}` : "Sin fecha";
+        }
+        return "";
+    }
+
+    /**
+     * Ítems a renderizar en el tbody. Sin agrupación: solo filas. Con
+     * agrupación: una fila de encabezado por grupo (con conteo y sumas)
+     * seguida de sus filas, respetando el orden del sort actual.
+     */
+    get tableItems() {
+        const rows = this.sortedRows;
+        if (!this.state.tblGroupBy) {
+            return rows.map(r => ({ _type: "row", row: r }));
+        }
+        const groups = new Map();   // preserva el orden de aparición
+        for (const r of rows) {
+            const key = this._groupKey(r);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(r);
+        }
+        const items = [];
+        for (const [label, grpRows] of groups) {
+            items.push({
+                _type:         "group",
+                label,
+                count:         grpRows.length,
+                qty_pending:   grpRows.reduce((s, r) => s + (r.qty_pending   || 0), 0),
+                qty_available: grpRows.reduce((s, r) => s + (r.qty_available || 0), 0),
+            });
+            for (const r of grpRows) items.push({ _type: "row", row: r });
+        }
+        return items;
+    }
+
+    /** Colspan de la fila de encabezado de grupo (checkbox + columnas visibles). */
+    get tableColspan() {
+        return this.staticVisibleCols.length + (this.state.canDispatch ? 1 : 0);
+    }
+
+    /** Title con la lista completa de artículos (para el sufijo "+N"). */
+    productsTitle(row) {
+        return (row.products_detail || []).map(p => p.name).join(", ");
     }
 
     // ── Selección + despacho masivo ───────────────────────────────────────────
@@ -428,12 +547,17 @@ class InventoryDashboardWidget extends Component {
     // ── Export CSV ────────────────────────────────────────────────────────────
 
     exportCsv() {
-        const cols = this.visibleColsList;
+        // Exporta las columnas visibles en su orden actual; con agrupación
+        // activa se exportan igual las filas planas (sin encabezados de grupo).
+        const cols = this.staticVisibleCols;
         const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
         const lines = [cols.map(c => esc(c.label)).join(";")];
         for (const r of this.sortedRows) {
             lines.push(cols.map(c => {
                 if (c.key === "state") return esc(this.stateLabel(r.state));
+                if (c.key === "product_names" && r.products_detail && r.products_detail.length) {
+                    return esc(r.products_detail.map(p => p.name).join(", "));
+                }
                 return esc(r[c.key]);
             }).join(";"));
         }

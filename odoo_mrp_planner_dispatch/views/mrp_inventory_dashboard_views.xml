@@ -46,11 +46,11 @@
         <field name="code">action = model.action_open_inventory()</field>
     </record>
 
-    <!-- ── Barra superior: Inventario (hijo del app root, después de Ventas) ── -->
+    <!-- ── Barra superior: Inventario (hijo del app root, entre Planificación y Ventas) ── -->
     <menuitem id="mrp_inventario_menu"
               name="Inventario"
               parent="odoo_mrp_planner.mrp_planner_menu_root"
-              sequence="25"
+              sequence="15"
               groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_inventario_panel_menu"

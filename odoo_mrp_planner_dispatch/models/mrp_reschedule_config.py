@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timedelta
 
 import pytz
+from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api
 
@@ -40,6 +41,11 @@ class MrpRescheduleConfig(models.Model):
         help='Los snapshots crudos más viejos que esta cantidad de meses se purgan, '
              'solo después de que su mes quede consolidado en el histórico mensual '
              '(que no se purga nunca).')
+    dispatch_pending_cutoff_months = fields.Integer(
+        string='Ignorar pendientes anteriores a (meses)', default=0,
+        help='Las salidas pendientes con fecha programada más vieja que esta cantidad '
+             'de meses no cuentan en el Panel de Inventario ni en los snapshots de '
+             'disponibilidad (0 = sin corte).')
 
     enable_dispatch_validation = fields.Boolean(
         string='Habilitar validación de despacho',
@@ -49,6 +55,27 @@ class MrpRescheduleConfig(models.Model):
              'remito validado y para el grupo Inventario: validación de despacho) y '
              'filtros en la lista de salidas. Al activar, las salidas ya validadas que '
              'nunca entraron al circuito se marcan como despachadas.')
+
+    def _dispatch_pending_cutoff_domain(self, field='scheduled_date'):
+        """Dominio del corte de antigüedad de pendientes.
+
+        Con "Ignorar pendientes anteriores a (meses)" > 0, las salidas cuya
+        fecha programada es más vieja que N meses quedan fuera del Panel de
+        Inventario (KPIs, tabla y drills) y de los snapshots de disponibilidad.
+        Con 0 no hay corte y el dominio es vacío.
+
+        :param field: campo de fecha sobre el que filtrar ('scheduled_date' en
+                      stock.picking, 'picking_id.scheduled_date' en stock.move).
+        :returns: list — dominio a sumar a la búsqueda ([] = sin filtro).
+        """
+        months = int(self and self[0].dispatch_pending_cutoff_months or 0)
+        if months <= 0:
+            return []
+        cutoff = fields.Date.context_today(self) - relativedelta(months=months)
+        # String (no datetime): el dominio también viaja al cliente en los
+        # drills del panel y tiene que ser serializable a JSON.
+        return [(field, '>=', fields.Datetime.to_string(
+            datetime.combine(cutoff, datetime.min.time())))]
 
     def _dispatch_mark_legacy(self):
         """Marca como despachadas las salidas validadas que nunca entraron al circuito.

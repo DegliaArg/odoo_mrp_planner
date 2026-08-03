@@ -8,6 +8,9 @@ propia barra de filtros en el widget.
 
 Fuentes de datos:
 - Estado actual de stock.picking / stock.move: pendiente, disponible, frenado.
+  La disponibilidad se evalúa en el primer eslabón de la cadena de cada
+  movimiento (mrp.dispatch.stock.log._chain_available_qty), y las salidas más
+  viejas que el corte de antigüedad configurado quedan fuera de todo el panel.
 - x_dispatch_state / x_dispatch_date: despachado del período.
 - mrp.dispatch.stock.log: denominador de la "Tasa física s/ disponible" del
   mes en curso (y meses aún no consolidados).
@@ -81,6 +84,15 @@ class MrpPlannerDashboard(models.TransientModel):
         return [(field, 'in', warehouse_ids)] if warehouse_ids else []
 
     @api.model
+    def _inventory_qround(self, cfg, value):
+        """Redondeo de las cantidades en piezas del panel: a entero (round)
+        si en Ajustes está activo "Forzar cantidades enteras", a 2 decimales
+        si no. Las tasas y porcentajes conservan su decimal."""
+        if cfg and cfg.comparison_force_integer:
+            return round(value)
+        return round(value, 2)
+
+    @api.model
     def _inventory_effective_whs(self, warehouse_ids):
         """Combina la selección del widget con los depósitos permitidos del
         usuario (Ajustes → permisos por usuario), mismo criterio server-side
@@ -113,6 +125,12 @@ class MrpPlannerDashboard(models.TransientModel):
               cada mes con su origen ('monthly' congelado o 'live').
             - 'pending_by_wh' (list[dict]): composición actual del pendiente
               (disponible vs. sin stock) por depósito.
+
+        El disponible del pendiente se evalúa en el primer eslabón de la cadena
+        de cada movimiento (_chain_available_qty); el numerador de la tasa
+        (despachado) no cambia. Las salidas más viejas que el corte de
+        antigüedad configurado quedan fuera, y las cantidades en piezas
+        respetan "Forzar cantidades enteras" de Ajustes.
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
@@ -128,12 +146,17 @@ class MrpPlannerDashboard(models.TransientModel):
             ('picking_id.picking_type_code', '=', 'outgoing'),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + self._inventory_wh_domain(warehouse_ids, 'picking_id.picking_type_id.warehouse_id'))
+        ] + self._inventory_wh_domain(warehouse_ids, 'picking_id.picking_type_id.warehouse_id')
+          + cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date'))
         pending_total = pending_available = 0.0
         pending_pick_ids = set()
         by_wh = {}  # {wh_id: [available, blocked]}
         if pending_moves:
-            rows = pending_moves.read(['picking_id', 'product_uom_qty', 'quantity'])
+            rows = pending_moves.read(['picking_id', 'product_uom_qty'])
+            # Disponible evaluado en el primer eslabón de la cadena de cada
+            # movimiento (2/3 pasos), no solo en la reserva de la salida.
+            chain_avail = self.env['mrp.dispatch.stock.log'] \
+                ._chain_available_qty(pending_moves)
             pick_ids = list({r['picking_id'][0] for r in rows if r['picking_id']})
             pick_wh = {}
             for p in self.env['stock.picking'].sudo().browse(pick_ids).read(['picking_type_id']):
@@ -146,7 +169,7 @@ class MrpPlannerDashboard(models.TransientModel):
             for r in rows:
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 qty  = r['product_uom_qty'] or 0.0
-                resv = min(r['quantity'] or 0.0, qty)
+                resv = min(chain_avail.get(r['id'], 0.0), qty)
                 pending_total     += qty
                 pending_available += resv
                 if pick:
@@ -179,39 +202,42 @@ class MrpPlannerDashboard(models.TransientModel):
                     lag_count += 1
 
         # ── Evolución mensual de la tasa s/ disponible ────────────────────────
-        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids) \
+        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg) \
             if log_enabled else []
         rate_num = sum(m['num'] for m in trend)
         rate_den = rate_num + sum(m['den_extra'] for m in trend)
         rate_available = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
 
+        # Cantidades en piezas con el redondeo configurado (las tasas no)
+        qround = lambda v: self._inventory_qround(cfg, v)
         return {
             'enabled': log_enabled,
             'kpis': {
-                'pending_total':      round(pending_total, 2),
-                'pending_available':  round(pending_available, 2),
-                'pending_blocked':    round(pending_total - pending_available, 2),
+                'pending_total':      qround(pending_total),
+                'pending_available':  qround(pending_available),
+                'pending_blocked':    qround(pending_total - pending_available),
                 'pending_pickings':   len(pending_pick_ids),
-                'dispatched_qty':     round(dispatched_qty, 2),
+                'dispatched_qty':     qround(dispatched_qty),
                 'dispatched_pickings': len(dispatched_picks),
                 'avg_dispatch_lag_days': round(lag_sum / lag_count, 1) if lag_count else None,
                 'rate_available':     rate_available,
-                'rate_available_num': round(rate_num, 2),
-                'rate_available_den': round(rate_den, 2),
+                'rate_available_num': qround(rate_num),
+                'rate_available_den': qround(rate_den),
             },
             'trend': trend,
             'pending_by_wh': [
                 {'warehouse_id': wh_id, 'warehouse': wh_name,
-                 'available': round(vals[0], 2), 'blocked': round(vals[1], 2)}
+                 'available': qround(vals[0]), 'blocked': qround(vals[1])}
                 for (wh_id, wh_name), vals in sorted(by_wh.items(), key=lambda kv: kv[0][1])
             ],
         }
 
     @api.model
-    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids):
+    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None):
         """Tasa s/ disponible por mes del rango: consolidado si el mes está
         cerrado en mrp.planner.kpi.monthly, cálculo vivo desde los snapshots
-        si no. Meses sin datos quedan con num/den 0 y rate None."""
+        si no. Meses sin datos quedan con num/den 0 y rate None. Las cantidades
+        num/den_extra respetan el redondeo configurado; la tasa no."""
         Log = self.env['mrp.dispatch.stock.log'].sudo()
         Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
         months = []
@@ -250,8 +276,8 @@ class MrpPlannerDashboard(models.TransientModel):
             total = num + den_extra
             trend.append({
                 'ym':        month_start.strftime('%Y-%m'),
-                'num':       round(num, 2),
-                'den_extra': round(den_extra, 2),
+                'num':       self._inventory_qround(cfg, num),
+                'den_extra': self._inventory_qround(cfg, den_extra),
                 'rate':      round(num / total * 100, 1) if total > 0 else None,
                 'source':    source,
             })
@@ -313,6 +339,10 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         Salidas pendientes (una fila por remito) para la tabla operativa.
 
+        La columna de disponible se evalúa en el primer eslabón de la cadena
+        de cada movimiento (_chain_available_qty) y las salidas más viejas que
+        el corte de antigüedad configurado quedan fuera de la tabla.
+
         :param date_from/date_to: filtro opcional sobre la fecha programada.
         :param warehouse_ids: filtro opcional de depósitos.
         :param search: texto contra remito / cliente / origen.
@@ -321,11 +351,13 @@ class MrpPlannerDashboard(models.TransientModel):
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
+        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
         dom = [
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('state', 'in', PENDING_PICKING_STATES),
-        ] + self._inventory_wh_domain(warehouse_ids)
+        ] + self._inventory_wh_domain(warehouse_ids) \
+          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
         if date_from:
             dom.append(('scheduled_date', '>=', date_from))
         if date_to:
@@ -346,22 +378,24 @@ class MrpPlannerDashboard(models.TransientModel):
                    for t in self.env['stock.picking.type'].sudo().browse(type_ids)
                                 .read(['warehouse_id'])}
 
-        # Cantidades por remito (pendiente / reservado / artículos)
+        # Cantidades por remito (pendiente / disponible / artículos)
         moves = self.env['stock.move'].sudo().search([
             ('picking_id', 'in', picks.ids),
             ('state', 'not in', ('draft', 'done', 'cancel')),
         ])
-        qty = {}    # {pick_id: [pending, reserved, set(product_ids)]}
-        for r in moves.read(['picking_id', 'product_id', 'product_uom_qty', 'quantity']):
+        # Disponible evaluado en el primer eslabón de la cadena (2/3 pasos)
+        chain_avail = self.env['mrp.dispatch.stock.log']._chain_available_qty(moves)
+        qty = {}    # {pick_id: [pending, available, {product_id: display_name}]}
+        for r in moves.read(['picking_id', 'product_id', 'product_uom_qty']):
             pick = r['picking_id'][0] if r['picking_id'] else False
             if not pick:
                 continue
-            qty.setdefault(pick, [0.0, 0.0, set()])
+            qty.setdefault(pick, [0.0, 0.0, {}])
             q = r['product_uom_qty'] or 0.0
             qty[pick][0] += q
-            qty[pick][1] += min(r['quantity'] or 0.0, q)
+            qty[pick][1] += min(chain_avail.get(r['id'], 0.0), q)
             if r['product_id']:
-                qty[pick][2].add(r['product_id'][1])
+                qty[pick][2][r['product_id'][0]] = r['product_id'][1]
 
         # Días disponible: primer snapshot del remito con reserva (evidencia real)
         today = fields.Date.context_today(self)
@@ -377,7 +411,12 @@ class MrpPlannerDashboard(models.TransientModel):
         rows = []
         for r in pick_rows:
             pid = r['id']
-            pending, reserved, prods = qty.get(pid, [0.0, 0.0, set()])
+            pending, available, prods = qty.get(pid, [0.0, 0.0, {}])
+            # Lista completa de artículos ordenada por nombre (links del widget);
+            # los nombres ya vienen del read de los movimientos: sin queries extra.
+            detail = sorted(({'id': p_id, 'name': p_name} for p_id, p_name in prods.items()),
+                            key=lambda d: d['name'])
+            names = [d['name'] for d in detail]
             sched = r['scheduled_date']
             if sched:
                 sched_local = pytz.utc.localize(sched).astimezone(tz)
@@ -396,10 +435,11 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled':     sched_str,
                 'overdue_days':  max(0, overdue),
                 'state':         r['state'],
-                'qty_pending':   round(pending, 2),
-                'qty_available': round(reserved, 2),
-                'products':      len(prods),
-                'product_names': ', '.join(sorted(prods)[:3]) + ('…' if len(prods) > 3 else ''),
+                'qty_pending':   self._inventory_qround(cfg, pending),
+                'qty_available': self._inventory_qround(cfg, available),
+                'products':      len(detail),
+                'product_names': ', '.join(names[:3]) + ('…' if len(names) > 3 else ''),
+                'products_detail': detail,
                 'days_available': (today - avail_since).days if avail_since else None,
             })
         return {'rows': rows, 'can_dispatch': self._inventory_can_dispatch()}
@@ -415,13 +455,16 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def action_inventory_pending(self, mode='all', warehouse_ids=None):
-        """Lista nativa de salidas pendientes: todas / con stock / sin stock."""
+        """Lista nativa de salidas pendientes: todas / con stock / sin stock.
+        Respeta el corte de antigüedad configurado, igual que los KPIs."""
         self._inventory_ensure_group()
+        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
         dom = [
             ('company_id', '=', self.env.company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('state', 'in', list(PENDING_PICKING_STATES)),
-        ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
+        ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids)) \
+          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
         name = _('Salidas pendientes')
         if mode == 'available':
             dom.append(('state', '=', 'assigned'))

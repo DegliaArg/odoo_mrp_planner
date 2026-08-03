@@ -9,7 +9,10 @@ los meses cerrados se leen del consolidado, que nunca se purga.
 
 Ciclo del cron diario (_cron_dispatch_snapshot):
 1. Snapshot: una fila por remito-producto pendiente con su cantidad
-   pendiente y reservada (idempotente: la corrida del día reemplaza).
+   pendiente y disponible (idempotente: la corrida del día reemplaza).
+   La disponibilidad se evalúa siguiendo la cadena de abastecimiento de
+   cada movimiento (_chain_available_qty), y las salidas más viejas que
+   el corte de antigüedad configurado quedan fuera.
 2. Cierre mensual: consolida en mrp.planner.kpi.monthly los meses
    anteriores que aún no tengan su fila resumen.
 3. Retención: purga snapshots crudos más viejos que la retención
@@ -48,8 +51,11 @@ class MrpDispatchStockLog(models.Model):
     qty_pending = fields.Float(string='Cantidad pendiente', digits='Product Unit of Measure',
                                help='Cantidad demandada por el remito para el artículo al momento del snapshot.')
     qty_reserved = fields.Float(string='Cantidad reservada', digits='Product Unit of Measure',
-                                help='Cantidad con stock reservado (disponible para despachar) al momento '
-                                     'del snapshot, topeada a la pendiente.')
+                                help='Cantidad disponible para despachar al momento del snapshot, topeada '
+                                     'a la pendiente. Se evalúa siguiendo la cadena de abastecimiento del '
+                                     'movimiento hacia atrás (move_orig_ids): en entregas de 2/3 pasos '
+                                     'cuenta lo reservado en el eslabón pendiente más temprano de la '
+                                     'cadena, más lo que ya avanzó.')
 
     # ── Helpers de calendario ─────────────────────────────────────────────────
 
@@ -74,6 +80,90 @@ class MrpDispatchStockLog(models.Model):
         to_utc = lambda d: d.astimezone(pytz.utc).replace(tzinfo=None)
         return to_utc(start_local), to_utc(end_local)
 
+    # ── Disponibilidad de cadena ──────────────────────────────────────────────
+
+    @api.model
+    def _chain_available_qty(self, moves):
+        """Disponibilidad de movimientos de salida evaluada en el primer eslabón.
+
+        Regla de negocio: en depósitos con entregas en 2/3 pasos, el movimiento
+        de la salida es el último eslabón y recién reserva stock cuando la
+        recolección terminó; mirar solo su `quantity` marca "sin stock"
+        mercadería que ya está reservada al inicio de la cadena. Por eso la
+        disponibilidad de cada movimiento se evalúa hacia atrás por
+        `move_orig_ids`:
+
+            disponible(m) = min(demanda(m), reservado(m) + Σ disponible(o))
+            para cada origen o pendiente (state not in done/cancel).
+
+        Los orígenes hechos/cancelados no suman: su salida ya está reflejada
+        en el reservado de m. Para movimientos sin cadena (depósitos de 1 paso)
+        el resultado es min(demanda, reservado), igual que la lectura directa.
+
+        Implementación batch: BFS por niveles con sudo().read() (una consulta
+        por nivel, profundidad máxima 6 eslabones hacia atrás) y evaluación
+        memoizada con protección contra ciclos (un eslabón que reaparece en el
+        camino aporta 0). No hay browse individual por registro.
+
+        :param moves: recordset de stock.move (movimientos de salida).
+        :returns: dict {move_id: cantidad disponible}.
+        """
+        move_ids = list(moves.ids)
+        if not move_ids:
+            return {}
+        Move = self.env['stock.move'].sudo()
+
+        # BFS por niveles: nivel 0 = los movimientos pedidos, hasta 6 niveles
+        # de orígenes. Lo que quede más profundo se trata como aporte 0.
+        info = {}  # {move_id: {'qty', 'demand', 'state', 'origs'}}
+        frontier = move_ids
+        for _depth in range(7):
+            unread = [m for m in frontier if m not in info]
+            if not unread:
+                break
+            frontier = []
+            for r in Move.browse(unread).read(
+                    ['move_orig_ids', 'quantity', 'product_uom_qty', 'state']):
+                info[r['id']] = {
+                    'qty':    r['quantity'] or 0.0,
+                    'demand': r['product_uom_qty'] or 0.0,
+                    'state':  r['state'],
+                    'origs':  r['move_orig_ids'],
+                }
+                # Los orígenes done/cancel no se evalúan: no hace falta expandirlos.
+                if r['state'] not in ('done', 'cancel'):
+                    frontier.extend(r['move_orig_ids'])
+
+        # Evaluación iterativa en post-orden con memo compartida entre raíces.
+        memo = {}
+        for root in move_ids:
+            if root in memo or root not in info:
+                continue
+            onpath = set()  # camino actual: protege contra ciclos
+            stack = [(root, False)]
+            while stack:
+                mid, processed = stack.pop()
+                if processed:
+                    onpath.discard(mid)
+                    node = info[mid]
+                    total = node['qty']
+                    for o in node['origs']:
+                        onode = info.get(o)
+                        if onode and onode['state'] not in ('done', 'cancel'):
+                            total += memo.get(o, 0.0)
+                    memo[mid] = min(node['demand'], total)
+                    continue
+                if mid in memo or mid in onpath or mid not in info:
+                    continue
+                onpath.add(mid)
+                stack.append((mid, True))
+                for o in info[mid]['origs']:
+                    onode = info.get(o)
+                    if (onode and onode['state'] not in ('done', 'cancel')
+                            and o not in memo and o not in onpath):
+                        stack.append((o, False))
+        return {m: memo.get(m, 0.0) for m in move_ids}
+
     # ── Cron ──────────────────────────────────────────────────────────────────
 
     @api.model
@@ -86,7 +176,7 @@ class MrpDispatchStockLog(models.Model):
                 continue
             started = fields.Datetime.now()
             try:
-                count = self._dispatch_take_snapshot(company)
+                count = self._dispatch_take_snapshot(company, cfg)
                 months = self._dispatch_consolidate_months(company)
                 purged = self._dispatch_apply_retention(company, cfg)
                 duration = (fields.Datetime.now() - started).total_seconds()
@@ -110,14 +200,23 @@ class MrpDispatchStockLog(models.Model):
     # ── Paso 1: snapshot del día ──────────────────────────────────────────────
 
     @api.model
-    def _dispatch_take_snapshot(self, company):
-        """Registra pendiente vs. reservado por remito-producto de las salidas pendientes.
+    def _dispatch_take_snapshot(self, company, cfg=None):
+        """Registra pendiente vs. disponible por remito-producto de las salidas pendientes.
+
+        La disponibilidad se evalúa en el primer eslabón de la cadena de cada
+        movimiento (_chain_available_qty), topeada a la pendiente. Las salidas
+        con fecha programada más vieja que el corte de antigüedad configurado
+        no se registran.
 
         Idempotente por día: si el cron (o una corrida manual) vuelve a pasar,
         el snapshot del día se reemplaza con el estado más reciente.
 
+        :param cfg: registro de mrp.reschedule.config de la empresa (se
+                    resuelve al vuelo si no viene).
         :returns: int — filas creadas.
         """
+        if cfg is None:
+            cfg = self.env['mrp.reschedule.config'].sudo().with_company(company).get_config()
         today = fields.Date.context_today(self.with_context(tz=str(self._company_tz(company))))
         stale = self.sudo().search([
             ('snapshot_date', '=', today),
@@ -132,10 +231,12 @@ class MrpDispatchStockLog(models.Model):
             ('picking_id.picking_type_code', '=', 'outgoing'),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ])
+        ] + cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date'))
         if not moves:
             return 0
-        move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty', 'quantity'])
+        move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty'])
+        # Disponibilidad evaluada en el primer eslabón de la cadena de cada movimiento
+        chain_avail = self._chain_available_qty(moves)
 
         # Depósito por picking en dos SELECT (picking → tipo → depósito)
         pick_ids = list({r['picking_id'][0] for r in move_rows if r['picking_id']})
@@ -146,7 +247,7 @@ class MrpDispatchStockLog(models.Model):
                    for t in self.env['stock.picking.type'].sudo().browse(type_ids).read(['warehouse_id'])}
 
         # Agregar por remito-producto (un remito puede tener varias líneas del mismo artículo)
-        agg = {}  # {(picking_id, product_id): [pending, reserved]}
+        agg = {}  # {(picking_id, product_id): [pending, available]}
         for r in move_rows:
             pick = r['picking_id'][0] if r['picking_id'] else False
             prod = r['product_id'][0] if r['product_id'] else False
@@ -155,10 +256,10 @@ class MrpDispatchStockLog(models.Model):
             key = (pick, prod)
             agg.setdefault(key, [0.0, 0.0])
             agg[key][0] += r['product_uom_qty'] or 0.0
-            agg[key][1] += r['quantity'] or 0.0
+            agg[key][1] += chain_avail.get(r['id'], 0.0)
 
         vals_list = []
-        for (pick, prod), (pending, reserved) in agg.items():
+        for (pick, prod), (pending, available) in agg.items():
             vals_list.append({
                 'snapshot_date': today,
                 'company_id':    company.id,
@@ -166,8 +267,8 @@ class MrpDispatchStockLog(models.Model):
                 'picking_id':    pick,
                 'product_id':    prod,
                 'qty_pending':   round(pending, 2),
-                # Topeada a la pendiente: el excedente reservado no suma disponibilidad
-                'qty_reserved':  round(min(reserved, pending), 2),
+                # Topeada a la pendiente: el excedente disponible no suma
+                'qty_reserved':  round(min(available, pending), 2),
             })
         if vals_list:
             self.sudo().create(vals_list)

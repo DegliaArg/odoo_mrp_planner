@@ -100,7 +100,7 @@ class InventoryDashboardWidget extends Component {
                 qty_available: true, days_available: true, state: true,
             },
             page:           1,
-            pageSize:       50,
+            pageSize:       30,
             rows:           [],
             canDispatch:    false,
             tableLoading:   true,

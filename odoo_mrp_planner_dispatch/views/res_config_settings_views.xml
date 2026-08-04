@@ -62,6 +62,7 @@
                                 <field name="dispatch_log_retention_months"
                                        invisible="not dispatch_stock_log_enabled"/>
                                 <field name="dispatch_pending_cutoff_months"/>
+                                <field name="inventory_force_integer" widget="boolean_toggle"/>
                                 <div class="text-muted small border-start border-2 ps-2 mt-1">
                                     Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
                                     alimenta la <b>Tasa de entrega s/ disponible</b> del Panel de Inventario.

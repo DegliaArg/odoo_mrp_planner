@@ -44,6 +44,13 @@ class MrpRescheduleConfig(models.Model):
         help='Los snapshots crudos más viejos que esta cantidad de meses se purgan, '
              'solo después de que su mes quede consolidado en el histórico mensual '
              '(que no se purga nunca).')
+    inventory_force_integer = fields.Boolean(
+        string='Forzar cantidades enteras',
+        default=False,
+        help='Redondea a enteros las cantidades en piezas del Panel de Inventario '
+             'y de Movimientos (las tasas y porcentajes conservan su decimal). '
+             'Es independiente del "Forzar cantidades enteras" de la comparativa '
+             'del forecast (Ajustes → Producción).')
     dispatch_pending_cutoff_months = fields.Integer(
         string='Ignorar pendientes anteriores a (meses)', default=0,
         help='Las salidas pendientes con fecha programada más vieja que esta cantidad '

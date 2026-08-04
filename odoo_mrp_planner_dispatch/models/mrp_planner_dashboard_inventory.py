@@ -94,10 +94,12 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def _inventory_qround(self, cfg, value):
-        """Redondeo de las cantidades en piezas del panel: a entero (round)
-        si en Ajustes está activo "Forzar cantidades enteras", a 2 decimales
-        si no. Las tasas y porcentajes conservan su decimal."""
-        if cfg and cfg.comparison_force_integer:
+        """Redondeo de las cantidades en piezas de los paneles de Inventario
+        y Movimientos: a entero (round) si en Ajustes → Inventario está activo
+        "Forzar cantidades enteras", a 2 decimales si no. Las tasas y
+        porcentajes conservan su decimal. Toggle propio de Inventario,
+        independiente del de la comparativa del forecast."""
+        if cfg and cfg.inventory_force_integer:
             return round(value)
         return round(value, 2)
 

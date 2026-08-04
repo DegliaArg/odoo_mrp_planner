@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Inventario y despacho',
-    'version': '18.0.2.1.0',
+    'version': '18.0.2.2.0',
     'summary': 'Panel de Inventario (entregas pendientes y tasa s/ disponible) y circuito de despacho',
     'description': """
 Extensión de inventario y despacho del Planificador de producción.

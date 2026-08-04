@@ -13,11 +13,11 @@ está activo, agrega únicamente una capa operativa en la tabla: la cola
 
 Fuentes de datos:
 - Estado actual de stock.picking / stock.move: pendiente, disponible, frenado.
-  La disponibilidad se evalúa en el primer eslabón de la cadena de cada
-  movimiento (mrp.dispatch.stock.log._chain_available_qty), y las salidas más
-  viejas que el corte de antigüedad configurado quedan fuera de todo el panel.
-  Las salidas cuentan solo con destino cliente (excluye transferencias entre
-  depósitos que usan un tipo de salida).
+  El universo se define por los tipos de operación de la cadena de entrega
+  de cada depósito; la disponibilidad se evalúa en el primer eslabón de la
+  cadena de cada movimiento (mrp.dispatch.stock.log._chain_available_qty), y
+  las salidas más viejas que el corte de antigüedad configurado quedan fuera
+  de todo el panel.
 - state='done' / date_done: entregado del período y atraso de entrega.
 - mrp.dispatch.stock.log: denominador de la "Tasa de entrega s/ disponible"
   del mes en curso (y meses aún no consolidados).
@@ -176,9 +176,9 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # ── Estado actual del pendiente (no depende del período) ─────────────
         # Universo = demanda parada en cualquier eslabón de la cadena de
-        # entrega (recolección/embalaje/salida, según los pasos del depósito),
-        # con las salidas solo a destino cliente. En el flujo lazy de Odoo 17+
-        # los eslabones se crean al validar el anterior, así que son disjuntos.
+        # entrega (recolección/embalaje/salida, según los pasos del depósito).
+        # En el flujo lazy de Odoo 17+ los eslabones se crean al validar el
+        # anterior, así que son disjuntos.
         Log = self.env['mrp.dispatch.stock.log']
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
@@ -189,10 +189,10 @@ class MrpPlannerDashboard(models.TransientModel):
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
         pending_moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
+            ('picking_id.picking_type_id', 'in', chain_type_ids),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + Log._dispatch_chain_domain(type_info, 'picking_id.') + cutoff_dom) \
-            if chain_type_ids else self.env['stock.move'].sudo()
+        ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
         pending_total = pending_available = 0.0
         pending_pick_ids = set()
         by_wh = {}  # {(wh_id, wh_name): [available, blocked]}
@@ -219,11 +219,10 @@ class MrpPlannerDashboard(models.TransientModel):
                 by_wh[wh_key][1] += qty - avail
 
         # ── Entregado del período + atraso promedio de entrega ───────────────
-        # Estándar: salidas a cliente validadas, por fecha de validación.
+        # Estándar: salidas validadas, por fecha de validación.
         delivered_picks = self.env['stock.picking'].sudo().search([
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('location_dest_id.usage', '=', 'customer'),
             ('state', '=', 'done'),
             ('date_done', '>=', dt_from),
             ('date_done', '<', dt_to),
@@ -351,11 +350,10 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         Demanda pendiente de entrega (una fila por remito) para la tabla
         operativa. El universo cubre todos los eslabones de la cadena de
-        entrega de cada depósito — recolección, embalaje y salida (esta última
-        solo a destino cliente), según sus pasos. Con el circuito de despacho
-        activo se suman además las salidas validadas sin despachar (etapa
-        'ready', la única que puede marcarse como despachada); es una capa
-        operativa que no participa de los KPIs.
+        entrega de cada depósito — recolección, embalaje y salida, según sus
+        pasos. Con el circuito de despacho activo se suman además las salidas
+        validadas sin despachar (etapa 'ready', la única que puede marcarse
+        como despachada); es una capa operativa que no participa de los KPIs.
 
         La columna de disponible se evalúa en el eslabón donde está parada la
         demanda (_chain_available_qty; las 'ready' están 100 % disponibles) y
@@ -382,8 +380,8 @@ class MrpPlannerDashboard(models.TransientModel):
             return empty
         dom = [
             ('company_id', '=', company.id),
-        ] + Log._dispatch_chain_domain(type_info) \
-          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+            ('picking_type_id', 'in', chain_type_ids),
+        ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
         # Fechas del filtro interpretadas como días locales del usuario
         # (scheduled_date se guarda en UTC)
         tz = self._inventory_tz()
@@ -535,13 +533,12 @@ class MrpPlannerDashboard(models.TransientModel):
     @api.model
     def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None,
                                    picking_type_ids=None):
-        """Lista nativa de salidas a cliente entregadas (validadas) en el período."""
+        """Lista nativa de salidas entregadas (validadas) en el período."""
         self._inventory_ensure_group()
         _d_from, _d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
         dom = [
             ('company_id', '=', self.env.company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('location_dest_id.usage', '=', 'customer'),
             ('state', '=', 'done'),
             ('date_done', '>=', dt_from),
             ('date_done', '<', dt_to),

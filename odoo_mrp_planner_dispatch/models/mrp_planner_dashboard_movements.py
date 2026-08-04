@@ -3,15 +3,14 @@ Módulo: mrp_planner_dashboard_movements.py (odoo_mrp_planner_dispatch)
 Modelo: extensión de mrp.planner.dashboard
 
 Backend del panel "Movimientos pendientes": recepciones y transferencias
-pendientes — el complemento exacto del Panel de Inventario, que cubre la
-cadena de entrega a clientes.
+pendientes — el complemento del Panel de Inventario, que cubre la cadena de
+entrega (recolección/embalaje/salida).
 
-Universo: pickings pendientes de tipos entrada/interna/salida cuyo destino
-NO es una ubicación de cliente (las entregas a clientes viven en el Panel de
-Inventario), excluyendo además los eslabones de recolección/embalaje de la
-cadena de entrega. Cubre compras por recibir, transferencias internas y los
-tramos entre depósitos de las rutas de reabastecimiento (aunque usen un tipo
-de salida).
+Universo: pickings pendientes de tipos de entrada e internos, excluyendo los
+eslabones de la cadena de entrega (que viven en el Panel de Inventario). La
+separación entre paneles es POR TIPO DE OPERACIÓN: cubre compras por recibir
+y transferencias internas; los tramos entre depósitos que usan un tipo de
+salida cuentan en el Panel de Inventario (se apartan con su filtro de tipos).
 
 Todo se calcula en vivo: sin snapshots, sin tasa y sin circuito de despacho.
 Mismos grupos que el Panel de Inventario (acá no hay acciones de escritura).
@@ -55,17 +54,17 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def _movements_excluded_type_ids(self, company):
-        """Eslabones de recolección/embalaje de la cadena de entrega: son
-        demanda de clientes y pertenecen al Panel de Inventario, no acá."""
-        _ids, info = self.env['mrp.dispatch.stock.log'] \
+        """Tipos de la cadena de entrega (recolección/embalaje/salida):
+        pertenecen al Panel de Inventario, no acá."""
+        chain_ids, _info = self.env['mrp.dispatch.stock.log'] \
             ._dispatch_chain_types(company)
-        return [t for t, i in info.items() if i[2] != 'ship']
+        return chain_ids
 
     @api.model
     def get_movements_picking_types(self, warehouse_ids=None):
         """Tipos de operación del panel de Movimientos para el filtro:
-        entradas, internas y salidas (las salidas por sus tramos no-cliente),
-        sin los eslabones pick/pack de la cadena de entrega.
+        entradas, internas y salidas que no formen parte de la cadena de
+        entrega de ningún depósito.
 
         :returns: list[dict] — {'id', 'name'} ordenados por nombre.
         """
@@ -90,8 +89,8 @@ class MrpPlannerDashboard(models.TransientModel):
                                     warehouse_ids=None, picking_type_ids=None,
                                     search=''):
         """
-        Movimientos pendientes (una fila por remito): recepciones,
-        transferencias internas y tramos de salida sin destino cliente.
+        Movimientos pendientes (una fila por remito): recepciones y
+        transferencias internas (tipos fuera de la cadena de entrega).
         Respeta el corte de antigüedad de Ajustes, igual que el Panel de
         Inventario.
 
@@ -110,8 +109,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ('company_id', '=', company.id),
             ('state', 'in', list(PENDING_PICKING_STATES)),
             ('picking_type_id.code', 'in', MOVEMENT_TYPE_CODES),
-            # Las entregas a clientes viven en el Panel de Inventario
-            ('location_dest_id.usage', '!=', 'customer'),
         ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
         excluded = self._movements_excluded_type_ids(company)
         if excluded:

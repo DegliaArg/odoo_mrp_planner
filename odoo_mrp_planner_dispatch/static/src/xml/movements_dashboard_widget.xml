@@ -37,7 +37,7 @@
                     <div class="position-relative">
                         <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                                 style="font-size:10px; padding:1px 5px; min-width:140px;"
-                                title="Filtrar el gráfico por tipo de operación (entradas, internas y salidas sin destino cliente)"
+                                title="Filtrar el gráfico por tipo de operación (recepciones y transferencias internas)"
                                 t-on-click="toggleChartTypeOpen">
                             <span class="text-truncate" style="max-width:150px;"><t t-esc="chartTypeLabel"/></span>
                             <i t-att-class="'fa ms-auto ' + (state.chartTypeOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>

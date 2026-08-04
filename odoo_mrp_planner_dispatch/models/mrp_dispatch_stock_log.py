@@ -7,10 +7,10 @@ consolidado mensual de KPIs. Alimentan la "Tasa de entrega s/ disponible"
 del Panel de Inventario: el mes en curso se calcula desde los snapshots
 crudos; los meses cerrados se leen del consolidado, que nunca se purga.
 
-El panel usa solo datos estándar de Odoo: pendiente = demanda en eslabones
-sin validar, entregado = salida validada (state done, por date_done) con
-destino cliente. No depende del circuito de despacho (x_dispatch_state),
-que es una extensión opcional.
+El panel usa solo datos estándar de Odoo: pendiente = demanda en los
+eslabones de la cadena de entrega sin validar (por tipos de operación),
+entregado = salida validada (state done, por date_done). No depende del
+circuito de despacho (x_dispatch_state), que es una extensión opcional.
 
 Ciclo del cron diario (_cron_dispatch_snapshot):
 1. Snapshot: una fila por remito-producto pendiente con su cantidad
@@ -198,32 +198,6 @@ class MrpDispatchStockLog(models.Model):
         return list(info), info
 
     @api.model
-    def _dispatch_chain_domain(self, type_info, prefix=''):
-        """Dominio del universo de demanda de clientes sobre los eslabones.
-
-        Los eslabones de recolección/embalaje entran por tipo de operación;
-        las salidas exigen además destino en una ubicación de cliente: el
-        mismo tipo "Órdenes de entrega" puede usarse para transferencias
-        entre depósitos (rutas de reabastecimiento, destino en tránsito) y
-        esos remitos no son demanda de clientes.
-
-        :param type_info: mapa de _dispatch_chain_types.
-        :param prefix: '' para dominios sobre stock.picking,
-                       'picking_id.' para dominios sobre stock.move.
-        :returns: list — dominio a sumar a la búsqueda.
-        """
-        ship_ids  = [t for t, info in type_info.items() if info[2] == 'ship']
-        other_ids = [t for t, info in type_info.items() if info[2] != 'ship']
-        f_type = f'{prefix}picking_type_id'
-        f_dest = f'{prefix}location_dest_id.usage'
-        dom_ship = ['&', (f_type, 'in', ship_ids), (f_dest, '=', 'customer')]
-        if not ship_ids:
-            return [(f_type, 'in', other_ids)]
-        if not other_ids:
-            return dom_ship
-        return ['|', (f_type, 'in', other_ids)] + dom_ship
-
-    @api.model
     def _dispatch_chain_keys(self, picking_ids):
         """Clave de cadena por remito: el pedido de venta si existe (todos los
         eslabones de una misma entrega comparten sale_id vía el grupo de
@@ -242,9 +216,9 @@ class MrpDispatchStockLog(models.Model):
     @api.model
     def _dispatch_delivered_chain_products(self, chain_keys, dt_to):
         """Pares (clave de cadena, producto) que ya alcanzaron una entrega
-        (salida a cliente validada) antes de dt_to. Se usa para excluir del
-        denominador la demanda cuyos snapshots quedaron en eslabones
-        anteriores pero terminó entregada.
+        (salida validada) antes de dt_to. Se usa para excluir del denominador
+        la demanda cuyos snapshots quedaron en eslabones anteriores pero
+        terminó entregada.
 
         :param chain_keys: iterable de claves ('s', sale_id) / ('p', picking_id).
         :returns: set de (clave, product_id).
@@ -254,7 +228,6 @@ class MrpDispatchStockLog(models.Model):
         result = set()
         dom_common = [
             ('picking_type_code', '=', 'outgoing'),
-            ('location_dest_id.usage', '=', 'customer'),
             ('state', '=', 'done'),
             ('date_done', '<', dt_to),
         ]
@@ -345,13 +318,13 @@ class MrpDispatchStockLog(models.Model):
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
 
         # ── Demanda pendiente en cualquier eslabón (recolección/embalaje/salida).
-        # Las salidas solo con destino cliente (excluye transferencias entre
-        # depósitos). sudo(): mismo criterio que las demás lecturas de stock.
+        # sudo(): mismo criterio que las demás lecturas de stock del planificador.
         moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
+            ('picking_id.picking_type_id', 'in', chain_type_ids),
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
-        ] + self._dispatch_chain_domain(type_info, 'picking_id.') + cutoff_dom)
+        ] + cutoff_dom)
         move_rows = moves.read(['picking_id', 'product_id', 'product_uom_qty']) if moves else []
         # Disponibilidad evaluada en el eslabón donde está parada la demanda
         chain_avail = self._chain_available_qty(moves) if moves else {}
@@ -453,7 +426,6 @@ class MrpDispatchStockLog(models.Model):
         disp_dom = [
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
-            ('location_dest_id.usage', '=', 'customer'),
             ('state', '=', 'done'),
             ('date_done', '>=', dt_from),
             ('date_done', '<', dt_to),

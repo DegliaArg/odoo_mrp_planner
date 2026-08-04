@@ -408,14 +408,14 @@ class InventoryDashboardWidget extends Component {
         switch (key) {
             // ── Cards del período (zona gráficos, obedecen a su rango de fechas) ──
             case "delivered":
-                return `Cantidad entregada en el período: salidas a cliente validadas, por fecha de validación\n${k.delivered_pickings || 0} remito(s)`;
+                return `Cantidad entregada en el período: salidas validadas, por fecha de validación\n${k.delivered_pickings || 0} remito(s)`;
             case "rate":
                 return `Entregado ÷ (entregado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
             case "delay":
                 return "Días promedio entre la fecha programada y la validación de las salidas entregadas del período (negativo = se entregó antes de lo programado).";
             // ── Cards de la tabla (dinámicas: filtros, búsqueda, pestaña y selección) ──
             case "pending":
-                return `Demanda pendiente de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida a cliente)\n${t.pickings} remito(s)`;
+                return `Demanda pendiente de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida)\n${t.pickings} remito(s)`;
             case "available":
                 return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.`;
             case "blocked":

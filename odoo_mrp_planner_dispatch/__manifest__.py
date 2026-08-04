@@ -7,16 +7,16 @@ Extensión de inventario y despacho del Planificador de producción.
 
 Panel de Inventario (menú Inventario, grupos Lectura/Administrador):
 - KPIs de demanda pendiente de entrega por eslabón de la cadena
-  (recolección/embalaje/salida a cliente), entregado del período y atraso
+  (recolección/embalaje/salida), entregado del período y atraso
   promedio de entrega — todo con datos estándar de Odoo.
 - Tasa de entrega s/ disponible: snapshots diarios de disponibilidad
   (cron configurable) con consolidado mensual congelado.
 - Tabla operativa de salidas pendientes con export CSV.
 
 Movimientos pendientes (submenú del menú Inventario):
-- Recepciones y transferencias pendientes — el complemento del Panel de
-  Inventario: compras por recibir, transferencias internas y tramos entre
-  depósitos. KPIs dinámicos, composición por depósito y tabla con export.
+- Recepciones y transferencias internas pendientes — el complemento del
+  Panel de Inventario (separación por tipo de operación). KPIs dinámicos,
+  composición por depósito y tabla con export.
 
 Circuito de despacho sobre las órdenes de entrega (opcional):
 - Estado "Sin despachar" / "Despachado" en los remitos de los tipos de

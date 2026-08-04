@@ -3,7 +3,7 @@
  *
  * Widget del panel "Movimientos pendientes": recepciones y transferencias
  * pendientes — el complemento del Panel de Inventario (que cubre la cadena
- * de entrega a clientes).
+ * de entrega).
  *
  * Misma estructura que los demás paneles, con dos zonas independientes:
  *   - Zona gráfico: barra de filtros propia (fechas programadas, tipos de
@@ -574,7 +574,7 @@ class MovementsDashboardWidget extends Component {
     colTitle(col) {
         const titles = {
             name:          "Número del remito — clic para abrirlo.",
-            type_name:     "Tipo de operación del remito: recepción, transferencia interna o salida sin destino cliente (tramo entre depósitos).",
+            type_name:     "Tipo de operación del remito: recepción o transferencia interna.",
             origin:        "Documento origen del remito — clic para abrir la compra o la venta asociada.",
             partner:       "Contacto del remito (proveedor en recepciones).",
             route:         "Ubicación de origen → ubicación de destino del remito.",

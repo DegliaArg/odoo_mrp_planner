@@ -176,10 +176,21 @@ class InventoryDashboardWidget extends Component {
     async _loadPickingTypes() {
         try {
             this.state.pickingTypes = await this.orm.call(
-                "mrp.planner.dashboard", "get_inventory_picking_types", []);
+                "mrp.planner.dashboard", "get_inventory_picking_types",
+                [this.state.chartWhIds]);
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
         }
+    }
+
+    /** Al cambiar los depósitos de los gráficos, la lista de tipos se recarga
+     *  acotada a esos depósitos y la selección pierde los tipos que ya no
+     *  aplican; recién después se recargan los gráficos. */
+    async _onChartWhChanged() {
+        await this._loadPickingTypes();
+        const valid = new Set(this.state.pickingTypes.map(t => t.id));
+        this.state.chartTypeIds = this.state.chartTypeIds.filter(id => valid.has(id));
+        this._loadCharts();
     }
 
     async _loadCharts() {
@@ -220,12 +231,12 @@ class InventoryDashboardWidget extends Component {
         const ids = this.state.chartWhIds;
         const i = ids.indexOf(whId);
         if (i >= 0) ids.splice(i, 1); else ids.push(whId);
-        this._loadCharts();
+        this._onChartWhChanged();
     }
     clearChartWhs() {
         if (!this.state.chartWhIds.length) return;
         this.state.chartWhIds = [];
-        this._loadCharts();
+        this._onChartWhChanged();
     }
     get whFilterLabel() {
         const n = this.state.chartWhIds.length;

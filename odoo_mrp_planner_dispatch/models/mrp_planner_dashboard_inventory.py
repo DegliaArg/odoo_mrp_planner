@@ -528,44 +528,9 @@ class MrpPlannerDashboard(models.TransientModel):
 
     # ── Drills (Ver → de los KPIs) ────────────────────────────────────────────
 
-    @api.model
-    def action_inventory_pending(self, mode='all', warehouse_ids=None):
-        """Lista nativa de la demanda pendiente de entrega en cualquier
-        eslabón de la cadena: todas / con stock / sin stock. Respeta el corte
-        de antigüedad y el destino cliente en las salidas, igual que los KPIs.
-
-        Aproximación del modo 'available': remitos "Preparado" (reserva
-        completa en su eslabón) — la disponibilidad parcial por cadena no es
-        expresable en un dominio."""
-        self._inventory_ensure_group()
-        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        Log = self.env['mrp.dispatch.stock.log']
-        chain_type_ids, type_info = Log._dispatch_chain_types(
-            self.env.company, self._inventory_effective_whs(warehouse_ids) or None)
-        dom = [
-            ('company_id', '=', self.env.company.id),
-        ] + Log._dispatch_chain_domain(type_info) \
-          + cfg._dispatch_pending_cutoff_domain('scheduled_date')
-        name = _('Demanda pendiente de entrega')
-        if mode == 'available':
-            dom.append(('state', '=', 'assigned'))
-            name = _('Demanda pendiente con stock')
-        elif mode == 'blocked':
-            dom.append(('state', 'in', ('confirmed', 'waiting')))
-            name = _('Demanda pendiente sin stock')
-        else:
-            dom.append(('state', 'in', list(PENDING_PICKING_STATES)))
-        return {
-            'type': 'ir.actions.act_window',
-            'name': name,
-            'res_model': 'stock.picking',
-            'view_mode': 'list,form',
-            # doAction del lado cliente exige 'views' en acciones armadas a mano
-            'views': [[False, 'list'], [False, 'form']],
-            'domain': dom,
-            'context': {'create': False},
-            'target': 'current',
-        }
+    # Nota: los drills de los KPIs de pendiente se arman en el cliente con los
+    # ids exactos de las filas visibles (openPending del widget) — un dominio
+    # servidor no puede replicar búsqueda, filtros, pestaña y selección.
 
     @api.model
     def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None,

@@ -35,6 +35,14 @@ import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, svcClass, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
+import { restoreFilters, saveFilters } from "@odoo_mrp_planner/js/filter_persistence";
+
+// Filtros persistidos por empresa (mismo patrón que los demás paneles)
+const INV_PERSIST_KEYS = [
+    "chartFrom", "chartTo", "chartWhIds", "chartTypeIds",
+    "tblFrom", "tblTo", "tblSearch", "tblFilter", "tblGroupBy",
+    "tblSelectedGroup", "tblWhIds", "visibleCols", "sortCol", "sortDir",
+];
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -129,6 +137,12 @@ class InventoryDashboardWidget extends Component {
             this.state.tblWhDropdownOpen = false;
             this.state.colsDropdownOpen  = false;
         };
+        // Restaurar filtros de la última visita (por empresa). Se guardan en
+        // _loadCharts/_loadTable y en los setters client-side.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `inventory_dashboard.${companyId}`;
+        restoreFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
+
         this._tblDebounceTimer = null;
         // En la primera carga los canvas no existen todavía (t-if del spinner):
         // el flag deja el redibujo pendiente y onPatched lo completa cuando el
@@ -202,7 +216,12 @@ class InventoryDashboardWidget extends Component {
         this._loadCharts();
     }
 
+    _persist() {
+        saveFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
+    }
+
     async _loadCharts() {
+        this._persist();
         this.state.chartLoading = true;
         this.state.chartError   = null;
         try {
@@ -430,13 +449,29 @@ class InventoryDashboardWidget extends Component {
 
     // ── Drills ────────────────────────────────────────────────────────────────
 
-    async openPending(mode) {
-        // Los KPIs de pendiente viven en la zona tabla: el drill respeta su
-        // filtro de depósitos (los demás filtros client-side son aproximados
-        // por una lista nativa, igual que en los otros paneles).
-        const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_pending",
-            [mode, this.state.tblWhIds]);
-        this.action.doAction(act);
+    openPending(mode) {
+        // El drill abre EXACTAMENTE los remitos que el KPI contó: las filas
+        // visibles de la tabla (con selección, solo la selección), filtradas
+        // por modo. Sin aproximaciones de dominio.
+        const base = this.selectedRows.length ? this.selectedRows : this.groupedRows;
+        let rows = base;
+        let name = "Demanda pendiente de entrega";
+        if (mode === "available") {
+            rows = base.filter(r => (r.qty_available || 0) > 0);
+            name = "Demanda pendiente con stock";
+        } else if (mode === "blocked") {
+            rows = base.filter(r => (r.qty_available || 0) < (r.qty_pending || 0));
+            name = "Demanda pendiente sin stock";
+        }
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name,
+            res_model: "stock.picking",
+            domain: [["id", "in", rows.map(r => r.picking_id)]],
+            views: [[false, "list"], [false, "form"]],
+            context: { create: false },
+            target: "current",
+        });
     }
     async openDelivered() {
         const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
@@ -475,6 +510,7 @@ class InventoryDashboardWidget extends Component {
     // ── Zona tabla ────────────────────────────────────────────────────────────
 
     async _loadTable() {
+        this._persist();
         this.state.tableLoading = true;
         this.state.tableError   = null;
         try {
@@ -505,8 +541,8 @@ class InventoryDashboardWidget extends Component {
     // La búsqueda de texto sigue resolviéndose en el servidor (con debounce);
     // filtro y agrupación son client-side, así que no requieren RPC.
     setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
-    setTblFilter(key)     { this.state.tblFilter  = key; this.state.page = 1; }
-    setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; }
+    setTblFilter(key)     { this.state.tblFilter  = key; this.state.page = 1; this._persist(); }
+    setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; this._persist(); }
     toggleTblWhDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.tblWhDropdownOpen;
@@ -539,7 +575,7 @@ class InventoryDashboardWidget extends Component {
         this._closeAll();
         this.state.colsDropdownOpen = open;
     }
-    toggleCol(key) { this.state.visibleCols[key] = !this.state.visibleCols[key]; }
+    toggleCol(key) { this.state.visibleCols[key] = !this.state.visibleCols[key]; this._persist(); }
 
     /** Columnas visibles en el orden gestionado por el col manager (como el forecast). */
     get staticVisibleCols() {
@@ -556,6 +592,7 @@ class InventoryDashboardWidget extends Component {
             this.state.sortCol = col;
             this.state.sortDir = "asc";
         }
+        this._persist();
     }
 
     // ── Filtros y agrupación client-side (barra de búsqueda) ──────────────────
@@ -636,6 +673,7 @@ class InventoryDashboardWidget extends Component {
     setGroup(key) {
         this.state.tblSelectedGroup = key;
         this.state.page = 1;
+        this._persist();
     }
 
     /** Filas visibles: con agrupación activa, solo las de la pestaña activa. */

@@ -169,7 +169,7 @@
                          title="Piezas de remitos en estado Preparado (reserva completa): listos para procesar.">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number text-info ' + kpiNumClass(fmt(movKpis.ready) + ' Pz')"
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.ready) + ' Pz')"
                                  t-esc="fmt(movKpis.ready) + ' Pz'"/>
                             <div class="o_planner_label">Preparado</div>
                         </div>
@@ -191,7 +191,7 @@
                          title="Remitos visibles con la fecha programada ya vencida.">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + (movKpis.overdue ? 'text-danger ' : '') + kpiNumClass(fmt(movKpis.overdue))"
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.overdue))"
                                  t-esc="fmt(movKpis.overdue)"/>
                             <div class="o_planner_label">Vencidos</div>
                         </div>

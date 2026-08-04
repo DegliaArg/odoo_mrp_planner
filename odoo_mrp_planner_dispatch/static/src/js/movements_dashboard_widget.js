@@ -27,6 +27,15 @@ import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, svcClass, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
+import { restoreFilters, saveFilters } from "@odoo_mrp_planner/js/filter_persistence";
+
+// Filtros persistidos por empresa (mismo patrón que los demás paneles)
+const MOV_PERSIST_KEYS = [
+    "chartFrom", "chartTo", "chartWhIds", "chartTypeIds",
+    "tblFrom", "tblTo", "tblSearch", "tblFilter", "tblGroupBy",
+    "tblSelectedGroup", "tblWhIds", "tblTypeIds", "visibleCols",
+    "sortCol", "sortDir",
+];
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -114,6 +123,12 @@ class MovementsDashboardWidget extends Component {
             this.state.tblTypeOpen      = false;
             this.state.colsDropdownOpen = false;
         };
+        // Restaurar filtros de la última visita (por empresa). Se guardan en
+        // _loadChart/_loadTable y en los setters client-side.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `movements_dashboard.${companyId}`;
+        restoreFilters(this._persistKey, this.state, MOV_PERSIST_KEYS);
+
         this._debounceTimer = null;
         // En la primera carga el canvas no existe todavía (t-if del spinner):
         // el flag deja el redibujo pendiente y onPatched lo completa cuando el
@@ -178,7 +193,12 @@ class MovementsDashboardWidget extends Component {
         }
     }
 
+    _persist() {
+        saveFilters(this._persistKey, this.state, MOV_PERSIST_KEYS);
+    }
+
     async _loadChart() {
+        this._persist();
         this.state.chartLoading = true;
         this.state.chartError   = null;
         try {
@@ -198,6 +218,7 @@ class MovementsDashboardWidget extends Component {
     }
 
     async _loadTable() {
+        this._persist();
         this.state.tableLoading = true;
         this.state.tableError   = null;
         try {
@@ -282,8 +303,8 @@ class MovementsDashboardWidget extends Component {
     onTblFromChange(ev)  { this.state.tblFrom   = ev.target.value; this._loadTable(); }
     onTblToChange(ev)    { this.state.tblTo     = ev.target.value; this._loadTable(); }
     setTblSearch(text)   { this.state.tblSearch = text; this._loadTableDebounced(); }
-    setTblFilter(key)    { this.state.tblFilter  = key; this.state.page = 1; }
-    setTblGroupBy(key)   { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; }
+    setTblFilter(key)    { this.state.tblFilter  = key; this.state.page = 1; this._persist(); }
+    setTblGroupBy(key)   { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; this._persist(); }
 
     toggleTblWhOpen(ev) {
         ev.stopPropagation();
@@ -353,7 +374,7 @@ class MovementsDashboardWidget extends Component {
         this._closeAll();
         this.state.colsDropdownOpen = open;
     }
-    toggleCol(key) { this.state.visibleCols[key] = !this.state.visibleCols[key]; }
+    toggleCol(key) { this.state.visibleCols[key] = !this.state.visibleCols[key]; this._persist(); }
 
     get staticVisibleCols() {
         return this.cols.visibleCols().filter(col => {
@@ -369,6 +390,7 @@ class MovementsDashboardWidget extends Component {
             this.state.sortCol = col;
             this.state.sortDir = "asc";
         }
+        this._persist();
     }
 
     // ── Gráfico: composición del pendiente por depósito (zona gráfico) ───────
@@ -466,6 +488,7 @@ class MovementsDashboardWidget extends Component {
     setGroup(key) {
         this.state.tblSelectedGroup = key;
         this.state.page = 1;
+        this._persist();
     }
 
     get groupedRows() {

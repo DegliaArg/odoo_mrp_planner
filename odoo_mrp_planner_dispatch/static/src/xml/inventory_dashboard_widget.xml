@@ -279,7 +279,7 @@
                          t-on-click="() => this.openPending('available')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number text-info ' + kpiNumClass(fmt(tableKpis.available) + ' Pz')"
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.available) + ' Pz')"
                                  t-esc="fmt(tableKpis.available) + ' Pz'"/>
                             <div class="o_planner_label">Con stock</div>
                         </div>
@@ -310,7 +310,7 @@
                          t-att-title="kpiTooltip('overdue')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + (tableKpis.overdue ? 'text-danger ' : '') + kpiNumClass(fmt(tableKpis.overdue))"
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.overdue))"
                                  t-esc="fmt(tableKpis.overdue)"/>
                             <div class="o_planner_label">Vencidas</div>
                         </div>
@@ -554,9 +554,7 @@
                                                 <t t-esc="fmt(row.qty_pending)"/>
                                             </td>
                                             <td t-elif="col.key === 'qty_available'" class="text-end">
-                                                <span t-att-class="row.qty_available >= row.qty_pending ? 'text-success fw-semibold'
-                                                                   : (row.qty_available > 0 ? 'text-warning fw-semibold' : 'text-muted')"
-                                                      t-esc="fmt(row.qty_available)"/>
+                                                <t t-esc="fmt(row.qty_available)"/>
                                             </td>
                                             <td t-elif="col.key === 'days_available'" class="text-end"
                                                 t-att-title="row.days_available !== null

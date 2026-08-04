@@ -46,18 +46,20 @@
         <field name="code">action = model.action_open_inventory()</field>
     </record>
 
-    <!-- ── Barra superior: Inventario (hijo del app root, entre Planificación y Ventas) ── -->
+    <!-- ── Barra superior: Inventario (hijo del app root, entre Planificación y Ventas).
+         Visible SOLO para los grupos Inventario (Lectura/Administrador): el acceso se
+         asigna explícitamente por usuario, sin herencia desde otros roles. ── -->
     <menuitem id="mrp_inventario_menu"
               name="Inventario"
               parent="odoo_mrp_planner.mrp_planner_menu_root"
               sequence="15"
-              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin"/>
 
     <menuitem id="mrp_inventario_panel_menu"
               name="Panel de Inventario"
               parent="mrp_inventario_menu"
               sequence="1"
               action="action_mrp_inventory_dashboard_open"
-              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner_dispatch.group_dispatch_validation,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin"/>
 
 </odoo>

@@ -62,10 +62,12 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Guard común ───────────────────────────────────────────────────────────
 
     def _inventory_ensure_group(self):
+        # El panel es de los grupos Inventario (el guard del módulo base deja
+        # pasar además a admin del planificador y system, como en todos los
+        # paneles: es control de datos; la visibilidad la maneja el menú).
         self._ensure_planner_group(
             'odoo_mrp_planner_dispatch.group_inventory_read',
-            'odoo_mrp_planner_dispatch.group_inventory_admin',
-            'odoo_mrp_planner_dispatch.group_dispatch_validation')
+            'odoo_mrp_planner_dispatch.group_inventory_admin')
 
     # ── Helpers de calendario / filtros ──────────────────────────────────────
 

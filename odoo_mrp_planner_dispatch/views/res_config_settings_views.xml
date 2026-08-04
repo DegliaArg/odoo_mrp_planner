@@ -11,8 +11,9 @@
         <field name="arch" type="xml">
 
             <xpath expr="//page[@name='sales']" position="after">
+                <!-- Solo Inventario - Administrador: es LA diferencia con Lectura -->
                 <page string="Inventario" name="inventory"
-                      groups="odoo_mrp_planner_dispatch.group_inventory_admin,odoo_mrp_planner.group_admin,base.group_system">
+                      groups="odoo_mrp_planner_dispatch.group_inventory_admin">
                     <div class="row">
 
                         <!-- ── Columna izquierda: circuito de despacho ──────── -->

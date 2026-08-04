@@ -4,7 +4,12 @@
     <t t-name="odoo_mrp_planner_dispatch.InventoryDashboardWidget">
         <div class="o_inventory_dashboard_widget">
 
-            <!-- ════ ZONA 1: filtros de gráficos + KPIs + gráficos ════ -->
+            <!-- ════ ZONA 1: gráficos e indicadores del período (filtros propios) ════ -->
+
+            <div class="o_planner_section_title mb-3">
+                <i class="fa fa-line-chart me-2 text-muted"/>
+                <span class="text-uppercase fw-bold text-muted small">Indicadores del período</span>
+            </div>
 
             <!-- Barra de filtros de gráficos (misma estética que el panel de ventas) -->
             <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
@@ -94,106 +99,48 @@
                     planificador → pestaña Inventario.
                 </div>
 
-                <!-- KPIs -->
-                <div class="row row-cols-2 row-cols-md-6 g-2 mb-3">
-                    <!-- Card 1: Pendiente total -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="kpiTooltip('pending')"
-                             t-on-click="() => this.openPending('all')">
-                            <div class="card-body text-center py-3">
-                                <i class="fa fa-clock-o fa-lg mb-2 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.pending_total) + ' Pz'"/></div>
-                                <div class="o_planner_label">Pendiente total</div>
-                                <div class="text-muted mt-1" style="font-size:10px; cursor:pointer;"
-                                     title="Cantidad de remitos de salida pendientes — clic para ver la lista"
-                                     t-on-click.stop="() => this.openPending('all')">
-                                    <t t-esc="state.data.kpis.pending_pickings"/> remito(s)
-                                </div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1"
-                                        t-on-click.stop="() => this.openPending('all')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Card 2: Disponible para entregar -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="kpiTooltip('available')"
-                             t-on-click="() => this.openPending('available')">
-                            <div class="card-body text-center py-3">
-                                <i class="fa fa-check-square-o fa-lg text-info mb-2 d-block"/>
-                                <div class="o_planner_number text-info"><t t-esc="fmt(state.data.kpis.pending_available) + ' Pz'"/></div>
-                                <div class="o_planner_label">Disponible p/ entregar</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1"
-                                        t-on-click.stop="() => this.openPending('available')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Card 3: Frenado sin stock -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="kpiTooltip('blocked')"
-                             t-on-click="() => this.openPending('blocked')">
-                            <div class="card-body text-center py-3">
-                                <i class="fa fa-ban fa-lg mb-2 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.pending_blocked) + ' Pz'"/></div>
-                                <div class="o_planner_label">Frenado sin stock</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1"
-                                        t-on-click.stop="() => this.openPending('blocked')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Card 4: Entregado del período -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100 o_planner_card_clickable"
-                             t-att-title="kpiTooltip('delivered')"
-                             t-on-click="openDelivered">
-                            <div class="card-body text-center py-3">
-                                <i class="fa fa-send fa-lg mb-2 d-block"/>
-                                <div class="o_planner_number"><t t-esc="fmt(state.data.kpis.delivered_qty) + ' Pz'"/></div>
+                <!-- Cards del período: obedecen al rango de fechas y depósitos de
+                     ESTA barra (los KPIs de la demanda pendiente viven con la tabla) -->
+                <div class="d-flex gap-2 mb-3">
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('delivered')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-send fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.data.kpis.delivered_qty) + ' Pz')"
+                                     t-esc="fmt(state.data.kpis.delivered_qty) + ' Pz'"/>
                                 <div class="o_planner_label">Entregado del período</div>
-                                <div class="text-muted mt-1" style="font-size:10px; cursor:pointer;"
-                                     title="Cantidad de remitos de salida entregados — clic para ver la lista"
-                                     t-on-click.stop="openDelivered">
+                                <div class="text-muted mt-1" style="font-size:10px;">
                                     <t t-esc="state.data.kpis.delivered_pickings"/> remito(s)
                                 </div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
-                                        t-on-click.stop="openDelivered">Ver →</button>
+                                        title="Ver las salidas entregadas del período"
+                                        t-on-click="openDelivered">Ver →</button>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 5: Tasa de entrega s/ disponible -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100"
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
                              t-att-title="kpiTooltip('rate')">
-                            <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
-                                <i class="fa fa-tachometer fa-lg mb-2 d-block text-secondary"/>
-                                <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.rate_available)">
-                                    <t t-esc="fmtPct(state.data.kpis.rate_available)"/>
-                                </div>
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-tachometer fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + svcClass(state.data.kpis.rate_available) + ' ' + kpiNumClass(fmtPct(state.data.kpis.rate_available))"
+                                     t-esc="fmtPct(state.data.kpis.rate_available)"/>
                                 <div class="o_planner_label">Tasa de entrega s/ disponible</div>
                             </div>
                         </div>
                     </div>
-                    <!-- Card 6: Atraso promedio de entrega -->
-                    <div class="col">
-                        <div class="card o_planner_card h-100"
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
                              t-att-title="kpiTooltip('delay')">
-                            <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
-                                <i class="fa fa-hourglass-half fa-lg mb-2 d-block text-secondary"/>
-                                <div class="o_planner_number">
-                                    <t t-esc="state.data.kpis.avg_delivery_delay_days !== null
-                                              ? fmt(state.data.kpis.avg_delivery_delay_days) + ' d'
-                                              : '—'"/>
-                                </div>
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-hourglass-half fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(state.data.kpis.avg_delivery_delay_days !== null ? fmt(state.data.kpis.avg_delivery_delay_days) + ' d' : '—')"
+                                     t-esc="state.data.kpis.avg_delivery_delay_days !== null
+                                            ? fmt(state.data.kpis.avg_delivery_delay_days) + ' d'
+                                            : '—'"/>
                                 <div class="o_planner_label">Atraso prom. de entrega</div>
                             </div>
                         </div>
@@ -265,6 +212,84 @@
                       title="Salidas ya validadas (entregadas) que aún no se marcaron como despachadas. No suman al pendiente de los KPIs.">
                     <t t-esc="readyCount"/> validada(s) s/ despachar
                 </span>
+            </div>
+
+            <!-- KPIs dinámicos de la tabla: describen exactamente lo que la tabla
+                 muestra (fechas, búsqueda, filtros, depósitos y pestaña activa) -->
+            <div class="d-flex gap-2 mb-3">
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100 o_planner_card_clickable"
+                         t-att-title="kpiTooltip('pending')"
+                         t-on-click="() => this.openPending('all')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.pending) + ' Pz')"
+                                 t-esc="fmt(tableKpis.pending) + ' Pz'"/>
+                            <div class="o_planner_label">Pendiente total</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">
+                                <t t-esc="tableKpis.pickings"/> remito(s)
+                            </div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click.stop="() => this.openPending('all')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100 o_planner_card_clickable"
+                         t-att-title="kpiTooltip('available')"
+                         t-on-click="() => this.openPending('available')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number text-info ' + kpiNumClass(fmt(tableKpis.available) + ' Pz')"
+                                 t-esc="fmt(tableKpis.available) + ' Pz'"/>
+                            <div class="o_planner_label">Con stock</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click.stop="() => this.openPending('available')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100 o_planner_card_clickable"
+                         t-att-title="kpiTooltip('blocked')"
+                         t-on-click="() => this.openPending('blocked')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.blocked) + ' Pz')"
+                                 t-esc="fmt(tableKpis.blocked) + ' Pz'"/>
+                            <div class="o_planner_label">Sin stock</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click.stop="() => this.openPending('blocked')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('overdue')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + (tableKpis.overdue ? 'text-danger ' : '') + kpiNumClass(fmt(tableKpis.overdue))"
+                                 t-esc="fmt(tableKpis.overdue)"/>
+                            <div class="o_planner_label">Vencidas</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('pct')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-pie-chart fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + svcClass(tableKpis.pct_available) + ' ' + kpiNumClass(fmtPct(tableKpis.pct_available))"
+                                 t-esc="fmtPct(tableKpis.pct_available)"/>
+                            <div class="o_planner_label">% disponible</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->
@@ -415,9 +440,10 @@
                     No hay salidas pendientes para los filtros seleccionados.
                 </div>
 
-                <div t-if="sortedRows.length" class="table-responsive border rounded">
-                    <table class="table table-sm table-hover mb-0" style="font-size:13px;">
-                        <thead>
+                <div t-if="sortedRows.length" class="border rounded" style="max-height:72vh; overflow-y:auto;">
+                    <table class="table table-sm table-bordered mb-0 align-middle"
+                           style="font-size:12px; width:100%; table-layout:fixed;">
+                        <thead style="position:sticky; top:0; z-index:3;">
                             <tr>
                                 <th t-if="state.canDispatch" class="text-center align-middle"
                                     style="width:28px; padding:4px 8px; background:#f8f9fa;">
@@ -535,6 +561,32 @@
                                 </tr>
                             </t>
                         </tbody>
+
+                        <!-- Totales de lo que muestra la tabla: conjunto filtrado/buscado
+                             y, si hay agrupamiento, solo la pestaña activa (todas las páginas) -->
+                        <tfoot class="fw-bold" style="background:#f8f9fa;">
+                            <tr>
+                                <td t-if="state.canDispatch"/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                    <td style="padding:3px 6px;"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'name'">
+                                            <span title="Cantidad de remitos que muestra la tabla (fechas, filtros, búsqueda y pestaña activa aplicados).">
+                                                Total (<t t-esc="tableKpis.pickings"/>)
+                                            </span>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_pending'">
+                                            <span title="Suma de piezas pendientes de los remitos visibles."
+                                                  t-esc="fmt(tableKpis.pending)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_available'">
+                                            <span title="Suma de piezas con stock de los remitos visibles."
+                                                  t-esc="fmt(tableKpis.available)"/>
+                                        </t>
+                                    </td>
+                                </t>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
                 <!-- Paginación (mismo patrón que el forecast) -->

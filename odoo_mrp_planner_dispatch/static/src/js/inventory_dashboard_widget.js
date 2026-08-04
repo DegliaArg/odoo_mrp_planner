@@ -148,6 +148,15 @@ class InventoryDashboardWidget extends Component {
     sortIcon(col) { return sortIcon(col, this.state.sortCol, this.state.sortDir); }
     stateLabel(s) { return STATE_LABELS[s] || s; }
 
+    /** Clase de tamaño de los números de las cards KPI (mismo criterio que el
+     *  análisis de clientes: cortos XL, medianos base, largos md). */
+    kpiNumClass(text) {
+        const len = String(text ?? "").length;
+        if (len <= 10) return "o_planner_num_xl";
+        if (len <= 14) return "";
+        return "o_planner_num_md";
+    }
+
     // ── Zona gráficos ─────────────────────────────────────────────────────────
 
     async _loadWarehouses() {
@@ -302,19 +311,26 @@ class InventoryDashboardWidget extends Component {
 
     kpiTooltip(key) {
         const k = (this.state.data && this.state.data.kpis) || {};
+        const t = this.tableKpis;
         switch (key) {
-            case "pending":
-                return `Demanda aún no entregada, en cualquier eslabón de la cadena de entrega (recolección, embalaje o salida a cliente)\n${k.pending_pickings || 0} remito(s) pendiente(s)`;
-            case "available":
-                return "Del pendiente actual, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.";
-            case "blocked":
-                return "Del pendiente actual, cantidad sin stock reservado en su eslabón: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
+            // ── Cards del período (zona gráficos, obedecen a su rango de fechas) ──
             case "delivered":
                 return `Cantidad entregada en el período: salidas a cliente validadas, por fecha de validación\n${k.delivered_pickings || 0} remito(s)`;
             case "rate":
                 return `Entregado ÷ (entregado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
             case "delay":
                 return "Días promedio entre la fecha programada y la validación de las salidas entregadas del período (negativo = se entregó antes de lo programado).";
+            // ── Cards de la tabla (dinámicas: filtros, búsqueda y pestaña activa) ──
+            case "pending":
+                return `Demanda pendiente que muestra la tabla, en cualquier eslabón de la cadena (recolección, embalaje o salida a cliente)\n${t.pickings} remito(s)`;
+            case "available":
+                return "Del pendiente visible, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.";
+            case "blocked":
+                return "Del pendiente visible, cantidad sin stock reservado en su eslabón: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
+            case "overdue":
+                return "Remitos visibles con la fecha programada ya vencida.";
+            case "pct":
+                return "Con stock ÷ Pendiente de lo que muestra la tabla: qué parte de la demanda visible podría entregarse hoy.";
             default:
                 return "";
         }
@@ -323,8 +339,11 @@ class InventoryDashboardWidget extends Component {
     // ── Drills ────────────────────────────────────────────────────────────────
 
     async openPending(mode) {
+        // Los KPIs de pendiente viven en la zona tabla: el drill respeta su
+        // filtro de depósitos (los demás filtros client-side son aproximados
+        // por una lista nativa, igual que en los otros paneles).
         const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_pending",
-            [mode, this.state.chartWhIds]);
+            [mode, this.state.tblWhIds]);
         this.action.doAction(act);
     }
     async openDelivered() {
@@ -543,6 +562,28 @@ class InventoryDashboardWidget extends Component {
             if (typeof va === "number") return (va - vb) * dir;
             return String(va).localeCompare(String(vb), "es") * dir;
         });
+    }
+
+    /** KPIs dinámicos de la zona tabla: describen exactamente lo que la tabla
+     *  muestra — fechas, búsqueda, filtros, depósitos y pestaña activa
+     *  (mismo criterio que el análisis de clientes). También alimentan la
+     *  fila de totales del pie. */
+    get tableKpis() {
+        const rows = this.groupedRows;
+        let pending = 0, available = 0, overdue = 0;
+        for (const r of rows) {
+            pending   += r.qty_pending   || 0;
+            available += r.qty_available || 0;
+            if (r.overdue_days > 0) overdue++;
+        }
+        return {
+            pending:   Math.round(pending * 100) / 100,
+            available: Math.round(available * 100) / 100,
+            blocked:   Math.round((pending - available) * 100) / 100,
+            pickings:  rows.length,
+            overdue,
+            pct_available: pending > 0 ? Math.round(available / pending * 1000) / 10 : null,
+        };
     }
 
     // ── Paginación (mismo esquema que el forecast: 50 filas por página) ───────

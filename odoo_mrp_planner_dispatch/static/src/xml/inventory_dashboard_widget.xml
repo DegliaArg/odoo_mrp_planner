@@ -505,8 +505,11 @@
                                                                    ? 'text-bg-info' : 'text-bg-light text-dark border')"
                                                       t-esc="row.stage_label"/>
                                             </td>
+                                            <!-- Una sola línea truncada con "…" al ancho de la columna
+                                                 (redimensionable); la lista completa queda en el tooltip -->
                                             <td t-elif="col.key === 'product_names'"
-                                                t-att-title="row.products + ' artículo(s)'">
+                                                style="max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                                t-att-title="row.products + ' artículo(s): ' + (productsTitle(row) || row.product_names)">
                                                 <!-- Artículos con hipervínculo (hasta 3 + sufijo "+N");
                                                      fallback al texto plano si no viene el detalle -->
                                                 <t t-if="row.products_detail and row.products_detail.length">

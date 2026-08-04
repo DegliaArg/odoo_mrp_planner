@@ -4,35 +4,239 @@
     <t t-name="odoo_mrp_planner_dispatch.MovementsDashboardWidget">
         <div class="o_movements_dashboard_widget">
 
-            <!-- ── Barra de filtros única del panel ──────────────────────────── -->
+            <!-- ════ ZONA 1: filtros de gráfico + gráfico ════ -->
+
+            <!-- Barra de filtros del gráfico (misma estética que los demás paneles) -->
+            <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
+
+                <div class="d-flex align-items-center gap-1" aria-label="Período del gráfico">
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha programada inicial del rango del gráfico"
+                           t-att-value="state.chartFrom"
+                           t-on-change="onChartFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha programada final del rango del gráfico"
+                           t-att-value="state.chartTo"
+                           t-on-change="onChartToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Fijar el rango al mes calendario en curso"
+                            t-att-aria-pressed="isCurrentMonth ? 'true' : 'false'"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            t-on-click="setCurrentMonth">
+                        Mes en curso
+                    </button>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
+                <!-- Tipos de operación -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="font-size:10px; padding:1px 5px; min-width:140px;"
+                                title="Filtrar el gráfico por tipo de operación (entradas, internas y salidas sin destino cliente)"
+                                t-on-click="toggleChartTypeOpen">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="chartTypeLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.chartTypeOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.chartTypeOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="mov_chart_type_all"
+                                       t-att-checked="!state.chartTypeIds.length"
+                                       t-on-change="clearChartTypes"/>
+                                <label class="form-check-label fw-semibold small" for="mov_chart_type_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.chartTypes" t-as="pt" t-key="pt.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'mov_chart_type_' + pt.id"
+                                           t-att-checked="state.chartTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.toggleChartType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'mov_chart_type_' + pt.id"
+                                           t-esc="pt.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.chartTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Depósitos -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="font-size:10px; padding:1px 5px; min-width:140px;"
+                                title="Filtrar el gráfico por depósito"
+                                t-on-click="toggleChartWhOpen">
+                            <span class="text-truncate" style="max-width:130px;"><t t-esc="chartWhLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.chartWhOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.chartWhOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="mov_chart_wh_all"
+                                       t-att-checked="!state.chartWhIds.length"
+                                       t-on-change="clearChartWhs"/>
+                                <label class="form-check-label fw-semibold small" for="mov_chart_wh_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'mov_chart_wh_' + wh.id"
+                                           t-att-checked="state.chartWhIds.includes(wh.id)"
+                                           t-on-change="() => this.toggleChartWarehouse(wh.id)"/>
+                                    <label class="form-check-label small" t-att-for="'mov_chart_wh_' + wh.id"
+                                           t-esc="wh.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.warehouses.length" class="text-muted small">Sin depósitos.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error / cargando del gráfico -->
+            <div t-if="state.chartError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el gráfico: <strong><t t-esc="state.chartError"/></strong>
+            </div>
+            <div t-if="state.chartLoading" class="text-center text-muted py-4">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+
+            <t t-if="!state.chartLoading and !state.chartError">
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="fw-semibold small">Pendiente por depósito</span>
+                                    <span class="text-muted small ms-2"
+                                          title="Composición del pendiente del rango de fechas, tipos y depósitos de la barra de arriba: preparado (con reserva) vs. sin preparar.">
+                                        <i class="fa fa-info-circle"/>
+                                    </span>
+                                </div>
+                                <div style="position:relative; height:260px;">
+                                    <canvas t-ref="movChartCanvas"/>
+                                    <div t-if="!state.chartRows.length"
+                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                        <div class="text-center">
+                                            <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                                            <span class="small">No hay movimientos pendientes en el rango.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- ════ ZONA 2: título + KPIs + filtros de tabla + tabla ════ -->
+
+            <div class="o_planner_section_title mb-3">
+                <i class="fa fa-truck me-2 text-muted"/>
+                <span class="text-uppercase fw-bold text-muted small">Movimientos pendientes</span>
+            </div>
+
+            <!-- KPIs dinámicos: describen exactamente lo que la tabla muestra
+                 (fechas, búsqueda, filtros, tipos, depósitos y pestaña activa) -->
+            <div class="d-flex gap-2 mb-3">
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="'Piezas pendientes que muestra la tabla\n' + movKpis.pickings + ' remito(s)'">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.pending) + ' Pz')"
+                                 t-esc="fmt(movKpis.pending) + ' Pz'"/>
+                            <div class="o_planner_label">Pendiente total</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">
+                                <t t-esc="movKpis.pickings"/> remito(s)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         title="Piezas de remitos en estado Preparado (reserva completa): listos para procesar.">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number text-info ' + kpiNumClass(fmt(movKpis.ready) + ' Pz')"
+                                 t-esc="fmt(movKpis.ready) + ' Pz'"/>
+                            <div class="o_planner_label">Preparado</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         title="Piezas de remitos aún sin preparar (en espera o esperando otra operación).">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.notready) + ' Pz')"
+                                 t-esc="fmt(movKpis.notready) + ' Pz'"/>
+                            <div class="o_planner_label">Sin preparar</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         title="Remitos visibles con la fecha programada ya vencida.">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + (movKpis.overdue ? 'text-danger ' : '') + kpiNumClass(fmt(movKpis.overdue))"
+                                 t-esc="fmt(movKpis.overdue)"/>
+                            <div class="o_planner_label">Vencidos</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         title="Preparado ÷ Pendiente de lo que muestra la tabla.">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-pie-chart fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + svcClass(movKpis.pct_ready) + ' ' + kpiNumClass(fmtPct(movKpis.pct_ready))"
+                                 t-esc="fmtPct(movKpis.pct_ready)"/>
+                            <div class="o_planner_label">% preparado</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de filtros de la tabla -->
             <div class="d-flex align-items-center gap-2 mb-3">
 
-                <!-- Fechas programadas -->
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Desde</label>
                     <input type="date" class="form-control form-control-sm"
                            style="max-width:140px;"
                            title="Filtrar por fecha programada desde"
-                           t-att-value="state.dateFrom"
-                           t-on-change="onFromChange"/>
+                           t-att-value="state.tblFrom"
+                           t-on-change="onTblFromChange"/>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <label class="form-label mb-0 small text-muted">Hasta</label>
                     <input type="date" class="form-control form-control-sm"
                            style="max-width:140px;"
                            title="Filtrar por fecha programada hasta"
-                           t-att-value="state.dateTo"
-                           t-on-change="onToChange"/>
+                           t-att-value="state.tblTo"
+                           t-on-change="onTblToChange"/>
                 </div>
 
-                <!-- Barra de búsqueda unificada -->
                 <PlannerSearchBar
                     widgetKey="'inventory_movements'"
                     placeholder="'Buscar remito u origen…'"
                     t-props="{
-                        search:         state.search,
-                        activeFilter:   state.filter,
-                        activeGroupBy:  state.groupBy,
+                        search:         state.tblSearch,
+                        activeFilter:   state.tblFilter,
+                        activeGroupBy:  state.tblGroupBy,
                         filterDefs: [
                             { key: 'assigned', label: 'Preparados' },
                             { key: 'waiting',  label: 'En espera' },
@@ -44,73 +248,74 @@
                             { key: 'state',       label: 'Estado' },
                             { key: 'sched_month', label: 'Mes programado' }
                         ],
-                        onSearch:        (t) => this.setSearch(t),
-                        onFilterChange:  (k) => this.setFilter(k),
-                        onGroupByChange: (k) => this.setGroupBy(k)
+                        onSearch:        (t) => this.setTblSearch(t),
+                        onFilterChange:  (k) => this.setTblFilter(k),
+                        onGroupByChange: (k) => this.setTblGroupBy(k)
                     }"/>
 
                 <!-- Tipos de operación -->
                 <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Tipo</label>
                     <div class="position-relative">
                         <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                                 style="min-width:140px;"
-                                title="Filtrar por tipo de operación (entradas, internas y salidas sin destino cliente)"
-                                t-on-click="toggleTypeDropdown">
-                            <span class="text-truncate" style="max-width:150px;"><t t-esc="typeFilterLabel"/></span>
-                            <i t-att-class="'fa ms-auto ' + (state.typeDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                                title="Filtrar la tabla por tipo de operación"
+                                t-on-click="toggleTblTypeOpen">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="tblTypeLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.tblTypeOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
                         </button>
-                        <div t-if="state.typeDropdownOpen"
+                        <div t-if="state.tblTypeOpen"
                              class="dropdown-menu show shadow p-2"
                              style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
                             <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input" id="mov_type_all"
-                                       t-att-checked="!state.typeIds.length"
-                                       t-on-change="clearTypes"/>
-                                <label class="form-check-label fw-semibold small" for="mov_type_all">Todos</label>
+                                <input type="checkbox" class="form-check-input" id="mov_tbl_type_all"
+                                       t-att-checked="!state.tblTypeIds.length"
+                                       t-on-change="clearTblTypes"/>
+                                <label class="form-check-label fw-semibold small" for="mov_tbl_type_all">Todos</label>
                             </div>
                             <div class="dropdown-divider my-1"/>
-                            <t t-foreach="state.pickingTypes" t-as="pt" t-key="pt.id">
+                            <t t-foreach="state.tblTypes" t-as="pt" t-key="pt.id">
                                 <div class="form-check mb-1">
                                     <input type="checkbox" class="form-check-input"
-                                           t-att-id="'mov_type_' + pt.id"
-                                           t-att-checked="state.typeIds.includes(pt.id)"
-                                           t-on-change="() => this.togglePickingType(pt.id)"/>
-                                    <label class="form-check-label small" t-att-for="'mov_type_' + pt.id"
+                                           t-att-id="'mov_tbl_type_' + pt.id"
+                                           t-att-checked="state.tblTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.toggleTblType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'mov_tbl_type_' + pt.id"
                                            t-esc="pt.name"/>
                                 </div>
                             </t>
-                            <div t-if="!state.pickingTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                            <div t-if="!state.tblTypes.length" class="text-muted small">Sin tipos de operación.</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Depósitos -->
                 <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Depósito</label>
                     <div class="position-relative">
                         <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                                 style="min-width:140px;"
-                                title="Filtrar por depósito"
-                                t-on-click="toggleWhDropdown">
-                            <span class="text-truncate" style="max-width:110px;"><t t-esc="whFilterLabel"/></span>
-                            <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                                t-on-click="toggleTblWhOpen">
+                            <span class="text-truncate" style="max-width:110px;"><t t-esc="tblWhLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.tblWhOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
                         </button>
-                        <div t-if="state.whDropdownOpen"
+                        <div t-if="state.tblWhOpen"
                              class="dropdown-menu show shadow p-2"
                              style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
                             <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input" id="mov_wh_all"
-                                       t-att-checked="!state.whIds.length"
-                                       t-on-change="clearWhs"/>
-                                <label class="form-check-label fw-semibold small" for="mov_wh_all">Todos</label>
+                                <input type="checkbox" class="form-check-input" id="mov_tbl_wh_all"
+                                       t-att-checked="!state.tblWhIds.length"
+                                       t-on-change="clearTblWhs"/>
+                                <label class="form-check-label fw-semibold small" for="mov_tbl_wh_all">Todos</label>
                             </div>
                             <div class="dropdown-divider my-1"/>
                             <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
                                 <div class="form-check mb-1">
                                     <input type="checkbox" class="form-check-input"
-                                           t-att-id="'mov_wh_' + wh.id"
-                                           t-att-checked="state.whIds.includes(wh.id)"
-                                           t-on-change="() => this.toggleWarehouse(wh.id)"/>
-                                    <label class="form-check-label small" t-att-for="'mov_wh_' + wh.id"
+                                           t-att-id="'mov_tbl_wh_' + wh.id"
+                                           t-att-checked="state.tblWhIds.includes(wh.id)"
+                                           t-on-change="() => this.toggleTblWarehouse(wh.id)"/>
+                                    <label class="form-check-label small" t-att-for="'mov_tbl_wh_' + wh.id"
                                            t-esc="wh.name"/>
                                 </div>
                             </t>
@@ -150,108 +355,19 @@
                 </button>
             </div>
 
-            <!-- Error / cargando -->
-            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+            <!-- Error / cargando de la tabla -->
+            <div t-if="state.tableError" class="alert alert-danger py-2 mb-2" role="alert">
                 <i class="fa fa-exclamation-triangle me-2"/>
-                Error al cargar los movimientos: <strong><t t-esc="state.loadError"/></strong>
+                Error al cargar los movimientos: <strong><t t-esc="state.tableError"/></strong>
             </div>
-            <div t-if="state.loading" class="text-center text-muted py-4">
+            <div t-if="state.tableLoading" class="text-center text-muted py-4">
                 <i class="fa fa-spinner fa-spin fa-2x"/>
             </div>
 
-            <t t-if="!state.loading and !state.loadError">
-
-                <!-- ── Gráfico: composición del pendiente por depósito ──────── -->
-                <div class="row g-3 mb-4">
-                    <div class="col-12 col-md-6">
-                        <div class="card o_planner_card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-2">
-                                    <span class="fw-semibold small">Pendiente por depósito</span>
-                                    <span class="text-muted small ms-2"
-                                          title="Composición del pendiente filtrado (fechas, tipos, depósitos y búsqueda): preparado (con reserva) vs. sin preparar.">
-                                        <i class="fa fa-info-circle"/>
-                                    </span>
-                                </div>
-                                <div style="position:relative; height:260px;">
-                                    <canvas t-ref="movChartCanvas"/>
-                                    <div t-if="!state.rows.length"
-                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
-                                        <div class="text-center">
-                                            <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
-                                            <span class="small">No hay movimientos pendientes.</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── KPIs dinámicos: describen exactamente lo que muestra la tabla ── -->
-                <div class="d-flex gap-2 mb-3">
-                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             t-att-title="'Piezas pendientes que muestra la tabla\n' + movKpis.pickings + ' remito(s)'">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.pending) + ' Pz')"
-                                     t-esc="fmt(movKpis.pending) + ' Pz'"/>
-                                <div class="o_planner_label">Pendiente total</div>
-                                <div class="text-muted mt-1" style="font-size:10px;">
-                                    <t t-esc="movKpis.pickings"/> remito(s)
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Piezas de remitos en estado Preparado (reserva completa): listos para procesar.">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number text-info ' + kpiNumClass(fmt(movKpis.ready) + ' Pz')"
-                                     t-esc="fmt(movKpis.ready) + ' Pz'"/>
-                                <div class="o_planner_label">Preparado</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Piezas de remitos aún sin preparar (en espera o esperando otra operación).">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.notready) + ' Pz')"
-                                     t-esc="fmt(movKpis.notready) + ' Pz'"/>
-                                <div class="o_planner_label">Sin preparar</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Remitos visibles con la fecha programada ya vencida.">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + (movKpis.overdue ? 'text-danger ' : '') + kpiNumClass(fmt(movKpis.overdue))"
-                                     t-esc="fmt(movKpis.overdue)"/>
-                                <div class="o_planner_label">Vencidos</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Preparado ÷ Pendiente de lo que muestra la tabla.">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-pie-chart fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + svcClass(movKpis.pct_ready) + ' ' + kpiNumClass(fmtPct(movKpis.pct_ready))"
-                                     t-esc="fmtPct(movKpis.pct_ready)"/>
-                                <div class="o_planner_label">% preparado</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <t t-if="!state.tableLoading and !state.tableError">
 
                 <!-- Pestañas de agrupamiento (mismo patrón que los demás paneles) -->
-                <t t-if="state.groupBy and allGroupsForTabs">
+                <t t-if="state.tblGroupBy and allGroupsForTabs">
                     <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
                         <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
                             <li class="nav-item">
@@ -272,7 +388,7 @@
                     No hay movimientos pendientes para los filtros seleccionados.
                 </div>
 
-                <!-- ── Tabla ─────────────────────────────────────────────────── -->
+                <!-- Tabla -->
                 <div t-if="sortedRows.length" class="border rounded" style="max-height:72vh; overflow-y:auto;">
                     <table class="table table-sm table-bordered mb-0 align-middle"
                            style="font-size:12px; width:100%; table-layout:fixed;">

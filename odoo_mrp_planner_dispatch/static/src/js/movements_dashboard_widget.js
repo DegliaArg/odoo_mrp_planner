@@ -3,15 +3,19 @@
  *
  * Widget del panel "Movimientos pendientes": recepciones y transferencias
  * pendientes — el complemento del Panel de Inventario (que cubre la cadena
- * de entrega a clientes). Todo se deriva de una sola RPC de filas:
- *   - Gráfico de composición por depósito (preparado vs. sin preparar),
- *     sobre el conjunto que devuelve el servidor.
- *   - Cards KPI dinámicas que describen exactamente lo que la tabla muestra
- *     (búsqueda, filtros, depósitos, tipos y pestaña activa).
- *   - Tabla con agrupamiento por pestañas, paginación y export CSV.
+ * de entrega a clientes).
  *
- * Misma estética y componentes compartidos que los demás paneles:
- * PlannerSearchBar, useColManager, formateadores es-AR y Chart.js.
+ * Misma estructura que los demás paneles, con dos zonas independientes:
+ *   - Zona gráfico: barra de filtros propia (fechas programadas, tipos de
+ *     operación y depósitos) + composición del pendiente por depósito.
+ *     RPC: get_movements_pending_table con los filtros de esta zona.
+ *   - Zona tabla: barra propia (fechas, búsqueda, tipos, depósitos,
+ *     columnas, export) + cards KPI dinámicas que describen exactamente lo
+ *     que la tabla muestra + pestañas de agrupamiento + tabla.
+ *     RPC: get_movements_pending_table con los filtros de esta zona.
+ *
+ * Reutiliza los componentes compartidos: PlannerSearchBar, useColManager,
+ * formateadores es-AR y Chart.js.
  */
 
 /** @odoo-module **/
@@ -63,19 +67,30 @@ class MovementsDashboardWidget extends Component {
         this.cols         = useColManager("inventory_movements", COLS);
 
         this.state = useState({
-            // Filtros (una sola barra para todo el panel; arranca en el mes en curso)
-            dateFrom:       firstOfMonth(),
-            dateTo:         lastOfMonth(),
-            search:         "",
-            filter:         null,
-            groupBy:        null,
-            selectedGroup:  null,
-            whIds:          [],
-            typeIds:        [],
             warehouses:     [],
-            pickingTypes:   [],
-            whDropdownOpen:   false,
-            typeDropdownOpen: false,
+            // ── Zona gráfico (filtros propios; arranca en el mes en curso) ──
+            chartFrom:      firstOfMonth(),
+            chartTo:        lastOfMonth(),
+            chartWhIds:     [],
+            chartTypeIds:   [],
+            chartTypes:     [],
+            chartWhOpen:    false,
+            chartTypeOpen:  false,
+            chartRows:      [],
+            chartLoading:   true,
+            chartError:     null,
+            // ── Zona tabla (filtros propios; arranca en el mes en curso) ──
+            tblFrom:        firstOfMonth(),
+            tblTo:          lastOfMonth(),
+            tblSearch:      "",
+            tblFilter:      null,
+            tblGroupBy:     null,
+            tblSelectedGroup: null,
+            tblWhIds:       [],
+            tblTypeIds:     [],
+            tblTypes:       [],
+            tblWhOpen:      false,
+            tblTypeOpen:    false,
             colsDropdownOpen: false,
             visibleCols: {
                 name: true, type_name: true, origin: true, partner: true,
@@ -85,24 +100,30 @@ class MovementsDashboardWidget extends Component {
             page:           1,
             pageSize:       30,
             rows:           [],
-            loading:        true,
-            loadError:      null,
+            tableLoading:   true,
+            tableError:     null,
             sortCol:        "scheduled",
             sortDir:        "asc",
         });
 
         this._closeAll = () => {
-            this.state.whDropdownOpen    = false;
-            this.state.typeDropdownOpen  = false;
-            this.state.colsDropdownOpen  = false;
+            this.state.chartWhOpen      = false;
+            this.state.chartTypeOpen    = false;
+            this.state.tblWhOpen        = false;
+            this.state.tblTypeOpen      = false;
+            this.state.colsDropdownOpen = false;
         };
         this._debounceTimer = null;
 
         onMounted(async () => {
             document.addEventListener("click", this._closeAll);
             await loadBundle("web.chartjs_lib");
-            await Promise.all([this._loadWarehouses(), this._loadPickingTypes(),
-                               this._loadRows()]);
+            // Depósitos, tipos, gráfico y tabla: RPCs independientes
+            await Promise.all([
+                this._loadWarehouses(),
+                this._loadTypes("chart"), this._loadTypes("tbl"),
+                this._loadChart(), this._loadTable(),
+            ]);
         });
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
@@ -136,103 +157,181 @@ class MovementsDashboardWidget extends Component {
         }
     }
 
-    async _loadPickingTypes() {
+    /** Lista de tipos de operación de una zona, acotada a sus depósitos. */
+    async _loadTypes(zone) {
         try {
-            this.state.pickingTypes = await this.orm.call(
-                "mrp.planner.dashboard", "get_movements_picking_types",
-                [this.state.whIds]);
+            const whIds = zone === "chart" ? this.state.chartWhIds : this.state.tblWhIds;
+            const types = await this.orm.call(
+                "mrp.planner.dashboard", "get_movements_picking_types", [whIds]);
+            if (zone === "chart") this.state.chartTypes = types;
+            else                  this.state.tblTypes   = types;
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[MovementsPanel]", e);
         }
     }
 
-    async _loadRows() {
-        this.state.loading   = true;
-        this.state.loadError = null;
+    async _loadChart() {
+        this.state.chartLoading = true;
+        this.state.chartError   = null;
         try {
             const res = await this.orm.call(
                 "mrp.planner.dashboard", "get_movements_pending_table",
-                [this.state.dateFrom || null, this.state.dateTo || null,
-                 this.state.whIds, this.state.typeIds, this.state.search]);
-            this.state.rows = res.rows || [];
-            this.state.page = 1;
+                [this.state.chartFrom || null, this.state.chartTo || null,
+                 this.state.chartWhIds, this.state.chartTypeIds, ""]);
+            this.state.chartRows = res.rows || [];
             this._renderChart();
         } catch (e) {
             console.error("[MovementsPanel]", e);
-            this.state.loadError = (e && e.data && e.data.message) || e.message || String(e);
+            this.state.chartError = (e && e.data && e.data.message) || e.message || String(e);
         } finally {
-            this.state.loading = false;
+            this.state.chartLoading = false;
         }
     }
 
-    _loadRowsDebounced() {
+    async _loadTable() {
+        this.state.tableLoading = true;
+        this.state.tableError   = null;
+        try {
+            const res = await this.orm.call(
+                "mrp.planner.dashboard", "get_movements_pending_table",
+                [this.state.tblFrom || null, this.state.tblTo || null,
+                 this.state.tblWhIds, this.state.tblTypeIds, this.state.tblSearch]);
+            this.state.rows = res.rows || [];
+            this.state.page = 1;
+        } catch (e) {
+            console.error("[MovementsPanel]", e);
+            this.state.tableError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally {
+            this.state.tableLoading = false;
+        }
+    }
+
+    _loadTableDebounced() {
         clearTimeout(this._debounceTimer);
-        this._debounceTimer = setTimeout(() => this._loadRows(), 400);
+        this._debounceTimer = setTimeout(() => this._loadTable(), 400);
     }
 
-    // ── Filtros de la barra ───────────────────────────────────────────────────
+    // ── Filtros de la zona gráfico ────────────────────────────────────────────
 
-    onFromChange(ev) { this.state.dateFrom = ev.target.value; this._loadRows(); }
-    onToChange(ev)   { this.state.dateTo   = ev.target.value; this._loadRows(); }
-    setSearch(text)  { this.state.search  = text; this._loadRowsDebounced(); }
-    setFilter(key)   { this.state.filter  = key; this.state.page = 1; }
-    setGroupBy(key)  { this.state.groupBy = key; this.state.selectedGroup = null; this.state.page = 1; }
+    onChartFromChange(ev) { this.state.chartFrom = ev.target.value; this._loadChart(); }
+    onChartToChange(ev)   { this.state.chartTo   = ev.target.value; this._loadChart(); }
+    setCurrentMonth() {
+        this.state.chartFrom = firstOfMonth();
+        this.state.chartTo   = lastOfMonth();
+        this._loadChart();
+    }
+    get isCurrentMonth() {
+        return this.state.chartFrom === firstOfMonth() && this.state.chartTo === lastOfMonth();
+    }
 
-    toggleWhDropdown(ev) {
+    toggleChartWhOpen(ev) {
         ev.stopPropagation();
-        const open = !this.state.whDropdownOpen;
+        const open = !this.state.chartWhOpen;
         this._closeAll();
-        this.state.whDropdownOpen = open;
+        this.state.chartWhOpen = open;
     }
-    async _onWhChanged() {
-        await this._loadPickingTypes();
-        const valid = new Set(this.state.pickingTypes.map(t => t.id));
-        this.state.typeIds = this.state.typeIds.filter(id => valid.has(id));
-        this._loadRows();
+    async _onChartWhChanged() {
+        await this._loadTypes("chart");
+        const valid = new Set(this.state.chartTypes.map(t => t.id));
+        this.state.chartTypeIds = this.state.chartTypeIds.filter(id => valid.has(id));
+        this._loadChart();
     }
-    toggleWarehouse(whId) {
-        const ids = this.state.whIds;
+    toggleChartWarehouse(whId) {
+        const ids = this.state.chartWhIds;
         const i = ids.indexOf(whId);
         if (i >= 0) ids.splice(i, 1); else ids.push(whId);
-        this._onWhChanged();
+        this._onChartWhChanged();
     }
-    clearWhs() {
-        if (!this.state.whIds.length) return;
-        this.state.whIds = [];
-        this._onWhChanged();
+    clearChartWhs() {
+        if (!this.state.chartWhIds.length) return;
+        this.state.chartWhIds = [];
+        this._onChartWhChanged();
     }
-    get whFilterLabel() {
-        const n = this.state.whIds.length;
+    toggleChartTypeOpen(ev) {
+        ev.stopPropagation();
+        const open = !this.state.chartTypeOpen;
+        this._closeAll();
+        this.state.chartTypeOpen = open;
+    }
+    toggleChartType(typeId) {
+        const ids = this.state.chartTypeIds;
+        const i = ids.indexOf(typeId);
+        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
+        this._loadChart();
+    }
+    clearChartTypes() {
+        if (!this.state.chartTypeIds.length) return;
+        this.state.chartTypeIds = [];
+        this._loadChart();
+    }
+    get chartWhLabel()   { return this._whLabel(this.state.chartWhIds); }
+    get chartTypeLabel() { return this._typeLabel(this.state.chartTypeIds, this.state.chartTypes); }
+
+    // ── Filtros de la zona tabla ──────────────────────────────────────────────
+
+    onTblFromChange(ev)  { this.state.tblFrom   = ev.target.value; this._loadTable(); }
+    onTblToChange(ev)    { this.state.tblTo     = ev.target.value; this._loadTable(); }
+    setTblSearch(text)   { this.state.tblSearch = text; this._loadTableDebounced(); }
+    setTblFilter(key)    { this.state.tblFilter  = key; this.state.page = 1; }
+    setTblGroupBy(key)   { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; }
+
+    toggleTblWhOpen(ev) {
+        ev.stopPropagation();
+        const open = !this.state.tblWhOpen;
+        this._closeAll();
+        this.state.tblWhOpen = open;
+    }
+    async _onTblWhChanged() {
+        await this._loadTypes("tbl");
+        const valid = new Set(this.state.tblTypes.map(t => t.id));
+        this.state.tblTypeIds = this.state.tblTypeIds.filter(id => valid.has(id));
+        this._loadTable();
+    }
+    toggleTblWarehouse(whId) {
+        const ids = this.state.tblWhIds;
+        const i = ids.indexOf(whId);
+        if (i >= 0) ids.splice(i, 1); else ids.push(whId);
+        this._onTblWhChanged();
+    }
+    clearTblWhs() {
+        if (!this.state.tblWhIds.length) return;
+        this.state.tblWhIds = [];
+        this._onTblWhChanged();
+    }
+    toggleTblTypeOpen(ev) {
+        ev.stopPropagation();
+        const open = !this.state.tblTypeOpen;
+        this._closeAll();
+        this.state.tblTypeOpen = open;
+    }
+    toggleTblType(typeId) {
+        const ids = this.state.tblTypeIds;
+        const i = ids.indexOf(typeId);
+        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
+        this._loadTable();
+    }
+    clearTblTypes() {
+        if (!this.state.tblTypeIds.length) return;
+        this.state.tblTypeIds = [];
+        this._loadTable();
+    }
+    get tblWhLabel()   { return this._whLabel(this.state.tblWhIds); }
+    get tblTypeLabel() { return this._typeLabel(this.state.tblTypeIds, this.state.tblTypes); }
+
+    _whLabel(ids) {
+        const n = ids.length;
         if (!n) return "Todos los depósitos";
         if (n === 1) {
-            const wh = this.state.warehouses.find(w => w.id === this.state.whIds[0]);
+            const wh = this.state.warehouses.find(w => w.id === ids[0]);
             return wh ? wh.name : "1 depósito";
         }
         return `${n} depósitos`;
     }
-
-    toggleTypeDropdown(ev) {
-        ev.stopPropagation();
-        const open = !this.state.typeDropdownOpen;
-        this._closeAll();
-        this.state.typeDropdownOpen = open;
-    }
-    togglePickingType(typeId) {
-        const ids = this.state.typeIds;
-        const i = ids.indexOf(typeId);
-        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
-        this._loadRows();
-    }
-    clearTypes() {
-        if (!this.state.typeIds.length) return;
-        this.state.typeIds = [];
-        this._loadRows();
-    }
-    get typeFilterLabel() {
-        const n = this.state.typeIds.length;
+    _typeLabel(ids, types) {
+        const n = ids.length;
         if (!n) return "Todos los tipos";
         if (n === 1) {
-            const t = this.state.pickingTypes.find(t => t.id === this.state.typeIds[0]);
+            const t = types.find(t => t.id === ids[0]);
             return t ? t.name : "1 tipo";
         }
         return `${n} tipos`;
@@ -262,8 +361,7 @@ class MovementsDashboardWidget extends Component {
         }
     }
 
-    // ── Gráfico: composición del pendiente por depósito ──────────────────────
-    //    (sobre el conjunto que devuelve el servidor: fechas/depósitos/tipos/búsqueda)
+    // ── Gráfico: composición del pendiente por depósito (zona gráfico) ───────
 
     _destroyChart() {
         if (this.chart) { this.chart.destroy(); this.chart = null; }
@@ -273,7 +371,7 @@ class MovementsDashboardWidget extends Component {
         this._destroyChart();
         if (!this.chartRef.el || typeof Chart === "undefined") return;
         const byWh = new Map();  // {wh: [preparado, sinPreparar]}
-        for (const r of this.state.rows) {
+        for (const r of this.state.chartRows) {
             const key = r.warehouse || "Sin depósito";
             if (!byWh.has(key)) byWh.set(key, [0, 0]);
             byWh.get(key)[r.state === "assigned" ? 0 : 1] += r.qty_pending || 0;
@@ -305,11 +403,11 @@ class MovementsDashboardWidget extends Component {
         });
     }
 
-    // ── Filtros client-side + pestañas de agrupamiento ───────────────────────
+    // ── Filtros client-side + pestañas de agrupamiento (zona tabla) ──────────
 
     get filteredRows() {
         let rows = this.state.rows;
-        const f = this.state.filter;
+        const f = this.state.tblFilter;
         if (f === "assigned") rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")  rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
         if (f === "overdue")  rows = rows.filter(r => r.overdue_days > 0);
@@ -317,7 +415,7 @@ class MovementsDashboardWidget extends Component {
     }
 
     _groupKey(row) {
-        const gb = this.state.groupBy;
+        const gb = this.state.tblGroupBy;
         if (gb === "type")      return row.type_name || "Sin tipo";
         if (gb === "warehouse") return row.warehouse || "Sin depósito";
         if (gb === "state")     return this.stateLabel(row.state);
@@ -330,7 +428,7 @@ class MovementsDashboardWidget extends Component {
     }
 
     get allGroupsForTabs() {
-        if (!this.state.groupBy) return null;
+        if (!this.state.tblGroupBy) return null;
         const counts = new Map();
         for (const r of this.filteredRows) {
             const key = this._groupKey(r);
@@ -343,19 +441,19 @@ class MovementsDashboardWidget extends Component {
 
     get activeGroupKey() {
         const groups = this.allGroupsForTabs || [];
-        if (groups.some(g => g.key === this.state.selectedGroup)) {
-            return this.state.selectedGroup;
+        if (groups.some(g => g.key === this.state.tblSelectedGroup)) {
+            return this.state.tblSelectedGroup;
         }
         return groups.length ? groups[0].key : null;
     }
 
     setGroup(key) {
-        this.state.selectedGroup = key;
+        this.state.tblSelectedGroup = key;
         this.state.page = 1;
     }
 
     get groupedRows() {
-        if (!this.state.groupBy) return this.filteredRows;
+        if (!this.state.tblGroupBy) return this.filteredRows;
         const active = this.activeGroupKey;
         return this.filteredRows.filter(r => this._groupKey(r) === active);
     }

@@ -298,6 +298,7 @@
                         activeGroupBy:  state.tblGroupBy,
                         filterDefs: tblFilterDefs,
                         groupByDefs: [
+                            { key: 'stage',       label: 'Etapa' },
                             { key: 'warehouse',   label: 'Depósito' },
                             { key: 'state',       label: 'Estado' },
                             { key: 'sched_month', label: 'Mes programado' }
@@ -392,6 +393,23 @@
             </div>
 
             <t t-if="!state.tableLoading and !state.tableError">
+                <!-- Pestañas de agrupamiento (mismo patrón que clientes/forecast/quiebres) -->
+                <t t-if="state.tblGroupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + (activeGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo los ' + g.count + ' remito(s) del grupo: ' + g.label"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-esc="g.label"/>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+
                 <div t-if="!sortedRows.length" class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-inbox fa-2x mb-2 d-block"/>
                     No hay salidas pendientes para los filtros seleccionados.
@@ -429,27 +447,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <t t-foreach="tableItems" t-as="item"
-                               t-key="item._type === 'row' ? 'r_' + item.row.picking_id : 'g_' + item.label">
-
-                                <!-- Fila de encabezado de grupo -->
-                                <tr t-if="item._type === 'group'" class="table-light">
-                                    <td t-att-colspan="tableColspan" class="fw-semibold"
-                                        style="white-space:nowrap;">
-                                        <i class="fa fa-caret-right me-1 text-muted"/>
-                                        <t t-esc="item.label"/>
-                                        <span class="text-muted fw-normal ms-2 small">
-                                            <t t-esc="item.count"/> remito(s) ·
-                                            Pendiente: <t t-esc="fmt(item.qty_pending)"/> ·
-                                            Con stock: <t t-esc="fmt(item.qty_available)"/>
-                                        </span>
-                                    </td>
-                                </tr>
-
-                                <!-- Fila de datos -->
-                                <t t-if="item._type === 'row'">
-                                    <t t-set="row" t-value="item.row"/>
-                                    <tr>
+                            <t t-foreach="pagedRows" t-as="row" t-key="row.picking_id">
+                                <tr>
                                         <td t-if="state.canDispatch" class="text-center">
                                             <input type="checkbox" class="form-check-input"
                                                    t-att-checked="state.selected[row.picking_id]"
@@ -533,8 +532,7 @@
                                                 <t t-esc="row[col.key]"/>
                                             </td>
                                         </t>
-                                    </tr>
-                                </t>
+                                </tr>
                             </t>
                         </tbody>
                     </table>

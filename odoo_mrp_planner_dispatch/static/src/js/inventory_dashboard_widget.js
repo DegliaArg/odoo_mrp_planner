@@ -98,6 +98,7 @@ class InventoryDashboardWidget extends Component {
             tblSearch:      "",
             tblFilter:      null,   // filtro client-side de la barra de búsqueda
             tblGroupBy:     null,   // agrupación client-side de la barra de búsqueda
+            tblSelectedGroup: null, // pestaña activa del agrupamiento
             tblWhIds:       [],
             tblWhDropdownOpen: false,
             colsDropdownOpen:  false,
@@ -393,7 +394,7 @@ class InventoryDashboardWidget extends Component {
     // filtro y agrupación son client-side, así que no requieren RPC.
     setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
     setTblFilter(key)     { this.state.tblFilter  = key; this.state.page = 1; }
-    setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.page = 1; }
+    setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; }
     toggleTblWhDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.tblWhDropdownOpen;
@@ -479,18 +480,6 @@ class InventoryDashboardWidget extends Component {
         return rows;
     }
 
-    get sortedRows() {
-        const { sortCol, sortDir } = this.state;
-        const dir = sortDir === "asc" ? 1 : -1;
-        return [...this.filteredRows].sort((a, b) => {
-            const va = a[sortCol], vb = b[sortCol];
-            if (va === null || va === undefined) return 1;
-            if (vb === null || vb === undefined) return -1;
-            if (typeof va === "number") return (va - vb) * dir;
-            return String(va).localeCompare(String(vb), "es") * dir;
-        });
-    }
-
     /** Clave de agrupación de una fila según state.tblGroupBy. */
     _groupKey(row) {
         const gb = this.state.tblGroupBy;
@@ -506,53 +495,67 @@ class InventoryDashboardWidget extends Component {
         return "";
     }
 
+    // ── Pestañas de agrupamiento (mismo patrón que clientes/forecast/quiebres:
+    //    la tabla muestra solo el grupo activo) ────────────────────────────────
+
+    /** Un grupo por valor del campo activo, con conteo, sobre el conjunto
+     *  filtrado/buscado (sin la pestaña aplicada). null sin agrupación. */
+    get allGroupsForTabs() {
+        if (!this.state.tblGroupBy) return null;
+        const counts = new Map();
+        for (const r of this.filteredRows) {
+            const key = this._groupKey(r);
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        return [...counts.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0], "es", { sensitivity: "base" }))
+            .map(([key, count]) => ({ key, label: key, count }));
+    }
+
+    /** Pestaña activa: la seleccionada si sigue existiendo, si no la primera. */
+    get activeGroupKey() {
+        const groups = this.allGroupsForTabs || [];
+        if (groups.some(g => g.key === this.state.tblSelectedGroup)) {
+            return this.state.tblSelectedGroup;
+        }
+        return groups.length ? groups[0].key : null;
+    }
+
+    setGroup(key) {
+        this.state.tblSelectedGroup = key;
+        this.state.page = 1;
+    }
+
+    /** Filas visibles: con agrupación activa, solo las de la pestaña activa. */
+    get groupedRows() {
+        if (!this.state.tblGroupBy) return this.filteredRows;
+        const active = this.activeGroupKey;
+        return this.filteredRows.filter(r => this._groupKey(r) === active);
+    }
+
+    get sortedRows() {
+        const { sortCol, sortDir } = this.state;
+        const dir = sortDir === "asc" ? 1 : -1;
+        return [...this.groupedRows].sort((a, b) => {
+            const va = a[sortCol], vb = b[sortCol];
+            if (va === null || va === undefined) return 1;
+            if (vb === null || vb === undefined) return -1;
+            if (typeof va === "number") return (va - vb) * dir;
+            return String(va).localeCompare(String(vb), "es") * dir;
+        });
+    }
+
     // ── Paginación (mismo esquema que el forecast: 50 filas por página) ───────
 
     get pagedRows() {
         const start = (this.state.page - 1) * this.state.pageSize;
         return this.sortedRows.slice(start, start + this.state.pageSize);
     }
-    get totalPages()  { return Math.max(1, Math.ceil(this.filteredRows.length / this.state.pageSize)); }
+    get totalPages()  { return Math.max(1, Math.ceil(this.sortedRows.length / this.state.pageSize)); }
     get hasNextPage() { return this.state.page < this.totalPages; }
     get hasPrevPage() { return this.state.page > 1; }
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
-
-    /**
-     * Ítems a renderizar en el tbody (la página actual). Sin agrupación:
-     * solo filas. Con agrupación: una fila de encabezado por grupo (con
-     * conteo y sumas de las filas del grupo presentes en la página)
-     * seguida de sus filas, respetando el orden del sort actual.
-     */
-    get tableItems() {
-        const rows = this.pagedRows;
-        if (!this.state.tblGroupBy) {
-            return rows.map(r => ({ _type: "row", row: r }));
-        }
-        const groups = new Map();   // preserva el orden de aparición
-        for (const r of rows) {
-            const key = this._groupKey(r);
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(r);
-        }
-        const items = [];
-        for (const [label, grpRows] of groups) {
-            items.push({
-                _type:         "group",
-                label,
-                count:         grpRows.length,
-                qty_pending:   grpRows.reduce((s, r) => s + (r.qty_pending   || 0), 0),
-                qty_available: grpRows.reduce((s, r) => s + (r.qty_available || 0), 0),
-            });
-            for (const r of grpRows) items.push({ _type: "row", row: r });
-        }
-        return items;
-    }
-
-    /** Colspan de la fila de encabezado de grupo (checkbox + columnas visibles). */
-    get tableColspan() {
-        return this.staticVisibleCols.length + (this.state.canDispatch ? 1 : 0);
-    }
 
     /** Title con la lista completa de artículos (para el sufijo "+N"). */
     productsTitle(row) {

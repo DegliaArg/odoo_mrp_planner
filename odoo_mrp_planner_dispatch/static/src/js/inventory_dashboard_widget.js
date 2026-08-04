@@ -28,7 +28,7 @@
 
 /** @odoo-module **/
 
-import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
@@ -130,6 +130,10 @@ class InventoryDashboardWidget extends Component {
             this.state.colsDropdownOpen  = false;
         };
         this._tblDebounceTimer = null;
+        // En la primera carga los canvas no existen todavía (t-if del spinner):
+        // el flag deja el redibujo pendiente y onPatched lo completa cuando el
+        // DOM ya tiene los lienzos (mismo patrón que el gráfico de ventas).
+        this._chartsDirty = false;
 
         onMounted(async () => {
             document.addEventListener("click", this._closeAll);
@@ -137,6 +141,11 @@ class InventoryDashboardWidget extends Component {
             // Los depósitos, los tipos, los gráficos y la tabla son RPCs independientes
             await Promise.all([this._loadWarehouses(), this._loadPickingTypes(),
                                this._loadCharts(), this._loadTable()]);
+        });
+        onPatched(() => {
+            if (this._chartsDirty && (this.trendRef.el || this.pendingRef.el)) {
+                this._renderCharts();
+            }
         });
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
@@ -201,6 +210,7 @@ class InventoryDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_inventory_dashboard_data",
                 [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds,
                  this.state.chartTypeIds]);
+            this._chartsDirty = true;
             this._renderCharts();
         } catch (e) {
             console.error("[InventoryPanel]", e);
@@ -284,7 +294,13 @@ class InventoryDashboardWidget extends Component {
     _renderCharts() {
         this._destroyCharts();
         const d = this.state.data;
-        if (!d || typeof Chart === "undefined") return;
+        if (!d || typeof Chart === "undefined") {
+            this._chartsDirty = false;
+            return;
+        }
+        // Canvas aún no montados (primera carga): onPatched reintenta
+        if (!this.trendRef.el && !this.pendingRef.el) return;
+        this._chartsDirty = false;
 
         // ── Evolución mensual de la tasa s/ disponible ──
         if (this.trendRef.el && d.trend && d.trend.length) {

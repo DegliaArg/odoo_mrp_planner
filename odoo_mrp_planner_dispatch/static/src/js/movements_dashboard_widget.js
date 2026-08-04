@@ -20,7 +20,7 @@
 
 /** @odoo-module **/
 
-import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
@@ -114,6 +114,10 @@ class MovementsDashboardWidget extends Component {
             this.state.colsDropdownOpen = false;
         };
         this._debounceTimer = null;
+        // En la primera carga el canvas no existe todavía (t-if del spinner):
+        // el flag deja el redibujo pendiente y onPatched lo completa cuando el
+        // DOM ya tiene el lienzo (mismo patrón que el gráfico de ventas).
+        this._chartDirty = false;
 
         onMounted(async () => {
             document.addEventListener("click", this._closeAll);
@@ -124,6 +128,9 @@ class MovementsDashboardWidget extends Component {
                 this._loadTypes("chart"), this._loadTypes("tbl"),
                 this._loadChart(), this._loadTable(),
             ]);
+        });
+        onPatched(() => {
+            if (this._chartDirty && this.chartRef.el) this._renderChart();
         });
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
@@ -179,6 +186,7 @@ class MovementsDashboardWidget extends Component {
                 [this.state.chartFrom || null, this.state.chartTo || null,
                  this.state.chartWhIds, this.state.chartTypeIds, ""]);
             this.state.chartRows = res.rows || [];
+            this._chartDirty = true;
             this._renderChart();
         } catch (e) {
             console.error("[MovementsPanel]", e);
@@ -369,7 +377,13 @@ class MovementsDashboardWidget extends Component {
 
     _renderChart() {
         this._destroyChart();
-        if (!this.chartRef.el || typeof Chart === "undefined") return;
+        if (typeof Chart === "undefined") {
+            this._chartDirty = false;
+            return;
+        }
+        // Canvas aún no montado (primera carga): onPatched reintenta
+        if (!this.chartRef.el) return;
+        this._chartDirty = false;
         const byWh = new Map();  // {wh: [preparado, sinPreparar]}
         for (const r of this.state.chartRows) {
             const key = r.warehouse || "Sin depósito";

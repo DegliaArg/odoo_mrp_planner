@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- El menú Ajustes del planificador (del módulo base) también es visible
+         para Inventario - Administrador: sin esto el grupo no puede llegar a
+         su pestaña. -->
+    <record id="odoo_mrp_planner.mrp_reschedule_menu_config" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('odoo_mrp_planner_dispatch.group_inventory_admin'))]"/>
+    </record>
+
     <!-- ── Ajustes del planificador → pestaña Inventario ──
          Toda la configuración de despacho vive en su propia pestaña, editable
          por Inventario - Administrador (y admins del planificador). -->

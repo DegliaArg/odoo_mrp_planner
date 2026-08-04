@@ -68,6 +68,13 @@ class MrpRescheduleConfig(models.Model):
              'son entregas a clientes (p. ej. transferencias entre depósitos que usan '
              'un tipo de salida). Vacío = todas las salidas.')
 
+    @api.model
+    def _config_editor_groups(self):
+        """El administrador de Inventario puede guardar la configuración
+        (su pestaña es lo único que ve del formulario de Ajustes)."""
+        return super()._config_editor_groups() + [
+            'odoo_mrp_planner_dispatch.group_inventory_admin']
+
     def _dispatch_pending_cutoff_domain(self, field='scheduled_date'):
         """Dominio del corte de antigüedad de pendientes.
 

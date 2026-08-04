@@ -72,6 +72,42 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Tipos de operación (multi-selección). Con filtro activo, los
+                     meses de la tasa se calculan en vivo desde los snapshots. -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="font-size:10px; padding:1px 5px; min-width:140px;"
+                                title="Filtrar los gráficos por tipo de operación de la cadena de entrega. Con el filtro activo, los meses de la tasa se calculan en vivo desde los snapshots (mientras la retención los conserve)."
+                                t-on-click="toggleTypeDropdown">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="typeFilterLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.typeDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.typeDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_type_all"
+                                       t-att-checked="!state.chartTypeIds.length"
+                                       t-on-change="clearChartTypes"/>
+                                <label class="form-check-label fw-semibold small" for="inv_type_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.pickingTypes" t-as="pt" t-key="pt.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_type_' + pt.id"
+                                           t-att-checked="state.chartTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.togglePickingType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_type_' + pt.id"
+                                           t-esc="pt.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.pickingTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Error de backend (zona gráficos) -->

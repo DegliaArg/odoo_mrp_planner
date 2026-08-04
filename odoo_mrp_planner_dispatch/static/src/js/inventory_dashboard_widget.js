@@ -87,8 +87,11 @@ class InventoryDashboardWidget extends Component {
             chartFrom:      firstOfMonth(),
             chartTo:        lastOfMonth(),
             chartWhIds:     [],
+            chartTypeIds:   [],
             whDropdownOpen: false,
+            typeDropdownOpen: false,
             warehouses:     [],
+            pickingTypes:   [],
             data:           null,
             chartLoading:   true,
             chartError:     null,
@@ -122,6 +125,7 @@ class InventoryDashboardWidget extends Component {
 
         this._closeAll = () => {
             this.state.whDropdownOpen    = false;
+            this.state.typeDropdownOpen  = false;
             this.state.tblWhDropdownOpen = false;
             this.state.colsDropdownOpen  = false;
         };
@@ -130,8 +134,9 @@ class InventoryDashboardWidget extends Component {
         onMounted(async () => {
             document.addEventListener("click", this._closeAll);
             await loadBundle("web.chartjs_lib");
-            // Los depósitos, los gráficos y la tabla son RPCs independientes
-            await Promise.all([this._loadWarehouses(), this._loadCharts(), this._loadTable()]);
+            // Los depósitos, los tipos, los gráficos y la tabla son RPCs independientes
+            await Promise.all([this._loadWarehouses(), this._loadPickingTypes(),
+                               this._loadCharts(), this._loadTable()]);
         });
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
@@ -168,13 +173,23 @@ class InventoryDashboardWidget extends Component {
         }
     }
 
+    async _loadPickingTypes() {
+        try {
+            this.state.pickingTypes = await this.orm.call(
+                "mrp.planner.dashboard", "get_inventory_picking_types", []);
+        } catch (e) {
+            if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
+        }
+    }
+
     async _loadCharts() {
         this.state.chartLoading = true;
         this.state.chartError   = null;
         try {
             this.state.data = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_dashboard_data",
-                [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds]);
+                [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds,
+                 this.state.chartTypeIds]);
             this._renderCharts();
         } catch (e) {
             console.error("[InventoryPanel]", e);
@@ -220,6 +235,34 @@ class InventoryDashboardWidget extends Component {
             return wh ? wh.name : "1 depósito";
         }
         return `${n} depósitos`;
+    }
+
+    // ── Filtro de tipos de operación de los gráficos ─────────────────────────
+    toggleTypeDropdown(ev) {
+        ev.stopPropagation();
+        const open = !this.state.typeDropdownOpen;
+        this._closeAll();
+        this.state.typeDropdownOpen = open;
+    }
+    togglePickingType(typeId) {
+        const ids = this.state.chartTypeIds;
+        const i = ids.indexOf(typeId);
+        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
+        this._loadCharts();
+    }
+    clearChartTypes() {
+        if (!this.state.chartTypeIds.length) return;
+        this.state.chartTypeIds = [];
+        this._loadCharts();
+    }
+    get typeFilterLabel() {
+        const n = this.state.chartTypeIds.length;
+        if (!n) return "Todos los tipos";
+        if (n === 1) {
+            const t = this.state.pickingTypes.find(t => t.id === this.state.chartTypeIds[0]);
+            return t ? t.name : "1 tipo";
+        }
+        return `${n} tipos`;
     }
 
     _destroyCharts() {
@@ -348,7 +391,8 @@ class InventoryDashboardWidget extends Component {
     }
     async openDelivered() {
         const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
-            [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds]);
+            [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds,
+             this.state.chartTypeIds]);
         this.action.doAction(act);
     }
     openPicking(row) {

@@ -120,7 +120,26 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Llamada 1: KPIs + gráficos ────────────────────────────────────────────
 
     @api.model
-    def get_inventory_dashboard_data(self, period_from, period_to, warehouse_ids=None):
+    def get_inventory_picking_types(self, warehouse_ids=None):
+        """Tipos de operación de la cadena de entrega para el filtro de los
+        gráficos (recolección/embalaje/salida de los depósitos visibles).
+
+        :returns: list[dict] — {'id', 'name', 'stage'} ordenados por nombre.
+        """
+        self._inventory_ensure_group()
+        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
+        chain_type_ids, _info = self.env['mrp.dispatch.stock.log'] \
+            ._dispatch_chain_types(self.env.company, warehouse_ids or None)
+        if not chain_type_ids:
+            return []
+        types = self.env['stock.picking.type'].sudo().browse(chain_type_ids) \
+            .read(['display_name'])
+        return sorted(({'id': t['id'], 'name': t['display_name']} for t in types),
+                      key=lambda d: d['name'])
+
+    @api.model
+    def get_inventory_dashboard_data(self, period_from, period_to, warehouse_ids=None,
+                                     picking_type_ids=None):
         """
         Payload de la zona superior del panel (una sola llamada RPC):
 
@@ -138,6 +157,11 @@ class MrpPlannerDashboard(models.TransientModel):
         de cada movimiento (_chain_available_qty). Las salidas más viejas que
         el corte de antigüedad configurado quedan fuera, y las cantidades en
         piezas respetan "Forzar cantidades enteras" de Ajustes.
+
+        :param picking_type_ids: filtro opcional de tipos de operación de la
+            cadena. Con filtro activo, los meses de la tasa se calculan en
+            vivo desde los snapshots crudos (el consolidado mensual no guarda
+            el tipo de operación).
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
@@ -154,6 +178,10 @@ class MrpPlannerDashboard(models.TransientModel):
         Log = self.env['mrp.dispatch.stock.log']
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
+        if picking_type_ids:
+            type_info = {t: info for t, info in type_info.items()
+                         if t in picking_type_ids}
+            chain_type_ids = list(type_info)
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
         pending_moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
@@ -195,7 +223,8 @@ class MrpPlannerDashboard(models.TransientModel):
             ('state', '=', 'done'),
             ('date_done', '>=', dt_from),
             ('date_done', '<', dt_to),
-        ] + self._inventory_wh_domain(warehouse_ids))
+        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids else [])
+          + self._inventory_wh_domain(warehouse_ids))
         delivered_qty = 0.0
         delay_sum, delay_count = 0.0, 0
         if delivered_picks:
@@ -211,7 +240,8 @@ class MrpPlannerDashboard(models.TransientModel):
                     delay_count += 1
 
         # ── Evolución mensual de la tasa s/ disponible ────────────────────────
-        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg) \
+        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg,
+                                           picking_type_ids=picking_type_ids) \
             if log_enabled else []
         rate_num = sum(m['num'] for m in trend)
         rate_den = rate_num + sum(m['den_extra'] for m in trend)
@@ -242,11 +272,15 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None):
+    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None,
+                              picking_type_ids=None):
         """Tasa s/ disponible por mes del rango: consolidado si el mes está
         cerrado en mrp.planner.kpi.monthly, cálculo vivo desde los snapshots
-        si no. Meses sin datos quedan con num/den 0 y rate None. Las cantidades
-        num/den_extra respetan el redondeo configurado; la tasa no."""
+        si no. Con filtro de tipos de operación, TODOS los meses se calculan
+        en vivo (el consolidado no guarda el tipo): los meses cuyos snapshots
+        ya se purgaron quedan sin datos. Meses sin datos quedan con num/den 0
+        y rate None. Las cantidades num/den_extra respetan el redondeo
+        configurado; la tasa no."""
         Log = self.env['mrp.dispatch.stock.log'].sudo()
         Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
         months = []
@@ -263,7 +297,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('company_id', '=', company.id),
                 ('period', '=', month_start),
             ]
-            has_marker = Monthly.search_count(
+            has_marker = not picking_type_ids and Monthly.search_count(
                 base_dom + [('product_id', '=', False), ('warehouse_id', '=', False)])
             if has_marker:
                 if warehouse_ids:
@@ -280,7 +314,8 @@ class MrpPlannerDashboard(models.TransientModel):
                 source = 'monthly'
             else:
                 num, den_extra = self._inventory_rate_live_month(
-                    company, month_start, warehouse_ids, Log)
+                    company, month_start, warehouse_ids, Log,
+                    picking_type_ids=picking_type_ids)
                 source = 'live'
             total = num + den_extra
             trend.append({
@@ -293,13 +328,15 @@ class MrpPlannerDashboard(models.TransientModel):
         return trend
 
     @api.model
-    def _inventory_rate_live_month(self, company, month_start, warehouse_ids, Log):
+    def _inventory_rate_live_month(self, company, month_start, warehouse_ids, Log,
+                                   picking_type_ids=None):
         """Numerador y denominador extra de un mes NO consolidado, desde los
         snapshots crudos. Delegado al mismo helper que usa el cierre mensual
         (_dispatch_month_figures: deduplicación por cadena, exclusión de lo
-        despachado hasta fin de mes) para que en vivo y congelado den igual."""
+        entregado hasta fin de mes) para que en vivo y congelado den igual."""
         num, den = Log._dispatch_month_figures(
-            company, month_start, warehouse_ids=warehouse_ids or None)
+            company, month_start, warehouse_ids=warehouse_ids or None,
+            picking_type_ids=picking_type_ids or None)
         return sum(num.values()), sum(den.values())
 
     # ── Llamada 2: tabla operativa ────────────────────────────────────────────
@@ -527,7 +564,8 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None):
+    def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None,
+                                   picking_type_ids=None):
         """Lista nativa de salidas a cliente entregadas (validadas) en el período."""
         self._inventory_ensure_group()
         _d_from, _d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
@@ -538,7 +576,8 @@ class MrpPlannerDashboard(models.TransientModel):
             ('state', '=', 'done'),
             ('date_done', '>=', dt_from),
             ('date_done', '<', dt_to),
-        ] + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
+        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids else []) \
+          + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
         return {
             'type': 'ir.actions.act_window',
             'name': _('Salidas entregadas del período'),

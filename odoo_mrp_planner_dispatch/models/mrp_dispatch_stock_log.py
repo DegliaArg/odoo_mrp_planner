@@ -429,7 +429,8 @@ class MrpDispatchStockLog(models.Model):
         return done
 
     @api.model
-    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None):
+    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None,
+                                picking_type_ids=None):
         """Numerador y denominador extra de un mes, por depósito y producto.
 
         - Numerador: cantidad entregada en el mes — salidas a cliente
@@ -459,6 +460,8 @@ class MrpDispatchStockLog(models.Model):
         ]
         if warehouse_ids:
             disp_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+        if picking_type_ids:
+            disp_dom.append(('picking_type_id', 'in', picking_type_ids))
         dispatched_picks = self.env['stock.picking'].sudo().search(disp_dom)
         num = {}  # {(warehouse_id, product_id): qty}
         if dispatched_picks:
@@ -486,6 +489,8 @@ class MrpDispatchStockLog(models.Model):
         ]
         if warehouse_ids:
             log_dom.append(('warehouse_id', 'in', warehouse_ids))
+        if picking_type_ids:
+            log_dom.append(('picking_id.picking_type_id', 'in', picking_type_ids))
         logs = self.sudo().search(log_dom)
         den = {}  # {(warehouse_id, product_id): qty}
         if logs:

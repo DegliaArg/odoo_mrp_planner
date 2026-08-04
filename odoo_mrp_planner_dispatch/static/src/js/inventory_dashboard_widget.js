@@ -377,11 +377,15 @@ class InventoryDashboardWidget extends Component {
         }
     }
 
-    // ── Tooltips de KPIs ──────────────────────────────────────────────────────
+    // ── Tooltips de KPIs y columnas ───────────────────────────────────────────
 
     kpiTooltip(key) {
         const k = (this.state.data && this.state.data.kpis) || {};
         const t = this.tableKpis;
+        // Las cards de la tabla describen la selección si la hay
+        const scope = this.selectedRows.length
+            ? `la selección (${this.selectedRows.length} remito(s))`
+            : "lo que muestra la tabla";
         switch (key) {
             // ── Cards del período (zona gráficos, obedecen a su rango de fechas) ──
             case "delivered":
@@ -390,20 +394,38 @@ class InventoryDashboardWidget extends Component {
                 return `Entregado ÷ (entregado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
             case "delay":
                 return "Días promedio entre la fecha programada y la validación de las salidas entregadas del período (negativo = se entregó antes de lo programado).";
-            // ── Cards de la tabla (dinámicas: filtros, búsqueda y pestaña activa) ──
+            // ── Cards de la tabla (dinámicas: filtros, búsqueda, pestaña y selección) ──
             case "pending":
-                return `Demanda pendiente que muestra la tabla, en cualquier eslabón de la cadena (recolección, embalaje o salida a cliente)\n${t.pickings} remito(s)`;
+                return `Demanda pendiente de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida a cliente)\n${t.pickings} remito(s)`;
             case "available":
-                return "Del pendiente visible, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.";
+                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.`;
             case "blocked":
-                return "Del pendiente visible, cantidad sin stock reservado en su eslabón: frenada por falta de disponibilidad. Clic para ver los remitos en espera.";
+                return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)}\nClic para ver los remitos en espera.`;
             case "overdue":
-                return "Remitos visibles con la fecha programada ya vencida.";
+                return `Remitos de ${scope} con la fecha programada ya vencida.`;
             case "pct":
-                return "Con stock ÷ Pendiente de lo que muestra la tabla: qué parte de la demanda visible podría entregarse hoy.";
+                return `Con stock ÷ Pendiente de ${scope}: qué parte podría entregarse hoy\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} = ${fmtPct(t.pct_available)}`;
             default:
                 return "";
         }
+    }
+
+    /** Explicación de cada columna de la tabla (convención de los paneles). */
+    colTitle(col) {
+        const titles = {
+            name:           "Número del remito — clic para abrirlo.",
+            stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Salida. \"Validado s/ despachar\" (con el circuito activo) es la salida ya entregada que falta marcar como despachada.",
+            origin:         "Documento origen del remito — clic para abrir el pedido de venta.",
+            warehouse:      "Depósito del tipo de operación del remito.",
+            scheduled:      "Fecha programada del remito; el badge rojo indica cuántos días está vencida.",
+            product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
+            qty_pending:    "Piezas demandadas por el remito aún no entregadas.",
+            qty_available:  "Piezas con stock reservado en el eslabón donde está parada la demanda (siguiendo la cadena de abastecimiento): podrían entregarse hoy.",
+            days_available: "Días corridos desde el primer snapshot en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
+            state:          "Estado nativo del remito en Odoo.",
+        };
+        const base = titles[col.key] || col.label;
+        return `${base} Clic en el encabezado para ordenar.`;
     }
 
     // ── Drills ────────────────────────────────────────────────────────────────
@@ -635,12 +657,18 @@ class InventoryDashboardWidget extends Component {
         });
     }
 
+    /** Filas seleccionadas dentro del conjunto visible (todas las páginas). */
+    get selectedRows() {
+        return this.groupedRows.filter(r => this.state.selected[r.picking_id]);
+    }
+
     /** KPIs dinámicos de la zona tabla: describen exactamente lo que la tabla
-     *  muestra — fechas, búsqueda, filtros, depósitos y pestaña activa
-     *  (mismo criterio que el análisis de clientes). También alimentan la
-     *  fila de totales del pie. */
+     *  muestra — fechas, búsqueda, filtros, depósitos y pestaña activa — y,
+     *  si hay filas seleccionadas, SOLO la selección (mismo dinamismo que
+     *  buscar o agrupar). También alimentan la fila de totales del pie. */
     get tableKpis() {
-        const rows = this.groupedRows;
+        const sel = this.selectedRows;
+        const rows = sel.length ? sel : this.groupedRows;
         let pending = 0, available = 0, overdue = 0;
         for (const r of rows) {
             pending   += r.qty_pending   || 0;
@@ -674,32 +702,44 @@ class InventoryDashboardWidget extends Component {
         return (row.products_detail || []).map(p => p.name).join(", ");
     }
 
-    // ── Selección + despacho masivo ───────────────────────────────────────────
+    // ── Selección (análisis + despacho masivo) ────────────────────────────────
+    // Cualquier fila es seleccionable: la selección recalcula KPIs y totales.
+    // El despacho masivo actúa solo sobre las seleccionadas ya validadas.
 
     toggleSelect(row) {
-        // Solo lo validado sin despachar puede marcarse como despachado
-        if (row.stage !== "ready") return;
         this.state.selected[row.picking_id] = !this.state.selected[row.picking_id];
     }
     get selectedIds() {
         return Object.keys(this.state.selected).filter(k => this.state.selected[k]).map(Number);
     }
-    // "Seleccionar todos" opera sobre la página visible, para no despachar filas fuera de vista
-    get selectableRows() { return this.pagedRows.filter(r => r.stage === "ready"); }
+    /** Seleccionadas listas para despachar (validadas sin despachar). */
+    get readySelectedIds() {
+        return this.selectedRows.filter(r => r.stage === "ready").map(r => r.picking_id);
+    }
+    // "Seleccionar todos" opera sobre la página visible
     get allSelected() {
-        const sel = this.selectableRows;
-        return sel.length > 0 && sel.every(r => this.state.selected[r.picking_id]);
+        const rows = this.pagedRows;
+        return rows.length > 0 && rows.every(r => this.state.selected[r.picking_id]);
     }
     toggleSelectAll() {
         const target = !this.allSelected;
-        for (const r of this.selectableRows) {
+        for (const r of this.pagedRows) {
             this.state.selected[r.picking_id] = target;
         }
     }
+    clearSelection() {
+        this.state.selected = {};
+    }
 
     async markDispatched() {
-        const ids = this.selectedIds;
-        if (!ids.length || this.state.dispatching) return;
+        const ids = this.readySelectedIds;
+        if (this.state.dispatching) return;
+        if (!ids.length) {
+            this.notification.add(
+                "Ninguna de las filas seleccionadas está validada sin despachar.",
+                { type: "warning" });
+            return;
+        }
         this.state.dispatching = true;
         try {
             await this.orm.call("stock.picking", "action_mark_dispatched", [ids]);

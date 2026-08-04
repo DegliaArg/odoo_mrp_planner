@@ -366,6 +366,15 @@
 
             <t t-if="!state.tableLoading and !state.tableError">
 
+                <!-- Selección activa: los KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedRows.length" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedRows.length"/> seleccionado(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
                 <!-- Pestañas de agrupamiento (mismo patrón que los demás paneles) -->
                 <t t-if="state.tblGroupBy and allGroupsForTabs">
                     <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
@@ -394,9 +403,17 @@
                            style="font-size:12px; width:100%; table-layout:fixed;">
                         <thead style="position:sticky; top:0; z-index:3;">
                             <tr>
+                                <th class="text-center align-middle"
+                                    style="width:28px; padding:4px 8px; background:#f8f9fa;">
+                                    <input type="checkbox" class="form-check-input"
+                                           title="Seleccionar todos los remitos de la página"
+                                           t-att-checked="allSelected"
+                                           t-on-change="toggleSelectAll"/>
+                                </th>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                     <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
                                         t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-title="colTitle(col)"
                                         t-att-data-col-key="col.key"
                                         t-att-draggable="col.fixed ? 'false' : 'true'"
                                         t-on-dragstart="cols.onDragStart"
@@ -416,6 +433,12 @@
                         <tbody>
                             <t t-foreach="pagedRows" t-as="row" t-key="row.picking_id">
                                 <tr>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input"
+                                               t-att-checked="state.selected[row.picking_id]"
+                                               title="Seleccionar: los KPIs y totales se recalculan sobre la selección"
+                                               t-on-change="() => this.toggleSelect(row)"/>
+                                    </td>
                                     <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                         <td t-if="col.key === 'name'">
                                             <a href="#" class="fw-semibold"
@@ -482,11 +505,12 @@
                         <!-- Totales de lo que muestra la tabla -->
                         <tfoot class="fw-bold" style="background:#f8f9fa;">
                             <tr>
+                                <td/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                                     <td style="padding:3px 6px;"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
                                         <t t-if="col.key === 'name'">
-                                            <span title="Cantidad de remitos que muestra la tabla (filtros, búsqueda y pestaña activa aplicados).">
+                                            <span title="Cantidad de remitos que muestra la tabla (filtros, búsqueda y pestaña activa aplicados) o de la selección si hay filas seleccionadas.">
                                                 Total (<t t-esc="movKpis.pickings"/>)
                                             </span>
                                         </t>

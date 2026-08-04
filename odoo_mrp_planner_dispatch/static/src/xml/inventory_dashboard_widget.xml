@@ -251,7 +251,8 @@
             </div>
 
             <!-- KPIs dinámicos de la tabla: describen exactamente lo que la tabla
-                 muestra (fechas, búsqueda, filtros, depósitos y pestaña activa) -->
+                 muestra (fechas, búsqueda, filtros, depósitos y pestaña activa) y,
+                 con filas seleccionadas, solo la selección -->
             <div class="d-flex gap-2 mb-3">
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100 o_planner_card_clickable"
@@ -433,13 +434,13 @@
                         title="Exportar la tabla visible a CSV">
                     <i class="fa fa-download me-1"/>Exportar
                 </button>
-                <button t-if="state.canDispatch and selectedIds.length"
+                <button t-if="state.canDispatch and readySelectedIds.length"
                         class="btn btn-sm btn-primary"
                         t-att-disabled="state.dispatching"
                         t-on-click="markDispatched"
-                        title="Marca como despachados los remitos preparados seleccionados">
+                        title="Marca como despachadas las filas seleccionadas que ya están validadas">
                     <i t-att-class="'fa me-1 ' + (state.dispatching ? 'fa-spinner fa-spin' : 'fa-send')"/>
-                    Marcar despachado (<t t-esc="selectedIds.length"/>)
+                    Marcar despachado (<t t-esc="readySelectedIds.length"/>)
                 </button>
             </div>
 
@@ -454,6 +455,15 @@
             </div>
 
             <t t-if="!state.tableLoading and !state.tableError">
+                <!-- Selección activa: los KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedRows.length" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedRows.length"/> seleccionada(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
                 <!-- Pestañas de agrupamiento (mismo patrón que clientes/forecast/quiebres) -->
                 <t t-if="state.tblGroupBy and allGroupsForTabs">
                     <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
@@ -481,10 +491,10 @@
                            style="font-size:12px; width:100%; table-layout:fixed;">
                         <thead style="position:sticky; top:0; z-index:3;">
                             <tr>
-                                <th t-if="state.canDispatch" class="text-center align-middle"
+                                <th class="text-center align-middle"
                                     style="width:28px; padding:4px 8px; background:#f8f9fa;">
                                     <input type="checkbox" class="form-check-input"
-                                           title="Seleccionar todos los remitos preparados"
+                                           title="Seleccionar todos los remitos de la página"
                                            t-att-checked="allSelected"
                                            t-on-change="toggleSelectAll"/>
                                 </th>
@@ -492,6 +502,7 @@
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                     <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
                                         t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-title="colTitle(col)"
                                         t-att-data-col-key="col.key"
                                         t-att-draggable="col.fixed ? 'false' : 'true'"
                                         t-on-dragstart="cols.onDragStart"
@@ -511,13 +522,10 @@
                         <tbody>
                             <t t-foreach="pagedRows" t-as="row" t-key="row.picking_id">
                                 <tr>
-                                        <td t-if="state.canDispatch" class="text-center">
+                                        <td class="text-center">
                                             <input type="checkbox" class="form-check-input"
                                                    t-att-checked="state.selected[row.picking_id]"
-                                                   t-att-disabled="row.stage !== 'ready'"
-                                                   t-att-title="row.stage !== 'ready'
-                                                                ? 'Solo las salidas validadas sin despachar pueden marcarse como despachadas'
-                                                                : 'Seleccionar para despachar'"
+                                                   title="Seleccionar: los KPIs y totales se recalculan sobre la selección"
                                                    t-on-change="() => this.toggleSelect(row)"/>
                                         </td>
                                         <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
@@ -602,12 +610,12 @@
                              y, si hay agrupamiento, solo la pestaña activa (todas las páginas) -->
                         <tfoot class="fw-bold" style="background:#f8f9fa;">
                             <tr>
-                                <td t-if="state.canDispatch"/>
+                                <td/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                                     <td style="padding:3px 6px;"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
                                         <t t-if="col.key === 'name'">
-                                            <span title="Cantidad de remitos que muestra la tabla (fechas, filtros, búsqueda y pestaña activa aplicados).">
+                                            <span title="Cantidad de remitos que muestra la tabla (fechas, filtros, búsqueda y pestaña activa aplicados) o de la selección si hay filas seleccionadas.">
                                                 Total (<t t-esc="tableKpis.pickings"/>)
                                             </span>
                                         </t>

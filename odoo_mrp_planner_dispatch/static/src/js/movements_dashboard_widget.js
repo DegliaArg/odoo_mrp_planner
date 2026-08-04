@@ -100,6 +100,7 @@ class MovementsDashboardWidget extends Component {
             page:           1,
             pageSize:       30,
             rows:           [],
+            selected:       {},
             tableLoading:   true,
             tableError:     null,
             sortCol:        "scheduled",
@@ -204,8 +205,9 @@ class MovementsDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_movements_pending_table",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblTypeIds, this.state.tblSearch]);
-            this.state.rows = res.rows || [];
-            this.state.page = 1;
+            this.state.rows     = res.rows || [];
+            this.state.selected = {};
+            this.state.page     = 1;
         } catch (e) {
             console.error("[MovementsPanel]", e);
             this.state.tableError = (e && e.data && e.data.message) || e.message || String(e);
@@ -484,9 +486,35 @@ class MovementsDashboardWidget extends Component {
         });
     }
 
-    /** KPIs dinámicos: describen exactamente lo que la tabla muestra. */
+    // ── Selección: recalcula KPIs y totales, igual que buscar o agrupar ──────
+
+    toggleSelect(row) {
+        this.state.selected[row.picking_id] = !this.state.selected[row.picking_id];
+    }
+    get selectedRows() {
+        return this.groupedRows.filter(r => this.state.selected[r.picking_id]);
+    }
+    // "Seleccionar todos" opera sobre la página visible
+    get allSelected() {
+        const rows = this.pagedRows;
+        return rows.length > 0 && rows.every(r => this.state.selected[r.picking_id]);
+    }
+    toggleSelectAll() {
+        const target = !this.allSelected;
+        for (const r of this.pagedRows) {
+            this.state.selected[r.picking_id] = target;
+        }
+    }
+    clearSelection() {
+        this.state.selected = {};
+    }
+
+    /** KPIs dinámicos: describen exactamente lo que la tabla muestra —
+     *  fechas, búsqueda, filtros, pestaña activa — y, si hay filas
+     *  seleccionadas, SOLO la selección. */
     get movKpis() {
-        const rows = this.groupedRows;
+        const sel = this.selectedRows;
+        const rows = sel.length ? sel : this.groupedRows;
         let pending = 0, ready = 0, overdue = 0;
         for (const r of rows) {
             pending += r.qty_pending || 0;
@@ -517,6 +545,24 @@ class MovementsDashboardWidget extends Component {
 
     productsTitle(row) {
         return (row.products_detail || []).map(p => p.name).join(", ");
+    }
+
+    /** Explicación de cada columna de la tabla (convención de los paneles). */
+    colTitle(col) {
+        const titles = {
+            name:          "Número del remito — clic para abrirlo.",
+            type_name:     "Tipo de operación del remito: recepción, transferencia interna o salida sin destino cliente (tramo entre depósitos).",
+            origin:        "Documento origen del remito — clic para abrir la compra o la venta asociada.",
+            partner:       "Contacto del remito (proveedor en recepciones).",
+            route:         "Ubicación de origen → ubicación de destino del remito.",
+            warehouse:     "Depósito del tipo de operación del remito.",
+            scheduled:     "Fecha programada del remito; el badge rojo indica cuántos días está vencido.",
+            product_names: "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
+            qty_pending:   "Piezas demandadas por el remito aún no procesadas.",
+            state:         "Estado nativo del remito en Odoo (Preparado = reserva completa, listo para procesar).",
+        };
+        const base = titles[col.key] || col.label;
+        return `${base} Clic en el encabezado para ordenar.`;
     }
 
     // ── Drills ────────────────────────────────────────────────────────────────

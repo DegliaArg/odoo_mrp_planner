@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Inventario y despacho',
-    'version': '18.0.2.0.0',
+    'version': '18.0.2.1.0',
     'summary': 'Panel de Inventario (entregas pendientes y tasa s/ disponible) y circuito de despacho',
     'description': """
 Extensión de inventario y despacho del Planificador de producción.
@@ -12,6 +12,11 @@ Panel de Inventario (menú Inventario, grupos Lectura/Administrador):
 - Tasa de entrega s/ disponible: snapshots diarios de disponibilidad
   (cron configurable) con consolidado mensual congelado.
 - Tabla operativa de salidas pendientes con export CSV.
+
+Movimientos pendientes (submenú del menú Inventario):
+- Recepciones y transferencias pendientes — el complemento del Panel de
+  Inventario: compras por recibir, transferencias internas y tramos entre
+  depósitos. KPIs dinámicos, composición por depósito y tabla con export.
 
 Circuito de despacho sobre las órdenes de entrega (opcional):
 - Estado "Sin despachar" / "Despachado" en los remitos de los tipos de
@@ -46,6 +51,8 @@ estaban (solo se pierde el historial de despacho).
         'web.assets_backend': [
             'odoo_mrp_planner_dispatch/static/src/js/inventory_dashboard_widget.js',
             'odoo_mrp_planner_dispatch/static/src/xml/inventory_dashboard_widget.xml',
+            'odoo_mrp_planner_dispatch/static/src/js/movements_dashboard_widget.js',
+            'odoo_mrp_planner_dispatch/static/src/xml/movements_dashboard_widget.xml',
         ],
     },
     'installable': True,

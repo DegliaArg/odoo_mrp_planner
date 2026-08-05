@@ -469,8 +469,11 @@ class InventoryDashboardWidget extends Component {
             res_model: "stock.picking",
             domain: [["id", "in", rows.map(r => r.picking_id)]],
             views: [[false, "list"], [false, "form"]],
+            // Una sola página con todos los remitos: los totales del pie de
+            // Odoo suman solo lo cargado, y así cierran con las cards
+            limit: Math.max(rows.length, 80),
             // Lista propia de los drills de pendiente: Demanda / Con stock /
-            // Sin stock por remito, con totales que cierran con las cards
+            // Sin stock por remito
             context: {
                 create: false,
                 list_view_ref: "odoo_mrp_planner_dispatch.view_picking_list_planner_drill_pending",

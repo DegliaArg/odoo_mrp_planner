@@ -789,9 +789,9 @@ class MrpRescheduleConfig(models.Model):
              '(que no se purga nunca).')
     dispatch_pending_cutoff_months = fields.Integer(
         string='Ignorar pendientes anteriores a (meses)', default=0,
-        help='Las salidas pendientes con fecha programada más vieja que esta cantidad '
-             'de meses no cuentan en el Panel de Inventario ni en los snapshots de '
-             'disponibilidad (0 = sin corte).')
+        help='Las líneas pendientes cuya fecha programada (fecha del movimiento) es '
+             'más vieja que esta cantidad de meses no cuentan en el Panel de '
+             'Inventario ni en los snapshots de disponibilidad (0 = sin corte).')
     inventory_force_integer = fields.Boolean(
         string='Forzar cantidades enteras',
         default=False,

@@ -579,7 +579,7 @@ class MovementsDashboardWidget extends Component {
             partner:       "Contacto del remito (proveedor en recepciones).",
             route:         "Ubicación de origen → ubicación de destino del remito.",
             warehouse:     "Depósito del tipo de operación del remito.",
-            scheduled:     "Fecha programada del remito; el badge rojo indica cuántos días está vencido.",
+            scheduled:     "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencido.",
             product_names: "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
             qty_pending:   "Piezas demandadas por el remito aún no procesadas.",
             state:         "Estado nativo del remito en Odoo (Preparado = reserva completa, listo para procesar).",

@@ -315,7 +315,8 @@ class MrpDispatchStockLog(models.Model):
         chain_type_ids, type_info = self._dispatch_chain_types(company)
         if not chain_type_ids:
             return 0
-        cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
+        # Corte de antigüedad por línea (fecha programada del movimiento)
+        cutoff_dom = cfg._dispatch_pending_cutoff_domain('date')
 
         # ── Demanda pendiente en cualquier eslabón (recolección/embalaje/salida).
         # sudo(): mismo criterio que las demás lecturas de stock del planificador.

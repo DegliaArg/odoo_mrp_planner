@@ -94,8 +94,10 @@ class MrpPlannerDashboard(models.TransientModel):
         Respeta el corte de antigüedad de Ajustes, igual que el Panel de
         Inventario.
 
-        :param date_from/date_to: filtro opcional sobre la fecha programada
-                                  (días locales del usuario).
+        :param date_from/date_to: filtro opcional sobre la fecha programada de
+            CADA LÍNEA (stock.move.date, días locales del usuario): un remito
+            con líneas en fechas distintas entra solo con las líneas del rango
+            y sus cantidades.
         :param warehouse_ids: filtro opcional de depósitos.
         :param picking_type_ids: filtro opcional de tipos de operación.
         :param search: texto contra remito / origen.
@@ -105,35 +107,53 @@ class MrpPlannerDashboard(models.TransientModel):
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        dom = [
+        # Líneas pendientes filtradas por SU fecha programada (stock.move.date);
+        # el corte de antigüedad también se evalúa por línea
+        move_dom = [
             ('company_id', '=', company.id),
-            ('state', 'in', list(PENDING_PICKING_STATES)),
-            ('picking_type_id.code', 'in', MOVEMENT_TYPE_CODES),
-        ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+            ('picking_id.state', 'in', list(PENDING_PICKING_STATES)),
+            ('state', 'not in', ('draft', 'done', 'cancel')),
+            ('picking_id.picking_type_id.code', 'in', MOVEMENT_TYPE_CODES),
+        ] + cfg._dispatch_pending_cutoff_domain('date')
         excluded = self._movements_excluded_type_ids(company)
         if excluded:
-            dom.append(('picking_type_id', 'not in', excluded))
+            move_dom.append(('picking_id.picking_type_id', 'not in', excluded))
         if warehouse_ids:
-            dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+            move_dom.append(('picking_id.picking_type_id.warehouse_id', 'in', warehouse_ids))
         if picking_type_ids:
-            dom.append(('picking_type_id', 'in', picking_type_ids))
+            move_dom.append(('picking_id.picking_type_id', 'in', picking_type_ids))
         # Fechas del filtro interpretadas como días locales del usuario
         tz = self._inventory_tz()
         to_utc = lambda d: tz.localize(datetime.combine(d, datetime.min.time())) \
             .astimezone(pytz.utc).replace(tzinfo=None)
         if date_from:
-            dom.append(('scheduled_date', '>=',
-                        to_utc(fields.Date.from_string(date_from))))
+            move_dom.append(('date', '>=',
+                             to_utc(fields.Date.from_string(date_from))))
         if date_to:
-            dom.append(('scheduled_date', '<',
-                        to_utc(fields.Date.from_string(date_to) + timedelta(days=1))))
+            move_dom.append(('date', '<',
+                             to_utc(fields.Date.from_string(date_to) + timedelta(days=1))))
         if search:
-            dom += ['|',
-                    ('name', 'ilike', search),
-                    ('origin', 'ilike', search)]
-        picks = self.env['stock.picking'].sudo().search(dom, order='scheduled_date asc')
-        if not picks:
+            move_dom += ['|',
+                         ('picking_id.name', 'ilike', search),
+                         ('picking_id.origin', 'ilike', search)]
+        moves = self.env['stock.move'].sudo().search(move_dom)
+        if not moves:
             return {'rows': []}
+
+        # Cantidades, artículos y fecha mínima por remito (solo líneas del rango)
+        qty = {}    # {pick_id: [pending, {product_id: name}, min_date]}
+        for r in moves.read(['picking_id', 'product_id', 'product_uom_qty', 'date']):
+            pick = r['picking_id'][0] if r['picking_id'] else False
+            if not pick:
+                continue
+            entry = qty.setdefault(pick, [0.0, {}, None])
+            entry[0] += r['product_uom_qty'] or 0.0
+            if r['product_id']:
+                entry[1][r['product_id'][0]] = r['product_id'][1]
+            if r['date'] and (entry[2] is None or r['date'] < entry[2]):
+                entry[2] = r['date']
+
+        picks = self.env['stock.picking'].sudo().browse(sorted(qty))
 
         # Origen con link: compra (recepciones) o venta (tramos con grupo de
         # abastecimiento); texto plano si no hay documento asociado.
@@ -149,31 +169,17 @@ class MrpPlannerDashboard(models.TransientModel):
         type_info = {t['id']: t for t in self.env['stock.picking.type'].sudo()
                      .browse(list(type_ids)).read(['display_name', 'code', 'warehouse_id'])}
 
-        # Cantidades y artículos por remito (mismo esquema que el Panel de Inventario)
-        qty = {}    # {pick_id: [pending, {product_id: display_name}]}
-        moves = self.env['stock.move'].sudo().search([
-            ('picking_id', 'in', picks.ids),
-            ('state', 'not in', ('draft', 'done', 'cancel')),
-        ])
-        for r in moves.read(['picking_id', 'product_id', 'product_uom_qty']):
-            pick = r['picking_id'][0] if r['picking_id'] else False
-            if not pick:
-                continue
-            qty.setdefault(pick, [0.0, {}])
-            qty[pick][0] += r['product_uom_qty'] or 0.0
-            if r['product_id']:
-                qty[pick][1][r['product_id'][0]] = r['product_id'][1]
-
         today = fields.Date.context_today(self)
         rows = []
         for r in pick_rows:
             pid = r['id']
             tinfo = type_info.get(r['picking_type_id'][0] if r['picking_type_id'] else 0)
-            pending, prods = qty.get(pid, [0.0, {}])
+            pending, prods, min_date = qty.get(pid, [0.0, {}, None])
             detail = sorted(({'id': p_id, 'name': p_name} for p_id, p_name in prods.items()),
                             key=lambda d: d['name'])
             names = [d['name'] for d in detail]
-            sched = r['scheduled_date']
+            # Fecha programada más próxima de las líneas consideradas
+            sched = min_date or r['scheduled_date']
             if sched:
                 sched_local = pytz.utc.localize(sched).astimezone(tz)
                 sched_str = sched_local.strftime('%d/%m/%Y')

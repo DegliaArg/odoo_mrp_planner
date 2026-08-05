@@ -436,7 +436,7 @@ class InventoryDashboardWidget extends Component {
             stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Salida. \"Validado s/ despachar\" (con el circuito activo) es la salida ya entregada que falta marcar como despachada.",
             origin:         "Documento origen del remito — clic para abrir el pedido de venta.",
             warehouse:      "Depósito del tipo de operación del remito.",
-            scheduled:      "Fecha programada del remito; el badge rojo indica cuántos días está vencida.",
+            scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida.",
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
             qty_pending:    "Piezas demandadas por el remito aún no entregadas.",
             qty_available:  "Piezas con stock reservado en el eslabón donde está parada la demanda (siguiendo la cadena de abastecimiento): podrían entregarse hoy.",
@@ -477,6 +477,10 @@ class InventoryDashboardWidget extends Component {
             context: {
                 create: false,
                 list_view_ref: "odoo_mrp_planner.view_picking_list_planner_drill_pending",
+                // Las columnas de cantidad de la lista respetan el mismo corte
+                // por línea (stock.move.date) que la tabla del panel
+                planner_date_from: this.state.tblFrom || false,
+                planner_date_to: this.state.tblTo || false,
             },
             target: "current",
         });

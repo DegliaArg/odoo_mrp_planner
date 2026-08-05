@@ -186,7 +186,8 @@ class MrpPlannerDashboard(models.TransientModel):
             type_info = {t: info for t, info in type_info.items()
                          if t in picking_type_ids}
             chain_type_ids = list(type_info)
-        cutoff_dom = cfg._dispatch_pending_cutoff_domain('picking_id.scheduled_date')
+        # Corte de antigüedad por línea (fecha programada del movimiento)
+        cutoff_dom = cfg._dispatch_pending_cutoff_domain('date')
         pending_moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
             ('picking_id.picking_type_id', 'in', chain_type_ids),
@@ -357,10 +358,13 @@ class MrpPlannerDashboard(models.TransientModel):
 
         La columna de disponible se evalúa en el eslabón donde está parada la
         demanda (_chain_available_qty; las 'ready' están 100 % disponibles) y
-        los remitos más viejos que el corte de antigüedad quedan fuera.
+        las líneas más viejas que el corte de antigüedad quedan fuera.
 
-        :param date_from/date_to: filtro opcional sobre la fecha programada
-                                  (días locales del usuario).
+        :param date_from/date_to: filtro opcional sobre la fecha programada de
+            CADA LÍNEA (stock.move.date, días locales del usuario): un remito
+            con líneas en fechas distintas entra solo con las líneas del rango
+            y sus cantidades. Las validadas sin despachar (líneas ya hechas,
+            sin fecha programada vigente) se filtran por la cabecera.
         :param warehouse_ids: filtro opcional de depósitos.
         :param search: texto contra remito / origen.
         :returns: dict {'rows': list[dict], 'can_dispatch': bool,
@@ -378,33 +382,90 @@ class MrpPlannerDashboard(models.TransientModel):
                  'dispatch_enabled': dispatch_enabled}
         if not chain_type_ids:
             return empty
-        dom = [
-            ('company_id', '=', company.id),
-            ('picking_type_id', 'in', chain_type_ids),
-        ] + cfg._dispatch_pending_cutoff_domain('scheduled_date')
+
         # Fechas del filtro interpretadas como días locales del usuario
-        # (scheduled_date se guarda en UTC)
+        # (las fechas se guardan en UTC)
         tz = self._inventory_tz()
         to_utc = lambda d: tz.localize(datetime.combine(d, datetime.min.time())) \
             .astimezone(pytz.utc).replace(tzinfo=None)
-        if date_from:
-            dom.append(('scheduled_date', '>=',
-                        to_utc(fields.Date.from_string(date_from))))
-        if date_to:
-            dom.append(('scheduled_date', '<',
-                        to_utc(fields.Date.from_string(date_to) + timedelta(days=1))))
+        dt_from = to_utc(fields.Date.from_string(date_from)) if date_from else None
+        dt_to = to_utc(fields.Date.from_string(date_to) + timedelta(days=1)) \
+            if date_to else None
+
+        # ── Líneas pendientes de la cadena, filtradas por SU fecha programada ──
+        move_dom = [
+            ('company_id', '=', company.id),
+            ('picking_id.picking_type_id', 'in', chain_type_ids),
+            ('picking_id.state', 'in', list(PENDING_PICKING_STATES)),
+            ('state', 'not in', ('draft', 'done', 'cancel')),
+        ] + cfg._dispatch_pending_cutoff_domain('date')
+        if dt_from:
+            move_dom.append(('date', '>=', dt_from))
+        if dt_to:
+            move_dom.append(('date', '<', dt_to))
         if search:
-            dom += ['|',
-                    ('name', 'ilike', search),
-                    ('origin', 'ilike', search)]
-        # Eslabones pendientes; con el circuito de despacho activo, también su
-        # cola operativa (hoja de dominio provista por el módulo de despacho)
+            move_dom += ['|',
+                         ('picking_id.name', 'ilike', search),
+                         ('picking_id.origin', 'ilike', search)]
+        moves = self.env['stock.move'].sudo().search(move_dom)
+
+        # ── Cola operativa del despacho (remitos validados): sus líneas ya
+        #    tienen fecha efectiva, así que el filtro va por la cabecera ──
         ready_leaf = self._inventory_ready_leaf()
+        ready_picks = self.env['stock.picking'].sudo()
         if ready_leaf:
-            dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES))] + ready_leaf
-        else:
-            dom.append(('state', 'in', list(PENDING_PICKING_STATES)))
-        picks = self.env['stock.picking'].sudo().search(dom, order='scheduled_date asc')
+            pick_dom = [
+                ('company_id', '=', company.id),
+                ('picking_type_id', 'in', chain_type_ids),
+            ] + cfg._dispatch_pending_cutoff_domain('scheduled_date') + ready_leaf
+            if dt_from:
+                pick_dom.append(('scheduled_date', '>=', dt_from))
+            if dt_to:
+                pick_dom.append(('scheduled_date', '<', dt_to))
+            if search:
+                pick_dom += ['|',
+                             ('name', 'ilike', search),
+                             ('origin', 'ilike', search)]
+            ready_picks = self.env['stock.picking'].sudo().search(pick_dom)
+
+        # Cantidades por remito (pendiente / disponible / artículos / fecha
+        # mínima de las líneas consideradas)
+        qty = {}    # {pick_id: [pending, available, {product_id: name}, min_date]}
+        if moves:
+            # Disponible evaluado en el eslabón donde está parada la demanda
+            chain_avail = Log._chain_available_qty(moves)
+            for r in moves.read(['picking_id', 'product_id', 'product_uom_qty', 'date']):
+                pick = r['picking_id'][0] if r['picking_id'] else False
+                if not pick:
+                    continue
+                entry = qty.setdefault(pick, [0.0, 0.0, {}, None])
+                q = r['product_uom_qty'] or 0.0
+                entry[0] += q
+                entry[1] += min(chain_avail.get(r['id'], 0.0), q)
+                if r['product_id']:
+                    entry[2][r['product_id'][0]] = r['product_id'][1]
+                if r['date'] and (entry[3] is None or r['date'] < entry[3]):
+                    entry[3] = r['date']
+        ready_ids = set(ready_picks.ids)
+        if ready_ids:
+            done_moves = self.env['stock.move'].sudo().search([
+                ('picking_id', 'in', list(ready_ids)),
+                ('state', '=', 'done'),
+            ])
+            for r in done_moves.read(['picking_id', 'product_id', 'quantity']):
+                pick = r['picking_id'][0] if r['picking_id'] else False
+                if not pick:
+                    continue
+                entry = qty.setdefault(pick, [0.0, 0.0, {}, None])
+                q = r['quantity'] or 0.0
+                entry[0] += q
+                entry[1] += q     # validado: 100 % disponible para despachar
+                if r['product_id']:
+                    entry[2][r['product_id'][0]] = r['product_id'][1]
+
+        pending_ids = sorted(set(qty) - ready_ids)
+        picks = self.env['stock.picking'].sudo().browse(
+            pending_ids + sorted(ready_ids))
         if not picks:
             return empty
 
@@ -415,43 +476,6 @@ class MrpPlannerDashboard(models.TransientModel):
         pick_rows = picks.read(['name', 'partner_id', 'origin', 'scheduled_date',
                                 'state', 'picking_type_id']
                                + (['sale_id'] if has_sale else []))
-        ready_ids   = {r['id'] for r in pick_rows if r['state'] == 'done'}
-        pending_ids = [r['id'] for r in pick_rows if r['state'] != 'done']
-
-        # Cantidades por remito (pendiente / disponible / artículos)
-        qty = {}    # {pick_id: [pending, available, {product_id: display_name}]}
-        if pending_ids:
-            moves = self.env['stock.move'].sudo().search([
-                ('picking_id', 'in', pending_ids),
-                ('state', 'not in', ('draft', 'done', 'cancel')),
-            ])
-            # Disponible evaluado en el eslabón donde está parada la demanda
-            chain_avail = Log._chain_available_qty(moves)
-            for r in moves.read(['picking_id', 'product_id', 'product_uom_qty']):
-                pick = r['picking_id'][0] if r['picking_id'] else False
-                if not pick:
-                    continue
-                qty.setdefault(pick, [0.0, 0.0, {}])
-                q = r['product_uom_qty'] or 0.0
-                qty[pick][0] += q
-                qty[pick][1] += min(chain_avail.get(r['id'], 0.0), q)
-                if r['product_id']:
-                    qty[pick][2][r['product_id'][0]] = r['product_id'][1]
-        if ready_ids:
-            done_moves = self.env['stock.move'].sudo().search([
-                ('picking_id', 'in', list(ready_ids)),
-                ('state', '=', 'done'),
-            ])
-            for r in done_moves.read(['picking_id', 'product_id', 'quantity']):
-                pick = r['picking_id'][0] if r['picking_id'] else False
-                if not pick:
-                    continue
-                qty.setdefault(pick, [0.0, 0.0, {}])
-                q = r['quantity'] or 0.0
-                qty[pick][0] += q
-                qty[pick][1] += q     # validado: 100 % disponible para despachar
-                if r['product_id']:
-                    qty[pick][2][r['product_id'][0]] = r['product_id'][1]
 
         # Días disponible: primer snapshot del remito con reserva (evidencia real)
         today = fields.Date.context_today(self)
@@ -469,20 +493,21 @@ class MrpPlannerDashboard(models.TransientModel):
             'ship':  _('Salida'),
             'ready': _('Validado s/ despachar'),
         }
-        tz = self._inventory_tz()
         rows = []
         for r in pick_rows:
             pid = r['id']
             _type = r['picking_type_id'][0] if r['picking_type_id'] else False
             info = type_info.get(_type)
             stage = 'ready' if pid in ready_ids else (info[2] if info else 'ship')
-            pending, available, prods = qty.get(pid, [0.0, 0.0, {}])
+            pending, available, prods, min_date = qty.get(pid, [0.0, 0.0, {}, None])
             # Lista completa de artículos ordenada por nombre (links del widget);
             # los nombres ya vienen del read de los movimientos: sin queries extra.
             detail = sorted(({'id': p_id, 'name': p_name} for p_id, p_name in prods.items()),
                             key=lambda d: d['name'])
             names = [d['name'] for d in detail]
-            sched = r['scheduled_date']
+            # Fecha programada más próxima de las líneas consideradas; para las
+            # validadas (sin fecha programada vigente) la de la cabecera
+            sched = min_date or r['scheduled_date']
             if sched:
                 sched_local = pytz.utc.localize(sched).astimezone(tz)
                 sched_str = sched_local.strftime('%d/%m/%Y')

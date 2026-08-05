@@ -152,7 +152,7 @@
             <div class="d-flex gap-2 mb-3">
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         t-att-title="'Piezas pendientes que muestra la tabla\n' + movKpis.pickings + ' remito(s)'">
+                         t-att-title="kpiTooltip('pending')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.pending) + ' Pz')"
@@ -166,7 +166,7 @@
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         title="Piezas de remitos en estado Preparado (reserva completa): listos para procesar.">
+                         t-att-title="kpiTooltip('ready')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.ready) + ' Pz')"
@@ -177,7 +177,7 @@
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         title="Piezas de remitos aún sin preparar (en espera o esperando otra operación).">
+                         t-att-title="kpiTooltip('notready')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.notready) + ' Pz')"
@@ -188,7 +188,7 @@
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         title="Remitos visibles con la fecha programada ya vencida.">
+                         t-att-title="kpiTooltip('overdue')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(movKpis.overdue))"
@@ -199,7 +199,7 @@
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         title="Preparado ÷ Pendiente de lo que muestra la tabla.">
+                         t-att-title="kpiTooltip('pct')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-pie-chart fa-lg text-secondary mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + svcClass(movKpis.pct_ready) + ' ' + kpiNumClass(fmtPct(movKpis.pct_ready))"

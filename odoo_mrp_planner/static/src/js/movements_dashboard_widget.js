@@ -169,6 +169,29 @@ class MovementsDashboardWidget extends Component {
         return "o_planner_num_md";
     }
 
+    /** Tooltips de las cards: descripción, fórmula y sustitución numérica
+     *  (→ X ÷ Y = Z), misma estructura que los demás paneles. */
+    kpiTooltip(key) {
+        const t = this.movKpis;
+        const scope = this.selectedRows.length
+            ? `la selección (${this.selectedRows.length} remito(s))`
+            : "la tabla";
+        switch (key) {
+            case "pending":
+                return `Piezas pendientes de ${scope} (recepciones y transferencias internas)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
+            case "ready":
+                return `Piezas de remitos de ${scope} en estado Preparado (reserva completa): listos para procesar\nSuma de las cantidades de los remitos preparados\n→ ${fmt(t.ready)} Pz`;
+            case "notready":
+                return `Piezas de ${scope} aún sin preparar (en espera o esperando otra operación)\nPendiente − Preparado\n→ ${fmt(t.pending)} − ${fmt(t.ready)} = ${fmt(t.notready)} Pz`;
+            case "overdue":
+                return `Remitos de ${scope} con la fecha programada ya vencida\n→ ${fmt(t.overdue)} remito(s)`;
+            case "pct":
+                return `Parte del pendiente de ${scope} listo para procesar\nPreparado ÷ Pendiente × 100\n→ ${fmt(t.ready)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_ready)}`;
+            default:
+                return "";
+        }
+    }
+
     // ── Carga de datos ────────────────────────────────────────────────────────
 
     async _loadWarehouses() {

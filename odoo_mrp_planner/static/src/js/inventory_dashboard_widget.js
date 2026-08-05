@@ -184,6 +184,10 @@ class InventoryDashboardWidget extends Component {
         if (len <= 14) return "";
         return "o_planner_num_md";
     }
+    /** Atraso en días con signo, o em dash sin datos. */
+    fmtDelay(v) {
+        return (v === null || v === undefined) ? "—" : fmt(v) + " d";
+    }
 
     // ── Zona gráficos ─────────────────────────────────────────────────────────
 
@@ -398,32 +402,40 @@ class InventoryDashboardWidget extends Component {
 
     // ── Tooltips de KPIs y columnas ───────────────────────────────────────────
 
+    /** KPIs del período (zona gráficos) ya cargados, o {} mientras cargan. */
+    get periodKpis() {
+        return (this.state.data && this.state.data.kpis) || {};
+    }
+
+    /** Tooltips de las cards: descripción, fórmula y sustitución numérica
+     *  (→ X ÷ Y = Z), misma estructura que los demás paneles. La navegación
+     *  a las listas es SOLO por el botón "Ver →" de cada card. */
     kpiTooltip(key) {
-        const k = (this.state.data && this.state.data.kpis) || {};
+        const k = this.periodKpis;
         const t = this.tableKpis;
         // Las cards de la tabla describen la selección si la hay
         const scope = this.selectedRows.length
             ? `la selección (${this.selectedRows.length} remito(s))`
-            : "lo que muestra la tabla";
+            : "la tabla";
         switch (key) {
-            // ── Cards del período (zona gráficos, obedecen a su rango de fechas) ──
-            case "delivered":
-                return `Cantidad entregada en el período: salidas validadas, por fecha de validación\n${k.delivered_pickings || 0} remito(s)`;
-            case "rate":
-                return `Entregado ÷ (entregado + lo que estuvo disponible y no salió)\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
-            case "delay":
-                return "Días promedio entre la fecha programada y la validación de las salidas entregadas del período (negativo = se entregó antes de lo programado).";
-            // ── Cards de la tabla (dinámicas: filtros, búsqueda, pestaña y selección) ──
+            // ── Cards de la tabla (dinámicas: fechas, búsqueda, filtros, pestaña y selección) ──
             case "pending":
-                return `Demanda pendiente de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida)\n${t.pickings} remito(s)`;
+                return `Demanda aún no entregada de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
             case "available":
-                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy. Clic para ver los remitos.`;
+                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy\nSuma por línea de mín(demanda, reservado en la cadena)\n→ ${fmt(t.available)} Pz`;
             case "blocked":
-                return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)}\nClic para ver los remitos en espera.`;
+                return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
             case "overdue":
-                return `Remitos de ${scope} con la fecha programada ya vencida.`;
+                return `Remitos de ${scope} con la fecha programada ya vencida\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
-                return `Con stock ÷ Pendiente de ${scope}: qué parte podría entregarse hoy\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} = ${fmtPct(t.pct_available)}`;
+                return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
+            // ── Cards del período (obedecen al rango de fechas y filtros de los gráficos) ──
+            case "delivered":
+                return `Cantidad entregada en el período de los gráficos: salidas validadas, por fecha de validación\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)`;
+            case "rate":
+                return `De lo que estuvo disponible en el período, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
+            case "delay":
+                return `Atraso promedio de las entregas del período (negativo = antes de lo programado)\nPromedio de (fecha de validación − fecha programada)\n→ ${k.avg_delivery_delay_days !== null && k.avg_delivery_delay_days !== undefined ? fmt(k.avg_delivery_delay_days) + " d" : "—"} en ${k.delivered_pickings || 0} remito(s)`;
             default:
                 return "";
         }

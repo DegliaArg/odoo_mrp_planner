@@ -169,6 +169,9 @@ class MrpPlannerDashboard(models.TransientModel):
         type_info = {t['id']: t for t in self.env['stock.picking.type'].sudo()
                      .browse(list(type_ids)).read(['display_name', 'code', 'warehouse_id'])}
 
+        # Etiquetas NATIVAS (traducidas) del estado del remito
+        state_sel = dict(self.env['stock.picking']
+                         .fields_get(['state'])['state']['selection'])
         today = fields.Date.context_today(self)
         rows = []
         for r in pick_rows:
@@ -210,6 +213,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled':     sched_str,
                 'overdue_days':  overdue,
                 'state':         r['state'],
+                'state_label':   state_sel.get(r['state'], r['state']),
                 'qty_pending':   self._inventory_qround(cfg, pending),
                 'products':      len(detail),
                 'product_names': ', '.join(names[:3]) + ('…' if len(names) > 3 else ''),

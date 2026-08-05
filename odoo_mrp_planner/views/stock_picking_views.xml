@@ -21,8 +21,9 @@
                 <field name="date_done" optional="hide" string="Fecha de validación"/>
                 <field name="x_qty_pieces" sum="Total" string="Cantidad (Pz)"/>
                 <field name="state" widget="badge" optional="show"
-                       decoration-success="state == 'assigned' or state == 'done'"
-                       decoration-muted="state != 'assigned' and state != 'done'"/>
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'assigned'"
+                       decoration-muted="state == 'cancel'"/>
             </list>
         </field>
     </record>
@@ -44,8 +45,9 @@
                 <field name="x_qty_available_chain" sum="Total" string="Con stock (Pz)"/>
                 <field name="x_qty_blocked_chain" sum="Total" string="Sin stock (Pz)"/>
                 <field name="state" widget="badge" optional="show"
-                       decoration-success="state == 'assigned' or state == 'done'"
-                       decoration-muted="state != 'assigned' and state != 'done'"/>
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'assigned'"
+                       decoration-muted="state == 'cancel'"/>
             </list>
         </field>
     </record>

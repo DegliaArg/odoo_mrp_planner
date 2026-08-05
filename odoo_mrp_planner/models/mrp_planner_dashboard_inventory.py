@@ -464,6 +464,10 @@ class MrpPlannerDashboard(models.TransientModel):
             'ship':  _('Entrega'),
             'ready': _('Validado s/ despachar'),
         }
+        # Etiquetas NATIVAS (traducidas) del estado del remito: la tabla
+        # muestra exactamente lo mismo que el remito abierto
+        state_sel = dict(self.env['stock.picking']
+                         .fields_get(['state'])['state']['selection'])
         rows = []
         for r in pick_rows:
             pid = r['id']
@@ -498,6 +502,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'scheduled':     sched_str,
                 'overdue_days':  overdue,
                 'state':         r['state'],
+                'state_label':   state_sel.get(r['state'], r['state']),
                 'stage':         stage,
                 'stage_label':   stage_labels[stage],
                 'qty_pending':   self._inventory_qround(cfg, pending),

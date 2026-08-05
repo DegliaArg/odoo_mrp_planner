@@ -162,6 +162,8 @@ class MovementsDashboardWidget extends Component {
     svcClass(n){ return svcClass(n); }
     sortIcon(col) { return sortIcon(col, this.state.sortCol, this.state.sortDir); }
     stateLabel(s) { return STATE_LABELS[s] || s; }
+    /** Etiqueta de estado de la fila: la nativa del remito (traducida). */
+    rowStateLabel(row) { return row.state_label || this.stateLabel(row.state); }
     kpiNumClass(text) {
         const len = String(text ?? "").length;
         if (len <= 10) return "o_planner_num_xl";
@@ -479,7 +481,7 @@ class MovementsDashboardWidget extends Component {
         const gb = this.state.tblGroupBy;
         if (gb === "type")      return row.type_name || "Sin tipo";
         if (gb === "warehouse") return row.warehouse || "Sin depósito";
-        if (gb === "state")     return this.stateLabel(row.state);
+        if (gb === "state")     return this.rowStateLabel(row);
         if (gb === "sched_month") {
             if (!row.scheduled) return "Sin fecha";
             const parts = String(row.scheduled).split("/");
@@ -649,7 +651,7 @@ class MovementsDashboardWidget extends Component {
         const lines = [cols.map(c => esc(c.label)).join(";")];
         for (const r of this.sortedRows) {
             lines.push(cols.map(c => {
-                if (c.key === "state") return esc(this.stateLabel(r.state));
+                if (c.key === "state") return esc(this.rowStateLabel(r));
                 if (c.key === "route") return esc(`${r.loc_from} → ${r.loc_to}`);
                 if (c.key === "product_names" && r.products_detail && r.products_detail.length) {
                     return esc(r.products_detail.map(p => p.name).join(", "));

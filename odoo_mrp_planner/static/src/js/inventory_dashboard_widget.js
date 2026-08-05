@@ -182,6 +182,8 @@ class InventoryDashboardWidget extends Component {
     svcClass(n){ return svcClass(n); }
     sortIcon(col) { return sortIcon(col, this.state.sortCol, this.state.sortDir); }
     stateLabel(s) { return STATE_LABELS[s] || s; }
+    /** Etiqueta de estado de la fila: la nativa del remito (traducida). */
+    rowStateLabel(row) { return row.state_label || this.stateLabel(row.state); }
 
     /** Clase de tamaño de los números de las cards KPI (mismo criterio que el
      *  análisis de clientes: cortos XL, medianos base, largos md). */
@@ -718,7 +720,7 @@ class InventoryDashboardWidget extends Component {
         const gb = this.state.tblGroupBy;
         if (gb === "stage")     return row.stage_label || "Sin etapa";
         if (gb === "warehouse") return row.warehouse || "Sin depósito";
-        if (gb === "state")     return this.stateLabel(row.state);
+        if (gb === "state")     return this.rowStateLabel(row);
         if (gb === "sched_month") {
             // scheduled llega como 'dd/mm/yyyy' → agrupar por 'mm/yyyy'
             if (!row.scheduled) return "Sin fecha";
@@ -887,7 +889,7 @@ class InventoryDashboardWidget extends Component {
         const lines = [cols.map(c => esc(c.label)).join(";")];
         for (const r of this.sortedRows) {
             lines.push(cols.map(c => {
-                if (c.key === "state") return esc(this.stateLabel(r.state));
+                if (c.key === "state") return esc(this.rowStateLabel(r));
                 if (c.key === "product_names" && r.products_detail && r.products_detail.length) {
                     return esc(r.products_detail.map(p => p.name).join(", "));
                 }

@@ -262,6 +262,10 @@
                                  t-esc="fmt(tableKpis.overdue)"/>
                             <div class="o_planner_label">Vencidas</div>
                         </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="() => this.openPending('overdue')">Ver →</button>
+                        </div>
                     </div>
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">

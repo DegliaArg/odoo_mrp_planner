@@ -479,6 +479,9 @@ class InventoryDashboardWidget extends Component {
         } else if (mode === "blocked") {
             rows = base.filter(r => (r.qty_available || 0) < (r.qty_pending || 0));
             name = "Demanda pendiente sin stock";
+        } else if (mode === "overdue") {
+            rows = base.filter(r => (r.overdue_days || 0) > 0);
+            name = "Demanda pendiente vencida";
         }
         this.action.doAction({
             type: "ir.actions.act_window",

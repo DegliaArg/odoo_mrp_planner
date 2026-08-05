@@ -122,9 +122,13 @@ class TestMrpPlannerSecurity(TransactionCase):
         else:
             wh_a, wh_b = warehouses[0], warehouses[1]
 
-        # Usuario restringido solo al warehouse A
+        # Usuario restringido solo al warehouse A. Lleva también el grupo
+        # NATIVO de Fabricación: lo que se prueba acá es el guard anti-IDOR
+        # del dashboard, no el ACL de mrp.production (que el módulo no
+        # modifica y en bases reales puede estar personalizado).
         user_restricted = self._new_user('test_idor_wh_restricted',
-                                         groups=['odoo_mrp_planner.group_prod'])
+                                         groups=['odoo_mrp_planner.group_prod',
+                                                 'mrp.group_mrp_user'])
         user_restricted.sudo().write({
             'mrp_planner_all_warehouses': False,
             'mrp_planner_warehouse_ids': [(6, 0, [wh_a.id])],

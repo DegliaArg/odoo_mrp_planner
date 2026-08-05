@@ -303,7 +303,8 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_inventory_pending_table(self, date_from=None, date_to=None,
-                                    warehouse_ids=None, search=''):
+                                    warehouse_ids=None, search='',
+                                    picking_type_ids=None):
         """
         Demanda pendiente de entrega (una fila por remito) para la tabla
         operativa. El universo cubre todos los eslabones de la cadena de
@@ -323,8 +324,10 @@ class MrpPlannerDashboard(models.TransientModel):
             sin fecha programada vigente) se filtran por la cabecera.
         :param warehouse_ids: filtro opcional de depósitos.
         :param search: texto contra remito / origen.
+        :param picking_type_ids: filtro opcional de tipos de operación de la
+            cadena; también acota los KPIs del período.
         :returns: dict {'rows': list[dict], 'can_dispatch': bool,
-                        'dispatch_enabled': bool}
+                        'dispatch_enabled': bool, 'period_kpis': dict}
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
@@ -346,10 +349,15 @@ class MrpPlannerDashboard(models.TransientModel):
         # aplica a la fecha de validación (date_done) y los depósitos son los
         # de esta barra — así las cards cierran con sus listas.
         period = self._inventory_period_kpis(company, cfg, warehouse_ids,
-                                             date_from, date_to, dt_from, dt_to)
+                                             date_from, date_to, dt_from, dt_to,
+                                             picking_type_ids=picking_type_ids)
 
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
+        if picking_type_ids:
+            type_info = {t: info for t, info in type_info.items()
+                         if t in picking_type_ids}
+            chain_type_ids = list(type_info)
         empty = {'rows': [], 'can_dispatch': self._inventory_can_dispatch(),
                  'dispatch_enabled': dispatch_enabled, 'period_kpis': period}
         if not chain_type_ids:
@@ -502,7 +510,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
-                               dt_from, dt_to):
+                               dt_from, dt_to, picking_type_ids=None):
         """Entregado / tasa / atraso del rango de la tabla.
 
         Mismos filtros que la tabla: el rango de fechas se aplica a la fecha
@@ -518,7 +526,8 @@ class MrpPlannerDashboard(models.TransientModel):
             ('company_id', '=', company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('state', '=', 'done'),
-        ] + self._inventory_wh_domain(warehouse_ids)
+        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids else []) \
+          + self._inventory_wh_domain(warehouse_ids)
         if dt_from:
             dom.append(('date_done', '>=', dt_from))
         if dt_to:
@@ -541,7 +550,8 @@ class MrpPlannerDashboard(models.TransientModel):
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
             trend = self._inventory_rate_trend(
                 company, fields.Date.from_string(date_from),
-                fields.Date.from_string(date_to), warehouse_ids, cfg)
+                fields.Date.from_string(date_to), warehouse_ids, cfg,
+                picking_type_ids=picking_type_ids)
             rate_num = sum(m['num'] for m in trend)
             rate_den = rate_num + sum(m['den_extra'] for m in trend)
             rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None

@@ -362,6 +362,42 @@
                         onGroupByChange: (k) => this.setTblGroupBy(k)
                     }"/>
 
+                <!-- Tipos de operación de la cadena -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Tipo</label>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="min-width:140px;"
+                                title="Filtrar la tabla y las cards por tipo de operación de la cadena de entrega"
+                                t-on-click="toggleTblTypeOpen">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="tblTypeLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.tblTypeOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.tblTypeOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_tbl_type_all"
+                                       t-att-checked="!state.tblTypeIds.length"
+                                       t-on-change="clearTblTypes"/>
+                                <label class="form-check-label fw-semibold small" for="inv_tbl_type_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.tblTypes" t-as="pt" t-key="pt.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_tbl_type_' + pt.id"
+                                           t-att-checked="state.tblTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.toggleTblType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_tbl_type_' + pt.id"
+                                           t-esc="pt.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.tblTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Depósito dropdown -->
                 <div class="d-flex align-items-center gap-1" t-on-click.stop="">
                     <label class="form-label mb-0 small text-muted">Depósito</label>

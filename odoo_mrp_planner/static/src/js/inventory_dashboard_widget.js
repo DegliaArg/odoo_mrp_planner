@@ -41,7 +41,8 @@ import { restoreFilters, saveFilters } from "@odoo_mrp_planner/js/filter_persist
 const INV_PERSIST_KEYS = [
     "chartFrom", "chartTo", "chartWhIds", "chartTypeIds",
     "tblFrom", "tblTo", "tblSearch", "tblFilter", "tblGroupBy",
-    "tblSelectedGroup", "tblWhIds", "visibleCols", "sortCol", "sortDir",
+    "tblSelectedGroup", "tblWhIds", "tblTypeIds", "visibleCols",
+    "sortCol", "sortDir",
 ];
 
 function toDateStr(d) {
@@ -111,7 +112,10 @@ class InventoryDashboardWidget extends Component {
             tblGroupBy:     null,   // agrupación client-side de la barra de búsqueda
             tblSelectedGroup: null, // pestaña activa del agrupamiento
             tblWhIds:       [],
+            tblTypeIds:     [],
+            tblTypes:       [],
             tblWhDropdownOpen: false,
+            tblTypeOpen:    false,
             colsDropdownOpen:  false,
             visibleCols: {
                 name: true, stage_label: true, origin: true, warehouse: false,
@@ -136,6 +140,7 @@ class InventoryDashboardWidget extends Component {
             this.state.whDropdownOpen    = false;
             this.state.typeDropdownOpen  = false;
             this.state.tblWhDropdownOpen = false;
+            this.state.tblTypeOpen       = false;
             this.state.colsDropdownOpen  = false;
         };
         // Restaurar filtros de la última visita (por empresa). Se guardan en
@@ -155,7 +160,8 @@ class InventoryDashboardWidget extends Component {
             await loadBundle("web.chartjs_lib");
             // Los depósitos, los tipos, los gráficos y la tabla son RPCs independientes
             await Promise.all([this._loadWarehouses(), this._loadPickingTypes(),
-                               this._loadCharts(), this._loadTable()]);
+                               this._loadTblTypes(), this._loadCharts(),
+                               this._loadTable()]);
         });
         onPatched(() => {
             if (this._chartsDirty && (this.trendRef.el || this.pendingRef.el)) {
@@ -210,6 +216,16 @@ class InventoryDashboardWidget extends Component {
             this.state.pickingTypes = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_picking_types",
                 [this.state.chartWhIds]);
+        } catch (e) {
+            if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
+        }
+    }
+
+    async _loadTblTypes() {
+        try {
+            this.state.tblTypes = await this.orm.call(
+                "mrp.planner.dashboard", "get_inventory_picking_types",
+                [this.state.tblWhIds]);
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
         }
@@ -510,7 +526,7 @@ class InventoryDashboardWidget extends Component {
         // validación) y sus depósitos
         const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
             [this.state.tblFrom || false, this.state.tblTo || false,
-             this.state.tblWhIds]);
+             this.state.tblWhIds, this.state.tblTypeIds]);
         this.action.doAction(act);
     }
     openPicking(row) {
@@ -551,7 +567,8 @@ class InventoryDashboardWidget extends Component {
             const res = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_pending_table",
                 [this.state.tblFrom || null, this.state.tblTo || null,
-                 this.state.tblWhIds, this.state.tblSearch]);
+                 this.state.tblWhIds, this.state.tblSearch,
+                 this.state.tblTypeIds]);
             this.state.rows            = res.rows || [];
             this.state.periodKpis      = res.period_kpis || {};
             this.state.canDispatch     = !!res.can_dispatch;
@@ -584,16 +601,48 @@ class InventoryDashboardWidget extends Component {
         this._closeAll();
         this.state.tblWhDropdownOpen = open;
     }
+    async _onTblWhChanged() {
+        await this._loadTblTypes();
+        const valid = new Set(this.state.tblTypes.map(t => t.id));
+        this.state.tblTypeIds = this.state.tblTypeIds.filter(id => valid.has(id));
+        this._loadTable();
+    }
     toggleTblWarehouse(whId) {
         const ids = this.state.tblWhIds;
         const i = ids.indexOf(whId);
         if (i >= 0) ids.splice(i, 1); else ids.push(whId);
-        this._loadTable();
+        this._onTblWhChanged();
     }
     clearTblWhs() {
         if (!this.state.tblWhIds.length) return;
         this.state.tblWhIds = [];
+        this._onTblWhChanged();
+    }
+    toggleTblTypeOpen(ev) {
+        ev.stopPropagation();
+        const open = !this.state.tblTypeOpen;
+        this._closeAll();
+        this.state.tblTypeOpen = open;
+    }
+    toggleTblType(typeId) {
+        const ids = this.state.tblTypeIds;
+        const i = ids.indexOf(typeId);
+        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
         this._loadTable();
+    }
+    clearTblTypes() {
+        if (!this.state.tblTypeIds.length) return;
+        this.state.tblTypeIds = [];
+        this._loadTable();
+    }
+    get tblTypeLabel() {
+        const n = this.state.tblTypeIds.length;
+        if (!n) return "Todos los tipos";
+        if (n === 1) {
+            const t = this.state.tblTypes.find(t => t.id === this.state.tblTypeIds[0]);
+            return t ? t.name : "1 tipo";
+        }
+        return `${n} tipos`;
     }
     get tblWhFilterLabel() {
         const n = this.state.tblWhIds.length;

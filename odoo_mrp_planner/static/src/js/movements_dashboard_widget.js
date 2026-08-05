@@ -184,7 +184,7 @@ class MovementsDashboardWidget extends Component {
             case "notready":
                 return `Piezas de ${scope} aún sin preparar (en espera o esperando otra operación)\nPendiente − Preparado\n→ ${fmt(t.pending)} − ${fmt(t.ready)} = ${fmt(t.notready)} Pz`;
             case "overdue":
-                return `Remitos de ${scope} con la fecha programada ya vencida\n→ ${fmt(t.overdue)} remito(s)`;
+                return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
                 return `Parte del pendiente de ${scope} listo para procesar\nPreparado ÷ Pendiente × 100\n→ ${fmt(t.ready)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_ready)}`;
             default:
@@ -471,7 +471,7 @@ class MovementsDashboardWidget extends Component {
         const f = this.state.tblFilter;
         if (f === "assigned") rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")  rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
-        if (f === "overdue")  rows = rows.filter(r => r.overdue_days > 0);
+        if (f === "overdue")  rows = rows.filter(r => r.overdue_days !== null && r.overdue_days >= 0);
         return rows;
     }
 
@@ -565,7 +565,7 @@ class MovementsDashboardWidget extends Component {
         for (const r of rows) {
             pending += r.qty_pending || 0;
             if (r.state === "assigned") ready += r.qty_pending || 0;
-            if (r.overdue_days > 0) overdue++;
+            if (r.overdue_days !== null && r.overdue_days >= 0) overdue++;
         }
         return {
             pending:  Math.round(pending * 100) / 100,
@@ -602,7 +602,7 @@ class MovementsDashboardWidget extends Component {
             partner:       "Contacto del remito (proveedor en recepciones).",
             route:         "Ubicación de origen → ubicación de destino del remito.",
             warehouse:     "Depósito del tipo de operación del remito.",
-            scheduled:     "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencido.",
+            scheduled:     "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencido (\"hoy\" = vence hoy).",
             product_names: "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
             qty_pending:   "Piezas demandadas por el remito aún no procesadas.",
             state:         "Estado nativo del remito en Odoo (Preparado = reserva completa, listo para procesar).",

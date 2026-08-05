@@ -458,10 +458,10 @@
                                         </td>
                                         <td t-elif="col.key === 'scheduled'" style="white-space:nowrap;">
                                             <t t-esc="row.scheduled"/>
-                                            <span t-if="row.overdue_days > 0"
+                                            <span t-if="row.overdue_days !== null and row.overdue_days >= 0"
                                                   class="badge text-bg-danger ms-1"
-                                                  t-att-title="'Vencido hace ' + row.overdue_days + ' día(s)'">
-                                                +<t t-esc="row.overdue_days"/> d
+                                                  t-att-title="row.overdue_days > 0 ? 'Vencido hace ' + row.overdue_days + ' día(s)' : 'Vence hoy'">
+                                                <t t-esc="row.overdue_days > 0 ? '+' + row.overdue_days + ' d' : 'hoy'"/>
                                             </span>
                                         </td>
                                         <td t-elif="col.key === 'qty_pending'" class="text-end">

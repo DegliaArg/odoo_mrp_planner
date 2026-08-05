@@ -447,7 +447,7 @@ class InventoryDashboardWidget extends Component {
             case "blocked":
                 return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
             case "overdue":
-                return `Remitos de ${scope} con la fecha programada ya vencida\n→ ${fmt(t.overdue)} remito(s)`;
+                return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
                 return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
             // ── Cards del período (mismo rango de la tabla, sobre la fecha de validación) ──
@@ -469,7 +469,7 @@ class InventoryDashboardWidget extends Component {
             stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Salida. \"Validado s/ despachar\" (con el circuito activo) es la salida ya entregada que falta marcar como despachada.",
             origin:         "Documento origen del remito — clic para abrir el pedido de venta.",
             warehouse:      "Depósito del tipo de operación del remito.",
-            scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida.",
+            scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida (\"hoy\" = vence hoy).",
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
             qty_pending:    "Piezas demandadas por el remito aún no entregadas.",
             qty_available:  "Piezas con stock reservado en el eslabón donde está parada la demanda (siguiendo la cadena de abastecimiento): podrían entregarse hoy.",
@@ -496,7 +496,7 @@ class InventoryDashboardWidget extends Component {
             rows = base.filter(r => (r.qty_available || 0) < (r.qty_pending || 0));
             name = "Demanda pendiente sin stock";
         } else if (mode === "overdue") {
-            rows = base.filter(r => (r.overdue_days || 0) > 0);
+            rows = base.filter(r => r.overdue_days !== null && r.overdue_days >= 0);
             name = "Demanda pendiente vencida";
         }
         this.action.doAction({
@@ -708,7 +708,7 @@ class InventoryDashboardWidget extends Component {
         if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")        rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
         if (f === "ready")          rows = rows.filter(r => r.stage === "ready");
-        if (f === "overdue")        rows = rows.filter(r => r.overdue_days > 0);
+        if (f === "overdue")        rows = rows.filter(r => r.overdue_days !== null && r.overdue_days >= 0);
         if (f === "available_days") rows = rows.filter(r => r.days_available !== null && r.days_available >= 3);
         return rows;
     }
@@ -795,7 +795,7 @@ class InventoryDashboardWidget extends Component {
         for (const r of rows) {
             pending   += r.qty_pending   || 0;
             available += r.qty_available || 0;
-            if (r.overdue_days > 0) overdue++;
+            if (r.overdue_days !== null && r.overdue_days >= 0) overdue++;
         }
         return {
             pending:   Math.round(pending * 100) / 100,

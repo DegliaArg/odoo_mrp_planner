@@ -183,9 +183,11 @@ class MrpPlannerDashboard(models.TransientModel):
             if sched:
                 sched_local = pytz.utc.localize(sched).astimezone(tz)
                 sched_str = sched_local.strftime('%d/%m/%Y')
+                # Días vencidos por fecha calendario: 0 = vence HOY (cuenta
+                # como vencida), negativo = a futuro, None = sin fecha
                 overdue = (today - sched_local.date()).days
             else:
-                sched_str, overdue = '', 0
+                sched_str, overdue = '', None
             if has_purchase and r.get('purchase_id'):
                 origin_model, origin_id = 'purchase.order', r['purchase_id'][0]
             elif has_sale and r.get('sale_id'):
@@ -206,7 +208,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 'loc_from':      r['location_id'][1] if r['location_id'] else '',
                 'loc_to':        r['location_dest_id'][1] if r['location_dest_id'] else '',
                 'scheduled':     sched_str,
-                'overdue_days':  max(0, overdue),
+                'overdue_days':  overdue,
                 'state':         r['state'],
                 'qty_pending':   self._inventory_qround(cfg, pending),
                 'products':      len(detail),

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_planner_dispatch.MovementsDashboardWidget">
+    <t t-name="odoo_mrp_planner.MovementsDashboardWidget">
         <div class="o_movements_dashboard_widget">
 
             <!-- ════ ZONA 1: filtros de gráfico + gráfico ════ -->

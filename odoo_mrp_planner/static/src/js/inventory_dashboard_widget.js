@@ -1,5 +1,5 @@
 /**
- * inventory_dashboard_widget.js (odoo_mrp_planner_dispatch)
+ * inventory_dashboard_widget.js (odoo_mrp_planner)
  *
  * Widget del Panel de Inventario. Los números usan solo datos estándar de
  * Odoo (pendiente = eslabones sin validar, entregado = salida validada por
@@ -74,7 +74,7 @@ const STATE_LABELS = {
 };
 
 class InventoryDashboardWidget extends Component {
-    static template = "odoo_mrp_planner_dispatch.InventoryDashboardWidget";
+    static template = "odoo_mrp_planner.InventoryDashboardWidget";
     static components = { PlannerSearchBar };
     static props = { record: { type: Object, optional: true }, "*": true };
 
@@ -476,7 +476,7 @@ class InventoryDashboardWidget extends Component {
             // Sin stock por remito
             context: {
                 create: false,
-                list_view_ref: "odoo_mrp_planner_dispatch.view_picking_list_planner_drill_pending",
+                list_view_ref: "odoo_mrp_planner.view_picking_list_planner_drill_pending",
             },
             target: "current",
         });

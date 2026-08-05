@@ -29,6 +29,7 @@ PROCESS_SELECTION = [
     ('customer_cat',    'Categorías de cliente'),
     ('alerts_check',    'Chequeo de alertas'),
     ('forecast_import', 'Importación de forecast'),
+    ('dispatch_snapshot', 'Snapshot de despacho'),
 ]
 
 

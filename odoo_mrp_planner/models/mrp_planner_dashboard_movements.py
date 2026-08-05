@@ -1,5 +1,5 @@
 """
-Módulo: mrp_planner_dashboard_movements.py (odoo_mrp_planner_dispatch)
+Módulo: mrp_planner_dashboard_movements.py (odoo_mrp_planner)
 Modelo: extensión de mrp.planner.dashboard
 
 Backend del panel "Movimientos pendientes": recepciones y transferencias
@@ -41,7 +41,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',
-            'view_id': self.env.ref('odoo_mrp_planner_dispatch.mrp_movements_dashboard_form').id,
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_movements_dashboard_form').id,
             'target': 'main',
             'flags': {'withControlPanel': False},
         }

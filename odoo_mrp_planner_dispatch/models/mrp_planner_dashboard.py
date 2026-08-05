@@ -2,15 +2,20 @@
 Módulo: mrp_planner_dashboard.py (odoo_mrp_planner_dispatch)
 Modelo: extensión de mrp.planner.dashboard
 
-Enciende en el panel de ventas los KPIs de despachados ("Entregas físicas"
-y "Tasa física" sobre remitos despachados) implementando los hooks que el
-módulo base expone en el cálculo del forecast.
+Enciende las funciones de despacho de los paneles del módulo base:
+- Panel de ventas: KPIs de despachados ("Entregas físicas" y "Tasa física"
+  sobre remitos despachados) implementando los hooks del forecast.
+- Panel de Inventario: la capa operativa de la tabla — cola "Validado
+  s/ despachar", chip y despacho masivo — implementando los hooks
+  _inventory_dispatch_enabled / _inventory_ready_leaf / _inventory_can_dispatch.
 """
 from odoo import models, api
 
 
 class MrpPlannerDashboard(models.TransientModel):
     _inherit = 'mrp.planner.dashboard'
+
+    # ── Panel de ventas: entregas físicas ─────────────────────────────────────
 
     @api.model
     def _forecast_dispatch_enabled(self):
@@ -26,3 +31,24 @@ class MrpPlannerDashboard(models.TransientModel):
             ('id', 'in', list(picking_ids)),
             ('x_dispatch_state', '=', 'dispatched'),
         ]).ids)
+
+    # ── Panel de Inventario: capa operativa del circuito ─────────────────────
+
+    @api.model
+    def _inventory_dispatch_enabled(self):
+        return self._forecast_dispatch_enabled()
+
+    @api.model
+    def _inventory_ready_leaf(self):
+        if not self._inventory_dispatch_enabled():
+            return None
+        return ['&', ('state', '=', 'done'), ('x_dispatch_state', '=', 'to_dispatch')]
+
+    @api.model
+    def _inventory_can_dispatch(self):
+        if not self._inventory_dispatch_enabled():
+            return False
+        u = self.env.user
+        return (u.has_group('odoo_mrp_planner_dispatch.group_dispatch_validation')
+                or u.has_group('odoo_mrp_planner.group_admin')
+                or u.has_group('base.group_system'))

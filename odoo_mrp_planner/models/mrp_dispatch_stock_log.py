@@ -1,5 +1,5 @@
 """
-Módulo: mrp_dispatch_stock_log.py (odoo_mrp_planner_dispatch)
+Módulo: mrp_dispatch_stock_log.py (odoo_mrp_planner)
 Modelos: mrp.dispatch.stock.log y mrp.planner.kpi.monthly
 
 Snapshots diarios de disponibilidad de stock de las salidas pendientes y

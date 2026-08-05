@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="odoo_mrp_planner_dispatch.InventoryDashboardWidget">
+    <t t-name="odoo_mrp_planner.InventoryDashboardWidget">
         <div class="o_inventory_dashboard_widget">
 
             <!-- ════ ZONA 1: gráficos e indicadores del período (filtros propios) ════ -->

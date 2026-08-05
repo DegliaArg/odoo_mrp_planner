@@ -1,31 +1,24 @@
 {
-    'name': 'Planificador de producción — Inventario y despacho',
-    'version': '18.0.2.4.0',
-    'summary': 'Panel de Inventario (entregas pendientes y tasa s/ disponible) y circuito de despacho',
+    'name': 'Planificador de producción — Despacho de entregas',
+    'version': '18.0.3.0.0',
+    'summary': 'Circuito de despacho (sin despachar / despachado) sobre las órdenes de entrega',
     'description': """
-Extensión de inventario y despacho del Planificador de producción.
+Extensión de despacho del Planificador de producción.
 
-Panel de Inventario (menú Inventario, grupos Lectura/Administrador):
-- KPIs de demanda pendiente de entrega por eslabón de la cadena
-  (recolección/embalaje/salida), entregado del período y atraso
-  promedio de entrega — todo con datos estándar de Odoo.
-- Tasa de entrega s/ disponible: snapshots diarios de disponibilidad
-  (cron configurable) con consolidado mensual congelado.
-- Tabla operativa de salidas pendientes con export CSV.
-
-Movimientos pendientes (submenú del menú Inventario):
-- Recepciones y transferencias internas pendientes — el complemento del
-  Panel de Inventario (separación por tipo de operación). KPIs dinámicos,
-  composición por depósito y tabla con export.
-
-Circuito de despacho sobre las órdenes de entrega (opcional):
-- Estado "Sin despachar" / "Despachado" en los remitos de los tipos de
-  operación elegidos en Ajustes.
+Circuito de despacho sobre las órdenes de entrega, para los tipos de
+operación elegidos en Ajustes:
+- Estado "Sin despachar" / "Despachado" en cada remito de salida.
 - Botón "Marcar despachado" disponible solo con el remito validado y para
   usuarios del grupo "Inventario: validación de despacho" (con validación
-  también en el servidor); acción masiva en la lista y en el panel.
+  también en el servidor); acción masiva en la lista de remitos y en la
+  tabla del Panel de Inventario (etapa "Validado s/ despachar").
 - Reversa ("Volver a Sin despachar") reservada a administradores.
 - Auditoría: fecha, usuario y mensaje en el chatter de cada despacho.
+- KPIs físicos del panel de Ventas (Entregas físicas / Tasa física).
+
+Los paneles de Inventario y Movimientos viven en el módulo base
+(odoo_mrp_planner) y funcionan sin este módulo: acá solo se agrega la capa
+operativa de despacho.
 
 La instalación NO habilita el circuito: se activa por empresa desde los
 Ajustes del planificador (pestaña Inventario). Al activarlo, las salidas ya
@@ -40,21 +33,9 @@ estaban (solo se pierde el historial de despacho).
     'depends': ['odoo_mrp_planner', 'stock'],
     'data': [
         'security/groups.xml',
-        'security/ir.model.access.csv',
-        'security/ir_rules.xml',
-        'data/ir_cron.xml',
         'views/stock_picking_views.xml',
         'views/res_config_settings_views.xml',
-        'views/mrp_inventory_dashboard_views.xml',
     ],
-    'assets': {
-        'web.assets_backend': [
-            'odoo_mrp_planner_dispatch/static/src/js/inventory_dashboard_widget.js',
-            'odoo_mrp_planner_dispatch/static/src/xml/inventory_dashboard_widget.xml',
-            'odoo_mrp_planner_dispatch/static/src/js/movements_dashboard_widget.js',
-            'odoo_mrp_planner_dispatch/static/src/xml/movements_dashboard_widget.xml',
-        ],
-    },
     'installable': True,
     'application': False,
     'auto_install': False,

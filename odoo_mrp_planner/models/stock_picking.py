@@ -92,3 +92,76 @@ class StockPicking(models.Model):
         ], limit=200)
         if mos:
             mos.write({'x_reschedule_needed': True})
+
+    # ══ Cantidades para las listas de los drills de los paneles ══════════════
+
+    x_qty_pieces = fields.Float(
+        string='Cantidad (Pz)', compute='_compute_x_qty_pieces',
+        digits='Product Unit of Measure',
+        help='Suma de las cantidades de las líneas del remito: demandadas si el '
+             'remito está pendiente, hechas si ya está validado. Columna '
+             'informativa de las listas que abren los paneles del planificador.')
+
+    def _compute_x_qty_pieces(self):
+        # Suma por remito en dos pasadas batch (una por criterio de estado)
+        Move = self.env['stock.move'].sudo()
+        pending = self.filtered(lambda p: p.state not in ('done', 'cancel'))
+        done = self.filtered(lambda p: p.state == 'done')
+        totals = {}
+        if pending:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', pending.ids),
+                     ('state', 'not in', ('draft', 'done', 'cancel'))],
+                    ['picking_id'], ['product_uom_qty:sum']):
+                totals[picking.id] = qty
+        if done:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', done.ids), ('state', '=', 'done')],
+                    ['picking_id'], ['quantity:sum']):
+                totals[picking.id] = qty
+        for pick in self:
+            pick.x_qty_pieces = totals.get(pick.id, 0.0)
+
+    x_qty_available_chain = fields.Float(
+        string='Con stock (Pz)', compute='_compute_x_qty_chain',
+        digits='Product Unit of Measure',
+        help='De la demanda pendiente del remito, cantidad con stock reservado '
+             'en el eslabón donde está parada (siguiendo la cadena de '
+             'abastecimiento) — mismo cálculo que la columna "Con stock" del '
+             'Panel de Inventario. Remitos validados: 100 %.')
+    x_qty_blocked_chain = fields.Float(
+        string='Sin stock (Pz)', compute='_compute_x_qty_chain',
+        digits='Product Unit of Measure',
+        help='Demanda pendiente sin stock reservado: Demanda − Con stock.')
+
+    def _compute_x_qty_chain(self):
+        # Mismo criterio que los KPIs del Panel de Inventario: disponibilidad
+        # evaluada por línea en el eslabón donde está parada la demanda.
+        Move = self.env['stock.move'].sudo()
+        Log = self.env['mrp.dispatch.stock.log']
+        pending = self.filtered(lambda p: p.state in ('confirmed', 'waiting', 'assigned'))
+        done = self.filtered(lambda p: p.state == 'done')
+        avail, demand = {}, {}
+        if pending:
+            moves = Move.search([
+                ('picking_id', 'in', pending.ids),
+                ('state', 'not in', ('draft', 'done', 'cancel')),
+            ])
+            chain_avail = Log._chain_available_qty(moves)
+            for r in moves.read(['picking_id', 'product_uom_qty']):
+                pick = r['picking_id'][0] if r['picking_id'] else False
+                if not pick:
+                    continue
+                q = r['product_uom_qty'] or 0.0
+                demand[pick] = demand.get(pick, 0.0) + q
+                avail[pick] = avail.get(pick, 0.0) + min(chain_avail.get(r['id'], 0.0), q)
+        if done:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', done.ids), ('state', '=', 'done')],
+                    ['picking_id'], ['quantity:sum']):
+                demand[picking.id] = qty
+                avail[picking.id] = qty
+        for pick in self:
+            a = avail.get(pick.id, 0.0)
+            pick.x_qty_available_chain = a
+            pick.x_qty_blocked_chain = max(0.0, demand.get(pick.id, 0.0) - a)

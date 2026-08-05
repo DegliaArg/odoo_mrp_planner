@@ -7,6 +7,7 @@ from . import res_users
 from . import mrp_abc_helpers
 from . import mrp_reschedule_config
 from . import mrp_planner_run_log
+from . import mrp_dispatch_stock_log
 from . import mrp_partner_category
 from . import mrp_reschedule_user_permission
 from . import mrp_reschedule_alert
@@ -24,6 +25,8 @@ from . import mrp_planner_dashboard_sales
 from . import mrp_planner_dashboard_supplier
 from . import mrp_planner_dashboard_customer
 from . import mrp_planner_detail_dashboard
+from . import mrp_planner_dashboard_inventory
+from . import mrp_planner_dashboard_movements
 from . import purchase_order
 from . import stock_picking
 from . import mrp_partner_company_category

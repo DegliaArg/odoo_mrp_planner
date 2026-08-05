@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Indicadores y análisis',
-    'version': '18.0.5.2.1',
+    'version': '18.0.6.0.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -30,9 +30,18 @@ Forecast
 - Métricas de precisión configurables: Simple, MAPE, WAPE, WMAPE y Sesgo.
 - Exportación a Excel y edición directa de valores en celda.
 
+Inventario
+- Panel de Inventario: demanda pendiente de entrega por eslabón de la cadena
+  (recolección/embalaje/salida), entregado del período, atraso promedio y
+  tasa de entrega s/ disponible con snapshots diarios y consolidado mensual.
+- Panel de Movimientos: recepciones y transferencias internas pendientes.
+- Grupos Inventario Lectura/Administrador y pestaña propia en los Ajustes.
+
 Programación y reprogramación
 - Las funciones de programación desde demanda y reprogramación en cascada
   se instalan por separado con el módulo odoo_mrp_planner_scheduling.
+- El circuito de despacho (estado Sin despachar/Despachado y despacho masivo
+  desde el panel) se instala por separado con odoo_mrp_planner_dispatch.
     """,
     'author': 'Deglia',
     'website': 'https://deglia.xyz',
@@ -49,6 +58,9 @@ Programación y reprogramación
         'views/mrp_production_views.xml',
         'views/mrp_planner_run_log_views.xml',
         'views/res_config_settings_views.xml',
+        'views/stock_picking_views.xml',
+        'views/mrp_inventory_dashboard_views.xml',
+        'data/ir_cron_inventory.xml',
         'views/res_partner_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',
         'views/mrp_forecast_line_views.xml',
@@ -94,6 +106,10 @@ Programación y reprogramación
             'odoo_mrp_planner/static/src/xml/customer_analysis_detail_panel.xml',
             'odoo_mrp_planner/static/src/js/sheet_selector_widget.js',
             'odoo_mrp_planner/static/src/xml/sheet_selector_widget.xml',
+            'odoo_mrp_planner/static/src/js/inventory_dashboard_widget.js',
+            'odoo_mrp_planner/static/src/xml/inventory_dashboard_widget.xml',
+            'odoo_mrp_planner/static/src/js/movements_dashboard_widget.js',
+            'odoo_mrp_planner/static/src/xml/movements_dashboard_widget.xml',
         ],
     },
     'installable': True,

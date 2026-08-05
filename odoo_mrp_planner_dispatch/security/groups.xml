@@ -5,25 +5,13 @@
     <record id="group_dispatch_validation" model="res.groups">
         <field name="name">Inventario: validación de despacho</field>
         <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
-        <field name="comment">Permite marcar como despachadas las órdenes de entrega ya validadas (botón "Marcar despachado" y acción masiva de la lista). El estado de despacho es visible para todos; solo este grupo puede cambiarlo.</field>
+        <field name="comment">Permite marcar como despachadas las órdenes de entrega ya validadas (botón "Marcar despachado" y acción masiva de la lista y del Panel de Inventario). El estado de despacho es visible para todos; solo este grupo puede cambiarlo.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- Inventario – Lectura -->
-    <record id="group_inventory_read" model="res.groups">
-        <field name="name">Inventario - Lectura</field>
-        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
-        <field name="comment">Ve el Panel de Inventario: KPIs de despacho, evolución de la tasa física s/ disponible, composición del pendiente y la tabla de salidas pendientes. No puede despachar ni cambiar la configuración.</field>
-        <field name="users" eval="[]"/>
-    </record>
-
-    <!-- Inventario – Administrador -->
-    <record id="group_inventory_admin" model="res.groups">
-        <field name="name">Inventario - Administrador</field>
-        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
-        <field name="comment">Ve el Panel de Inventario, puede despachar entregas y modifica la pestaña Inventario de los Ajustes del planificador (validación de despacho, registro de disponibilidad, hora del snapshot y retención).</field>
-        <field name="users" eval="[]"/>
-        <field name="implied_ids" eval="[(4, ref('group_inventory_read')), (4, ref('group_dispatch_validation'))]"/>
+    <!-- El Administrador de Inventario (grupo del módulo base) puede despachar -->
+    <record id="odoo_mrp_planner.group_inventory_admin" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation'))]"/>
     </record>
 
     <!-- El Administrador del planificador implica el despacho (puede marcar
@@ -31,7 +19,7 @@
          del panel se asignan explícitamente por usuario. El (3, ...) deshace
          la herencia que existía hasta la v18.0.2.x en bases ya instaladas. -->
     <record id="odoo_mrp_planner.group_admin" model="res.groups">
-        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation')), (3, ref('group_inventory_admin'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation')), (3, ref('odoo_mrp_planner.group_inventory_admin'))]"/>
     </record>
 
 </odoo>

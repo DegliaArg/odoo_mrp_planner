@@ -1,82 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- El menú Ajustes del planificador (del módulo base) también es visible
-         para Inventario - Administrador: sin esto el grupo no puede llegar a
-         su pestaña. -->
-    <record id="odoo_mrp_planner.mrp_reschedule_menu_config" model="ir.ui.menu">
-        <field name="groups_id" eval="[(4, ref('odoo_mrp_planner_dispatch.group_inventory_admin'))]"/>
-    </record>
-
     <!-- ── Ajustes del planificador → pestaña Inventario ──
-         Toda la configuración de despacho vive en su propia pestaña, editable
-         por Inventario - Administrador (y admins del planificador). -->
+         La pestaña vive en el módulo base; este módulo agrega la columna del
+         circuito de despacho. -->
     <record id="mrp_reschedule_config_form_view_dispatch" model="ir.ui.view">
         <field name="name">mrp.reschedule.config.form.dispatch</field>
         <field name="model">mrp.reschedule.config</field>
         <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_config_form_view"/>
         <field name="arch" type="xml">
 
-            <xpath expr="//page[@name='sales']" position="after">
-                <!-- Solo Inventario - Administrador: es LA diferencia con Lectura -->
-                <page string="Inventario" name="inventory"
-                      groups="odoo_mrp_planner_dispatch.group_inventory_admin">
-                    <div class="row">
-
-                        <!-- ── Columna izquierda: circuito de despacho ──────── -->
-                        <div class="col-6">
-                            <group string="Despacho de entregas">
-                                <field name="enable_dispatch_validation" widget="boolean_toggle"/>
-                                <field name="dispatch_picking_type_ids" widget="many2many_tags"
-                                       options="{'no_create': true}"
-                                       invisible="not enable_dispatch_validation"/>
-                                <div class="text-muted small border-start border-2 ps-2 mt-1">
-                                    Agrega a las salidas el estado <b>Sin despachar / Despachado</b> y el botón
-                                    "Marcar despachado" (solo con el remito validado y para usuarios del grupo
-                                    <i>Inventario: validación de despacho</i>). Al <b>activar</b>, las salidas ya
-                                    validadas que nunca entraron al circuito se marcan como despachadas, así la
-                                    cola pendiente arranca vacía. Al desactivar no se pierde nada: los estados
-                                    se conservan ocultos.
-                                </div>
-                                <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                     invisible="not enable_dispatch_validation">
-                                    <b>Tipos de operación con despacho</b>: solo las salidas de estos tipos
-                                    entran al circuito. Se precarga con todos los tipos de salida de la
-                                    empresa: sacá los que no son entregas a clientes (p. ej. transferencias
-                                    entre depósitos). Al sacar un tipo, sus remitos quedan sin estado de
-                                    despacho (la columna aparece vacía; la auditoría queda en el chatter);
-                                    al agregarlo, sus salidas validadas viejas se marcan como despachadas
-                                    para arrancar con la cola vacía.
-                                </div>
-                            </group>
+            <xpath expr="//div[@name='inventory_settings_row']" position="inside">
+                <div class="col-6">
+                    <group string="Despacho de entregas">
+                        <field name="enable_dispatch_validation" widget="boolean_toggle"/>
+                        <field name="dispatch_picking_type_ids" widget="many2many_tags"
+                               options="{'no_create': true}"
+                               invisible="not enable_dispatch_validation"/>
+                        <div class="text-muted small border-start border-2 ps-2 mt-1">
+                            Agrega a las salidas el estado <b>Sin despachar / Despachado</b> y el botón
+                            "Marcar despachado" (solo con el remito validado y para usuarios del grupo
+                            <i>Inventario: validación de despacho</i>). Al <b>activar</b>, las salidas ya
+                            validadas que nunca entraron al circuito se marcan como despachadas, así la
+                            cola pendiente arranca vacía. Al desactivar no se pierde nada: los estados
+                            se conservan ocultos.
                         </div>
-
-                        <!-- ── Columna derecha: registro de disponibilidad ────
-                             Independiente del circuito de despacho: el Panel de
-                             Inventario usa solo datos estándar de Odoo. -->
-                        <div class="col-6">
-                            <group string="Registro de disponibilidad">
-                                <field name="dispatch_stock_log_enabled" widget="boolean_toggle"/>
-                                <field name="dispatch_snapshot_hour" widget="float_time"
-                                       invisible="not dispatch_stock_log_enabled"/>
-                                <field name="dispatch_log_retention_months"
-                                       invisible="not dispatch_stock_log_enabled"/>
-                                <field name="dispatch_pending_cutoff_months"/>
-                                <field name="inventory_force_integer" widget="boolean_toggle"/>
-                                <div class="text-muted small border-start border-2 ps-2 mt-1">
-                                    Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
-                                    alimenta la <b>Tasa de entrega s/ disponible</b> del Panel de Inventario.
-                                    Los meses cerrados se consolidan en un histórico mensual que no se purga;
-                                    los snapshots crudos se conservan según la retención configurada. Cada
-                                    corrida queda en el Registro de ejecuciones. Con <b>Ignorar pendientes
-                                    anteriores a (meses)</b> &gt; 0, las salidas con fecha programada más
-                                    vieja que ese corte no cuentan en el panel ni en los snapshots.
-                                </div>
-                            </group>
+                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                             invisible="not enable_dispatch_validation">
+                            <b>Tipos de operación con despacho</b>: solo las salidas de estos tipos
+                            entran al circuito. Se precarga con todos los tipos de salida de la
+                            empresa: sacá los que no son entregas a clientes (p. ej. transferencias
+                            entre depósitos). Al sacar un tipo, sus remitos quedan sin estado de
+                            despacho (la columna aparece vacía; la auditoría queda en el chatter);
+                            al agregarlo, sus salidas validadas viejas se marcan como despachadas
+                            para arrancar con la cola vacía.
                         </div>
-
-                    </div>
-                </page>
+                    </group>
+                </div>
             </xpath>
 
         </field>

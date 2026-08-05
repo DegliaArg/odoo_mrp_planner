@@ -53,14 +53,14 @@
               name="Inventario"
               parent="odoo_mrp_planner.mrp_planner_menu_root"
               sequence="15"
-              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin"/>
+              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
 
     <menuitem id="mrp_inventario_panel_menu"
               name="Panel de Inventario"
               parent="mrp_inventario_menu"
               sequence="1"
               action="action_mrp_inventory_dashboard_open"
-              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin"/>
+              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
 
     <!-- ── Vista del panel de Movimientos pendientes ──────────────────────────
          Recepciones y transferencias: el complemento del Panel de Inventario. -->
@@ -112,6 +112,6 @@
               parent="mrp_inventario_menu"
               sequence="2"
               action="action_mrp_movements_dashboard_open"
-              groups="odoo_mrp_planner_dispatch.group_inventory_read,odoo_mrp_planner_dispatch.group_inventory_admin"/>
+              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
 
 </odoo>

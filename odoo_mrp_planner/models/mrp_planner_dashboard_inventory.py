@@ -1,5 +1,5 @@
 """
-Módulo: mrp_planner_dashboard_inventory.py (odoo_mrp_planner_dispatch)
+Módulo: mrp_planner_dashboard_inventory.py (odoo_mrp_planner)
 Modelo: extensión de mrp.planner.dashboard
 
 Backend del Panel de Inventario: KPIs y gráficos de despacho (llamada 1) y
@@ -50,7 +50,7 @@ class MrpPlannerDashboard(models.TransientModel):
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',
-            'view_id': self.env.ref('odoo_mrp_planner_dispatch.mrp_inventory_dashboard_form').id,
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_inventory_dashboard_form').id,
             'target': 'main',
             'flags': {'withControlPanel': False},
         }
@@ -66,8 +66,8 @@ class MrpPlannerDashboard(models.TransientModel):
         # pasar además a admin del planificador y system, como en todos los
         # paneles: es control de datos; la visibilidad la maneja el menú).
         self._ensure_planner_group(
-            'odoo_mrp_planner_dispatch.group_inventory_read',
-            'odoo_mrp_planner_dispatch.group_inventory_admin')
+            'odoo_mrp_planner.group_inventory_read',
+            'odoo_mrp_planner.group_inventory_admin')
 
     # ── Helpers de calendario / filtros ──────────────────────────────────────
 
@@ -370,7 +370,7 @@ class MrpPlannerDashboard(models.TransientModel):
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        dispatch_enabled = bool(cfg and cfg.enable_dispatch_validation)
+        dispatch_enabled = self._inventory_dispatch_enabled()
         Log = self.env['mrp.dispatch.stock.log']
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
@@ -397,11 +397,11 @@ class MrpPlannerDashboard(models.TransientModel):
             dom += ['|',
                     ('name', 'ilike', search),
                     ('origin', 'ilike', search)]
-        # Eslabones pendientes; con el circuito activo, también las salidas
-        # validadas sin despachar (cola operativa)
-        if dispatch_enabled:
-            dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES)),
-                    '&', ('state', '=', 'done'), ('x_dispatch_state', '=', 'to_dispatch')]
+        # Eslabones pendientes; con el circuito de despacho activo, también su
+        # cola operativa (hoja de dominio provista por el módulo de despacho)
+        ready_leaf = self._inventory_ready_leaf()
+        if ready_leaf:
+            dom += ['|', ('state', 'in', list(PENDING_PICKING_STATES))] + ready_leaf
         else:
             dom.append(('state', 'in', list(PENDING_PICKING_STATES)))
         picks = self.env['stock.picking'].sudo().search(dom, order='scheduled_date asc')
@@ -512,17 +512,26 @@ class MrpPlannerDashboard(models.TransientModel):
         return {'rows': rows, 'can_dispatch': self._inventory_can_dispatch(),
                 'dispatch_enabled': dispatch_enabled}
 
+    # ── Hooks del circuito de despacho ────────────────────────────────────────
+    # El circuito es una extensión opcional (odoo_mrp_planner_dispatch) que
+    # redefine estos hooks; sin él, la tabla es de solo lectura y lista
+    # únicamente los eslabones pendientes.
+
+    @api.model
+    def _inventory_dispatch_enabled(self):
+        """True si el circuito de despacho está activo para la empresa."""
+        return False
+
+    @api.model
+    def _inventory_ready_leaf(self):
+        """Hoja de dominio de la cola operativa "Validado s/ despachar"
+        (None = sin circuito: la tabla no lista salidas validadas)."""
+        return None
+
     @api.model
     def _inventory_can_dispatch(self):
-        """Despacho masivo desde la tabla: requiere el circuito activo en la
-        empresa además del grupo (sin circuito la tabla es de solo lectura)."""
-        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        if not (cfg and cfg.enable_dispatch_validation):
-            return False
-        u = self.env.user
-        return (u.has_group('odoo_mrp_planner_dispatch.group_dispatch_validation')
-                or u.has_group('odoo_mrp_planner.group_admin')
-                or u.has_group('base.group_system'))
+        """True si el usuario puede despachar desde la tabla del panel."""
+        return False
 
     # ── Drills (Ver → de los KPIs) ────────────────────────────────────────────
 
@@ -553,6 +562,6 @@ class MrpPlannerDashboard(models.TransientModel):
             'domain': dom,
             # Lista propia de los drills: remito + cantidad por línea con total
             'context': {'create': False,
-                        'list_view_ref': 'odoo_mrp_planner_dispatch.view_picking_list_planner_drill'},
+                        'list_view_ref': 'odoo_mrp_planner.view_picking_list_planner_drill'},
             'target': 'current',
         }

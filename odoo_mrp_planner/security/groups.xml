@@ -59,6 +59,23 @@
         <field name="implied_ids" eval="[(4, ref('group_sales_read'))]"/>
     </record>
 
+    <!-- Inventario – Lectura -->
+    <record id="group_inventory_read" model="res.groups">
+        <field name="name">Inventario - Lectura</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el Panel de Inventario y el de Movimientos: KPIs de entregas, evolución de la tasa s/ disponible, composición del pendiente y las tablas operativas. No puede cambiar la configuración.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Inventario – Administrador -->
+    <record id="group_inventory_admin" model="res.groups">
+        <field name="name">Inventario - Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve los paneles de Inventario y Movimientos y modifica la pestaña Inventario de los Ajustes del planificador (registro de disponibilidad, corte de antigüedad y redondeo).</field>
+        <field name="users" eval="[]"/>
+        <field name="implied_ids" eval="[(4, ref('group_inventory_read'))]"/>
+    </record>
+
     <!-- Administrador -->
     <record id="group_admin" model="res.groups">
         <field name="name">Administrador</field>

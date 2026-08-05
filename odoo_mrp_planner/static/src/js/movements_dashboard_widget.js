@@ -1,5 +1,5 @@
 /**
- * movements_dashboard_widget.js (odoo_mrp_planner_dispatch)
+ * movements_dashboard_widget.js (odoo_mrp_planner)
  *
  * Widget del panel "Movimientos pendientes": recepciones y transferencias
  * pendientes — el complemento del Panel de Inventario (que cubre la cadena
@@ -63,7 +63,7 @@ const STATE_LABELS = {
 };
 
 class MovementsDashboardWidget extends Component {
-    static template = "odoo_mrp_planner_dispatch.MovementsDashboardWidget";
+    static template = "odoo_mrp_planner.MovementsDashboardWidget";
     static components = { PlannerSearchBar };
     static props = { record: { type: Object, optional: true }, "*": true };
 

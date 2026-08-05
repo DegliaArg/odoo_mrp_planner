@@ -68,60 +68,34 @@
         </field>
     </record>
 
-    <!-- ── Lista de los drills de los paneles: remito + cantidad por línea ──
-         Vista dedicada (priority alta para no ser la default de stock.picking);
-         los "Ver →" de los paneles la eligen vía list_view_ref. -->
-    <record id="view_picking_list_planner_drill" model="ir.ui.view">
-        <field name="name">stock.picking.list.planner.drill</field>
+    <!-- ── Columna Despacho en las listas de drills del base ── -->
+    <record id="view_picking_list_planner_drill_dispatch" model="ir.ui.view">
+        <field name="name">stock.picking.list.planner.drill.dispatch</field>
         <field name="model">stock.picking</field>
-        <field name="priority">100</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.view_picking_list_planner_drill"/>
         <field name="arch" type="xml">
-            <list string="Remitos" create="false">
-                <field name="name" decoration-bf="1"/>
-                <field name="partner_id" optional="show" string="Contacto"/>
-                <field name="origin" optional="show" string="Documento origen"/>
-                <field name="picking_type_id" optional="hide" string="Tipo de operación"/>
-                <field name="scheduled_date" optional="show" string="Fecha programada"/>
-                <field name="date_done" optional="hide" string="Fecha de validación"/>
-                <field name="x_qty_pieces" sum="Total" string="Cantidad (Pz)"/>
+            <field name="state" position="before">
                 <field name="x_dispatch_enabled" column_invisible="1"/>
                 <field name="x_dispatch_state" string="Despacho" widget="badge" optional="show"
                        invisible="not x_dispatch_enabled"
                        decoration-warning="x_dispatch_state == 'to_dispatch'"
                        decoration-success="x_dispatch_state == 'dispatched'"/>
-                <field name="state" widget="badge" optional="show"
-                       decoration-success="state == 'assigned' or state == 'done'"
-                       decoration-muted="state != 'assigned' and state != 'done'"/>
-            </list>
+            </field>
         </field>
     </record>
 
-    <!-- ── Lista de los drills de PENDIENTES: demanda, con stock y sin stock ──
-         Cada "Ver →" del pendiente muestra las tres cantidades con sus totales:
-         los pies de columna cierran con las cards del panel. -->
-    <record id="view_picking_list_planner_drill_pending" model="ir.ui.view">
-        <field name="name">stock.picking.list.planner.drill.pending</field>
+    <record id="view_picking_list_planner_drill_pending_dispatch" model="ir.ui.view">
+        <field name="name">stock.picking.list.planner.drill.pending.dispatch</field>
         <field name="model">stock.picking</field>
-        <field name="priority">100</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.view_picking_list_planner_drill_pending"/>
         <field name="arch" type="xml">
-            <list string="Demanda pendiente" create="false">
-                <field name="name" decoration-bf="1"/>
-                <field name="partner_id" optional="show" string="Contacto"/>
-                <field name="origin" optional="show" string="Documento origen"/>
-                <field name="picking_type_id" optional="hide" string="Tipo de operación"/>
-                <field name="scheduled_date" optional="show" string="Fecha programada"/>
-                <field name="x_qty_pieces" sum="Total" string="Demanda (Pz)"/>
-                <field name="x_qty_available_chain" sum="Total" string="Con stock (Pz)"/>
-                <field name="x_qty_blocked_chain" sum="Total" string="Sin stock (Pz)"/>
+            <field name="state" position="before">
                 <field name="x_dispatch_enabled" column_invisible="1"/>
                 <field name="x_dispatch_state" string="Despacho" widget="badge" optional="hide"
                        invisible="not x_dispatch_enabled"
                        decoration-warning="x_dispatch_state == 'to_dispatch'"
                        decoration-success="x_dispatch_state == 'dispatched'"/>
-                <field name="state" widget="badge" optional="show"
-                       decoration-success="state == 'assigned' or state == 'done'"
-                       decoration-muted="state != 'assigned' and state != 'done'"/>
-            </list>
+            </field>
         </field>
     </record>
 

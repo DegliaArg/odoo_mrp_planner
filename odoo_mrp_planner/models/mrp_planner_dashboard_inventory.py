@@ -149,18 +149,17 @@ class MrpPlannerDashboard(models.TransientModel):
 
         :returns: dict con:
             - 'enabled' (bool): registro de disponibilidad activo en Ajustes.
-            - 'kpis' (dict): pendiente/disponible/frenado (estado actual),
-              entregado del período, tasa de entrega s/ disponible y atraso
-              promedio de entrega.
             - 'trend' (list[dict]): evolución mensual de la tasa en el rango,
               cada mes con su origen ('monthly' congelado o 'live').
             - 'pending_by_wh' (list[dict]): composición actual del pendiente
               (disponible vs. sin stock) por depósito.
 
-        El disponible del pendiente se evalúa en el primer eslabón de la cadena
-        de cada movimiento (_chain_available_qty). Las salidas más viejas que
-        el corte de antigüedad configurado quedan fuera, y las cantidades en
-        piezas respetan "Forzar cantidades enteras" de Ajustes.
+        Las cards KPI del panel NO salen de acá: viven en la zona tabla
+        (get_inventory_pending_table). El disponible del pendiente se evalúa
+        en el primer eslabón de la cadena de cada movimiento
+        (_chain_available_qty). Las líneas más viejas que el corte de
+        antigüedad configurado quedan fuera, y las cantidades en piezas
+        respetan "Forzar cantidades enteras" de Ajustes.
 
         :param picking_type_ids: filtro opcional de tipos de operación de la
             cadena. Con filtro activo, los meses de la tasa se calculan en
@@ -194,8 +193,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ('picking_id.state', 'in', PENDING_PICKING_STATES),
             ('state', 'not in', ('draft', 'done', 'cancel')),
         ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
-        pending_total = pending_available = 0.0
-        pending_pick_ids = set()
         by_wh = {}  # {(wh_id, wh_name): [available, blocked]}
         if pending_moves:
             rows = pending_moves.read(['picking_id', 'product_uom_qty'])
@@ -209,64 +206,23 @@ class MrpPlannerDashboard(models.TransientModel):
                 qty = r['product_uom_qty'] or 0.0
                 avail = min(chain_avail.get(r['id'], 0.0), qty)
                 pick = r['picking_id'][0] if r['picking_id'] else False
-                pending_total     += qty
-                pending_available += avail
-                if pick:
-                    pending_pick_ids.add(pick)
                 info = type_info.get(pick_type.get(pick))
                 wh_key = (info[0], info[1]) if info else (False, _('Sin depósito'))
                 by_wh.setdefault(wh_key, [0.0, 0.0])
                 by_wh[wh_key][0] += avail
                 by_wh[wh_key][1] += qty - avail
 
-        # ── Entregado del período + atraso promedio de entrega ───────────────
-        # Estándar: salidas validadas, por fecha de validación.
-        delivered_picks = self.env['stock.picking'].sudo().search([
-            ('company_id', '=', company.id),
-            ('picking_type_code', '=', 'outgoing'),
-            ('state', '=', 'done'),
-            ('date_done', '>=', dt_from),
-            ('date_done', '<', dt_to),
-        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids else [])
-          + self._inventory_wh_domain(warehouse_ids))
-        delivered_qty = 0.0
-        delay_sum, delay_count = 0.0, 0
-        if delivered_picks:
-            d_moves = self.env['stock.move'].sudo().search([
-                ('picking_id', 'in', delivered_picks.ids),
-                ('state', '=', 'done'),
-            ])
-            delivered_qty = sum(r['quantity'] or 0.0
-                                for r in d_moves.read(['quantity']))
-            for p in delivered_picks.read(['scheduled_date', 'date_done']):
-                if p['scheduled_date'] and p['date_done']:
-                    delay_sum += (p['date_done'] - p['scheduled_date']).total_seconds() / 86400.0
-                    delay_count += 1
-
         # ── Evolución mensual de la tasa s/ disponible ────────────────────────
         trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg,
                                            picking_type_ids=picking_type_ids) \
             if log_enabled else []
-        rate_num = sum(m['num'] for m in trend)
-        rate_den = rate_num + sum(m['den_extra'] for m in trend)
-        rate_available = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
 
-        # Cantidades en piezas con el redondeo configurado (las tasas no)
+        # Cantidades en piezas con el redondeo configurado (las tasas no).
+        # Las cards KPI viven en la zona tabla (get_inventory_pending_table /
+        # _inventory_period_kpis): esta llamada alimenta solo los gráficos.
         qround = lambda v: self._inventory_qround(cfg, v)
         return {
             'enabled': log_enabled,
-            'kpis': {
-                'pending_total':      qround(pending_total),
-                'pending_available':  qround(pending_available),
-                'pending_blocked':    qround(pending_total - pending_available),
-                'pending_pickings':   len(pending_pick_ids),
-                'delivered_qty':      qround(delivered_qty),
-                'delivered_pickings': len(delivered_picks),
-                'avg_delivery_delay_days': round(delay_sum / delay_count, 1) if delay_count else None,
-                'rate_available':     rate_available,
-                'rate_available_num': qround(rate_num),
-                'rate_available_den': qround(rate_den),
-            },
             'trend': trend,
             'pending_by_wh': [
                 {'warehouse_id': wh_id, 'warehouse': wh_name,
@@ -376,12 +332,6 @@ class MrpPlannerDashboard(models.TransientModel):
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
         dispatch_enabled = self._inventory_dispatch_enabled()
         Log = self.env['mrp.dispatch.stock.log']
-        chain_type_ids, type_info = Log._dispatch_chain_types(
-            company, warehouse_ids or None)
-        empty = {'rows': [], 'can_dispatch': self._inventory_can_dispatch(),
-                 'dispatch_enabled': dispatch_enabled}
-        if not chain_type_ids:
-            return empty
 
         # Fechas del filtro interpretadas como días locales del usuario
         # (las fechas se guardan en UTC)
@@ -391,6 +341,19 @@ class MrpPlannerDashboard(models.TransientModel):
         dt_from = to_utc(fields.Date.from_string(date_from)) if date_from else None
         dt_to = to_utc(fields.Date.from_string(date_to) + timedelta(days=1)) \
             if date_to else None
+
+        # KPIs del período con los MISMOS filtros de la tabla: el rango se
+        # aplica a la fecha de validación (date_done) y los depósitos son los
+        # de esta barra — así las cards cierran con sus listas.
+        period = self._inventory_period_kpis(company, cfg, warehouse_ids,
+                                             date_from, date_to, dt_from, dt_to)
+
+        chain_type_ids, type_info = Log._dispatch_chain_types(
+            company, warehouse_ids or None)
+        empty = {'rows': [], 'can_dispatch': self._inventory_can_dispatch(),
+                 'dispatch_enabled': dispatch_enabled, 'period_kpis': period}
+        if not chain_type_ids:
+            return empty
 
         # ── Líneas pendientes de la cadena, filtradas por SU fecha programada ──
         move_dom = [
@@ -535,7 +498,62 @@ class MrpPlannerDashboard(models.TransientModel):
                 'days_available': (today - avail_since).days if avail_since else None,
             })
         return {'rows': rows, 'can_dispatch': self._inventory_can_dispatch(),
-                'dispatch_enabled': dispatch_enabled}
+                'dispatch_enabled': dispatch_enabled, 'period_kpis': period}
+
+    @api.model
+    def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
+                               dt_from, dt_to):
+        """Entregado / tasa / atraso del rango de la tabla.
+
+        Mismos filtros que la tabla: el rango de fechas se aplica a la fecha
+        de validación (date_done) y los depósitos son los de su barra. Sin
+        rango, el entregado abarca todo el histórico visible; la tasa
+        requiere rango completo (sus meses salen del consolidado/snapshots)
+        y sin él queda sin calcular.
+
+        :returns: dict — delivered_qty/_pickings, avg_delivery_delay_days,
+                  rate_available(_num/_den).
+        """
+        dom = [
+            ('company_id', '=', company.id),
+            ('picking_type_code', '=', 'outgoing'),
+            ('state', '=', 'done'),
+        ] + self._inventory_wh_domain(warehouse_ids)
+        if dt_from:
+            dom.append(('date_done', '>=', dt_from))
+        if dt_to:
+            dom.append(('date_done', '<', dt_to))
+        delivered_picks = self.env['stock.picking'].sudo().search(dom)
+        delivered_qty = 0.0
+        delay_sum, delay_count = 0.0, 0
+        if delivered_picks:
+            d_moves = self.env['stock.move'].sudo().search([
+                ('picking_id', 'in', delivered_picks.ids),
+                ('state', '=', 'done'),
+            ])
+            delivered_qty = sum(r['quantity'] or 0.0
+                                for r in d_moves.read(['quantity']))
+            for p in delivered_picks.read(['scheduled_date', 'date_done']):
+                if p['scheduled_date'] and p['date_done']:
+                    delay_sum += (p['date_done'] - p['scheduled_date']).total_seconds() / 86400.0
+                    delay_count += 1
+        rate = rate_num = rate_den = None
+        if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
+            trend = self._inventory_rate_trend(
+                company, fields.Date.from_string(date_from),
+                fields.Date.from_string(date_to), warehouse_ids, cfg)
+            rate_num = sum(m['num'] for m in trend)
+            rate_den = rate_num + sum(m['den_extra'] for m in trend)
+            rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
+        qround = lambda v: self._inventory_qround(cfg, v)
+        return {
+            'delivered_qty':      qround(delivered_qty),
+            'delivered_pickings': len(delivered_picks),
+            'avg_delivery_delay_days': round(delay_sum / delay_count, 1) if delay_count else None,
+            'rate_available':     rate,
+            'rate_available_num': qround(rate_num) if rate_num is not None else None,
+            'rate_available_den': qround(rate_den) if rate_den is not None else None,
+        }
 
     # ── Hooks del circuito de despacho ────────────────────────────────────────
     # El circuito es una extensión opcional (odoo_mrp_planner_dispatch) que
@@ -565,19 +583,26 @@ class MrpPlannerDashboard(models.TransientModel):
     # servidor no puede replicar búsqueda, filtros, pestaña y selección.
 
     @api.model
-    def action_inventory_delivered(self, period_from, period_to, warehouse_ids=None,
-                                   picking_type_ids=None):
-        """Lista nativa de salidas entregadas (validadas) en el período."""
+    def action_inventory_delivered(self, period_from=None, period_to=None,
+                                   warehouse_ids=None, picking_type_ids=None):
+        """Lista nativa de salidas entregadas (validadas): mismos filtros que
+        la card "Entregado del período" — rango de la tabla sobre la fecha de
+        validación (date_done) y sus depósitos. Fechas opcionales."""
         self._inventory_ensure_group()
-        _d_from, _d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
+        tz = self._inventory_tz()
+        to_utc = lambda d: tz.localize(datetime.combine(d, datetime.min.time())) \
+            .astimezone(pytz.utc).replace(tzinfo=None)
         dom = [
             ('company_id', '=', self.env.company.id),
             ('picking_type_code', '=', 'outgoing'),
             ('state', '=', 'done'),
-            ('date_done', '>=', dt_from),
-            ('date_done', '<', dt_to),
         ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids else []) \
           + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
+        if period_from:
+            dom.append(('date_done', '>=', to_utc(fields.Date.from_string(period_from))))
+        if period_to:
+            dom.append(('date_done', '<',
+                        to_utc(fields.Date.from_string(period_to) + timedelta(days=1))))
         return {
             'type': 'ir.actions.act_window',
             'name': _('Salidas entregadas del período'),

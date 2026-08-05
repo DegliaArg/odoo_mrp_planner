@@ -200,9 +200,10 @@
 
             <!-- ── Cards KPI: una sola fila con todos los indicadores ──
                  Las 5 primeras son dinámicas con la tabla (fechas, búsqueda,
-                 filtros, pestaña activa y selección); las 3 del período
-                 obedecen al rango y filtros de la zona de gráficos. La
-                 navegación a las listas es solo por el botón "Ver →". -->
+                 filtros, pestaña activa y selección); las 3 del período usan
+                 el rango de fechas de la tabla aplicado a la fecha de
+                 validación, con sus depósitos. La navegación a las listas es
+                 solo por el botón "Ver →". -->
             <div class="d-flex gap-2 mb-3">
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
@@ -279,8 +280,8 @@
                          t-att-title="kpiTooltip('delivered')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-send fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(periodKpis.delivered_qty) + ' Pz')"
-                                 t-esc="state.data ? fmt(periodKpis.delivered_qty) + ' Pz' : '—'"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPz(periodKpis.delivered_qty))"
+                                 t-esc="fmtPz(periodKpis.delivered_qty)"/>
                             <div class="o_planner_label">Entregado del período</div>
                             <div class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="periodKpis.delivered_pickings || 0"/> remito(s)

@@ -121,6 +121,7 @@ class InventoryDashboardWidget extends Component {
             page:           1,
             pageSize:       30,
             rows:           [],
+            periodKpis:     {},
             canDispatch:    false,
             dispatchEnabled: false,
             tableLoading:   true,
@@ -187,6 +188,10 @@ class InventoryDashboardWidget extends Component {
     /** Atraso en días con signo, o em dash sin datos. */
     fmtDelay(v) {
         return (v === null || v === undefined) ? "—" : fmt(v) + " d";
+    }
+    /** Piezas, o em dash mientras no hay datos. */
+    fmtPz(v) {
+        return (v === null || v === undefined) ? "—" : fmt(v) + " Pz";
     }
 
     // ── Zona gráficos ─────────────────────────────────────────────────────────
@@ -402,9 +407,9 @@ class InventoryDashboardWidget extends Component {
 
     // ── Tooltips de KPIs y columnas ───────────────────────────────────────────
 
-    /** KPIs del período (zona gráficos) ya cargados, o {} mientras cargan. */
+    /** KPIs del período: llegan con la llamada de la tabla (mismos filtros). */
     get periodKpis() {
-        return (this.state.data && this.state.data.kpis) || {};
+        return this.state.periodKpis || {};
     }
 
     /** Tooltips de las cards: descripción, fórmula y sustitución numérica
@@ -429,13 +434,13 @@ class InventoryDashboardWidget extends Component {
                 return `Remitos de ${scope} con la fecha programada ya vencida\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
                 return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
-            // ── Cards del período (obedecen al rango de fechas y filtros de los gráficos) ──
+            // ── Cards del período (mismo rango de la tabla, sobre la fecha de validación) ──
             case "delivered":
-                return `Cantidad entregada en el período de los gráficos: salidas validadas, por fecha de validación\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)`;
+                return `Cantidad entregada en el rango de fechas de la tabla: salidas validadas, por fecha de validación (con sus depósitos)\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)`;
             case "rate":
-                return `De lo que estuvo disponible en el período, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios.`;
+                return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.`;
             case "delay":
-                return `Atraso promedio de las entregas del período (negativo = antes de lo programado)\nPromedio de (fecha de validación − fecha programada)\n→ ${k.avg_delivery_delay_days !== null && k.avg_delivery_delay_days !== undefined ? fmt(k.avg_delivery_delay_days) + " d" : "—"} en ${k.delivered_pickings || 0} remito(s)`;
+                return `Atraso promedio de las entregas del rango de la tabla (negativo = antes de lo programado)\nPromedio de (fecha de validación − fecha programada)\n→ ${k.avg_delivery_delay_days !== null && k.avg_delivery_delay_days !== undefined ? fmt(k.avg_delivery_delay_days) + " d" : "—"} en ${k.delivered_pickings || 0} remito(s)`;
             default:
                 return "";
         }
@@ -498,9 +503,11 @@ class InventoryDashboardWidget extends Component {
         });
     }
     async openDelivered() {
+        // Mismos filtros que la card: rango de la tabla (sobre la fecha de
+        // validación) y sus depósitos
         const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
-            [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds,
-             this.state.chartTypeIds]);
+            [this.state.tblFrom || false, this.state.tblTo || false,
+             this.state.tblWhIds]);
         this.action.doAction(act);
     }
     openPicking(row) {
@@ -543,6 +550,7 @@ class InventoryDashboardWidget extends Component {
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblSearch]);
             this.state.rows            = res.rows || [];
+            this.state.periodKpis      = res.period_kpis || {};
             this.state.canDispatch     = !!res.can_dispatch;
             this.state.dispatchEnabled = !!res.dispatch_enabled;
             this.state.selected        = {};

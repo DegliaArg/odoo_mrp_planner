@@ -542,9 +542,14 @@ class MrpPlannerDashboard(models.TransientModel):
             ])
             delivered_qty = sum(r['quantity'] or 0.0
                                 for r in d_moves.read(['quantity']))
+            # Atraso por FECHA calendario local (sin horas): entregar el mismo
+            # día programado es atraso 0, un día después es 1.
+            tz = self._inventory_tz()
+            to_local_date = lambda dt: pytz.utc.localize(dt).astimezone(tz).date()
             for p in delivered_picks.read(['scheduled_date', 'date_done']):
                 if p['scheduled_date'] and p['date_done']:
-                    delay_sum += (p['date_done'] - p['scheduled_date']).total_seconds() / 86400.0
+                    delay_sum += (to_local_date(p['date_done'])
+                                  - to_local_date(p['scheduled_date'])).days
                     delay_count += 1
         rate = rate_num = rate_den = None
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:

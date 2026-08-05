@@ -551,6 +551,8 @@ class MrpPlannerDashboard(models.TransientModel):
             'view_mode': 'list,form',
             'views': [[False, 'list'], [False, 'form']],
             'domain': dom,
-            'context': {'create': False},
+            # Lista propia de los drills: remito + cantidad por línea con total
+            'context': {'create': False,
+                        'list_view_ref': 'odoo_mrp_planner_dispatch.view_picking_list_planner_drill'},
             'target': 'current',
         }

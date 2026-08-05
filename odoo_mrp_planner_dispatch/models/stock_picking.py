@@ -39,6 +39,32 @@ class StockPicking(models.Model):
         help='Indicador calculado: True si la función de despacho está habilitada '
              'en los Ajustes del planificador de la empresa del remito y la operación '
              'es una salida. Controla la visibilidad del estado y los botones.')
+    x_qty_pieces = fields.Float(
+        string='Cantidad (Pz)', compute='_compute_x_qty_pieces',
+        digits='Product Unit of Measure',
+        help='Suma de las cantidades de las líneas del remito: demandadas si el '
+             'remito está pendiente, hechas si ya está validado. Columna '
+             'informativa de las listas que abren los paneles del planificador.')
+
+    def _compute_x_qty_pieces(self):
+        # Suma por remito en dos pasadas batch (una por criterio de estado)
+        Move = self.env['stock.move'].sudo()
+        pending = self.filtered(lambda p: p.state not in ('done', 'cancel'))
+        done = self.filtered(lambda p: p.state == 'done')
+        totals = {}
+        if pending:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', pending.ids),
+                     ('state', 'not in', ('draft', 'done', 'cancel'))],
+                    ['picking_id'], ['product_uom_qty:sum']):
+                totals[picking.id] = qty
+        if done:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', done.ids), ('state', '=', 'done')],
+                    ['picking_id'], ['quantity:sum']):
+                totals[picking.id] = qty
+        for pick in self:
+            pick.x_qty_pieces = totals.get(pick.id, 0.0)
 
     def _dispatch_type_cache(self):
         """Cache por empresa para decidir si un remito entra al circuito:

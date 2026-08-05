@@ -469,7 +469,11 @@ class InventoryDashboardWidget extends Component {
             res_model: "stock.picking",
             domain: [["id", "in", rows.map(r => r.picking_id)]],
             views: [[false, "list"], [false, "form"]],
-            context: { create: false },
+            // Lista propia de los drills: remito + cantidad por línea con total
+            context: {
+                create: false,
+                list_view_ref: "odoo_mrp_planner_dispatch.view_picking_list_planner_drill",
+            },
             target: "current",
         });
     }

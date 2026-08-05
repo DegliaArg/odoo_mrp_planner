@@ -29,15 +29,17 @@ class TestMrpPlannerDashboard(TransactionCase):
             "name": "Producto Test Dashboard",
             "type": "consu",
         })
-        # Depósito principal de la empresa activa (siempre existe en Odoo).
-        cls.warehouse = cls.env["stock.warehouse"].search(
-            [("company_id", "=", cls.env.company.id)], limit=1
-        )
-        # Tipo de operación de fabricación del depósito principal.
+        # Tipo de operación de fabricación de la empresa activa y SU depósito.
+        # OJO: el depósito se deriva del tipo (y no al revés) porque en bases
+        # reales el primer depósito de la empresa puede no fabricar (p. ej. un
+        # depósito de componentes): una OF creada con picking_type_id=False
+        # cae en el tipo default de OTRO depósito y rompe los filtros del test.
         cls.mfg_type = cls.env["stock.picking.type"].search([
             ("code", "=", "mrpoperation"),
-            ("warehouse_id", "=", cls.warehouse.id),
+            ("company_id", "=", cls.env.company.id),
+            ("warehouse_id", "!=", False),
         ], limit=1)
+        cls.warehouse = cls.mfg_type.warehouse_id
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 

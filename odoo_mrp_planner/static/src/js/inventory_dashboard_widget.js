@@ -441,7 +441,7 @@ class InventoryDashboardWidget extends Component {
         switch (key) {
             // ── Cards de la tabla (dinámicas: fechas, búsqueda, filtros, pestaña y selección) ──
             case "pending":
-                return `Demanda aún no entregada de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o salida)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
+                return `Demanda aún no entregada de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o entrega)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
             case "available":
                 return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy\nSuma por línea de mín(demanda, reservado en la cadena)\n→ ${fmt(t.available)} Pz`;
             case "blocked":
@@ -466,7 +466,7 @@ class InventoryDashboardWidget extends Component {
     colTitle(col) {
         const titles = {
             name:           "Número del remito — clic para abrirlo.",
-            stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Salida. \"Validado s/ despachar\" (con el circuito activo) es la salida ya entregada que falta marcar como despachada.",
+            stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Entrega. \"Validado s/ despachar\" (con el circuito activo) es la entrega ya validada que falta marcar como despachada.",
             origin:         "Documento origen del remito — clic para abrir el pedido de venta.",
             warehouse:      "Depósito del tipo de operación del remito.",
             scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida (\"hoy\" = vence hoy).",

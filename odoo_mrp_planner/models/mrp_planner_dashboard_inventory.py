@@ -461,7 +461,7 @@ class MrpPlannerDashboard(models.TransientModel):
         stage_labels = {
             'pick':  _('Recolección'),
             'pack':  _('Embalaje'),
-            'ship':  _('Salida'),
+            'ship':  _('Entrega'),
             'ready': _('Validado s/ despachar'),
         }
         rows = []

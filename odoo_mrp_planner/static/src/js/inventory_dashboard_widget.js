@@ -193,10 +193,6 @@ class InventoryDashboardWidget extends Component {
         if (len <= 14) return "";
         return "o_planner_num_md";
     }
-    /** Atraso en días con signo, o em dash sin datos. */
-    fmtDelay(v) {
-        return (v === null || v === undefined) ? "—" : fmt(v) + " d";
-    }
     /** Piezas, o em dash mientras no hay datos. */
     fmtPz(v) {
         return (v === null || v === undefined) ? "—" : fmt(v) + " Pz";
@@ -457,8 +453,6 @@ class InventoryDashboardWidget extends Component {
                 return `Cantidad entregada en el rango de fechas de la tabla: salidas validadas, por fecha de validación (con sus depósitos)\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)`;
             case "rate":
                 return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.`;
-            case "delay":
-                return `Atraso promedio de las entregas del rango de la tabla (negativo = antes de lo programado)\nPromedio de (fecha de validación − fecha programada)\n→ ${k.avg_delivery_delay_days !== null && k.avg_delivery_delay_days !== undefined ? fmt(k.avg_delivery_delay_days) + " d" : "—"} en ${k.delivered_pickings || 0} remito(s)`;
             default:
                 return "";
         }

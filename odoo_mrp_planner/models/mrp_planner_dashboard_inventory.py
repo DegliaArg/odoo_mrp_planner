@@ -518,7 +518,7 @@ class MrpPlannerDashboard(models.TransientModel):
     @api.model
     def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
                                dt_from, dt_to, picking_type_ids=None):
-        """Entregado / tasa / atraso del rango de la tabla.
+        """Entregado / tasa del rango de la tabla.
 
         Mismos filtros que la tabla: el rango de fechas se aplica a la fecha
         de validación (date_done) y los depósitos son los de su barra. Sin
@@ -526,8 +526,7 @@ class MrpPlannerDashboard(models.TransientModel):
         requiere rango completo (sus meses salen del consolidado/snapshots)
         y sin él queda sin calcular.
 
-        :returns: dict — delivered_qty/_pickings, avg_delivery_delay_days,
-                  rate_available(_num/_den).
+        :returns: dict — delivered_qty/_pickings, rate_available(_num/_den).
         """
         dom = [
             ('company_id', '=', company.id),
@@ -541,7 +540,6 @@ class MrpPlannerDashboard(models.TransientModel):
             dom.append(('date_done', '<', dt_to))
         delivered_picks = self.env['stock.picking'].sudo().search(dom)
         delivered_qty = 0.0
-        delay_sum, delay_count = 0.0, 0
         if delivered_picks:
             d_moves = self.env['stock.move'].sudo().search([
                 ('picking_id', 'in', delivered_picks.ids),
@@ -549,15 +547,6 @@ class MrpPlannerDashboard(models.TransientModel):
             ])
             delivered_qty = sum(r['quantity'] or 0.0
                                 for r in d_moves.read(['quantity']))
-            # Atraso por FECHA calendario local (sin horas): entregar el mismo
-            # día programado es atraso 0, un día después es 1.
-            tz = self._inventory_tz()
-            to_local_date = lambda dt: pytz.utc.localize(dt).astimezone(tz).date()
-            for p in delivered_picks.read(['scheduled_date', 'date_done']):
-                if p['scheduled_date'] and p['date_done']:
-                    delay_sum += (to_local_date(p['date_done'])
-                                  - to_local_date(p['scheduled_date'])).days
-                    delay_count += 1
         rate = rate_num = rate_den = None
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
             trend = self._inventory_rate_trend(
@@ -571,7 +560,6 @@ class MrpPlannerDashboard(models.TransientModel):
         return {
             'delivered_qty':      qround(delivered_qty),
             'delivered_pickings': len(delivered_picks),
-            'avg_delivery_delay_days': round(delay_sum / delay_count, 1) if delay_count else None,
             'rate_available':     rate,
             'rate_available_num': qround(rate_num) if rate_num is not None else None,
             'rate_available_den': qround(rate_den) if rate_den is not None else None,

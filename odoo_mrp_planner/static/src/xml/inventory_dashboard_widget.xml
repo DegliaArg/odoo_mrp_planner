@@ -308,17 +308,6 @@
                         </div>
                     </div>
                 </div>
-                <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         t-att-title="kpiTooltip('delay')">
-                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                            <i class="fa fa-hourglass-half fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmtDelay(periodKpis.avg_delivery_delay_days))"
-                                 t-esc="fmtDelay(periodKpis.avg_delivery_delay_days)"/>
-                            <div class="o_planner_label">Atraso prom. de entrega</div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->

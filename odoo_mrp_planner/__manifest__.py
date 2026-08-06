@@ -104,6 +104,7 @@ Programación y reprogramación
             'odoo_mrp_planner/static/src/js/sales_chart_widget.js',
             'odoo_mrp_planner/static/src/xml/sales_chart_widget.xml',
             'odoo_mrp_planner/static/src/js/customer_analysis_charts.js',
+            'odoo_mrp_planner/static/src/js/customer_analysis_panel.js',
             'odoo_mrp_planner/static/src/js/customer_analysis_widget.js',
             'odoo_mrp_planner/static/src/xml/customer_analysis_widget.xml',
             'odoo_mrp_planner/static/src/xml/customer_analysis_row.xml',

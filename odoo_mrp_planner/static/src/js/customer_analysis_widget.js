@@ -16,6 +16,10 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { restoreFilters, saveFilters } from "./filter_persistence";
 import { destroyPanelCharts, destroyCharts, drawTopChart, drawTopDonut, drawPanelCharts, CHART_COLORS } from "./customer_analysis_charts";
+import {
+    toggleDetail, toggleRow, getSortedOrders, sortRowOrders, panelTopProducts,
+    setPanelMetric, setPanelChartMode, setPanelTopN, sortPanelProds,
+} from "./customer_analysis_panel";
 import { buildGroupTabs, pageSlice, makePager } from "./planner_table";
 import { makeSelection } from "./planner_selection";
 import { downloadExcelXml } from "./planner_export";
@@ -682,42 +686,9 @@ class CustomerAnalysisWidget extends Component {
     get hasPrevPage() { return this.pager.hasPrev; }
     get hasNextPage() { return this.pager.hasNext; }
 
-    // ── Panel lateral ─────────────────────────────────────────────────────────
+    // ── Panel lateral y filas expandibles (customer_analysis_panel.js) ────────
 
-    async toggleDetail(partnerId) {
-        if (this.state.panelPartnerId === partnerId) {
-            this.state.panelPartnerId = null;
-            this.state.panelData      = null;
-            this._lastPanelKey        = null;
-            this._destroyPanelCharts();
-            return;
-        }
-        this._destroyPanelCharts();
-        this._lastPanelKey        = null;
-        this.state.panelPartnerId = partnerId;
-        this.state.panelData      = null;
-        this.state.panelLoading   = true;
-        // Si se abre el panel, cerrar la fila expandida del mismo cliente
-        if (this.state.expandedRows[partnerId]) {
-            this.state.expandedRows[partnerId] = false;
-        }
-        try {
-            // Con "Unificar por CUIT" la fila puede agrupar varios partners:
-            // el panel agrega los pedidos de todos ellos.
-            const row = this.state.allRows.find(r => r.partner_id === partnerId);
-            const partnerIds = (row && row.partner_ids) || [partnerId];
-            const data = await this.orm.call(
-                'mrp.planner.dashboard',
-                'get_customer_detail',
-                [partnerId, this.state.dateFrom, this.state.dateTo, null, partnerIds]
-            );
-            this.state.panelData = data;
-        } catch (e) {
-            console.error('[CustomerAnalysis] toggleDetail', e);
-        } finally {
-            this.state.panelLoading = false;
-        }
-    }
+    async toggleDetail(partnerId) { return toggleDetail(this, partnerId); }
 
     _destroyPanelCharts() { destroyPanelCharts(this); }
 
@@ -748,21 +719,8 @@ class CustomerAnalysisWidget extends Component {
         if (this.state.chartDonut !== d)  { this.state.chartDonut  = d; this._topDonutKey = ''; }
     }
 
-    setPanelMetric(m) {
-        if (this.state.panelMetric !== m) {
-            this.state.panelMetric   = m;
-            this.state.panelProdSort = m === 'qty' ? 'qty_ordered' : 'amount';
-            this.state.panelProdDir  = 'desc';
-            this._panelDonutsKey     = '';
-            this._panelChartKey      = '';
-        }
-    }
-    setPanelChartMode(mode) {
-        if (this.state.panelChartMode !== mode) {
-            this.state.panelChartMode = mode;
-            this._panelChartKey       = '';
-        }
-    }
+    setPanelMetric(m)       { setPanelMetric(this, m); }
+    setPanelChartMode(mode) { setPanelChartMode(this, mode); }
     partnerTagColor(colorIdx) {
         const palette = [
             '#aaaaaa', '#e06c75', '#e09b49', '#e8d04a',
@@ -776,16 +734,8 @@ class CustomerAnalysisWidget extends Component {
         const map = { A: '#198754', B: '#0d6efd', C: '#ffc107', D: '#6c757d', E: '#c8d2dc' };
         return map[name] || '#6c757d';
     }
-    setPanelTopN(n) { this.state.panelTopN = n; }
-
-    sortPanelProds(key) {
-        if (this.state.panelProdSort === key) {
-            this.state.panelProdDir = this.state.panelProdDir === 'desc' ? 'asc' : 'desc';
-        } else {
-            this.state.panelProdSort = key;
-            this.state.panelProdDir  = 'desc';
-        }
-    }
+    setPanelTopN(n)     { setPanelTopN(this, n); }
+    sortPanelProds(key) { sortPanelProds(this, key); }
 
     openProduct(tmplId) {
         if (!tmplId) return;
@@ -798,26 +748,8 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
-    sortRowOrders(key) {
-        if (this.state.rowOrderSort === key) {
-            this.state.rowOrderDir = this.state.rowOrderDir === 'desc' ? 'asc' : 'desc';
-        } else {
-            this.state.rowOrderSort = key;
-            this.state.rowOrderDir  = 'desc';
-        }
-    }
-
-    getSortedOrders(partnerId) {
-        const orders = this.state.rowOrders[partnerId] || [];
-        const key    = this.state.rowOrderSort;
-        const dir    = this.state.rowOrderDir === 'desc' ? -1 : 1;
-        return [...orders].sort((a, b) => {
-            const va = a[key] ?? -Infinity;
-            const vb = b[key] ?? -Infinity;
-            if (typeof va === 'string') return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
-            return dir * (va - vb);
-        });
-    }
+    sortRowOrders(key)         { sortRowOrders(this, key); }
+    getSortedOrders(partnerId) { return getSortedOrders(this, partnerId); }
 
     orderStateBadgeClass(state) {
         return {
@@ -828,53 +760,15 @@ class CustomerAnalysisWidget extends Component {
         }[state] || 'badge text-bg-secondary';
     }
 
-    get panelTopProducts() {
-        const all = this.state.panelData?.top_products || [];
-        const key = this.state.panelProdSort;
-        const dir = this.state.panelProdDir === 'desc' ? -1 : 1;
-        const sorted = [...all].sort((a, b) => {
-            const va = a[key] ?? (typeof a[key] === 'string' ? '' : -Infinity);
-            const vb = b[key] ?? (typeof b[key] === 'string' ? '' : -Infinity);
-            if (typeof va === 'string') return dir * va.localeCompare(vb, 'es', { sensitivity: 'base' });
-            return dir * (va - vb);
-        });
-        return sorted.slice(0, this.state.panelTopN);
-    }
+    get panelTopProducts() { return panelTopProducts(this); }
 
     _drawTopChart() { drawTopChart(this); }
 
     _drawTopDonut() { drawTopDonut(this); }
 
-    // ── Filas expandibles ─────────────────────────────────────────────────────
+    // ── Filas expandibles (customer_analysis_panel.js) ────────────────────────
 
-    async toggleRow(partnerId) {
-        const isOpen = !!this.state.expandedRows[partnerId];
-        this.state.expandedRows[partnerId] = !isOpen;
-        // Si se abre la fila de pedidos, cerrar el panel de análisis del mismo cliente
-        if (!isOpen && this.state.panelPartnerId === partnerId) {
-            this.state.panelPartnerId = null;
-            this.state.panelData      = null;
-            this._destroyPanelCharts();
-        }
-        if (!isOpen && !this.state.rowOrders[partnerId]) {
-            this.state.rowOrdersLoading[partnerId] = true;
-            try {
-                const row = this.state.allRows.find(r => r.partner_id === partnerId);
-                const partnerIds = (row && row.partner_ids) || [partnerId];
-                const data = await this.orm.call(
-                    'mrp.planner.dashboard',
-                    'get_customer_detail',
-                    [partnerId, this.state.dateFrom, this.state.dateTo, null, partnerIds]
-                );
-                this.state.rowOrders[partnerId] = data.orders || [];
-            } catch (e) {
-                console.error('[CustomerAnalysis] toggleRow', e);
-                this.state.rowOrders[partnerId] = [];
-            } finally {
-                this.state.rowOrdersLoading[partnerId] = false;
-            }
-        }
-    }
+    async toggleRow(partnerId) { return toggleRow(this, partnerId); }
 
     openCustomer(partnerId) {
         this.action.doAction({

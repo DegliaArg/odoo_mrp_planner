@@ -140,8 +140,11 @@ class MrpPlannerDashboard(models.TransientModel):
         if warehouse_ids:
             dom.append(('warehouse_id', 'in', warehouse_ids))
         info = {}
-        for t in self.env['stock.picking.type'].sudo().search(dom).read(
-                ['display_name', 'code', 'warehouse_id']):
+        # active_test=False: los tipos ARCHIVADOS también entran — sus remitos
+        # históricos los siguen referenciando y sin ellos el panel excluiría
+        # operaciones reales (y no cerraría contra los análisis nativos).
+        Type = self.env['stock.picking.type'].sudo().with_context(active_test=False)
+        for t in Type.search(dom).read(['display_name', 'code', 'warehouse_id']):
             chain = chain_info.get(t['id'])
             if chain:
                 stage = chain[2]

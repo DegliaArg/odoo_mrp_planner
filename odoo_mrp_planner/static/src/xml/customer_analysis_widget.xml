@@ -164,8 +164,16 @@
 
             </div>
 
+            <!-- Spinner solo en la PRIMERA carga; en las recargas por cambio de
+                 filtros el contenido queda montado y atenuado (soft reload) -->
+            <div t-if="state.loading and !state.allRows.length"
+                 class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+                <div class="mt-2 small">Cargando datos…</div>
+            </div>
+
             <!-- ── Gráficos superiores ───────────────────────────────────────── -->
-            <t t-if="!state.loading and state.allRows.length">
+            <t t-if="state.allRows.length">
 
                 <!-- Torta (flex:1 ≈ 30%) + Barras (flex:2 ≈ 70%) -->
                 <div class="d-flex gap-3 align-items-start mb-4">

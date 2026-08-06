@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="odoo_mrp_planner.SalesChartWidget">
-        <div class="o_sales_chart_widget">
+        <div t-att-class="'o_sales_chart_widget' + (state.loading ? ' opacity-50 pe-none' : '')">
 
             <!-- Fila única de filtros -->
             <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
@@ -121,8 +121,9 @@
 
             </div>
 
-            <!-- Cargando -->
-            <div t-if="state.loading" class="text-center text-muted py-5">
+            <!-- Spinner solo en la PRIMERA carga; en las recargas por cambio de
+                 filtros los gráficos quedan montados y atenuados (soft reload) -->
+            <div t-if="state.loading and !state.rows.length" class="text-center text-muted py-5">
                 <i class="fa fa-spinner fa-spin fa-2x"/>
             </div>
 

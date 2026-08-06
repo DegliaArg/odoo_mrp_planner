@@ -348,12 +348,14 @@ class MrpPlannerDashboard(models.TransientModel):
         # KPIs del período con los MISMOS filtros de la tabla: el rango se
         # aplica a la fecha de validación (date_done) y los depósitos son los
         # de esta barra — así las cards cierran con sus listas.
-        period = self._inventory_period_kpis(company, cfg, warehouse_ids,
-                                             date_from, date_to, dt_from, dt_to,
-                                             picking_type_ids=picking_type_ids)
-
         chain_type_ids, type_info = Log._dispatch_chain_types(
             company, warehouse_ids or None)
+
+        period = self._inventory_period_kpis(company, cfg, warehouse_ids,
+                                             date_from, date_to, dt_from, dt_to,
+                                             picking_type_ids=picking_type_ids,
+                                             chain_type_ids=chain_type_ids)
+
         if picking_type_ids:
             type_info = {t: info for t, info in type_info.items()
                          if t in picking_type_ids}
@@ -517,27 +519,29 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
-                               dt_from, dt_to, picking_type_ids=None):
-        """Entregado / tasa del rango de la tabla.
+                               dt_from, dt_to, picking_type_ids=None,
+                               chain_type_ids=None):
+        """Validados / tasa del rango de la tabla.
 
         Mismos filtros que la tabla: el rango de fechas se aplica a la fecha
         de validación (date_done) y los depósitos son los de su barra. Sin
-        rango, el entregado abarca todo el histórico visible; la tasa
+        rango, los validados abarcan todo el histórico visible; la tasa
         requiere rango completo (sus meses salen del consolidado/snapshots)
         y sin él queda sin calcular.
 
-        Con tipos de operación seleccionados, el "validado del período" cuenta
-        los remitos validados de ESOS tipos (sea recolección, embalaje o
-        salida); sin selección cuenta solo las salidas — el eslabón final —
-        para que la misma mercadería no se duplique por cada eslabón que
-        atraviesa. La tasa conserva siempre su semántica de salidas.
+        "Validados del período" cuenta los remitos validados de los tipos
+        seleccionados; sin selección, los de TODA la cadena de entrega
+        (recolección + embalaje + salida) — una misma mercadería suma en
+        cada eslabón que validó. La tasa conserva siempre su semántica de
+        salidas y usa solo la selección explícita del usuario.
 
         :returns: dict — delivered_qty/_pickings, rate_available(_num/_den).
         """
+        validated_types = picking_type_ids or chain_type_ids
         dom = [
             ('company_id', '=', company.id),
             ('state', '=', 'done'),
-        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids
+        ] + ([('picking_type_id', 'in', validated_types)] if validated_types
              else [('picking_type_code', '=', 'outgoing')]) \
           + self._inventory_wh_domain(warehouse_ids)
         if dt_from:
@@ -609,12 +613,17 @@ class MrpPlannerDashboard(models.TransientModel):
         tz = self._inventory_tz()
         to_utc = lambda d: tz.localize(datetime.combine(d, datetime.min.time())) \
             .astimezone(pytz.utc).replace(tzinfo=None)
+        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
+        validated_types = picking_type_ids
+        if not validated_types:
+            validated_types, _info = self.env['mrp.dispatch.stock.log'] \
+                ._dispatch_chain_types(self.env.company, warehouse_ids or None)
         dom = [
             ('company_id', '=', self.env.company.id),
             ('state', '=', 'done'),
-        ] + ([('picking_type_id', 'in', picking_type_ids)] if picking_type_ids
+        ] + ([('picking_type_id', 'in', validated_types)] if validated_types
              else [('picking_type_code', '=', 'outgoing')]) \
-          + self._inventory_wh_domain(self._inventory_effective_whs(warehouse_ids))
+          + self._inventory_wh_domain(warehouse_ids)
         if period_from:
             dom.append(('date_done', '>=', to_utc(fields.Date.from_string(period_from))))
         if period_to:

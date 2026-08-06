@@ -448,11 +448,13 @@ class InventoryDashboardWidget extends Component {
                 return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
                 return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
-            // ── Cards del período (mismo rango de la tabla, sobre la fecha de validación) ──
+            // ── Cards del período (mismo rango de la tabla, sobre la fecha de validación).
+            //    La selección de filas NO les aplica: miden lo YA entregado,
+            //    que no está entre las filas pendientes de la tabla. ──
             case "delivered":
-                return `Cantidad entregada en el rango de fechas de la tabla: salidas validadas, por fecha de validación (con sus depósitos)\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)`;
+                return `Cantidad entregada en el rango de fechas de la tabla: salidas validadas, por fecha de validación (con sus depósitos)\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
             case "rate":
-                return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.`;
+                return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
             default:
                 return "";
         }

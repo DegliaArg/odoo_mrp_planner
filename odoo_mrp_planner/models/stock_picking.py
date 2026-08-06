@@ -170,6 +170,27 @@ class StockPicking(models.Model):
         for pick in self:
             pick.x_qty_done = totals.get(pick.id, 0.0)
 
+    x_qty_pending_store = fields.Float(
+        string='Demanda pendiente (Pz)', compute='_compute_x_qty_pending_store',
+        store=True, digits='Product Unit of Measure',
+        help='Suma de las cantidades demandadas por las líneas pendientes del '
+             'remito (todas sus líneas, sin el recorte por rango de fechas de '
+             'los paneles). Campo ALMACENADO para que las listas de los drills '
+             'puedan sumar por grupo y en el total.')
+
+    @api.depends('state', 'move_ids.state', 'move_ids.product_uom_qty')
+    def _compute_x_qty_pending_store(self):
+        Move = self.env['stock.move'].sudo()
+        totals = {}
+        if self.ids:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', self.ids),
+                     ('state', 'not in', ('draft', 'done', 'cancel'))],
+                    ['picking_id'], ['product_uom_qty:sum']):
+                totals[picking.id] = qty
+        for pick in self:
+            pick.x_qty_pending_store = totals.get(pick.id, 0.0)
+
     x_qty_available_chain = fields.Float(
         string='Con stock (Pz)', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',

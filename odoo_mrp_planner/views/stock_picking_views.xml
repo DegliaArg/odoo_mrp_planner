@@ -42,7 +42,13 @@
                 <field name="origin" optional="show" string="Documento origen"/>
                 <field name="picking_type_id" optional="hide" string="Tipo de operación"/>
                 <field name="scheduled_date" optional="show" string="Fecha programada"/>
-                <field name="x_qty_pieces" sum="Total" string="Demanda (Pz)"/>
+                <!-- Demanda ALMACENADA: suma por grupo y total nativos. Ojo: es la
+                     demanda completa del remito; con rango de fechas en la tabla
+                     puede diferir de la card si un remito tiene líneas fuera del
+                     rango. Con stock / Sin stock son calculadas al vuelo (la
+                     disponibilidad por cadena no puede almacenarse) y solo
+                     totalizan al pie. -->
+                <field name="x_qty_pending_store" sum="Total" string="Demanda (Pz)"/>
                 <field name="x_qty_available_chain" sum="Total" string="Con stock (Pz)"/>
                 <field name="x_qty_blocked_chain" sum="Total" string="Sin stock (Pz)"/>
                 <field name="state" widget="badge" optional="show"

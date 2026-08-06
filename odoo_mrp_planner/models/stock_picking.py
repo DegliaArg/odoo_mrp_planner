@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from odoo import models, fields
+from odoo import models, fields, api
 
 _logger = logging.getLogger(__name__)
 
@@ -149,6 +149,26 @@ class StockPicking(models.Model):
                 totals[picking.id] = qty
         for pick in self:
             pick.x_qty_pieces = totals.get(pick.id, 0.0)
+
+    x_qty_done = fields.Float(
+        string='Cantidad hecha (Pz)', compute='_compute_x_qty_done', store=True,
+        digits='Product Unit of Measure',
+        help='Suma de las cantidades hechas de las líneas del remito. Campo '
+             'ALMACENADO para que las listas de los paneles puedan sumar por '
+             'grupo y en el total (los agregados de Odoo requieren campos '
+             'almacenados).')
+
+    @api.depends('state', 'move_ids.state', 'move_ids.quantity')
+    def _compute_x_qty_done(self):
+        Move = self.env['stock.move'].sudo()
+        totals = {}
+        if self.ids:
+            for picking, qty in Move._read_group(
+                    [('picking_id', 'in', self.ids), ('state', '=', 'done')],
+                    ['picking_id'], ['quantity:sum']):
+                totals[picking.id] = qty
+        for pick in self:
+            pick.x_qty_done = totals.get(pick.id, 0.0)
 
     x_qty_available_chain = fields.Float(
         string='Con stock (Pz)', compute='_compute_x_qty_chain',

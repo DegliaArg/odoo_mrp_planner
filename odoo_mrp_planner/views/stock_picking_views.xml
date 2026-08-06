@@ -19,7 +19,8 @@
                 <field name="picking_type_id" optional="hide" string="Tipo de operación"/>
                 <field name="scheduled_date" optional="show" string="Fecha programada"/>
                 <field name="date_done" optional="hide" string="Fecha de validación"/>
-                <field name="x_qty_pieces" sum="Total" string="Cantidad (Pz)"/>
+                <!-- Campo almacenado: Odoo suma por grupo y en el total nativamente -->
+                <field name="x_qty_done" sum="Total" string="Cantidad (Pz)"/>
                 <field name="state" widget="badge" optional="show"
                        decoration-success="state == 'done'"
                        decoration-info="state == 'assigned'"

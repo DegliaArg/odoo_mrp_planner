@@ -212,7 +212,7 @@
                             <i class="fa fa-send fa-lg text-secondary mb-1 d-block"/>
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPz(periodKpis.delivered_qty))"
                                  t-esc="fmtPz(periodKpis.delivered_qty)"/>
-                            <div class="o_planner_label">Entregado del período</div>
+                            <div class="o_planner_label">Validados del período</div>
                             <div class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="periodKpis.delivered_pickings || 0"/> remito(s)
                             </div>

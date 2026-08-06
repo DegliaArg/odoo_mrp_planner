@@ -137,11 +137,8 @@ class ForecastWidget extends Component {
         this.action    = useService("action");
         this.cols      = useColManager('forecast_static', FC_STATIC_COLS);
 
-        // Restaurar filtros de la última visita (por empresa). Se guardan en
-        // _persistFilters(), llamado desde _load() y los setters client-side.
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `forecast.${companyId}`;
-        restoreFilters(this._persistKey, this.state, FC_PERSIST_KEYS);
         this.fcSortKeys = FC_SORT_KEYS;
 
         this.state = useState({
@@ -188,6 +185,12 @@ class ForecastWidget extends Component {
             delBreakdownMode: 'validated',  // 'validated' | 'dispatched' (despachados)
             kpiZoneMinHeight: 0,       // alto del bloque de KPIs, para que el desglose no achique el contenedor
         });
+
+        // Restaurar filtros de la última visita (por empresa) — DESPUÉS de
+        // crear el estado: con this.state todavía undefined y filtros ya
+        // guardados, restoreFilters tiraba TypeError al remontar el widget.
+        // Se guardan en _persistFilters(), desde _load() y los setters.
+        restoreFilters(this._persistKey, this.state, FC_PERSIST_KEYS);
 
         this._closeAll = () => {
             this.state.whDropdownOpen     = false;

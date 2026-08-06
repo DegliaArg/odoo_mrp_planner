@@ -687,7 +687,8 @@ class InventoryDashboardWidget extends Component {
      *  el circuito activo. */
     get tblFilterDefs() {
         const defs = [
-            { key: "assigned",       label: "Preparados" },
+            { key: "with_stock",     label: "Con stock" },
+            { key: "assigned",       label: "Listos" },
             { key: "waiting",        label: "En espera" },
             { key: "overdue",        label: "Vencidas" },
             { key: "available_days", label: "Disponibles hace 3+ días" },
@@ -701,6 +702,7 @@ class InventoryDashboardWidget extends Component {
     get filteredRows() {
         let rows = this.state.rows;
         const f = this.state.tblFilter;
+        if (f === "with_stock")     rows = rows.filter(r => (r.qty_available || 0) > 0);
         if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")        rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
         if (f === "ready")          rows = rows.filter(r => r.stage === "ready");

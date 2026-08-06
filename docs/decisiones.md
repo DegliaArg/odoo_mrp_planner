@@ -362,11 +362,15 @@ había agregado al backlog, más el C5 histórico.
     eliminaron el import muerto de `mrp_abc_helpers` y `_logger` sin uso.
   - Tamaños finales: clientes 1436→1270, quiebres 954→899, inventario 945→855,
     config 994→527.
-- ✅ 🔴 **Bug encontrado al pasar: restauración de filtros de clientes rota.**
+- ✅ 🔴 **Bug: restauración de filtros rota en clientes Y forecast (TypeError).**
   `restoreFilters` se llamaba ANTES de crear `this.state` (useState): con filtros
-  guardados de una visita anterior el widget tiraba TypeError al remontarse; sin
-  guardados, la restauración era un no-op. Corregido moviendo la llamada después de
-  crear el estado (commit propio, previo al refactor). *(`customer_analysis_widget.js`)*
+  guardados de una visita anterior el widget tiraba TypeError al remontarse (el Panel
+  de Ventas crasheó en staging por el ForecastWidget); sin guardados, la restauración
+  era un no-op. Venía de la ola de homogeneización del 2026-08-06 a la mañana
+  (persistencia CA/FC). Corregido moviendo la llamada después de crear el estado; los
+  demás widgets con persistencia (inventario, quiebres, OFs, OCs) ya tenían el orden
+  correcto — verificado por script sobre los 6.
+  *(`customer_analysis_widget.js`, `forecast_widget.js`.)*
 - ✅ **(b) C5 cerrado — días de atraso en los KPI de alertas (decisión: máximo).**
   Las cards "OFs atrasadas" (Producción) y "Vencidas" (Compras) muestran el dato de
   días junto al conteo ("máx. 12 días"), con estadístico configurable en Ajustes →

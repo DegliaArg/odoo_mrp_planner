@@ -135,11 +135,8 @@ class CustomerAnalysisWidget extends Component {
 
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
 
-        // Restaurar filtros de la última visita (por empresa). Se guardan en
-        // _applySort(), el punto único por el que pasa todo cambio de filtro.
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `customer_analysis.${companyId}`;
-        restoreFilters(this._persistKey, this.state, CA_PERSIST_KEYS);
         // Dataset propio de los gráficos cuando su rango difiere del de la tabla
         // (null = sincronizado: los gráficos usan el dataset de la tabla).
         this._chartAllRows = null;
@@ -221,6 +218,12 @@ class CustomerAnalysisWidget extends Component {
                 partner_tag:       false,
             },
         });
+
+        // Restaurar filtros de la última visita (por empresa) — DESPUÉS de crear
+        // el estado: antes se llamaba con this.state todavía undefined, así que
+        // con filtros guardados el widget tiraba TypeError al remontarse.
+        // Se guardan en _applySort(), el punto único de todo cambio de filtro.
+        restoreFilters(this._persistKey, this.state, CA_PERSIST_KEYS);
 
         this._closeDropdowns = () => {
             this.state.colsDropdownOpen = false;

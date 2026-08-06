@@ -63,9 +63,12 @@ const COLS = [
     { key: "product_names",  label: "Artículos",   width: 230, align: "start" },
     { key: "qty_pending",    label: "Pendiente",   width:  90, align: "end" },
     { key: "qty_available",  label: "Con stock",   width:  90, align: "end" },
+    { key: "qty_done",       label: "Hecho (Pz)",  width:  90, align: "end" },
     { key: "days_available", label: "Días disp.",  width:  85, align: "end" },
     { key: "state",          label: "Estado",      width: 105, align: "start" },
 ];
+
+const PENDING_STATES = ["confirmed", "waiting", "assigned"];
 
 const STATE_LABELS = {
     confirmed: "En espera",
@@ -120,7 +123,8 @@ class InventoryDashboardWidget extends Component {
             visibleCols: {
                 name: true, stage_label: true, origin: true, warehouse: false,
                 scheduled: true, product_names: true, qty_pending: true,
-                qty_available: true, days_available: true, state: true,
+                qty_available: true, qty_done: true, days_available: true,
+                state: true,
             },
             page:           1,
             pageSize:       30,
@@ -148,6 +152,8 @@ class InventoryDashboardWidget extends Component {
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `inventory_dashboard.${companyId}`;
         restoreFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
+        // Columnas nuevas ausentes en lo guardado: completar con el default
+        this.state.visibleCols = { qty_done: true, ...this.state.visibleCols };
 
         this._tblDebounceTimer = null;
         // En la primera carga los canvas no existen todavía (t-if del spinner):
@@ -192,10 +198,6 @@ class InventoryDashboardWidget extends Component {
         if (len <= 10) return "o_planner_num_xl";
         if (len <= 14) return "";
         return "o_planner_num_md";
-    }
-    /** Piezas, o em dash mientras no hay datos. */
-    fmtPz(v) {
-        return (v === null || v === undefined) ? "—" : fmt(v) + " Pz";
     }
 
     // ── Zona gráficos ─────────────────────────────────────────────────────────
@@ -448,11 +450,10 @@ class InventoryDashboardWidget extends Component {
                 return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
                 return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
-            // ── Cards del período (mismo rango de la tabla, sobre la fecha de validación).
-            //    La selección de filas NO les aplica: miden lo YA entregado,
-            //    que no está entre las filas pendientes de la tabla. ──
+            // ── Validados: filas hechas de la tabla (dinámica como todas).
+            //    La tasa sigue siendo la única card de servidor. ──
             case "delivered":
-                return `Remitos validados en el rango de fechas de la tabla, por fecha de validación (con sus depósitos y tipos)\nSin tipos seleccionados cuenta TODA la cadena (recolección + embalaje + salida): la misma mercadería suma en cada eslabón que validó. Para ver solo lo que salió, seleccioná los tipos de salida\nSuma de las cantidades hechas\n→ ${fmt(k.delivered_qty)} Pz en ${k.delivered_pickings || 0} remito(s)${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
+                return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye toda la cadena: la misma mercadería suma en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de salida\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} Pz en ${this.validatedKpis.pickings} remito(s)`;
             case "rate":
                 return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
             default:
@@ -469,7 +470,8 @@ class InventoryDashboardWidget extends Component {
             warehouse:      "Depósito del tipo de operación del remito.",
             scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida (\"hoy\" = vence hoy).",
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
-            qty_pending:    "Piezas demandadas por el remito aún no entregadas.",
+            qty_pending:    "Piezas demandadas por el remito aún no entregadas (en canceladas: la demanda original, informativa).",
+            qty_done:       "Piezas hechas del remito (solo filas validadas).",
             qty_available:  "Piezas con stock reservado en el eslabón donde está parada la demanda (siguiendo la cadena de abastecimiento): podrían entregarse hoy.",
             days_available: "Días corridos desde el primer snapshot en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
             state:          "Estado nativo del remito en Odoo.",
@@ -484,7 +486,8 @@ class InventoryDashboardWidget extends Component {
         // El drill abre EXACTAMENTE los remitos que el KPI contó: las filas
         // visibles de la tabla (con selección, solo la selección), filtradas
         // por modo. Sin aproximaciones de dominio.
-        const base = this.selectedRows.length ? this.selectedRows : this.groupedRows;
+        const all = this.selectedRows.length ? this.selectedRows : this.groupedRows;
+        const base = all.filter(r => PENDING_STATES.includes(r.state));
         let rows = base;
         let name = "Demanda pendiente de entrega";
         if (mode === "available") {
@@ -519,13 +522,24 @@ class InventoryDashboardWidget extends Component {
             target: "current",
         });
     }
-    async openDelivered() {
-        // Mismos filtros que la card: rango de la tabla (sobre la fecha de
-        // validación) y sus depósitos
-        const act = await this.orm.call("mrp.planner.dashboard", "action_inventory_delivered",
-            [this.state.tblFrom || false, this.state.tblTo || false,
-             this.state.tblWhIds, this.state.tblTypeIds]);
-        this.action.doAction(act);
+    openValidated() {
+        // Exactamente las filas HECHAS que la card contó (con selección,
+        // solo la selección) — mismo mecanismo que los drills de pendiente
+        const all = this.selectedRows.length ? this.selectedRows : this.groupedRows;
+        const rows = all.filter(r => r.state === "done");
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: "Validados del período",
+            res_model: "stock.picking",
+            domain: [["id", "in", rows.map(r => r.picking_id)]],
+            views: [[false, "list"], [false, "form"]],
+            limit: Math.max(rows.length, 80),
+            context: {
+                create: false,
+                list_view_ref: "odoo_mrp_planner.view_picking_list_planner_drill",
+            },
+            target: "current",
+        });
     }
     openPicking(row) {
         this.action.doAction({
@@ -586,8 +600,9 @@ class InventoryDashboardWidget extends Component {
         this._tblDebounceTimer = setTimeout(() => this._loadTable(), 400);
     }
 
-    onTblFromChange(ev)   { this.state.tblFrom   = ev.target.value; this._loadTable(); }
-    onTblToChange(ev)     { this.state.tblTo     = ev.target.value; this._loadTable(); }
+    // El rango es obligatorio: vaciar un extremo restaura el mes en curso
+    onTblFromChange(ev)   { this.state.tblFrom   = ev.target.value || firstOfMonth(); this._loadTable(); }
+    onTblToChange(ev)     { this.state.tblTo     = ev.target.value || lastOfMonth(); this._loadTable(); }
     // La búsqueda de texto sigue resolviéndose en el servidor (con debounce);
     // filtro y agrupación son client-side, así que no requieren RPC.
     setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
@@ -695,6 +710,8 @@ class InventoryDashboardWidget extends Component {
             { key: "overdue",        label: "Vencidas" },
             { key: "available_days", label: "Disponibles hace 3+ días" },
         ];
+        defs.push({ key: "done",      label: "Hechos" });
+        defs.push({ key: "cancelled", label: "Canceladas" });
         if (this.state.dispatchEnabled) {
             defs.push({ key: "ready", label: "Validadas s/ despachar" });
         }
@@ -707,6 +724,8 @@ class InventoryDashboardWidget extends Component {
         if (f === "with_stock")     rows = rows.filter(r => (r.qty_available || 0) > 0);
         if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");
         if (f === "waiting")        rows = rows.filter(r => r.state === "confirmed" || r.state === "waiting");
+        if (f === "done")           rows = rows.filter(r => r.state === "done");
+        if (f === "cancelled")      rows = rows.filter(r => r.state === "cancel");
         if (f === "ready")          rows = rows.filter(r => r.stage === "ready");
         if (f === "overdue")        rows = rows.filter(r => r.overdue_days !== null && r.overdue_days >= 0);
         if (f === "available_days") rows = rows.filter(r => r.days_available !== null && r.days_available >= 3);
@@ -790,7 +809,10 @@ class InventoryDashboardWidget extends Component {
      *  buscar o agrupar). También alimentan la fila de totales del pie. */
     get tableKpis() {
         const sel = this.selectedRows;
-        const rows = sel.length ? sel : this.groupedRows;
+        const base = sel.length ? sel : this.groupedRows;
+        // Solo las filas PENDIENTES: las hechas tienen su card propia y las
+        // canceladas no suman a ninguna
+        const rows = base.filter(r => PENDING_STATES.includes(r.state));
         let pending = 0, available = 0, overdue = 0;
         for (const r of rows) {
             pending   += r.qty_pending   || 0;
@@ -805,6 +827,17 @@ class InventoryDashboardWidget extends Component {
             overdue,
             pct_available: pending > 0 ? Math.round(available / pending * 1000) / 10 : null,
         };
+    }
+
+    /** KPIs de los VALIDADOS visibles (filas hechas de la tabla): dinámicos
+     *  con fechas, búsqueda, filtros, pestaña y selección, como todos. */
+    get validatedKpis() {
+        const sel = this.selectedRows;
+        const base = sel.length ? sel : this.groupedRows;
+        const rows = base.filter(r => r.state === "done");
+        let qty = 0;
+        for (const r of rows) qty += r.qty_done || 0;
+        return { qty: Math.round(qty * 100) / 100, pickings: rows.length };
     }
 
     // ── Paginación (mismo esquema que el forecast: 50 filas por página) ───────

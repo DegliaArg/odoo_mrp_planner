@@ -7,7 +7,8 @@ Enciende las funciones de despacho de los paneles del módulo base:
   sobre remitos despachados) implementando los hooks del forecast.
 - Panel de Inventario: la capa operativa de la tabla — cola "Validado
   s/ despachar", chip y despacho masivo — implementando los hooks
-  _inventory_dispatch_enabled / _inventory_ready_leaf / _inventory_can_dispatch.
+  _inventory_dispatch_enabled / _inventory_dispatch_queue_ids /
+  _inventory_can_dispatch.
 """
 from odoo import models, api
 
@@ -39,10 +40,13 @@ class MrpPlannerDashboard(models.TransientModel):
         return self._forecast_dispatch_enabled()
 
     @api.model
-    def _inventory_ready_leaf(self):
-        if not self._inventory_dispatch_enabled():
-            return None
-        return ['&', ('state', '=', 'done'), ('x_dispatch_state', '=', 'to_dispatch')]
+    def _inventory_dispatch_queue_ids(self, picking_ids):
+        if not picking_ids or not self._inventory_dispatch_enabled():
+            return set()
+        return set(self.env['stock.picking'].sudo().search([
+            ('id', 'in', list(picking_ids)),
+            ('x_dispatch_state', '=', 'to_dispatch'),
+        ]).ids)
 
     @api.model
     def _inventory_can_dispatch(self):

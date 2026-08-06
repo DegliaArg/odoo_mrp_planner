@@ -9,6 +9,13 @@
 
     <!-- Fila principal -->
     <tr>
+        <!-- Selección: los KPIs y totales se recalculan sobre la selección -->
+        <td style="padding:3px 4px; text-align:center; width:28px;">
+            <input type="checkbox" class="form-check-input"
+                   t-att-checked="state.selected[row.partner_id]"
+                   title="Seleccionar: los KPIs y totales se recalculan sobre la selección"
+                   t-on-change="() => this.toggleSelect(row)"/>
+        </td>
         <!-- Toggle expandir pedidos -->
         <td style="padding:3px 4px; text-align:center; width:28px;">
             <button class="btn btn-sm btn-link p-0 text-muted"
@@ -184,7 +191,7 @@
 
     <!-- Sub-fila expandible: pedidos -->
     <tr t-if="state.expandedRows[row.partner_id]">
-        <td t-att-colspan="staticVisibleCols.length + 2"
+        <td t-att-colspan="staticVisibleCols.length + 3"
             style="padding:0; background:#f8f9fa; border-top:none;">
 
             <t t-if="state.rowOrdersLoading[row.partner_id]">

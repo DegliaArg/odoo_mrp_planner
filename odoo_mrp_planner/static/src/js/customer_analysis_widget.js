@@ -14,7 +14,16 @@ import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { restoreFilters, saveFilters } from "./filter_persistence";
 import { destroyPanelCharts, destroyCharts, drawTopChart, drawTopDonut, drawPanelCharts, CHART_COLORS } from "./customer_analysis_charts";
+
+// Filtros persistidos por empresa (mismo patrón que los demás paneles).
+// Las fechas del período ya se persisten aparte (CA_DATE_KEY).
+const CA_PERSIST_KEYS = [
+    "sortCol", "sortDir", "productSearch", "activeFilter", "groupBy",
+    "selectedGroup", "filterCategory", "filterABC", "filterFreq",
+    "visibleCols", "chartMetric", "chartTopN", "chartDonut",
+];
 
 // ── Columnas estáticas (producto del menú de columnas) ────────────────────────
 const CA_STATIC_COLS = [
@@ -125,6 +134,12 @@ class CustomerAnalysisWidget extends Component {
         this._saleCatChart = null;
 
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
+
+        // Restaurar filtros de la última visita (por empresa). Se guardan en
+        // _applySort(), el punto único por el que pasa todo cambio de filtro.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `customer_analysis.${companyId}`;
+        restoreFilters(this._persistKey, this.state, CA_PERSIST_KEYS);
         // Dataset propio de los gráficos cuando su rango difiere del de la tabla
         // (null = sincronizado: los gráficos usan el dataset de la tabla).
         this._chartAllRows = null;
@@ -150,6 +165,7 @@ class CustomerAnalysisWidget extends Component {
             groupBy:       null,
             selectedGroup: null,
             tableTotals:   { count: 0, orders: 0, qty: 0, delivered: 0, amount: 0 },
+            selected:      {},
             colsDropdownOpen: false,
             // Filtros de los gráficos superiores
             chartMetric: 'pxq',
@@ -281,6 +297,7 @@ class CustomerAnalysisWidget extends Component {
                 console.error('[CustomerAnalysis] backend error:', res.error);
             }
             this.state.allRows = res.rows || [];
+            this.state.selected = {};
             this.state.kpis    = res.kpis  || {};
             this.state.config  = res.config || {};
             if (res.config && !res.config.show_category) {
@@ -366,20 +383,25 @@ class CustomerAnalysisWidget extends Component {
         }
 
         // Los KPIs describen exactamente lo que la tabla muestra: filtros, búsqueda
-        // Y pestaña activa (mismo criterio que el forecast). Sin agrupar, no cambia nada.
-        this.state.kpis = { ...this.state.kpis, ...this._computeKpis(rows) };
+        // Y pestaña activa — y, con filas seleccionadas, SOLO la selección
+        // (mismo criterio que el Panel de Inventario).
+        const selRows = rows.filter(r => this.state.selected[r.partner_id]);
+        const kpiRows = selRows.length ? selRows : rows;
+        this.state.kpis = { ...this.state.kpis, ...this._computeKpis(kpiRows) };
 
         this.state.totalFiltered = rows.length;
         this._filteredRows = rows;   // tabla visible y export (incluye pestaña activa)
 
-        // Totales del pie: reflejan exactamente lo que muestra la tabla.
+        // Totales del pie: reflejan la tabla (o la selección si la hay).
         this.state.tableTotals = {
-            count:  rows.length,
-            orders: rows.reduce((s, r) => s + (r.order_count || 0), 0),
-            qty:    Math.round(rows.reduce((s, r) => s + (r.qty_ordered || 0), 0) * 10) / 10,
-            delivered: Math.round(rows.reduce((s, r) => s + (r.qty_delivered || 0), 0) * 10) / 10,
-            amount: Math.round(rows.reduce((s, r) => s + (r.total_amount || 0), 0) * 100) / 100,
+            count:  kpiRows.length,
+            orders: kpiRows.reduce((s, r) => s + (r.order_count || 0), 0),
+            qty:    Math.round(kpiRows.reduce((s, r) => s + (r.qty_ordered || 0), 0) * 10) / 10,
+            delivered: Math.round(kpiRows.reduce((s, r) => s + (r.qty_delivered || 0), 0) * 10) / 10,
+            amount: Math.round(kpiRows.reduce((s, r) => s + (r.total_amount || 0), 0) * 100) / 100,
         };
+
+        saveFilters(this._persistKey, this.state, CA_PERSIST_KEYS);
 
         // Paginación (si la página quedó fuera de rango tras filtrar, volver a la 1)
         if ((Math.max(1, this.state.page) - 1) * this.state.pageSize >= rows.length && rows.length) {
@@ -412,6 +434,33 @@ class CustomerAnalysisWidget extends Component {
         this.state.page = 1;
         this._applySort();
     }
+
+    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario ──
+
+    toggleSelect(row) {
+        this.state.selected[row.partner_id] = !this.state.selected[row.partner_id];
+        this._applySort();
+    }
+    get selectedCount() {
+        return (this._filteredRows || []).filter(r => this.state.selected[r.partner_id]).length;
+    }
+    // "Seleccionar todos" opera sobre la página visible
+    get allSelected() {
+        const rows = this.state.rows;
+        return rows.length > 0 && rows.every(r => this.state.selected[r.partner_id]);
+    }
+    toggleSelectAll() {
+        const target = !this.allSelected;
+        for (const r of this.state.rows) {
+            this.state.selected[r.partner_id] = target;
+        }
+        this._applySort();
+    }
+    clearSelection() {
+        this.state.selected = {};
+        this._applySort();
+    }
+
 
     /**
      * Recalcula los KPIs de la parte superior sobre el conjunto de filas dado

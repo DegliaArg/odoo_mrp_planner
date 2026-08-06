@@ -7,7 +7,7 @@
 <t t-name="odoo_mrp_planner.CustomerAnalysisDetailPanel">
 
     <tr t-if="state.panelPartnerId === row.partner_id">
-        <td t-att-colspan="staticVisibleCols.length + 2"
+        <td t-att-colspan="staticVisibleCols.length + 3"
             style="padding:12px 16px; background:#f8f9fa; border-top:none;">
 
             <t t-if="state.panelLoading">

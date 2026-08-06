@@ -459,6 +459,15 @@
                     Error: <strong><t t-esc="state.loadError"/></strong>
                 </div>
 
+                <!-- Selección activa: KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedCount" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedCount"/> seleccionado(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
                 <!-- Pestañas de agrupamiento (mismo patrón que quiebres de stock) -->
                 <t t-if="state.groupBy and allGroupsForTabs">
                     <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
@@ -483,6 +492,13 @@
 
                         <thead style="position:sticky; top:0; z-index:3;">
                             <tr>
+                                <th class="text-center align-middle"
+                                    style="padding:4px 4px; background:#f8f9fa; width:28px;">
+                                    <input type="checkbox" class="form-check-input"
+                                           title="Seleccionar todos los clientes de la página"
+                                           t-att-checked="allSelected"
+                                           t-on-change="toggleSelectAll"/>
+                                </th>
                                 <th style="padding:4px 4px; background:#f8f9fa; width:28px;"/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                     <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
@@ -512,7 +528,7 @@
                                 <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
                             </t>
                             <tr t-if="state.totalFiltered === 0 and !state.loading">
-                                <td t-att-colspan="staticVisibleCols.length + 2"
+                                <td t-att-colspan="staticVisibleCols.length + 3"
                                     class="text-center text-muted py-4">
                                     No se encontraron clientes para el período seleccionado.
                                 </td>
@@ -524,6 +540,7 @@
                         <tfoot t-if="state.totalFiltered > 0"
                                class="fw-bold" style="background:#f8f9fa;">
                             <tr>
+                                <td/>
                                 <td/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                                     <td style="padding:3px 6px;"

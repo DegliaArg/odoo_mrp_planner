@@ -37,6 +37,7 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { restoreFilters, saveFilters } from "./filter_persistence";
 import { useColManager } from "./column_manager";
 import {
     moStateBadge, saleCatBadge, moCovPct, moCovPctCell, moCovPctRow,
@@ -51,6 +52,13 @@ import {
     fcKpiTooltip, demandGapTooltip, mosGapTooltip, accSecondaryPills,
 } from "./forecast_tooltips";
 import { downloadForecastExcel } from "./forecast_export";
+
+// Filtros persistidos por empresa (mismo patrón que los demás paneles)
+const FC_PERSIST_KEYS = [
+    "periodFrom", "periodTo", "warehouseIds", "productSearch",
+    "activeFilter", "groupBy", "selectedGroup", "visibleCols",
+    "sortCol", "sortDir",
+];
 import {
     openDrillForecast, openDrillMos, openDrillSoDemand, openDrillDelivered,
     openDrillDeliveredByOrderMonth,
@@ -128,6 +136,12 @@ class ForecastWidget extends Component {
         this.orm       = useService("orm");
         this.action    = useService("action");
         this.cols      = useColManager('forecast_static', FC_STATIC_COLS);
+
+        // Restaurar filtros de la última visita (por empresa). Se guardan en
+        // _persistFilters(), llamado desde _load() y los setters client-side.
+        const companyId = this.env.services.company?.currentCompany?.id || 0;
+        this._persistKey = `forecast.${companyId}`;
+        restoreFilters(this._persistKey, this.state, FC_PERSIST_KEYS);
         this.fcSortKeys = FC_SORT_KEYS;
 
         this.state = useState({
@@ -215,7 +229,12 @@ class ForecastWidget extends Component {
         }
     }
 
+    _persistFilters() {
+        saveFilters(this._persistKey, this.state, FC_PERSIST_KEYS);
+    }
+
     async _load() {
+        this._persistFilters();
         this.state.loading      = true;
         this.state.loadError    = null;
         this.state.page         = 1;
@@ -245,14 +264,14 @@ class ForecastWidget extends Component {
     toggleColsDropdown(ev)   { return toggleColsDropdown(this, ev); }
     toggleFilterDropdown(ev) { return toggleFilterDropdown(this, ev); }
     toggleGroupDropdown(ev)  { return toggleGroupDropdown(this, ev); }
-    toggleCol(colKey)        { return toggleCol(this, colKey); }
-    setFilter(key)           { return setFilter(this, key); }
-    setGroupBy(key)          { return setGroupBy(this, key); }
-    setGroup(key)            { return setGroup(this, key); }
+    toggleCol(colKey)        { const r = toggleCol(this, colKey); this._persistFilters(); return r; }
+    setFilter(key)           { const r = setFilter(this, key); this._persistFilters(); return r; }
+    setGroupBy(key)          { const r = setGroupBy(this, key); this._persistFilters(); return r; }
+    setGroup(key)            { const r = setGroup(this, key); this._persistFilters(); return r; }
     toggleWarehouse(ev)      { return toggleWarehouse(this, ev); }
     clearWhFilter()          { return clearWhFilter(this); }
     onColHeaderClick(col)    { return onColHeaderClick(this, col); }
-    setSort(col)             { return setSort(this, col); }
+    setSort(col)             { const r = setSort(this, col); this._persistFilters(); return r; }
 
     // ── Colspan getters ───────────────────────────────────────────────────────
     get monthColspan() {

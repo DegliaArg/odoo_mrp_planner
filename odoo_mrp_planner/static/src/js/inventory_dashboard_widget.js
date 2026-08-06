@@ -32,10 +32,14 @@ import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
-import { fmt, fmtPct, svcClass, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
+import { fmt, fmtPct, svcClass, sortIcon, kpiNumClass } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
 import { restoreFilters, saveFilters } from "@odoo_mrp_planner/js/filter_persistence";
+import { sortRows, buildGroupTabs, resolveActiveGroup, pageSlice, makePager } from "@odoo_mrp_planner/js/planner_table";
+import { makeSelection } from "@odoo_mrp_planner/js/planner_selection";
+import { makeMultiFilter } from "@odoo_mrp_planner/js/planner_multiselect";
+import { downloadCsv } from "@odoo_mrp_planner/js/planner_export";
 
 // Filtros persistidos por empresa (mismo patrón que los demás paneles)
 const INV_PERSIST_KEYS = [
@@ -149,6 +153,41 @@ class InventoryDashboardWidget extends Component {
             this.state.tblTypeOpen       = false;
             this.state.colsDropdownOpen  = false;
         };
+
+        // ── Mecánica compartida de los paneles (planner_*) ──
+        // Los 4 dropdowns multi-selección (depósitos y tipos, de gráficos y de
+        // tabla), la selección de filas y el paginador delegan en las factories
+        // comunes; los métodos del template son wrappers de una línea.
+        this.whFilter = makeMultiFilter(this, {
+            open: "whDropdownOpen", ids: "chartWhIds",
+            items: () => this.state.warehouses,
+            all: "Todos los depósitos", one: "depósito", many: "depósitos",
+            closeOthers: this._closeAll,
+            onChange: () => this._onChartWhChanged(),
+        });
+        this.typeFilter = makeMultiFilter(this, {
+            open: "typeDropdownOpen", ids: "chartTypeIds",
+            items: () => this.state.pickingTypes,
+            all: "Todos los tipos", one: "tipo", many: "tipos",
+            closeOthers: this._closeAll,
+            onChange: () => this._loadCharts(),
+        });
+        this.tblWhFilter = makeMultiFilter(this, {
+            open: "tblWhDropdownOpen", ids: "tblWhIds",
+            items: () => this.state.warehouses,
+            all: "Todos los depósitos", one: "depósito", many: "depósitos",
+            closeOthers: this._closeAll,
+            onChange: () => this._onTblWhChanged(),
+        });
+        this.tblTypeFilter = makeMultiFilter(this, {
+            open: "tblTypeOpen", ids: "tblTypeIds",
+            items: () => this.state.tblTypes,
+            all: "Todos los tipos", one: "tipo", many: "tipos",
+            closeOthers: this._closeAll,
+            onChange: () => this._loadTable(),
+        });
+        this.sel   = makeSelection(this, { key: "picking_id", pageRows: () => this.pagedRows });
+        this.pager = makePager(this, () => this.sortedRows.length);
         // Restaurar filtros de la última visita (por empresa). Se guardan en
         // _loadCharts/_loadTable y en los setters client-side.
         const companyId = this.env.services.company?.currentCompany?.id || 0;
@@ -193,14 +232,8 @@ class InventoryDashboardWidget extends Component {
     /** Etiqueta de estado de la fila: la nativa del remito (traducida). */
     rowStateLabel(row) { return row.state_label || this.stateLabel(row.state); }
 
-    /** Clase de tamaño de los números de las cards KPI (mismo criterio que el
-     *  análisis de clientes: cortos XL, medianos base, largos md). */
-    kpiNumClass(text) {
-        const len = String(text ?? "").length;
-        if (len <= 10) return "o_planner_num_xl";
-        if (len <= 14) return "";
-        return "o_planner_num_md";
-    }
+    /** Clase de tamaño de los números de las cards KPI (compartida). */
+    kpiNumClass(text) { return kpiNumClass(text); }
 
     // ── Zona gráficos ─────────────────────────────────────────────────────────
 
@@ -277,60 +310,16 @@ class InventoryDashboardWidget extends Component {
     get isCurrentMonth() {
         return this.state.chartFrom === firstOfMonth() && this.state.chartTo === lastOfMonth();
     }
-    toggleWhDropdown(ev) {
-        ev.stopPropagation();
-        const open = !this.state.whDropdownOpen;
-        this._closeAll();
-        this.state.whDropdownOpen = open;
-    }
-    toggleWarehouse(whId) {
-        const ids = this.state.chartWhIds;
-        const i = ids.indexOf(whId);
-        if (i >= 0) ids.splice(i, 1); else ids.push(whId);
-        this._onChartWhChanged();
-    }
-    clearChartWhs() {
-        if (!this.state.chartWhIds.length) return;
-        this.state.chartWhIds = [];
-        this._onChartWhChanged();
-    }
-    get whFilterLabel() {
-        const n = this.state.chartWhIds.length;
-        if (!n) return "Todos los depósitos";
-        if (n === 1) {
-            const wh = this.state.warehouses.find(w => w.id === this.state.chartWhIds[0]);
-            return wh ? wh.name : "1 depósito";
-        }
-        return `${n} depósitos`;
-    }
+    // Dropdowns de depósitos y tipos de los gráficos: mecánica compartida
+    toggleWhDropdown(ev)  { this.whFilter.toggleOpen(ev); }
+    toggleWarehouse(whId) { this.whFilter.toggleItem(whId); }
+    clearChartWhs()       { this.whFilter.clear(); }
+    get whFilterLabel()   { return this.whFilter.label; }
 
-    // ── Filtro de tipos de operación de los gráficos ─────────────────────────
-    toggleTypeDropdown(ev) {
-        ev.stopPropagation();
-        const open = !this.state.typeDropdownOpen;
-        this._closeAll();
-        this.state.typeDropdownOpen = open;
-    }
-    togglePickingType(typeId) {
-        const ids = this.state.chartTypeIds;
-        const i = ids.indexOf(typeId);
-        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
-        this._loadCharts();
-    }
-    clearChartTypes() {
-        if (!this.state.chartTypeIds.length) return;
-        this.state.chartTypeIds = [];
-        this._loadCharts();
-    }
-    get typeFilterLabel() {
-        const n = this.state.chartTypeIds.length;
-        if (!n) return "Todos los tipos";
-        if (n === 1) {
-            const t = this.state.pickingTypes.find(t => t.id === this.state.chartTypeIds[0]);
-            return t ? t.name : "1 tipo";
-        }
-        return `${n} tipos`;
-    }
+    toggleTypeDropdown(ev)  { this.typeFilter.toggleOpen(ev); }
+    togglePickingType(typeId) { this.typeFilter.toggleItem(typeId); }
+    clearChartTypes()       { this.typeFilter.clear(); }
+    get typeFilterLabel()   { return this.typeFilter.label; }
 
     _destroyCharts() {
         if (this.trendChart)   { this.trendChart.destroy();   this.trendChart = null; }
@@ -612,64 +601,22 @@ class InventoryDashboardWidget extends Component {
     setTblSearch(text)    { this.state.tblSearch = text; this._loadTableDebounced(); }
     setTblFilter(key)     { this.state.tblFilter  = key; this.state.page = 1; this._persist(); }
     setTblGroupBy(key)    { this.state.tblGroupBy = key; this.state.tblSelectedGroup = null; this.state.page = 1; this._persist(); }
-    toggleTblWhDropdown(ev) {
-        ev.stopPropagation();
-        const open = !this.state.tblWhDropdownOpen;
-        this._closeAll();
-        this.state.tblWhDropdownOpen = open;
-    }
     async _onTblWhChanged() {
         await this._loadTblTypes();
         const valid = new Set(this.state.tblTypes.map(t => t.id));
         this.state.tblTypeIds = this.state.tblTypeIds.filter(id => valid.has(id));
         this._loadTable();
     }
-    toggleTblWarehouse(whId) {
-        const ids = this.state.tblWhIds;
-        const i = ids.indexOf(whId);
-        if (i >= 0) ids.splice(i, 1); else ids.push(whId);
-        this._onTblWhChanged();
-    }
-    clearTblWhs() {
-        if (!this.state.tblWhIds.length) return;
-        this.state.tblWhIds = [];
-        this._onTblWhChanged();
-    }
-    toggleTblTypeOpen(ev) {
-        ev.stopPropagation();
-        const open = !this.state.tblTypeOpen;
-        this._closeAll();
-        this.state.tblTypeOpen = open;
-    }
-    toggleTblType(typeId) {
-        const ids = this.state.tblTypeIds;
-        const i = ids.indexOf(typeId);
-        if (i >= 0) ids.splice(i, 1); else ids.push(typeId);
-        this._loadTable();
-    }
-    clearTblTypes() {
-        if (!this.state.tblTypeIds.length) return;
-        this.state.tblTypeIds = [];
-        this._loadTable();
-    }
-    get tblTypeLabel() {
-        const n = this.state.tblTypeIds.length;
-        if (!n) return "Todos los tipos";
-        if (n === 1) {
-            const t = this.state.tblTypes.find(t => t.id === this.state.tblTypeIds[0]);
-            return t ? t.name : "1 tipo";
-        }
-        return `${n} tipos`;
-    }
-    get tblWhFilterLabel() {
-        const n = this.state.tblWhIds.length;
-        if (!n) return "Todos los depósitos";
-        if (n === 1) {
-            const wh = this.state.warehouses.find(w => w.id === this.state.tblWhIds[0]);
-            return wh ? wh.name : "1 depósito";
-        }
-        return `${n} depósitos`;
-    }
+    // Dropdowns de depósitos y tipos de la tabla: mecánica compartida
+    toggleTblWhDropdown(ev)  { this.tblWhFilter.toggleOpen(ev); }
+    toggleTblWarehouse(whId) { this.tblWhFilter.toggleItem(whId); }
+    clearTblWhs()            { this.tblWhFilter.clear(); }
+    get tblWhFilterLabel()   { return this.tblWhFilter.label; }
+
+    toggleTblTypeOpen(ev) { this.tblTypeFilter.toggleOpen(ev); }
+    toggleTblType(typeId) { this.tblTypeFilter.toggleItem(typeId); }
+    clearTblTypes()       { this.tblTypeFilter.clear(); }
+    get tblTypeLabel()    { return this.tblTypeFilter.label; }
     toggleColsDropdown(ev) {
         ev.stopPropagation();
         const open = !this.state.colsDropdownOpen;
@@ -758,23 +705,12 @@ class InventoryDashboardWidget extends Component {
      *  filtrado/buscado (sin la pestaña aplicada). null sin agrupación. */
     get allGroupsForTabs() {
         if (!this.state.tblGroupBy) return null;
-        const counts = new Map();
-        for (const r of this.filteredRows) {
-            const key = this._groupKey(r);
-            counts.set(key, (counts.get(key) || 0) + 1);
-        }
-        return [...counts.entries()]
-            .sort((a, b) => a[0].localeCompare(b[0], "es", { sensitivity: "base" }))
-            .map(([key, count]) => ({ key, label: key, count }));
+        return buildGroupTabs(this.filteredRows, r => this._groupKey(r));
     }
 
     /** Pestaña activa: la seleccionada si sigue existiendo, si no la primera. */
     get activeGroupKey() {
-        const groups = this.allGroupsForTabs || [];
-        if (groups.some(g => g.key === this.state.tblSelectedGroup)) {
-            return this.state.tblSelectedGroup;
-        }
-        return groups.length ? groups[0].key : null;
+        return resolveActiveGroup(this.allGroupsForTabs || [], this.state.tblSelectedGroup);
     }
 
     setGroup(key) {
@@ -791,20 +727,12 @@ class InventoryDashboardWidget extends Component {
     }
 
     get sortedRows() {
-        const { sortCol, sortDir } = this.state;
-        const dir = sortDir === "asc" ? 1 : -1;
-        return [...this.groupedRows].sort((a, b) => {
-            const va = a[sortCol], vb = b[sortCol];
-            if (va === null || va === undefined) return 1;
-            if (vb === null || vb === undefined) return -1;
-            if (typeof va === "number") return (va - vb) * dir;
-            return String(va).localeCompare(String(vb), "es") * dir;
-        });
+        return sortRows(this.groupedRows, this.state.sortCol, this.state.sortDir);
     }
 
     /** Filas seleccionadas dentro del conjunto visible (todas las páginas). */
     get selectedRows() {
-        return this.groupedRows.filter(r => this.state.selected[r.picking_id]);
+        return this.sel.pick(this.groupedRows);
     }
 
     /** KPIs dinámicos de la zona tabla: describen exactamente lo que la tabla
@@ -844,17 +772,14 @@ class InventoryDashboardWidget extends Component {
         return { qty: Math.round(qty * 100) / 100, pickings: rows.length };
     }
 
-    // ── Paginación (mismo esquema que el forecast: 50 filas por página) ───────
+    // ── Paginación (mecánica compartida de los paneles) ───────────────────────
 
-    get pagedRows() {
-        const start = (this.state.page - 1) * this.state.pageSize;
-        return this.sortedRows.slice(start, start + this.state.pageSize);
-    }
-    get totalPages()  { return Math.max(1, Math.ceil(this.sortedRows.length / this.state.pageSize)); }
-    get hasNextPage() { return this.state.page < this.totalPages; }
-    get hasPrevPage() { return this.state.page > 1; }
-    nextPage() { if (this.hasNextPage) this.state.page++; }
-    prevPage() { if (this.hasPrevPage) this.state.page--; }
+    get pagedRows()   { return pageSlice(this.sortedRows, this.state.page, this.state.pageSize); }
+    get totalPages()  { return this.pager.totalPages; }
+    get hasNextPage() { return this.pager.hasNext; }
+    get hasPrevPage() { return this.pager.hasPrev; }
+    nextPage() { this.pager.next(); }
+    prevPage() { this.pager.prev(); }
 
     /** Title con la lista completa de artículos (para el sufijo "+N"). */
     productsTitle(row) {
@@ -865,29 +790,16 @@ class InventoryDashboardWidget extends Component {
     // Cualquier fila es seleccionable: la selección recalcula KPIs y totales.
     // El despacho masivo actúa solo sobre las seleccionadas ya validadas.
 
-    toggleSelect(row) {
-        this.state.selected[row.picking_id] = !this.state.selected[row.picking_id];
-    }
+    toggleSelect(row)  { this.sel.toggle(row); }
+    toggleSelectAll()  { this.sel.toggleAll(); }
+    clearSelection()   { this.sel.clear(); }
+    get allSelected()  { return this.sel.allSelected; }
     get selectedIds() {
         return Object.keys(this.state.selected).filter(k => this.state.selected[k]).map(Number);
     }
     /** Seleccionadas listas para despachar (validadas sin despachar). */
     get readySelectedIds() {
         return this.selectedRows.filter(r => r.stage === "ready").map(r => r.picking_id);
-    }
-    // "Seleccionar todos" opera sobre la página visible
-    get allSelected() {
-        const rows = this.pagedRows;
-        return rows.length > 0 && rows.every(r => this.state.selected[r.picking_id]);
-    }
-    toggleSelectAll() {
-        const target = !this.allSelected;
-        for (const r of this.pagedRows) {
-            this.state.selected[r.picking_id] = target;
-        }
-    }
-    clearSelection() {
-        this.state.selected = {};
     }
 
     async markDispatched() {
@@ -920,23 +832,21 @@ class InventoryDashboardWidget extends Component {
         // Exporta las columnas visibles en su orden actual; con agrupación
         // activa se exportan igual las filas planas (sin encabezados de grupo).
         const cols = this.staticVisibleCols;
-        const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-        const lines = [cols.map(c => esc(c.label)).join(";")];
-        for (const r of this.sortedRows) {
-            lines.push(cols.map(c => {
-                if (c.key === "state") return esc(this.rowStateLabel(r));
+        downloadCsv({
+            filename: `salidas_pendientes_${toDateStr(new Date())}.csv`,
+            headers:  cols.map(c => c.label),
+            rows:     this.sortedRows,
+            sep:      ";",
+            bom:      true,
+            quote:    "always",
+            cell: r => cols.map(c => {
+                if (c.key === "state") return this.rowStateLabel(r);
                 if (c.key === "product_names" && r.products_detail && r.products_detail.length) {
-                    return esc(r.products_detail.map(p => p.name).join(", "));
+                    return r.products_detail.map(p => p.name).join(", ");
                 }
-                return esc(r[c.key]);
-            }).join(";"));
-        }
-        const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `salidas_pendientes_${toDateStr(new Date())}.csv`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+                return r[c.key];
+            }),
+        });
     }
 }
 

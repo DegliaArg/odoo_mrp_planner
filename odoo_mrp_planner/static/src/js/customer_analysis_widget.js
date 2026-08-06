@@ -16,6 +16,10 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { restoreFilters, saveFilters } from "./filter_persistence";
 import { destroyPanelCharts, destroyCharts, drawTopChart, drawTopDonut, drawPanelCharts, CHART_COLORS } from "./customer_analysis_charts";
+import { buildGroupTabs, pageSlice, makePager } from "./planner_table";
+import { makeSelection } from "./planner_selection";
+import { downloadExcelXml } from "./planner_export";
+import { kpiNumClass } from "./forecast_formatters";
 
 // Filtros persistidos por empresa (mismo patrón que los demás paneles).
 // Las fechas del período ya se persisten aparte (CA_DATE_KEY).
@@ -225,6 +229,16 @@ class CustomerAnalysisWidget extends Component {
         // Se guardan en _applySort(), el punto único de todo cambio de filtro.
         restoreFilters(this._persistKey, this.state, CA_PERSIST_KEYS);
 
+        // ── Mecánica compartida de los paneles (planner_*): selección de
+        //    filas y paginador. onChange = _applySort porque este widget
+        //    materializa KPIs, totales y página visible en el estado. ──
+        this.sel   = makeSelection(this, {
+            key: "partner_id",
+            pageRows: () => this.state.rows,
+            onChange: () => this._applySort(),
+        });
+        this.pager = makePager(this, () => this.state.totalFiltered, () => this._applySort());
+
         this._closeDropdowns = () => {
             this.state.colsDropdownOpen = false;
         };
@@ -410,8 +424,7 @@ class CustomerAnalysisWidget extends Component {
         if ((Math.max(1, this.state.page) - 1) * this.state.pageSize >= rows.length && rows.length) {
             this.state.page = 1;
         }
-        const offset    = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
-        this.state.rows = rows.slice(offset, offset + this.state.pageSize);
+        this.state.rows = pageSlice(rows, this.state.page, this.state.pageSize);
     }
 
     /**
@@ -422,14 +435,7 @@ class CustomerAnalysisWidget extends Component {
     get allGroupsForTabs() {
         const gb = this.state.groupBy;
         if (!gb) return null;
-        const counts = new Map();
-        for (const r of this._baseFiltered()) {
-            const key = r[gb] || '—';
-            counts.set(key, (counts.get(key) || 0) + 1);
-        }
-        return [...counts.entries()]
-            .sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }))
-            .map(([key, count]) => ({ key, label: key, count }));
+        return buildGroupTabs(this._baseFiltered(), r => r[gb] || '—');
     }
 
     setGroup(key) {
@@ -438,31 +444,14 @@ class CustomerAnalysisWidget extends Component {
         this._applySort();
     }
 
-    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario ──
+    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario
+    //    (mecánica compartida en planner_selection) ──
 
-    toggleSelect(row) {
-        this.state.selected[row.partner_id] = !this.state.selected[row.partner_id];
-        this._applySort();
-    }
-    get selectedCount() {
-        return (this._filteredRows || []).filter(r => this.state.selected[r.partner_id]).length;
-    }
-    // "Seleccionar todos" opera sobre la página visible
-    get allSelected() {
-        const rows = this.state.rows;
-        return rows.length > 0 && rows.every(r => this.state.selected[r.partner_id]);
-    }
-    toggleSelectAll() {
-        const target = !this.allSelected;
-        for (const r of this.state.rows) {
-            this.state.selected[r.partner_id] = target;
-        }
-        this._applySort();
-    }
-    clearSelection() {
-        this.state.selected = {};
-        this._applySort();
-    }
+    toggleSelect(row) { this.sel.toggle(row); }
+    toggleSelectAll() { this.sel.toggleAll(); }
+    clearSelection()  { this.sel.clear(); }
+    get allSelected()   { return this.sel.allSelected; }
+    get selectedCount() { return this.sel.pick(this._filteredRows || []).length; }
 
 
     /**
@@ -529,18 +518,8 @@ class CustomerAnalysisWidget extends Component {
         return v !== null && v !== undefined ? this.fmt(v) + ' d' : '—';
     }
 
-    /**
-     * Clase de tamaño para los KPIs generales del panel (cards angostas, 8 por
-     * fila): los números cortos suben a XL (escala con el ancho de la card),
-     * los medianos usan la base y los largos ($ con miles de millones) bajan
-     * a md para no cortarse. Siempre un solo renglón.
-     */
-    kpiNumClass(text) {
-        const len = String(text ?? '').length;
-        if (len <= 10) return 'o_planner_num_xl';
-        if (len <= 14) return '';
-        return 'o_planner_num_md';
-    }
+    /** Clase de tamaño de los números de las cards KPI (compartida). */
+    kpiNumClass(text) { return kpiNumClass(text); }
 
     /** Tooltip del lead time de un pedido de la tabla inline: los 3 métodos. */
     orderLeadTooltip(ord) {
@@ -695,21 +674,13 @@ class CustomerAnalysisWidget extends Component {
             : 'fa fa-sort-desc text-primary ms-1';
     }
 
-    nextPage() {
-        const maxPage = Math.ceil(this.state.totalFiltered / this.state.pageSize);
-        if (this.state.page < maxPage) { this.state.page++; this._applySort(); }
-    }
-
-    prevPage() {
-        if (this.state.page > 1) { this.state.page--; this._applySort(); }
-    }
-
-    get totalPages() {
-        return Math.max(1, Math.ceil(this.state.totalFiltered / this.state.pageSize));
-    }
-
-    get hasPrevPage() { return this.state.page > 1; }
-    get hasNextPage()  { return this.state.page < this.totalPages; }
+    // Paginación: mecánica compartida (makePager rematerializa la página
+    // visible vía _applySort)
+    nextPage() { this.pager.next(); }
+    prevPage() { this.pager.prev(); }
+    get totalPages()  { return this.pager.totalPages; }
+    get hasPrevPage() { return this.pager.hasPrev; }
+    get hasNextPage() { return this.pager.hasNext; }
 
     // ── Panel lateral ─────────────────────────────────────────────────────────
 
@@ -1137,8 +1108,6 @@ class CustomerAnalysisWidget extends Component {
 
     exportToExcel() {
         const cols = this.staticVisibleCols;
-        const rows = this._filteredRows || this.state.allRows;
-
         const cellVal = (row, key) => {
             const v = row[key];
             if (v === null || v === undefined) return '';
@@ -1148,45 +1117,13 @@ class CustomerAnalysisWidget extends Component {
                 return v + ' d';
             return v;
         };
-
-        let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Worksheet ss:Name="Clientes">
-  <Table>
-   <Row>`;
-        cols.forEach(c => {
-            xml += `<Cell><Data ss:Type="String">${this._escXml(c.label)}</Data></Cell>`;
+        downloadExcelXml({
+            filename: `clientes_${this.state.dateFrom}_${this.state.dateTo}.xls`,
+            sheet:    'Clientes',
+            headers:  cols.map(c => c.label),
+            rows:     this._filteredRows || this.state.allRows,
+            cell:     row => cols.map(c => cellVal(row, c.key)),
         });
-        xml += '</Row>';
-        rows.forEach(row => {
-            xml += '<Row>';
-            cols.forEach(c => {
-                const v = cellVal(row, c.key);
-                const type = typeof v === 'number' ? 'Number' : 'String';
-                xml += `<Cell><Data ss:Type="${type}">${this._escXml(String(v))}</Data></Cell>`;
-            });
-            xml += '</Row>';
-        });
-        xml += `  </Table>
- </Worksheet>
-</Workbook>`;
-
-        const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = `clientes_${this.state.dateFrom}_${this.state.dateTo}.xls`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    _escXml(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
     }
 
     donutColor(idx) { return CHART_COLORS.donut[idx % CHART_COLORS.donut.length]; }

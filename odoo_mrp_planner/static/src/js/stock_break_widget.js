@@ -21,6 +21,10 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { saleCatBadge } from "./forecast_formatters";
 import { restoreFilters, saveFilters } from "./filter_persistence";
+import { buildGroupTabs, pageSlice, makePager } from "./planner_table";
+import { makeSelection } from "./planner_selection";
+import { makeMultiFilter } from "./planner_multiselect";
+import { downloadCsv } from "./planner_export";
 
 // Estado de filtros que sobrevive al remontaje del widget (volver de una sublista)
 // y a la sesión del navegador.
@@ -109,6 +113,17 @@ class StockBreakWidget extends Component {
         this._searchTimer = null;
         this._loadSeq     = 0;
         this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
+
+        // ── Mecánica compartida de los paneles (planner_*): dropdown de
+        //    ubicaciones, selección de filas y paginador ──
+        this.locFilter = makeMultiFilter(this, {
+            open: "locDropdownOpen", ids: "locationIds",
+            items: () => this.state.locations,
+            all: "Todos los depósitos", one: "depósito", many: "depósitos",
+            onChange: () => { this.state.page = 1; this._load(); },
+        });
+        this.sel   = makeSelection(this, { key: "id", pageRows: () => this.state.products });
+        this.pager = makePager(this, () => this.state.totalFiltered, () => this._applyClientSort());
 
         onMounted(() => {
             this._init();
@@ -288,28 +303,14 @@ class StockBreakWidget extends Component {
      * @returns {{count:number, qty:number, min_qty:number, qty_forecast:number,
      *            bom_lead_avg:number|null, rotation_avg:number|null}}
      */
-    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario ──
+    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario
+    //    (mecánica compartida en planner_selection) ──
 
-    toggleSelect(prod) {
-        this.state.selected[prod.id] = !this.state.selected[prod.id];
-    }
-    get selectedRows() {
-        return this._filteredSortedRows().filter(r => this.state.selected[r.id]);
-    }
-    // "Seleccionar todos" opera sobre la página visible
-    get allSelected() {
-        const rows = this.state.products;
-        return rows.length > 0 && rows.every(r => this.state.selected[r.id]);
-    }
-    toggleSelectAll() {
-        const target = !this.allSelected;
-        for (const r of this.state.products) {
-            this.state.selected[r.id] = target;
-        }
-    }
-    clearSelection() {
-        this.state.selected = {};
-    }
+    toggleSelect(prod) { this.sel.toggle(prod); }
+    toggleSelectAll()  { this.sel.toggleAll(); }
+    clearSelection()   { this.sel.clear(); }
+    get allSelected()  { return this.sel.allSelected; }
+    get selectedRows() { return this.sel.pick(this._filteredSortedRows()); }
 
     /** KPIs dinámicos: describen lo que muestra la tabla (búsqueda, depósito,
      *  pestaña activa y selección de filas), SIN el filtro de segmento — las
@@ -364,21 +365,18 @@ class StockBreakWidget extends Component {
         if ((Math.max(1, this.state.page) - 1) * this.state.pageSize >= rows.length && rows.length) {
             this.state.page = 1;
         }
-        const offset = (Math.max(1, this.state.page) - 1) * this.state.pageSize;
-        this.state.products = rows.slice(offset, offset + this.state.pageSize);
+        this.state.products = pageSlice(rows, this.state.page, this.state.pageSize);
 
         saveFilters(this._persistKey, this.state, STOCK_PERSIST_KEYS);
     }
 
     /**
-     * Abre o cierra el dropdown de selección de ubicaciones.
-     * Llama a `stopPropagation` para evitar que el listener global lo cierre
-     * inmediatamente después de abrirlo. Resetea `locSearch` al abrir.
+     * Abre o cierra el dropdown de selección de ubicaciones (mecánica
+     * compartida). Resetea `locSearch` al abrir.
      * @param {MouseEvent} ev - Evento de clic sobre el botón del dropdown
      */
     toggleLocDropdown(ev) {
-        ev.stopPropagation();
-        this.state.locDropdownOpen = !this.state.locDropdownOpen;
+        this.locFilter.toggleOpen(ev);
         if (this.state.locDropdownOpen) this.state.locSearch = "";
     }
 
@@ -440,74 +438,39 @@ class StockBreakWidget extends Component {
     get allGroupsForTabs() {
         const gb = this.state.groupBy;
         if (!gb) return null;
-        const counts = new Map();
-        for (const row of this.baseFilteredForGroups) {
-            if (gb === 'product_types') {
-                // M2M: el artículo cuenta en cada uno de sus tipos, por lo que la suma
-                // de las pestañas puede superar el total de artículos.
-                const types = row.product_type_list || [];
-                if (!types.length) counts.set('', (counts.get('') || 0) + 1);
-                for (const t of types) counts.set(t, (counts.get(t) || 0) + 1);
-                continue;
-            }
-            const key = row[gb] || '';
-            counts.set(key, (counts.get(key) || 0) + 1);
-        }
-        const entries = [...counts.entries()];
-        if (gb === 'sale_category') {
-            const ORDER = ['A', 'B', 'C', 'D', 'E', ''];
-            entries.sort((a, b) => {
+        // M2M de tipos: el artículo cuenta en cada uno de sus tipos, por lo que
+        // la suma de las pestañas puede superar el total de artículos.
+        const keyFn = gb === 'product_types'
+            ? (row => (row.product_type_list || []).length ? row.product_type_list : [''])
+            : (row => row[gb] || '');
+        const ORDER = ['A', 'B', 'C', 'D', 'E', ''];
+        const sortEntries = gb === 'sale_category'
+            ? ((a, b) => {
                 const ia = ORDER.indexOf(a[0]);
                 const ib = ORDER.indexOf(b[0]);
                 return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-            });
-        } else {
-            entries.sort((a, b) => a[0].localeCompare(b[0], 'es', { sensitivity: 'base' }));
-        }
+            })
+            : null;
         const emptyLabel = gb === 'product_types' ? 'Sin tipo' : 'Sin categoría';
-        return entries.map(([key, count]) => ({ key, label: key || emptyLabel, count }));
+        return buildGroupTabs(this.baseFilteredForGroups, keyFn,
+                              { sortEntries, labelFn: k => k || emptyLabel });
     }
 
     /**
      * Agrega o quita una ubicación del filtro activo según el checkbox marcado.
-     * Lee el id desde `data-loc-id` del elemento disparador. Resetea la página a 1
-     * y recarga los datos.
+     * Lee el id desde `data-loc-id` del elemento disparador (mecánica compartida:
+     * resetea la página a 1 y recarga los datos vía onChange).
      * @param {MouseEvent} ev - Evento de cambio del checkbox de ubicación
      */
     toggleLocation(ev) {
-        const id = parseInt(ev.target.dataset.locId);
-        const ids = this.state.locationIds;
-        this.state.locationIds = ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id];
-        this.state.page = 1;
-        this._load();
+        this.locFilter.toggleItem(parseInt(ev.target.dataset.locId));
     }
 
-    /**
-     * Elimina todos los filtros de ubicación activos, resetea la página a 1
-     * y recarga los datos para mostrar todas las ubicaciones.
-     */
-    clearLocFilter() {
-        this.state.locationIds = [];
-        this.state.page = 1;
-        this._load();
-    }
+    /** Elimina todos los filtros de ubicación activos y recarga. */
+    clearLocFilter() { this.locFilter.clear(); }
 
-    /**
-     * Texto resumen del filtro de ubicaciones activo para mostrar en el botón del dropdown.
-     * - Sin selección → "Todas las ubicaciones"
-     * - Una seleccionada → nombre de la ubicación
-     * - Varias → "N ubicaciones"
-     * @returns {string} Etiqueta descriptiva del filtro de ubicación actual
-     */
-    get selectedLocLabel() {
-        const ids = this.state.locationIds;
-        if (!ids.length) return 'Todos los depósitos';
-        if (ids.length === 1) {
-            const loc = this.state.locations.find(l => l.id === ids[0]);
-            return loc ? loc.name : 'Todos los depósitos';
-        }
-        return `${ids.length} depósitos`;
-    }
+    /** Etiqueta del botón del dropdown de ubicaciones (convención compartida). */
+    get selectedLocLabel() { return this.locFilter.label; }
 
     /**
      * Maneja el evento `input` del campo de búsqueda nativo.
@@ -622,19 +585,13 @@ class StockBreakWidget extends Component {
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
     }
 
-    /** Total de páginas calculado a partir de `totalFiltered` y `pageSize`. Mínimo 1.
-     * @returns {number} Número total de páginas disponibles */
-    get totalPages()  { return Math.max(1, Math.ceil(this.state.totalFiltered / this.state.pageSize)); }
-    /** Indica si existe una página siguiente a la actual.
-     * @returns {boolean} */
-    get hasNextPage() { return this.state.page < this.totalPages; }
-    /** Indica si existe una página anterior a la actual.
-     * @returns {boolean} */
-    get hasPrevPage() { return this.state.page > 1; }
-    /** Avanza a la siguiente página y recarga los datos si es posible. */
-    nextPage() { if (this.hasNextPage) { this.state.page++; this._applyClientSort(); } }
-    /** Retrocede a la página anterior y recarga los datos si es posible. */
-    prevPage() { if (this.hasPrevPage) { this.state.page--; this._applyClientSort(); } }
+    // Paginación: mecánica compartida (makePager rematerializa la página
+    // visible vía _applyClientSort)
+    get totalPages()  { return this.pager.totalPages; }
+    get hasNextPage() { return this.pager.hasNext; }
+    get hasPrevPage() { return this.pager.hasPrev; }
+    nextPage() { this.pager.next(); }
+    prevPage() { this.pager.prev(); }
 
     /**
      * Formatea un número con separador de miles y hasta 2 decimales en locale es-AR.
@@ -867,37 +824,25 @@ class StockBreakWidget extends Component {
             if (col.key === 'sale_category') return this.state.show_sale_cat;
             return true;
         });
-        const headers = visibleCols.map(c => c.label).filter(Boolean);
-        const colKeys = visibleCols.map(c => c.key);
-        const lines = [headers.join(',')];
-        for (const row of rows) {
-            const vals = colKeys.map(key => {
-                if (key === '_expand') return '';
-                let v;
-                if (key === 'rotation') {
+        downloadCsv({
+            filename: 'quiebres_stock.csv',
+            headers:  visibleCols.map(c => c.label).filter(Boolean),
+            rows,
+            cell: row => visibleCols.map(c => {
+                if (c.key === '_expand') return '';
+                if (c.key === 'rotation') {
                     // Mismo valor que la celda visible ("N d" / "N m"); vacío si no calculable
                     const r = this.fmtRotation(row);
-                    v = r === '—' ? '' : r;
-                } else if (key === 'bom_lead') {
-                    v = row.bom_lead_days ?? '';
-                } else if (key === 'status') {
-                    // Replica el estado derivado de la tabla visible
-                    v = row.is_broken ? 'Quiebre' : row.has_min ? 'OK' : 'Sin mínimo';
-                } else {
-                    v = row[key] ?? '';
+                    return r === '—' ? '' : r;
                 }
-                const s = String(v);
-                return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
-            });
-            lines.push(vals.join(','));
-        }
-        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'quiebres_stock.csv';
-        a.click();
-        URL.revokeObjectURL(url);
+                if (c.key === 'bom_lead') return row.bom_lead_days ?? '';
+                if (c.key === 'status') {
+                    // Replica el estado derivado de la tabla visible
+                    return row.is_broken ? 'Quiebre' : row.has_min ? 'OK' : 'Sin mínimo';
+                }
+                return row[c.key] ?? '';
+            }),
+        });
     }
 
     stockKpiTooltip(key) {

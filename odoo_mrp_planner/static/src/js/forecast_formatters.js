@@ -228,6 +228,20 @@ export function fmtDate(d) {
     return `${day}/${m}/${y}`;
 }
 
+/**
+ * Clase de tamaño de los números de las cards KPI según su longitud, para que
+ * nunca ocupen dos renglones: cortos XL, medianos base, largos md.
+ * Mismo criterio en Inventario y Análisis de clientes.
+ * @param {string} text - Número ya formateado.
+ * @returns {string} '' | 'o_planner_num_xl' | 'o_planner_num_md'
+ */
+export function kpiNumClass(text) {
+    const len = String(text ?? "").length;
+    if (len <= 10) return "o_planner_num_xl";
+    if (len <= 14) return "";
+    return "o_planner_num_md";
+}
+
 export function sortIcon(col, sortCol, sortDir) {
     if (sortCol !== col) return 'fa fa-sort text-muted ms-1';
     return sortDir === 'asc'

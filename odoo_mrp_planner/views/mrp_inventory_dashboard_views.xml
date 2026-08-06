@@ -23,11 +23,11 @@
                             </div>
                         </div>
 
-                        <!-- ENTREGAS -->
+                        <!-- MOVIMIENTOS -->
                         <div class="o_planner_section mb-4">
                             <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-send me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Entregas</span>
+                                <i class="fa fa-exchange me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Movimientos</span>
                             </div>
                             <widget name="inventory_dashboard_widget"/>
                         </div>
@@ -60,58 +60,6 @@
               parent="mrp_inventario_menu"
               sequence="1"
               action="action_mrp_inventory_dashboard_open"
-              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
-
-    <!-- ── Vista del panel de Movimientos pendientes ──────────────────────────
-         Recepciones y transferencias: el complemento del Panel de Inventario. -->
-    <record id="mrp_movements_dashboard_form" model="ir.ui.view">
-        <field name="name">mrp.movements.dashboard.form</field>
-        <field name="model">mrp.planner.dashboard</field>
-        <field name="arch" type="xml">
-            <form string="Movimientos pendientes" create="false" edit="false" delete="false">
-                <sheet>
-                    <div class="o_planner_dashboard container-fluid p-4">
-
-                        <!-- Encabezado -->
-                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
-                            <div class="col">
-                                <h4 class="mb-0 fw-bold">Movimientos pendientes</h4>
-                            </div>
-                            <div class="col-auto d-flex gap-2 align-items-center">
-                                <widget name="refresh_stamp"/>
-                                <button name="action_refresh_movements" type="object"
-                                        string="Actualizar"
-                                        class="btn btn-outline-primary btn-sm"/>
-                            </div>
-                        </div>
-
-                        <!-- RECEPCIONES Y TRANSFERENCIAS -->
-                        <div class="o_planner_section mb-4">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-exchange me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Recepciones y transferencias</span>
-                            </div>
-                            <widget name="movements_dashboard_widget"/>
-                        </div>
-
-                    </div>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <record id="action_mrp_movements_dashboard_open" model="ir.actions.server">
-        <field name="name">Movimientos pendientes</field>
-        <field name="model_id" ref="odoo_mrp_planner.model_mrp_planner_dashboard"/>
-        <field name="state">code</field>
-        <field name="code">action = model.action_open_movements()</field>
-    </record>
-
-    <menuitem id="mrp_movimientos_menu"
-              name="Movimientos"
-              parent="mrp_inventario_menu"
-              sequence="2"
-              action="action_mrp_movements_dashboard_open"
               groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
 
 </odoo>

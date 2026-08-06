@@ -124,21 +124,50 @@ class MrpPlannerDashboard(models.TransientModel):
     # ── Llamada 1: KPIs + gráficos ────────────────────────────────────────────
 
     @api.model
-    def get_inventory_picking_types(self, warehouse_ids=None):
-        """Tipos de operación de la cadena de entrega para el filtro de los
-        gráficos (recolección/embalaje/salida de los depósitos visibles).
+    def _inventory_universe_types(self, company, warehouse_ids=None):
+        """Tipos de operación del universo del panel: entradas, internas y
+        salidas de los depósitos visibles. Los eslabones de la cadena de
+        entrega conservan su etapa (pick/pack/ship); el resto se etiqueta
+        'in' (recepción) o 'int' (transferencia interna).
 
-        :returns: list[dict] — {'id', 'name', 'stage'} ordenados por nombre.
+        :returns: (type_ids, info) — info = {type_id: (wh_id, wh_name, stage,
+                  display_name)}.
+        """
+        _ids, chain_info = self.env['mrp.dispatch.stock.log'] \
+            ._dispatch_chain_types(company, warehouse_ids)
+        dom = [('company_id', '=', company.id),
+               ('code', 'in', ('incoming', 'internal', 'outgoing'))]
+        if warehouse_ids:
+            dom.append(('warehouse_id', 'in', warehouse_ids))
+        info = {}
+        for t in self.env['stock.picking.type'].sudo().search(dom).read(
+                ['display_name', 'code', 'warehouse_id']):
+            chain = chain_info.get(t['id'])
+            if chain:
+                stage = chain[2]
+            elif t['code'] == 'incoming':
+                stage = 'in'
+            elif t['code'] == 'internal':
+                stage = 'int'
+            else:
+                stage = 'ship'
+            info[t['id']] = (t['warehouse_id'][0] if t['warehouse_id'] else False,
+                             t['warehouse_id'][1] if t['warehouse_id'] else '',
+                             stage, t['display_name'])
+        return list(info), info
+
+    @api.model
+    def get_inventory_picking_types(self, warehouse_ids=None):
+        """Tipos de operación para los filtros del panel: TODOS los del
+        universo (entradas, internas y salidas de los depósitos visibles).
+
+        :returns: list[dict] — {'id', 'name'} ordenados por nombre.
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
-        chain_type_ids, _info = self.env['mrp.dispatch.stock.log'] \
-            ._dispatch_chain_types(self.env.company, warehouse_ids or None)
-        if not chain_type_ids:
-            return []
-        types = self.env['stock.picking.type'].sudo().browse(chain_type_ids) \
-            .read(['display_name'])
-        return sorted(({'id': t['id'], 'name': t['display_name']} for t in types),
+        _ids, info = self._inventory_universe_types(
+            self.env.company, warehouse_ids or None)
+        return sorted(({'id': t, 'name': i[3]} for t, i in info.items()),
                       key=lambda d: d['name'])
 
     @api.model
@@ -174,12 +203,10 @@ class MrpPlannerDashboard(models.TransientModel):
         d_from, d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
 
         # ── Estado actual del pendiente (no depende del período) ─────────────
-        # Universo = demanda parada en cualquier eslabón de la cadena de
-        # entrega (recolección/embalaje/salida, según los pasos del depósito).
-        # En el flujo lazy de Odoo 17+ los eslabones se crean al validar el
-        # anterior, así que son disjuntos.
+        # Universo = TODA operación pendiente (entradas, internas y la cadena
+        # de entrega). Cada demanda está parada en un solo eslabón a la vez.
         Log = self.env['mrp.dispatch.stock.log']
-        chain_type_ids, type_info = Log._dispatch_chain_types(
+        chain_type_ids, type_info = self._inventory_universe_types(
             company, warehouse_ids or None)
         if picking_type_ids:
             type_info = {t: info for t, info in type_info.items()
@@ -204,9 +231,11 @@ class MrpPlannerDashboard(models.TransientModel):
                                       .browse(list(all_pick_ids)).read(['picking_type_id'])}
             for r in rows:
                 qty = r['product_uom_qty'] or 0.0
-                avail = min(chain_avail.get(r['id'], 0.0), qty)
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 info = type_info.get(pick_type.get(pick))
+                # Recepciones pendientes: sin stock (esperan al proveedor)
+                avail = 0.0 if (info and info[2] == 'in') \
+                    else min(chain_avail.get(r['id'], 0.0), qty)
                 wh_key = (info[0], info[1]) if info else (False, _('Sin depósito'))
                 by_wh.setdefault(wh_key, [0.0, 0.0])
                 by_wh[wh_key][0] += avail
@@ -344,7 +373,7 @@ class MrpPlannerDashboard(models.TransientModel):
         # KPIs del período con los MISMOS filtros de la tabla: el rango se
         # aplica a la fecha de validación (date_done) y los depósitos son los
         # de esta barra — así las cards cierran con sus listas.
-        chain_type_ids, type_info = Log._dispatch_chain_types(
+        chain_type_ids, type_info = self._inventory_universe_types(
             company, warehouse_ids or None)
 
         # La tasa (única métrica que necesita snapshots/consolidado) viaja
@@ -472,9 +501,12 @@ class MrpPlannerDashboard(models.TransientModel):
         # la venta en cualquier eslabón de la cadena; si no está el módulo o el
         # remito no viene de una venta, la columna Origen queda como texto plano.
         has_sale = 'sale_id' in picks._fields
+        has_purchase = 'purchase_id' in picks._fields
         pick_rows = picks.read(['name', 'partner_id', 'origin', 'scheduled_date',
-                                'state', 'picking_type_id']
-                               + (['sale_id'] if has_sale else []))
+                                'state', 'picking_type_id', 'location_id',
+                                'location_dest_id']
+                               + (['sale_id'] if has_sale else [])
+                               + (['purchase_id'] if has_purchase else []))
 
         # Días disponible: primer snapshot del remito con reserva (evidencia real)
         today = fields.Date.context_today(self)
@@ -490,6 +522,8 @@ class MrpPlannerDashboard(models.TransientModel):
             'pick':  _('Recolección'),
             'pack':  _('Embalaje'),
             'ship':  _('Entrega'),
+            'in':    _('Recepción'),
+            'int':   _('Transferencia'),
             'ready': _('Validado s/ despachar'),
         }
         # Etiquetas NATIVAS (traducidas) del estado del remito: la tabla
@@ -506,6 +540,9 @@ class MrpPlannerDashboard(models.TransientModel):
             stage = 'ready' if pid in dispatch_queue else (info[2] if info else 'ship')
             pending, available, prods, min_date, done_qty = qty.get(
                 pid, [0.0, 0.0, {}, None, 0.0])
+            # Recepciones pendientes: sin stock (esperan al proveedor)
+            if stage == 'in':
+                available = 0.0
             # Lista completa de artículos ordenada por nombre (links del widget);
             # los nombres ya vienen del read de los movimientos: sin queries extra.
             detail = sorted(({'id': p_id, 'name': p_name} for p_id, p_name in prods.items()),
@@ -529,8 +566,16 @@ class MrpPlannerDashboard(models.TransientModel):
                 'name':          r['name'],
                 'partner':       r['partner_id'][1] if r['partner_id'] else '',
                 'origin':        r['origin'] or '',
-                'origin_id':     r['sale_id'][0] if has_sale and r.get('sale_id') else False,
+                'origin_model':  ('purchase.order' if has_purchase and r.get('purchase_id')
+                                  else 'sale.order' if has_sale and r.get('sale_id')
+                                  else False),
+                'origin_id':     (r['purchase_id'][0] if has_purchase and r.get('purchase_id')
+                                  else r['sale_id'][0] if has_sale and r.get('sale_id')
+                                  else False),
                 'warehouse':     info[1] if info else '',
+                'type_name':     info[3] if info else '',
+                'loc_from':      r['location_id'][1] if r['location_id'] else '',
+                'loc_to':        r['location_dest_id'][1] if r['location_dest_id'] else '',
                 'scheduled':     sched_str,
                 'overdue_days':  max(0, overdue) if overdue is not None else None,
                 'state':         r['state'],

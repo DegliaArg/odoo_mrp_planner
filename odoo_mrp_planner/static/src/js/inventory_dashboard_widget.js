@@ -57,6 +57,8 @@ function lastOfMonth()  { const d = new Date(); return toDateStr(new Date(d.getF
 const COLS = [
     { key: "name",           label: "Remito",      width: 110, fixed: true, align: "start" },
     { key: "stage_label",    label: "Etapa",       width: 120, align: "start" },
+    { key: "type_name",      label: "Tipo",        width: 150, align: "start" },
+    { key: "route",          label: "Desde → Hasta", width: 190, align: "start" },
     { key: "origin",         label: "Origen",      width: 110, align: "start" },
     { key: "warehouse",      label: "Depósito",    width: 120, align: "start" },
     { key: "scheduled",      label: "Fecha prog.", width: 120, align: "start" },
@@ -121,10 +123,10 @@ class InventoryDashboardWidget extends Component {
             tblTypeOpen:    false,
             colsDropdownOpen:  false,
             visibleCols: {
-                name: true, stage_label: true, origin: true, warehouse: false,
-                scheduled: true, product_names: true, qty_pending: true,
-                qty_available: true, qty_done: true, days_available: true,
-                state: true,
+                name: true, stage_label: true, type_name: false, route: false,
+                origin: true, warehouse: false, scheduled: true,
+                product_names: true, qty_pending: true, qty_available: true,
+                qty_done: true, days_available: true, state: true,
             },
             page:           1,
             pageSize:       30,
@@ -153,7 +155,7 @@ class InventoryDashboardWidget extends Component {
         this._persistKey = `inventory_dashboard.${companyId}`;
         restoreFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
         // Columnas nuevas ausentes en lo guardado: completar con el default
-        this.state.visibleCols = { qty_done: true, ...this.state.visibleCols };
+        this.state.visibleCols = { qty_done: true, type_name: false, route: false, ...this.state.visibleCols };
 
         this._tblDebounceTimer = null;
         // En la primera carga los canvas no existen todavía (t-if del spinner):
@@ -441,9 +443,9 @@ class InventoryDashboardWidget extends Component {
         switch (key) {
             // ── Cards de la tabla (dinámicas: fechas, búsqueda, filtros, pestaña y selección) ──
             case "pending":
-                return `Demanda aún no entregada de ${scope}, en cualquier eslabón de la cadena (recolección, embalaje o entrega)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
+                return `Demanda aún no entregada de ${scope}, de cualquier operación (cadena de entrega, transferencias internas y recepciones)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
             case "available":
-                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría entregarse hoy\nSuma por línea de mín(demanda, reservado en la cadena)\n→ ${fmt(t.available)} Pz`;
+                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría procesarse hoy\nSuma por línea de mín(demanda, reservado en la cadena); las recepciones pendientes cuentan como sin stock (esperan al proveedor)\n→ ${fmt(t.available)} Pz`;
             case "blocked":
                 return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
             case "overdue":
@@ -453,7 +455,7 @@ class InventoryDashboardWidget extends Component {
             // ── Validados: filas hechas de la tabla (dinámica como todas).
             //    La tasa sigue siendo la única card de servidor. ──
             case "delivered":
-                return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye toda la cadena: la misma mercadería suma en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de salida\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} Pz en ${this.validatedKpis.pickings} remito(s)`;
+                return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye TODAS las operaciones (recepciones, internas y toda la cadena): la misma mercadería puede sumar en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de entrega\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} Pz en ${this.validatedKpis.pickings} remito(s)`;
             case "rate":
                 return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
             default:
@@ -465,8 +467,10 @@ class InventoryDashboardWidget extends Component {
     colTitle(col) {
         const titles = {
             name:           "Número del remito — clic para abrirlo.",
-            stage_label:    "Eslabón de la cadena de entrega donde está parada la demanda: Recolección, Embalaje o Entrega. \"Validado s/ despachar\" (con el circuito activo) es la entrega ya validada que falta marcar como despachada.",
-            origin:         "Documento origen del remito — clic para abrir el pedido de venta.",
+            stage_label:    "Etapa de la operación: Recolección, Embalaje o Entrega (cadena de entrega), Recepción o Transferencia. \"Validado s/ despachar\" (con el circuito activo) es la entrega ya validada que falta marcar como despachada.",
+            type_name:      "Tipo de operación del remito.",
+            route:          "Ubicación de origen → ubicación de destino del remito.",
+            origin:         "Documento origen del remito — clic para abrir la venta o la compra asociada.",
             warehouse:      "Depósito del tipo de operación del remito.",
             scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida (\"hoy\" = vence hoy).",
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
@@ -562,7 +566,7 @@ class InventoryDashboardWidget extends Component {
     openOrigin(row) {
         this.action.doAction({
             type: "ir.actions.act_window",
-            res_model: "sale.order",
+            res_model: row.origin_model || "sale.order",
             res_id: row.origin_id,
             views: [[false, "form"]],
             target: "current",

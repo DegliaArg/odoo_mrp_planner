@@ -188,7 +188,7 @@
 
             <div class="o_planner_section_title mb-3">
                 <i class="fa fa-truck me-2 text-muted"/>
-                <span class="text-uppercase fw-bold text-muted small">Análisis de entregas</span>
+                <span class="text-uppercase fw-bold text-muted small">Análisis de movimientos</span>
                 <!-- Cola operativa del circuito de despacho: no participa de los
                      KPIs (una salida validada ya está entregada) -->
                 <span t-if="state.dispatchEnabled and readyCount"
@@ -500,7 +500,7 @@
 
                 <div t-if="!sortedRows.length" class="text-center text-muted py-4 border rounded">
                     <i class="fa fa-inbox fa-2x mb-2 d-block"/>
-                    No hay movimientos de entrega para los filtros seleccionados.
+                    No hay movimientos para los filtros seleccionados.
                 </div>
 
                 <div t-if="sortedRows.length" class="border rounded" style="max-height:72vh; overflow-y:auto;">
@@ -572,6 +572,11 @@
                                             </td>
                                             <td t-elif="col.key === 'qty_available'" class="text-end">
                                                 <t t-esc="fmt(row.qty_available)"/>
+                                            </td>
+                                            <td t-elif="col.key === 'route'"
+                                                style="max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                                t-att-title="row.loc_from + ' → ' + row.loc_to">
+                                                <t t-esc="row.loc_from"/> → <t t-esc="row.loc_to"/>
                                             </td>
                                             <td t-elif="col.key === 'qty_done'" class="text-end">
                                                 <t t-esc="row.state === 'done' ? fmt(row.qty_done) : ''"/>

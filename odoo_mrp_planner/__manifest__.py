@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Indicadores y análisis',
-    'version': '18.0.6.2.0',
+    'version': '18.0.7.0.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -31,10 +31,10 @@ Forecast
 - Exportación a Excel y edición directa de valores en celda.
 
 Inventario
-- Panel de Inventario: demanda pendiente de entrega por eslabón de la cadena
-  (recolección/embalaje/salida), entregado del período, atraso promedio y
-  tasa de entrega s/ disponible con snapshots diarios y consolidado mensual.
-- Panel de Movimientos: recepciones y transferencias internas pendientes.
+- Panel de Inventario con Análisis de movimientos: toda operación del rango
+  (recepciones, transferencias internas y la cadena de entrega) en todos los
+  estados, con KPIs dinámicos, validados del período y tasa de entrega
+  s/ disponible con snapshots diarios y consolidado mensual.
 - Grupos Inventario Lectura/Administrador y pestaña propia en los Ajustes.
 
 Programación y reprogramación
@@ -108,8 +108,6 @@ Programación y reprogramación
             'odoo_mrp_planner/static/src/xml/sheet_selector_widget.xml',
             'odoo_mrp_planner/static/src/js/inventory_dashboard_widget.js',
             'odoo_mrp_planner/static/src/xml/inventory_dashboard_widget.xml',
-            'odoo_mrp_planner/static/src/js/movements_dashboard_widget.js',
-            'odoo_mrp_planner/static/src/xml/movements_dashboard_widget.xml',
         ],
     },
     'installable': True,

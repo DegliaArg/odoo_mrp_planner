@@ -66,6 +66,16 @@ class MrpRescheduleConfig(models.Model):
     qty_tolerance_pct           = fields.Float(  string='Tolerancia cantidad (%)',      default=5.0,
         help='Diferencia porcentual aceptable entre cantidad pedida y recibida antes de generar alerta de desvío de cantidad.')
 
+    alert_delay_stat = fields.Selection([
+        ('max', 'Máximo'),
+        ('avg', 'Promedio'),
+    ], string='Días de atraso en los KPIs', default='max',
+       help='Estadístico de los días de atraso que acompaña a los conteos en los '
+            'KPIs de alertas: la card "OFs atrasadas" del panel de Producción y la '
+            'card "Vencidas" del panel de Compras.\n'
+            'Máximo: el caso más urgente (cuántos días lleva el atraso más viejo).\n'
+            'Promedio: el atraso medio del conjunto.')
+
     # (Los campos de forecast/comparativa/carga de CT viven en
     #  mrp_reschedule_config_forecast.py; los de categorías A–E en
     #  mrp_reschedule_config_categories.py; los del Panel de Inventario en

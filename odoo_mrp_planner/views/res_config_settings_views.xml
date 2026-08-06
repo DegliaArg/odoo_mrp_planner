@@ -34,6 +34,8 @@
                                                    help="Frecuencia con que el cron de detección revisa las OFs y OCs para generar o resolver alertas automáticamente."/>
                                             <field name="cron_interval_type" class="ms-2" nolabel="1"/>
                                         </div>
+                                        <field name="alert_delay_stat"
+                                               help="Estadístico de los días de atraso que acompaña a los conteos en las cards de alertas: OFs atrasadas (Producción) y Vencidas (Compras). Máximo = el atraso más viejo; Promedio = el atraso medio."/>
                                     </group>
                                     <group string="Preferencias por usuario">
                                         <div class="text-muted small mb-3">

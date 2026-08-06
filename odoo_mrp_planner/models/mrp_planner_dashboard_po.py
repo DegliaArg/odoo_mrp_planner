@@ -376,6 +376,18 @@ class MrpPlannerDashboardPo(models.TransientModel):
             lambda p: (now - p.date_planned).days >= po_crit_days
         )
 
+        # Días de atraso de las OCs vencidas (C5 del backlog): estadístico
+        # configurable en Ajustes → Alertas (máximo por defecto, o promedio)
+        # que acompaña al conteo en la card "Vencidas".
+        delay_stat = (cfg and cfg.alert_delay_stat) or 'max'
+        overdue_days_list = [(now - p.date_planned).days
+                             for p in kpi_overdue_rs if p.date_planned]
+        overdue_days_list = [d for d in overdue_days_list if d >= 0]
+        kpi_overdue_days = None
+        if overdue_days_list:
+            kpi_overdue_days = (max(overdue_days_list) if delay_stat == 'max'
+                                else round(sum(overdue_days_list) / len(overdue_days_list)))
+
         kpi_rfq        = len(kpi_rfq_rs)
         kpi_to_approve = len(kpi_approve_rs)
         kpi_total      = len(kpi_total_rs)
@@ -546,6 +558,8 @@ class MrpPlannerDashboardPo(models.TransientModel):
                 'total':            kpi_total,
                 'pending':          kpi_pending,
                 'overdue':          kpi_overdue,
+                'overdue_days':     kpi_overdue_days,
+                'delay_stat':       delay_stat,
                 'overdue_critical': kpi_critical,
                 'receipts_total':    len(receipts),
                 'receipts_overdue':  len(overdue_receipts),

@@ -72,6 +72,7 @@ function toDateStr(d) {
 
 const EMPTY_KPIS = {
     rfq: 0, to_approve: 0, total: 0, pending: 0, overdue: 0, overdue_critical: 0,
+    overdue_days: null, delay_stat: "max",
     receipts_total: 0, receipts_overdue: 0, deliveries_total: 0, deliveries_overdue: 0,
     services_total: 0, po_critical_days: 5,
 };
@@ -455,6 +456,18 @@ class PoDashboardWidget extends Component {
      */
     fmt(n)    { return new Intl.NumberFormat('es-AR').format(n || 0); }
 
+    /** Subtítulo de la card "Vencidas": días de atraso junto al conteo (C5) —
+     *  "máx. 12 días" o "prom. 4 días" según Ajustes → Alertas. Vacío con
+     *  conteo 0 o sin dato. */
+    overdueDelayText() {
+        const k = this.state.kpis;
+        if (!k.overdue || k.overdue_days === null || k.overdue_days === undefined) {
+            return '';
+        }
+        const stat = k.delay_stat === 'avg' ? 'prom.' : 'máx.';
+        return `${stat} ${this.fmt(k.overdue_days)} día${k.overdue_days === 1 ? '' : 's'}`;
+    }
+
     poKpiTooltip(key) {
         const k   = this.state.kpis;
         const f   = n => this.fmt(n);
@@ -470,8 +483,10 @@ class PoDashboardWidget extends Component {
                 return `OCs aprobadas con recepción pendiente o parcial\nEstado: Aprobada, recepción pendiente o parcial\nFiltro de fecha: fecha de aprobación (date_approve) dentro del rango\nNota: cada KPI usa un campo de fecha distinto; Aprobadas NO es la suma de A tiempo + Vencidas (esas usan fecha de entrega)\n→ ${f(k.total)} OCs aprobadas`;
             case 'pending':
                 return `OCs aprobadas cuya fecha de entrega aún no venció\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango y ≥ hoy\n→ ${f(k.pending)} OCs a tiempo`;
-            case 'overdue':
-                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango y < hoy\n→ ${f(k.overdue)} OCs vencidas`;
+            case 'overdue': {
+                const dd = this.overdueDelayText();
+                return `OCs aprobadas cuya fecha de entrega ya venció sin recepción total\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango y < hoy\n→ ${f(k.overdue)} OCs vencidas${dd ? ` · ${dd} de atraso` : ''}${dd ? `\nEstadístico (${k.delay_stat === 'avg' ? 'promedio' : 'máximo'}) configurable en Ajustes → Alertas` : ''}`;
+            }
             case 'overdue_critical':
                 return `OCs vencidas con más de ${cd} días de retraso (umbral configurable en Ajustes)\nFiltro de fecha: fecha de entrega (date_planned) dentro del rango\nCondición: días de retraso ≥ ${cd}\n→ ${f(k.overdue_critical)} OCs críticas`;
         }

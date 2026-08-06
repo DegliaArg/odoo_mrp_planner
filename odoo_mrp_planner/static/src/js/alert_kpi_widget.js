@@ -13,7 +13,8 @@ class AlertKpiWidget extends Component {
         this.orm    = useService("orm");
         this.action = useService("action");
         this.state  = useState({
-            kpis:      { mo_delayed: 0, mo_upcoming: 0, mo_in_progress: 0, qty_mismatch: 0, critical: 0 },
+            kpis:      { mo_delayed: 0, mo_delayed_days: null, delay_stat: "max",
+                         mo_upcoming: 0, mo_in_progress: 0, qty_mismatch: 0, critical: 0 },
             sc_loc_ids: [],
             loading:   true,
         });
@@ -85,12 +86,26 @@ class AlertKpiWidget extends Component {
 
     fmt(n) { return new Intl.NumberFormat("es-AR").format(n || 0); }
 
+    /** Subtítulo de la card "OFs atrasadas": días de atraso junto al conteo
+     *  (C5) — "máx. 12 días" o "prom. 4 días" según Ajustes → Alertas.
+     *  Vacío con conteo 0 o sin dato. */
+    delayText() {
+        const k = this.state.kpis;
+        if (!k.mo_delayed || k.mo_delayed_days === null || k.mo_delayed_days === undefined) {
+            return "";
+        }
+        const stat = k.delay_stat === "avg" ? "prom." : "máx.";
+        return `${stat} ${this.fmt(k.mo_delayed_days)} día${k.mo_delayed_days === 1 ? "" : "s"}`;
+    }
+
     alertKpiTooltip(key) {
         const k = this.state.kpis;
         const f = n => this.fmt(n);
         switch (key) {
-            case 'mo_delayed':
-                return `OFs activas cuya fecha de fin planificada ya superó la fecha actual. Indica retrasos que requieren acción inmediata.\n→ ${f(k.mo_delayed)} OFs atrasadas`;
+            case 'mo_delayed': {
+                const dd = this.delayText();
+                return `OFs activas cuya fecha de fin planificada ya superó la fecha actual. Indica retrasos que requieren acción inmediata.\n→ ${f(k.mo_delayed)} OFs atrasadas${dd ? ` · ${dd} de atraso` : ''}${dd ? `\nEstadístico (${k.delay_stat === 'avg' ? 'promedio' : 'máximo'}) configurable en Ajustes → Alertas` : ''}`;
+            }
             case 'mo_upcoming':
                 return `OFs activas con fecha de fin próxima a vencer, dentro del horizonte de advertencia configurado.\n→ ${f(k.mo_upcoming)} OFs por vencer`;
             case 'mo_in_progress':

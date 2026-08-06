@@ -132,6 +132,8 @@
                                     <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
                                     <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue)"/>
                                     <div class="o_planner_label">Vencidas</div>
+                                    <!-- C5: días de atraso junto al conteo (máx./prom. según Ajustes) -->
+                                    <div t-if="overdueDelayText()" class="small text-danger" t-esc="overdueDelayText()"/>
                                 </div>
                                 <div class="card-footer p-0">
                                     <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickOverdue">Ver →</button>

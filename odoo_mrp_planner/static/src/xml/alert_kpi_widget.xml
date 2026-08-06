@@ -17,6 +17,8 @@
                                  t-esc="fmt(state.kpis.mo_delayed)"
                                  aria-live="polite" aria-label="OFs atrasadas"/>
                             <div class="o_planner_label" aria-hidden="true">OFs atrasadas</div>
+                            <!-- C5: días de atraso junto al conteo (máx./prom. según Ajustes) -->
+                            <div t-if="delayText()" class="small text-danger" t-esc="delayText()"/>
                         </div>
                         <div class="card-footer p-0">
                             <button t-if="state.kpis.mo_delayed > 0"

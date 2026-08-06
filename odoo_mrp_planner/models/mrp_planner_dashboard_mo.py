@@ -146,8 +146,30 @@ class MrpPlannerDashboardMo(models.TransientModel):
             [('state', 'in', ('progress', 'to_close'))] + no_subcontract_domain(self.env) + wh_mo
         )
 
+        # Días de atraso de las OFs atrasadas (C5 del backlog): estadístico
+        # configurable en Ajustes → Alertas (máximo por defecto = el atraso más
+        # viejo, o promedio) que acompaña al conteo en la card. Se calcula
+        # desde la fecha de fin planificada de la OF de cada alerta activa.
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        delay_stat = (cfg and cfg.alert_delay_stat) or 'max'
+        delayed_alerts = Alert.search(
+            base + no_sc + wh_alert + [('alert_type', '=', 'mo_delayed')])
+        today = fields.Date.context_today(self)
+        delay_days = [
+            (today - a.production_id.date_finished.date()).days
+            for a in delayed_alerts
+            if a.production_id and a.production_id.date_finished
+        ]
+        delay_days = [d for d in delay_days if d >= 0]
+        mo_delayed_days = None
+        if delay_days:
+            mo_delayed_days = (max(delay_days) if delay_stat == 'max'
+                               else round(sum(delay_days) / len(delay_days)))
+
         return {
-            'mo_delayed':     cnt('mo_delayed'),
+            'mo_delayed':      len(delayed_alerts),
+            'mo_delayed_days': mo_delayed_days,
+            'delay_stat':      delay_stat,
             'mo_upcoming':    cnt('mo_upcoming'),
             'mo_in_progress': mo_in_progress,
             'qty_mismatch':   cnt('qty_mismatch'),

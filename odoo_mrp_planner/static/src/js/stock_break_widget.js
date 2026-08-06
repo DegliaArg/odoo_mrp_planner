@@ -96,6 +96,7 @@ class StockBreakWidget extends Component {
             expandedProducts: {},
             mosByProduct:     {},
             mosLoading:       {},
+            selected:         {},
         });
         this.colsStock = useColManager('stock_break', STOCK_COLS);
 
@@ -163,6 +164,7 @@ class StockBreakWidget extends Component {
                 this.state.kpis         = d.kpis;
                 this.state.locationName = d.location_name;
                 this.state.allProducts  = d.products;
+                this.state.selected     = {};
                 this.state.rotation_unit          = d.rotation_unit          || 'days';
                 this.state.show_rotation          = !!d.show_rotation;
                 this.state.show_sale_cat          = !!d.show_sale_cat;
@@ -192,15 +194,16 @@ class StockBreakWidget extends Component {
      * aplicados (sin paginar). Base común de la tabla visible y del export CSV.
      * @returns {Array<Object>} Filas filtradas y ordenadas
      */
-    _filteredSortedRows() {
+    _filteredSortedRows(skipTypeFilter = false) {
         let rows = [...this.state.allProducts];
 
         // Filtro por texto (client-side): el name incluye la referencia interna [REF].
         const q = (this.state.search || '').trim().toLowerCase();
         if (q) rows = rows.filter(r => (r.name || '').toLowerCase().includes(q));
 
-        // Filtro de tipo
-        const f = this.state.filterType;
+        // Filtro de tipo (omitible: las cards KPI son los selectores de
+        // segmento y sus conteos no deben auto-filtrarse)
+        const f = skipTypeFilter ? 'all' : this.state.filterType;
         if      (f === 'broken') rows = rows.filter(r => r.is_broken);
         else if (f === 'ok')     rows = rows.filter(r => r.has_min && !r.is_broken);
         else if (f === 'no_min') rows = rows.filter(r => !r.has_min);
@@ -285,12 +288,52 @@ class StockBreakWidget extends Component {
      * @returns {{count:number, qty:number, min_qty:number, qty_forecast:number,
      *            bom_lead_avg:number|null, rotation_avg:number|null}}
      */
+    // ── Selección: recalcula KPIs y totales, igual que el Panel de Inventario ──
+
+    toggleSelect(prod) {
+        this.state.selected[prod.id] = !this.state.selected[prod.id];
+    }
+    get selectedRows() {
+        return this._filteredSortedRows().filter(r => this.state.selected[r.id]);
+    }
+    // "Seleccionar todos" opera sobre la página visible
+    get allSelected() {
+        const rows = this.state.products;
+        return rows.length > 0 && rows.every(r => this.state.selected[r.id]);
+    }
+    toggleSelectAll() {
+        const target = !this.allSelected;
+        for (const r of this.state.products) {
+            this.state.selected[r.id] = target;
+        }
+    }
+    clearSelection() {
+        this.state.selected = {};
+    }
+
+    /** KPIs dinámicos: describen lo que muestra la tabla (búsqueda, depósito,
+     *  pestaña activa y selección de filas), SIN el filtro de segmento — las
+     *  cards son justamente los selectores de ese filtro. */
+    get liveKpis() {
+        const sel = Object.keys(this.state.selected).some(k => this.state.selected[k])
+            ? this._filteredSortedRows(true).filter(r => this.state.selected[r.id])
+            : this._filteredSortedRows(true);
+        const k = { total: sel.length, broken: 0, ok: 0, no_min: 0 };
+        for (const r of sel) {
+            if (r.is_broken) k.broken++;
+            else if (!r.has_min) k.no_min++;
+            else k.ok++;
+        }
+        return k;
+    }
+
     get stockTotals() {
-        const rows = this._filteredSortedRows();
+        const sel = this.selectedRows;
+        const rows = sel.length ? sel : this._filteredSortedRows();
         const t = { count: rows.length, qty: 0, min_qty: 0, qty_forecast: 0,
                     bom_lead_avg: null, rotation_avg: null };
         let leadSum = 0, leadN = 0, rotSum = 0, rotN = 0;
-        for (const r of rows) {
+        for (const r of rows) {  // rows = selección si la hay, si no la tabla
             t.qty += r.qty || 0;
             if (r.has_min && r.min_qty !== null && r.min_qty !== undefined) t.min_qty += r.min_qty;
             if (r.qty_forecast !== null && r.qty_forecast !== undefined)    t.qty_forecast += r.qty_forecast;
@@ -858,7 +901,7 @@ class StockBreakWidget extends Component {
     }
 
     stockKpiTooltip(key) {
-        const k = this.state.kpis;
+        const k = this.liveKpis;
         const f = n => this.fmt(n);
         switch (key) {
             case 'total':

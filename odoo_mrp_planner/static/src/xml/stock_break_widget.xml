@@ -35,7 +35,7 @@
                              t-on-click="() => this.setFilter('all')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
-                                <div class="o_planner_number"><t t-esc="state.kpis.total"/></div>
+                                <div class="o_planner_number"><t t-esc="liveKpis.total"/></div>
                                 <div class="o_planner_label">Vendibles</div>
                             </div>
                             <div class="card-footer p-0">
@@ -49,7 +49,7 @@
                              t-on-click="() => this.setFilter('broken')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
-                                <div class="o_planner_number text-danger"><t t-esc="state.kpis.broken"/></div>
+                                <div class="o_planner_number"><t t-esc="liveKpis.broken"/></div>
                                 <div class="o_planner_label">Quiebres</div>
                             </div>
                             <div class="card-footer p-0">
@@ -63,7 +63,7 @@
                              t-on-click="() => this.setFilter('ok')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-check-circle fa-lg text-success mb-2 d-block"/>
-                                <div class="o_planner_number text-success"><t t-esc="state.kpis.ok"/></div>
+                                <div class="o_planner_number"><t t-esc="liveKpis.ok"/></div>
                                 <div class="o_planner_label">Stock OK</div>
                             </div>
                             <div class="card-footer p-0">
@@ -77,7 +77,7 @@
                              t-on-click="() => this.setFilter('no_min')">
                             <div class="card-body text-center py-3">
                                 <i class="fa fa-minus-circle fa-lg text-muted mb-2 d-block"/>
-                                <div class="o_planner_number text-muted"><t t-esc="state.kpis.no_min"/></div>
+                                <div class="o_planner_number"><t t-esc="liveKpis.no_min"/></div>
                                 <div class="o_planner_label">Sin mínimo</div>
                             </div>
                             <div class="card-footer p-0">
@@ -177,6 +177,15 @@
                     </ul>
                 </t>
 
+                <!-- Selección activa: KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedRows.length" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedRows.length"/> seleccionado(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
                 <!-- Estado vacío (solo cuando no hay agrupamiento activo) -->
                 <div t-if="!state.groupBy and state.products.length === 0"
                      class="text-center text-muted py-4 border rounded">
@@ -185,14 +194,21 @@
                 </div>
 
                 <t t-if="(state.groupBy and allGroupsForTabs and allGroupsForTabs.length) or state.products.length">
-                    <div class="border rounded" style="overflow:auto;">
+                    <div class="border rounded" style="max-height:72vh; overflow:auto;">
                         <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;">
                             <colgroup>
+                                <col style="width:28px;"/>
                                 <col t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                      t-att-style="colsStock.colGroupStyle(col.key)"/>
                             </colgroup>
-                            <thead class="table-light">
+                            <thead class="table-light" style="position:sticky; top:0; z-index:3;">
                                 <tr class="text-muted">
+                                    <th class="text-center align-middle" style="user-select:none;">
+                                        <input type="checkbox" class="form-check-input"
+                                               title="Seleccionar todos los artículos de la página"
+                                               t-att-checked="allSelected"
+                                               t-on-change="toggleSelectAll"/>
+                                    </th>
                                     <th t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                         t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsStock.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
                                         style="position:relative; user-select:none;"
@@ -221,6 +237,12 @@
                                         style="cursor:pointer"
                                         t-att-data-product-id="prod.id"
                                         t-on-click="openProductFromRow">
+                                        <td class="text-center align-middle" t-on-click.stop="">
+                                            <input type="checkbox" class="form-check-input"
+                                                   t-att-checked="state.selected[prod.id]"
+                                                   title="Seleccionar: los KPIs y totales se recalculan sobre la selección"
+                                                   t-on-change="() => this.toggleSelect(prod)"/>
+                                        </td>
                                         <td t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                             t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center align-middle p-0' : '')">
                                             <t t-if="col.key === '_expand'">
@@ -304,7 +326,7 @@
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
                                     <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
-                                        <td t-att-colspan="visibleStockCols.length" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        <td t-att-colspan="visibleStockCols.length + 1" class="p-0" style="background:#f8f9fa; border-top:none;">
                                             <div class="px-3 py-2">
 
                                                 <div t-if="state.mosLoading[prod.id]"
@@ -370,6 +392,7 @@
                             <tfoot t-if="state.products.length" class="table-light fw-semibold"
                                    style="border-top:2px solid #dee2e6;">
                                 <tr>
+                                    <td/>
                                     <td t-foreach="visibleStockCols" t-as="col" t-key="col.key"
                                         t-att-class="col.align ? 'text-' + col.align : ''">
                                         <t t-if="col.key === 'name'">

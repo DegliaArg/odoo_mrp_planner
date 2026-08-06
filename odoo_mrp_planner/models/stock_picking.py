@@ -99,13 +99,6 @@ class StockPicking(models.Model):
 
     # ══ Cantidades para las listas de los drills de los paneles ══════════════
 
-    x_qty_pieces = fields.Float(
-        string='Cantidad (Pz)', compute='_compute_x_qty_pieces',
-        digits='Product Unit of Measure',
-        help='Suma de las cantidades de las líneas del remito: demandadas si el '
-             'remito está pendiente, hechas si ya está validado. Columna '
-             'informativa de las listas que abren los paneles del planificador.')
-
     def _planner_qty_move_date_dom(self):
         """Rango de fechas opcional del contexto (planner_date_from/_to, días
         locales del usuario) sobre la fecha programada de cada línea
@@ -128,27 +121,6 @@ class StockPicking(models.Model):
             dom.append(('date', '<',
                         to_utc(fields.Date.from_string(d_to) + timedelta(days=1))))
         return dom
-
-    def _compute_x_qty_pieces(self):
-        # Suma por remito en dos pasadas batch (una por criterio de estado)
-        Move = self.env['stock.move'].sudo()
-        pending = self.filtered(lambda p: p.state not in ('done', 'cancel'))
-        done = self.filtered(lambda p: p.state == 'done')
-        date_dom = self._planner_qty_move_date_dom()
-        totals = {}
-        if pending:
-            for picking, qty in Move._read_group(
-                    [('picking_id', 'in', pending.ids),
-                     ('state', 'not in', ('draft', 'done', 'cancel'))] + date_dom,
-                    ['picking_id'], ['product_uom_qty:sum']):
-                totals[picking.id] = qty
-        if done:
-            for picking, qty in Move._read_group(
-                    [('picking_id', 'in', done.ids), ('state', '=', 'done')],
-                    ['picking_id'], ['quantity:sum']):
-                totals[picking.id] = qty
-        for pick in self:
-            pick.x_qty_pieces = totals.get(pick.id, 0.0)
 
     x_qty_done = fields.Float(
         string='Cantidad hecha (Pz)', compute='_compute_x_qty_done', store=True,

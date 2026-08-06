@@ -89,10 +89,6 @@ class MrpPlannerDashboard(models.TransientModel):
         return d_from, d_to, to_utc(dt_from), to_utc(dt_to)
 
     @api.model
-    def _inventory_wh_domain(self, warehouse_ids, field='picking_type_id.warehouse_id'):
-        return [(field, 'in', warehouse_ids)] if warehouse_ids else []
-
-    @api.model
     def _inventory_qround(self, cfg, value):
         """Redondeo de las cantidades en piezas de los paneles de Inventario
         y Movimientos: a entero (round) si en Ajustes → Inventario está activo

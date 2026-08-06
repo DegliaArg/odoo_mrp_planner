@@ -112,15 +112,16 @@
                 Error al cargar el panel: <strong><t t-esc="state.chartError"/></strong>
             </div>
 
-            <!-- Cargando: mismo patrón que el resto de los paneles -->
-            <t t-if="!state.chartError and (state.chartLoading or !state.data)">
+            <!-- Spinner SOLO en la primera carga: en las recargas el contenido
+                 queda montado y atenuado por la clase de abajo (soft reload) -->
+            <t t-if="!state.chartError and state.chartLoading and !state.data">
                 <div class="text-center text-muted py-5">
                     <i class="fa fa-spinner fa-spin fa-2x"/>
                     <div class="mt-2 small">Cargando datos…</div>
                 </div>
             </t>
 
-            <t t-if="state.data and !state.chartLoading">
+            <t t-if="state.data">
                 <div t-att-class="'o_planner_fade_in ' + (state.chartLoading ? 'opacity-50 pe-none' : '')">
 
                 <!-- Aviso: registro de disponibilidad apagado -->
@@ -467,11 +468,14 @@
                 Error al cargar las salidas pendientes: <strong><t t-esc="state.tableError"/></strong>
             </div>
 
-            <div t-if="state.tableLoading" class="text-center text-muted py-4">
+            <!-- Spinner SOLO en la primera carga; en las recargas la zona queda
+                 montada y atenuada (soft reload) -->
+            <div t-if="state.tableLoading and !state.rows.length" class="text-center text-muted py-4">
                 <i class="fa fa-spinner fa-spin fa-2x"/>
             </div>
 
-            <t t-if="!state.tableLoading and !state.tableError">
+            <t t-if="!state.tableError and (state.rows.length or !state.tableLoading)">
+                <div t-att-class="state.tableLoading ? 'opacity-50 pe-none' : ''">
                 <!-- Selección activa: los KPIs y totales se recalculan sobre ella -->
                 <div t-if="selectedRows.length" class="d-flex align-items-center gap-2 mb-2">
                     <span class="badge text-bg-primary">
@@ -678,6 +682,7 @@
                 <div t-if="totalPages &lt;= 1 and sortedRows.length" class="text-muted small mt-1">
                     <t t-esc="sortedRows.length"/> remito(s) pendiente(s)<t
                         t-if="sortedRows.length !== state.rows.length"> (de <t t-esc="state.rows.length"/>)</t>
+                </div>
                 </div>
             </t>
 

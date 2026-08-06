@@ -10,8 +10,10 @@
                 Error al cargar el forecast: <strong><t t-esc="state.loadError"/></strong>
             </div>
 
-            <!-- Cargando: mismo patrón que el resto de los paneles -->
-            <t t-if="!state.loadError and (state.loading || !state.data)">
+            <!-- Spinner SOLO en la primera carga: en las recargas (cambio de
+                 fecha/filtros) el contenido queda montado y el contenedor lo
+                 atenúa (opacity-50 pe-none) — soft reload, patrón Inventario -->
+            <t t-if="!state.loadError and state.loading and !state.data">
                 <div class="text-center text-muted py-5">
                     <i class="fa fa-spinner fa-spin fa-2x"/>
                     <div class="mt-2 small">Cargando datos…</div>

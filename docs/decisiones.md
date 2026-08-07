@@ -408,8 +408,13 @@ el KPI ni con Con stock + Sin stock de la misma lista.
   universo del rango, de modo que **Demanda = Con stock + Sin stock** y el total al pie
   cierra con el KPI. Se agregó la regla de recepciones (Con stock = 0) al compute. El
   campo almacenado quedó eliminado.
-- ✅ **#1:** el drill de "Validados del período" pasó a usar la misma lista de 3
-  columnas (para validados: Demanda = Con stock = cantidad hecha, Sin stock = 0).
+- **#1:** se probó mostrar las 3 columnas también en "Validados del período", pero
+  para remitos entregados Con/Sin stock no aplican (Demanda = Con stock, Sin stock = 0)
+  y confundía; decisión de Franco: el drill de Validados vuelve a una sola columna
+  "Cantidad hecha". Las sublistas de pendientes conservan las 3.
+- **Redondeo KPI ↔ total de la lista:** con "Forzar cantidades enteras" el KPI redondea
+  por fila y la lista suma en crudo (decimales), de ahí un residual de pocas piezas
+  sobre millones (< 0,0001%). Decisión de Franco: se deja así (cosmético).
 - **Límite conocido (respuesta a "¿suma por grupo?"):** al ser recortadas por fecha,
   las tres columnas no pueden almacenarse ⇒ **totalizan al pie** (suma de las filas
   cargadas, que es lo que cuadra con el KPI) pero **no por grupo** si se agrupa la

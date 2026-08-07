@@ -517,9 +517,9 @@ class InventoryDashboardWidget extends Component {
     }
     openValidated() {
         // Exactamente las filas HECHAS que la card contó (con selección,
-        // solo la selección) — mismo mecanismo y misma lista de 3 columnas
-        // que los drills de pendiente (para validados: Demanda = Con stock =
-        // cantidad hecha, Sin stock = 0).
+        // solo la selección). Lista con una sola columna de cantidad
+        // ("Cantidad hecha"): para remitos ya entregados no aplican Con/Sin
+        // stock (todo lo hecho está disponible), así que serían redundantes.
         const all = this.selectedRows.length ? this.selectedRows : this.groupedRows;
         const rows = all.filter(r => r.state === "done");
         this.action.doAction({
@@ -531,7 +531,7 @@ class InventoryDashboardWidget extends Component {
             limit: Math.max(rows.length, 80),
             context: {
                 create: false,
-                list_view_ref: "odoo_mrp_planner.view_picking_list_planner_drill_pending",
+                list_view_ref: "odoo_mrp_planner.view_picking_list_planner_drill",
             },
             target: "current",
         });

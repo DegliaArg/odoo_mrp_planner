@@ -1,0 +1,361 @@
+
+/* ── Design tokens del planificador ─────────────────────────────────────── */
+
+:root {
+  /* Colores semánticos */
+  --mrp-color-critical:  #dc3545;        /* danger  — vencidas */
+  --mrp-color-warning:   #fd7e14;        /* warning — próximas a vencer */
+  --mrp-color-ok:        #198754;        /* success — en tiempo */
+  --mrp-color-info:      #0dcaf0;        /* info    — informativo */
+  --mrp-color-neutral:   #6c757d;        /* secondary — sin alerta */
+  --mrp-color-purple:    #7952b3;        /* accent  — forecast/demanda real */
+  --mrp-color-primary:   #0d6efd;        /* Bootstrap primary */
+
+  /* Fondos */
+  --mrp-bg-white:        #fff;
+  --mrp-bg-light:        #f8f9fa;
+
+  /* Bordes */
+  --mrp-border-default:  #dee2e6;        /* card default, searchbar, dropdown */
+  --mrp-border-section:  #e9ecef;        /* separadores de sección */
+  --mrp-border-subtle:   rgba(0, 0, 0, 0.06);
+
+  /* Cards — variantes semánticas (bordes claros) */
+  --mrp-card-border-danger:   #f5c6cb;
+  --mrp-card-border-warning:  #ffdba8;
+  --mrp-card-border-info:     #b8e7f5;
+  --mrp-card-border-success:  #b7e4c7;
+  --mrp-card-border-primary:  #b6d4fe;
+
+  /* Cards — estructura */
+  --mrp-card-border-radius:   0.5rem;     /* = 8px */
+  --mrp-card-shadow:           0 1px 3px rgba(0, 0, 0, 0.08);
+  --mrp-card-shadow-hover:     0 4px 12px rgba(0, 0, 0, 0.10);
+  --mrp-card-shadow-clickable: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --mrp-card-padding:          1rem;
+
+  /* Interacción */
+  --mrp-btn-link-hover-bg:     rgba(0, 0, 0, 0.03);
+  --mrp-dropdown-shadow:       0 4px 14px rgba(0, 0, 0, 0.12);
+  --mrp-clickable-hover-border: #adb5bd;
+
+  /* Focus */
+  --mrp-focus-border:          #80bdff;
+  --mrp-focus-shadow:          rgba(0, 123, 255, 0.2);
+
+  /* Primary — variantes alpha */
+  --mrp-primary-bg-subtle:     rgba(13, 110, 253, 0.10);
+  --mrp-primary-border-subtle: rgba(13, 110, 253, 0.25);
+  --mrp-primary-resize-hover:  rgba(13, 110, 253, 0.35);
+  --mrp-primary-drag-bg:       rgba(13, 110, 253, 0.06);
+
+  /* Transiciones */
+  --mrp-transition-fast:   0.15s ease;
+  --mrp-transition-normal: 0.25s ease;
+
+  /* Tooltip */
+  --mrp-tooltip-z:         1050;
+  --mrp-tooltip-bg:        rgba(33, 37, 41, 0.93);
+  --mrp-tooltip-shadow:    0 4px 16px rgba(0, 0, 0, 0.28);
+
+  /* Forecast — semáforo */
+  --mrp-forecast-ok-bg:       #c6efce;
+  --mrp-forecast-ok-text:     #276221;
+  --mrp-forecast-warning-bg:  #ffeb9c;
+  --mrp-forecast-warning-text:#7d6608;
+  --mrp-forecast-critical-bg: #ffc7ce;
+  --mrp-forecast-critical-text:#9c0006;
+}
+
+/* ── Dashboard del planificador ─────────────────────────────────────────── */
+
+.o_planner_dashboard {
+    max-width: 1400px;
+}
+
+.o_planner_header {
+    border-bottom: 2px solid var(--mrp-border-section);
+}
+
+.o_planner_section_title {
+    border-bottom: 1px solid var(--mrp-border-section);
+    padding-bottom: 6px;
+    letter-spacing: 0.04em;
+}
+
+/* Cards */
+.o_planner_card {
+    border-radius: var(--mrp-card-border-radius);
+    border: 1px solid var(--mrp-border-default);
+    transition: box-shadow var(--mrp-transition-fast), transform var(--mrp-transition-fast);
+}
+
+.o_planner_card:hover {
+    box-shadow: var(--mrp-card-shadow-hover);
+    transform: translateY(-2px);
+}
+
+.o_planner_card_danger  { border-color: var(--mrp-card-border-danger); }
+.o_planner_card_warning { border-color: var(--mrp-card-border-warning); }
+.o_planner_card_info    { border-color: var(--mrp-card-border-info); }
+.o_planner_card_success { border-color: var(--mrp-card-border-success); }
+.o_planner_card_primary { border-color: var(--mrp-card-border-primary); }
+
+.o_planner_card_clickable {
+    cursor: pointer;
+}
+
+.o_planner_card_clickable:hover {
+    box-shadow: var(--mrp-card-shadow-clickable);
+    border-color: var(--mrp-clickable-hover-border);
+}
+
+.o_planner_card .card-footer {
+    background: transparent;
+    border-top: 1px solid var(--mrp-border-subtle);
+}
+
+/* Número grande — tamaño automático según ancho del card */
+.o_planner_card .card-body {
+    container-type: inline-size;
+}
+
+.o_planner_number {
+    font-size: clamp(0.85rem, 10cqi, 1.8rem);
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.o_planner_number .o_field_widget,
+.o_planner_number .o_field_integer {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    display: inline;
+}
+
+.o_planner_number .o_field_widget span {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+}
+
+/* Etiqueta */
+.o_planner_label {
+    font-size: 0.78rem;
+    color: var(--mrp-color-neutral);
+    font-weight: 500;
+}
+
+/* Botón "Ver →" */
+.o_planner_card .btn-link {
+    font-size: 0.78rem;
+    text-decoration: none;
+    opacity: 0.7;
+}
+
+.o_planner_card .btn-link:hover {
+    opacity: 1;
+    background: var(--mrp-btn-link-hover-bg);
+    text-decoration: none;
+}
+
+/* Ocultar pager y título automático en vistas del planificador */
+.o_view_controller:has(.o_planner_dashboard) .o_pager { display: none !important; }
+.o_view_controller:has(.o_planner_dashboard) .o_breadcrumb .o_back_button ~ .active { display: none; }
+
+/* Alineación vertical en títulos de sección (badge + botón link) */
+.o_planner_section_title { display: flex; align-items: center; }
+
+/* ── PlannerSearchBar ────────────────────────────────────────────────────── */
+
+.o_planner_searchbar {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.o_planner_searchbar_container {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 30px;
+    padding: 2px 30px 2px 8px;
+    background: var(--mrp-bg-white);
+    border: 1px solid var(--mrp-border-default);
+    border-radius: 4px;
+    cursor: text;
+    position: relative;
+    transition: border-color var(--mrp-transition-fast), box-shadow var(--mrp-transition-fast);
+}
+
+.o_planner_searchbar_container:focus-within {
+    border-color: var(--mrp-focus-border);
+    box-shadow: 0 0 0 0.15rem var(--mrp-focus-shadow);
+}
+
+.o_planner_search_facet {
+    display: inline-flex;
+    align-items: center;
+    background: var(--mrp-primary-bg-subtle);
+    border: 1px solid var(--mrp-primary-border-subtle);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.8rem;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.o_planner_search_facet .o_facet_prefix {
+    color: var(--mrp-color-neutral);
+    font-size: 0.75rem;
+}
+
+.o_planner_search_facet .o_facet_remove {
+    color: var(--mrp-color-neutral);
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.o_planner_search_facet .o_facet_remove:hover { color: var(--mrp-color-critical); }
+
+.o_planner_search_input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 80px;
+    font-size: 0.875rem;
+    background: transparent;
+    padding: 0;
+}
+
+.o_planner_search_toggle {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--mrp-color-neutral);
+    padding: 2px 5px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.o_planner_search_toggle:hover { color: var(--mrp-color-primary); }
+
+.o_planner_search_dropdown {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    right: 0;
+    min-width: 280px;
+    z-index: 1055;
+    background: var(--mrp-bg-white);
+    border: 1px solid var(--mrp-border-default);
+    border-radius: 4px;
+    box-shadow: var(--mrp-dropdown-shadow);
+}
+
+.o_planner_search_section_header {
+    padding: 8px 12px 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--mrp-color-neutral);
+    letter-spacing: 0.06em;
+}
+
+.o_planner_search_item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: inherit;
+    text-decoration: none;
+    transition: background 0.1s;
+}
+
+.o_planner_search_item:hover { background: var(--mrp-bg-light); }
+
+.o_planner_search_item.active { color: var(--mrp-color-primary); }
+
+.o_planner_search_fav_row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 0.875rem;
+}
+
+.o_planner_search_fav_add {
+    padding: 6px 12px 8px;
+    border-top: 1px solid var(--mrp-border-default);
+    margin-top: 2px;
+}
+
+/* ── Column resize + reorder ──────────────────────────────────────────────── */
+
+/* Resize handle — pinned to right edge of each th */
+.o_col_resize_handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+    transition: background 0.1s;
+}
+
+.o_col_resize_handle:hover {
+    background: var(--mrp-primary-resize-hover);
+}
+
+/* Drop-target highlight while dragging */
+th.o_col_drag_over {
+    box-shadow: inset 2px 0 0 var(--mrp-color-primary);
+    background-color: var(--mrp-primary-drag-bg) !important;
+}
+
+/* Drag cursor for reorderable headers */
+th[draggable="true"] { cursor: grab; }
+th[draggable="true"]:active { cursor: grabbing; }
+
+
+/* Transición al alternar KPIs ↔ desglose de entregas (forecast) */
+.o_planner_fade_in {
+    animation: plannerFadeIn 0.18s ease-out;
+}
+@keyframes plannerFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* Números de KPI: nunca dos renglones; el tamaño baja por longitud del texto */
+.o_planner_number { white-space: nowrap; }
+.o_planner_num_md { font-size: 1.1rem !important; }
+.o_planner_num_sm { font-size: 0.9rem !important; }
+/* Números cortos en cards angostas (fila de KPIs de clientes): escala más
+   agresiva con el ancho del contenedor; los textos largos usan la base. */
+.o_planner_num_xl { font-size: clamp(1rem, 14.5cqi, 1.75rem) !important; }
+
+/* Altura mínima uniforme para las grillas de KPIs: las cards sin botón "Ver"
+   miden lo mismo que las que lo tienen, y su contenido se centra en toda la
+   card (el espaciador invisible dejaba el contenido corrido hacia arriba). */
+.o_planner_kpi_card_lg { min-height: 132px; }
+.o_planner_kpi_card_sm { min-height: 102px; }
+.o_planner_kpi_card_xs { min-height: 84px; }
+.o_planner_kpi_card_xs .card-body { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.o_planner_kpi_card_xs .small { font-size: 0.72rem; }
+.o_planner_footer_spacer { visibility: hidden; }

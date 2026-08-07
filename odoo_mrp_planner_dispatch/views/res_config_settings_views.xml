@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Ajustes del planificador → pestaña Inventario ──
+         La pestaña vive en el módulo base; este módulo agrega la columna del
+         circuito de despacho. -->
+    <record id="mrp_reschedule_config_form_view_dispatch" model="ir.ui.view">
+        <field name="name">mrp.reschedule.config.form.dispatch</field>
+        <field name="model">mrp.reschedule.config</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_config_form_view"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//div[@name='inventory_settings_row']" position="inside">
+                <div class="col-6">
+                    <group string="Despacho de entregas">
+                        <field name="enable_dispatch_validation" widget="boolean_toggle"/>
+                        <field name="dispatch_picking_type_ids" widget="many2many_tags"
+                               options="{'no_create': true}"
+                               invisible="not enable_dispatch_validation"/>
+                        <div class="text-muted small border-start border-2 ps-2 mt-1">
+                            Agrega a las salidas el estado <b>Sin despachar / Despachado</b> y el botón
+                            "Marcar despachado" (solo con el remito validado y para usuarios del grupo
+                            <i>Inventario: validación de despacho</i>). Al <b>activar</b>, las salidas ya
+                            validadas que nunca entraron al circuito se marcan como despachadas, así la
+                            cola pendiente arranca vacía. Al desactivar no se pierde nada: los estados
+                            se conservan ocultos.
+                        </div>
+                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                             invisible="not enable_dispatch_validation">
+                            <b>Tipos de operación con despacho</b>: solo las salidas de estos tipos
+                            entran al circuito. Se precarga con todos los tipos de salida de la
+                            empresa: sacá los que no son entregas a clientes (p. ej. transferencias
+                            entre depósitos). Al sacar un tipo, sus remitos quedan sin estado de
+                            despacho (la columna aparece vacía; la auditoría queda en el chatter);
+                            al agregarlo, sus salidas validadas viejas se marcan como despachadas
+                            para arrancar con la cola vacía.
+                        </div>
+                    </group>
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

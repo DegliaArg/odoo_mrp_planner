@@ -296,12 +296,102 @@ dependencias, código muerto y configuración) previa al pase a producción. Fix
   (meses por defecto del forecast, período preseleccionado de clientes) y código muerto
   (`mo_list_widget`, `MrpTooltip`, 16 acciones sin uso del mixin, imports).
 
+## Auditoría post-split de módulos (2026-08-06)
+
+Auditoría de 5 dimensiones (separación de módulos, seguridad, código muerto, tamaño de
+archivos y backlog) sobre los tres módulos — base 18.0.7.0.0, scheduling 18.0.5.2.1 y
+dispatch 18.0.3.0.0 — tras mover el Panel de Inventario al módulo base (migración
+18.0.6.0.0) y fusionar el panel de Movimientos dentro del de Inventario.
+
+- **Separación de módulos: limpia.** Sin modelos ni helpers duplicados (todo por
+  `_inherit`); `depends` completos en los tres manifests; cada módulo declara ACLs solo
+  de sus modelos; referencias cruzadas siempre calificadas (`odoo_mrp_planner.*`); la
+  pre-migración 18.0.6.0.0 reasigna bien los `ir_model_data` movidos; todos los anchors
+  que hereda el dispatch (drills, `inventory_settings_row`, form de Ajustes) existen en
+  el base. El circuito de despacho está completo: tipos elegibles con precarga y
+  sincronización (limpia estados al excluir un tipo), hooks del panel
+  (`_inventory_dispatch_enabled/_queue_ids/_can_dispatch`) y columna Despacho agregada
+  por herencia a los drills.
+- **Seguridad: sin hallazgos accionables.** Los tres RPC del Panel de Inventario llaman
+  `_inventory_ensure_group()` antes de leer con `sudo()`; todos los `sudo()` nuevos
+  están comentados; el filtrado por depósito sigue entrando únicamente por
+  `_get_allowed_wh_ids()` (vía `_inventory_effective_whs`). Dos anotaciones **por
+  diseño** (no bugs): (a) ningún `action_open_*` de los cinco paneles lleva guard — solo
+  crean el transient; los datos se protegen en los `get_*`; (b) los campos `x_qty_*` de
+  `stock.picking` no filtran por depósito: muestran cantidades del propio remito (ya
+  protegido por record rules) y la disponibilidad por cadena cruza depósitos a propósito.
+- ✔️ **Falso positivo verificado:** el `(3, ref('group_inventory_admin'))` de
+  `odoo_mrp_planner_dispatch/security/groups.xml` no es un bug: deshace a propósito la
+  herencia que existía hasta v18.0.2.x (los grupos de Inventario se asignan por usuario,
+  no vía Administrador del planificador) y en instalaciones frescas es un no-op.
+- ✅ **Código muerto eliminado:** campo `x_qty_pieces` + `_compute_x_qty_pieces`
+  (reemplazados en los drills por los almacenados `x_qty_done` / `x_qty_pending_store`)
+  y el helper `_inventory_wh_domain`, nunca llamado. Verificados **vivos** antes de
+  borrar (búsqueda por string en todo el repo): `_planner_qty_move_date_dom` (lo usa
+  `_compute_x_qty_chain` con el contexto `planner_date_from/_to` que manda el widget),
+  `STATE_LABELS`/`rowStateLabel` y `_dispatch_chain_types`.
+- 🟡 **Tamaño/responsabilidad (diagnóstico, sin refactor aplicado):** hay ~450 líneas de
+  lógica casi idéntica repetida entre `customer_analysis_widget.js`,
+  `stock_break_widget.js` e `inventory_dashboard_widget.js` (orden/filtro/paginación,
+  pestañas de agrupación, selección de filas, dropdowns multi-select de depósito/tipo,
+  export). `customer_analysis_widget.js` (~1440 líneas) siguió creciendo porque cada
+  iteración de UX (panel lateral de detalle, selección, persistencia, export) se agregó
+  al archivo principal — solo los gráficos se extrajeron a
+  `customer_analysis_charts.js`. `mrp_reschedule_config.py` (~990) concentra 8 dominios
+  de configuración (alertas, forecast, categorías ×3, análisis de clientes,
+  inventario/snapshots). Propuesta en el backlog (requiere decisión).
+
+## Ejecución de las decisiones de la auditoría (2026-08-06, tarde)
+
+Las tres decisiones que la auditoría dejó pendientes fueron confirmadas y ejecutadas
+(commits separados por riesgo). Con esto se cierran los tres ítems que la auditoría
+había agregado al backlog, más el C5 histórico.
+
+- ✅ **(a) Refactor de mecánica compartida JS + split de la config.**
+  - Nuevos módulos `static/src/js/planner_table.js` (orden genérico, pestañas de
+    agrupación, paginación), `planner_selection.js` (selección de filas),
+    `planner_multiselect.js` (dropdowns multi-selección) y `planner_export.js`
+    (CSV/Excel); `kpiNumClass` pasó a `forecast_formatters.js`. Los widgets de
+    Inventario, Quiebres y Clientes delegan en las factories y conservan wrappers de
+    una línea para sus templates (sin cambios de template ni de comportamiento).
+  - Panel lateral y filas expandibles de clientes extraídos a
+    `customer_analysis_panel.js` (mismo patrón que `customer_analysis_charts.js`).
+  - `mrp_reschedule_config.py` (994 líneas) dividido por dominio en
+    `mrp_reschedule_config_forecast.py`, `_categories.py` y `_inventory.py`
+    (verificado por script: 109 campos, cero perdidos/duplicados). De paso se
+    eliminaron el import muerto de `mrp_abc_helpers` y `_logger` sin uso.
+  - Tamaños finales: clientes 1436→1270, quiebres 954→899, inventario 945→855,
+    config 994→527.
+- ✅ 🔴 **Bug: restauración de filtros rota en clientes Y forecast (TypeError).**
+  `restoreFilters` se llamaba ANTES de crear `this.state` (useState): con filtros
+  guardados de una visita anterior el widget tiraba TypeError al remontarse (el Panel
+  de Ventas crasheó en staging por el ForecastWidget); sin guardados, la restauración
+  era un no-op. Venía de la ola de homogeneización del 2026-08-06 a la mañana
+  (persistencia CA/FC). Corregido moviendo la llamada después de crear el estado; los
+  demás widgets con persistencia (inventario, quiebres, OFs, OCs) ya tenían el orden
+  correcto — verificado por script sobre los 6.
+  *(`customer_analysis_widget.js`, `forecast_widget.js`.)*
+- ✅ **(b) C5 cerrado — días de atraso en los KPI de alertas (decisión: máximo).**
+  Las cards "OFs atrasadas" (Producción) y "Vencidas" (Compras) muestran el dato de
+  días junto al conteo ("máx. 12 días"), con estadístico configurable en Ajustes →
+  Alertas (`alert_delay_stat`: Máximo default / Promedio). Producción lo calcula desde
+  la fecha de fin planificada de la OF de cada alerta activa; Compras sobre el mismo
+  conjunto exacto del KPI (`kpi_overdue_rs`, por `date_planned`). Con conteo 0 no se
+  muestra. Campo nuevo en la config ⇒ **requiere `-u`** (base v18.0.7.1.0).
+- ✅ **(c) ARQUITECTURA.md actualizado y doc de sesión archivado.** El doc ahora cubre
+  la suite de 3 módulos (tabla de módulos y depends), el split de la config, el Panel
+  de Inventario (`mrp_planner_dashboard_inventory.py`, `mrp.dispatch.stock.log` /
+  `mrp.planner.kpi.monthly`, campos `x_qty_*` de stock.picking), los grupos de
+  Inventario/despacho (incluida la no-herencia intencional de `group_admin` →
+  `group_inventory_admin`), los helpers `planner_*` y una sección completa de
+  `odoo_mrp_planner_dispatch`. `docs/sesion-2026-08-03-panel-inventario.md` →
+  `docs/archivo/` (describía el estado previo al split).
+
+Pendiente de verificación (no había Odoo local): smoke test en staging de los 3
+paneles refactorizados (filtros/orden/pestañas/selección/export/despacho masivo),
+la card de días de atraso en Producción y Compras, y el `-u odoo_mrp_planner`.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los
   configurables del análisis de clientes — diferencia aceptada por ahora.
-- **C5 — Días de retraso/vencimiento no aparecen en los KPI de alertas.** Los KPI de
-  alertas (producción y compras) solo muestran conteos, sin indicar cuántos días lleva el
-  retraso o cuántos faltan para vencer. Pendiente definir qué dato mostrar (máximo,
-  promedio u otro). *(`views/mrp_planner_dashboard_views.xml`,
-  `models/mrp_planner_dashboard.py`, `static/src/js/alert_kpi_widget.js`.)*

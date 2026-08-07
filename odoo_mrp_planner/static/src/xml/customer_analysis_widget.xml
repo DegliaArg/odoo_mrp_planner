@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<!-- Sub-templates movidos a archivos separados (t-call sigue usando el mismo nombre):
+     customer_analysis_row.xml         →  odoo_mrp_planner.CustomerAnalysisRow
+     customer_analysis_detail_panel.xml →  odoo_mrp_planner.CustomerAnalysisDetailPanel -->
+
+<t t-name="odoo_mrp_planner.CustomerAnalysisWidget">
+    <div t-att-class="state.loading ? 'opacity-50 pe-none' : ''"
+         style="font-size:13px; min-height:500px;">
+
+        <!-- ══ Main content ══════════════════════════════════════════════════ -->
+        <div class="d-flex flex-column">
+
+            <!-- ── Barra de filtros unificada ──────────────────────────────── -->
+            <div class="d-flex align-items-center gap-1 mb-3 flex-nowrap">
+
+                <!-- Rango de fechas propio de los gráficos: mientras coincida con el de
+                     la tabla van sincronizados; al cambiarlo, los gráficos cargan su
+                     propio dataset. Igualarlo a la tabla vuelve a sincronizar. -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de los gráficos">
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold"
+                          title="Rango de fechas de los gráficos superiores, independiente del de la tabla. Mientras coincida con el de la tabla se mueven juntos; si lo igualás de nuevo, se re-sincronizan.">Gráf.:</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha inicial del rango de los gráficos. Independiente de la tabla: mientras coincidan, van sincronizados."
+                           t-att-value="state.chartDateFrom"
+                           t-on-change="onChartDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:108px;"
+                           title="Fecha final del rango de los gráficos. Independiente de la tabla: mientras coincidan, van sincronizados."
+                           t-att-value="state.chartDateTo"
+                           t-on-change="onChartDateToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isChartCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            title="Fijar el rango de los gráficos al mes calendario en curso"
+                            t-att-aria-pressed="isChartCurrentMonth ? 'true' : 'false'"
+                            t-on-click="setChartCurrentMonth">Mes en curso</button>
+                    <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted" title="Cargando datos del rango del gráfico…"/>
+                </div>
+
+                <!-- Categoría de cliente -->
+                <t t-if="availableCategories.length">
+                    <div class="vr" style="height:20px;"/>
+                    <div class="d-flex align-items-center gap-1">
+                        <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Cat.:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button t-att-class="state.filterCategory === null ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                    style="font-size:10px; padding:1px 5px;"
+                                    title="Ver clientes de todas las categorías"
+                                    t-on-click="() => this.setFilterCategory(null)">Todas</button>
+                            <t t-foreach="availableCategories" t-as="cat" t-key="cat">
+                                <button t-att-class="state.filterCategory === cat ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                        style="font-size:10px; padding:1px 5px;"
+                                        t-att-title="'Filtrar clientes de categoría: ' + cat"
+                                        t-on-click="() => this.setFilterCategory(cat)">
+                                    <t t-esc="cat"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Segmento ABC -->
+                <div class="vr" style="height:20px;"/>
+                <div class="d-flex align-items-center gap-1">
+                    <span style="font-size:10px;" class="text-muted fw-semibold">ABC:</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button t-att-class="state.filterABC === null ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Ver todos los segmentos ABC"
+                                t-on-click="() => this.setFilterABC(null)">Todos</button>
+                        <button t-att-class="state.filterABC === 'A' ? 'btn btn-success' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Segmento A: clientes que concentran el primer tramo acumulado de facturación del período (umbral configurable en Ajustes, def. 20%)"
+                                t-on-click="() => this.setFilterABC('A')">A</button>
+                        <button t-att-class="state.filterABC === 'B' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Segmento B: clientes del tramo medio de facturación acumulada del período (hasta A%+B%, def. 70%)"
+                                t-on-click="() => this.setFilterABC('B')">B</button>
+                        <button t-att-class="state.filterABC === 'C' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Segmento C: resto de los clientes del período (menor participación en la facturación acumulada)"
+                                t-on-click="() => this.setFilterABC('C')">C</button>
+                    </div>
+                </div>
+
+                <!-- Frecuencia -->
+                <div class="vr" style="height:20px;"/>
+                <div class="d-flex align-items-center gap-1">
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Frec.:</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button t-att-class="state.filterFreq === null ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Ver todas las frecuencias de compra"
+                                t-on-click="() => this.setFilterFreq(null)">Todos</button>
+                        <button t-att-class="state.filterFreq === 'frecuente' ? 'btn btn-success' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Frecuente: clientes con compras regulares y recientes"
+                                t-on-click="() => this.setFilterFreq('frecuente')">Frec.</button>
+                        <button t-att-class="state.filterFreq === 'ocasional' ? 'btn btn-warning' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Ocasional: clientes que compran con baja frecuencia"
+                                t-on-click="() => this.setFilterFreq('ocasional')">Ocas.</button>
+                        <button t-att-class="state.filterFreq === 'en_riesgo' ? 'btn btn-danger' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="En riesgo: clientes que solían comprar pero llevan tiempo sin hacerlo"
+                                t-on-click="() => this.setFilterFreq('en_riesgo')">Riesgo</button>
+                        <button t-att-class="state.filterFreq === 'inactivo' ? 'btn btn-secondary' : 'btn btn-outline-secondary'"
+                                style="font-size:10px; padding:1px 5px;"
+                                title="Inactivo: sin compras en el último año"
+                                t-on-click="() => this.setFilterFreq('inactivo')">Inact.</button>
+                    </div>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
+                <!-- Métrica del gráfico -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[['pxq','Importe','Importe total sin impuestos de los pedidos del período'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','P. prom.','Precio promedio por unidad (monto ÷ piezas) por cliente']]"
+                       t-as="m" t-key="m[0]">
+                        <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 5px;"
+                                t-att-title="m[2]"
+                                t-on-click="() => this.setChartMetric(m[0])">
+                            <t t-esc="m[1]"/>
+                        </button>
+                    </t>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
+                <!-- Top N -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                        <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 5px;"
+                                t-att-title="'Mostrar sólo los top ' + n + ' clientes por volumen'"
+                                t-on-click="() => this.setChartTopN(n)">
+                            <t t-esc="'Top ' + n"/>
+                        </button>
+                    </t>
+                    <button t-att-class="'btn ' + (state.chartTopN === null ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 5px;"
+                            title="Mostrar todos los clientes en el gráfico"
+                            t-on-click="() => this.setChartTopN(null)">Todos</button>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
+                <!-- Segmento del donut -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <t t-foreach="[['abc','Segmento','Distribuir la dona por segmento ABC (A/B/C)'],['cat','Cat.','Distribuir la dona por categoría de cliente'],['freq','Frec.','Distribuir la dona por frecuencia de compra']]"
+                       t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.chartDonut === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 5px;"
+                                t-att-title="d[2]"
+                                t-on-click="() => this.setChartDonut(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+
+            </div>
+
+            <!-- Spinner solo en la PRIMERA carga; en las recargas por cambio de
+                 filtros el contenido queda montado y atenuado (soft reload) -->
+            <div t-if="state.loading and !state.allRows.length"
+                 class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+                <div class="mt-2 small">Cargando datos…</div>
+            </div>
+
+            <!-- ── Gráficos superiores ───────────────────────────────────────── -->
+            <t t-if="state.allRows.length">
+
+                <!-- Torta (flex:1 ≈ 30%) + Barras (flex:2 ≈ 70%) -->
+                <div class="d-flex gap-3 align-items-start mb-4">
+
+                    <div style="flex:1; min-width:0;">
+                        <div style="position:relative; height:300px;">
+                            <canvas t-ref="topDonut"/>
+                        </div>
+                    </div>
+
+                    <div style="flex:2; min-width:0; position:relative; height:320px;">
+                        <canvas t-ref="topChart"/>
+                    </div>
+
+                </div>
+
+            </t>
+
+            <!-- ── Sección: Detalle de clientes ────────────────────────────── -->
+            <div class="o_planner_section_title mb-3">
+                <i class="fa fa-table me-2 text-muted"/>
+                <span class="text-uppercase fw-bold text-muted small">Detalle de clientes</span>
+            </div>
+            <hr class="mt-0 mb-3"/>
+
+            <!-- ── KPI cards globales: una fila, solo métricas comerciales del
+                 cliente (las métricas de entrega viven en el panel de ventas).
+                 Violeta = identidad de "Demanda real" compartida con ventas. ── -->
+                <div class="d-flex gap-2 mb-3">
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('total_customers')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-users fa-lg text-primary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_customers))"
+                                     t-esc="fmt(state.kpis.total_customers)"/>
+                                <div class="o_planner_label">Clientes activos</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver los pedidos del período agrupados por cliente"
+                                        t-on-click="() => this.openKpiDrilldown('customers')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('total_orders')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_orders))"
+                                     t-esc="fmt(state.kpis.total_orders)"/>
+                                <div class="o_planner_label">Total pedidos</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver los pedidos del período"
+                                        t-on-click="() => this.openKpiDrilldown('orders')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('total_qty')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-cubes fa-lg mb-1 d-block" style="color:#7952b3;"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_qty) + ' Pz')"
+                                     style="color:#7952b3;"
+                                     t-esc="fmt(state.kpis.total_qty) + ' Pz'"/>
+                                <div class="o_planner_label">Demanda real</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver las líneas de pedido (piezas) del período"
+                                        t-on-click="openPeriodOrderLines">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('total_delivered')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(state.kpis.total_delivered) + ' Pz')"
+                                     t-esc="fmt(state.kpis.total_delivered) + ' Pz'"/>
+                                <div class="o_planner_label">Cumpl. de demanda</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver las entregas (líneas) de los pedidos del período de los clientes visibles"
+                                        t-on-click="openKpiDemandDeliveries">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('total_amount')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-money fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.total_amount))"
+                                     t-esc="fmtMoney(state.kpis.total_amount)"/>
+                                <div class="o_planner_label" t-esc="'Monto total' + amountLabelSuffix"/>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver los pedidos del período"
+                                        t-on-click="() => this.openKpiDrilldown('orders')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('fulfillment_pct')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + deliveryClass(state.kpis.fulfillment_pct)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPct(state.kpis.fulfillment_pct)) + ' ' + deliveryClass(state.kpis.fulfillment_pct)"
+                                     t-esc="fmtPct(state.kpis.fulfillment_pct)"/>
+                                <div class="o_planner_label text-nowrap">Tasa cumplimiento</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('lead_time')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtDays(state.kpis.lead_time))"
+                                     t-esc="fmtDays(state.kpis.lead_time)"/>
+                                <div class="o_planner_label" t-esc="'Lead entrega (' + leadMethodLabel() + ')'"/>
+                                <div class="d-flex flex-wrap justify-content-center gap-1 mt-1">
+                                    <t t-foreach="leadPills()" t-as="pill" t-key="pill.key">
+                                        <span class="text-muted border rounded px-1"
+                                              style="font-size:0.62rem; line-height:1.4;">
+                                            <t t-esc="pill.label"/>: <t t-esc="fmtDays(pill.value)"/>
+                                        </span>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('avg_price')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-tag fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.avg_price))"
+                                     t-esc="fmtMoney(state.kpis.avg_price)"/>
+                                <div class="o_planner_label">Precio promedio</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controles -->
+                <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+                    <!-- Período -->
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Desde</label>
+                        <input type="date" class="form-control form-control-sm"
+                               style="max-width:140px;"
+                               t-att-value="state.dateFrom"
+                               t-on-change="onDateFromChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Hasta</label>
+                        <input type="date" class="form-control form-control-sm"
+                               style="max-width:140px;"
+                               t-att-value="state.dateTo"
+                               t-on-change="onDateToChange"/>
+                    </div>
+
+                    <PlannerSearchBar
+                        widgetKey="'customer_analysis'"
+                        placeholder="'Buscar cliente, producto, familia…'"
+                        t-props="{
+                            search:          state.productSearch,
+                            activeGroupBy:   state.groupBy,
+                            groupByDefs:     groupByDefs,
+                            onSearch:        (t) => this.setSearch(t),
+                            onGroupByChange: (k) => this.setGroupBy(k),
+                            showFavorites:   true
+                        }"/>
+
+                    <div class="position-relative" t-on-click.stop="">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                t-on-click="toggleColsDropdown">
+                            <i class="fa fa-columns"/>
+                            <span>Columnas</span>
+                            <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.colsDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:220px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <p class="small text-muted mb-1 px-1">Cliente</p>
+                            <t t-foreach="[
+                                ['customer_category', 'Cat. global (A–E del contacto)'],
+                                ['abc_segment',       'ABC período (ranking dinámico)'],
+                                ['partner_tag',       'Etiqueta de contacto'],
+                                ['salesperson',       'Vendedor'],
+                                ['country',           'País'],
+                                ['province',          'Provincia'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div t-if="col[0] !== 'customer_category' or state.config.show_category"
+                                     class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Compras</p>
+                            <t t-foreach="[
+                                ['order_count',  'Pedidos'],
+                                ['qty_ordered',  'Demanda real'],
+                                ['qty_delivered', 'Cumplimiento de demanda'],
+                                ['total_amount', 'Monto total'],
+                                ['avg_price',    'Precio promedio'],
+                                ['trend_pct',    'Tendencia vs período anterior'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Entrega</p>
+                            <t t-foreach="[
+                                ['delivery_pct', '% Cumplim.'],
+                                ['lead_time',    'Lead time entrega'],
+                                ['ontime_pct',   '% A tiempo'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                            <div class="dropdown-divider my-1"/>
+                            <p class="small text-muted mb-1 px-1">Frecuencia y productos</p>
+                            <t t-foreach="[
+                                ['avg_days_between',  'Frecuencia (días entre pedidos)'],
+                                ['days_since_last',   'Días sin comprar'],
+                                ['last_order_date',   'Última compra'],
+                                ['frequency_segment', 'Segmento de frecuencia'],
+                                ['distinct_products', 'Productos distintos'],
+                                ['top_product',       'Top producto'],
+                                ['top_family',        'Familia principal'],
+                            ]" t-as="col" t-key="col[0]">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ca_col_' + col[0]"
+                                           t-att-checked="state.visibleCols[col[0]]"
+                                           t-on-change="() => this.toggleCol(col[0])"/>
+                                    <label class="form-check-label small" t-att-for="'ca_col_' + col[0]">
+                                        <t t-esc="col[1]"/>
+                                    </label>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <span class="ms-auto text-muted small">
+                        <t t-esc="state.totalFiltered"/> cliente(s)
+                    </span>
+
+                    <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                            title="Exportar tabla a Excel (.xls) con las columnas visibles"
+                            t-on-click="exportToExcel">
+                        <i class="fa fa-download"/>
+                        <span>Exportar</span>
+                    </button>
+                </div>
+
+                <!-- Error backend -->
+                <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    Error: <strong><t t-esc="state.loadError"/></strong>
+                </div>
+
+                <!-- Selección activa: KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedCount" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedCount"/> seleccionado(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
+                <!-- Pestañas de agrupamiento (mismo patrón que quiebres de stock) -->
+                <t t-if="state.groupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + (state.selectedGroup === g.key ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo los ' + g.count + ' cliente(s) del grupo: ' + g.label"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-esc="g.label"/>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+
+                <!-- Tabla -->
+                <div class="border rounded" style="max-height:72vh; overflow-y:auto;">
+                    <table class="table table-sm table-bordered mb-0 align-middle"
+                           style="font-size:12px; width:100%; table-layout:fixed;">
+
+                        <thead style="position:sticky; top:0; z-index:3;">
+                            <tr>
+                                <th class="text-center align-middle"
+                                    style="padding:4px 4px; background:#f8f9fa; width:28px;">
+                                    <input type="checkbox" class="form-check-input"
+                                           title="Seleccionar todos los clientes de la página"
+                                           t-att-checked="allSelected"
+                                           t-on-change="toggleSelectAll"/>
+                                </th>
+                                <th style="padding:4px 4px; background:#f8f9fa; width:28px;"/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                    <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                        t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-title="colTitle(col)"
+                                        t-att-data-col-key="col.key"
+                                        t-att-draggable="col.fixed ? 'false' : 'true'"
+                                        t-on-dragstart="cols.onDragStart"
+                                        t-on-dragover="cols.onDragOver"
+                                        t-on-drop="cols.onDrop"
+                                        t-on-dragend="cols.onDragEnd"
+                                        t-on-click="() => this.onColHeaderClick(col)">
+                                        <t t-esc="col.label"/>
+                                        <i t-att-class="sortIcon(caSortKeys[col.key])"/>
+                                        <div class="o_col_resize_handle"
+                                             t-att-data-col-key="col.key"
+                                             t-on-mousedown.stop="cols.onResizeStart"
+                                             t-on-click.stop="() => {}"/>
+                                    </th>
+                                </t>
+                                <th style="padding:4px 8px; background:#f8f9fa; width:36px;"/>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <t t-foreach="state.rows" t-as="row" t-key="row.partner_id">
+                                <t t-call="odoo_mrp_planner.CustomerAnalysisRow"/>
+                            </t>
+                            <tr t-if="state.totalFiltered === 0 and !state.loading">
+                                <td t-att-colspan="staticVisibleCols.length + 3"
+                                    class="text-center text-muted py-4">
+                                    No se encontraron clientes para el período seleccionado.
+                                </td>
+                            </tr>
+                        </tbody>
+
+                        <!-- Totales de lo que muestra la tabla: conjunto filtrado/buscado
+                             y, si hay agrupamiento, solo la pestaña activa. -->
+                        <tfoot t-if="state.totalFiltered > 0"
+                               class="fw-bold" style="background:#f8f9fa;">
+                            <tr>
+                                <td/>
+                                <td/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                    <td style="padding:3px 6px;"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'partner_name'">
+                                            <span title="Cantidad de clientes que muestra la tabla (filtro, búsqueda y pestaña activa aplicados).">
+                                                Total (<t t-esc="state.tableTotals.count"/>)
+                                            </span>
+                                        </t>
+                                        <t t-elif="col.key === 'order_count'">
+                                            <span title="Suma de pedidos de los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.orders)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_ordered'">
+                                            <span title="Suma de piezas pedidas por los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.qty)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_delivered'">
+                                            <span title="Suma de piezas ya entregadas de los pedidos del período de los clientes visibles en la tabla."
+                                                  t-esc="fmt(state.tableTotals.delivered)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'total_amount'">
+                                            <span title="Suma del importe sin impuestos de los clientes visibles en la tabla."
+                                                  t-esc="fmtMoney(state.tableTotals.amount)"/>
+                                        </t>
+                                    </td>
+                                </t>
+                                <td/>
+                            </tr>
+                        </tfoot>
+
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                <div t-if="totalPages > 1"
+                     class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                     style="flex-shrink:0;">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <small class="text-muted">
+                        Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                        · <t t-esc="state.totalFiltered"/> registros
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
+                </div>
+
+        </div>
+        <!-- ── fin main content ── -->
+
+    </div>
+</t>
+
+</templates>

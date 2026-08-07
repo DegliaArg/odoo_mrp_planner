@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Inventario: validación de despacho -->
+    <record id="group_dispatch_validation" model="res.groups">
+        <field name="name">Inventario: validación de despacho</field>
+        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
+        <field name="comment">Permite marcar como despachadas las órdenes de entrega ya validadas (botón "Marcar despachado" y acción masiva de la lista y del Panel de Inventario). El estado de despacho es visible para todos; solo este grupo puede cambiarlo.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- El Administrador de Inventario (grupo del módulo base) puede despachar -->
+    <record id="odoo_mrp_planner.group_inventory_admin" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation'))]"/>
+    </record>
+
+    <!-- El Administrador del planificador implica el despacho (puede marcar
+         despachado), pero NO los grupos de Inventario: el menú y los Ajustes
+         del panel se asignan explícitamente por usuario. El (3, ...) deshace
+         la herencia que existía hasta la v18.0.2.x en bases ya instaladas. -->
+    <record id="odoo_mrp_planner.group_admin" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_dispatch_validation')), (3, ref('odoo_mrp_planner.group_inventory_admin'))]"/>
+    </record>
+
+</odoo>

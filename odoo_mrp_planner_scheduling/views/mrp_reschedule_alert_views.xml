@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Alertas: botón "Crear plan de reprogramación" y plan generado (form) ── -->
+    <record id="mrp_reschedule_alert_form_scheduling" model="ir.ui.view">
+        <field name="name">mrp.reschedule.alert.form.scheduling</field>
+        <field name="model">mrp.reschedule.alert</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_alert_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//header/button[@name='action_resolve']" position="before">
+                <button name="action_create_reschedule_plan"
+                        type="object"
+                        string="Crear plan de reprogramación"
+                        class="btn-primary"
+                        invisible="resolved or alert_type == 'qty_mismatch' or not scheduling_enabled"/>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <field name="scheduling_enabled" invisible="1"/>
+            </xpath>
+            <xpath expr="//form//field[@name='resolve_date']" position="after">
+                <field name="plan_id" readonly="1"/>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ── Alertas: columna Plan y botón Reprogramar (lista) ── -->
+    <record id="mrp_reschedule_alert_list_scheduling" model="ir.ui.view">
+        <field name="name">mrp.reschedule.alert.list.scheduling</field>
+        <field name="model">mrp.reschedule.alert</field>
+        <field name="inherit_id" ref="odoo_mrp_planner.mrp_reschedule_alert_list"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//list/field[@name='message']" position="after">
+                <field name="plan_id" string="Plan" optional="show"/>
+            </xpath>
+            <xpath expr="//list/field[@name='resolve_date']" position="after">
+                <field name="scheduling_enabled" column_invisible="1"/>
+            </xpath>
+            <xpath expr="//list/button[@name='action_view_impact_mos']" position="after">
+                <button name="action_create_reschedule_plan"
+                        type="object"
+                        string="Reprogramar"
+                        class="btn-primary btn-sm"
+                        invisible="resolved or alert_type == 'qty_mismatch' or not scheduling_enabled"/>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

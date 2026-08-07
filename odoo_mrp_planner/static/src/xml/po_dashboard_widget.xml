@@ -1,0 +1,652 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.PoDashboardWidget">
+        <div class="o_po_dashboard_widget" t-ref="poRoot">
+
+            <!-- Filtros de fecha y estado OC -->
+            <div class="row g-2 mb-3">
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Desde</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                </div>
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Hasta</label>
+                    <input type="date" class="form-control form-control-sm d-inline-block"
+                           style="width:auto"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                </div>
+                <div class="col-auto">
+                    <label class="col-form-label col-form-label-sm me-1">Estado OC</label>
+                    <select class="form-select form-select-sm d-inline-block" style="width:auto"
+                            t-on-change="onOcFilterChange">
+                        <option value="overdue" t-att-selected="state.ocFilter === 'overdue'">Vencidas</option>
+                        <option value="all"     t-att-selected="state.ocFilter === 'all'">Todas</option>
+                        <option value="pending" t-att-selected="state.ocFilter === 'pending'">A tiempo</option>
+                        <option value="rfqs"    t-att-selected="state.ocFilter === 'rfqs'">Cotizaciones</option>
+                        <option value="approve" t-att-selected="state.ocFilter === 'approve'">Por aprobar</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Pestañas de tipo + buscador inline -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <ul class="nav nav-pills mb-0">
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'all' ? ' active' : '')"
+                                t-on-click="() => this.setTab('all')">
+                            <i class="fa fa-th-list me-1"/>Todas
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'purchase' ? ' active' : '')"
+                                t-on-click="() => this.setTab('purchase')">
+                            <i class="fa fa-shopping-cart me-1"/>Compras
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === 'subcontract' ? ' active' : '')"
+                                t-on-click="() => this.setTab('subcontract')">
+                            <i class="fa fa-industry me-1"/>Subcontratación
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Contenido — dimming durante carga en lugar de spinner full -->
+            <div t-att-class="'row g-3' + (state.loading ? ' opacity-50 pe-none' : '')">
+
+                <!-- Izquierda: tarjetas KPI -->
+                <div class="col-12 col-lg-4 o_kpi_height_src">
+                    <div class="row g-2">
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_info h-100"
+                                 style="cursor:pointer" t-on-click="onClickRfqs"
+                                 t-att-title="poKpiTooltip('rfq')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-file-text-o fa-lg text-info mb-2 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.rfq)"/>
+                                    <div class="o_planner_label">Cotizaciones</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickRfqs">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_warning h-100"
+                                 style="cursor:pointer" t-on-click="onClickToApprove"
+                                 t-att-title="poKpiTooltip('to_approve')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-clock-o fa-lg text-warning mb-2 d-block"/>
+                                    <div class="o_planner_number text-warning" t-esc="fmt(state.kpis.to_approve)"/>
+                                    <div class="o_planner_label">Por aprobar</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickToApprove">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card h-100"
+                                 style="cursor:pointer" t-on-click="onClickAll"
+                                 t-att-title="poKpiTooltip('total')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-list fa-lg text-secondary mb-2 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.total)"/>
+                                    <div class="o_planner_label">Aprobadas</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickAll">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_success h-100"
+                                 style="cursor:pointer" t-on-click="onClickPending"
+                                 t-att-title="poKpiTooltip('pending')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-check fa-lg text-success mb-2 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.kpis.pending)"/>
+                                    <div class="o_planner_label">A tiempo</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickPending">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_danger h-100"
+                                 style="cursor:pointer" t-on-click="onClickOverdue"
+                                 t-att-title="poKpiTooltip('overdue')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-exclamation-triangle fa-lg text-danger mb-2 d-block"/>
+                                    <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue)"/>
+                                    <div class="o_planner_label">Vencidas</div>
+                                    <!-- C5: días de atraso junto al conteo (máx./prom. según Ajustes) -->
+                                    <div t-if="overdueDelayText()" class="small text-danger" t-esc="overdueDelayText()"/>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickOverdue">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card o_planner_card o_planner_card_danger h-100"
+                                 style="cursor:pointer" t-on-click="onClickCritical"
+                                 t-att-title="poKpiTooltip('overdue_critical')">
+                                <div class="card-body text-center py-3">
+                                    <i class="fa fa-exclamation-circle fa-lg text-danger mb-2 d-block"/>
+                                    <div class="o_planner_number text-danger" t-esc="fmt(state.kpis.overdue_critical)"/>
+                                    <div class="o_planner_label">Críticas (+<t t-esc="state.kpis.po_critical_days || 5"/> días)</div>
+                                </div>
+                                <div class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1" t-on-click.stop="onClickCritical">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Derecha: pestañas de lista -->
+                <div class="col-12 col-lg-8">
+
+                    <input type="text" class="form-control form-control-sm mb-2 o_above_table_search"
+                           placeholder="Buscar OC, referencia, proveedor…"
+                           t-att-value="state.search"
+                           t-on-input="(ev) => this.setSearch(ev.target.value)"
+                           autocomplete="off"/>
+
+                    <!-- Sin datos -->
+                    <div t-if="isEmpty"
+                         class="d-flex align-items-center justify-content-center border rounded o_table_scroll"
+                         style="height:350px;">
+                        <div class="text-center small text-muted">
+                            <i class="fa fa-check-circle fa-2x mb-2 d-block text-success"/>
+                            Sin órdenes pendientes.
+                        </div>
+                    </div>
+
+                    <div t-else="" class="d-flex flex-column o_table_scroll" style="height:350px; overflow:hidden;">
+                        <!-- Pestañas de lista (movimientos de stock) -->
+                        <ul class="nav nav-tabs mb-0 flex-wrap" style="flex-shrink:0;">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (!state.listTab ? ' active' : '')"
+                                        t-on-click="() => this.setListTab(null)">
+                                    <i class="fa fa-shopping-cart text-primary me-1"/>
+                                    OCs
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'receipts' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('receipts')">
+                                    <i class="fa fa-arrow-down text-primary me-1"/>
+                                    Recepciones
+                                    <span t-if="state.kpis.receipts_overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="fmt(state.kpis.receipts_overdue)"/>
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'deliveries' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('deliveries')">
+                                    <i class="fa fa-arrow-up text-secondary me-1"/>
+                                    Entregas
+                                    <span t-if="state.kpis.deliveries_overdue > 0"
+                                          class="badge rounded-pill bg-danger ms-1"
+                                          t-esc="fmt(state.kpis.deliveries_overdue)"/>
+                                </button>
+                            </li>
+                            <li t-if="state.show_services_tab" class="nav-item">
+                                <button t-att-class="'nav-link py-1 px-3 small' + (state.listTab === 'services' ? ' active' : '')"
+                                        t-on-click="() => this.setListTab('services')">
+                                    <i class="fa fa-briefcase text-info me-1"/>
+                                    Servicios
+                                    <span t-if="state.kpis.services_total > 0"
+                                          class="badge rounded-pill bg-info ms-1"
+                                          t-esc="fmt(state.kpis.services_total)"/>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Contenido de lista con scroll (split table) -->
+                        <div class="border border-top-0 rounded-bottom d-flex flex-column"
+                             style="overflow:hidden; flex:1; min-height:0;">
+
+                            <div t-if="activeList.length === 0"
+                                 class="d-flex align-items-center justify-content-center flex-grow-1">
+                                <div class="o_mrp_empty_state text-center py-5 text-muted">
+                                    <i class="fa fa-inbox fa-3x mb-3 d-block opacity-50"/>
+                                    <p class="mb-0 fw-semibold">Sin datos para mostrar</p>
+                                    <small>No hay registros en esta categoría para el período seleccionado.</small>
+                                </div>
+                            </div>
+
+                            <!-- OCs — controladas por el dropdown Estado OC -->
+                            <t t-elif="!state.listTab">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                       aria-label="Órdenes de compra" role="grid">
+                                    <colgroup>
+                                        <col t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsOc.colGroupStyle(col.key)"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsOc.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                scope="col"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsOc.onDragStart"
+                                                t-on-dragover="colsOc.onDragOver"
+                                                t-on-drop="colsOc.onDrop"
+                                                t-on-dragend="colsOc.onDragEnd">
+                                                <t t-if="col.key === 'date_planned'">
+                                                    <t t-if="state.ocFilter === 'overdue'">Vencida el</t>
+                                                    <t t-else=""><t t-esc="col.label"/></t>
+                                                </t>
+                                                <t t-else=""><t t-esc="col.label"/></t>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsOc.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                           aria-label="Filas de órdenes de compra" role="grid">
+                                        <colgroup>
+                                            <col t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsOc.colGroupStyle(col.key)"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="po" t-key="po.id">
+                                                <tr t-att-class="state.ocFilter === 'overdue' ? 'table-danger' : (state.ocFilter === 'approve' ? 'table-warning' : '')"
+                                                    style="cursor:pointer"
+                                                    t-att-data-po-id="po.id"
+                                                    t-on-click="openPoFromRow">
+                                                    <td t-foreach="colsOc.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                                        <t t-if="col.key === 'name'">
+                                                            <span class="fw-semibold" t-esc="po.name"/>
+                                                            <t t-if="state.ocFilter === 'rfqs' and po.state === 'sent'">
+                                                                <span class="badge text-bg-info ms-1" style="font-size:9px;" title="Cotización enviada al proveedor">Enviada</span>
+                                                            </t>
+                                                        </t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="po.partner"/></t>
+                                                        <t t-elif="col.key === 'date_planned'"><t t-esc="po.date_planned"/></t>
+                                                        <t t-elif="col.key === 'amount_total'"><t t-esc="fmtAmt(po.amount_total)"/></t>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Recepciones (stock.picking incoming) -->
+                            <t t-elif="state.listTab === 'receipts'">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                       aria-label="Recepciones de compra" role="grid">
+                                    <colgroup>
+                                        <col t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsReceipts.colGroupStyle(col.key)"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsReceipts.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                scope="col"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsReceipts.onDragStart"
+                                                t-on-dragover="colsReceipts.onDragOver"
+                                                t-on-drop="colsReceipts.onDrop"
+                                                t-on-dragend="colsReceipts.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsReceipts.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                           aria-label="Filas de recepciones" role="grid">
+                                        <colgroup>
+                                            <col t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsReceipts.colGroupStyle(col.key)"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
+                                                <!-- Fila principal -->
+                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                    style="cursor:pointer"
+                                                    t-att-data-pick-id="pick.id"
+                                                    t-on-click="openPickingFromRow">
+                                                    <td t-foreach="colsReceipts.visibleCols()" t-as="col" t-key="col.key"
+                                                        style="overflow:hidden;"
+                                                        t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
+                                                        <t t-if="col.key === '_expand'">
+                                                            <span t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                                  style="cursor:default;" title="Ver / ocultar líneas">
+                                                                <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
+                                                            </span>
+                                                        </t>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold d-block" style="word-break:break-all;" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
+                                                        <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
+                                                        <t t-elif="col.key === 'overdue'">
+                                                            <t t-if="pick.overdue">
+                                                                <span class="badge text-bg-danger"
+                                                                      t-att-title="`Vencida hace ${pick.days_late} días`">
+                                                                    +<t t-esc="pick.days_late"/>d
+                                                                </span>
+                                                            </t>
+                                                            <t t-else="">
+                                                                <i class="fa fa-clock-o text-muted" title="Recepción pendiente: dentro de plazo"/>
+                                                            </t>
+                                                        </t>
+                                                        <t t-elif="col.key === 'availability'">
+                                                            <span t-if="pick.availability === 'assigned'" class="badge text-bg-info" title="Stock totalmente reservado">Disponible</span>
+                                                            <span t-elif="pick.availability === 'partially_available'" class="badge text-bg-warning" title="Stock parcialmente reservado">Parcial</span>
+                                                            <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'" class="badge text-bg-secondary" title="Sin stock reservado">Sin stock</span>
+                                                            <span t-else="" class="text-muted">—</span>
+                                                        </t>
+                                                    </td>
+                                                </tr>
+                                                <!-- Filas de líneas (expandibles) -->
+                                                <t t-if="state.expandedIds[pick.id]">
+                                                    <t t-if="pick.lines.length === 0">
+                                                        <tr class="table-light">
+                                                            <td t-att-colspan="colsReceipts.visibleCols().length" class="text-muted fst-italic small ps-4">Sin líneas pendientes.</td>
+                                                        </tr>
+                                                    </t>
+                                                    <t t-foreach="pick.lines" t-as="line" t-key="line_index">
+                                                        <tr class="table-light" style="cursor:default;">
+                                                            <td/>
+                                                            <td colspan="3" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td class="small text-muted">
+                                                                <t t-esc="fmt(line.demand)"/>
+                                                                <span class="ms-1 text-secondary" t-esc="line.uom"/>
+                                                            </td>
+                                                            <td class="text-center small">
+                                                                <t t-if="line.reserved >= line.demand - 0.001">
+                                                                    <span class="badge text-bg-success" title="Completamente recibido">Recibido</span>
+                                                                </t>
+                                                                <t t-elif="line.reserved > 0.001">
+                                                                    <span class="badge text-bg-warning"
+                                                                          t-att-title="`Recibido: ${fmt(line.reserved)} / ${fmt(line.demand)} ${line.uom}`">
+                                                                        <t t-esc="fmt(line.reserved)"/> / <t t-esc="fmt(line.demand)"/>
+                                                                    </span>
+                                                                </t>
+                                                                <t t-else="">
+                                                                    <span class="badge text-bg-secondary" title="Sin cantidades ingresadas aún">Pendiente</span>
+                                                                </t>
+                                                            </td>
+                                                        </tr>
+                                                    </t>
+                                                </t>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Entregas (component deliveries to subcontractors) -->
+                            <t t-elif="state.listTab === 'deliveries'">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                       aria-label="Entregas a subcontratistas" role="grid">
+                                    <colgroup>
+                                        <col t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsDeliveries.colGroupStyle(col.key)"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsDeliveries.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                scope="col"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsDeliveries.onDragStart"
+                                                t-on-dragover="colsDeliveries.onDragOver"
+                                                t-on-drop="colsDeliveries.onDrop"
+                                                t-on-dragend="colsDeliveries.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsDeliveries.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                           aria-label="Filas de entregas" role="grid">
+                                        <colgroup>
+                                            <col t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsDeliveries.colGroupStyle(col.key)"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="pick" t-key="pick.id">
+                                                <!-- Fila principal -->
+                                                <tr t-att-class="pick.overdue ? 'table-danger' : ''"
+                                                    style="cursor:pointer"
+                                                    t-att-data-pick-id="pick.id"
+                                                    t-on-click="openPickingFromRow">
+                                                    <td t-foreach="colsDeliveries.visibleCols()" t-as="col" t-key="col.key"
+                                                        style="overflow:hidden;"
+                                                        t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (col.key === '_expand' ? 'text-center ps-1 pe-0' : '')">
+                                                        <t t-if="col.key === '_expand'">
+                                                            <span t-on-click.stop="() => this.toggleExpand(pick.id)"
+                                                                  style="cursor:default;" title="Ver / ocultar líneas">
+                                                                <i t-att-class="state.expandedIds[pick.id] ? 'fa fa-chevron-down text-primary' : 'fa fa-chevron-right text-muted'"/>
+                                                            </span>
+                                                        </t>
+                                                        <t t-elif="col.key === 'name'"><span class="fw-semibold d-block" style="word-break:break-all;" t-esc="pick.name"/></t>
+                                                        <t t-elif="col.key === 'po_name'"><span class="text-muted" t-esc="pick.po_name"/></t>
+                                                        <t t-elif="col.key === 'finished_product'">
+                                                            <span t-if="pick.finished_product and pick.finished_product !== '—'"
+                                                                  class="fw-semibold text-primary small"
+                                                                  t-att-title="'Producto terminado: ' + pick.finished_product"
+                                                                  t-esc="pick.finished_product"/>
+                                                            <span t-else="" class="text-muted">—</span>
+                                                        </t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="pick.partner"/></t>
+                                                        <t t-elif="col.key === 'scheduled_date'"><t t-esc="pick.scheduled_date"/></t>
+                                                        <t t-elif="col.key === 'overdue'">
+                                                            <i t-if="pick.overdue" class="fa fa-exclamation-triangle text-danger" title="Entrega vencida: la fecha programada ya pasó"/>
+                                                            <i t-else="" class="fa fa-clock-o text-muted" title="Entrega pendiente: dentro de plazo"/>
+                                                        </t>
+                                                        <t t-elif="col.key === 'availability'">
+                                                            <span t-if="pick.availability === 'done'" class="badge text-bg-success" title="Entrega validada">Hecho</span>
+                                                            <span t-elif="pick.availability === 'assigned'" class="badge text-bg-info" title="Stock totalmente reservado y listo para despachar">Disponible</span>
+                                                            <span t-elif="pick.availability === 'partially_available'" class="badge text-bg-warning" title="Stock parcialmente reservado">Parcialmente</span>
+                                                            <span t-elif="pick.availability === 'confirmed' || pick.availability === 'waiting'" class="badge text-bg-danger" title="Sin stock reservado">No disponible</span>
+                                                            <span t-else="" class="text-muted">—</span>
+                                                        </t>
+                                                    </td>
+                                                </tr>
+                                                <!-- Filas de líneas (expandibles) -->
+                                                <t t-if="state.expandedIds[pick.id]">
+                                                    <t t-if="pick.lines.length === 0">
+                                                        <tr class="table-light">
+                                                            <td t-att-colspan="colsDeliveries.visibleCols().length" class="text-muted fst-italic small ps-4">Sin líneas de movimiento.</td>
+                                                        </tr>
+                                                    </t>
+                                                    <t t-foreach="pick.lines" t-as="line" t-key="line_index">
+                                                        <tr class="table-light" style="cursor:default;">
+                                                            <td/>
+                                                            <td colspan="4" class="ps-3 text-muted small fst-italic" t-esc="line.product"/>
+                                                            <td class="small text-muted">
+                                                                <t t-esc="fmt(line.demand)"/>
+                                                                <span class="ms-1 text-secondary" t-esc="line.uom"/>
+                                                            </td>
+                                                            <td/>
+                                                            <td class="text-center small">
+                                                                <t t-if="line.reserved >= line.demand - 0.001">
+                                                                    <span class="badge text-bg-success" title="Totalmente reservado">OK</span>
+                                                                </t>
+                                                                <t t-elif="line.reserved > 0.001">
+                                                                    <span class="badge text-bg-warning"
+                                                                          t-att-title="`Reservado: ${fmt(line.reserved)} / ${fmt(line.demand)} ${line.uom}`">
+                                                                        <t t-esc="fmt(line.reserved)"/> / <t t-esc="fmt(line.demand)"/>
+                                                                    </span>
+                                                                </t>
+                                                                <t t-else="">
+                                                                    <span class="badge text-bg-danger" title="Sin stock reservado">Sin stock</span>
+                                                                </t>
+                                                            </td>
+                                                        </tr>
+                                                    </t>
+                                                </t>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Servicios -->
+                            <t t-elif="state.listTab === 'services'">
+                                <table class="table table-sm small mb-0" style="table-layout:fixed; flex-shrink:0;"
+                                       aria-label="Órdenes de compra de servicios" role="grid">
+                                    <colgroup>
+                                        <col t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                             t-att-style="colsSvc.colGroupStyle(col.key)"/>
+                                    </colgroup>
+                                    <thead>
+                                        <tr class="text-muted o_sortable_header">
+                                            <th t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                t-att-class="(col.align ? 'text-' + col.align + ' ' : '') + (colsSvc.state.dragOver === col.key ? 'o_col_drag_over ' : '')"
+                                                style="position:relative; user-select:none;"
+                                                scope="col"
+                                                t-att-title="col.title"
+                                                t-att-data-col-key="col.key"
+                                                t-att-data-sort-key="col.sortKey || ''"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-att-aria-sort="col.sortKey ? (state.sortField === col.sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none') : false"
+                                                t-on-click="onHeaderClick"
+                                                t-on-dragstart="colsSvc.onDragStart"
+                                                t-on-dragover="colsSvc.onDragOver"
+                                                t-on-drop="colsSvc.onDrop"
+                                                t-on-dragend="colsSvc.onDragEnd">
+                                                <t t-esc="col.label"/>
+                                                <i t-if="col.sortKey" t-att-class="sortIcon(col.sortKey)"/>
+                                                <div t-if="!col.noResize" class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="colsSvc.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                                <div style="flex:1; overflow-y:auto; min-height:0; scrollbar-gutter:stable;">
+                                    <table class="table table-sm table-hover small mb-0" style="table-layout:fixed;"
+                                           aria-label="Filas de servicios" role="grid">
+                                        <colgroup>
+                                            <col t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                 t-att-style="colsSvc.colGroupStyle(col.key)"/>
+                                        </colgroup>
+                                        <tbody>
+                                            <t t-foreach="sortedList" t-as="svc" t-key="svc.id">
+                                                <tr style="cursor:pointer"
+                                                    t-att-data-po-id="svc.id"
+                                                    t-on-click="openPoFromRow">
+                                                    <td t-foreach="colsSvc.visibleCols()" t-as="col" t-key="col.key"
+                                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                                        <t t-if="col.key === 'name'"><span class="fw-semibold" t-esc="svc.name"/></t>
+                                                        <t t-elif="col.key === 'partner'"><t t-esc="svc.partner"/></t>
+                                                        <t t-elif="col.key === 'date_planned'"><t t-esc="svc.date_planned"/></t>
+                                                        <t t-elif="col.key === 'amount_total'"><t t-esc="fmtAmt(svc.amount_total)"/></t>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+
+                            <!-- Paginación -->
+                            <div t-if="totalPages > 1"
+                                 class="d-flex align-items-center justify-content-between px-2 py-1 border-top"
+                                 style="flex-shrink:0;">
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasPrevPage"
+                                        t-on-click="prevPage">
+                                    <i class="fa fa-chevron-left"/>
+                                </button>
+                                <small class="text-muted">
+                                    Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                                    · <t t-esc="fmt(activeCount)"/> registros
+                                </small>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        t-att-disabled="!hasNextPage"
+                                        t-on-click="nextPage">
+                                    <i class="fa fa-chevron-right"/>
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Ver todas (fuera del kpiRow para no afectar la alineación) -->
+            <div t-if="!isEmpty" class="text-end mt-1">
+                <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'overdue'"
+                        class="btn btn-sm btn-link text-danger p-0 small"
+                        t-on-click="onClickOverdue">Ver todas las vencidas →</button>
+                <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'rfqs'"
+                        class="btn btn-sm btn-link text-info p-0 small"
+                        t-on-click="onClickRfqs">Ver todas las cotizaciones →</button>
+                <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'approve'"
+                        class="btn btn-sm btn-link text-warning p-0 small"
+                        t-on-click="onClickToApprove">Ver todas por aprobar →</button>
+                <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'all'"
+                        class="btn btn-sm btn-link text-secondary p-0 small"
+                        t-on-click="onClickAll">Ver todas las aprobadas →</button>
+                <button t-if="!state.listTab &amp;&amp; state.ocFilter === 'pending'"
+                        class="btn btn-sm btn-link text-success p-0 small"
+                        t-on-click="onClickPending">Ver todas a tiempo →</button>
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.AlertKpiWidget">
+        <div t-att-class="'o_alert_kpi_widget' + (state.loading ? ' opacity-50 pe-none' : '')">
+
+            <!-- KPI cards -->
+            <div class="row g-2">
+
+                <!-- OFs atrasadas -->
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         t-att-title="alertKpiTooltip('mo_delayed')">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-warning fa-lg text-danger mb-2 d-block" aria-hidden="true"/>
+                            <div class="o_planner_number text-danger"
+                                 t-esc="fmt(state.kpis.mo_delayed)"
+                                 aria-live="polite" aria-label="OFs atrasadas"/>
+                            <div class="o_planner_label" aria-hidden="true">OFs atrasadas</div>
+                            <!-- C5: días de atraso junto al conteo (máx./prom. según Ajustes) -->
+                            <div t-if="delayText()" class="small text-danger" t-esc="delayText()"/>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button t-if="state.kpis.mo_delayed > 0"
+                                    class="btn btn-sm btn-link w-100 py-1"
+                                    aria-label="Ver OFs atrasadas"
+                                    t-on-click="onViewDelayed">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OFs por vencer -->
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         t-att-title="alertKpiTooltip('mo_upcoming')">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-hourglass-half fa-lg text-warning mb-2 d-block" aria-hidden="true"/>
+                            <div class="o_planner_number text-warning"
+                                 t-esc="fmt(state.kpis.mo_upcoming)"
+                                 aria-live="polite" aria-label="OFs por vencer"/>
+                            <div class="o_planner_label" aria-hidden="true">OFs por vencer</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button t-if="state.kpis.mo_upcoming > 0"
+                                    class="btn btn-sm btn-link w-100 py-1"
+                                    aria-label="Ver OFs por vencer"
+                                    t-on-click="onViewUpcoming">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OFs en curso -->
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         t-att-title="alertKpiTooltip('mo_in_progress')">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-cog fa-lg text-info mb-2 d-block" aria-hidden="true"/>
+                            <div class="o_planner_number text-info"
+                                 t-esc="fmt(state.kpis.mo_in_progress)"
+                                 aria-live="polite" aria-label="OFs en curso"/>
+                            <div class="o_planner_label" aria-hidden="true">OFs en curso</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button t-if="state.kpis.mo_in_progress > 0"
+                                    class="btn btn-sm btn-link w-100 py-1"
+                                    aria-label="Ver OFs en curso"
+                                    t-on-click="onViewInProgress">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cant. diferentes -->
+                <div class="col-6 col-md-3">
+                    <div class="card o_planner_card h-100"
+                         t-att-title="alertKpiTooltip('qty_mismatch')">
+                        <div class="card-body text-center py-3">
+                            <i class="fa fa-balance-scale fa-lg text-secondary mb-2 d-block" aria-hidden="true"/>
+                            <div class="o_planner_number"
+                                 t-esc="fmt(state.kpis.qty_mismatch)"
+                                 aria-live="polite" aria-label="OFs con cantidades diferentes"/>
+                            <div class="o_planner_label" aria-hidden="true">Cant. diferentes</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button t-if="state.kpis.qty_mismatch > 0"
+                                    class="btn btn-sm btn-link w-100 py-1"
+                                    aria-label="Ver OFs con cantidades diferentes"
+                                    t-on-click="onViewMismatch">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Vista del Panel de Inventario ──────────────────────────────────── -->
+    <record id="mrp_inventory_dashboard_form" model="ir.ui.view">
+        <field name="name">mrp.inventory.dashboard.form</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Panel de Inventario" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+
+                        <!-- Encabezado -->
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">Panel de Inventario</h4>
+                            </div>
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
+                                <button name="action_refresh_inventory" type="object"
+                                        string="Actualizar"
+                                        class="btn btn-outline-primary btn-sm"/>
+                            </div>
+                        </div>
+
+                        <!-- MOVIMIENTOS -->
+                        <div class="o_planner_section mb-4">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-exchange me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Movimientos</span>
+                            </div>
+                            <widget name="inventory_dashboard_widget"/>
+                        </div>
+
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción de servidor para abrir el panel ─────────────────────────── -->
+    <record id="action_mrp_inventory_dashboard_open" model="ir.actions.server">
+        <field name="name">Panel de Inventario</field>
+        <field name="model_id" ref="odoo_mrp_planner.model_mrp_planner_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_inventory()</field>
+    </record>
+
+    <!-- ── Barra superior: Inventario (hijo del app root, entre Planificación y Ventas).
+         Visible SOLO para los grupos Inventario (Lectura/Administrador): el acceso se
+         asigna explícitamente por usuario, sin herencia desde otros roles. ── -->
+    <menuitem id="mrp_inventario_menu"
+              name="Inventario"
+              parent="odoo_mrp_planner.mrp_planner_menu_root"
+              sequence="15"
+              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
+
+    <menuitem id="mrp_inventario_panel_menu"
+              name="Panel de Inventario"
+              parent="mrp_inventario_menu"
+              sequence="1"
+              action="action_mrp_inventory_dashboard_open"
+              groups="odoo_mrp_planner.group_inventory_read,odoo_mrp_planner.group_inventory_admin"/>
+
+</odoo>

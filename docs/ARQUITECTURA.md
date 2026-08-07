@@ -1,7 +1,18 @@
-# Arquitectura — odoo_mrp_planner
+# Arquitectura — suite Planificador MRP
 
-> **Para quién:** desarrollador que va a modificar el módulo.
+> **Para quién:** desarrollador que va a modificar los módulos.
 > **No repite** features (→ `README.md`) ni fórmulas (→ `docs.md`) — los referencia cuando hace falta.
+
+El repo contiene **tres módulos instalables** (split de 2026-07/08):
+
+| Módulo | Qué agrega | Depende de |
+|--------|-----------|------------|
+| `odoo_mrp_planner` (base) | Indicadores: paneles de Producción, Compras, Ventas, Inventario; alertas; forecast; análisis de proveedores/clientes; categorías A–E | `mrp`, `mrp_subcontracting`, `purchase`, `stock`, `mail`, `sale` |
+| `odoo_mrp_planner_scheduling` | Programación desde demanda y reprogramación en cascada (planes, solicitudes, Gantt, grupo Programación). `enable_scheduling` default False: instalar ≠ encender. | `odoo_mrp_planner` |
+| `odoo_mrp_planner_dispatch` | Circuito de validación de despacho en órdenes de entrega (`x_dispatch_*`) y su capa operativa en los paneles | `odoo_mrp_planner`, `stock` |
+
+Salvo indicación, las rutas de este doc refieren al módulo base; las secciones
+de programación/cascada corresponden a `odoo_mrp_planner_scheduling`.
 
 ---
 
@@ -34,7 +45,11 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
-| `mrp.reschedule.config` | `mrp_reschedule_config.py` | Singleton de configuración global: umbrales de alerta, opciones de scheduling, categorías, forecast. Sincroniza `wc_fallback`/`priority` en `ir.config_parameter`. | `ir.cron`, `res.users` |
+| `mrp.reschedule.config` | `mrp_reschedule_config.py` | Singleton de configuración (uno por empresa): modelo, alertas, quiebres, análisis de proveedores/clientes, permisos de edición y sincronización de crons al guardar. Los demás dominios extienden el modelo por archivo (split 2026-08-06): | `ir.cron`, `res.users` |
+| `mrp.reschedule.config` _(extend)_ | `mrp_reschedule_config_forecast.py` | Campos de forecast, comparativa Producido vs Programado y carga de CT (umbrales, estados de OF, criterio temporal, rotación/cobertura, fórmula de precisión) | — |
+| `mrp.reschedule.config` _(extend)_ | `mrp_reschedule_config_categories.py` | Campos de categorías A–E (venta/proveedor/cliente), umbrales Pareto, RFM, crons de recálculo y last_run | — |
+| `mrp.reschedule.config` _(extend)_ | `mrp_reschedule_config_inventory.py` | Campos del Panel de Inventario (snapshots de disponibilidad, corte de antigüedad, redondeo) + `_dispatch_pending_cutoff_domain` y `_dispatch_sync_snapshot_cron` | `ir.cron` |
+| `mrp.planner.run.log` | `mrp_planner_run_log.py` | Registro histórico de ejecuciones (categorías, chequeo de alertas, importación de forecast) con retención configurable; visible en Ajustes → General | `mrp.reschedule.config` |
 | `mrp.reschedule.user.permission` | `mrp_reschedule_user_permission.py` | Depósitos visibles por usuario en el planificador | `res.users`, `stock.warehouse` |
 | `res.users` _(inherit)_ | `res_users.py` | Agrega `mrp_planner_all_warehouses` / `mrp_planner_warehouse_ids`, 10 campos `mrp_planner_show_*` de visibilidad de secciones por panel, y constraint de grupo scheduling | `mrp.reschedule.config` |
 
@@ -44,7 +59,7 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 |--------|---------|-----------------|-----------------|
 | `mrp.reschedule.alert` | `mrp_reschedule_alert.py` | Alerta activa (OF atrasada, OC vencida, recepción demorada, desvío de cantidad, etc.). Lógica de detección periódica y resolución reactiva. | `mrp.production`, `purchase.order`, `stock.picking` |
 
-### Reprogramación en cascada
+### Reprogramación en cascada (módulo `odoo_mrp_planner_scheduling`)
 
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
@@ -53,7 +68,7 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 | `mrp.reschedule.plan.line` | `mrp_reschedule_plan_line.py` | Línea propuesta del plan (una OF o PO por fila, con fechas nuevas y delta) | `mrp.reschedule.plan`, `mrp.production` |
 | `mrp.reschedule.plan.wc.line` | `mrp_reschedule_plan_wc_line.py` | Carga detallada por centro de trabajo dentro de un plan | `mrp.reschedule.plan` |
 
-### Programación desde demanda (wizards)
+### Programación desde demanda (wizards — módulo `odoo_mrp_planner_scheduling`, salvo el de forecast)
 
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
@@ -69,6 +84,20 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
 | `mrp.forecast.line` | `mrp_forecast_line.py` | Línea de forecast mensual por producto: cantidad planificada, cobertura calculada | `product.template`, `mrp.production` |
+
+### Panel de Inventario
+
+El universo del panel es TODA operación de stock del rango (recepciones,
+transferencias internas y la cadena de entrega completa — flujo lazy de Odoo
+17+: cada pedido crea solo la recolección y el eslabón siguiente nace al
+validar el anterior). La disponibilidad se evalúa **por línea en el eslabón
+donde está parada la demanda** siguiendo `move_orig_ids` (BFS de
+`_chain_available_qty`).
+
+| Modelo | Archivo | Responsabilidad | Se relaciona con |
+|--------|---------|-----------------|-----------------|
+| `mrp.dispatch.stock.log` | `mrp_dispatch_stock_log.py` | Snapshot diario de disponibilidad de las salidas pendientes (pendiente vs. reservado por cadena). Cron `_cron_dispatch_snapshot`, consolidación mensual, purga por retención, `_dispatch_chain_types` (tipos de la cadena de entrega) y `_chain_available_qty` (disponibilidad por cadena, también usada por los campos `x_qty_*_chain` de stock.picking). | `stock.move`, `stock.picking.type`, `mrp.planner.kpi.monthly` |
+| `mrp.planner.kpi.monthly` | `mrp_dispatch_stock_log.py` | Consolidado mensual de la tasa de entrega s/ disponible (numerador entregado por `date_done`, denominador disponible no entregado). No se purga. | `mrp.dispatch.stock.log` |
 
 ### Dashboard (TransientModels de lectura)
 
@@ -109,6 +138,7 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | `mrp_planner_dashboard_sales.py` | Panel de ventas: gráfico de ventas por producto, categorías disponibles. Expone `_parse_date` como helper compartido. |
 | `mrp_planner_dashboard_supplier.py` | Análisis de proveedores: KPIs de cumplimiento, lead time, variación de precio. Importa `_parse_date` de sales. |
 | `mrp_planner_dashboard_customer.py` | Análisis de clientes |
+| `mrp_planner_dashboard_inventory.py` | Panel de Inventario: universo por eslabones (`_inventory_universe_types`, con `active_test=False` para tipos archivados), gráficos (tasa mensual + composición del pendiente), tabla "Análisis de movimientos" en todos los estados (`get_inventory_pending_table`) y hooks del circuito de despacho (`_inventory_dispatch_enabled` / `_inventory_dispatch_queue_ids` / `_inventory_can_dispatch`, redefinidos por odoo_mrp_planner_dispatch). Guard `_inventory_ensure_group()` en cada RPC. |
 | `mrp_planner_detail_dashboard.py` | Dashboard detalle por OF/producto (drill-down) |
 
 ### Clasificación ABC (extensión de mrp.reschedule.config)
@@ -127,7 +157,7 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | `product.template` | `product_template.py` | Campo computed `x_sale_category` (A–E) — lee/escribe en `mrp.product.company.category`; centros de trabajo compatibles |
 | `res.partner` | `res_partner.py` | Campos computed `x_supplier_category` / `x_customer_category` (A–E) — leen/escriben en `mrp.partner.company.category`; flags `mrp_enable_*_cat` de visibilidad |
 | `purchase.order` | `purchase_order.py` | Hooks para generación reactiva de alertas al cancelar/confirmar |
-| `stock.picking` | `stock_picking.py` | Hook para resolución de alertas de recepción al validar |
+| `stock.picking` | `stock_picking.py` | Hook para resolución de alertas de recepción al validar; campos de cantidad de los drills del panel: `x_qty_done` y `x_qty_pending_store` (ALMACENADOS: habilitan sumas por grupo y total nativas en las listas) y `x_qty_available_chain` / `x_qty_blocked_chain` (al vuelo, disponibilidad por cadena; respetan el rango de fechas del panel vía contexto `planner_date_from/_to`) |
 
 ### Helpers compartidos
 
@@ -236,8 +266,11 @@ Definidos en `security/groups.xml`. La visibilidad de menús, botones y pestaña
 | `group_purchase_admin` | Panel de Compras + config de proveedores (implica `group_purchase`) |
 | `group_sales_read` | Panel de Ventas, forecast y análisis de clientes (solo lectura) |
 | `group_sales` | Panel de Ventas + edición/importación de forecast y config (implica `group_sales_read`) |
-| `group_scheduling` | Menús Programaciones y Reprogramaciones + su configuración |
-| `group_admin` | Todo lo anterior + Configuración completa (implica todos los demás) |
+| `group_inventory_read` | Panel de Inventario (solo lectura) |
+| `group_inventory_admin` | Panel de Inventario + pestaña Inventario de los Ajustes (implica `group_inventory_read`) |
+| `group_admin` | Todos los paneles y la Configuración completa — implica los grupos de producción/compras/ventas pero **NO** los de Inventario, que se asignan explícitamente por usuario |
+| `group_scheduling` _(en odoo_mrp_planner_scheduling)_ | Menús Programaciones y Reprogramaciones + su configuración |
+| `group_dispatch_validation` _(en odoo_mrp_planner_dispatch)_ | Marcar despachadas las entregas validadas (botón y acción masiva); implicado por `group_inventory_admin` y `group_admin` |
 
 Cada vista XML declara `groups=` en sus `<page>`, `<menuitem>` y `<button>`. Además, los métodos RPC del dashboard verifican grupos en el servidor vía `_ensure_planner_group()` (lectura o admin del área correspondiente).
 
@@ -270,6 +303,46 @@ const cols = useColManager(widgetKey, defaultCols);
 ```
 
 Los widgets que usan Chart.js llaman `await loadBundle("web.chartjs_lib")` antes del primer render. Las funciones de formato puras viven en archivos separados (`forecast_formatters.js`, `customer_analysis_charts.js`).
+
+**Mecánica de tabla compartida (`planner_*`, 2026-08-06).** La lógica común de
+las tablas de los paneles vive en módulos compartidos y los widgets la
+consumen vía factories, conservando métodos-wrapper de una línea para sus
+templates:
+
+| Archivo | Qué aporta | Lo usan |
+|---------|-----------|---------|
+| `planner_table.js` | `sortRows` (comparador genérico), `buildGroupTabs`/`resolveActiveGroup` (pestañas de agrupación, con M2M y orden custom), `pageSlice`/`makePager` (paginación) | inventario, quiebres, clientes |
+| `planner_selection.js` | `makeSelection`: selección de filas (KPIs/totales describen la selección; "todos" = página visible) | inventario, quiebres, clientes |
+| `planner_multiselect.js` | `makeMultiFilter`: dropdowns multi-selección con etiqueta "Todos los X / nombre / N Xs" | inventario (4 dropdowns), quiebres |
+| `planner_export.js` | `downloadCsv` / `downloadExcelXml` / `downloadFile` (escape y descarga) | inventario, quiebres, clientes |
+| `filter_persistence.js` | `restoreFilters`/`saveFilters` en localStorage por widget+empresa. **Llamar `restoreFilters` SIEMPRE después de crear `this.state` con useState** (con estado undefined tira TypeError al haber filtros guardados). | todos los paneles |
+| `customer_analysis_panel.js` | Panel lateral de detalle + filas expandibles de clientes (comparten `get_customer_detail`) | clientes |
+
+`inventory_dashboard_widget.js` es el widget de referencia del "patrón
+Inventario" (dos zonas con filtros propios, KPIs client-side dinámicos con
+selección, drills exactos por ids con `list_view_ref`, soft-reload).
+
+---
+
+## Módulo odoo_mrp_planner_dispatch
+
+Extensión chica y opcional: agrega la **validación de despacho** sobre las
+órdenes de entrega ya validadas (estado Sin despachar / Despachado) y su capa
+operativa en los paneles del base. Los NÚMEROS de los paneles no dependen de
+él: el Panel de Inventario es 100 % estándar y el circuito solo suma la cola
+"Validado s/ despachar" y el despacho masivo.
+
+| Archivo | Qué hace |
+|---------|----------|
+| `models/stock_picking.py` | Campos `x_dispatch_state/date/user_id/enabled`; `action_mark_dispatched` (guard `group_dispatch_validation`) y reversa admin; inicialización del estado al crear/validar salidas de los tipos del circuito |
+| `models/mrp_reschedule_config.py` | `enable_dispatch_validation` (toggle por empresa) y `dispatch_picking_type_ids` (tipos `outgoing` que participan); precarga al activar, sincronización al cambiar (al excluir un tipo limpia estado/fecha/usuario) y marcado retroactivo de validadas viejas |
+| `models/mrp_planner_dashboard.py` | Implementa los hooks del base: `_forecast_dispatch_enabled` / `_forecast_dispatched_picking_ids` (KPIs físicos del panel de Ventas) y `_inventory_dispatch_enabled` / `_inventory_dispatch_queue_ids` / `_inventory_can_dispatch` (capa operativa del Panel de Inventario) |
+| `views/stock_picking_views.xml` | Botón/columna Despacho en pickings y columna Despacho agregada POR HERENCIA a las listas de drills del base (`view_picking_list_planner_drill*`) |
+| `views/res_config_settings_views.xml` | Fila del circuito anclada en `//div[@name='inventory_settings_row']` de la pestaña Inventario del base |
+| `security/groups.xml` | `group_dispatch_validation`; lo implican `group_inventory_admin` y `group_admin` del base. El `(3, group_inventory_admin)` sobre `group_admin` es INTENCIONAL: deshace la herencia que existía hasta v18.0.2.x (los grupos de Inventario se asignan por usuario). |
+
+Patrón de integración: el base define hooks que devuelven False/`set()` y el
+dispatch los redefine — el base nunca conoce al dispatch.
 
 ---
 

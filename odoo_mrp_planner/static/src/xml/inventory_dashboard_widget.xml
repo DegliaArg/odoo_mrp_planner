@@ -1,0 +1,692 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.InventoryDashboardWidget">
+        <div class="o_inventory_dashboard_widget">
+
+            <!-- ════ ZONA 1: gráficos del período (filtros propios); el título
+                 de sección lo pone la vista del panel ════ -->
+
+            <!-- Barra de filtros de gráficos (misma estética que el panel de ventas) -->
+            <div class="d-flex flex-nowrap align-items-center gap-1 mb-3">
+
+                <!-- Rango de fechas propio de los gráficos (independiente de la tabla) -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de análisis">
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha inicial del rango de los gráficos"
+                           t-att-value="state.chartFrom"
+                           t-on-change="onChartFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm"
+                           style="font-size:10px; padding:1px 4px; width:110px;"
+                           title="Fecha final del rango de los gráficos"
+                           t-att-value="state.chartTo"
+                           t-on-change="onChartToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Fijar el rango al mes calendario en curso"
+                            t-att-aria-pressed="isCurrentMonth ? 'true' : 'false'"
+                            style="font-size:10px; padding:1px 5px; white-space:nowrap;"
+                            t-on-click="setCurrentMonth">
+                        Mes en curso
+                    </button>
+                </div>
+
+                <div class="vr" style="height:20px;"/>
+
+                <!-- Depósitos -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="font-size:10px; padding:1px 5px; min-width:140px;"
+                                title="Filtrar los gráficos por depósito"
+                                t-on-click="toggleWhDropdown">
+                            <span class="text-truncate" style="max-width:130px;"><t t-esc="whFilterLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.whDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.whDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_wh_all"
+                                       t-att-checked="!state.chartWhIds.length"
+                                       t-on-change="clearChartWhs"/>
+                                <label class="form-check-label fw-semibold small" for="inv_wh_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_wh_' + wh.id"
+                                           t-att-checked="state.chartWhIds.includes(wh.id)"
+                                           t-on-change="() => this.toggleWarehouse(wh.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_wh_' + wh.id"
+                                           t-esc="wh.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.warehouses.length" class="text-muted small">Sin depósitos.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tipos de operación (multi-selección). Con filtro activo, los
+                     meses de la tasa se calculan en vivo desde los snapshots. -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="font-size:10px; padding:1px 5px; min-width:140px;"
+                                title="Filtrar los gráficos por tipo de operación de la cadena de entrega. Con el filtro activo, los meses de la tasa se calculan en vivo desde los snapshots (mientras la retención los conserve)."
+                                t-on-click="toggleTypeDropdown">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="typeFilterLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.typeDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.typeDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_type_all"
+                                       t-att-checked="!state.chartTypeIds.length"
+                                       t-on-change="clearChartTypes"/>
+                                <label class="form-check-label fw-semibold small" for="inv_type_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.pickingTypes" t-as="pt" t-key="pt.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_type_' + pt.id"
+                                           t-att-checked="state.chartTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.togglePickingType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_type_' + pt.id"
+                                           t-esc="pt.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.pickingTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error de backend (zona gráficos) -->
+            <div t-if="state.chartError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el panel: <strong><t t-esc="state.chartError"/></strong>
+            </div>
+
+            <!-- Spinner SOLO en la primera carga: en las recargas el contenido
+                 queda montado y atenuado por la clase de abajo (soft reload) -->
+            <t t-if="!state.chartError and state.chartLoading and !state.data">
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
+                </div>
+            </t>
+
+            <t t-if="state.data">
+                <div t-att-class="'o_planner_fade_in ' + (state.chartLoading ? 'opacity-50 pe-none' : '')">
+
+                <!-- Aviso: registro de disponibilidad apagado -->
+                <div t-if="!state.data.enabled" class="alert alert-warning py-2 mb-3" role="alert">
+                    <i class="fa fa-info-circle me-2"/>
+                    El <b>registro de disponibilidad</b> está desactivado: la tasa de entrega
+                    s/ disponible y su evolución no tienen datos. Se activa en Ajustes del
+                    planificador → pestaña Inventario.
+                </div>
+
+                <!-- Gráficos -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="fw-semibold small">Evolución — Tasa de entrega s/ disponible</span>
+                                    <span class="text-muted small ms-2"
+                                          title="Un punto por mes del rango. Meses cerrados: valor consolidado (congelado). Mes en curso: cálculo en vivo desde los snapshots (punto vacío).">
+                                        <i class="fa fa-info-circle"/>
+                                    </span>
+                                </div>
+                                <div style="position:relative; height:260px;">
+                                    <canvas t-ref="trendCanvas"/>
+                                    <div t-if="state.data.enabled and (!state.data.trend or !state.data.trend.length)"
+                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                        <div class="text-center">
+                                            <i class="fa fa-line-chart fa-2x mb-2 d-block"/>
+                                            <span class="small">Sin meses con datos en el rango seleccionado.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="card o_planner_card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="fw-semibold small">Pendiente actual por depósito</span>
+                                    <span class="text-muted small ms-2"
+                                          title="Composición del pendiente de entrega de HOY: con stock reservado (podría salir) vs. sin stock (frenado). No depende del rango de fechas.">
+                                        <i class="fa fa-info-circle"/>
+                                    </span>
+                                </div>
+                                <div style="position:relative; height:260px;">
+                                    <canvas t-ref="pendingCanvas"/>
+                                    <div t-if="!state.data.pending_by_wh or !state.data.pending_by_wh.length"
+                                         class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                        <div class="text-center">
+                                            <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                                            <span class="small">No hay salidas pendientes.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div><!-- /fade -->
+            </t>
+
+            <!-- ════ ZONA 2: título + barra de filtros de tabla + tabla operativa ════ -->
+
+            <div class="o_planner_section_title mb-3">
+                <i class="fa fa-truck me-2 text-muted"/>
+                <span class="text-uppercase fw-bold text-muted small">Análisis de movimientos</span>
+                <!-- Cola operativa del circuito de despacho: no participa de los
+                     KPIs (una salida validada ya está entregada) -->
+                <span t-if="state.dispatchEnabled and readyCount"
+                      class="badge text-bg-info ms-2"
+                      title="Salidas ya validadas (entregadas) que aún no se marcaron como despachadas. No suman al pendiente de los KPIs.">
+                    <t t-esc="readyCount"/> validada(s) s/ despachar
+                </span>
+            </div>
+
+            <!-- ── Cards KPI: una sola fila con todos los indicadores ──
+                 Las 5 primeras son dinámicas con la tabla (fechas, búsqueda,
+                 filtros, pestaña activa y selección); las 3 del período usan
+                 el rango de fechas de la tabla aplicado a la fecha de
+                 validación, con sus depósitos. La navegación a las listas es
+                 solo por el botón "Ver →". -->
+            <div class="d-flex gap-2 mb-3">
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('delivered')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-send fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(validatedKpis.qty) + ' Pz')"
+                                 t-esc="fmt(validatedKpis.qty) + ' Pz'"/>
+                            <div class="o_planner_label">Validados del período</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">
+                                <t t-esc="validatedKpis.pickings"/> remito(s)
+                            </div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="openValidated">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('pending')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.pending) + ' Pz')"
+                                 t-esc="fmt(tableKpis.pending) + ' Pz'"/>
+                            <div class="o_planner_label">Pendiente total</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">
+                                <t t-esc="tableKpis.pickings"/> remito(s)
+                            </div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="() => this.openPending('all')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('available')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.available) + ' Pz')"
+                                 t-esc="fmt(tableKpis.available) + ' Pz'"/>
+                            <div class="o_planner_label">Pendiente con stock</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="() => this.openPending('available')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('blocked')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.blocked) + ' Pz')"
+                                 t-esc="fmt(tableKpis.blocked) + ' Pz'"/>
+                            <div class="o_planner_label">Pendiente sin stock</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="() => this.openPending('blocked')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('overdue')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-exclamation-triangle fa-lg text-danger mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.overdue))"
+                                 t-esc="fmt(tableKpis.overdue)"/>
+                            <div class="o_planner_label">Vencidas</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-on-click="() => this.openPending('overdue')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         t-att-title="kpiTooltip('pct')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-pie-chart fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + svcClass(tableKpis.pct_available) + ' ' + kpiNumClass(fmtPct(tableKpis.pct_available))"
+                                 t-esc="fmtPct(tableKpis.pct_available)"/>
+                            <div class="o_planner_label">% disponible</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                    <div t-att-class="'card o_planner_card o_planner_kpi_card_lg h-100' + (selectedRows.length ? ' opacity-50' : '')"
+                         t-att-title="kpiTooltip('rate')">
+                        <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                            <i class="fa fa-tachometer fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + svcClass(periodKpis.rate_available) + ' ' + kpiNumClass(fmtPct(periodKpis.rate_available))"
+                                 t-esc="fmtPct(periodKpis.rate_available)"/>
+                            <div class="o_planner_label">Tasa de entrega s/ disponible</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+
+                <!-- Fechas programadas -->
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:140px;"
+                           title="Filtrar por fecha programada de las líneas (desde)"
+                           t-att-value="state.tblFrom"
+                           t-on-change="onTblFromChange"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Hasta</label>
+                    <input type="date" class="form-control form-control-sm"
+                           style="max-width:140px;"
+                           title="Filtrar por fecha programada de las líneas (hasta)"
+                           t-att-value="state.tblTo"
+                           t-on-change="onTblToChange"/>
+                </div>
+
+                <!-- Barra de búsqueda unificada -->
+                <PlannerSearchBar
+                    widgetKey="'inventory_pending'"
+                    placeholder="'Buscar remito u origen…'"
+                    t-props="{
+                        search:         state.tblSearch,
+                        activeFilter:   state.tblFilter,
+                        activeGroupBy:  state.tblGroupBy,
+                        filterDefs: tblFilterDefs,
+                        groupByDefs: [
+                            { key: 'stage',       label: 'Etapa' },
+                            { key: 'warehouse',   label: 'Depósito' },
+                            { key: 'state',       label: 'Estado' },
+                            { key: 'sched_month', label: 'Mes programado' }
+                        ],
+                        onSearch:        (t) => this.setTblSearch(t),
+                        onFilterChange:  (k) => this.setTblFilter(k),
+                        onGroupByChange: (k) => this.setTblGroupBy(k)
+                    }"/>
+
+                <!-- Depósito dropdown -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Depósito</label>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="min-width:140px;"
+                                t-on-click="toggleTblWhDropdown">
+                            <span class="text-truncate" style="max-width:110px;"><t t-esc="tblWhFilterLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.tblWhDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.tblWhDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:200px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_tbl_wh_all"
+                                       t-att-checked="!state.tblWhIds.length"
+                                       t-on-change="clearTblWhs"/>
+                                <label class="form-check-label fw-semibold small" for="inv_tbl_wh_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_tbl_wh_' + wh.id"
+                                           t-att-checked="state.tblWhIds.includes(wh.id)"
+                                           t-on-change="() => this.toggleTblWarehouse(wh.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_tbl_wh_' + wh.id"
+                                           t-esc="wh.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.warehouses.length" class="text-muted small">Sin depósitos.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tipos de operación de la cadena -->
+                <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                    <label class="form-label mb-0 small text-muted">Tipo</label>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                style="min-width:140px;"
+                                title="Filtrar la tabla y las cards por tipo de operación de la cadena de entrega"
+                                t-on-click="toggleTblTypeOpen">
+                            <span class="text-truncate" style="max-width:150px;"><t t-esc="tblTypeLabel"/></span>
+                            <i t-att-class="'fa ms-auto ' + (state.tblTypeOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.tblTypeOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:240px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input" id="inv_tbl_type_all"
+                                       t-att-checked="!state.tblTypeIds.length"
+                                       t-on-change="clearTblTypes"/>
+                                <label class="form-check-label fw-semibold small" for="inv_tbl_type_all">Todos</label>
+                            </div>
+                            <div class="dropdown-divider my-1"/>
+                            <t t-foreach="state.tblTypes" t-as="pt" t-key="pt.id">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'inv_tbl_type_' + pt.id"
+                                           t-att-checked="state.tblTypeIds.includes(pt.id)"
+                                           t-on-change="() => this.toggleTblType(pt.id)"/>
+                                    <label class="form-check-label small" t-att-for="'inv_tbl_type_' + pt.id"
+                                           t-esc="pt.name"/>
+                                </div>
+                            </t>
+                            <div t-if="!state.tblTypes.length" class="text-muted small">Sin tipos de operación.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Columnas dropdown -->
+                <div class="position-relative" t-on-click.stop="">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns"/>
+                        <span>Columnas</span>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
+                        <t t-foreach="tableCols" t-as="col" t-key="col.key">
+                            <div t-if="!col.fixed" class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'inv_col_' + col.key"
+                                       t-att-checked="state.visibleCols[col.key]"
+                                       t-on-change="() => this.toggleCol(col.key)"/>
+                                <label class="form-check-label small" t-att-for="'inv_col_' + col.key"
+                                       t-esc="col.label"/>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- Acciones -->
+                <button class="btn btn-sm btn-outline-success ms-auto" t-on-click="exportCsv"
+                        title="Exportar la tabla visible a CSV">
+                    <i class="fa fa-download me-1"/>Exportar
+                </button>
+                <button t-if="state.canDispatch and readySelectedIds.length"
+                        class="btn btn-sm btn-primary"
+                        t-att-disabled="state.dispatching"
+                        t-on-click="markDispatched"
+                        title="Marca como despachadas las filas seleccionadas que ya están validadas">
+                    <i t-att-class="'fa me-1 ' + (state.dispatching ? 'fa-spinner fa-spin' : 'fa-send')"/>
+                    Marcar despachado (<t t-esc="readySelectedIds.length"/>)
+                </button>
+            </div>
+
+            <!-- Error de backend (tabla) -->
+            <div t-if="state.tableError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar las salidas pendientes: <strong><t t-esc="state.tableError"/></strong>
+            </div>
+
+            <!-- Spinner SOLO en la primera carga; en las recargas la zona queda
+                 montada y atenuada (soft reload) -->
+            <div t-if="state.tableLoading and !state.rows.length" class="text-center text-muted py-4">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+
+            <t t-if="!state.tableError and (state.rows.length or !state.tableLoading)">
+                <div t-att-class="state.tableLoading ? 'opacity-50 pe-none' : ''">
+                <!-- Selección activa: los KPIs y totales se recalculan sobre ella -->
+                <div t-if="selectedRows.length" class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge text-bg-primary">
+                        <t t-esc="selectedRows.length"/> seleccionada(s)
+                    </span>
+                    <span class="text-muted small">Los KPIs y totales reflejan la selección.</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click="clearSelection">Limpiar</button>
+                </div>
+
+                <!-- Pestañas de agrupamiento (mismo patrón que clientes/forecast/quiebres) -->
+                <t t-if="state.tblGroupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + (activeGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo los ' + g.count + ' remito(s) del grupo: ' + g.label"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-esc="g.label"/>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
+
+                <div t-if="!sortedRows.length" class="text-center text-muted py-4 border rounded">
+                    <i class="fa fa-inbox fa-2x mb-2 d-block"/>
+                    No hay movimientos para los filtros seleccionados.
+                </div>
+
+                <div t-if="sortedRows.length" class="border rounded" style="max-height:72vh; overflow-y:auto;">
+                    <table class="table table-sm table-bordered mb-0 align-middle"
+                           style="font-size:12px; width:100%; table-layout:fixed;">
+                        <thead style="position:sticky; top:0; z-index:3;">
+                            <tr>
+                                <th class="text-center align-middle"
+                                    style="width:28px; padding:4px 8px; background:#f8f9fa;">
+                                    <input type="checkbox" class="form-check-input"
+                                           title="Seleccionar todos los remitos de la página"
+                                           t-att-checked="allSelected"
+                                           t-on-change="toggleSelectAll"/>
+                                </th>
+                                <!-- Headers gestionados por el col manager: drag & drop + resize -->
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                    <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
+                                        t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-title="colTitle(col)"
+                                        t-att-data-col-key="col.key"
+                                        t-att-draggable="col.fixed ? 'false' : 'true'"
+                                        t-on-dragstart="cols.onDragStart"
+                                        t-on-dragover="cols.onDragOver"
+                                        t-on-drop="cols.onDrop"
+                                        t-on-dragend="cols.onDragEnd"
+                                        t-on-click="() => this.setSort(col.key)">
+                                        <t t-esc="col.label"/><i t-att-class="sortIcon(col.key)"/>
+                                        <div class="o_col_resize_handle"
+                                             t-att-data-col-key="col.key"
+                                             t-on-mousedown.stop="cols.onResizeStart"
+                                             t-on-click.stop="() => {}"/>
+                                    </th>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="pagedRows" t-as="row" t-key="row.picking_id">
+                                <tr>
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input"
+                                                   t-att-checked="state.selected[row.picking_id]"
+                                                   title="Seleccionar: los KPIs y totales se recalculan sobre la selección"
+                                                   t-on-change="() => this.toggleSelect(row)"/>
+                                        </td>
+                                        <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
+                                            <td t-if="col.key === 'name'">
+                                                <a href="#" class="fw-semibold"
+                                                   t-on-click.prevent="() => this.openPicking(row)"
+                                                   t-esc="row.name"/>
+                                            </td>
+                                            <td t-elif="col.key === 'origin'">
+                                                <!-- Origen con hipervínculo a la venta (sale_id);
+                                                     texto plano si el remito no viene de una venta -->
+                                                <a t-if="row.origin_id" href="#"
+                                                   t-on-click.prevent="() => this.openOrigin(row)"
+                                                   t-esc="row.origin"/>
+                                                <t t-else="" t-esc="row.origin"/>
+                                            </td>
+                                            <td t-elif="col.key === 'scheduled'" style="white-space:nowrap;">
+                                                <t t-esc="row.scheduled"/>
+                                                <span t-if="row.overdue_days !== null and row.overdue_days >= 0"
+                                                      class="badge text-bg-danger ms-1"
+                                                      t-att-title="row.overdue_days > 0 ? 'Vencida hace ' + row.overdue_days + ' día(s)' : 'Vence hoy'">
+                                                    <t t-esc="row.overdue_days > 0 ? '+' + row.overdue_days + ' d' : 'hoy'"/>
+                                                </span>
+                                            </td>
+                                            <td t-elif="col.key === 'qty_pending'" class="text-end">
+                                                <t t-esc="fmt(row.qty_pending)"/>
+                                            </td>
+                                            <td t-elif="col.key === 'qty_available'" class="text-end">
+                                                <t t-esc="fmt(row.qty_available)"/>
+                                            </td>
+                                            <td t-elif="col.key === 'route'"
+                                                style="max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                                t-att-title="row.loc_from + ' → ' + row.loc_to">
+                                                <t t-esc="row.loc_from"/> → <t t-esc="row.loc_to"/>
+                                            </td>
+                                            <td t-elif="col.key === 'qty_done'" class="text-end">
+                                                <t t-esc="row.state === 'done' ? fmt(row.qty_done) : ''"/>
+                                            </td>
+                                            <td t-elif="col.key === 'days_available'" class="text-end"
+                                                t-att-title="row.days_available !== null
+                                                             ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según los snapshots'
+                                                             : 'Sin snapshots con stock para este remito'">
+                                                <t t-esc="row.days_available !== null ? row.days_available : '—'"/>
+                                            </td>
+                                            <td t-elif="col.key === 'state'">
+                                                <!-- Mismo nombre y color que el estado nativo del remito -->
+                                                <span t-att-class="'badge ' + (row.state === 'done' ? 'text-bg-success'
+                                                                   : (row.state === 'assigned' ? 'text-bg-info'
+                                                                   : 'text-bg-light text-dark border'))"
+                                                      t-esc="rowStateLabel(row)"/>
+                                            </td>
+                                            <td t-elif="col.key === 'stage_label'">
+                                                <span t-att-class="'badge ' + (row.stage === 'ready'
+                                                                   ? 'text-bg-info' : 'text-bg-light text-dark border')"
+                                                      t-esc="row.stage_label"/>
+                                            </td>
+                                            <!-- Una sola línea truncada con "…" al ancho de la columna
+                                                 (redimensionable); la lista completa queda en el tooltip -->
+                                            <td t-elif="col.key === 'product_names'"
+                                                style="max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                                t-att-title="row.products + ' artículo(s): ' + (productsTitle(row) || row.product_names)">
+                                                <!-- Artículos con hipervínculo (hasta 3 + sufijo "+N");
+                                                     fallback al texto plano si no viene el detalle -->
+                                                <t t-if="row.products_detail and row.products_detail.length">
+                                                    <t t-foreach="row.products_detail.slice(0, 3)" t-as="p" t-key="p.id">
+                                                        <t t-if="p_index > 0">, </t>
+                                                        <a href="#"
+                                                           t-on-click.prevent="() => this.openProduct(p.id)"
+                                                           t-esc="p.name"/>
+                                                    </t>
+                                                    <span t-if="row.products_detail.length > 3"
+                                                          class="text-muted ms-1"
+                                                          t-att-title="productsTitle(row)">
+                                                        +<t t-esc="row.products_detail.length - 3"/>
+                                                    </span>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-esc="row.product_names"/>
+                                                </t>
+                                            </td>
+                                            <td t-else="">
+                                                <t t-esc="row[col.key]"/>
+                                            </td>
+                                        </t>
+                                </tr>
+                            </t>
+                        </tbody>
+
+                        <!-- Totales de lo que muestra la tabla: conjunto filtrado/buscado
+                             y, si hay agrupamiento, solo la pestaña activa (todas las páginas) -->
+                        <tfoot class="fw-bold" style="background:#f8f9fa;">
+                            <tr>
+                                <td/>
+                                <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
+                                    <td style="padding:3px 6px;"
+                                        t-att-class="col.align ? 'text-' + col.align : ''">
+                                        <t t-if="col.key === 'name'">
+                                            <span title="Cantidad de remitos que muestra la tabla (fechas, filtros, búsqueda y pestaña activa aplicados) o de la selección si hay filas seleccionadas.">
+                                                Total (<t t-esc="tableKpis.pickings"/>)
+                                            </span>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_pending'">
+                                            <span title="Suma de piezas pendientes de los remitos visibles."
+                                                  t-esc="fmt(tableKpis.pending)"/>
+                                        </t>
+                                        <t t-elif="col.key === 'qty_available'">
+                                            <span title="Suma de piezas con stock de los remitos visibles."
+                                                  t-esc="fmt(tableKpis.available)"/>
+                                        </t>
+                                    </td>
+                                </t>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <!-- Paginación (mismo patrón que el forecast) -->
+                <div t-if="totalPages > 1"
+                     class="d-flex align-items-center justify-content-between px-2 py-1 border-top">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <small class="text-muted">
+                        Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/>
+                        · <t t-esc="sortedRows.length"/> remito(s)<t
+                            t-if="sortedRows.length !== state.rows.length"> (de <t t-esc="state.rows.length"/>)</t>
+                    </small>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
+                </div>
+                <div t-if="totalPages &lt;= 1 and sortedRows.length" class="text-muted small mt-1">
+                    <t t-esc="sortedRows.length"/> remito(s) pendiente(s)<t
+                        t-if="sortedRows.length !== state.rows.length"> (de <t t-esc="state.rows.length"/>)</t>
+                </div>
+                </div>
+            </t>
+
+        </div>
+    </t>
+
+</templates>

@@ -1,0 +1,629 @@
+"""
+Módulo: mrp_planner_dashboard.py
+Modelo: mrp.planner.dashboard
+
+Panel de control transitorio del planificador de producción MRP.
+
+Responsabilidades:
+- Agregar y exponer contadores de alertas, OFs, OCs y programaciones para el dashboard.
+- Calcular permisos de visibilidad por grupo de usuario.
+- Proveer acciones de apertura para las distintas vistas del panel (producción, ventas, compras).
+- Ofrecer accesos rápidos de navegación hacia alertas, OFs, OCs y programaciones filtradas.
+- Exponer ubicaciones internas para el widget de quiebres de stock.
+
+Relacionado con:
+- mrp.reschedule.alert: fuente principal de alertas críticas y warnings del panel.
+- mrp.production: OFs activas, atrasadas y con reprogramación pendiente.
+- purchase.order: OCs en borrador, por aprobar, activas y vencidas.
+- mrp.reschedule.config: configuración de umbrales (p. ej. días críticos para OCs).
+- mrp_planner_helpers.no_subcontract_domain: helper para excluir OFs de subcontratación.
+"""
+import logging
+from datetime import datetime
+from types import SimpleNamespace
+
+from odoo import models, fields, api, _, tools
+from odoo.exceptions import AccessError
+from odoo.addons.odoo_mrp_planner.models.mrp_planner_helpers import no_subcontract_domain
+from .const import DEFAULT_PO_CRITICAL_DAYS
+
+_logger = logging.getLogger(__name__)
+
+
+class MrpPlannerDashboard(models.TransientModel):
+    _name = 'mrp.planner.dashboard'
+    _inherit = ['mrp.planner.dashboard.actions.mixin']
+    _description = 'Panel del planificador de producción'
+
+    name = fields.Char(default='Panel del Planificador', help='Nombre descriptivo del panel (solo uso interno de la vista).')
+
+    # ── Alertas — contadores ─────────────────────────────────────────────────
+
+    alert_total           = fields.Integer(compute='_compute_alert_stats', help='Total de alertas activas (sin resolver), excluyendo OFs de subcontratación.')
+    alert_critical        = fields.Integer(compute='_compute_alert_stats', help='Alertas activas con severidad crítica.')
+    alert_warning         = fields.Integer(compute='_compute_alert_stats', help='Alertas activas con severidad advertencia.')
+    alert_mo_delayed      = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF atrasada (mo_delayed).')
+    alert_mo_upcoming     = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF próxima a vencer (mo_upcoming).')
+    alert_po_delayed      = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC atrasada (po_delayed).')
+    alert_po_upcoming     = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC próxima a vencer (po_upcoming).')
+    alert_po_cancelled    = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OC cancelada (po_cancelled).')
+    alert_receipt_delayed = fields.Integer(compute='_compute_alert_stats', help='Alertas de recepción atrasada vinculadas a una OC (no devoluciones).')
+    alert_qty_mismatch    = fields.Integer(compute='_compute_alert_stats', help='Alertas de discrepancia de cantidad entre OF y recepción (qty_mismatch).')
+    alert_mo_cancelled    = fields.Integer(compute='_compute_alert_stats', help='Alertas de tipo OF cancelada (mo_cancelled).')
+
+    # ── Permisos de usuario ──────────────────────────────────────────────────
+
+    can_see_alerts       = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de alertas (producción o compras).')
+    can_see_mo           = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de órdenes de fabricación.')
+    can_see_po           = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de órdenes de compra.')
+    can_see_stock_breaks = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el widget de quiebres de stock.')
+    can_see_forecast     = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ver el panel de forecast de ventas.')
+    can_schedule         = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede crear programaciones de producción.')
+    can_reschedule       = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede ejecutar reprogramaciones en cascada.')
+    can_edit_forecast    = fields.Boolean(compute='_compute_user_permissions', help='True si el usuario puede editar datos de forecast de ventas.')
+
+    # ── Visibilidad de secciones (preferencias por usuario) ──────────────────
+
+    show_prod_alerts_sec        = fields.Boolean(compute='_compute_section_visibility')
+    show_prod_mos_sec           = fields.Boolean(compute='_compute_section_visibility')
+    show_prod_wc_sec            = fields.Boolean(compute='_compute_section_visibility')
+    show_stock_breaks_sec       = fields.Boolean(compute='_compute_section_visibility')
+    show_po_alerts_sec          = fields.Boolean(compute='_compute_section_visibility')
+    show_po_widget_sec          = fields.Boolean(compute='_compute_section_visibility')
+    show_supplier_analysis_sec  = fields.Boolean(compute='_compute_section_visibility')
+    show_sales_chart_sec        = fields.Boolean(compute='_compute_section_visibility')
+    show_forecast_sec           = fields.Boolean(compute='_compute_section_visibility')
+    show_customer_analysis_sec  = fields.Boolean(compute='_compute_section_visibility')
+
+    # ── Alertas — lista inline ───────────────────────────────────────────────
+
+    urgent_alert_ids = fields.Many2many(
+        'mrp.reschedule.alert',
+        compute='_compute_inline_alerts',
+        string='Alertas críticas',
+        help='Últimas 8 alertas críticas sin resolver, ordenadas por ID descendente para el widget inline del dashboard.',
+    )
+
+    # ── OFs — contadores ─────────────────────────────────────────────────────
+
+    mo_total             = fields.Integer(compute='_compute_mo_stats', help='Total de OFs activas (excluye done, cancel, draft y subcontratación).')
+    mo_in_progress       = fields.Integer(compute='_compute_mo_stats', help='OFs en estado "en progreso" o "por cerrar".')
+    mo_done              = fields.Integer(compute='_compute_mo_stats', help='OFs completadas (estado done), excluyendo subcontratación.')
+    mo_delayed           = fields.Integer(compute='_compute_mo_stats', help='OFs activas cuya fecha de finalización planificada ya pasó.')
+    mo_reschedule_needed = fields.Integer(compute='_compute_mo_stats', help='OFs activas marcadas con la bandera x_reschedule_needed.')
+
+    # ── OFs — listas inline ──────────────────────────────────────────────────
+
+    delayed_mo_ids    = fields.Many2many('mrp.production', compute='_compute_inline_mos',
+                                         string='OFs atrasadas',
+                                         help='Hasta 4 OFs atrasadas ordenadas por fecha de finalización ascendente, para el widget inline del dashboard.')
+    reschedule_mo_ids = fields.Many2many('mrp.production', compute='_compute_inline_mos',
+                                         string='OFs para reprogramar',
+                                         help='Hasta 4 OFs con reprogramación pendiente ordenadas por fecha de inicio, para el widget inline del dashboard.')
+
+    # ── OCs — contadores ─────────────────────────────────────────────────────
+
+    po_rfq              = fields.Integer(compute='_compute_po_stats', help='OCs en estado borrador o enviadas (solicitudes de cotización).')
+    po_to_approve       = fields.Integer(compute='_compute_po_stats', help='OCs pendientes de aprobación por un segundo nivel de autorización.')
+    po_total            = fields.Integer(compute='_compute_po_stats', help='Total de OCs aprobadas (purchase + done) no totalmente recibidas.')
+    po_pending          = fields.Integer(compute='_compute_po_stats', help='OCs aprobadas cuya fecha planificada de entrega aún no venció.')
+    po_overdue          = fields.Integer(compute='_compute_po_stats', help='OCs aprobadas cuya fecha planificada de entrega ya pasó.')
+    po_overdue_critical = fields.Integer(compute='_compute_po_stats', help='OCs vencidas que superan el umbral de días críticos configurado en mrp.reschedule.config.')
+
+    # ── OCs — listas inline ──────────────────────────────────────────────────
+
+    rfq_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='Solicitudes de cotización',
+        help='Hasta 4 solicitudes de cotización (draft/sent) ordenadas por fecha planificada, para el widget inline del panel de compras.',
+    )
+    to_approve_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='Por aprobar',
+        help='Hasta 3 OCs en estado "por aprobar" ordenadas por fecha planificada, para el widget inline del panel de compras.',
+    )
+    overdue_po_ids = fields.Many2many(
+        'purchase.order',
+        compute='_compute_inline_pos',
+        string='OCs vencidas',
+        help='Hasta 5 OCs aprobadas con fecha de entrega vencida y recepción incompleta, ordenadas por fecha planificada ascendente.',
+    )
+
+    # ── Programaciones — contadores ──────────────────────────────────────────
+
+    # ── Cómputos ─────────────────────────────────────────────────────────────
+
+    @api.depends()
+    def _compute_alert_stats(self):
+        """
+        Calcula todos los contadores de alertas para cada registro del panel.
+
+        Fórmula: un único read_group sobre mrp.reschedule.alert agrupado por
+        (alert_type, severity) reemplaza las búsquedas individuales anteriores,
+        reduciendo las queries SQL de 10 a 3 por apertura del dashboard.
+        Las alertas de OFs de subcontratación se excluyen del conteo de producción;
+        las alertas de OCs/recepciones se filtran sin dominio SBC para no ocultarlas.
+        alert_receipt_delayed mantiene un search_count individual por sus filtros
+        relacionales (picking_id.purchase_id, picking_id.return_id) que no son
+        compatibles con read_group en todos los backends.
+        Depende de: mrp.reschedule.alert (resolved, severity, alert_type,
+                    production_id, picking_id.purchase_id, picking_id.return_id).
+        """
+        Alert = self.env['mrp.reschedule.alert']
+        base = [('resolved', '=', False)]
+        sc_loc_ids = self.env['stock.location'].search(
+            [('is_subcontracting_location', '=', True)]
+        ).ids
+        sc_mo_ids = self.env['mrp.production'].search(
+            [('location_src_id', 'in', sc_loc_ids)]
+        ).ids if sc_loc_ids else []
+        # Incluir alertas sin OF (recepciones, OCs); excluir solo las de OFs SBC
+        no_sc = ['|', ('production_id', '=', False),
+                 ('production_id', 'not in', sc_mo_ids)] if sc_mo_ids else []
+        wh_alert = self._get_wh_domains().alert
+
+        # ── read_group con no_sc: cubre alert_total, severidades y tipos de OF ──
+        groups_no_sc = Alert.read_group(
+            base + no_sc + wh_alert,
+            fields=['alert_type', 'severity'],
+            groupby=['alert_type', 'severity'],
+            lazy=False,
+        )
+        counts_no_sc = {(g['alert_type'], g['severity']): g['__count'] for g in groups_no_sc}
+
+        # ── read_group sin no_sc: cubre tipos de OC (po_delayed, po_upcoming, po_cancelled) ──
+        groups_all = Alert.read_group(
+            base + wh_alert,
+            fields=['alert_type'],
+            groupby=['alert_type'],
+            lazy=False,
+        )
+        counts_all = {g['alert_type']: g['__count'] for g in groups_all}
+
+        for rec in self:
+            # Totales con no_sc
+            rec.alert_total       = sum(counts_no_sc.values())
+            rec.alert_critical    = sum(v for (t, s), v in counts_no_sc.items() if s == 'critical')
+            rec.alert_warning     = sum(v for (t, s), v in counts_no_sc.items() if s == 'warning')
+            rec.alert_mo_delayed  = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_delayed')
+            rec.alert_mo_upcoming = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_upcoming')
+            rec.alert_qty_mismatch = sum(v for (t, s), v in counts_no_sc.items() if t == 'qty_mismatch')
+            rec.alert_mo_cancelled = sum(v for (t, s), v in counts_no_sc.items() if t == 'mo_cancelled')
+            # Tipos de OC (sin no_sc)
+            rec.alert_po_delayed   = counts_all.get('po_delayed', 0)
+            rec.alert_po_upcoming  = counts_all.get('po_upcoming', 0)
+            rec.alert_po_cancelled = counts_all.get('po_cancelled', 0)
+            # receipt_delayed: filtros relacionales incompatibles con read_group
+            rec.alert_receipt_delayed = Alert.search_count(base + wh_alert + [
+                ('alert_type', '=', 'receipt_delayed'),
+                ('picking_id.purchase_id', '!=', False),
+                ('picking_id.return_id', '=', False),
+            ])
+
+    @api.depends()
+    def _compute_user_permissions(self):
+        """
+        Calcula los flags de visibilidad y acción para el usuario actual.
+
+        Fórmula: evalúa los grupos del módulo (admin, prod_read, prod, purchase,
+        sales_read, sales) y mapea combinaciones a cada permiso. Un usuario sin
+        ningún grupo del módulo recibe acceso mínimo de lectura de producción.
+        Depende de: grupos de seguridad del usuario (res.groups vía has_group).
+        """
+        u = self.env.user
+        is_admin      = u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system')
+        has_prod_r    = u.has_group('odoo_mrp_planner.group_prod_read')
+        has_prod      = u.has_group('odoo_mrp_planner.group_prod')
+        has_pur       = u.has_group('odoo_mrp_planner.group_purchase')
+        has_pur_admin = u.has_group('odoo_mrp_planner.group_purchase_admin')
+        has_sales_r   = u.has_group('odoo_mrp_planner.group_sales_read')
+        has_sales     = u.has_group('odoo_mrp_planner.group_sales')
+        Config = self.env['mrp.reschedule.config']
+        has_scheduling = Config._user_in_scheduling_group(u)
+        # Sin ningún grupo del módulo → mínimo = prod lectura (no schedule, no compras, no ventas)
+        no_groups = not any([is_admin, has_prod_r, has_prod, has_pur, has_pur_admin,
+                             has_sales_r, has_sales, has_scheduling])
+        can_prod  = is_admin or has_prod_r or has_prod or no_groups
+        can_pur   = is_admin or has_pur or has_pur_admin
+        can_sales = is_admin or has_sales_r or has_sales
+        scheduling_ui = Config._scheduling_ui_enabled(u)
+        for rec in self:
+            rec.can_see_alerts       = can_prod or can_pur
+            rec.can_see_mo           = can_prod
+            rec.can_see_po           = can_pur
+            rec.can_see_stock_breaks = can_prod
+            rec.can_see_forecast     = can_sales
+            rec.can_schedule         = scheduling_ui
+            rec.can_reschedule       = scheduling_ui
+            rec.can_edit_forecast    = is_admin or has_sales
+
+    @api.depends()
+    def _compute_section_visibility(self):
+        """Lee las preferencias de secciones del usuario actual y las expone como campos del panel."""
+        u = self.env.user
+        for rec in self:
+            rec.show_prod_alerts_sec       = u.mrp_planner_show_prod_alerts
+            rec.show_prod_mos_sec          = u.mrp_planner_show_prod_mos
+            rec.show_prod_wc_sec           = u.mrp_planner_show_prod_wc
+            rec.show_stock_breaks_sec      = u.mrp_planner_show_stock_breaks
+            rec.show_po_alerts_sec         = u.mrp_planner_show_po_alerts
+            rec.show_po_widget_sec         = u.mrp_planner_show_po_widget
+            rec.show_supplier_analysis_sec = u.mrp_planner_show_supplier_analysis
+            rec.show_sales_chart_sec       = u.mrp_planner_show_sales_chart
+            rec.show_forecast_sec          = u.mrp_planner_show_forecast
+            rec.show_customer_analysis_sec = u.mrp_planner_show_customer_analysis
+
+    # ── Permisos por depósito ────────────────────────────────────────────────
+
+    def _ensure_planner_group(self, *group_xmlids):
+        """Guard de acceso para métodos RPC del dashboard.
+
+        El ACL del modelo transient es amplio (base.group_user) porque el panel
+        se abre para cualquier empleado; los métodos que leen datos sensibles con
+        sudo() deben verificar acá que el usuario pertenezca a alguno de los
+        grupos del planificador indicados. Admin y system siempre pasan.
+
+        :param group_xmlids: xml_ids de grupos aceptados (ej: 'odoo_mrp_planner.group_sales_read').
+        :raises AccessError: si el usuario no pertenece a ninguno.
+        """
+        u = self.env.user
+        if u.has_group('odoo_mrp_planner.group_admin') or u.has_group('base.group_system'):
+            return
+        if any(u.has_group(g) for g in group_xmlids):
+            return
+        raise AccessError(_("No tenés permisos para ver esta sección del planificador."))
+
+    @tools.ormcache('self.env.uid', 'self.env.company.id')
+    def _get_allowed_wh_ids(self):
+        """Implementación interna — usar _get_wh_domains() en métodos nuevos.
+
+        Retorna None si el usuario ve todos los depósitos, o lista de IDs si está
+        restringido. Cuando hay restricción, filtra a los depósitos de la empresa activa."""
+        u = self.env.user
+        if u.mrp_planner_all_warehouses:
+            return None  # sin restricción; los callers filtran por empresa al buscar en stock.warehouse
+        # Filtrar los depósitos del usuario a solo los que pertenecen a la empresa activa
+        company_wh_ids = set(
+            self.env['stock.warehouse'].search(
+                [('company_id', '=', self.env.company.id)]
+            ).ids
+        )
+        return [wh_id for wh_id in u.mrp_planner_warehouse_ids.ids if wh_id in company_wh_ids]
+
+    def _wh_domain_mo(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre mrp.production."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        return [('picking_type_id.warehouse_id', 'in', allowed_ids)]
+
+    def _wh_domain_po(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre purchase.order y stock.picking."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        return [('picking_type_id.warehouse_id', 'in', allowed_ids)]
+
+    def _wh_domain_alert(self, allowed_ids):
+        """Dominio de filtro por depósito para búsquedas sobre mrp.reschedule.alert."""
+        if allowed_ids is None:
+            return []
+        if not allowed_ids:
+            return [('id', '=', False)]
+        # Incluir alertas del depósito: via production_id (OF), purchase_id (OC),
+        # picking_id sin OC/OF (recepción suelta), o sin ninguno de los tres.
+        return [
+            '|', ('production_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '|', '&', ('production_id', '=', False),
+                 ('purchase_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '|', '&', '&', ('production_id', '=', False), ('purchase_id', '=', False),
+                 ('picking_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+            '&', '&', ('production_id', '=', False), ('purchase_id', '=', False),
+                 ('picking_id', '=', False),
+        ]
+
+    def _get_wh_domains(self):
+        """Punto de entrada único para el filtro de depósitos del usuario en el dashboard.
+
+        Llama a _get_allowed_wh_ids() una sola vez y devuelve los tres dominios
+        precalculados. Todo método get_* del dashboard que filtre por depósito debe
+        usar este método en lugar de llamar _get_allowed_wh_ids() + _wh_domain_* por
+        separado. Esto garantiza que el filtro se aplique siempre desde un único lugar.
+
+        Atributos del resultado:
+          .allowed_ids — list[int] | None  (None = sin restricción; [] = sin acceso)
+          .mo          — dominio para mrp.production
+          .po          — dominio para purchase.order / stock.picking
+          .alert       — dominio para mrp.reschedule.alert
+        """
+        allowed = self._get_allowed_wh_ids()
+        return SimpleNamespace(
+            allowed_ids=allowed,
+            mo=self._wh_domain_mo(allowed),
+            po=self._wh_domain_po(allowed),
+            alert=self._wh_domain_alert(allowed),
+        )
+
+    @api.depends()
+    def _compute_inline_alerts(self):
+        """
+        Calcula la lista reducida de alertas críticas para el widget inline.
+
+        Fórmula: últimas 8 alertas con severity='critical' y resolved=False,
+        ordenadas por ID descendente (más recientes primero).
+        Depende de: mrp.reschedule.alert (resolved, severity).
+        """
+        wh_alert = self._get_wh_domains().alert
+        for rec in self:
+            rec.urgent_alert_ids = self.env['mrp.reschedule.alert'].search(
+                [('resolved', '=', False), ('severity', '=', 'critical')] + wh_alert,
+                order='id desc',
+                limit=8,
+            )
+
+    @api.depends()
+    def _compute_mo_stats(self):
+        """
+        Calcula los contadores de órdenes de fabricación para el panel.
+
+        Fórmula: un único read_group agrupado por 'state' cubre mo_total y
+        mo_in_progress sin cargar registros en memoria; mo_done, mo_delayed y
+        mo_reschedule_needed se obtienen con search_count usando dominios
+        específicos — cada uno emite un COUNT(*) en SQL en lugar de filtrar
+        en Python sobre el resultado completo de search().
+        Depende de: mrp.production (state, date_finished, x_reschedule_needed,
+                    location_src_id.is_subcontracting_location).
+        """
+        MO = self.env['mrp.production']
+        now = fields.Datetime.now()
+        no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._get_wh_domains().mo
+
+        # ── read_group por state: mo_total y mo_in_progress en una sola query ──
+        base_active = [('state', 'not in', ('done', 'cancel', 'draft'))] + no_sc + wh_mo
+        groups = MO.read_group(base_active, fields=['state'], groupby=['state'], lazy=False)
+        total = 0
+        in_progress = 0
+        for g in groups:
+            cnt = g['__count']
+            total += cnt
+            if g['state'] in ('progress', 'to_close'):
+                in_progress += cnt
+
+        for rec in self:
+            rec.mo_total       = total
+            rec.mo_in_progress = in_progress
+            rec.mo_done        = MO.search_count([('state', '=', 'done')] + no_sc + wh_mo)
+            rec.mo_delayed     = MO.search_count(
+                base_active + [('date_finished', '!=', False), ('date_finished', '<', now)]
+            )
+            rec.mo_reschedule_needed = MO.search_count(
+                base_active + [('x_reschedule_needed', '=', True)]
+            )
+
+    @api.depends()
+    def _compute_inline_mos(self):
+        """
+        Calcula las listas reducidas de OFs para los widgets inline del dashboard.
+
+        Fórmula: delayed_mo_ids = hasta 4 OFs activas con date_finished < now,
+        ordenadas por fecha asc; reschedule_mo_ids = hasta 4 OFs con
+        x_reschedule_needed=True (no done/cancel), ordenadas por date_start asc.
+        Depende de: mrp.production (state, date_finished, x_reschedule_needed,
+                    location_src_id.is_subcontracting_location).
+        """
+        MO = self.env['mrp.production']
+        now = fields.Datetime.now()
+        no_sc = no_subcontract_domain(self.env)
+        wh_mo = self._get_wh_domains().mo
+        for rec in self:
+            rec.delayed_mo_ids = MO.search([
+                ('state', 'in', ('confirmed', 'progress', 'to_close')),
+                ('date_finished', '<', now),
+                ('date_finished', '!=', False),
+            ] + no_sc + wh_mo, order='date_finished asc', limit=4)
+            rec.reschedule_mo_ids = MO.search([
+                ('state', 'not in', ('done', 'cancel')),
+                ('x_reschedule_needed', '=', True),
+            ] + no_sc + wh_mo, order='date_start asc', limit=4)
+
+    @api.depends()
+    def _compute_po_stats(self):
+        """
+        Calcula los contadores de órdenes de compra para el panel.
+
+        Fórmula: po_rfq y po_to_approve vía search_count; las OCs activas
+        (purchase/done con recepción incompleta) se cargan en memoria para
+        filtrar pending y overdue en Python. po_overdue_critical usa el umbral
+        alert_po_critical_days de mrp.reschedule.config (fallback: 5 días).
+        Depende de: purchase.order (state, date_planned, receipt_status),
+                    mrp.reschedule.config (alert_po_critical_days).
+        """
+        PO = self.env['purchase.order']
+        now = fields.Datetime.now()
+        wh_po = self._get_wh_domains().po
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        crit_days = cfg.alert_po_critical_days if cfg else DEFAULT_PO_CRITICAL_DAYS
+        for rec in self:
+            rec.po_rfq        = PO.search_count([('state', 'in', ('draft', 'sent'))] + wh_po)
+            rec.po_to_approve = PO.search_count([('state', '=', 'to approve')] + wh_po)
+            # Approved (purchase + done), not fully received
+            active = PO.search([('state', 'in', ('purchase', 'done')), ('receipt_status', '!=', 'full')] + wh_po)
+            overdue = active.filtered(lambda p: p.date_planned and p.date_planned < now)
+            rec.po_total            = len(active)
+            rec.po_pending          = len(active.filtered(
+                lambda p: not p.date_planned or p.date_planned >= now
+            ))
+            rec.po_overdue          = len(overdue)
+            rec.po_overdue_critical = len(overdue.filtered(
+                lambda p: (now - p.date_planned).days >= crit_days
+            ))
+
+    @api.depends()
+    def _compute_inline_pos(self):
+        """
+        Calcula las listas reducidas de OCs para los widgets inline del panel de compras.
+
+        Fórmula: rfq_ids = hasta 4 RFQs ordenadas por fecha planificada;
+        to_approve_ids = hasta 3 OCs por aprobar; overdue_po_ids = hasta 5 OCs
+        vencidas con recepción incompleta, ordenadas por fecha planificada asc.
+        Depende de: purchase.order (state, date_planned, receipt_status).
+        """
+        PO = self.env['purchase.order']
+        now = fields.Datetime.now()
+        wh_po = self._get_wh_domains().po
+        for rec in self:
+            rec.rfq_ids = PO.search([
+                ('state', 'in', ('draft', 'sent')),
+            ] + wh_po, order='date_planned asc', limit=4)
+            rec.to_approve_ids = PO.search([
+                ('state', '=', 'to approve'),
+            ] + wh_po, order='date_planned asc', limit=3)
+            rec.overdue_po_ids = PO.search([
+                ('state', 'in', ('purchase', 'done')),
+                ('date_planned', '<', now),
+                ('receipt_status', 'not in', ['full']),
+            ] + wh_po, order='date_planned asc', limit=5)
+
+    # ── Apertura ─────────────────────────────────────────────────────────────
+
+    @api.model
+    def action_open(self):
+        """
+        Abre el panel principal del planificador MRP.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista form principal (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista
+                  mrp_planner_dashboard_form con target='main'.
+        """
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Panel de Producción'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_planner_dashboard_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    @api.model
+    def action_open_ventas(self):
+        """
+        Abre el panel de forecast de ventas.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista mrp_ventas_dashboard_form (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista de ventas
+                  con target='main'.
+        """
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Panel de Ventas'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_ventas_dashboard_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    @api.model
+    def action_open_customer_analysis(self):
+        """
+        Abre el panel de análisis de clientes.
+        """
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Análisis de Clientes'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_customer_analysis_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    @api.model
+    def action_open_compras(self):
+        """
+        Abre el panel de compras.
+
+        Crea un registro transitorio nuevo y retorna una acción de ventana que
+        lo muestra en la vista mrp_compras_dashboard_form (sin barra de control).
+
+        :returns: dict — acción ir.actions.act_window apuntando a la vista de compras
+                  con target='main'.
+        """
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Panel de Compras'),
+            'res_model': 'mrp.planner.dashboard',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('odoo_mrp_planner.mrp_compras_dashboard_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    def action_refresh(self):
+        """
+        Recalcula las alertas de demoras y reabre el panel principal.
+
+        Ejecuta el cron de verificación de demoras para actualizar mrp.reschedule.alert
+        antes de reabrir la vista, garantizando datos frescos al usuario.
+
+        :returns: dict — resultado de action_open() (acción de ventana del panel principal).
+        """
+        if not self.env.user.has_group('odoo_mrp_planner.group_prod') and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+            raise AccessError(_("No tiene permisos para ejecutar esta acción"))
+        self.env['mrp.reschedule.alert']._cron_check_delays()
+        return self.env['mrp.planner.dashboard'].action_open()
+
+    def action_refresh_customers(self):
+        """Reabre el panel de Análisis de Clientes (el cálculo es en vivo: recargar
+        el panel equivale a recalcular todo con datos actuales)."""
+        return self.action_open_customer_analysis()
+
+    def action_refresh_compras(self):
+        """
+        Recalcula las alertas de demoras y reabre el panel de compras.
+
+        Idéntico a action_refresh pero redirige al panel de compras en lugar del principal.
+
+        :returns: dict — resultado de action_open_compras() (acción de ventana del panel de compras).
+        """
+        if not self.env.user.has_group('odoo_mrp_planner.group_purchase') and not self.env.user.has_group('odoo_mrp_planner.group_admin'):
+            raise AccessError(_("No tiene permisos para ejecutar esta acción"))
+        self.env['mrp.reschedule.alert']._cron_check_delays()
+        return self.env['mrp.planner.dashboard'].action_open_compras()
+
+    # ── Widget quiebres de stock ─────────────────────────────────────────────
+
+    @api.model
+    def get_internal_locations(self):
+        """Devuelve ubicaciones internas activas para el selector del widget, filtradas por depósito permitido."""
+        allowed_ids = self._get_wh_domains().allowed_ids
+        if allowed_ids is not None and not allowed_ids:
+            return []
+        if allowed_ids is not None:
+            whs = self.env['stock.warehouse'].browse(allowed_ids)
+            parent_locs = whs.mapped('view_location_id')
+            domain = [('usage', '=', 'internal'), ('active', '=', True),
+                      ('id', 'child_of', parent_locs.ids)]
+        else:
+            domain = [('usage', '=', 'internal'), ('active', '=', True)]
+        locations = self.env['stock.location'].search(domain, order='complete_name')
+        return [{'id': l.id, 'name': l.name} for l in locations]
+

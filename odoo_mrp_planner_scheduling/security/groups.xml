@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Programación -->
+    <record id="group_scheduling" model="res.groups">
+        <field name="name">Programación</field>
+        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
+        <field name="comment">Habilita las funciones de programación y reprogramación: pestaña Programaciones en el panel de producción, botones de reprogramación en OFs y KPIs asociados. También permite modificar la configuración de reprogramación.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- El Administrador del planificador implica el grupo de Programación -->
+    <record id="odoo_mrp_planner.group_admin" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_scheduling'))]"/>
+    </record>
+
+    <!-- Menús del panel visibles también para el grupo Programación -->
+    <record id="odoo_mrp_planner.mrp_planeacion_menu" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('group_scheduling'))]"/>
+    </record>
+    <record id="odoo_mrp_planner.mrp_produccion_menu" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('group_scheduling'))]"/>
+    </record>
+
+</odoo>

@@ -391,6 +391,36 @@ Pendiente de verificación (no había Odoo local): smoke test en staging de los 
 paneles refactorizados (filtros/orden/pestañas/selección/export/despacho masivo),
 la card de días de atraso en Producción y Compras, y el `-u odoo_mrp_planner`.
 
+## Consistencia KPI ↔ sublistas del Panel de Inventario (2026-08-07)
+
+Reporte: al abrir "Ver →" en las cards, la columna "Demanda (Pz)" no cuadraba con
+el KPI ni con Con stock + Sin stock de la misma lista.
+
+- 🔴 **Causa:** la columna "Demanda (Pz)" usaba `x_qty_pending_store`, un campo
+  ALMACENADO que sumaba TODAS las líneas pendientes del remito **sin el recorte por
+  rango de fechas**, mientras el KPI y las columnas Con/Sin stock usan la demanda
+  **del rango** (por línea, vía contexto `planner_date_from/_to`). Resultado: KPI =
+  Con stock + Sin stock, pero ≠ "Demanda (Pz)"; y dentro de la lista las tres no
+  cerraban. Además, las recepciones mostraban Con stock calculado en el drill mientras
+  el panel las fuerza a 0.
+- ✅ **Fix (v18.0.7.2.0, requiere `-u`):** se reemplazó `x_qty_pending_store` por
+  `x_qty_pending_chain`, calculado por el mismo `_compute_x_qty_chain` y con el mismo
+  universo del rango, de modo que **Demanda = Con stock + Sin stock** y el total al pie
+  cierra con el KPI. Se agregó la regla de recepciones (Con stock = 0) al compute. El
+  campo almacenado quedó eliminado.
+- ✅ **#1:** el drill de "Validados del período" pasó a usar la misma lista de 3
+  columnas (para validados: Demanda = Con stock = cantidad hecha, Sin stock = 0).
+- **Límite conocido (respuesta a "¿suma por grupo?"):** al ser recortadas por fecha,
+  las tres columnas no pueden almacenarse ⇒ **totalizan al pie** (suma de las filas
+  cargadas, que es lo que cuadra con el KPI) pero **no por grupo** si se agrupa la
+  lista manualmente. Es intrínseco a un valor dependiente del rango en una lista nativa.
+  Residual posible de ±1 por el redondeo "Forzar cantidades enteras".
+- **#3 — diferencia vs. "Análisis de movimientos" nativo: es intencional, no un bug.**
+  El panel acota además por universo de tipos de la compañía, por el/los depósito(s)
+  seleccionados o permitidos, por estado del remito (confirmado/en espera/preparado) y
+  por el corte de antigüedad de Ajustes; el filtro nativo sobre `stock.move` no tiene
+  esas restricciones, por eso da mayor. Sin cambio de código.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

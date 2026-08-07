@@ -142,34 +142,27 @@ class StockPicking(models.Model):
         for pick in self:
             pick.x_qty_done = totals.get(pick.id, 0.0)
 
-    x_qty_pending_store = fields.Float(
-        string='Demanda pendiente (Pz)', compute='_compute_x_qty_pending_store',
-        store=True, digits='Product Unit of Measure',
-        help='Suma de las cantidades demandadas por las líneas pendientes del '
-             'remito (todas sus líneas, sin el recorte por rango de fechas de '
-             'los paneles). Campo ALMACENADO para que las listas de los drills '
-             'puedan sumar por grupo y en el total.')
-
-    @api.depends('state', 'move_ids.state', 'move_ids.product_uom_qty')
-    def _compute_x_qty_pending_store(self):
-        Move = self.env['stock.move'].sudo()
-        totals = {}
-        if self.ids:
-            for picking, qty in Move._read_group(
-                    [('picking_id', 'in', self.ids),
-                     ('state', 'not in', ('draft', 'done', 'cancel'))],
-                    ['picking_id'], ['product_uom_qty:sum']):
-                totals[picking.id] = qty
-        for pick in self:
-            pick.x_qty_pending_store = totals.get(pick.id, 0.0)
-
+    # Demanda / Con stock / Sin stock del rango — las TRES calculadas por el
+    # mismo compute y con el MISMO universo (líneas pendientes recortadas al
+    # rango de fechas del panel, vía contexto planner_date_from/_to), para que
+    # cierren entre sí (Demanda = Con stock + Sin stock) y con los KPIs del
+    # Panel de Inventario. Al ser recortadas por fecha no pueden almacenarse:
+    # totalizan al pie de la lista (suma de las filas cargadas), no por grupo.
+    x_qty_pending_chain = fields.Float(
+        string='Demanda (Pz)', compute='_compute_x_qty_chain',
+        digits='Product Unit of Measure',
+        help='Demanda pendiente del remito recortada al rango de fechas del '
+             'Panel de Inventario (las mismas líneas que Con stock / Sin '
+             'stock): Demanda = Con stock + Sin stock. Remitos validados: '
+             'cantidad hecha.')
     x_qty_available_chain = fields.Float(
         string='Con stock (Pz)', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
         help='De la demanda pendiente del remito, cantidad con stock reservado '
              'en el eslabón donde está parada (siguiendo la cadena de '
              'abastecimiento) — mismo cálculo que la columna "Con stock" del '
-             'Panel de Inventario. Remitos validados: 100 %.')
+             'Panel de Inventario. Recepciones: 0 (esperan al proveedor). '
+             'Remitos validados: 100 %.')
     x_qty_blocked_chain = fields.Float(
         string='Sin stock (Pz)', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
@@ -203,6 +196,12 @@ class StockPicking(models.Model):
                 demand[picking.id] = qty
                 avail[picking.id] = qty
         for pick in self:
-            a = avail.get(pick.id, 0.0)
+            d = demand.get(pick.id, 0.0)
+            # Recepción pendiente: sin stock disponible (espera al proveedor),
+            # mismo criterio que el Panel de Inventario (etapa 'in' → Con stock 0).
+            is_incoming_pending = (pick.state != 'done'
+                                   and pick.picking_type_id.code == 'incoming')
+            a = 0.0 if is_incoming_pending else avail.get(pick.id, 0.0)
+            pick.x_qty_pending_chain = d
             pick.x_qty_available_chain = a
-            pick.x_qty_blocked_chain = max(0.0, demand.get(pick.id, 0.0) - a)
+            pick.x_qty_blocked_chain = max(0.0, d - a)

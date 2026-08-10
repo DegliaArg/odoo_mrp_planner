@@ -577,8 +577,13 @@ reutilizable. Helper compartido `applyNumericFilters` en `planner_table.js`.
   hook en `forecast_filters.baseFilteredRows`. Proveedores: Monto/% A tiempo/
   Retraso/% Completas/Lead time/Var. precio, hook en un getter base usado por
   la tabla y las pestañas (no persiste, como el resto del panel).
-- ❌ Fuera: OCs y OFs (paginan en servidor y no usan la barra; requerirían
-  dominio server-side).
+- ❌ Fuera: OCs y OFs. Paginan en servidor por volumen (datos transaccionales,
+  potencialmente miles de filas por período) y no usan la barra. Se evaluó
+  pasarlos a client-side (rewrite de carga + KPIs + drills) o sumar filtro
+  numérico server-side (dominio "columna vs valor", sin "columna vs columna" ni
+  OR): **decisión de Franco (2026-08-10) — dejarlos como están**. Ya tienen los
+  drills nativos de Odoo con "Agregar filtro personalizado" para filtrar por
+  número si hace falta.
 
 ## Backlog post-producción
 

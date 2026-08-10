@@ -67,52 +67,21 @@
 
                         <!-- KPIs (describen las filas visibles) -->
                         <div class="d-flex gap-2 mb-3">
-                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                     title="Horas disponibles de los centros visibles según su calendario laboral.">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" t-esc="fmt(tableKpis.disponible)"/>
-                                        <div class="o_planner_label">Disponible (h)</div>
+                            <t t-foreach="kpiCards" t-as="card" t-key="card.key">
+                                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                         t-att-title="kpiTooltip(card.key)">
+                                        <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
+                                            <div t-att-class="'o_planner_number ' + card.cls" t-esc="card.value"/>
+                                            <div class="o_planner_label" t-esc="card.label"/>
+                                        </div>
+                                        <div class="card-footer p-0">
+                                            <button class="btn btn-sm btn-link w-100 py-1"
+                                                    t-on-click="openVisibleOrders">Ver →</button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                     title="Horas planificadas (duración esperada de las OT del período).">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" t-esc="fmt(tableKpis.planificado)"/>
-                                        <div class="o_planner_label">Planificado (h)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                     title="Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).">
-                                    <div class="card-body text-center py-2">
-                                        <div t-att-class="'o_planner_number ' + cargaClass(tableKpis.carga_pct)"
-                                             t-esc="fmtPct(tableKpis.carga_pct)"/>
-                                        <div class="o_planner_label">Carga %</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                     title="Horas planificadas aún no ejecutadas de las OT abiertas.">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" t-esc="fmt(tableKpis.pendiente)"/>
-                                        <div class="o_planner_label">Pendiente (h)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
-                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                     title="Horas ejecutadas que superaron (o no tenían) plan.">
-                                    <div class="card-body text-center py-2">
-                                        <div class="o_planner_number" t-esc="fmt(tableKpis.no_planificado)"/>
-                                        <div class="o_planner_label">No planificado (h)</div>
-                                    </div>
-                                </div>
-                            </div>
+                            </t>
                         </div>
 
                         <!-- Barra de búsqueda (búsqueda + agrupar por sector + filtro numérico) -->
@@ -155,8 +124,9 @@
                                 <thead class="table-light" style="position:sticky; top:0; z-index:3;">
                                     <tr>
                                         <t t-foreach="tableCols" t-as="col" t-key="col.key">
-                                            <th t-att-class="(col.align === 'end' ? 'text-end ' : '') + 'user-select-none'"
+                                            <th t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + 'user-select-none'"
                                                 style="cursor:pointer; white-space:nowrap;"
+                                                t-att-title="colTitle(col)"
                                                 t-on-click="() => this.setSort(col.key)">
                                                 <t t-esc="col.label"/>
                                                 <i t-att-class="sortIcon(col.key)"/>
@@ -167,13 +137,15 @@
                                 <tbody>
                                     <tr t-foreach="pagedRows" t-as="row" t-key="row.wc_id">
                                         <t t-foreach="tableCols" t-as="col" t-key="col.key">
-                                            <td t-att-class="col.align === 'end' ? 'text-end' : ''">
+                                            <td t-att-class="col.align === 'center' ? 'text-center' : (col.align === 'end' ? 'text-end' : '')">
                                                 <t t-if="col.key === 'name'">
                                                     <a href="#" t-on-click.prevent="() => this.openWc(row)"
                                                        t-esc="row.name"/>
                                                     <button class="btn btn-sm btn-link py-0 px-1 ms-1"
                                                             title="Ver órdenes de trabajo del centro"
-                                                            t-on-click.stop="() => this.openWcOrders(row)">OTs →</button>
+                                                            t-on-click.stop="() => this.openWcOrders(row)">
+                                                        <i class="fa fa-external-link"/>
+                                                    </button>
                                                 </t>
                                                 <t t-elif="col.key === 'carga_pct'">
                                                     <span t-att-class="cargaClass(row.carga_pct)" t-esc="fmtPct(row.carga_pct)"/>

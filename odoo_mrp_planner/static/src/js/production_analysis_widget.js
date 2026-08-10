@@ -26,14 +26,14 @@ function today()       { return toDateStr(new Date()); }
 
 const WC_COLS = [
     { key: "name",           label: "Centro de trabajo", width: 180, fixed: true, align: "start" },
-    { key: "disponible",     label: "Disponible (h)",    width: 110, align: "end" },
-    { key: "planificado",    label: "Planificado (h)",   width: 110, align: "end" },
-    { key: "ejecutado",      label: "Ejecutado (h)",     width: 110, align: "end" },
-    { key: "pendiente",      label: "Pendiente (h)",     width: 105, align: "end" },
-    { key: "no_planificado", label: "No planif. (h)",    width: 110, align: "end" },
-    { key: "carga_pct",      label: "Carga %",           width:  90, align: "end" },
-    { key: "holgura",        label: "Holgura (h)",       width: 100, align: "end" },
-    { key: "eficiencia",     label: "Eficiencia %",      width: 105, align: "end" },
+    { key: "disponible",     label: "Disponible (h)",    width: 110, align: "center" },
+    { key: "planificado",    label: "Planificado (h)",   width: 110, align: "center" },
+    { key: "ejecutado",      label: "Ejecutado (h)",     width: 110, align: "center" },
+    { key: "pendiente",      label: "Pendiente (h)",     width: 105, align: "center" },
+    { key: "no_planificado", label: "No planif. (h)",    width: 110, align: "center" },
+    { key: "carga_pct",      label: "Carga %",           width:  90, align: "center" },
+    { key: "holgura",        label: "Holgura (h)",       width: 100, align: "center" },
+    { key: "eficiencia",     label: "Eficiencia %",      width: 105, align: "center" },
 ];
 const WC_NUM_COLS = [
     { key: "disponible",     label: "Disponible (h)" },
@@ -50,6 +50,7 @@ const TABS = [
     { key: "ofs",   label: "OFs",                     icon: "fa-wrench" },
     { key: "cumpl", label: "Producido vs Programado", icon: "fa-bar-chart" },
     { key: "efic",  label: "Eficiencia",              icon: "fa-bolt" },
+    { key: "scrap", label: "Scrap",                   icon: "fa-trash" },
     { key: "evol",  label: "Evolución",               icon: "fa-line-chart" },
 ];
 
@@ -121,6 +122,44 @@ class ProductionAnalysisWidget extends Component {
         if (pct >= this.state.critPct) return "text-danger fw-semibold";
         if (pct >= this.state.warnPct) return "text-warning fw-semibold";
         return "text-success fw-semibold";
+    }
+
+    /** Tooltips de las cards KPI, con la estructura de 3 capas del resto del
+     *  módulo: descripción · fórmula · sustitución numérica. Describen las
+     *  filas visibles (búsqueda/numérico/pestaña de sector). */
+    kpiTooltip(key) {
+        const k = this.tableKpis;
+        const f = n => fmt(n);
+        const scope = `${k.centros} centro(s) visible(s)`;
+        switch (key) {
+            case "disponible":
+                return `Horas de trabajo disponibles de ${scope}, según el calendario laboral (descuenta feriados y licencias)\nSuma de las horas de calendario de cada CT en el rango\n→ ${f(k.disponible)} h`;
+            case "planificado":
+                return `Horas planificadas de ${scope}: duración esperada de las OT asignadas al período\nSuma de la duración esperada (con el criterio de fechas de Ajustes)\n→ ${f(k.planificado)} h`;
+            case "carga_pct":
+                return `Qué parte de la capacidad disponible está comprometida por el plan, en ${scope}\nPlanificado ÷ Disponible × 100\n→ ${f(k.planificado)} ÷ ${f(k.disponible)} × 100 = ${fmtPct(k.carga_pct)}\nVerde < ${this.state.warnPct}% · Amarillo < ${this.state.critPct}% · Rojo ≥ ${this.state.critPct}% (umbrales de Ajustes)`;
+            case "pendiente":
+                return `Horas planificadas aún no ejecutadas de las OT abiertas de ${scope}\nSuma de máx(0, plan del período − real del período) de las OT no terminadas\n→ ${f(k.pendiente)} h`;
+            case "no_planificado":
+                return `Horas ejecutadas que superaron (o no tenían) plan, en ${scope}\nSuma de máx(0, real del período − plan del período)\n→ ${f(k.no_planificado)} h`;
+        }
+        return "";
+    }
+
+    /** Tooltips de los encabezados de columna (misma estructura/estilo). */
+    colTitle(col) {
+        const t = {
+            name:           "Nombre del centro de trabajo. Clic para abrir su ficha; el botón abre sus órdenes de trabajo.",
+            disponible:     "Horas de trabajo disponibles del CT en el rango, según su calendario laboral (descuenta feriados y licencias).",
+            planificado:    "Horas planificadas: duración esperada de las OT del período (criterio de fechas de Ajustes).",
+            ejecutado:      "Horas reales registradas en las OT del período (incluye las que siguen en curso).",
+            pendiente:      "Horas planificadas aún no ejecutadas de las OT abiertas: máx(0, plan − real).",
+            no_planificado: "Horas ejecutadas que superaron (o no tenían) plan: máx(0, real − plan).",
+            carga_pct:      "Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).",
+            holgura:        "Capacidad libre: Disponible − Planificado. Negativa = sobrecarga.",
+            eficiencia:     "Ejecutado ÷ Planificado × 100. Por encima de 100% se tardó más de lo previsto.",
+        }[col.key] || col.label;
+        return `${t} Clic en el encabezado para ordenar.`;
     }
 
     // ── Navegación de pestañas ──────────────────────────────────────────────────
@@ -278,13 +317,37 @@ class ProductionAnalysisWidget extends Component {
         };
     }
 
-    // ── Drill: órdenes de trabajo de un CT ──────────────────────────────────────
+    /** Definición de las cards KPI (para iterar en el template). */
+    get kpiCards() {
+        const k = this.tableKpis;
+        return [
+            { key: "disponible",     label: "Disponible (h)",     value: fmt(k.disponible),     cls: "" },
+            { key: "planificado",    label: "Planificado (h)",    value: fmt(k.planificado),    cls: "" },
+            { key: "carga_pct",      label: "Carga %",            value: fmtPct(k.carga_pct),   cls: this.cargaClass(k.carga_pct) },
+            { key: "pendiente",      label: "Pendiente (h)",      value: fmt(k.pendiente),      cls: "" },
+            { key: "no_planificado", label: "No planificado (h)", value: fmt(k.no_planificado), cls: "" },
+        ];
+    }
+
+    // ── Drill: órdenes de trabajo ───────────────────────────────────────────────
     openWcOrders(row) {
         this.action.doAction({
             type: "ir.actions.act_window",
             name: `Órdenes de trabajo — ${row.name}`,
             res_model: "mrp.workorder",
             domain: [["workcenter_id", "=", row.wc_id], ["state", "!=", "cancel"]],
+            views: [[false, "list"], [false, "form"]],
+            target: "current",
+        });
+    }
+    /** "Ver →" de las cards: OTs de los centros visibles en el rango. */
+    openVisibleOrders() {
+        const ids = this.groupedRows.map(r => r.wc_id);
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: "Órdenes de trabajo del período",
+            res_model: "mrp.workorder",
+            domain: [["workcenter_id", "in", ids], ["state", "!=", "cancel"]],
             views: [[false, "list"], [false, "form"]],
             target: "current",
         });

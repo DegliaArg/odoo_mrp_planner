@@ -1425,7 +1425,7 @@ Clasifica cada cliente según la regularidad y recencia de sus pedidos.
 
 Cantidad de meses de historial que se consideran al ejecutar `action_compute_supplier_categories`. Equivale a `sale_cat_lookback_months` para productos. Default: 12.
 
-El cálculo usa `date.today() - timedelta(days=months * 30)` como fecha de inicio.
+El cálculo usa `date.today() - relativedelta(months=months)` como fecha de inicio (meses calendario exactos, no `× 30 días`), y acota el rango con tope superior en la fecha de hoy: las órdenes con fecha futura no entran.
 
 ### `customer_cat_lookback_months` (mrp.reschedule.config)
 
@@ -1458,5 +1458,42 @@ La tabla de quiebres de stock y la categoría ABC de producto (columna "Cat. ven
 | Cuándo se calcula | en vivo, cada vez que se abre el panel | bajo demanda (botón "Calcular ahora" o cron) |
 
 **Por qué no se unifican:** quiebres de stock es una herramienta de exploración operativa — el usuario cambia el filtro para investigar distintos escenarios. La categorización de productos es una política estable que no debe cambiar porque alguien tenga otro filtro abierto.
+
+---
+
+## Panel de Inventario
+
+El Panel de Inventario ("Análisis de movimientos") muestra todas las operaciones del rango (recepciones, transferencias internas y la cadena de entrega) filtrando por **estado del movimiento** (`stock.move.state`), igual que el "Análisis de movimientos" nativo de Odoo. Cada fila es un remito; las cantidades pendientes se reparten en **Con stock** y **Sin stock**.
+
+### Criterio Con/Sin stock — por estado del movimiento (desde 2026-08-10)
+
+Reemplazó al criterio anterior "por cadena" (que propagaba la reserva de eslabones anteriores hacia adelante y terminaba marcando casi todo como "con stock", incluidos remitos "en espera de otra operación").
+
+Ahora cada movimiento pendiente aporta su demanda a Con/Sin stock según su estado, y **"Con stock" cuenta solo la cantidad reservada** del movimiento (`stock.move.quantity`). La clasificación por estado es configurable en **Ajustes → Inventario → "Clasificación de stock por estado del traslado"** (4 selectores Con stock / Sin stock):
+
+| Estado (`stock.move.state`) | Qué significa | Default | Aporte a "Con stock" |
+|---|---|---|---|
+| Disponible (`assigned`) | Reservó todo lo pedido | **Con stock** | cantidad reservada (= demanda) |
+| Parcialmente disponible (`partially_available`) | Reservó una parte | **Con stock** | solo la parte reservada (el resto va a Sin stock) |
+| En espera de disponibilidad (`confirmed`) | Confirmado, sin reservar aún | **Sin stock** | 0 |
+| En espera de otro movimiento (`waiting`) | Bloqueado por una operación previa | **Sin stock** | 0 |
+
+Estados **no configurables** (fijos): Borrador (`draft`) y Cancelado (`cancel`) no cuentan en ningún lado; Hecho (`done`) va a "Validados del período", no al pendiente.
+
+**Config:** `inventory_state_assigned` / `inventory_state_partial` / `inventory_state_confirmed` / `inventory_state_waiting` en `mrp.reschedule.config` (extensión `mrp_reschedule_config_inventory.py`), leídos por `_inventory_state_stock_map()`. Se aplican en los tres lados del panel: gráfico de composición, KPIs/tabla y columnas del drill. Ver fórmulas 5.1–5.3.
+
+### Demanda = Con stock + Sin stock
+
+Por construcción, para **cualquier** configuración de estados: `Sin stock = Demanda − Con stock`, con `Con stock = mín(reservado, demanda) ≤ demanda`. Así las tres columnas cierran entre sí y el total al pie del drill coincide con el KPI.
+
+El campo `x_qty_pending_chain` (en `stock_picking.py`) reemplazó al `x_qty_pending_store` que tenía un bug: sumaba **todo** el pendiente del remito sin recortar por el rango de fechas del panel, por lo que la columna "Demanda" no cerraba con el KPI ni con Con + Sin stock. `x_qty_pending_chain`, `x_qty_available_chain` y `x_qty_blocked_chain` se calculan juntas con el mismo universo del rango.
+
+> Nota: al mezclar unidades de medida distintas, el Panel de Inventario **no rotula las cantidades como "Pz"** (a diferencia de los demás paneles). Es intencional.
+
+### La Tasa de entrega s/ disponible NO usa este criterio
+
+La **Tasa de entrega s/ disponible** es una métrica **histórica aparte** y conserva la definición **por cadena** de abastecimiento — NO se ve afectada por el criterio de estado del movimiento de arriba. Se alimenta de snapshots diarios (`mrp.dispatch.stock.log`) consolidados por mes (`mrp.planner.kpi.monthly`), y su "disponible" se evalúa siguiendo `move_orig_ids` hacia atrás (`_chain_available_qty`). Se documenta y calcula por separado a propósito, para no confundirla con el Con/Sin stock en vivo. Requiere activar **"Registrar disponibilidad de stock para entregas"** en Ajustes → Inventario. Ver fórmula 5.4.
+
+`tasa = entregado / (entregado + disponible-no-entregado) × 100`, donde el entregado es por `date_done` y el disponible-no-entregado sale de los snapshots del mes.
 
 **Cómo se documenta en pantalla:** el header de la columna "Rot." muestra el método y período activos. El badge de "Cat. venta" tiene un tooltip que indica con qué método/período/base fue calculada y que no se recalcula con los filtros del panel.

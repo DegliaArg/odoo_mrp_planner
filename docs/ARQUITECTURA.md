@@ -88,15 +88,22 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 ### Panel de Inventario
 
 El universo del panel es TODA operación de stock del rango (recepciones,
-transferencias internas y la cadena de entrega completa — flujo lazy de Odoo
-17+: cada pedido crea solo la recolección y el eslabón siguiente nace al
-validar el anterior). La disponibilidad se evalúa **por línea en el eslabón
-donde está parada la demanda** siguiendo `move_orig_ids` (BFS de
-`_chain_available_qty`).
+transferencias internas y la cadena de entrega completa), filtrado por
+**estado del movimiento** (`stock.move.state`), igual que el "Análisis de
+movimientos" nativo. **Con stock / Sin stock se clasifica por estado del
+movimiento** (desde 2026-08-10, reemplazó al criterio "por cadena"): "Con
+stock" = cantidad reservada del movimiento cuyo estado cuenta como con stock
+en Ajustes (`_inventory_state_stock_map`, 4 estados configurables en
+`mrp_reschedule_config_inventory.py`). Ver `docs/formulas.md` §5.1–5.3.
+
+La **Tasa de entrega s/ disponible** es una métrica histórica aparte que SÍ
+conserva el criterio **por cadena**: la disponibilidad se evalúa siguiendo
+`move_orig_ids` (BFS de `_chain_available_qty`) sobre snapshots diarios
+(`mrp.dispatch.stock.log`) consolidados por mes. Ver §5.4.
 
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
-| `mrp.dispatch.stock.log` | `mrp_dispatch_stock_log.py` | Snapshot diario de disponibilidad de las salidas pendientes (pendiente vs. reservado por cadena). Cron `_cron_dispatch_snapshot`, consolidación mensual, purga por retención, `_dispatch_chain_types` (tipos de la cadena de entrega) y `_chain_available_qty` (disponibilidad por cadena, también usada por los campos `x_qty_*_chain` de stock.picking). | `stock.move`, `stock.picking.type`, `mrp.planner.kpi.monthly` |
+| `mrp.dispatch.stock.log` | `mrp_dispatch_stock_log.py` | Snapshot diario de disponibilidad de las salidas pendientes (pendiente vs. reservado por cadena). Cron `_cron_dispatch_snapshot`, consolidación mensual, purga por retención, `_dispatch_chain_types` (tipos de la cadena de entrega) y `_chain_available_qty` (disponibilidad por cadena, usada SOLO por la tasa/snapshots — el Con/Sin stock del panel ya no la usa). | `stock.move`, `stock.picking.type`, `mrp.planner.kpi.monthly` |
 | `mrp.planner.kpi.monthly` | `mrp_dispatch_stock_log.py` | Consolidado mensual de la tasa de entrega s/ disponible (numerador entregado por `date_done`, denominador disponible no entregado). No se purga. | `mrp.dispatch.stock.log` |
 
 ### Dashboard (TransientModels de lectura)
@@ -157,7 +164,7 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | `product.template` | `product_template.py` | Campo computed `x_sale_category` (A–E) — lee/escribe en `mrp.product.company.category`; centros de trabajo compatibles |
 | `res.partner` | `res_partner.py` | Campos computed `x_supplier_category` / `x_customer_category` (A–E) — leen/escriben en `mrp.partner.company.category`; flags `mrp_enable_*_cat` de visibilidad |
 | `purchase.order` | `purchase_order.py` | Hooks para generación reactiva de alertas al cancelar/confirmar |
-| `stock.picking` | `stock_picking.py` | Hook para resolución de alertas de recepción al validar; campos de cantidad de los drills del panel: `x_qty_done` y `x_qty_pending_store` (ALMACENADOS: habilitan sumas por grupo y total nativas en las listas) y `x_qty_available_chain` / `x_qty_blocked_chain` (al vuelo, disponibilidad por cadena; respetan el rango de fechas del panel vía contexto `planner_date_from/_to`) |
+| `stock.picking` | `stock_picking.py` | Hook para resolución de alertas de recepción al validar; campos de cantidad de los drills del panel: `x_qty_done` (ALMACENADO, suma por grupo/total nativa) y `x_qty_pending_chain` / `x_qty_available_chain` / `x_qty_blocked_chain` (al vuelo, recortados al rango del panel vía contexto `planner_date_from/_to`; Con/Sin stock por estado del movimiento — `_inventory_state_stock_map`, no por cadena). `Demanda = Con stock + Sin stock` cierra siempre. (`x_qty_pending_store`, almacenado y sin recorte de fecha, se eliminó por no cerrar con el KPI.) |
 
 ### Helpers compartidos
 

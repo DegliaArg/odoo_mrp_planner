@@ -51,6 +51,15 @@ En una **base de datos NUEVA** de staging (no la que venís usando):
 - [ ] Análisis de clientes: columnas **% Cumplim.** y **% Físico** (ambas con semáforo); tooltip del físico con desglose "por mes de confirmación del pedido"; **ABC período** cambia al cambiar el rango de fechas (calculado al vuelo); fechas en DD/MM/YYYY; botón "Importe" (ex PxQ).
 - [ ] Drill de un cliente: cards con ambas tasas, gráfico mensual con dataset "Despachado" (naranja) y su tooltip con desglose, tabla por producto con % Físico.
 
+### Inventario (panel agregado después de esta versión del guion)
+- [ ] Panel de Inventario ("Análisis de movimientos") carga; el rango por defecto es el mes en curso.
+- [ ] Las cantidades **no** se rotulan como "Pz" (a diferencia de los otros paneles: el inventario mezcla unidades).
+- [ ] "Ver →" de cada card (Validados / Pendiente total / Con stock / Sin stock / % disponible) abre la lista con exactamente esas filas; en el pie del drill **Demanda = Con stock + Sin stock**.
+- [ ] Ajustes → Inventario → "Clasificación de stock por estado del traslado": existen los 4 selectores con sus defaults (Disponible = Con stock, Parcialmente disponible = Con stock, En espera de disponibilidad = Sin stock, En espera de otro movimiento = Sin stock). Cambiar uno recalcula Con/Sin stock coherentemente.
+- [ ] **Verificación contra el "Análisis de movimientos" NATIVO (paso clave — es lo que `decisiones.md` 2026-08-10 marca como pendiente de staging):** abrir el reporte nativo de `stock.move`, filtrar por el mismo rango de fechas, `picking_code in (incoming, internal, outgoing)` y los 4 estados de movimiento pendientes (`assigned`, `partially_available`, `confirmed`, `waiting`), y confirmar que el **Pendiente total** del panel coincide con la suma nativa. Las operaciones internas que aparecen en el nativo deben aparecer también en la lista del panel (no faltar ninguna).
+- [ ] Una recepción externa en estado "Listo" (assigned) cuenta como **Con stock**; una en espera, como **Sin stock**.
+- [ ] La **Tasa de entrega s/ disponible** NO cambia al tocar los selectores de Con/Sin stock (es una métrica por cadena, aparte); requiere "Registrar disponibilidad de stock para entregas" activo para tener datos.
+
 ### Estados de error (nuevo)
 - [ ] Cortar red o forzar un error (ej. filtro raro) → forecast/proveedores/quiebres muestran **alerta de error visible**, no spinner/skeleton infinito.
 

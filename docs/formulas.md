@@ -412,12 +412,27 @@ CONFIG: Referencia para variación de precio = Lista de precio del proveedor
 
 ---
 
+### 2.8c Variación de precio — referencia: precio anterior
+DESCRIPCION: Compara el precio de cada compra contra el precio de la compra anterior del mismo producto al mismo proveedor, entre compras sucesivas del período (tendencia de precio; no depende del costo estándar). Las compras sin compra previa del mismo producto se excluyen.
+VARIABLES:
+- p_i = precio unitario pagado en la línea i de OC
+- p_ant_i = precio unitario pagado en la compra anterior del mismo producto al mismo proveedor
+- v_i = variación porcentual de la línea i
+- n = cantidad de líneas con una compra anterior disponible para comparar
+- V_avg = variación promedio firmada
+FORMULA: v_i = (p_i - p_ant_i) / p_ant_i * 100 ; V_avg = sum(v_i) / n
+LABEL: Variación de precio — precio anterior pagado (%) — toda i con compra anterior disponible
+CONFIG: Referencia para variación de precio = Precio anterior pagado (predeterminado)
+
+---
+
 ### 2.9 Período de análisis — categorías de proveedor
-DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de proveedores. La fecha de inicio del análisis se calcula restando ese número de meses (a razón de 30 días por mes) a la fecha actual.
+DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de proveedores. La fecha de inicio del análisis se calcula restando ese número de meses CALENDARIO a la fecha actual (dateutil.relativedelta). El rango se acota al presente: las órdenes con fecha futura no entran (dominio con tope superior en la fecha de hoy).
 VARIABLES:
 - M_s = meses configurados para categorías de proveedor (def: 12)
 - F_ini = fecha de inicio del período de análisis
-FORMULA: F_ini = hoy - M_s * 30 dias
+- F_fin = hoy (tope superior del rango)
+FORMULA: F_ini = hoy - M_s meses ; rango = [F_ini, hoy]
 LABEL: Horizonte temporal — categorías de proveedor
 CONFIG: Período de análisis de proveedores = N meses (configurable, def: 12 meses)
 
@@ -989,11 +1004,12 @@ CONDICIONES:
 ---
 
 ### 3.13 Período de análisis — categorías de cliente
-DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de clientes. La fecha de inicio del análisis se calcula restando ese número de meses (a razón de 30 días por mes) a la fecha actual.
+DESCRIPCION: Define el horizonte temporal que se considera al ejecutar la clasificación automática de clientes. La fecha de inicio del análisis se calcula restando ese número de meses CALENDARIO a la fecha actual (dateutil.relativedelta). El rango se acota al presente: las órdenes con fecha futura no entran (dominio con tope superior en la fecha de hoy).
 VARIABLES:
 - M_c = meses configurados para categorías de cliente (def: 12)
 - F_ini = fecha de inicio del período de análisis
-FORMULA: F_ini = hoy - M_c * 30 dias
+- F_fin = hoy (tope superior del rango)
+FORMULA: F_ini = hoy - M_c meses ; rango = [F_ini, hoy]
 LABEL: Horizonte temporal — categorías de cliente
 CONFIG: Período de análisis de clientes = N meses (configurable, def: 12 meses)
 
@@ -1203,3 +1219,68 @@ CONDICIONES:
 - G_avg <= 30 -> Frecuente
 - G_avg <= 90 -> Ocasional
 - G_avg > 90 -> Inactivo
+
+---
+
+## Sección 5 — Panel de Inventario
+
+> El universo del panel son todas las operaciones del rango (recepciones,
+> transferencias internas y la cadena de entrega), filtradas por ESTADO DEL
+> MOVIMIENTO (stock.move.state), igual que el "Análisis de movimientos" nativo
+> de Odoo. La clasificación Con/Sin stock (bloques 5.1–5.3) reemplazó desde el
+> 2026-08-10 al criterio anterior "por cadena". La Tasa de entrega s/ disponible
+> (bloque 5.4) es una métrica histórica aparte que SÍ conserva el criterio por
+> cadena — ver la nota del bloque.
+
+### 5.1 Clasificación Con stock / Sin stock — por estado del movimiento
+DESCRIPCION: Cada movimiento pendiente (stock.move) aporta su demanda a "Con stock" o "Sin stock" según su ESTADO. "Con stock" cuenta SOLO la cantidad reservada del movimiento; para "Parcialmente disponible" cuenta solo la parte reservada y el resto va a "Sin stock". Reemplaza al criterio anterior "por cadena" (que propagaba la reserva de eslabones anteriores y marcaba casi todo como con stock). Los estados Borrador y Cancelado no cuentan en ningún lado; Hecho se cuenta como Validado, no como pendiente.
+VARIABLES:
+- estado_i = estado del movimiento i (assigned / partially_available / confirmed / waiting)
+- d_i = demanda del movimiento i (product_uom_qty)
+- r_i = cantidad reservada del movimiento i (stock.move.quantity)
+- clase(estado) = 'con' | 'sin' según Ajustes → Inventario
+- con_i = cantidad con stock del movimiento i
+FORMULA: con_i = min(r_i, d_i) si clase(estado_i) = con ; con_i = 0 si clase(estado_i) = sin
+LABEL: Con stock por estado del movimiento
+CONFIG: Ajustes → Inventario → "Clasificación de stock por estado del traslado" — 4 selectores Con stock / Sin stock. Defaults: Disponible (assigned) = Con stock ; Parcialmente disponible (partially_available) = Con stock ; En espera de disponibilidad (confirmed) = Sin stock ; En espera de otro movimiento (waiting) = Sin stock
+CONDICIONES:
+- Borrador (draft) y Cancelado (cancel) -> no cuentan en ningún lado
+- Hecho (done) -> Validados del período (no cuenta como pendiente)
+
+---
+
+### 5.2 Demanda, Con stock y Sin stock del remito
+DESCRIPCION: Las columnas y KPIs del pendiente se calculan por remito sumando sus movimientos pendientes del rango. La Demanda es la suma de las demandas; Con stock la suma de con_i (bloque 5.1); Sin stock, el resto. Por construcción Demanda = Con stock + Sin stock cierra SIEMPRE, para cualquier configuración de estados. El campo `x_qty_pending_chain` reemplazó al `x_qty_pending_store` con bug, que sumaba todo el remito sin recortar por el rango de fechas y por eso no cerraba con el KPI.
+VARIABLES:
+- D = demanda pendiente del remito en el rango = sum(d_i)
+- C = con stock del remito = sum(con_i)
+- S = sin stock del remito
+FORMULA: C = sum(con_i) ; S = D - C ; D = C + S
+LABEL: Demanda = Con stock + Sin stock
+CONFIG: hereda la clasificación del bloque 5.1
+
+---
+
+### 5.3 % disponible del pendiente
+DESCRIPCION: Proporción del pendiente que tiene stock reservado (podría procesarse ahora), sobre el conjunto que muestra la tabla (fechas, filtros, depósitos, pestaña y selección de filas).
+VARIABLES:
+- C = con stock total ; D = demanda pendiente total
+- pct = % disponible del pendiente
+FORMULA: pct = C / D * 100
+LABEL: % disponible del pendiente
+CONDICIONES:
+- D = 0 -> no se muestra
+
+---
+
+### 5.4 Tasa de entrega s/ disponible — POR CADENA (métrica histórica, criterio propio)
+DESCRIPCION: Mide, mes a mes, cuánto de lo que estuvo disponible efectivamente se entregó. IMPORTANTE: NO usa el criterio de estado del movimiento de los bloques 5.1–5.3. Su "disponible" se calcula por CADENA de abastecimiento (`mrp.dispatch.stock.log._chain_available_qty`, reserva propagada desde los eslabones anteriores) y se alimenta de snapshots diarios consolidados por mes (`mrp.planner.kpi.monthly`). Es una métrica histórica independiente y se documenta aparte a propósito, para no confundirla con el Con/Sin stock en vivo. Requiere el registro de disponibilidad activo en Ajustes.
+VARIABLES:
+- num = entregado en el mes (salidas a cliente validadas, por fecha de validación date_done)
+- den_extra = demanda que estuvo disponible en algún snapshot del mes y NO llegó a entregarse antes de fin de mes (deduplicada por clave de cadena + producto; disponibilidad por cadena)
+- tasa = tasa de entrega s/ disponible del mes
+FORMULA: tasa = num / (num + den_extra) * 100
+LABEL: Tasa de entrega s/ disponible (mensual)
+CONFIG: Ajustes → Inventario → "Registrar disponibilidad de stock para entregas" (activa los snapshots diarios; sin registro no hay tasa)
+CONDICIONES:
+- num + den_extra = 0 -> sin datos (la tasa no se muestra ese mes)

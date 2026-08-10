@@ -199,6 +199,14 @@
                 </span>
             </div>
 
+            <!-- Aclaración de unidades: el inventario combina UdM distintas, por
+                 eso las cantidades no llevan rótulo "Pz" y el total es referencial. -->
+            <div class="text-muted fst-italic small mb-2"
+                 title="Cada artículo puede tener su propia unidad de medida (piezas, metros, kilos, litros…). Las cantidades y sus totales combinan esas unidades sin convertir, así que el total es un valor referencial, no una magnitud homogénea.">
+                <i class="fa fa-info-circle me-1"/>
+                Las cantidades combinan unidades de medida distintas (Pz, m, u., kg…); los totales son referenciales.
+            </div>
+
             <!-- ── Cards KPI: una sola fila con todos los indicadores ──
                  Las 5 primeras son dinámicas con la tabla (fechas, búsqueda,
                  filtros, pestaña activa y selección); las 3 del período usan

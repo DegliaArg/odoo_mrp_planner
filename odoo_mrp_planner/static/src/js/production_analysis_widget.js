@@ -3,15 +3,21 @@
 /**
  * Panel de Análisis de producción. Vista de detalle (se suma al Panel de
  * Producción, no lo reemplaza) con pestañas para profundizar en la parte
- * productiva. Pestañas activas:
- * - "Carga de CT": evolución mensual de la carga % + tabla por centro con
- *   filtros/facetas/numérico + KPIs + drill a las órdenes de trabajo.
- * - "Scrap": evolución mensual de la cantidad desechada + tabla por producto
- *   con filtros/facetas/numérico + KPIs + drill a los desechos.
- * El resto de las pestañas son placeholders a completar.
+ * productiva. Cada pestaña combina un gráfico de evolución mensual, KPIs con
+ * tooltips de 3 capas y una tabla con búsqueda/facetas/filtro numérico y drill:
+ * - "Carga de CT": carga % por centro de trabajo.
+ * - "OFs": órdenes de fabricación por producto (cantidades, estados, atrasos).
+ * - "Producido vs Programado": comparativo ponderado por producto.
+ * - "Eficiencia": horas planificadas vs reales por producto.
+ * - "Scrap": desechos por producto.
+ * - "Evolución": resumen mensual que compone carga, cumplimiento y eficiencia.
  *
- * RPC: get_wc_tags, get_wc_load_table, get_wc_load_trend,
- *      get_scrap_analysis, get_scrap_trend.
+ * Las tablas OFs/Comparativo/Eficiencia comparten la maquinaria vía TableCtl.
+ *
+ * RPC: get_wc_tags, get_wc_load_table, get_wc_load_trend, get_scrap_analysis,
+ *      get_scrap_trend, get_of_analysis, get_of_trend, get_comparison_analysis,
+ *      get_comparison_trend, get_efficiency_analysis, get_efficiency_trend,
+ *      get_evolution_analysis.
  */
 
 import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
@@ -63,6 +69,58 @@ const SCRAP_NUM_COLS = [
     { key: "ops", label: "Operaciones" },
     { key: "pct", label: "% del total" },
 ];
+const OF_COLS = [
+    { key: "name",       label: "Producto",   width: 220, fixed: true, align: "start" },
+    { key: "category",   label: "Categoría",  width: 130, align: "start" },
+    { key: "uom",        label: "UdM",        width:  70, align: "center" },
+    { key: "ofs",        label: "OFs",        width:  70, align: "center" },
+    { key: "programado", label: "Programado", width: 110, align: "center" },
+    { key: "producido",  label: "Producido",  width: 110, align: "center" },
+    { key: "avance_pct", label: "Avance %",   width:  90, align: "center" },
+    { key: "terminadas", label: "Term.",      width:  75, align: "center" },
+    { key: "en_curso",   label: "En curso",   width:  85, align: "center" },
+    { key: "atrasadas",  label: "Atrasadas",  width:  90, align: "center" },
+];
+const OF_NUM_COLS = [
+    { key: "ofs", label: "OFs" }, { key: "programado", label: "Programado" },
+    { key: "producido", label: "Producido" }, { key: "avance_pct", label: "Avance %" },
+    { key: "terminadas", label: "Terminadas" }, { key: "en_curso", label: "En curso" },
+    { key: "atrasadas", label: "Atrasadas" },
+];
+const CMP_COLS = [
+    { key: "name",       label: "Producto",       width: 240, fixed: true, align: "start" },
+    { key: "uom",        label: "UdM",            width:  80, align: "center" },
+    { key: "programado", label: "Programado",     width: 120, align: "center" },
+    { key: "producido",  label: "Producido",      width: 120, align: "center" },
+    { key: "desvio",     label: "Desvío",         width: 110, align: "center" },
+    { key: "pct",        label: "Cumplimiento %", width: 130, align: "center" },
+];
+const CMP_NUM_COLS = [
+    { key: "programado", label: "Programado" }, { key: "producido", label: "Producido" },
+    { key: "desvio", label: "Desvío" }, { key: "pct", label: "Cumplimiento %" },
+];
+const EF_COLS = [
+    { key: "name",       label: "Producto",     width: 240, fixed: true, align: "start" },
+    { key: "category",   label: "Categoría",    width: 150, align: "start" },
+    { key: "ofs",        label: "OFs",          width:  80, align: "center" },
+    { key: "plan_h",     label: "Plan (h)",     width: 110, align: "center" },
+    { key: "real_h",     label: "Real (h)",     width: 110, align: "center" },
+    { key: "eficiencia", label: "Eficiencia %", width: 120, align: "center" },
+];
+const EF_NUM_COLS = [
+    { key: "ofs", label: "OFs" }, { key: "plan_h", label: "Plan (h)" },
+    { key: "real_h", label: "Real (h)" }, { key: "eficiencia", label: "Eficiencia %" },
+];
+const EVOL_COLS = [
+    { key: "ym",         label: "Mes",           width: 110, align: "start" },
+    { key: "ofs",        label: "OFs",           width:  80, align: "center" },
+    { key: "terminadas", label: "Terminadas",    width: 100, align: "center" },
+    { key: "producido",  label: "Producido",     width: 110, align: "center" },
+    { key: "carga_pct",  label: "Carga %",       width:  95, align: "center" },
+    { key: "cumpl_pct",  label: "Cumplimiento %",width: 130, align: "center" },
+    { key: "efic_pct",   label: "Eficiencia %",  width: 120, align: "center" },
+    { key: "scrap",      label: "Scrap",         width:  95, align: "center" },
+];
 const TABS = [
     { key: "wc",    label: "Carga de CT",             icon: "fa-tachometer" },
     { key: "ofs",   label: "OFs",                     icon: "fa-wrench" },
@@ -71,6 +129,86 @@ const TABS = [
     { key: "scrap", label: "Scrap",                   icon: "fa-trash" },
     { key: "evol",  label: "Evolución",               icon: "fa-line-chart" },
 ];
+
+/**
+ * Controlador de tabla reutilizable para las pestañas del panel (OFs, Producido
+ * vs Programado, Eficiencia). Encapsula búsqueda, filtro numérico, agrupación
+ * por facetas, orden y paginación operando sobre un "slice" de state.<prefix>*,
+ * de modo que cada pestaña sea un objeto de configuración y no una copia de la
+ * misma maquinaria. Sus getters leen state reactivo → OWL los rastrea al
+ * renderizar; sus setters mutan state → disparan re-render.
+ */
+class TableCtl {
+    constructor(widget, cfg) { this.w = widget; this.cfg = cfg; }
+    _k(sfx) { return this.cfg.prefix + sfx; }
+    get s() { return this.w.state; }
+
+    get rows()       { return this.s[this._k("Rows")] || []; }
+    get loaded()     { return this.s[this._k("Loaded")]; }
+    get loading()    { return this.s[this._k("Loading")]; }
+    get error()      { return this.s[this._k("Error")]; }
+    get search()     { return this.s[this._k("Search")]; }
+    get numFilters() { return this.s[this._k("NumFilters")]; }
+    get groupBy()    { return this.s[this._k("GroupBy")]; }
+    get sortColV()   { return this.s[this._k("SortCol")]; }
+    get sortDirV()   { return this.s[this._k("SortDir")]; }
+    get page()       { return this.s[this._k("Page")]; }
+
+    setSearch(t) { this.s[this._k("Search")] = t; this.s[this._k("Page")] = 1; }
+    setGroupBy(k) { this.s[this._k("GroupBy")] = k; this.s[this._k("SelGroup")] = null; this.s[this._k("Page")] = 1; }
+    addNumFilter(c) { this.s[this._k("NumFilters")] = [...this.numFilters, c]; this.s[this._k("Page")] = 1; }
+    removeNumFilter(i) { this.s[this._k("NumFilters")] = this.numFilters.filter((_, j) => j !== i); this.s[this._k("Page")] = 1; }
+    setSort(col) {
+        if (this.sortColV === col) this.s[this._k("SortDir")] = this.sortDirV === "asc" ? "desc" : "asc";
+        else { this.s[this._k("SortCol")] = col; this.s[this._k("SortDir")] = "asc"; }
+    }
+    sortIcon(c) { return sortIcon(c, this.sortColV, this.sortDirV); }
+
+    _numVal(r, k) { const v = r[k]; return (v === null || v === undefined) ? null : v; }
+    get filteredRows() {
+        let rows = this.rows;
+        const q = (this.search || "").trim().toLowerCase();
+        if (q) rows = rows.filter(r => this.cfg.textFields.some(f => (r[f] || "").toLowerCase().includes(q)));
+        return applyNumericFilters(rows, this.numFilters, (r, k) => this._numVal(r, k));
+    }
+    get groupsForTabs() {
+        if (!this.cfg.groupKey || this.groupBy !== this.cfg.groupKey) return null;
+        return buildGroupTabs(this.filteredRows, r => [r[this.cfg.groupKey] || "—"]);
+    }
+    get activeGroupKey() { return resolveActiveGroup(this.groupsForTabs || [], this.s[this._k("SelGroup")]); }
+    setGroup(k) { this.s[this._k("SelGroup")] = k; this.s[this._k("Page")] = 1; }
+    get groupedRows() {
+        if (!this.cfg.groupKey || this.groupBy !== this.cfg.groupKey) return this.filteredRows;
+        const a = this.activeGroupKey;
+        return this.filteredRows.filter(r => (r[this.cfg.groupKey] || "—") === a);
+    }
+    get sortedRows() { return sortRows(this.groupedRows, this.sortColV, this.sortDirV); }
+    get pagedRows()  { return pageSlice(this.sortedRows, this.page, this.s.pageSize); }
+    get totalPages() { return Math.max(1, Math.ceil(this.sortedRows.length / this.s.pageSize)); }
+    get hasNext()    { return this.page < this.totalPages; }
+    get hasPrev()    { return this.page > 1; }
+    next() { if (this.hasNext) this.s[this._k("Page")]++; }
+    prev() { if (this.hasPrev) this.s[this._k("Page")]--; }
+
+    get kpis()          { return this.cfg.computeKpis(this.groupedRows, this.w); }
+    get kpiCards()      { return this.cfg.kpiCards(this.kpis, this.w); }
+    kpiTooltip(key)     { return this.cfg.kpiTooltip(key, this.kpis, this.w); }
+    colTitle(col)       { return this.cfg.colTitle(col); }
+    cellValue(row, key) { return this.cfg.cellValue(row, key, this.w); }
+    cellClass(row, key) { return this.cfg.cellClass ? this.cfg.cellClass(row, key, this.w) : ""; }
+    viewAll() { this.cfg.onViewAll(this.groupedRows, this.w); }
+    viewRow(row) { this.cfg.onViewRow(row, this.w); }
+
+    get cols()         { return this.cfg.cols; }
+    get groupKey()     { return this.cfg.groupKey; }
+    get numColOptions(){ return this.cfg.numCols; }
+    get groupByDefs()  { return this.cfg.groupKey ? [{ key: this.cfg.groupKey, label: this.cfg.groupLabel }] : []; }
+    get widgetKey()    { return "production_analysis_" + this.cfg.prefix; }
+    get placeholder()  { return this.cfg.placeholder; }
+    get emptyMsg()     { return this.cfg.emptyMsg; }
+    get rowKey()       { return this.cfg.rowKey || "product_id"; }
+    get unit()         { return this.cfg.unit || "producto(s)"; }
+}
 
 class ProductionAnalysisWidget extends Component {
     static template = "odoo_mrp_planner.ProductionAnalysisWidget";
@@ -126,10 +264,30 @@ class ProductionAnalysisWidget extends Component {
             scrapLoaded:       false,
             scrapLoading:      false,
             scrapError:        null,
+            // Tabla OFs
+            ofRows: [], ofSearch: "", ofNumFilters: [], ofGroupBy: null, ofSelGroup: null,
+            ofSortCol: "programado", ofSortDir: "desc", ofPage: 1, ofTrend: [],
+            ofGreen: 90, ofWarn: 50, ofLoaded: false, ofLoading: false, ofError: null,
+            // Tabla Producido vs Programado
+            cmpRows: [], cmpSearch: "", cmpNumFilters: [], cmpGroupBy: null, cmpSelGroup: null,
+            cmpSortCol: "programado", cmpSortDir: "desc", cmpPage: 1, cmpTrend: [],
+            cmpKpisData: {}, cmpGreen: 90, cmpWarn: 50, cmpTruncated: false, cmpTotal: 0,
+            cmpLoaded: false, cmpLoading: false, cmpError: null,
+            // Tabla Eficiencia
+            efRows: [], efSearch: "", efNumFilters: [], efGroupBy: null, efSelGroup: null,
+            efSortCol: "plan_h", efSortDir: "desc", efPage: 1, efTrend: [],
+            efLoaded: false, efLoading: false, efError: null,
+            // Evolución (resumen mensual)
+            evolRows: [], evolWarnPct: 70, evolCritPct: 90, evolGreen: 90,
+            evolLoaded: false, evolLoading: false, evolError: null,
         });
 
         this._chartDirty = false;
         this._scrapChartDirty = false;
+        this._ofChartDirty = false;
+        this._cmpChartDirty = false;
+        this._efChartDirty = false;
+        this._evolChartDirty = false;
         this.pager = makePager(this, () => this.sortedRows.length);
         // Pager propio del tab Scrap (makePager está fijado a state.page).
         const self = this;
@@ -139,6 +297,20 @@ class ProductionAnalysisWidget extends Component {
             get hasPrev()    { return self.state.scrapPage > 1; },
             next() { if (this.hasNext) self.state.scrapPage++; },
             prev() { if (this.hasPrev) self.state.scrapPage--; },
+        };
+
+        // Refs de gráficos de las nuevas pestañas
+        this.ofTrendRef   = useRef("ofTrend");
+        this.cmpTrendRef  = useRef("cmpTrend");
+        this.efTrendRef   = useRef("efTrend");
+        this.evolTrendRef = useRef("evolTrend");
+        this.ofTrendChart = this.cmpTrendChart = this.efTrendChart = this.evolTrendChart = null;
+
+        // Controladores de tabla (una config por pestaña, misma maquinaria)
+        this.ctls = {
+            of:  new TableCtl(this, this._ofCfg()),
+            cmp: new TableCtl(this, this._cmpCfg()),
+            ef:  new TableCtl(this, this._efCfg()),
         };
 
         onMounted(async () => {
@@ -153,10 +325,16 @@ class ProductionAnalysisWidget extends Component {
         onPatched(() => {
             if (this._chartDirty && this.trendRef.el) this._renderTrend();
             if (this._scrapChartDirty && this.scrapTrendRef.el) this._renderScrapTrend();
+            if (this._ofChartDirty && this.ofTrendRef.el) this._renderOfTrend();
+            if (this._cmpChartDirty && this.cmpTrendRef.el) this._renderCmpTrend();
+            if (this._efChartDirty && this.efTrendRef.el) this._renderEfTrend();
+            if (this._evolChartDirty && this.evolTrendRef.el) this._renderEvolTrend();
         });
         onWillUnmount(() => {
-            if (this.trendChart) this.trendChart.destroy();
-            if (this.scrapTrendChart) this.scrapTrendChart.destroy();
+            for (const c of [this.trendChart, this.scrapTrendChart, this.ofTrendChart,
+                             this.cmpTrendChart, this.efTrendChart, this.evolTrendChart]) {
+                if (c) c.destroy();
+            }
         });
     }
 
@@ -216,10 +394,11 @@ class ProductionAnalysisWidget extends Component {
     setTab(key) {
         this.state.tab = key;
         if (key === "wc") this._chartDirty = true;
-        if (key === "scrap") {
-            this._scrapChartDirty = true;
-            if (!this.state.scrapLoaded) this._loadScrap();
-        }
+        if (key === "scrap") { this._scrapChartDirty = true; if (!this.state.scrapLoaded) this._loadScrap(); }
+        if (key === "ofs")   { this._ofChartDirty = true; if (!this.state.ofLoaded) this._loadOf(); }
+        if (key === "cumpl") { this._cmpChartDirty = true; if (!this.state.cmpLoaded) this._loadCmp(); }
+        if (key === "efic")  { this._efChartDirty = true; if (!this.state.efLoaded) this._loadEf(); }
+        if (key === "evol")  { this._evolChartDirty = true; if (!this.state.evolLoaded) this._loadEvol(); }
     }
 
     // ── Carga de datos ──────────────────────────────────────────────────────────
@@ -262,11 +441,15 @@ class ProductionAnalysisWidget extends Component {
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value || today(); this._reloadActive(); }
     onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._loadWc(); }
 
-    /** Recarga la(s) fuente(s) afectada(s) por un cambio de rango: siempre la de
-     *  Carga de CT y, si ya se abrió, la de Scrap. */
+    /** Recarga las fuentes ya abiertas al cambiar el rango (la de Carga de CT
+     *  siempre; el resto solo si su pestaña se visitó). */
     _reloadActive() {
         this._loadWc();
         if (this.state.scrapLoaded) this._loadScrap();
+        if (this.state.ofLoaded)    this._loadOf();
+        if (this.state.cmpLoaded)   this._loadCmp();
+        if (this.state.efLoaded)    this._loadEf();
+        if (this.state.evolLoaded)  this._loadEvol();
     }
 
     // ── Gráfico de evolución mensual de la carga % ──────────────────────────────
@@ -609,6 +792,449 @@ class ProductionAnalysisWidget extends Component {
             target: "current",
         });
     }
+
+    // ════════════════ Helpers compartidos por las nuevas pestañas ════════════════
+
+    /** Color de una tasa (más alto = mejor): verde ≥ verde, amarillo ≥ aviso,
+     *  rojo por debajo; gris si no aplica. Inverso a cargaClass. */
+    rateClass(pct, green, warn) {
+        if (pct === null || pct === undefined) return "text-muted";
+        if (pct >= green) return "text-success fw-semibold";
+        if (pct >= warn) return "text-warning fw-semibold";
+        return "text-danger fw-semibold";
+    }
+    _monthLabels(t) {
+        return (t || []).map(m => {
+            const [y, mo] = m.ym.split("-");
+            return new Date(+y, +mo - 1, 1).toLocaleString("es", { month: "short", year: "2-digit" });
+        });
+    }
+    /** Dominio de OFs que solapan el rango (para los drills de OFs/Comparativo). */
+    _moRangeDomain() {
+        return [
+            ["state", "not in", ["cancel", "draft"]],
+            ["date_start", "<=", this.state.dateTo + " 23:59:59"],
+            "|", ["date_finished", ">=", this.state.dateFrom + " 00:00:00"], ["date_finished", "=", false],
+        ];
+    }
+    _openMos(ids, name) {
+        this.action.doAction({
+            type: "ir.actions.act_window", name,
+            res_model: "mrp.production",
+            domain: [...this._moRangeDomain(), ["product_id", "in", ids]],
+            views: [[false, "list"], [false, "form"]],
+            target: "current",
+        });
+    }
+    _openWorkorders(ids, name) {
+        this.action.doAction({
+            type: "ir.actions.act_window", name,
+            res_model: "mrp.workorder",
+            domain: [["production_id.product_id", "in", ids], ["state", "!=", "cancel"]],
+            views: [[false, "list"], [false, "form"]],
+            target: "current",
+        });
+    }
+
+    // ════════════════ Config de las pestañas con TableCtl ════════════════
+
+    _ofCfg() {
+        return {
+            prefix: "of", cols: OF_COLS, numCols: OF_NUM_COLS,
+            groupKey: "category", groupLabel: "Categoría", textFields: ["name", "category"],
+            placeholder: "Buscar producto o categoría…", emptyMsg: "Sin OFs en el período/filtros.",
+            unit: "producto(s)",
+            computeKpis: (rows) => {
+                let ofs = 0, term = 0, curso = 0, atr = 0, prog = 0, prod = 0;
+                for (const r of rows) {
+                    ofs += r.ofs || 0; term += r.terminadas || 0; curso += r.en_curso || 0;
+                    atr += r.atrasadas || 0; prog += r.programado || 0; prod += r.producido || 0;
+                }
+                return { ofs, terminadas: term, en_curso: curso, atrasadas: atr,
+                         programado: Math.round(prog * 100) / 100, producido: Math.round(prod * 100) / 100,
+                         products: rows.length };
+            },
+            kpiCards: (k) => [
+                { key: "ofs",        label: "OFs",        value: fmt(k.ofs),        cls: "" },
+                { key: "terminadas", label: "Terminadas", value: fmt(k.terminadas), cls: "text-success fw-semibold" },
+                { key: "en_curso",   label: "En curso",   value: fmt(k.en_curso),   cls: "" },
+                { key: "atrasadas",  label: "Atrasadas",  value: fmt(k.atrasadas),  cls: k.atrasadas > 0 ? "text-danger fw-semibold" : "" },
+                { key: "producido",  label: "Producido",  value: fmt(k.producido),  cls: "" },
+            ],
+            kpiTooltip: (key, k) => {
+                const scope = `${k.products} producto(s) visible(s)`;
+                switch (key) {
+                    case "ofs":        return `OFs del período de ${scope} (excluye canceladas y borradores)\nConteo de órdenes de fabricación\n→ ${fmt(k.ofs)} OF(s)`;
+                    case "terminadas": return `OFs terminadas (estado Hecho) de ${scope}\nConteo de OFs en estado done\n→ ${fmt(k.terminadas)}`;
+                    case "en_curso":   return `OFs en proceso o por cerrar de ${scope}\nConteo de OFs en estado en curso / por cerrar\n→ ${fmt(k.en_curso)}`;
+                    case "atrasadas":  return `OFs abiertas cuya fecha de fin ya venció, de ${scope}\nConteo de OFs no terminadas con fecha de fin < ahora\n→ ${fmt(k.atrasadas)}`;
+                    case "producido":  return `Cantidad producida acumulada de ${scope}\nSuma de la cantidad producida de cada OF\n→ ${fmt(k.producido)} u.\nOjo: suma unidades posiblemente mixtas.`;
+                }
+                return "";
+            },
+            colTitle: (col) => {
+                const t = {
+                    name: "Producto fabricado. El botón abre sus OFs del período.",
+                    category: "Categoría de producto.", uom: "Unidad de medida.",
+                    ofs: "Cantidad de OFs del producto en el período.",
+                    programado: "Cantidad total programada (suma de la cantidad a producir de las OFs).",
+                    producido: "Cantidad total producida (suma de la cantidad producida de las OFs).",
+                    avance_pct: "Producido ÷ Programado × 100.",
+                    terminadas: "OFs terminadas (estado Hecho).", en_curso: "OFs en proceso o por cerrar.",
+                    atrasadas: "OFs abiertas con fecha de fin vencida.",
+                }[col.key] || col.label;
+                return `${t} Clic en el encabezado para ordenar.`;
+            },
+            cellValue: (row, key) => {
+                if (key === "avance_pct") return fmtPct(row.avance_pct);
+                if (["programado", "producido", "ofs", "terminadas", "en_curso", "atrasadas"].includes(key)) return fmt(row[key]);
+                return row[key] || "—";
+            },
+            cellClass: (row, key) => (key === "atrasadas" && row.atrasadas > 0) ? "text-danger fw-semibold" : "",
+            onViewAll: (rows, w) => w._openMos(rows.map(r => r.product_id), "OFs del período"),
+            onViewRow: (row, w) => w._openMos([row.product_id], `OFs — ${row.name}`),
+        };
+    }
+
+    _cmpCfg() {
+        const WEIGHT_LABELS = { qty: "cantidad", cost: "costo estándar", sale_price: "precio de venta", wc_hours: "horas de ruta" };
+        return {
+            prefix: "cmp", cols: CMP_COLS, numCols: CMP_NUM_COLS,
+            groupKey: null, textFields: ["name"],
+            placeholder: "Buscar producto…", emptyMsg: "Sin datos de comparativo en el período/filtros.",
+            unit: "producto(s)",
+            // KPIs ponderados del backend: describen TODO el período (no las filas
+            // filtradas), porque la ponderación por valor/horas vive en el servidor.
+            computeKpis: (rows, w) => w.state.cmpKpisData || {},
+            kpiCards: (k, w) => [
+                { key: "planned",   label: "Programado",     value: fmt(k.planned),  cls: "" },
+                { key: "produced",  label: "Producido",      value: fmt(k.produced), cls: "" },
+                { key: "pct",       label: "Cumplimiento %", value: k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct),
+                  cls: w.rateClass(k.pct, k.pct_green || 90, k.pct_warn || 50) },
+                { key: "on_target", label: "En target",      value: `${k.on_target || 0}/${k.planned_products || 0}`, cls: "" },
+                { key: "desvio",    label: "Desvío",         value: fmt(k.desvio),   cls: k.desvio > 0 ? "text-warning fw-semibold" : "" },
+            ],
+            kpiTooltip: (key, k) => {
+                const wl = WEIGHT_LABELS[k.weight_mode] || k.weight_mode || "costo estándar";
+                switch (key) {
+                    case "planned":   return `Programado ponderado del período (por ${wl})\nΣ (cantidad programada × peso del producto)\n→ ${fmt(k.planned)}`;
+                    case "produced":  return `Producido ponderado del período (por ${wl})\nΣ (cantidad producida × peso del producto)\n→ ${fmt(k.produced)}`;
+                    case "pct":       return `Cumplimiento ponderado del período (por ${wl})${k.fill_cap ? ", con tope 100% por producto" : ""}\nProducido ÷ Programado × 100\n→ ${k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct)}\nVerde ≥ ${k.pct_green}% · Amarillo ≥ ${k.pct_warn}% (umbrales de Ajustes)`;
+                    case "on_target": return `Productos que alcanzaron el umbral verde (≥ ${k.pct_green}%)\nConteo mix-justo (cada producto cuenta una vez)\n→ ${k.on_target || 0} de ${k.planned_products || 0} con plan`;
+                    case "desvio":    return `Faltante ponderado: Programado − Producido del período\n→ ${fmt(k.desvio)}${k.excluded ? `\n${k.excluded} producto(s) sin peso para el criterio elegido (no ponderan).` : ""}`;
+                }
+                return "";
+            },
+            colTitle: (col) => {
+                const t = {
+                    name: "Producto fabricado. El botón abre sus OFs del período.",
+                    uom: "Unidad de medida.",
+                    programado: "Cantidad programada del producto (sin ponderar).",
+                    producido: "Cantidad producida del producto (sin ponderar).",
+                    desvio: "Programado − Producido del producto.",
+                    pct: "Producido ÷ Programado × 100 del producto. «s/plan» = producido sin cantidad programada.",
+                }[col.key] || col.label;
+                return `${t} Clic en el encabezado para ordenar.`;
+            },
+            cellValue: (row, key) => {
+                if (key === "pct") return row.pct === null || row.pct === undefined ? "s/plan" : fmtPct(row.pct);
+                if (["programado", "producido", "desvio"].includes(key)) return fmt(row[key]);
+                return row[key] || "—";
+            },
+            cellClass: (row, key, w) => {
+                if (key === "pct") return w.rateClass(row.pct, w.state.cmpGreen, w.state.cmpWarn);
+                if (key === "desvio" && row.desvio > 0) return "text-warning";
+                return "";
+            },
+            onViewAll: (rows, w) => w._openMos(rows.map(r => r.product_id), "OFs del comparativo"),
+            onViewRow: (row, w) => w._openMos([row.product_id], `OFs — ${row.name}`),
+        };
+    }
+
+    _efCfg() {
+        return {
+            prefix: "ef", cols: EF_COLS, numCols: EF_NUM_COLS,
+            groupKey: "category", groupLabel: "Categoría", textFields: ["name", "category"],
+            placeholder: "Buscar producto o categoría…", emptyMsg: "Sin OT con horas en el período/filtros.",
+            unit: "producto(s)",
+            computeKpis: (rows) => {
+                let plan = 0, real = 0, ofs = 0;
+                for (const r of rows) { plan += r.plan_h || 0; real += r.real_h || 0; ofs += r.ofs || 0; }
+                return { plan_h: Math.round(plan * 10) / 10, real_h: Math.round(real * 10) / 10,
+                         eficiencia: plan > 0 ? Math.round(real / plan * 1000) / 10 : null, products: rows.length };
+            },
+            kpiCards: (k) => [
+                { key: "plan_h",     label: "Plan (h)",     value: fmt(k.plan_h),     cls: "" },
+                { key: "real_h",     label: "Real (h)",     value: fmt(k.real_h),     cls: "" },
+                { key: "eficiencia", label: "Eficiencia %", value: fmtPct(k.eficiencia), cls: "" },
+                { key: "products",   label: "Productos",    value: fmt(k.products),   cls: "" },
+            ],
+            kpiTooltip: (key, k) => {
+                const scope = `${k.products} producto(s) visible(s)`;
+                switch (key) {
+                    case "plan_h":     return `Horas planificadas de ${scope}: duración esperada de las OT (criterio de fechas de Ajustes)\nSuma de la duración esperada\n→ ${fmt(k.plan_h)} h`;
+                    case "real_h":     return `Horas reales registradas en las OT de ${scope}\nSuma de la duración real\n→ ${fmt(k.real_h)} h`;
+                    case "eficiencia": return `Cuánto se tardó respecto de lo previsto, en ${scope}\nReal ÷ Planificado × 100\n→ ${fmt(k.real_h)} ÷ ${fmt(k.plan_h)} × 100 = ${fmtPct(k.eficiencia)}\nPor encima de 100% se tardó más de lo previsto.`;
+                    case "products":   return `Productos con OT y horas en el período\nConteo de productos únicos\n→ ${fmt(k.products)}`;
+                }
+                return "";
+            },
+            colTitle: (col) => {
+                const t = {
+                    name: "Producto fabricado. El botón abre las OT de sus OFs.",
+                    category: "Categoría de producto.",
+                    ofs: "Cantidad de OFs del producto con OT en el período.",
+                    plan_h: "Horas planificadas (duración esperada de las OT).",
+                    real_h: "Horas reales registradas en las OT.",
+                    eficiencia: "Real ÷ Planificado × 100. Por encima de 100% se tardó más de lo previsto.",
+                }[col.key] || col.label;
+                return `${t} Clic en el encabezado para ordenar.`;
+            },
+            cellValue: (row, key) => {
+                if (key === "eficiencia") return fmtPct(row.eficiencia);
+                if (["plan_h", "real_h", "ofs"].includes(key)) return fmt(row[key]);
+                return row[key] || "—";
+            },
+            onViewAll: (rows, w) => w._openWorkorders(rows.map(r => r.product_id), "OT del período"),
+            onViewRow: (row, w) => w._openWorkorders([row.product_id], `OT — ${row.name}`),
+        };
+    }
+
+    // ════════════════ Carga de datos de las nuevas pestañas ════════════════
+
+    async _loadOf() {
+        this.state.ofLoading = true; this.state.ofError = null;
+        try {
+            const [table, trend] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo]),
+            ]);
+            this.state.ofRows = table.rows || [];
+            this.state.ofTrend = trend.trend || [];
+            this.state.ofPage = 1; this.state.ofLoaded = true;
+            this._ofChartDirty = true; this._renderOfTrend();
+        } catch (e) {
+            console.error("[ProdAnalysis]", e);
+            this.state.ofError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally { this.state.ofLoading = false; }
+    }
+
+    async _loadCmp() {
+        this.state.cmpLoading = true; this.state.cmpError = null;
+        try {
+            const [table, trend] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo]),
+            ]);
+            this.state.cmpRows = table.rows || [];
+            this.state.cmpKpisData = table.kpis || {};
+            this.state.cmpGreen = (table.kpis && table.kpis.pct_green) || 90;
+            this.state.cmpWarn  = (table.kpis && table.kpis.pct_warn) || 50;
+            this.state.cmpTruncated = !!table.truncated; this.state.cmpTotal = table.total || 0;
+            this.state.cmpTrend = trend.trend || [];
+            this.state.cmpPage = 1; this.state.cmpLoaded = true;
+            this._cmpChartDirty = true; this._renderCmpTrend();
+        } catch (e) {
+            console.error("[ProdAnalysis]", e);
+            this.state.cmpError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally { this.state.cmpLoading = false; }
+    }
+
+    async _loadEf() {
+        this.state.efLoading = true; this.state.efError = null;
+        try {
+            const [table, trend] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo]),
+            ]);
+            this.state.efRows = table.rows || [];
+            this.state.efTrend = trend.trend || [];
+            this.state.efPage = 1; this.state.efLoaded = true;
+            this._efChartDirty = true; this._renderEfTrend();
+        } catch (e) {
+            console.error("[ProdAnalysis]", e);
+            this.state.efError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally { this.state.efLoading = false; }
+    }
+
+    async _loadEvol() {
+        this.state.evolLoading = true; this.state.evolError = null;
+        try {
+            const data = await this.orm.call("mrp.planner.dashboard", "get_evolution_analysis",
+                                             [this.state.dateFrom, this.state.dateTo]);
+            this.state.evolRows = data.rows || [];
+            this.state.evolWarnPct = data.warn_pct || 70;
+            this.state.evolCritPct = data.crit_pct || 90;
+            this.state.evolGreen   = data.cumpl_green || 90;
+            this.state.evolLoaded = true;
+            this._evolChartDirty = true; this._renderEvolTrend();
+        } catch (e) {
+            console.error("[ProdAnalysis]", e);
+            this.state.evolError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally { this.state.evolLoading = false; }
+    }
+
+    // ════════════════ Gráficos de las nuevas pestañas ════════════════
+
+    _renderOfTrend() {
+        const el = this.ofTrendRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.ofTrendChart) { this.ofTrendChart.destroy(); this.ofTrendChart = null; }
+        this._ofChartDirty = false;
+        const t = this.state.ofTrend || [];
+        this.ofTrendChart = new Chart(el, {
+            type: "line",
+            data: {
+                labels: this._monthLabels(t),
+                datasets: [
+                    { label: "OFs", data: t.map(m => m.ofs), borderColor: "#0d6efd",
+                      backgroundColor: "rgba(13,110,253,0.10)", fill: true, tension: 0.25, pointRadius: 3 },
+                    { label: "Terminadas", data: t.map(m => m.terminadas), borderColor: "#198754",
+                      backgroundColor: "rgba(25,135,84,0.10)", fill: true, tension: 0.25, pointRadius: 3 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, ticks: { precision: 0 } } },
+                plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+
+    _renderCmpTrend() {
+        const el = this.cmpTrendRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.cmpTrendChart) { this.cmpTrendChart.destroy(); this.cmpTrendChart = null; }
+        this._cmpChartDirty = false;
+        const t = this.state.cmpTrend || [];
+        this.cmpTrendChart = new Chart(el, {
+            type: "line",
+            data: {
+                labels: this._monthLabels(t),
+                datasets: [{
+                    label: "Cumplimiento %", data: t.map(m => m.pct),
+                    borderColor: "#6610f2", backgroundColor: "rgba(102,16,242,0.10)",
+                    fill: true, spanGaps: true, tension: 0.25, pointRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, ticks: { callback: v => v + "%" } } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => {
+                        const m = t[ctx.dataIndex];
+                        return m.pct === null ? "Sin plan"
+                            : `${m.pct}% — prod ${fmt(m.producido)} / prog ${fmt(m.programado)}`;
+                    } } },
+                },
+            },
+        });
+    }
+
+    _renderEfTrend() {
+        const el = this.efTrendRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.efTrendChart) { this.efTrendChart.destroy(); this.efTrendChart = null; }
+        this._efChartDirty = false;
+        const t = this.state.efTrend || [];
+        this.efTrendChart = new Chart(el, {
+            type: "line",
+            data: {
+                labels: this._monthLabels(t),
+                datasets: [{
+                    label: "Eficiencia %", data: t.map(m => m.eficiencia),
+                    borderColor: "#fd7e14", backgroundColor: "rgba(253,126,20,0.10)",
+                    fill: true, spanGaps: true, tension: 0.25, pointRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, ticks: { callback: v => v + "%" } } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => {
+                        const m = t[ctx.dataIndex];
+                        return m.eficiencia === null ? "Sin plan"
+                            : `${m.eficiencia}% — real ${fmt(m.real_h)} h / plan ${fmt(m.plan_h)} h`;
+                    } } },
+                },
+            },
+        });
+    }
+
+    _renderEvolTrend() {
+        const el = this.evolTrendRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.evolTrendChart) { this.evolTrendChart.destroy(); this.evolTrendChart = null; }
+        this._evolChartDirty = false;
+        const t = this.state.evolRows || [];
+        this.evolTrendChart = new Chart(el, {
+            type: "line",
+            data: {
+                labels: this._monthLabels(t),
+                datasets: [
+                    { label: "Carga %", data: t.map(m => m.carga_pct), borderColor: "#0d6efd",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                    { label: "Cumplimiento %", data: t.map(m => m.cumpl_pct), borderColor: "#6610f2",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                    { label: "Eficiencia %", data: t.map(m => m.efic_pct), borderColor: "#fd7e14",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, ticks: { callback: v => v + "%" } } },
+                plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+
+    // ════════════════ Evolución: tabla mensual (sin TableCtl) ════════════════
+
+    get evolKpiCards() {
+        const rows = this.state.evolRows || [];
+        let ofs = 0, term = 0, prod = 0, scrap = 0;
+        for (const r of rows) { ofs += r.ofs || 0; term += r.terminadas || 0; prod += r.producido || 0; scrap += r.scrap || 0; }
+        return [
+            { key: "ofs",        label: "OFs (período)", value: fmt(ofs),   cls: "",
+              tip: `Total de OFs del período\nSuma de las OFs de cada mes\n→ ${fmt(ofs)}` },
+            { key: "terminadas", label: "Terminadas",    value: fmt(term),  cls: "text-success fw-semibold",
+              tip: `Total de OFs terminadas del período\nSuma mensual\n→ ${fmt(term)}` },
+            { key: "producido",  label: "Producido",     value: fmt(prod),  cls: "",
+              tip: `Producido ponderado acumulado del período\nSuma mensual\n→ ${fmt(prod)}` },
+            { key: "scrap",      label: "Scrap",         value: fmt(scrap), cls: "text-danger fw-semibold",
+              tip: `Cantidad desechada acumulada del período\nSuma mensual\n→ ${fmt(scrap)} u. (unidades mixtas)` },
+        ];
+    }
+    evolColTitle(col) {
+        const t = {
+            ym: "Mes calendario del período.",
+            ofs: "OFs del mes (criterio de fechas de Ajustes).",
+            terminadas: "OFs terminadas (estado Hecho) en el mes.",
+            producido: "Producido ponderado del mes (comparativo).",
+            carga_pct: "Carga de CT del mes: planificado ÷ disponible × 100.",
+            cumpl_pct: "Cumplimiento ponderado del mes: producido ÷ programado × 100.",
+            efic_pct: "Eficiencia del mes: real ÷ planificado × 100.",
+            scrap: "Cantidad desechada del mes (unidades mixtas).",
+        }[col.key] || col.label;
+        return t;
+    }
+    evolLabel(ym) {
+        const [y, mo] = (ym || "-").split("-");
+        return new Date(+y, +mo - 1, 1).toLocaleString("es", { month: "short", year: "2-digit" });
+    }
+    evolCellValue(row, key) {
+        if (key === "ym") return this.evolLabel(row.ym);
+        if (["carga_pct", "cumpl_pct", "efic_pct"].includes(key)) return fmtPct(row[key]);
+        return fmt(row[key]);
+    }
+    evolCellClass(row, key) {
+        if (key === "carga_pct") return this.cargaClass(row.carga_pct);
+        if (key === "cumpl_pct") return this.rateClass(row.cumpl_pct, this.state.evolGreen, 50);
+        return "";
+    }
+    get evolCols() { return EVOL_COLS; }
 }
 
 registry.category("view_widgets").add("production_analysis_widget", {

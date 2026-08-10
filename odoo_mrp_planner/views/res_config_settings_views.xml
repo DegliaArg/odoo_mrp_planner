@@ -172,14 +172,31 @@
                                         <field name="comparison_force_integer" widget="boolean_toggle"
                                                invisible="comparison_date_mode != 'proportional'"
                                                help="El prorrateo por duración genera cantidades con decimales. Con esta opción el comparativo las redondea a enteros en lugar de usar la precisión de la UdM de cada producto. Solo afecta la presentación del tablero."/>
-                                        <field name="comparison_weight" widget="radio"/>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2">
-                                            Cómo se pondera el KPI global de cumplimiento para que sea representativo del mix
-                                            (que no lo domine el producto de mayor volumen ni se mezclen unidades):
-                                            <b>Cantidad</b> suma piezas (mezcla UdM, total referencial);
-                                            <b>Valor — precio de venta</b> pondera por precio (no aplica sin precio de venta cargado);
-                                            <b>Valor — costo</b> por costo estándar (no aplica sin costo);
-                                            <b>Horas de CT</b> por tiempo de ruta de la BoM (no aplica sin BoM con operaciones; los productos sin ruta se excluyen y se avisa en el panel).
+                                        <field name="comparison_weight" widget="radio"
+                                               help="Cómo se pondera el KPI global de cumplimiento para que sea representativo del mix (que no lo domine el producto de mayor volumen ni se mezclen unidades de medida). No afecta la tabla por producto, que sigue por cantidad."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2"
+                                             invisible="comparison_weight != 'qty'">
+                                            <b>Cantidad (piezas)</b> — suma las cantidades producidas y programadas tal cual.<br/>
+                                            · Mezcla unidades de medida distintas (Pz, m, kg…): el total es referencial.<br/>
+                                            · <i>Ojo: lo domina el producto de mayor volumen; poco representativo para un mix.</i>
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2"
+                                             invisible="comparison_weight != 'sale_price'">
+                                            <b>Valor — precio de venta</b> — pondera cada producto por cantidad × precio de venta.<br/>
+                                            · Homogéneo y comparable entre unidades; refleja el peso comercial del mix.<br/>
+                                            · <i>No tiene sentido sin precio de venta cargado: los productos sin precio se excluyen y se avisa en el panel.</i>
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2"
+                                             invisible="comparison_weight != 'cost'">
+                                            <b>Valor — costo</b> — pondera por cantidad × costo (precio estándar) del artículo.<br/>
+                                            · Homogéneo y comparable entre unidades; refleja el peso en costo del mix.<br/>
+                                            · <i>No tiene sentido sin costo cargado: los productos sin costo se excluyen y se avisa en el panel.</i>
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2"
+                                             invisible="comparison_weight != 'wc_hours'">
+                                            <b>Horas de centro de trabajo</b> — pondera por el tiempo estándar por unidad de la ruta de la BoM.<br/>
+                                            · Refleja el uso de capacidad planificada vs. real.<br/>
+                                            · <i>No tiene sentido sin una BoM con operaciones: los productos sin ruta se excluyen y se avisa en el panel.</i>
                                         </div>
                                         <field name="comparison_fill_cap" widget="boolean_toggle"
                                                help="Con tope al 100% por producto, la sobreproducción de un producto no compensa el faltante de otro (recomendado para un mix). Sin tope, el cumplimiento puede superar 100%."/>

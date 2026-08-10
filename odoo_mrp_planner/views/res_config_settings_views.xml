@@ -804,6 +804,29 @@
                                         </div>
                                     </group>
                                 </div>
+                                <div class="col-6">
+                                    <group string="Clasificación de stock por estado del traslado">
+                                        <div class="text-muted small mb-2">
+                                            Define cómo cuenta cada movimiento pendiente (stock.move) en
+                                            <b>Con stock</b> / <b>Sin stock</b> del Panel de Inventario.
+                                            "Con stock" suma <b>solo la cantidad efectivamente reservada</b>
+                                            del movimiento; el resto va a "Sin stock".
+                                        </div>
+                                        <field name="inventory_state_assigned" widget="radio" options="{'horizontal': True}"/>
+                                        <field name="inventory_state_partial" widget="radio" options="{'horizontal': True}"/>
+                                        <field name="inventory_state_confirmed" widget="radio" options="{'horizontal': True}"/>
+                                        <field name="inventory_state_waiting" widget="radio" options="{'horizontal': True}"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-2">
+                                            <b>Disponible:</b> el movimiento reservó todo lo pedido, listo para procesar.<br/>
+                                            <b>Parcialmente disponible:</b> reservó una parte; con "Con stock" suma solo esa parte reservada.<br/>
+                                            <b>En espera de disponibilidad:</b> confirmado, pero todavía no reservó stock.<br/>
+                                            <b>En espera de otro movimiento:</b> bloqueado esperando una operación previa; no reservó nada propio.
+                                            <hr class="my-1"/>
+                                            <b>No configurables:</b> Borrador y Cancelado no cuentan en ningún lado;
+                                            Hecho va a "Validados del período", no al pendiente.
+                                        </div>
+                                    </group>
+                                </div>
                             </div>
                         </page>
 

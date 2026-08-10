@@ -434,9 +434,9 @@ class InventoryDashboardWidget extends Component {
             case "pending":
                 return `Demanda aún no entregada de ${scope}, de cualquier operación (cadena de entrega, transferencias internas y recepciones)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
             case "available":
-                return `Del pendiente de ${scope}, cantidad con stock reservado en su eslabón: podría procesarse hoy\nSuma por línea de mín(demanda, reservado en la cadena); las recepciones pendientes cuentan como sin stock (esperan al proveedor)\n→ ${fmt(t.available)} Pz`;
+                return `Del pendiente de ${scope}, cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible)\nSuma por línea de la cantidad reservada de esos movimientos\n→ ${fmt(t.available)} Pz`;
             case "blocked":
-                return `Del pendiente de ${scope}, cantidad sin stock reservado en su eslabón\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
+                return `Del pendiente de ${scope}, cantidad sin stock reservado (estados En espera / En espera de otro movimiento, o la parte no reservada de los parcialmente disponibles)\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
             case "overdue":
                 return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
@@ -465,7 +465,7 @@ class InventoryDashboardWidget extends Component {
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
             qty_pending:    "Piezas demandadas por el remito aún no entregadas (en canceladas: la demanda original, informativa).",
             qty_done:       "Piezas hechas del remito (solo filas validadas).",
-            qty_available:  "Piezas con stock reservado en el eslabón donde está parada la demanda (siguiendo la cadena de abastecimiento): podrían entregarse hoy.",
+            qty_available:  "Piezas reservadas de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible).",
             days_available: "Días corridos desde el primer snapshot en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
             state:          "Estado nativo del remito en Odoo.",
         };

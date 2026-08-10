@@ -54,6 +54,45 @@ class MrpRescheduleConfigInventory(models.Model):
              'Es independiente del "Forzar cantidades enteras" de la comparativa '
              'del forecast (Ajustes → Producción).')
 
+    # ── Clasificación Con stock / Sin stock por estado del stock.move ────────
+    # El Panel de Inventario reparte la demanda pendiente en "Con stock" y "Sin
+    # stock" según el estado del movimiento. "Con stock" suma SOLO la cantidad
+    # efectivamente reservada del movimiento. Solo los 4 estados pendientes son
+    # configurables: draft/cancel no entran al panel y done va a Validados.
+    inventory_state_assigned = fields.Selection(
+        [('con', 'Con stock'), ('sin', 'Sin stock')],
+        string='Disponible (assigned)', default='con', required=True,
+        help='Movimiento que reservó todo lo pedido, listo para procesar.')
+    inventory_state_partial = fields.Selection(
+        [('con', 'Con stock'), ('sin', 'Sin stock')],
+        string='Parcialmente disponible (partially_available)', default='con', required=True,
+        help='Movimiento que reservó una parte de lo pedido. Con "Con stock" suma '
+             'solo la parte reservada; el resto va a Sin stock.')
+    inventory_state_confirmed = fields.Selection(
+        [('con', 'Con stock'), ('sin', 'Sin stock')],
+        string='En espera de disponibilidad (confirmed)', default='sin', required=True,
+        help='Movimiento confirmado que todavía no reservó stock.')
+    inventory_state_waiting = fields.Selection(
+        [('con', 'Con stock'), ('sin', 'Sin stock')],
+        string='En espera de otro movimiento (waiting)', default='sin', required=True,
+        help='Movimiento bloqueado esperando una operación previa; no reservó nada propio.')
+
+    def _inventory_state_stock_map(self):
+        """Clasificación Con/Sin stock por estado del stock.move pendiente,
+        según Ajustes → Inventario. Las claves son además los estados de
+        movimiento que el panel considera pendientes (draft/cancel quedan
+        afuera y done va a Validados).
+
+        :returns: dict {move_state: 'con' | 'sin'} para los 4 estados pendientes.
+        """
+        rec = self[:1]
+        return {
+            'assigned':            rec.inventory_state_assigned or 'con',
+            'partially_available': rec.inventory_state_partial or 'con',
+            'confirmed':           rec.inventory_state_confirmed or 'sin',
+            'waiting':             rec.inventory_state_waiting or 'sin',
+        }
+
     def _dispatch_pending_cutoff_domain(self, field='scheduled_date'):
         """Dominio del corte de antigüedad de pendientes.
 

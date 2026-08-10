@@ -13,11 +13,11 @@ está activo, agrega únicamente una capa operativa en la tabla: la cola
 
 Fuentes de datos:
 - Estado actual de stock.picking / stock.move: pendiente, disponible, frenado.
-  El universo se define por los tipos de operación de la cadena de entrega
-  de cada depósito; la disponibilidad se evalúa en el primer eslabón de la
-  cadena de cada movimiento (mrp.dispatch.stock.log._chain_available_qty), y
-  las salidas más viejas que el corte de antigüedad configurado quedan fuera
-  de todo el panel.
+  El universo se define por los tipos de operación (entradas, internas y
+  cadena de entrega) de cada depósito; "Con stock" = la cantidad reservada de
+  cada movimiento cuyo ESTADO cuenta como con stock en Ajustes → Inventario
+  (_inventory_state_stock_map), y las líneas más viejas que el corte de
+  antigüedad configurado quedan fuera de todo el panel.
 - state='done' / date_done: entregado del período y atraso de entrega.
 - mrp.dispatch.stock.log: denominador de la "Tasa de entrega s/ disponible"
   del mes en curso (y meses aún no consolidados).
@@ -31,8 +31,6 @@ from datetime import datetime, timedelta
 import pytz
 
 from odoo import models, fields, api, _
-
-PENDING_PICKING_STATES = ('confirmed', 'waiting', 'assigned')
 
 
 class MrpPlannerDashboard(models.TransientModel):
@@ -183,9 +181,9 @@ class MrpPlannerDashboard(models.TransientModel):
               (disponible vs. sin stock) por depósito.
 
         Las cards KPI del panel NO salen de acá: viven en la zona tabla
-        (get_inventory_pending_table). El disponible del pendiente se evalúa
-        en el primer eslabón de la cadena de cada movimiento
-        (_chain_available_qty). Las líneas más viejas que el corte de
+        (get_inventory_pending_table). "Con stock" = la cantidad reservada de
+        cada movimiento cuyo estado cuenta como con stock en Ajustes
+        (_inventory_state_stock_map). Las líneas más viejas que el corte de
         antigüedad configurado quedan fuera, y las cantidades en piezas
         respetan "Forzar cantidades enteras" de Ajustes.
 
@@ -203,38 +201,37 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # ── Estado actual del pendiente (no depende del período) ─────────────
         # Universo = TODA operación pendiente (entradas, internas y la cadena
-        # de entrega). Cada demanda está parada en un solo eslabón a la vez.
-        Log = self.env['mrp.dispatch.stock.log']
+        # de entrega). Se filtra por ESTADO DEL MOVIMIENTO (como el análisis de
+        # movimientos nativo), no del remito, para no dejar afuera operaciones.
         chain_type_ids, type_info = self._inventory_universe_types(
             company, warehouse_ids or None)
         if picking_type_ids:
             type_info = {t: info for t, info in type_info.items()
                          if t in picking_type_ids}
             chain_type_ids = list(type_info)
+        # Clasificación Con/Sin stock por estado del movimiento (Ajustes)
+        smap = cfg._inventory_state_stock_map()
         # Corte de antigüedad por línea (fecha programada del movimiento)
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('date')
         pending_moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
             ('picking_id.picking_type_id', 'in', chain_type_ids),
-            ('picking_id.state', 'in', PENDING_PICKING_STATES),
-            ('state', 'not in', ('draft', 'done', 'cancel')),
+            ('state', 'in', list(smap)),
         ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
         by_wh = {}  # {(wh_id, wh_name): [available, blocked]}
         if pending_moves:
-            rows = pending_moves.read(['picking_id', 'product_uom_qty'])
-            # Disponible evaluado en el eslabón donde está parada la demanda
-            chain_avail = Log._chain_available_qty(pending_moves)
+            rows = pending_moves.read(['picking_id', 'product_uom_qty', 'state', 'quantity'])
             all_pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
             pick_type = {p['id']: p['picking_type_id'][0] if p['picking_type_id'] else False
                          for p in self.env['stock.picking'].sudo()
                                       .browse(list(all_pick_ids)).read(['picking_type_id'])}
             for r in rows:
                 qty = r['product_uom_qty'] or 0.0
+                # Con stock = cantidad reservada del movimiento si su estado
+                # cuenta como con stock en Ajustes; el resto es sin stock.
+                avail = min(r['quantity'] or 0.0, qty) if smap.get(r['state']) == 'con' else 0.0
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 info = type_info.get(pick_type.get(pick))
-                # Recepciones pendientes: sin stock (esperan al proveedor)
-                avail = 0.0 if (info and info[2] == 'in') \
-                    else min(chain_avail.get(r['id'], 0.0), qty)
                 wh_key = (info[0], info[1]) if info else (False, _('Sin depósito'))
                 by_wh.setdefault(wh_key, [0.0, 0.0])
                 by_wh[wh_key][0] += avail
@@ -358,7 +355,6 @@ class MrpPlannerDashboard(models.TransientModel):
         company = self.env.company
         cfg = self.env['mrp.reschedule.config'].sudo().get_config()
         dispatch_enabled = self._inventory_dispatch_enabled()
-        Log = self.env['mrp.dispatch.stock.log']
 
         # Fechas del filtro interpretadas como días locales del usuario
         # (las fechas se guardan en UTC)
@@ -391,12 +387,16 @@ class MrpPlannerDashboard(models.TransientModel):
         if not chain_type_ids:
             return empty
 
-        # ── Líneas pendientes de la cadena, filtradas por SU fecha programada ──
+        # Clasificación Con/Sin stock por estado del movimiento (Ajustes); sus
+        # claves son además los estados pendientes que considera el panel.
+        smap = cfg._inventory_state_stock_map()
+
+        # ── Líneas pendientes, filtradas por ESTADO DEL MOVIMIENTO (como el
+        #    análisis de movimientos nativo) y por su fecha programada ──
         move_dom = [
             ('company_id', '=', company.id),
             ('picking_id.picking_type_id', 'in', chain_type_ids),
-            ('picking_id.state', 'in', list(PENDING_PICKING_STATES)),
-            ('state', 'not in', ('draft', 'done', 'cancel')),
+            ('state', 'in', list(smap)),
         ] + cfg._dispatch_pending_cutoff_domain('date')
         if dt_from:
             move_dom.append(('date', '>=', dt_from))
@@ -442,16 +442,18 @@ class MrpPlannerDashboard(models.TransientModel):
         # mínima de línea, hecha]
         qty = {}    # {pick_id: [pending, available, {product_id: name}, min_date, done]}
         if moves:
-            # Disponible evaluado en el eslabón donde está parada la demanda
-            chain_avail = Log._chain_available_qty(moves)
-            for r in moves.read(['picking_id', 'product_id', 'product_uom_qty', 'date']):
+            for r in moves.read(['picking_id', 'product_id', 'product_uom_qty',
+                                 'date', 'state', 'quantity']):
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 if not pick:
                     continue
                 entry = qty.setdefault(pick, [0.0, 0.0, {}, None, 0.0])
                 q = r['product_uom_qty'] or 0.0
+                # Con stock = cantidad reservada del movimiento si su estado
+                # cuenta como con stock en Ajustes; el resto es sin stock.
+                avail = min(r['quantity'] or 0.0, q) if smap.get(r['state']) == 'con' else 0.0
                 entry[0] += q
-                entry[1] += min(chain_avail.get(r['id'], 0.0), q)
+                entry[1] += avail
                 if r['product_id']:
                     entry[2][r['product_id'][0]] = r['product_id'][1]
                 if r['date'] and (entry[3] is None or r['date'] < entry[3]):
@@ -539,9 +541,8 @@ class MrpPlannerDashboard(models.TransientModel):
             stage = 'ready' if pid in dispatch_queue else (info[2] if info else 'ship')
             pending, available, prods, min_date, done_qty = qty.get(
                 pid, [0.0, 0.0, {}, None, 0.0])
-            # Recepciones pendientes: sin stock (esperan al proveedor)
-            if stage == 'in':
-                available = 0.0
+            # Con/Sin stock ya vienen del criterio por estado del movimiento
+            # (Ajustes → Inventario), recepciones incluidas.
             # Lista completa de artículos ordenada por nombre (links del widget);
             # los nombres ya vienen del read de los movimientos: sin queries extra.
             detail = sorted(({'id': p_id, 'name': p_name} for p_id, p_name in prods.items()),

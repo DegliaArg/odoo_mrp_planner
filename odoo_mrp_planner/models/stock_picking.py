@@ -158,37 +158,38 @@ class StockPicking(models.Model):
     x_qty_available_chain = fields.Float(
         string='Con stock (Pz)', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
-        help='De la demanda pendiente del remito, cantidad con stock reservado '
-             'en el eslabón donde está parada (siguiendo la cadena de '
-             'abastecimiento) — mismo cálculo que la columna "Con stock" del '
-             'Panel de Inventario. Recepciones: 0 (esperan al proveedor). '
-             'Remitos validados: 100 %.')
+        help='De la demanda pendiente del remito, cantidad con stock reservada — '
+             'mismo criterio que la columna "Con stock" del Panel de Inventario: '
+             'la cantidad reservada de cada movimiento cuyo estado cuenta como con '
+             'stock en Ajustes → Inventario. Remitos validados: la cantidad hecha.')
     x_qty_blocked_chain = fields.Float(
         string='Sin stock (Pz)', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
         help='Demanda pendiente sin stock reservado: Demanda − Con stock.')
 
     def _compute_x_qty_chain(self):
-        # Mismo criterio que los KPIs del Panel de Inventario: disponibilidad
-        # evaluada por línea en el eslabón donde está parada la demanda.
+        # Mismo criterio que el Panel de Inventario: Con stock = cantidad
+        # reservada de cada movimiento cuyo ESTADO cuenta como con stock en
+        # Ajustes (Disponible / Parcialmente disponible por defecto).
         Move = self.env['stock.move'].sudo()
-        Log = self.env['mrp.dispatch.stock.log']
-        pending = self.filtered(lambda p: p.state in ('confirmed', 'waiting', 'assigned'))
+        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
+        smap = cfg._inventory_state_stock_map()
+        pending = self.filtered(lambda p: p.state != 'done')
         done = self.filtered(lambda p: p.state == 'done')
         avail, demand = {}, {}
         if pending:
             moves = Move.search([
                 ('picking_id', 'in', pending.ids),
-                ('state', 'not in', ('draft', 'done', 'cancel')),
+                ('state', 'in', list(smap)),
             ] + self._planner_qty_move_date_dom())
-            chain_avail = Log._chain_available_qty(moves)
-            for r in moves.read(['picking_id', 'product_uom_qty']):
+            for r in moves.read(['picking_id', 'product_uom_qty', 'state', 'quantity']):
                 pick = r['picking_id'][0] if r['picking_id'] else False
                 if not pick:
                     continue
                 q = r['product_uom_qty'] or 0.0
+                con = min(r['quantity'] or 0.0, q) if smap.get(r['state']) == 'con' else 0.0
                 demand[pick] = demand.get(pick, 0.0) + q
-                avail[pick] = avail.get(pick, 0.0) + min(chain_avail.get(r['id'], 0.0), q)
+                avail[pick] = avail.get(pick, 0.0) + con
         if done:
             for picking, qty in Move._read_group(
                     [('picking_id', 'in', done.ids), ('state', '=', 'done')],
@@ -197,11 +198,7 @@ class StockPicking(models.Model):
                 avail[picking.id] = qty
         for pick in self:
             d = demand.get(pick.id, 0.0)
-            # Recepción pendiente: sin stock disponible (espera al proveedor),
-            # mismo criterio que el Panel de Inventario (etapa 'in' → Con stock 0).
-            is_incoming_pending = (pick.state != 'done'
-                                   and pick.picking_type_id.code == 'incoming')
-            a = 0.0 if is_incoming_pending else avail.get(pick.id, 0.0)
+            a = avail.get(pick.id, 0.0)
             pick.x_qty_pending_chain = d
             pick.x_qty_available_chain = a
             pick.x_qty_blocked_chain = max(0.0, d - a)

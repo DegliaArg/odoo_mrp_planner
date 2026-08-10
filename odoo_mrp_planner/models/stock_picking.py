@@ -123,7 +123,7 @@ class StockPicking(models.Model):
         return dom
 
     x_qty_done = fields.Float(
-        string='Cantidad hecha (Pz)', compute='_compute_x_qty_done', store=True,
+        string='Cantidad hecha', compute='_compute_x_qty_done', store=True,
         digits='Product Unit of Measure',
         help='Suma de las cantidades hechas de las líneas del remito. Campo '
              'ALMACENADO para que las listas de los paneles puedan sumar por '
@@ -149,21 +149,21 @@ class StockPicking(models.Model):
     # Panel de Inventario. Al ser recortadas por fecha no pueden almacenarse:
     # totalizan al pie de la lista (suma de las filas cargadas), no por grupo.
     x_qty_pending_chain = fields.Float(
-        string='Demanda (Pz)', compute='_compute_x_qty_chain',
+        string='Demanda', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
         help='Demanda pendiente del remito recortada al rango de fechas del '
              'Panel de Inventario (las mismas líneas que Con stock / Sin '
              'stock): Demanda = Con stock + Sin stock. Remitos validados: '
              'cantidad hecha.')
     x_qty_available_chain = fields.Float(
-        string='Con stock (Pz)', compute='_compute_x_qty_chain',
+        string='Con stock', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
         help='De la demanda pendiente del remito, cantidad con stock reservada — '
              'mismo criterio que la columna "Con stock" del Panel de Inventario: '
              'la cantidad reservada de cada movimiento cuyo estado cuenta como con '
              'stock en Ajustes → Inventario. Remitos validados: la cantidad hecha.')
     x_qty_blocked_chain = fields.Float(
-        string='Sin stock (Pz)', compute='_compute_x_qty_chain',
+        string='Sin stock', compute='_compute_x_qty_chain',
         digits='Product Unit of Measure',
         help='Demanda pendiente sin stock reservado: Demanda − Con stock.')
 

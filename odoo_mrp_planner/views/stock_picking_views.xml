@@ -20,7 +20,7 @@
                 <field name="scheduled_date" optional="show" string="Fecha programada"/>
                 <field name="date_done" optional="hide" string="Fecha de validación"/>
                 <!-- Campo almacenado: Odoo suma por grupo y en el total nativamente -->
-                <field name="x_qty_done" sum="Total" string="Cantidad (Pz)"/>
+                <field name="x_qty_done" sum="Total" string="Cantidad"/>
                 <field name="state" widget="badge" optional="show"
                        decoration-success="state == 'done'"
                        decoration-info="state == 'assigned'"
@@ -47,9 +47,9 @@
                      stock + Sin stock, y el total al pie cierra con las cards.
                      Al depender del rango no pueden almacenarse: totalizan al
                      pie (suma de las filas cargadas), no por grupo. -->
-                <field name="x_qty_pending_chain" sum="Total" string="Demanda (Pz)"/>
-                <field name="x_qty_available_chain" sum="Total" string="Con stock (Pz)"/>
-                <field name="x_qty_blocked_chain" sum="Total" string="Sin stock (Pz)"/>
+                <field name="x_qty_pending_chain" sum="Total" string="Demanda"/>
+                <field name="x_qty_available_chain" sum="Total" string="Con stock"/>
+                <field name="x_qty_blocked_chain" sum="Total" string="Sin stock"/>
                 <field name="state" widget="badge" optional="show"
                        decoration-success="state == 'done'"
                        decoration-info="state == 'assigned'"

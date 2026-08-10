@@ -69,7 +69,7 @@ const COLS = [
     { key: "product_names",  label: "Artículos",   width: 230, align: "start" },
     { key: "qty_pending",    label: "Pendiente",   width:  90, align: "end" },
     { key: "qty_available",  label: "Con stock",   width:  90, align: "end" },
-    { key: "qty_done",       label: "Hecho (Pz)",  width:  90, align: "end" },
+    { key: "qty_done",       label: "Hecho",       width:  90, align: "end" },
     { key: "days_available", label: "Días disp.",  width:  85, align: "end" },
     { key: "state",          label: "Estado",      width: 105, align: "start" },
 ];
@@ -432,11 +432,11 @@ class InventoryDashboardWidget extends Component {
         switch (key) {
             // ── Cards de la tabla (dinámicas: fechas, búsqueda, filtros, pestaña y selección) ──
             case "pending":
-                return `Demanda aún no entregada de ${scope}, de cualquier operación (cadena de entrega, transferencias internas y recepciones)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} Pz en ${t.pickings} remito(s)`;
+                return `Demanda aún no entregada de ${scope}, de cualquier operación (cadena de entrega, transferencias internas y recepciones)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} en ${t.pickings} remito(s)`;
             case "available":
-                return `Del pendiente de ${scope}, cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible)\nSuma por línea de la cantidad reservada de esos movimientos\n→ ${fmt(t.available)} Pz`;
+                return `Del pendiente de ${scope}, cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible)\nSuma por línea de la cantidad reservada de esos movimientos\n→ ${fmt(t.available)}`;
             case "blocked":
-                return `Del pendiente de ${scope}, cantidad sin stock reservado (estados En espera / En espera de otro movimiento, o la parte no reservada de los parcialmente disponibles)\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)} Pz`;
+                return `Del pendiente de ${scope}, cantidad sin stock reservado (estados En espera / En espera de otro movimiento, o la parte no reservada de los parcialmente disponibles)\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)}`;
             case "overdue":
                 return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
@@ -444,7 +444,7 @@ class InventoryDashboardWidget extends Component {
             // ── Validados: filas hechas de la tabla (dinámica como todas).
             //    La tasa sigue siendo la única card de servidor. ──
             case "delivered":
-                return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye TODAS las operaciones (recepciones, internas y toda la cadena): la misma mercadería puede sumar en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de entrega\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} Pz en ${this.validatedKpis.pickings} remito(s)`;
+                return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye TODAS las operaciones (recepciones, internas y toda la cadena): la misma mercadería puede sumar en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de entrega\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} en ${this.validatedKpis.pickings} remito(s)`;
             case "rate":
                 return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
             default:
@@ -463,9 +463,9 @@ class InventoryDashboardWidget extends Component {
             warehouse:      "Depósito del tipo de operación del remito.",
             scheduled:      "Fecha programada más próxima de las líneas consideradas del remito (fecha de los movimientos); el badge rojo indica cuántos días está vencida (\"hoy\" = vence hoy).",
             product_names:  "Artículos del remito — clic para abrir la ficha de cada uno; el tooltip de la celda lista todos.",
-            qty_pending:    "Piezas demandadas por el remito aún no entregadas (en canceladas: la demanda original, informativa).",
-            qty_done:       "Piezas hechas del remito (solo filas validadas).",
-            qty_available:  "Piezas reservadas de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible).",
+            qty_pending:    "Cantidad demandada por el remito aún no entregada (en canceladas: la demanda original, informativa).",
+            qty_done:       "Cantidad hecha del remito (solo filas validadas).",
+            qty_available:  "Cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible).",
             days_available: "Días corridos desde el primer snapshot en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
             state:          "Estado nativo del remito en Odoo.",
         };

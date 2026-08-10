@@ -211,8 +211,8 @@
                          t-att-title="kpiTooltip('delivered')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-send fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(validatedKpis.qty) + ' Pz')"
-                                 t-esc="fmt(validatedKpis.qty) + ' Pz'"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(validatedKpis.qty))"
+                                 t-esc="fmt(validatedKpis.qty)"/>
                             <div class="o_planner_label">Validados del período</div>
                             <div class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="validatedKpis.pickings"/> remito(s)
@@ -229,8 +229,8 @@
                          t-att-title="kpiTooltip('pending')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.pending) + ' Pz')"
-                                 t-esc="fmt(tableKpis.pending) + ' Pz'"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.pending))"
+                                 t-esc="fmt(tableKpis.pending)"/>
                             <div class="o_planner_label">Pendiente total</div>
                             <div class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="tableKpis.pickings"/> remito(s)
@@ -247,8 +247,8 @@
                          t-att-title="kpiTooltip('available')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-check-square-o fa-lg text-info mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.available) + ' Pz')"
-                                 t-esc="fmt(tableKpis.available) + ' Pz'"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.available))"
+                                 t-esc="fmt(tableKpis.available)"/>
                             <div class="o_planner_label">Pendiente con stock</div>
                         </div>
                         <div class="card-footer p-0">
@@ -262,8 +262,8 @@
                          t-att-title="kpiTooltip('blocked')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                             <i class="fa fa-ban fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.blocked) + ' Pz')"
-                                 t-esc="fmt(tableKpis.blocked) + ' Pz'"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.blocked))"
+                                 t-esc="fmt(tableKpis.blocked)"/>
                             <div class="o_planner_label">Pendiente sin stock</div>
                         </div>
                         <div class="card-footer p-0">
@@ -649,11 +649,11 @@
                                             </span>
                                         </t>
                                         <t t-elif="col.key === 'qty_pending'">
-                                            <span title="Suma de piezas pendientes de los remitos visibles."
+                                            <span title="Suma de las cantidades pendientes de los remitos visibles."
                                                   t-esc="fmt(tableKpis.pending)"/>
                                         </t>
                                         <t t-elif="col.key === 'qty_available'">
-                                            <span title="Suma de piezas con stock de los remitos visibles."
+                                            <span title="Suma de las cantidades con stock de los remitos visibles."
                                                   t-esc="fmt(tableKpis.available)"/>
                                         </t>
                                     </td>

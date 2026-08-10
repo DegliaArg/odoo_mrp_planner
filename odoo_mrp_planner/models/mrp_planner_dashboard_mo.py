@@ -348,6 +348,53 @@ class MrpPlannerDashboardMo(models.TransientModel):
         }
 
     @api.model
+    def _comparison_unit_weights(self, product_ids, mode):
+        """Peso por unidad de cada producto para ponderar el cumplimiento del
+        comparativo, según el modo elegido en Ajustes.
+
+        - qty: 1 (suma de cantidades, como el criterio histórico).
+        - sale_price / cost: precio de venta o costo estándar del artículo.
+        - wc_hours: tiempo estándar por unidad de la ruta de la BoM (horas):
+          Σ tiempo de las operaciones ÷ cantidad de la BoM ÷ 60.
+
+        :returns: (weights, missing) — weights {product_id: peso}; missing =
+                  cantidad de productos cuyo peso es 0 porque falta el dato que
+                  el modo necesita (precio/costo/ruta), para avisarlo en el panel.
+        """
+        product_ids = list(product_ids)
+        if not product_ids:
+            return {}, 0
+        if mode == 'qty':
+            return {pid: 1.0 for pid in product_ids}, 0
+        products = self.env['product.product'].browse(product_ids)
+        weights, missing = {}, 0
+        if mode in ('sale_price', 'cost'):
+            field = 'list_price' if mode == 'sale_price' else 'standard_price'
+            for p in products:
+                w = p[field] or 0.0
+                weights[p.id] = w
+                if w <= 0:
+                    missing += 1
+            return weights, missing
+        if mode == 'wc_hours':
+            try:
+                bom_by_product = self.env['mrp.bom']._bom_find(products)
+            except Exception:
+                bom_by_product = {p: p.bom_ids[:1] for p in products}
+            for p in products:
+                bom = bom_by_product.get(p)
+                w = 0.0
+                if bom and bom.operation_ids and (bom.product_qty or 0.0) > 0:
+                    mins = sum((getattr(op, 'time_cycle', 0.0) or 0.0)
+                               for op in bom.operation_ids)
+                    w = (mins / bom.product_qty) / 60.0  # horas por unidad
+                weights[p.id] = w
+                if w <= 0:
+                    missing += 1
+            return weights, missing
+        return {pid: 1.0 for pid in product_ids}, 0
+
+    @api.model
     def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
@@ -505,15 +552,40 @@ class MrpPlannerDashboardMo(models.TransientModel):
             item['planned_qty']  = round(float_round(item['planned_qty'],  precision_rounding=rounding), 2)
             item['produced_qty'] = round(float_round(item['produced_qty'], precision_rounding=rounding), 2)
 
-        total_planned  = sum(x['planned_qty']  for x in items)
-        total_produced = sum(x['produced_qty'] for x in items)
-        if total_planned > 0:
-            pct = round(total_produced / total_planned * 100, 1)
-        elif total_produced > 0:
+        # ── KPI global ponderado (representativo del mix) ────────────────────
+        # Ponderación por cantidad / valor / horas según Ajustes, con tope al
+        # 100% por producto opcional (la sobreproducción de uno no compensa el
+        # faltante de otro). El conteo "en target" es mix-justo: cada producto
+        # cuenta una vez, sin ponderar.
+        weight_mode = (cfg.comparison_weight if cfg else None) or 'cost'
+        fill_cap    = bool(cfg.comparison_fill_cap) if cfg else True
+        green       = (cfg.comparison_pct_green if cfg else 0) or 90
+        weights, excluded = self._comparison_unit_weights(
+            [x['product_id'] for x in items], weight_mode)
+
+        wp = wprod = wprod_cap = 0.0
+        on_target = planned_products = 0
+        for x in items:
+            w  = weights.get(x['product_id'], 0.0)
+            pl = x['planned_qty']
+            pr = x['produced_qty']
+            wp        += pl * w
+            wprod     += pr * w
+            wprod_cap += min(pr, pl) * w
+            if pl > 0:
+                planned_products += 1
+                if pr / pl * 100 >= green:
+                    on_target += 1
+        num = wprod_cap if fill_cap else wprod
+        if wp > 0:
+            pct = round(num / wp * 100, 1)
+        elif wprod > 0:
             pct = None   # sin plan / sobreproducción a nivel total
         else:
             pct = 0.0
-        desvio          = round(total_planned - total_produced, 2)
+        total_planned   = wp
+        total_produced  = wprod
+        desvio          = round(wp - wprod, 2)
         ofs_in_progress = sum(1 for mo in all_mos if mo.state == 'progress')
 
         if search:
@@ -549,12 +621,17 @@ class MrpPlannerDashboardMo(models.TransientModel):
             'kpis': {
                 'planned':         round(total_planned,  2),
                 'produced':        round(total_produced, 2),
-                'pct_green':       (cfg.comparison_pct_green if cfg else 0) or 90,
+                'pct_green':       green,
                 'pct_warn':        (cfg.comparison_pct_warn if cfg else 0) or 50,
                 'pct':             pct,
                 'ofs_done':        ofs_done,
                 'desvio':          desvio,
                 'ofs_in_progress': ofs_in_progress,
+                'weight_mode':     weight_mode,
+                'fill_cap':        fill_cap,
+                'on_target':       on_target,
+                'planned_products': planned_products,
+                'excluded':        excluded,
             },
             'items':         items[offset:offset + page_size],
             'total':         total,

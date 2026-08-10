@@ -172,6 +172,17 @@
                                         <field name="comparison_force_integer" widget="boolean_toggle"
                                                invisible="comparison_date_mode != 'proportional'"
                                                help="El prorrateo por duración genera cantidades con decimales. Con esta opción el comparativo las redondea a enteros en lugar de usar la precisión de la UdM de cada producto. Solo afecta la presentación del tablero."/>
+                                        <field name="comparison_weight" widget="radio"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1 mb-2">
+                                            Cómo se pondera el KPI global de cumplimiento para que sea representativo del mix
+                                            (que no lo domine el producto de mayor volumen ni se mezclen unidades):
+                                            <b>Cantidad</b> suma piezas (mezcla UdM, total referencial);
+                                            <b>Valor — precio de venta</b> pondera por precio (no aplica sin precio de venta cargado);
+                                            <b>Valor — costo</b> por costo estándar (no aplica sin costo);
+                                            <b>Horas de CT</b> por tiempo de ruta de la BoM (no aplica sin BoM con operaciones; los productos sin ruta se excluyen y se avisa en el panel).
+                                        </div>
+                                        <field name="comparison_fill_cap" widget="boolean_toggle"
+                                               help="Con tope al 100% por producto, la sobreproducción de un producto no compensa el faltante de otro (recomendado para un mix). Sin tope, el cumplimiento puede superar 100%."/>
                                     </group>
                                 </div>
 

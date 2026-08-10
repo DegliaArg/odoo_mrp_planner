@@ -473,6 +473,14 @@
                         </div>
                     </div>
 
+                    <!-- Aviso de productos sin el dato de la ponderación (precio/costo/ruta) -->
+                    <div t-if="cmpExcludedNote()" class="col-12 mb-2">
+                        <div class="alert alert-warning py-1 px-2 mb-0 small d-flex align-items-start" role="alert">
+                            <i class="fa fa-exclamation-triangle me-2 mt-1"/>
+                            <span t-esc="cmpExcludedNote()"/>
+                        </div>
+                    </div>
+
                     <!-- KPIs -->
                     <div class="col-12 col-lg-4 o_kpi_height_src">
                         <div class="row g-2">
@@ -483,7 +491,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'planned')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-cubes fa-lg text-secondary mb-2 d-block"/>
-                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.planned) + ' Pz'"/>
+                                        <div class="o_planner_number" t-esc="cmpVal(state.cmp_kpis.planned)"/>
                                         <div class="o_planner_label">Programado</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -498,7 +506,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'produced')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-check-square fa-lg text-success mb-2 d-block"/>
-                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.produced) + ' Pz'"/>
+                                        <div class="o_planner_number" t-esc="cmpVal(state.cmp_kpis.produced)"/>
                                         <div class="o_planner_label">Producido</div>
                                     </div>
                                     <div class="card-footer p-0">
@@ -515,6 +523,19 @@
                                         <div t-att-class="'o_planner_number ' + pctClass(state.cmp_kpis.pct)"
                                              t-esc="state.cmp_kpis.pct === null ? 's/plan' : state.cmp_kpis.pct + '%'"/>
                                         <div class="o_planner_label">Cumplimiento</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-6">
+                                <div class="card o_planner_card h-100"
+                                     t-att-title="moKpiTooltip('cmp', 'on_target')">
+                                    <div class="card-body text-center py-3">
+                                        <i class="fa fa-list-ol fa-lg text-secondary mb-2 d-block"/>
+                                        <div class="o_planner_number">
+                                            <t t-esc="state.cmp_kpis.on_target"/> / <t t-esc="state.cmp_kpis.planned_products"/>
+                                        </div>
+                                        <div class="o_planner_label">Productos en target</div>
                                     </div>
                                 </div>
                             </div>
@@ -540,7 +561,7 @@
                                      t-att-title="moKpiTooltip('cmp', 'desvio')">
                                     <div class="card-body text-center py-3">
                                         <i class="fa fa-arrows-h fa-lg text-warning mb-2 d-block"/>
-                                        <div class="o_planner_number" t-esc="fmt(state.cmp_kpis.desvio) + ' Pz'"/>
+                                        <div class="o_planner_number" t-esc="cmpVal(state.cmp_kpis.desvio)"/>
                                         <div class="o_planner_label">Desvío</div>
                                     </div>
                                     <div class="card-footer p-0">

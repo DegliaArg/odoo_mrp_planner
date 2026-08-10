@@ -50,8 +50,8 @@ CONDICIONES:
 
 ---
 
-### 1.4 % de cumplimiento — producido vs. programado
-DESCRIPCION: Indica qué porcentaje de la cantidad planificada para un producto en el período fue efectivamente producida. Se calcula agrupando las OFs del producto que correspondan al período según el criterio configurado.
+### 1.4 % de cumplimiento — producido vs. programado (por producto, fila de la tabla)
+DESCRIPCION: Por producto (fila de la tabla del comparativo) indica qué porcentaje de la cantidad planificada en el período fue efectivamente producida. Se calcula agrupando las OFs del producto que correspondan al período según el criterio configurado. Es siempre por cantidad, sin ponderar.
 VARIABLES:
 - P_prod = suma de cantidades producidas de las OFs del producto en el período
 - P_prog = suma de cantidades planificadas de las OFs del producto en el período
@@ -64,6 +64,38 @@ CONDICIONES:
 - C < 50 -> rojo
 - P_prog = 0 y P_prod = 0 -> C = 0
 - P_prog = 0 y P_prod > 0 -> "s/plan" (sin plan / sobreproducción): se produjo sin cantidad programada; no se muestra 0%
+
+---
+
+### 1.4b Cumplimiento GLOBAL — ponderado y configurable (KPI del comparativo)
+DESCRIPCION: El KPI global de cumplimiento (la tarjeta "Cumplimiento") no es el promedio simple de las filas: es un cociente ponderado, para que sea representativo del mix y no lo domine el producto de mayor volumen ni se mezclen unidades de medida. La ponderación y el tope al 100% son configurables en Ajustes → Producción.
+VARIABLES:
+- w_i = peso por unidad del producto i según la ponderación configurada:
+    · Cantidad: w_i = 1 (mezcla UdM; total referencial).
+    · Valor — precio de venta: w_i = precio de venta del artículo (list_price).
+    · Valor — costo: w_i = costo estándar (standard_price).
+    · Horas de CT: w_i = tiempo estándar por unidad de la ruta de la BoM = Σ(tiempo de operaciones) ÷ cantidad de la BoM ÷ 60 (horas).
+- pl_i = cantidad programada del producto i ; pr_i = cantidad producida del producto i
+- prc_i = pr_i con tope al 100% si está activo: prc_i = mín(pr_i, pl_i) ; sin tope: prc_i = pr_i
+- C_glob = cumplimiento global ponderado
+FORMULA: C_glob = Σ(prc_i × w_i) / Σ(pl_i × w_i) × 100
+LABEL: Cumplimiento global (ponderado)
+CONFIG: Ajustes → Producción → "Ponderación del cumplimiento" (Cantidad / Valor–precio de venta / Valor–costo / Horas de CT; default Valor–costo) y "Cumplimiento con tope al 100% por producto" (default activo)
+CONDICIONES:
+- Con tope activo, la sobreproducción de un producto NO compensa el faltante de otro (fill rate).
+- Los productos sin el dato que la ponderación necesita (precio / costo / ruta) tienen w_i = 0: no aportan y el panel avisa "N producto(s) … excluidos".
+- Las tarjetas Programado / Producido / Desvío se muestran en la magnitud ponderada ($ o horas; sin unidad en Cantidad).
+
+---
+
+### 1.4c Productos en target (tarjeta de conteo, mix-justo)
+DESCRIPCION: Complementa el cumplimiento global con un conteo simple donde cada producto planificado pesa igual (sin ponderar por volumen ni valor): cuántos productos alcanzaron el umbral verde de cumplimiento.
+VARIABLES:
+- N_ok = productos con plan cuyo C (§1.4, por cantidad) >= umbral verde
+- N_plan = productos con cantidad programada > 0 en el período
+FORMULA: "N_ok / N_plan productos en target"
+LABEL: Productos en target
+CONFIG: umbral verde = "Cumplimiento bueno (%)" (comparison_pct_green, def 90)
 
 ---
 

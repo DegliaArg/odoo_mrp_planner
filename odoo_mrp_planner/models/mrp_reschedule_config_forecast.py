@@ -87,6 +87,27 @@ class MrpRescheduleConfigForecast(models.Model):
              'Proporcional por duración, en lugar de usar la precisión de la UdM de cada '
              'producto. Es solo presentación del tablero: no modifica OFs ni movimientos.')
 
+    comparison_weight = fields.Selection([
+        ('qty',        'Cantidad (piezas)'),
+        ('sale_price', 'Valor — precio de venta'),
+        ('cost',       'Valor — costo'),
+        ('wc_hours',   'Horas de centro de trabajo'),
+    ], string='Ponderación del cumplimiento', default='cost', required=True,
+       help='Cómo se pondera el KPI global de cumplimiento Producido vs Programado, '
+            'para que sea representativo del mix (no lo domine el producto de mayor volumen '
+            'ni se mezclen unidades de medida):\n'
+            '• Cantidad: suma de piezas. Mezcla unidades de medida distintas: el total es referencial.\n'
+            '• Valor — precio de venta: cantidad × precio de venta del artículo. No tiene sentido sin precio de venta cargado.\n'
+            '• Valor — costo: cantidad × costo (precio estándar). No tiene sentido sin costo cargado.\n'
+            '• Horas de centro de trabajo: cantidad × tiempo estándar por unidad de la ruta de la BoM. '
+            'No tiene sentido sin una BoM con operaciones; los productos sin ruta se excluyen.')
+    comparison_fill_cap = fields.Boolean(
+        string='Cumplimiento con tope al 100% por producto', default=True,
+        help='Si está activo, cada producto aporta al cumplimiento como máximo su cantidad '
+             'programada: la sobreproducción de un producto NO compensa el faltante de otro '
+             '(criterio de fill rate, recomendado para un mix de producción). Si está '
+             'desactivado, la sobreproducción se acredita y el cumplimiento puede superar 100%.')
+
     forecast_rotation_unit = fields.Selection([
         ('days',   'Días'),
         ('months', 'Meses'),

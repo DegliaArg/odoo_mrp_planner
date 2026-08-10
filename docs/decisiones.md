@@ -504,6 +504,35 @@ de inventario. Resultado: **sin defectos accionables**; el detalle:
   interno y sus únicos callers (pipeline de snapshot/tasa) ya vienen acotados por
   compañía — no es explotable.
 
+## Cumplimiento Producido vs Programado — ponderado y configurable (2026-08-10)
+
+Franco planteó que el KPI global del comparativo era poco representativo para un
+mix de producción. Diagnóstico: el número era `Σ producido / Σ programado` sobre
+cantidades crudas → (1) mezclaba unidades de medida, (2) la sobreproducción de un
+producto compensaba el faltante de otro, (3) lo dominaba el producto de mayor
+volumen. Decisión (charlada y acordada): hacerlo **configurable**.
+
+- ✅ **Implementado (v18.0.7.7.0, requiere `-u`):**
+  - Ajustes → Producción, **"Ponderación del cumplimiento"**: Cantidad / Valor–
+    precio de venta / Valor–costo / Horas de CT (peso por unidad; horas = tiempo
+    de la ruta de la BoM). Default **Valor–costo**. Cada opción aclara en el help
+    su requisito de dato.
+  - **"Cumplimiento con tope al 100% por producto"** (fill rate), default **activo**:
+    la sobreproducción de un producto no compensa el faltante de otro.
+  - Fórmula global: `Σ(mín(prod,prog)·w) / Σ(prog·w) × 100` (con tope) — ver
+    `docs/formulas.md` §1.4b.
+  - **Tarjeta nueva "Productos en target"** (§1.4c): conteo mix-justo (cada
+    producto pesa igual) de cuántos llegaron al umbral verde.
+  - Las tarjetas Programado / Producido / Desvío se muestran en la magnitud
+    ponderada ($ u horas); los productos sin el dato (precio/costo/ruta) se
+    excluyen con aviso visible en el panel.
+- **Alcance:** la tabla por producto no se tocó (sigue por cantidad; su % por
+  fila es §1.4). El default cambia el número respecto de la versión anterior
+  (era Cantidad sin tope) — decisión aceptada por Franco.
+- Pendiente de verificación en staging (sin Odoo local): en especial la
+  ponderación por Horas de CT, que es una aproximación (Σ tiempo de operaciones
+  ÷ cantidad de la BoM); confirmar que las BoM de Giacomelli tengan operaciones.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

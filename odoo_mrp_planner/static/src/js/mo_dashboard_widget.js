@@ -105,7 +105,8 @@ class MoDashboardWidget extends Component {
             req_kpis:    { active: 0, calculated: 0, reschedule: 0, mos_delayed: 0, exec_rate: 0, exec_running: 0, exec_total: 0, no_materials: 0 },
             requests:    [],
             // Comparativo
-            cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0, desvio: 0, ofs_in_progress: 0 },
+            cmp_kpis:      { planned: 0, produced: 0, pct: 0, ofs_done: 0, desvio: 0, ofs_in_progress: 0,
+                             weight_mode: 'cost', fill_cap: true, on_target: 0, planned_products: 0, excluded: 0 },
             comparison:    [],
             cmp_total:     0,
             cmp_mode:      'finish_date',
@@ -591,6 +592,40 @@ class MoDashboardWidget extends Component {
         return "";
     }
 
+    /** Etiqueta de la ponderación activa del comparativo (para tooltips). */
+    cmpWeightLabel() {
+        return {
+            qty:        'cantidad (piezas)',
+            sale_price: 'valor a precio de venta',
+            cost:       'valor a costo',
+            wc_hours:   'horas de centro de trabajo',
+        }[this.state.cmp_kpis.weight_mode] || 'cantidad';
+    }
+
+    /** Formatea una magnitud del comparativo con la unidad de la ponderación
+     *  activa: $ para valor, h para horas, sin unidad para cantidad (evita el
+     *  rótulo "Pz" cuando el modo mezcla unidades). */
+    cmpVal(n) {
+        const m = this.state.cmp_kpis.weight_mode;
+        if (m === 'sale_price' || m === 'cost') return '$ ' + this.fmt(n);
+        if (m === 'wc_hours') return this.fmt(n) + ' h';
+        return this.fmt(n);
+    }
+
+    /** Aviso de productos excluidos por falta del dato que la ponderación
+     *  necesita (precio / costo / ruta). '' si no hay ninguno o el modo es
+     *  cantidad. */
+    cmpExcludedNote() {
+        const k = this.state.cmp_kpis;
+        if (!k.excluded || k.weight_mode === 'qty') return '';
+        const falta = {
+            sale_price: 'sin precio de venta',
+            cost:       'sin costo',
+            wc_hours:   'sin BoM con operaciones',
+        }[k.weight_mode] || 'sin dato';
+        return `${k.excluded} producto(s) ${falta}: no aportan al cumplimiento ponderado.`;
+    }
+
     /** Nota breve del criterio activo para anexar a los tooltips del comparativo. */
     _cmpModeNote() {
         if (this.state.cmp_mode === 'proportional')
@@ -684,19 +719,29 @@ class MoDashboardWidget extends Component {
         if (section === 'cmp') {
             const k = this.state.cmp_kpis;
             const f2 = n => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n || 0);
+            const w = this.cmpWeightLabel();
+            const exc = this.cmpExcludedNote();
+            const excLine = exc ? `\n${exc}` : '';
+            const v = n => this.cmpVal(n);
             switch (key) {
                 case 'planned':
-                    return `Suma de product_qty de las OFs en el período seleccionado\n→ ${f2(k.planned)} unidades planificadas`;
+                    return `Programado del período ponderado por ${w}\nSuma de (cantidad planificada × peso) de las OFs del período\n→ ${v(k.planned)} programado${excLine}${this._cmpModeNote()}`;
                 case 'produced':
-                    return `Suma de qty_produced de las OFs con estado Completada (done) en el período\n→ ${f2(k.produced)} u producidas de ${f2(k.planned)} u planificadas`;
-                case 'pct':
+                    return `Producido del período ponderado por ${w}\nSuma de (cantidad producida × peso) de las OFs del período\n→ ${v(k.produced)} producido de ${v(k.planned)} programado${excLine}${this._cmpModeNote()}`;
+                case 'pct': {
+                    const capNote = k.fill_cap
+                        ? '\nCon tope al 100% por producto: la sobreproducción de uno no compensa el faltante de otro.'
+                        : '\nSin tope: la sobreproducción se acredita y el cumplimiento puede superar 100%.';
                     if (k.pct === null)
-                        return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${f2(k.produced)} u producidas, 0 programadas${this._cmpModeNote()}`;
-                    return `Relación entre lo producido y lo programado en el período\nProducido ÷ Programado × 100\n→ ${f2(k.produced)} ÷ ${f2(k.planned)} × 100 = ${k.pct}%\nVerde ≥ ${k.pct_green || 90}% | Amarillo ≥ ${k.pct_warn || 50}% (configurable en Ajustes)${this._cmpModeNote()}`;
+                        return `Se produjo sin cantidad programada en el período (sobreproducción o sin plan)\n→ ${v(k.produced)} producido, 0 programado${capNote}${excLine}${this._cmpModeNote()}`;
+                    return `Cumplimiento global ponderado por ${w}\nProducido ÷ Programado × 100 (ponderados)\n→ ${v(k.produced)} ÷ ${v(k.planned)} × 100 = ${k.pct}%\nVerde ≥ ${k.pct_green || 90}% | Amarillo ≥ ${k.pct_warn || 50}% (configurable en Ajustes)${capNote}${excLine}${this._cmpModeNote()}`;
+                }
+                case 'on_target':
+                    return `Productos planificados que alcanzaron el umbral verde de cumplimiento (mix-justo: cada producto cuenta una vez, sin ponderar)\nProductos con producido ÷ programado ≥ ${k.pct_green || 90}% ÷ productos con plan\n→ ${f(k.on_target)} ÷ ${f(k.planned_products)} productos en target`;
                 case 'ofs_done':
-                    return `OFs con estado Completada (done) cuya fecha de fin cae en el período.\nSe cuenta siempre por fecha de fin, sin importar el criterio de fechas elegido, por eso puede no coincidir con las OFs del comparativo de cantidades.\n→ ${f(k.ofs_done)} OFs completadas`;
+                    return `OFs con estado Completada (done) cuya fecha de fin cae en el período.\nSe cuenta siempre por fecha de fin, sin importar el criterio de fechas elegido, por eso puede no coincidir con las OFs del comparativo.\n→ ${f(k.ofs_done)} OFs completadas`;
                 case 'desvio':
-                    return `Diferencia entre lo programado y lo producido en el período\nProgramado − Producido\n→ ${f2(k.planned)} − ${f2(k.produced)} = ${f2(k.desvio)} unidades`;
+                    return `Diferencia entre lo programado y lo producido, ponderada por ${w}\nProgramado − Producido\n→ ${v(k.planned)} − ${v(k.produced)} = ${v(k.desvio)}${excLine}${this._cmpModeNote()}`;
                 case 'ofs_in_progress':
                     return `OFs con estado En progreso dentro del período seleccionado\nCampo: state = progress\n→ ${f(k.ofs_in_progress)} OFs en curso`;
             }

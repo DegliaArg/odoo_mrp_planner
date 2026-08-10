@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.ProductionAnalysisWidget">
+        <div class="o_production_analysis_widget">
+
+            <!-- ── Pestañas ─────────────────────────────────────────────── -->
+            <ul class="nav nav-tabs mb-3" style="flex-wrap:nowrap; overflow-x:auto;">
+                <t t-foreach="tabs" t-as="tb" t-key="tb.key">
+                    <li class="nav-item">
+                        <button t-att-class="'nav-link' + (state.tab === tb.key ? ' active fw-semibold' : ' text-muted')"
+                                t-on-click="() => this.setTab(tb.key)">
+                            <i t-att-class="'fa me-1 ' + tb.icon"/>
+                            <t t-esc="tb.label"/>
+                        </button>
+                    </li>
+                </t>
+            </ul>
+
+            <!-- ════════════════ PESTAÑA: Carga de CT ════════════════ -->
+            <t t-if="state.tab === 'wc'">
+
+                <!-- Filtros de la vista (rango + sector) -->
+                <div class="d-flex align-items-end gap-3 mb-3 flex-wrap">
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Desde</label>
+                        <input type="date" class="form-control form-control-sm" style="width:150px;"
+                               t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Hasta</label>
+                        <input type="date" class="form-control form-control-sm" style="width:150px;"
+                               t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Sector</label>
+                        <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
+                            <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
+                            <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                                <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
+                            </t>
+                        </select>
+                    </div>
+                </div>
+
+                <div t-if="state.error" class="alert alert-danger py-2 mb-2">
+                    <i class="fa fa-exclamation-triangle me-2"/><t t-esc="state.error"/>
+                </div>
+
+                <!-- Spinner solo en la primera carga -->
+                <div t-if="state.loading and !state.rows.length" class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
+                </div>
+
+                <t t-if="!state.error and (state.rows.length or !state.loading)">
+                    <div t-att-class="state.loading ? 'opacity-50 pe-none' : ''">
+
+                        <!-- Evolución mensual de la carga % -->
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-line-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución de la carga (%)</span>
+                        </div>
+                        <div style="height:220px;" class="mb-4">
+                            <canvas t-ref="wcTrend"/>
+                        </div>
+
+                        <!-- KPIs (describen las filas visibles) -->
+                        <div class="d-flex gap-2 mb-3">
+                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                     title="Horas disponibles de los centros visibles según su calendario laboral.">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" t-esc="fmt(tableKpis.disponible)"/>
+                                        <div class="o_planner_label">Disponible (h)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                     title="Horas planificadas (duración esperada de las OT del período).">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" t-esc="fmt(tableKpis.planificado)"/>
+                                        <div class="o_planner_label">Planificado (h)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                     title="Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).">
+                                    <div class="card-body text-center py-2">
+                                        <div t-att-class="'o_planner_number ' + cargaClass(tableKpis.carga_pct)"
+                                             t-esc="fmtPct(tableKpis.carga_pct)"/>
+                                        <div class="o_planner_label">Carga %</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                     title="Horas planificadas aún no ejecutadas de las OT abiertas.">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" t-esc="fmt(tableKpis.pendiente)"/>
+                                        <div class="o_planner_label">Pendiente (h)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                     title="Horas ejecutadas que superaron (o no tenían) plan.">
+                                    <div class="card-body text-center py-2">
+                                        <div class="o_planner_number" t-esc="fmt(tableKpis.no_planificado)"/>
+                                        <div class="o_planner_label">No planificado (h)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Barra de búsqueda (búsqueda + agrupar por sector + filtro numérico) -->
+                        <div class="mb-2">
+                            <PlannerSearchBar
+                                widgetKey="'production_analysis_wc'"
+                                placeholder="'Buscar centro de trabajo…'"
+                                t-props="{
+                                    search:         state.search,
+                                    activeGroupBy:  state.groupBy,
+                                    groupByDefs: [ { key: 'tag', label: 'Sector' } ],
+                                    onSearch:        (t) => this.setSearch(t),
+                                    onGroupByChange: (k) => this.setGroupBy(k),
+                                    numericFields:     numColOptions,
+                                    numFilters:        state.numFilters,
+                                    onNumFilterAdd:    (c) => this.addNumFilter(c),
+                                    onNumFilterRemove: (i) => this.removeNumFilter(i)
+                                }"/>
+                        </div>
+
+                        <!-- Pestañas de agrupamiento por sector -->
+                        <t t-if="state.groupBy === 'tag' and allGroupsForTabs">
+                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                                <t t-foreach="allGroupsForTabs" t-as="g" t-key="'gt_' + g.key">
+                                    <li class="nav-item">
+                                        <button t-att-class="'nav-link px-3 py-1 ' + (activeGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
+                                                style="font-size:12px; white-space:nowrap;"
+                                                t-on-click="() => this.setGroup(g.key)">
+                                            <t t-esc="g.label"/>
+                                            <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                        </button>
+                                    </li>
+                                </t>
+                            </ul>
+                        </t>
+
+                        <!-- Tabla por CT -->
+                        <div class="table-responsive" style="max-height:60vh; overflow:auto;">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-light" style="position:sticky; top:0; z-index:3;">
+                                    <tr>
+                                        <t t-foreach="tableCols" t-as="col" t-key="col.key">
+                                            <th t-att-class="(col.align === 'end' ? 'text-end ' : '') + 'user-select-none'"
+                                                style="cursor:pointer; white-space:nowrap;"
+                                                t-on-click="() => this.setSort(col.key)">
+                                                <t t-esc="col.label"/>
+                                                <i t-att-class="sortIcon(col.key)"/>
+                                            </th>
+                                        </t>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="pagedRows" t-as="row" t-key="row.wc_id">
+                                        <t t-foreach="tableCols" t-as="col" t-key="col.key">
+                                            <td t-att-class="col.align === 'end' ? 'text-end' : ''">
+                                                <t t-if="col.key === 'name'">
+                                                    <a href="#" t-on-click.prevent="() => this.openWc(row)"
+                                                       t-esc="row.name"/>
+                                                    <button class="btn btn-sm btn-link py-0 px-1 ms-1"
+                                                            title="Ver órdenes de trabajo del centro"
+                                                            t-on-click.stop="() => this.openWcOrders(row)">OTs →</button>
+                                                </t>
+                                                <t t-elif="col.key === 'carga_pct'">
+                                                    <span t-att-class="cargaClass(row.carga_pct)" t-esc="fmtPct(row.carga_pct)"/>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-esc="cellValue(row, col.key)"/>
+                                                </t>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <tr t-if="!pagedRows.length">
+                                        <td t-att-colspan="tableCols.length" class="text-center text-muted py-3">
+                                            Sin centros de trabajo con actividad en el período/filtros.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginación -->
+                        <div t-if="totalPages > 1" class="d-flex align-items-center justify-content-between px-2 py-1 border-top">
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                                <i class="fa fa-chevron-left"/>
+                            </button>
+                            <small class="text-muted">Pág. <t t-esc="state.page"/> / <t t-esc="totalPages"/> · <t t-esc="sortedRows.length"/> centro(s)</small>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                                <i class="fa fa-chevron-right"/>
+                            </button>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+
+            <!-- ════════════════ Pestañas en construcción ════════════════ -->
+            <t t-if="state.tab !== 'wc'">
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-wrench fa-2x mb-2 d-block opacity-50"/>
+                    <div>Esta sección está en construcción.</div>
+                    <div class="small">Próximamente: OFs, Producido vs Programado, Eficiencia y Evolución.</div>
+                </div>
+            </t>
+
+        </div>
+    </t>
+
+</templates>

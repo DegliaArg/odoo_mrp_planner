@@ -18,6 +18,7 @@ from . import mrp_production
 from . import mrp_planner_dashboard_actions_mixin
 from . import mrp_planner_dashboard
 from . import mrp_planner_dashboard_wc
+from . import mrp_planner_dashboard_scrap
 from . import mrp_planner_dashboard_po
 from . import mrp_planner_dashboard_mo
 from . import mrp_forecast_calc_mixin

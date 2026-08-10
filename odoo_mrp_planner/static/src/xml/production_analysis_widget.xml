@@ -182,8 +182,159 @@
                 </t>
             </t>
 
+            <!-- ════════════════ PESTAÑA: Scrap ════════════════ -->
+            <t t-if="state.tab === 'scrap'">
+
+                <!-- Filtros de la vista (rango; comparte fechas con Carga de CT) -->
+                <div class="d-flex align-items-end gap-3 mb-3 flex-wrap">
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Desde</label>
+                        <input type="date" class="form-control form-control-sm" style="width:150px;"
+                               t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Hasta</label>
+                        <input type="date" class="form-control form-control-sm" style="width:150px;"
+                               t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                    </div>
+                </div>
+
+                <div t-if="state.scrapError" class="alert alert-danger py-2 mb-2">
+                    <i class="fa fa-exclamation-triangle me-2"/><t t-esc="state.scrapError"/>
+                </div>
+
+                <div t-if="state.scrapLoading and !state.scrapRows.length" class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
+                </div>
+
+                <t t-if="!state.scrapError and (state.scrapRows.length or (state.scrapLoaded and !state.scrapLoading))">
+                    <div t-att-class="state.scrapLoading ? 'opacity-50 pe-none' : ''">
+
+                        <!-- Evolución mensual de la cantidad desechada -->
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bar-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución del scrap (cantidad)</span>
+                        </div>
+                        <div style="height:220px;" class="mb-4">
+                            <canvas t-ref="scrapTrend"/>
+                        </div>
+
+                        <!-- KPIs (describen las filas visibles) -->
+                        <div class="d-flex gap-2 mb-3">
+                            <t t-foreach="scrapKpiCards" t-as="card" t-key="card.key">
+                                <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                         t-att-title="scrapKpiTooltip(card.key)">
+                                        <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
+                                            <div t-att-class="'o_planner_number ' + card.cls" t-esc="card.value"/>
+                                            <div class="o_planner_label" t-esc="card.label"/>
+                                        </div>
+                                        <div class="card-footer p-0">
+                                            <button class="btn btn-sm btn-link w-100 py-1"
+                                                    t-on-click="openScrapAll">Ver →</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+
+                        <!-- Barra de búsqueda (búsqueda + agrupar por categoría + filtro numérico) -->
+                        <div class="mb-2">
+                            <PlannerSearchBar
+                                widgetKey="'production_analysis_scrap'"
+                                placeholder="'Buscar producto, categoría o centro…'"
+                                t-props="{
+                                    search:         state.scrapSearch,
+                                    activeGroupBy:  state.scrapGroupBy,
+                                    groupByDefs: [ { key: 'category', label: 'Categoría' } ],
+                                    onSearch:        (t) => this.setScrapSearch(t),
+                                    onGroupByChange: (k) => this.setScrapGroupBy(k),
+                                    numericFields:     scrapNumColOptions,
+                                    numFilters:        state.scrapNumFilters,
+                                    onNumFilterAdd:    (c) => this.addScrapNumFilter(c),
+                                    onNumFilterRemove: (i) => this.removeScrapNumFilter(i)
+                                }"/>
+                        </div>
+
+                        <!-- Pestañas de agrupamiento por categoría -->
+                        <t t-if="state.scrapGroupBy === 'category' and scrapAllGroupsForTabs">
+                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                                <t t-foreach="scrapAllGroupsForTabs" t-as="g" t-key="'sgt_' + g.key">
+                                    <li class="nav-item">
+                                        <button t-att-class="'nav-link px-3 py-1 ' + (scrapActiveGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
+                                                style="font-size:12px; white-space:nowrap;"
+                                                t-on-click="() => this.setScrapGroup(g.key)">
+                                            <t t-esc="g.label"/>
+                                            <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                        </button>
+                                    </li>
+                                </t>
+                            </ul>
+                        </t>
+
+                        <!-- Tabla por producto -->
+                        <div class="table-responsive" style="max-height:60vh; overflow:auto;">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-light" style="position:sticky; top:0; z-index:3;">
+                                    <tr>
+                                        <t t-foreach="scrapCols" t-as="col" t-key="col.key">
+                                            <th t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + 'user-select-none'"
+                                                style="cursor:pointer; white-space:nowrap;"
+                                                t-att-title="scrapColTitle(col)"
+                                                t-on-click="() => this.setScrapSort(col.key)">
+                                                <t t-esc="col.label"/>
+                                                <i t-att-class="scrapSortIcon(col.key)"/>
+                                            </th>
+                                        </t>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="scrapPagedRows" t-as="row" t-key="row.product_id">
+                                        <t t-foreach="scrapCols" t-as="col" t-key="col.key">
+                                            <td t-att-class="col.align === 'center' ? 'text-center' : (col.align === 'end' ? 'text-end' : '')">
+                                                <t t-if="col.key === 'name'">
+                                                    <span t-esc="row.name"/>
+                                                    <button class="btn btn-sm btn-link py-0 px-1 ms-1"
+                                                            title="Ver operaciones de desecho del producto"
+                                                            t-on-click.stop="() => this.openProductScraps(row)">
+                                                        <i class="fa fa-external-link"/>
+                                                    </button>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-esc="scrapCellValue(row, col.key)"/>
+                                                </t>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <tr t-if="!scrapPagedRows.length">
+                                        <td t-att-colspan="scrapCols.length" class="text-center text-muted py-3">
+                                            Sin desechos en el período/filtros.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginación -->
+                        <div t-if="scrapTotalPages > 1" class="d-flex align-items-center justify-content-between px-2 py-1 border-top">
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    t-att-disabled="!scrapHasPrevPage" t-on-click="scrapPrevPage">
+                                <i class="fa fa-chevron-left"/>
+                            </button>
+                            <small class="text-muted">Pág. <t t-esc="state.scrapPage"/> / <t t-esc="scrapTotalPages"/> · <t t-esc="scrapSortedRows.length"/> producto(s)</small>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                    t-att-disabled="!scrapHasNextPage" t-on-click="scrapNextPage">
+                                <i class="fa fa-chevron-right"/>
+                            </button>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+
             <!-- ════════════════ Pestañas en construcción ════════════════ -->
-            <t t-if="state.tab !== 'wc'">
+            <t t-if="state.tab !== 'wc' and state.tab !== 'scrap'">
                 <div class="text-center text-muted py-5">
                     <i class="fa fa-wrench fa-2x mb-2 d-block opacity-50"/>
                     <div>Esta sección está en construcción.</div>

@@ -426,6 +426,32 @@ el KPI ni con Con stock + Sin stock de la misma lista.
   por el corte de antigüedad de Ajustes; el filtro nativo sobre `stock.move` no tiene
   esas restricciones, por eso da mayor. Sin cambio de código.
 
+## Criterio Con/Sin stock configurable por estado del movimiento (2026-08-10)
+
+Franco observó que el criterio "por cadena" marcaba casi todo como "con stock"
+(un subcontratista "en espera de otra operación" figuraba con stock porque un
+eslabón anterior tenía reserva), y que operaciones internas presentes en el
+Análisis de movimientos nativo no aparecían en la lista del panel.
+
+- ✅ **Decisión (v18.0.7.3.0, requiere `-u`):** el panel deja de usar la
+  disponibilidad por cadena y clasifica Con/Sin stock por **estado del
+  stock.move**, configurable en Ajustes → Inventario. "Con stock" suma solo la
+  **cantidad reservada** del movimiento (parcialmente disponible: solo esa
+  parte), así Demanda = Con stock + Sin stock cierra.
+  - 4 estados editables (Con/Sin stock), defaults acordados con Franco:
+    Disponible = con, Parcialmente disponible = con, En espera de
+    disponibilidad = sin, En espera de otro movimiento = sin.
+  - Draft/Cancel no cuentan; Done va a Validados (fijos, descritos en Ajustes).
+- ✅ **Cierra el #2:** al filtrar filas por estado del movimiento (como el
+  nativo) en vez de por estado del remito, las operaciones internas que
+  faltaban entran a la lista. Se eliminó el override de recepciones (una
+  recepción "Lista" reservó su cantidad → con stock, por el mismo criterio).
+- **No se tocó** la Tasa de entrega s/ disponible (snapshots/consolidado):
+  conserva su definición por cadena, es una métrica histórica aparte.
+- Pendiente de verificación en staging (no había Odoo local): que los números
+  del panel cierren con el nativo filtrando por los mismos estados, y el
+  comportamiento de las recepciones "Listas".
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

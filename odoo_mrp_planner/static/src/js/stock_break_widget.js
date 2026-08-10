@@ -21,7 +21,7 @@ import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { saleCatBadge } from "./forecast_formatters";
 import { restoreFilters, saveFilters } from "./filter_persistence";
-import { buildGroupTabs, pageSlice, makePager } from "./planner_table";
+import { buildGroupTabs, pageSlice, makePager, applyNumericFilters } from "./planner_table";
 import { makeSelection } from "./planner_selection";
 import { makeMultiFilter } from "./planner_multiselect";
 import { downloadCsv } from "./planner_export";
@@ -36,20 +36,14 @@ const STOCK_PERSIST_KEYS = [
 
 // Columnas numéricas filtrables (operador + valor/columna). 'rotation' usa la
 // unidad activa (días/meses); el resto lee su campo directo.
+// Columnas numéricas filtrables (se pasan a la barra como numericFields).
+// 'rotation' usa la unidad activa (días/meses); el resto lee su campo directo.
 const NUM_COLS = [
     { key: 'qty',          label: 'Stock actual' },
     { key: 'min_qty',      label: 'Mínimo' },
     { key: 'qty_forecast', label: 'Pronóstico' },
     { key: 'bom_lead',     label: 'Plazo fab. (días)' },
     { key: 'rotation',     label: 'Rotación' },
-];
-const NUM_OPS = [
-    { op: '>',  label: '>' },
-    { op: '>=', label: '≥' },
-    { op: '<',  label: '<' },
-    { op: '<=', label: '≤' },
-    { op: '=',  label: '=' },
-    { op: '!=', label: '≠' },
 ];
 
 const STOCK_COLS = [
@@ -119,14 +113,12 @@ class StockBreakWidget extends Component {
             mosByProduct:     {},
             mosLoading:       {},
             selected:         {},
-            // Filtros numéricos por columna (operador + valor o columna); AND entre sí
+            // Filtros numéricos por columna (operador + valor o columna); AND entre sí.
+            // El armador y los chips viven en la barra de búsqueda compartida.
             numFilters:       [],
-            numOpen:          false,
-            numDraft:         { col: 'qty', op: '<', mode: 'value', value: null, col2: 'min_qty' },
         });
         this.colsStock = useColManager('stock_break', STOCK_COLS);
         this.numColOptions = NUM_COLS;
-        this.numOps = NUM_OPS;
 
         // Restaurar filtros de la última visita (por empresa). Se guarda en cada
         // _applyClientSort(), el punto único por el que pasa todo cambio de filtro.
@@ -139,7 +131,6 @@ class StockBreakWidget extends Component {
         this._closeLocDropdown = () => {
             this.state.locDropdownOpen = false;
             this.state.locSearch = "";
-            this.state.numOpen = false;
         };
 
         // ── Mecánica compartida de los paneles (planner_*): dropdown de
@@ -246,35 +237,13 @@ class StockBreakWidget extends Component {
         return (v === null || v === undefined) ? null : v;
     }
 
-    /** Compara a (op) b con tolerancia para igualdad/desigualdad. */
-    _numCompare(a, op, b) {
-        switch (op) {
-            case '>':  return a >  b;
-            case '>=': return a >= b;
-            case '<':  return a <  b;
-            case '<=': return a <= b;
-            case '=':  return Math.abs(a - b) < 1e-6;
-            case '!=': return Math.abs(a - b) >= 1e-6;
-        }
-        return true;
-    }
-
     /** Filtros comunes a la tabla y a las pestañas de agrupación: búsqueda de
      *  texto + condiciones numéricas (AND). Así todo compone: si hay agrupación
      *  y filtros, las pestañas y los KPIs se calculan sobre este conjunto. */
     _applyCommonFilters(rows) {
         const q = (this.state.search || '').trim().toLowerCase();
         if (q) rows = rows.filter(r => (r.name || '').toLowerCase().includes(q));
-        for (const c of this.state.numFilters) {
-            rows = rows.filter(r => {
-                const a = this._numVal(r, c.col);
-                if (a === null) return false;
-                const b = c.mode === 'col' ? this._numVal(r, c.col2) : c.value;
-                if (b === null || b === undefined) return false;
-                return this._numCompare(a, c.op, b);
-            });
-        }
-        return rows;
+        return applyNumericFilters(rows, this.state.numFilters, (r, k) => this._numVal(r, k));
     }
 
     _filteredSortedRows(skipTypeFilter = false) {
@@ -540,28 +509,11 @@ class StockBreakWidget extends Component {
     /** Etiqueta del botón del dropdown de ubicaciones (convención compartida). */
     get selectedLocLabel() { return this.locFilter.label; }
 
-    // ── Filtros numéricos por columna (operador + valor/columna) ──────────────
+    // ── Filtros numéricos por columna (callbacks de la barra de búsqueda) ─────
 
-    toggleNumDropdown(ev) {
-        ev.stopPropagation();
-        const open = !this.state.numOpen;
-        this.state.locDropdownOpen = false;
-        this.state.numOpen = open;
-    }
-    setNumMode(mode) { this.state.numDraft.mode = mode; }
-
-    /** Agrega la condición en construcción a la lista (AND). Ignora si falta el
-     *  valor (modo valor) o si compara una columna consigo misma. */
-    addNumFilter() {
-        const d = this.state.numDraft;
-        if (d.mode === 'value' && (d.value === null || d.value === undefined || d.value === '' || Number.isNaN(Number(d.value)))) return;
-        if (d.mode === 'col' && d.col2 === d.col) return;
-        this.state.numFilters = [...this.state.numFilters, {
-            col: d.col, op: d.op, mode: d.mode,
-            value: d.mode === 'value' ? Number(d.value) : null,
-            col2: d.mode === 'col' ? d.col2 : null,
-        }];
-        this.state.numDraft = { ...d, value: null };  // listo para agregar otra
+    /** Agrega una condición (la construye la barra). */
+    addNumFilter(cond) {
+        this.state.numFilters = [...this.state.numFilters, cond];
         this.state.page = 1;
         this._applyClientSort();
     }
@@ -569,21 +521,6 @@ class StockBreakWidget extends Component {
         this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
         this.state.page = 1;
         this._applyClientSort();
-    }
-    clearNumFilters() {
-        if (!this.state.numFilters.length) return;
-        this.state.numFilters = [];
-        this.state.page = 1;
-        this._applyClientSort();
-    }
-    _numColLabel(key) { return (NUM_COLS.find(c => c.key === key) || {}).label || key; }
-    _numOpLabel(op)   { return (NUM_OPS.find(o => o.op === op) || {}).label || op; }
-
-    /** Etiqueta legible de una condición para el chip: "Stock actual < 10" o
-     *  "Stock actual < Mínimo". */
-    numFilterLabel(c) {
-        const right = c.mode === 'col' ? this._numColLabel(c.col2) : this.fmt(c.value);
-        return `${this._numColLabel(c.col)} ${this._numOpLabel(c.op)} ${right}`;
     }
 
     /**

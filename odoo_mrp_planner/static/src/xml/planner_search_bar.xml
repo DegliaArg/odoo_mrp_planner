@@ -63,6 +63,39 @@
                     </t>
                 </t>
 
+                <!-- ── Filtro numérico ──────────────────────────────────────── -->
+                <t t-if="props.numericFields and props.numericFields.length">
+                    <div t-if="(props.filterDefs and props.filterDefs.length) or (props.groupByDefs and props.groupByDefs.length)"
+                         class="dropdown-divider my-1"/>
+                    <div class="o_planner_search_section_header">Filtro numérico</div>
+                    <div class="px-2 py-1 d-flex flex-column gap-2" t-on-click.stop="">
+                        <select class="form-select form-select-sm" t-model="localState.numDraft.col">
+                            <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                        </select>
+                        <select class="form-select form-select-sm" t-model="localState.numDraft.op">
+                            <option t-foreach="numOps" t-as="o" t-key="o.op" t-att-value="o.op" t-esc="o.label"/>
+                        </select>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button"
+                                    t-att-class="'btn btn-outline-secondary' + (localState.numDraft.mode === 'value' ? ' active' : '')"
+                                    t-on-click.stop="() => this.setNumMode('value')">Valor</button>
+                            <button type="button"
+                                    t-att-class="'btn btn-outline-secondary' + (localState.numDraft.mode === 'col' ? ' active' : '')"
+                                    t-on-click.stop="() => this.setNumMode('col')">Columna</button>
+                        </div>
+                        <input t-if="localState.numDraft.mode === 'value'" type="number"
+                               class="form-control form-control-sm" placeholder="Valor…"
+                               t-model.number="localState.numDraft.value" autocomplete="off"/>
+                        <select t-if="localState.numDraft.mode === 'col'" class="form-select form-select-sm"
+                                t-model="localState.numDraft.col2">
+                            <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                        </select>
+                        <button class="btn btn-sm btn-primary" type="button" t-on-click.stop="addNumFilter">
+                            <i class="fa fa-plus me-1"/>Agregar filtro
+                        </button>
+                    </div>
+                </t>
+
                 <!-- ── Favoritos ────────────────────────────────────────────── -->
                 <t t-if="props.showFavorites">
                     <div class="dropdown-divider my-1"/>

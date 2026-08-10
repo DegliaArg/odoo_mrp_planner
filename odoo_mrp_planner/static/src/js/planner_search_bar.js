@@ -18,6 +18,7 @@
  */
 
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
+import { NUM_OPS } from "./planner_table";
 
 export class PlannerSearchBar extends Component {
     static template = "odoo_mrp_planner.PlannerSearchBar";
@@ -33,14 +34,23 @@ export class PlannerSearchBar extends Component {
         onFilterChange: { type: Function, optional: true },
         onGroupByChange:{ type: Function, optional: true },
         showFavorites:  { type: Boolean, optional: true },
+        // Filtro numérico por columna (opcional; si no hay numericFields no se muestra)
+        numericFields:    { type: Array, optional: true },   // [{key, label}]
+        numFilters:       { type: Array, optional: true },   // [{col, op, mode, value, col2}]
+        onNumFilterAdd:   { type: Function, optional: true }, // (condición) => void
+        onNumFilterRemove:{ type: Function, optional: true }, // (índice) => void
         "*":            true,
     };
 
     setup() {
+        this.numOps = NUM_OPS;
+        const nf = this.props.numericFields || [];
         this.localState = useState({
             open:        false,
             favoriteName:'',
             favorites:   this._loadFavs(),
+            numDraft:    { col: nf[0] ? nf[0].key : '', op: '<', mode: 'value',
+                           value: null, col2: (nf[1] || nf[0] || {}).key || '' },
         });
 
         this._closeDropdown = () => { this.localState.open = false; };
@@ -87,6 +97,10 @@ export class PlannerSearchBar extends Component {
             const def = (this.props.groupByDefs || []).find(g => g.key === ag);
             if (def) chips.push({ type: 'groupBy', key: ag, prefix: 'Agrupar', label: def.label });
         }
+        (this.props.numFilters || []).forEach((c, i) => {
+            chips.push({ type: 'num', key: 'num_' + i, index: i,
+                         prefix: 'Filtro', label: this.numFilterLabel(c) });
+        });
         return chips;
     }
 
@@ -94,16 +108,54 @@ export class PlannerSearchBar extends Component {
         if (chip.type === 'search')   this.props.onSearch('');
         if (chip.type === 'filter'   && this.props.onFilterChange)  this.props.onFilterChange(null);
         if (chip.type === 'groupBy'  && this.props.onGroupByChange) this.props.onGroupByChange(null);
+        if (chip.type === 'num'      && this.props.onNumFilterRemove) this.props.onNumFilterRemove(chip.index);
     }
 
     clearAll() {
         this.props.onSearch('');
         this.props.onFilterChange  && this.props.onFilterChange(null);
         this.props.onGroupByChange && this.props.onGroupByChange(null);
+        if (this.props.onNumFilterRemove) {
+            // Quitar de atrás para adelante para que los índices no se corran
+            for (let i = (this.props.numFilters || []).length - 1; i >= 0; i--) {
+                this.props.onNumFilterRemove(i);
+            }
+        }
     }
 
     get hasActiveState() {
-        return !!(this.props.search || this.props.activeFilter || this.props.activeGroupBy);
+        return !!(this.props.search || this.props.activeFilter || this.props.activeGroupBy
+                  || (this.props.numFilters || []).length);
+    }
+
+    // ── Filtro numérico ────────────────────────────────────────────────────────
+
+    _numColLabel(key) {
+        return ((this.props.numericFields || []).find(c => c.key === key) || {}).label || key;
+    }
+    _numOpLabel(op) { return (NUM_OPS.find(o => o.op === op) || {}).label || op; }
+
+    /** Etiqueta de una condición: "Stock actual < 10" o "Stock actual < Mínimo". */
+    numFilterLabel(c) {
+        const right = c.mode === 'col'
+            ? this._numColLabel(c.col2)
+            : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(c.value || 0);
+        return `${this._numColLabel(c.col)} ${this._numOpLabel(c.op)} ${right}`;
+    }
+
+    setNumMode(mode) { this.localState.numDraft.mode = mode; }
+
+    addNumFilter() {
+        const d = this.localState.numDraft;
+        if (!this.props.onNumFilterAdd) return;
+        if (d.mode === 'value' && (d.value === null || d.value === undefined || d.value === '' || Number.isNaN(Number(d.value)))) return;
+        if (d.mode === 'col' && d.col2 === d.col) return;
+        this.props.onNumFilterAdd({
+            col: d.col, op: d.op, mode: d.mode,
+            value: d.mode === 'value' ? Number(d.value) : null,
+            col2: d.mode === 'col' ? d.col2 : null,
+        });
+        this.localState.numDraft = { ...d, value: null };  // listo para agregar otra
     }
 
     // ── Filtros / Agrupar ─────────────────────────────────────────────────────

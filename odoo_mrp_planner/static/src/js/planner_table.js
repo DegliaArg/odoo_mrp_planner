@@ -67,6 +67,50 @@ export function resolveActiveGroup(groups, selectedKey) {
     return groups && groups.length ? groups[0].key : null;
 }
 
+/** Operadores del filtro numérico y su símbolo (compartido con la barra). */
+export const NUM_OPS = [
+    { op: ">",  label: ">" },
+    { op: ">=", label: "≥" },
+    { op: "<",  label: "<" },
+    { op: "<=", label: "≤" },
+    { op: "=",  label: "=" },
+    { op: "!=", label: "≠" },
+];
+
+/** Compara a (op) b; igualdad/desigualdad con tolerancia para floats. */
+export function numCompare(a, op, b) {
+    switch (op) {
+        case ">":  return a >  b;
+        case ">=": return a >= b;
+        case "<":  return a <  b;
+        case "<=": return a <= b;
+        case "=":  return Math.abs(a - b) < 1e-6;
+        case "!=": return Math.abs(a - b) >= 1e-6;
+    }
+    return true;
+}
+
+/**
+ * Aplica una lista de condiciones numéricas (AND) a las filas. Cada condición
+ * es {col, op, mode, value, col2}: compara col contra un valor fijo
+ * (mode 'value') o contra otra columna (mode 'col'). Las filas sin dato en la
+ * columna comparada no matchean.
+ * @param {Array} rows
+ * @param {Array} numFilters
+ * @param {Function} getVal - (row, colKey) => number|null — extractor del widget
+ * @returns {Array}
+ */
+export function applyNumericFilters(rows, numFilters, getVal) {
+    if (!numFilters || !numFilters.length) return rows;
+    return rows.filter((r) => numFilters.every((c) => {
+        const a = getVal(r, c.col);
+        if (a === null || a === undefined) return false;
+        const b = c.mode === "col" ? getVal(r, c.col2) : c.value;
+        if (b === null || b === undefined) return false;
+        return numCompare(a, c.op, b);
+    }));
+}
+
 /**
  * Página actual de un conjunto ya filtrado y ordenado.
  * @param {Array} rows

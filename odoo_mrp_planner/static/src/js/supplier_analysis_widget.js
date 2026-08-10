@@ -23,6 +23,17 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useColManager } from "./column_manager";
 import { PlannerSearchBar } from "./planner_search_bar";
+import { applyNumericFilters } from "./planner_table";
+
+// Columnas numéricas filtrables (se pasan a la barra como numericFields).
+const SUP_NUM_COLS = [
+    { key: 'total_amount',      label: 'Monto' },
+    { key: 'on_time_pct',       label: '% A tiempo' },
+    { key: 'avg_delay_days',    label: 'Retraso (d)' },
+    { key: 'complete_pct',      label: '% Completas' },
+    { key: 'avg_lead_time',     label: 'Lead time (d)' },
+    { key: 'avg_price_var_pct', label: 'Var. precio' },
+];
 
 const SUP_COLS = [
     { key: 'partner_name',     label: 'Proveedor',     width: 160, sortKey: 'partner_name',     title: 'Nombre del proveedor.' },
@@ -86,6 +97,7 @@ class SupplierAnalysisWidget extends Component {
             colsVisible:        {},
             sortCol:            'total_amount',
             sortDir:            'desc',
+            numFilters:         [],
             page:               1,
             pageSize:           20,
             data:               null,
@@ -95,6 +107,7 @@ class SupplierAnalysisWidget extends Component {
         });
 
         this.colsSup = useColManager('supplier_analysis', SUP_COLS);
+        this.numColOptions = SUP_NUM_COLS;
 
         this._loadDebounceTimer = null;
         this._loadDebounced = () => {
@@ -274,10 +287,34 @@ class SupplierAnalysisWidget extends Component {
         this.state.page = 1;
     }
 
+    /** Valor numérico de una columna filtrable (null si no hay dato). */
+    _numVal(row, key) {
+        const v = row[key];
+        return (v === null || v === undefined) ? null : v;
+    }
+
+    /** Filas del período con los filtros numéricos aplicados. Base de la tabla
+     *  y de las pestañas, para que todo componga. */
+    get _numRows() {
+        if (!this.state.data) return [];
+        return applyNumericFilters(this.state.data.rows, this.state.numFilters,
+                                   (r, k) => this._numVal(r, k));
+    }
+
+    // Callbacks del filtro numérico de la barra de búsqueda
+    addNumFilter(cond) {
+        this.state.numFilters = [...this.state.numFilters, cond];
+        this.state.page = 1;
+    }
+    removeNumFilter(idx) {
+        this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
+        this.state.page = 1;
+    }
+
     get allGroupsForTabs() {
         if (!this.state.groupBy || !this.state.data) return null;
         const counts = new Map();
-        for (const row of this.state.data.rows) {
+        for (const row of this._numRows) {
             const key = row.supplier_cat || '';
             counts.set(key, (counts.get(key) || 0) + 1);
         }
@@ -386,7 +423,7 @@ class SupplierAnalysisWidget extends Component {
      */
     get sortedRows() {
         if (!this.state.data) return [];
-        let rows = [...this.state.data.rows];
+        let rows = [...this._numRows];
         // Filtro client-side por nombre
         if (this.state.search) {
             const q = this.state.search.toLowerCase();

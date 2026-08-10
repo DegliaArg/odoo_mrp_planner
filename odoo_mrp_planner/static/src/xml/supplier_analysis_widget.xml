@@ -146,6 +146,10 @@
                         onSearch:        (t) => this.setSearch(t),
                         onFilterChange:  (k) => this.setActiveFilter(k),
                         onGroupByChange: (k) => this.onGroupByChange(k),
+                        numericFields:     numColOptions,
+                        numFilters:        state.numFilters,
+                        onNumFilterAdd:    (c) => this.addNumFilter(c),
+                        onNumFilterRemove: (i) => this.removeNumFilter(i),
                     }"/>
 
                 <!-- Tipo dropdown (Bienes / Servicios) -->

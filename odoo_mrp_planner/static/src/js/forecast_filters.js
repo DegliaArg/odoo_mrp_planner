@@ -7,6 +7,8 @@
  * para evitar indirección innecesaria.
  */
 
+import { applyNumericFilters } from "./planner_table";
+
 export function baseFilteredRows(widget) {
     if (!widget.state.data || !widget.state.data.rows) return [];
     let rows = widget.state.data.rows;
@@ -16,7 +18,8 @@ export function baseFilteredRows(widget) {
     if (f === 'with_mos') rows = rows.filter(r => r.total_mos > 0);
     if (f === 'no_mos')   rows = rows.filter(r => r.total_mos === 0);
     if (f === 'gap')      rows = rows.filter(r => r.total_forecast > 0 && r.total_mos < r.total_forecast);
-    return rows;
+    // Filtros numéricos de la barra (grupos); componen con búsqueda, pestañas y KPIs
+    return applyNumericFilters(rows, widget.state.numFilters, (r, k) => widget._numVal(r, k));
 }
 
 export function filteredRowsAll(widget) {

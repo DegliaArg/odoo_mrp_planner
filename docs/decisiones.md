@@ -569,11 +569,14 @@ reutilizable. Helper compartido `applyNumericFilters` en `planner_table.js`.
   grupos (dentro: Y/O según match; entre grupos: Y) y es retrocompatible con las
   condiciones sueltas persistidas. No se hizo el desplegable en 3 columnas
   (cosmético, descartado por Franco).
-- ⏳ **Pendiente: Forecast y Proveedores.** Forecast tiene su filtrado en un
-  módulo aparte (`forecast_filters.js`) y Proveedores filtra la búsqueda en el
-  servidor: hay que verificar su modelo de carga/paginación antes de cablear el
-  filtro client-side (si paginaran en servidor, filtraría solo la página). Se
-  hacen después de confirmar en staging las tres ya integradas.
+- ✅ **Forecast y Proveedores (2026-08-10, cont.):** verificado que ambos cargan
+  el dataset completo client-side (Forecast pagina en el cliente; Proveedores
+  filtra el texto en el servidor pero devuelve todas las filas y pagina en el
+  cliente), así que el filtro numérico client-side es correcto. Forecast:
+  columnas Forecast/OFs/Entregado/Demanda/Stock/Rotación/Cobertura/P. venta,
+  hook en `forecast_filters.baseFilteredRows`. Proveedores: Monto/% A tiempo/
+  Retraso/% Completas/Lead time/Var. precio, hook en un getter base usado por
+  la tabla y las pestañas (no persiste, como el resto del panel).
 - ❌ Fuera: OCs y OFs (paginan en servidor y no usan la barra; requerirían
   dominio server-side).
 

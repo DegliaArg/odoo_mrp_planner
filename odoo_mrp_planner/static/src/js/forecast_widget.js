@@ -57,7 +57,20 @@ import { downloadForecastExcel } from "./forecast_export";
 const FC_PERSIST_KEYS = [
     "periodFrom", "periodTo", "warehouseIds", "productSearch",
     "activeFilter", "groupBy", "selectedGroup", "visibleCols",
-    "sortCol", "sortDir",
+    "sortCol", "sortDir", "numFilters",
+];
+
+// Columnas numéricas filtrables (se pasan a la barra como numericFields).
+// 'rotation'/'coverage' usan la unidad activa del dataset (días/meses).
+const FC_NUM_COLS = [
+    { key: 'total_forecast',  label: 'Forecast' },
+    { key: 'total_mos',       label: 'OFs' },
+    { key: 'total_delivered', label: 'Entregado' },
+    { key: 'total_so_demand', label: 'Demanda' },
+    { key: 'stock_qty',       label: 'Stock' },
+    { key: 'rotation',        label: 'Rotación' },
+    { key: 'coverage',        label: 'Cobertura' },
+    { key: 'list_price',      label: 'P. venta' },
 ];
 import {
     openDrillForecast, openDrillMos, openDrillSoDemand, openDrillDelivered,
@@ -136,6 +149,7 @@ class ForecastWidget extends Component {
         this.orm       = useService("orm");
         this.action    = useService("action");
         this.cols      = useColManager('forecast_static', FC_STATIC_COLS);
+        this.numColOptions = FC_NUM_COLS;
 
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `forecast.${companyId}`;
@@ -174,6 +188,7 @@ class ForecastWidget extends Component {
             },
             sortCol:          'product',
             sortDir:          'asc',
+            numFilters:       [],
             page:             1,
             pageSize:         50,
             data:             null,
@@ -234,6 +249,29 @@ class ForecastWidget extends Component {
 
     _persistFilters() {
         saveFilters(this._persistKey, this.state, FC_PERSIST_KEYS);
+    }
+
+    /** Valor numérico de una columna filtrable (null si no hay dato).
+     *  Rotación/cobertura usan la unidad activa del dataset. */
+    _numVal(row, key) {
+        const d = this.state.data || {};
+        let v;
+        if (key === 'rotation')      v = d.rotation_unit === 'months' ? row.rotation_months : row.rotation_days;
+        else if (key === 'coverage') v = d.coverage_unit === 'months' ? row.coverage_months : row.coverage_days;
+        else                         v = row[key];
+        return (v === null || v === undefined) ? null : v;
+    }
+
+    // Callbacks del filtro numérico de la barra de búsqueda
+    addNumFilter(cond) {
+        this.state.numFilters = [...this.state.numFilters, cond];
+        this.state.page = 1;
+        this._persistFilters();
+    }
+    removeNumFilter(idx) {
+        this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
+        this.state.page = 1;
+        this._persistFilters();
     }
 
     async _load() {

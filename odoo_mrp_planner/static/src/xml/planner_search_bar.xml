@@ -68,31 +68,9 @@
                     <div t-if="(props.filterDefs and props.filterDefs.length) or (props.groupByDefs and props.groupByDefs.length)"
                          class="dropdown-divider my-1"/>
                     <div class="o_planner_search_section_header">Filtro numérico</div>
-                    <div class="px-2 py-1 d-flex flex-column gap-2" t-on-click.stop="">
-                        <select class="form-select form-select-sm" t-model="localState.numDraft.col">
-                            <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
-                        </select>
-                        <select class="form-select form-select-sm" t-model="localState.numDraft.op">
-                            <option t-foreach="numOps" t-as="o" t-key="o.op" t-att-value="o.op" t-esc="o.label"/>
-                        </select>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button"
-                                    t-att-class="'btn btn-outline-secondary' + (localState.numDraft.mode === 'value' ? ' active' : '')"
-                                    t-on-click.stop="() => this.setNumMode('value')">Valor</button>
-                            <button type="button"
-                                    t-att-class="'btn btn-outline-secondary' + (localState.numDraft.mode === 'col' ? ' active' : '')"
-                                    t-on-click.stop="() => this.setNumMode('col')">Columna</button>
-                        </div>
-                        <input t-if="localState.numDraft.mode === 'value'" type="number"
-                               class="form-control form-control-sm" placeholder="Valor…"
-                               t-model.number="localState.numDraft.value" autocomplete="off"/>
-                        <select t-if="localState.numDraft.mode === 'col'" class="form-select form-select-sm"
-                                t-model="localState.numDraft.col2">
-                            <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
-                        </select>
-                        <button class="btn btn-sm btn-primary" type="button" t-on-click.stop="addNumFilter">
-                            <i class="fa fa-plus me-1"/>Agregar filtro
-                        </button>
+                    <div class="o_planner_search_item" t-on-click.stop="openNumModal">
+                        <i class="fa fa-fw fa-plus text-muted"/>
+                        <span>Agregar filtro personalizado</span>
                     </div>
                 </t>
 
@@ -138,6 +116,68 @@
                         </div>
                     </div>
                 </t>
+            </div>
+
+            <!-- Modal "Agregar filtro personalizado" (estilo Odoo) -->
+            <div t-if="localState.numModalOpen" class="modal show d-block" tabindex="-1"
+                 style="background: rgba(0,0,0,0.4); z-index: 2000;"
+                 t-on-click.stop="cancelNumModal">
+                <div class="modal-dialog modal-dialog-centered" t-on-click.stop="">
+                    <div class="modal-content">
+                        <div class="modal-header py-2">
+                            <h6 class="modal-title mb-0">Agregar filtro personalizado</h6>
+                            <button type="button" class="btn-close" aria-label="Cerrar"
+                                    t-on-click="cancelNumModal"/>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-2 small text-muted d-flex align-items-center gap-2">
+                                Coincidir
+                                <select class="form-select form-select-sm w-auto"
+                                        t-model="localState.numDraftGroup.match">
+                                    <option value="all">todas las reglas</option>
+                                    <option value="any">cualquiera de las reglas</option>
+                                </select>
+                            </div>
+                            <t t-foreach="localState.numDraftGroup.rules" t-as="rule" t-key="rule_index">
+                                <div class="d-flex align-items-center gap-1 mb-2 flex-wrap">
+                                    <select class="form-select form-select-sm w-auto" t-model="rule.col">
+                                        <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                                    </select>
+                                    <select class="form-select form-select-sm w-auto" t-model="rule.op">
+                                        <option t-foreach="numOps" t-as="o" t-key="o.op" t-att-value="o.op" t-esc="o.label"/>
+                                    </select>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button"
+                                                t-att-class="'btn btn-outline-secondary' + (rule.mode === 'value' ? ' active' : '')"
+                                                t-on-click="() => this.setNumRuleMode(rule_index, 'value')">Valor</button>
+                                        <button type="button"
+                                                t-att-class="'btn btn-outline-secondary' + (rule.mode === 'col' ? ' active' : '')"
+                                                t-on-click="() => this.setNumRuleMode(rule_index, 'col')">Columna</button>
+                                    </div>
+                                    <input t-if="rule.mode === 'value'" type="number"
+                                           class="form-control form-control-sm w-auto" style="max-width:120px;"
+                                           placeholder="Valor…" t-model.number="rule.value" autocomplete="off"/>
+                                    <select t-if="rule.mode === 'col'" class="form-select form-select-sm w-auto"
+                                            t-model="rule.col2">
+                                        <option t-foreach="props.numericFields" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1"
+                                            t-att-disabled="localState.numDraftGroup.rules.length &lt;= 1"
+                                            t-on-click="() => this.removeNumRule(rule_index)">
+                                        <i class="fa fa-trash"/>
+                                    </button>
+                                </div>
+                            </t>
+                            <button type="button" class="btn btn-sm btn-link p-0" t-on-click="addNumRule">
+                                <i class="fa fa-plus me-1"/>Nueva regla
+                            </button>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-sm btn-secondary" t-on-click="cancelNumModal">Cancelar</button>
+                            <button type="button" class="btn btn-sm btn-primary" t-on-click="confirmNumGroup">Agregar</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </t>

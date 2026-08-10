@@ -44,13 +44,12 @@ export class PlannerSearchBar extends Component {
 
     setup() {
         this.numOps = NUM_OPS;
-        const nf = this.props.numericFields || [];
         this.localState = useState({
             open:        false,
             favoriteName:'',
             favorites:   this._loadFavs(),
-            numDraft:    { col: nf[0] ? nf[0].key : '', op: '<', mode: 'value',
-                           value: null, col2: (nf[1] || nf[0] || {}).key || '' },
+            numModalOpen:false,
+            numDraftGroup: { match: 'all', rules: [] },
         });
 
         this._closeDropdown = () => { this.localState.open = false; };
@@ -128,34 +127,64 @@ export class PlannerSearchBar extends Component {
                   || (this.props.numFilters || []).length);
     }
 
-    // ── Filtro numérico ────────────────────────────────────────────────────────
+    // ── Filtro numérico (modal "Agregar filtro personalizado", estilo Odoo) ─────
 
     _numColLabel(key) {
         return ((this.props.numericFields || []).find(c => c.key === key) || {}).label || key;
     }
     _numOpLabel(op) { return (NUM_OPS.find(o => o.op === op) || {}).label || op; }
 
-    /** Etiqueta de una condición: "Stock actual < 10" o "Stock actual < Mínimo". */
-    numFilterLabel(c) {
-        const right = c.mode === 'col'
-            ? this._numColLabel(c.col2)
-            : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(c.value || 0);
-        return `${this._numColLabel(c.col)} ${this._numOpLabel(c.op)} ${right}`;
+    _ruleLabel(r) {
+        const right = r.mode === 'col'
+            ? this._numColLabel(r.col2)
+            : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(r.value || 0);
+        return `${this._numColLabel(r.col)} ${this._numOpLabel(r.op)} ${right}`;
     }
 
-    setNumMode(mode) { this.localState.numDraft.mode = mode; }
+    /** Etiqueta de una faceta: una regla suelta, o un grupo unido por "y"/"o". */
+    numFilterLabel(g) {
+        const grp = (g && g.rules) ? g : { match: 'all', rules: [g] };
+        const sep = grp.match === 'any' ? ' o ' : ' y ';
+        return grp.rules.map(r => this._ruleLabel(r)).join(sep);
+    }
 
-    addNumFilter() {
-        const d = this.localState.numDraft;
+    _newRule() {
+        const nf = this.props.numericFields || [];
+        return { col: (nf[0] || {}).key || '', op: '<', mode: 'value',
+                 value: null, col2: (nf[1] || nf[0] || {}).key || '' };
+    }
+
+    openNumModal(ev) {
+        if (ev) ev.stopPropagation();
+        this.localState.numDraftGroup = { match: 'all', rules: [this._newRule()] };
+        this.localState.numModalOpen = true;
+        this.localState.open = false;   // cerrar el dropdown al abrir el modal
+    }
+    cancelNumModal() { this.localState.numModalOpen = false; }
+    addNumRule()     { this.localState.numDraftGroup.rules.push(this._newRule()); }
+    removeNumRule(i) {
+        const rules = this.localState.numDraftGroup.rules;
+        if (rules.length > 1) rules.splice(i, 1);
+    }
+    setNumRuleMode(i, mode) { this.localState.numDraftGroup.rules[i].mode = mode; }
+
+    /** Valida las reglas del grupo y lo agrega como una faceta. */
+    confirmNumGroup() {
         if (!this.props.onNumFilterAdd) return;
-        if (d.mode === 'value' && (d.value === null || d.value === undefined || d.value === '' || Number.isNaN(Number(d.value)))) return;
-        if (d.mode === 'col' && d.col2 === d.col) return;
-        this.props.onNumFilterAdd({
-            col: d.col, op: d.op, mode: d.mode,
-            value: d.mode === 'value' ? Number(d.value) : null,
-            col2: d.mode === 'col' ? d.col2 : null,
-        });
-        this.localState.numDraft = { ...d, value: null };  // listo para agregar otra
+        const g = this.localState.numDraftGroup;
+        const rules = g.rules.filter(r => {
+            if (r.mode === 'value') {
+                return !(r.value === null || r.value === undefined || r.value === '' || Number.isNaN(Number(r.value)));
+            }
+            return r.col2 && r.col2 !== r.col;
+        }).map(r => ({
+            col: r.col, op: r.op, mode: r.mode,
+            value: r.mode === 'value' ? Number(r.value) : null,
+            col2: r.mode === 'col' ? r.col2 : null,
+        }));
+        if (!rules.length) { this.localState.numModalOpen = false; return; }
+        this.props.onNumFilterAdd({ match: g.match, rules });
+        this.localState.numModalOpen = false;
     }
 
     // ── Filtros / Agrupar ─────────────────────────────────────────────────────

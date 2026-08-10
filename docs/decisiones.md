@@ -561,6 +561,14 @@ reutilizable. Helper compartido `applyNumericFilters` en `planner_table.js`.
 - ✅ Disponible en: **Quiebres** (migrado a la barra), **Inventario** y
   **Análisis de clientes**. En todas compone con búsqueda/tipo/agrupación y los
   KPIs/pestañas se calculan sobre el conjunto filtrado.
+- ✅ **Modal "Agregar filtro personalizado" estilo Odoo (2026-08-10, cont.):** el
+  armador dejó de ser inline y es un modal con varias reglas `columna · operador
+  · valor/columna`, "Nueva regla", tachito por regla, y toggle **Coincidir
+  todas / cualquiera** (Y/O). Cada modal produce UN grupo `{match, rules}` que
+  entra como una faceta en la barra (removible). `applyNumericFilters` evalúa
+  grupos (dentro: Y/O según match; entre grupos: Y) y es retrocompatible con las
+  condiciones sueltas persistidas. No se hizo el desplegable en 3 columnas
+  (cosmético, descartado por Franco).
 - ⏳ **Pendiente: Forecast y Proveedores.** Forecast tiene su filtrado en un
   módulo aparte (`forecast_filters.js`) y Proveedores filtra la búsqueda en el
   servidor: hay que verificar su modelo de carga/paginación antes de cablear el

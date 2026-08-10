@@ -90,24 +90,36 @@ export function numCompare(a, op, b) {
     return true;
 }
 
+/** ¿La fila cumple una regla {col, op, mode, value, col2}? Las filas sin dato
+ *  en la columna comparada no matchean. */
+function numRuleMatches(rule, row, getVal) {
+    const a = getVal(row, rule.col);
+    if (a === null || a === undefined) return false;
+    const b = rule.mode === "col" ? getVal(row, rule.col2) : rule.value;
+    if (b === null || b === undefined) return false;
+    return numCompare(a, rule.op, b);
+}
+
 /**
- * Aplica una lista de condiciones numéricas (AND) a las filas. Cada condición
- * es {col, op, mode, value, col2}: compara col contra un valor fijo
- * (mode 'value') o contra otra columna (mode 'col'). Las filas sin dato en la
- * columna comparada no matchean.
+ * Aplica los filtros numéricos a las filas. Cada elemento de `groups` es un
+ * grupo {match: 'all'|'any', rules: [{col, op, mode, value, col2}]} (estilo
+ * "Agregar filtro personalizado" de Odoo): dentro de un grupo las reglas se
+ * combinan con Y ('all') u O ('any'); entre grupos siempre con Y. Por
+ * compatibilidad, un elemento sin `rules` se trata como una regla suelta.
  * @param {Array} rows
- * @param {Array} numFilters
+ * @param {Array} groups
  * @param {Function} getVal - (row, colKey) => number|null — extractor del widget
  * @returns {Array}
  */
-export function applyNumericFilters(rows, numFilters, getVal) {
-    if (!numFilters || !numFilters.length) return rows;
-    return rows.filter((r) => numFilters.every((c) => {
-        const a = getVal(r, c.col);
-        if (a === null || a === undefined) return false;
-        const b = c.mode === "col" ? getVal(r, c.col2) : c.value;
-        if (b === null || b === undefined) return false;
-        return numCompare(a, c.op, b);
+export function applyNumericFilters(rows, groups, getVal) {
+    if (!groups || !groups.length) return rows;
+    const norm = groups.map((g) => (g && g.rules) ? g : { match: "all", rules: [g] });
+    return rows.filter((row) => norm.every((g) => {
+        const rules = g.rules || [];
+        if (!rules.length) return true;
+        return g.match === "any"
+            ? rules.some((r) => numRuleMatches(r, row, getVal))
+            : rules.every((r) => numRuleMatches(r, row, getVal));
     }));
 }
 

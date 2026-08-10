@@ -452,6 +452,58 @@ Análisis de movimientos nativo no aparecían en la lista del panel.
   del panel cierren con el nativo filtrando por los mismos estados, y el
   comportamiento de las recepciones "Listas".
 
+## Auditoría v18.0.7.4.0 (2026-08-10)
+
+Auditoría de los tres módulos partiendo del estado post-refactor y post-cambios
+de inventario. Resultado: **sin defectos accionables**; el detalle:
+
+- **Refactor anterior — verificado por código (no había Odoo local):**
+  - Split de `mrp.reschedule.config` en 4 archivos: **114 campos, cero
+    duplicados, cero pérdidas** (los 109 documentados + 4 `inventory_state_*`
+    del 2026-08-10 + 1 `alert_delay_stat` de C5; todo explicado).
+  - `restoreFilters` se llama **después** de `useState` en los 6 widgets con
+    persistencia (no se reintrodujo el orden roto).
+  - Los 4 mixins (`planner_table/selection/multiselect/export`) exportan e
+    importan sin referencias rotas; `planner_multiselect` solo en inventario y
+    quiebres (clientes no tiene dropdowns multi-select — correcto).
+- **`mrp_dispatch_stock_log.py` (604 líneas) — cohesivo, sin dividir.** Es un
+  único subsistema: pipeline de la Tasa de entrega s/ disponible (snapshot
+  diario → consolidado mensual → retención → cálculo de tasa), con dos modelos
+  acoplados (`mrp.dispatch.stock.log` + `mrp.planner.kpi.monthly`). Sin código
+  muerto. Seguridad: el cron `_cron_dispatch_snapshot` es de sistema, itera
+  empresas con sudo y acota **cada** búsqueda/creación por `company_id`; los
+  `sudo()` son propios de un modelo de fondo y están explicados en docstrings.
+  Nota menor de estilo: un par de `sudo()` no tienen comentario inline (sí en
+  docstring) — no es un hallazgo de seguridad.
+- **Criterio Con/Sin stock por estado del movimiento — verificado completo.**
+  Los 4 estados configurables (Disponible / Parcialmente disponible / En espera
+  de disponibilidad / En espera de otro movimiento) cubren **todos** los estados
+  pendientes reales de `stock.move`; draft/cancel quedan excluidos y done va a
+  Validados, así que **ningún estado queda sin clasificar**. `Demanda = Con
+  stock + Sin stock` cierra para **cualquier** configuración (sin = demanda −
+  con, con = mín(reservado, demanda) ≤ demanda). No quedó ningún resabio del
+  criterio viejo "por cadena" en el panel: la única llamada a
+  `_chain_available_qty()` es la de la tasa/snapshots (línea 331), que conserva
+  ese criterio a propósito.
+- **`mrp_planner_dashboard_customer.py` (~961 líneas) — se deja como está.** Es
+  una responsabilidad grande pero cohesiva: dos RPC (`get_customer_analysis_data`
+  ~525 líneas y `get_customer_detail` ~358) del análisis de clientes. Dividir en
+  archivos agregaría acoplamiento sin beneficio funcional. Se anota como backlog
+  (opcional, sin urgencia) un refactor **interno** —extraer métodos privados
+  (`_load_period_data`, `_unify_by_vat`, cálculo de lead time), reusar
+  `mrp_abc_helpers._assign_abc_pareto` en vez del ABC inline, y unificar
+  `_to_date`/`_parse_date`—; no se toca ahora porque es código que anda y sin
+  motivo funcional el riesgo no se justifica (el ABC inline podría diferir a
+  propósito del ABC de categorías).
+- **Seguridad y código muerto (barrido general):** sin código muerto en los tres
+  módulos (verificado por string); guards de grupo en los 3 RPC del panel de
+  inventario; filtrado por depósito sigue entrando por `_inventory_effective_whs`
+  / universo de tipos; los 4 campos `inventory_state_*` heredan
+  `groups=group_inventory_admin` de la pestaña Inventario. Falso positivo
+  verificado: `_dispatch_chain_keys()` no valida `company_id` de sus ids, pero es
+  interno y sus únicos callers (pipeline de snapshot/tasa) ya vienen acotados por
+  compañía — no es explotable.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

@@ -355,7 +355,11 @@
                             groupByDefs:     groupByDefs,
                             onSearch:        (t) => this.setSearch(t),
                             onGroupByChange: (k) => this.setGroupBy(k),
-                            showFavorites:   true
+                            showFavorites:   true,
+                            numericFields:     numColOptions,
+                            numFilters:        state.numFilters,
+                            onNumFilterAdd:    (c) => this.addNumFilter(c),
+                            onNumFilterRemove: (i) => this.removeNumFilter(i)
                         }"/>
 
                     <div class="position-relative" t-on-click.stop="">

@@ -357,7 +357,11 @@
                         ],
                         onSearch:        (t) => this.setTblSearch(t),
                         onFilterChange:  (k) => this.setTblFilter(k),
-                        onGroupByChange: (k) => this.setTblGroupBy(k)
+                        onGroupByChange: (k) => this.setTblGroupBy(k),
+                        numericFields:     numColOptions,
+                        numFilters:        state.numFilters,
+                        onNumFilterAdd:    (c) => this.addNumFilter(c),
+                        onNumFilterRemove: (i) => this.removeNumFilter(i)
                     }"/>
 
                 <!-- Depósito dropdown -->

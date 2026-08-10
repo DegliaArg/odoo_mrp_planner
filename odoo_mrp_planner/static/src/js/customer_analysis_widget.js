@@ -20,7 +20,7 @@ import {
     toggleDetail, toggleRow, getSortedOrders, sortRowOrders, panelTopProducts,
     setPanelMetric, setPanelChartMode, setPanelTopN, sortPanelProds,
 } from "./customer_analysis_panel";
-import { buildGroupTabs, pageSlice, makePager } from "./planner_table";
+import { buildGroupTabs, pageSlice, makePager, applyNumericFilters } from "./planner_table";
 import { makeSelection } from "./planner_selection";
 import { downloadExcelXml } from "./planner_export";
 import { kpiNumClass } from "./forecast_formatters";
@@ -30,7 +30,22 @@ import { kpiNumClass } from "./forecast_formatters";
 const CA_PERSIST_KEYS = [
     "sortCol", "sortDir", "productSearch", "activeFilter", "groupBy",
     "selectedGroup", "filterCategory", "filterABC", "filterFreq",
-    "visibleCols", "chartMetric", "chartTopN", "chartDonut",
+    "visibleCols", "chartMetric", "chartTopN", "chartDonut", "numFilters",
+];
+
+// Columnas numéricas filtrables (se pasan a la barra como numericFields).
+const CA_NUM_COLS = [
+    { key: 'order_count',      label: 'Pedidos' },
+    { key: 'qty_ordered',      label: 'Demanda real' },
+    { key: 'qty_delivered',    label: 'Cumpl. demanda' },
+    { key: 'total_amount',     label: 'Monto' },
+    { key: 'avg_price',        label: 'P. prom.' },
+    { key: 'delivery_pct',     label: '% Cumplim.' },
+    { key: 'lead_time',        label: 'Lead entrega' },
+    { key: 'ontime_pct',       label: '% A tiempo' },
+    { key: 'days_since_last',  label: 'Días sin comprar' },
+    { key: 'distinct_products',label: 'Productos' },
+    { key: 'trend_pct',        label: 'Tendencia' },
 ];
 
 // ── Columnas estáticas (producto del menú de columnas) ────────────────────────
@@ -142,6 +157,7 @@ class CustomerAnalysisWidget extends Component {
         this._saleCatChart = null;
 
         this.cols     = useColManager('customer_analysis', CA_STATIC_COLS);
+        this.numColOptions = CA_NUM_COLS;
 
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `customer_analysis.${companyId}`;
@@ -171,6 +187,7 @@ class CustomerAnalysisWidget extends Component {
             selectedGroup: null,
             tableTotals:   { count: 0, orders: 0, qty: 0, delivered: 0, amount: 0 },
             selected:      {},
+            numFilters:    [],
             colsDropdownOpen: false,
             // Filtros de los gráficos superiores
             chartMetric: 'pxq',
@@ -355,7 +372,26 @@ class CustomerAnalysisWidget extends Component {
                 (r.salesperson    || '').toLowerCase().includes(q)
             );
         }
-        return rows;
+        // Filtros numéricos (AND): componen con búsqueda, pestañas, KPIs y gráficos
+        return applyNumericFilters(rows, this.state.numFilters, (r, k) => this._numVal(r, k));
+    }
+
+    /** Valor numérico de una columna filtrable (null si no hay dato). */
+    _numVal(row, key) {
+        const v = row[key];
+        return (v === null || v === undefined) ? null : v;
+    }
+
+    // Callbacks del filtro numérico de la barra de búsqueda
+    addNumFilter(cond) {
+        this.state.numFilters = [...this.state.numFilters, cond];
+        this.state.page = 1;
+        this._applySort();
+    }
+    removeNumFilter(idx) {
+        this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
+        this.state.page = 1;
+        this._applySort();
     }
 
     /**

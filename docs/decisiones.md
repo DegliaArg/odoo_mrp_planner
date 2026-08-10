@@ -551,6 +551,24 @@ Rotación).
 - La igualdad/desigualdad usa tolerancia (1e-6) para floats; las filas sin dato
   en la columna comparada no matchean.
 
+### Generalización a la barra de búsqueda compartida (2026-08-10, cont.)
+
+A pedido de Franco, el filtro numérico se movió de un botón aparte a la **barra
+de búsqueda compartida** (`PlannerSearchBar`), con el look de Odoo: las
+condiciones son facetas en la barra y el armador vive en su dropdown. Así queda
+reutilizable. Helper compartido `applyNumericFilters` en `planner_table.js`.
+
+- ✅ Disponible en: **Quiebres** (migrado a la barra), **Inventario** y
+  **Análisis de clientes**. En todas compone con búsqueda/tipo/agrupación y los
+  KPIs/pestañas se calculan sobre el conjunto filtrado.
+- ⏳ **Pendiente: Forecast y Proveedores.** Forecast tiene su filtrado en un
+  módulo aparte (`forecast_filters.js`) y Proveedores filtra la búsqueda en el
+  servidor: hay que verificar su modelo de carga/paginación antes de cablear el
+  filtro client-side (si paginaran en servidor, filtraría solo la página). Se
+  hacen después de confirmar en staging las tres ya integradas.
+- ❌ Fuera: OCs y OFs (paginan en servidor y no usan la barra; requerirían
+  dominio server-side).
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

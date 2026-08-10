@@ -36,7 +36,7 @@ import { fmt, fmtPct, svcClass, sortIcon, kpiNumClass } from "@odoo_mrp_planner/
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
 import { restoreFilters, saveFilters } from "@odoo_mrp_planner/js/filter_persistence";
-import { sortRows, buildGroupTabs, resolveActiveGroup, pageSlice, makePager } from "@odoo_mrp_planner/js/planner_table";
+import { sortRows, buildGroupTabs, resolveActiveGroup, pageSlice, makePager, applyNumericFilters } from "@odoo_mrp_planner/js/planner_table";
 import { makeSelection } from "@odoo_mrp_planner/js/planner_selection";
 import { makeMultiFilter } from "@odoo_mrp_planner/js/planner_multiselect";
 import { downloadCsv } from "@odoo_mrp_planner/js/planner_export";
@@ -46,7 +46,16 @@ const INV_PERSIST_KEYS = [
     "chartFrom", "chartTo", "chartWhIds", "chartTypeIds",
     "tblFrom", "tblTo", "tblSearch", "tblFilter", "tblGroupBy",
     "tblSelectedGroup", "tblWhIds", "tblTypeIds", "visibleCols",
-    "sortCol", "sortDir",
+    "sortCol", "sortDir", "numFilters",
+];
+
+// Columnas numéricas filtrables (se pasan a la barra como numericFields).
+const INV_NUM_COLS = [
+    { key: "qty_pending",    label: "Pendiente" },
+    { key: "qty_available",  label: "Con stock" },
+    { key: "qty_done",       label: "Hecho" },
+    { key: "days_available", label: "Días disp." },
+    { key: "overdue_days",   label: "Días vencida" },
 ];
 
 function toDateStr(d) {
@@ -97,6 +106,7 @@ class InventoryDashboardWidget extends Component {
         this.trendChart   = null;
         this.pendingChart = null;
         this.tableCols    = COLS;
+        this.numColOptions = INV_NUM_COLS;
         // Columnas reordenables/redimensionables — mismo hook que el forecast
         this.cols         = useColManager("inventory_static", COLS);
 
@@ -141,6 +151,7 @@ class InventoryDashboardWidget extends Component {
             tableLoading:   true,
             tableError:     null,
             selected:       {},
+            numFilters:     [],
             sortCol:        "scheduled",
             sortDir:        "asc",
             dispatching:    false,
@@ -671,8 +682,29 @@ class InventoryDashboardWidget extends Component {
         return defs;
     }
 
+    /** Valor numérico de una columna filtrable (null si no hay dato). */
+    _numVal(row, key) {
+        const v = row[key];
+        return (v === null || v === undefined) ? null : v;
+    }
+
+    // Callbacks del filtro numérico de la barra de búsqueda
+    addNumFilter(cond) {
+        this.state.numFilters = [...this.state.numFilters, cond];
+        this.state.page = 1;
+        this._persist();
+    }
+    removeNumFilter(idx) {
+        this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
+        this.state.page = 1;
+        this._persist();
+    }
+
     get filteredRows() {
-        let rows = this.state.rows;
+        // Filtros numéricos primero: así componen con los chips y con la
+        // agrupación (allGroupsForTabs y los KPIs derivan de acá).
+        let rows = applyNumericFilters(this.state.rows, this.state.numFilters,
+                                       (r, k) => this._numVal(r, k));
         const f = this.state.tblFilter;
         if (f === "with_stock")     rows = rows.filter(r => (r.qty_available || 0) > 0);
         if (f === "assigned")       rows = rows.filter(r => r.state === "assigned");

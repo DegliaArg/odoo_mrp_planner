@@ -145,6 +145,58 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Filtro numérico por columna (operador + valor/columna) -->
+                    <div class="d-flex align-items-center gap-1" t-on-click.stop="">
+                        <div class="position-relative">
+                            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                    t-on-click="toggleNumDropdown"
+                                    title="Filtrar columnas numéricas por operador (&gt;, ≥, &lt;, ≤, =, ≠) contra un valor u otra columna. Se combinan con Y.">
+                                <i class="fa fa-filter"/>
+                                <span>Filtro numérico</span>
+                                <span t-if="state.numFilters.length" class="badge text-bg-secondary" t-esc="state.numFilters.length"/>
+                            </button>
+                            <div t-if="state.numOpen"
+                                 class="dropdown-menu show shadow p-2"
+                                 style="min-width:280px; position:absolute; z-index:1050; top:100%; left:0; margin-top:2px;">
+                                <div class="d-flex flex-column gap-2">
+                                    <select class="form-select form-select-sm" t-model="state.numDraft.col">
+                                        <option t-foreach="numColOptions" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                                    </select>
+                                    <select class="form-select form-select-sm" t-model="state.numDraft.op">
+                                        <option t-foreach="numOps" t-as="o" t-key="o.op" t-att-value="o.op" t-esc="o.label"/>
+                                    </select>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button"
+                                                t-att-class="'btn btn-outline-secondary' + (state.numDraft.mode === 'value' ? ' active' : '')"
+                                                t-on-click="() => this.setNumMode('value')">Valor</button>
+                                        <button type="button"
+                                                t-att-class="'btn btn-outline-secondary' + (state.numDraft.mode === 'col' ? ' active' : '')"
+                                                t-on-click="() => this.setNumMode('col')">Columna</button>
+                                    </div>
+                                    <input t-if="state.numDraft.mode === 'value'" type="number"
+                                           class="form-control form-control-sm" placeholder="Valor…"
+                                           t-model.number="state.numDraft.value" autocomplete="off"/>
+                                    <select t-if="state.numDraft.mode === 'col'" class="form-select form-select-sm"
+                                            t-model="state.numDraft.col2">
+                                        <option t-foreach="numColOptions" t-as="c" t-key="c.key" t-att-value="c.key" t-esc="c.label"/>
+                                    </select>
+                                    <button class="btn btn-sm btn-primary" t-on-click="addNumFilter">
+                                        <i class="fa fa-plus me-1"/>Agregar filtro
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Chips de las condiciones numéricas activas (removibles) -->
+                    <t t-foreach="state.numFilters" t-as="nf" t-key="nf_index">
+                        <span class="badge text-bg-light border d-flex align-items-center gap-1">
+                            <t t-esc="numFilterLabel(nf)"/>
+                            <i class="fa fa-times" style="cursor:pointer"
+                               t-on-click="() => this.removeNumFilter(nf_index)"/>
+                        </span>
+                    </t>
+                    <button t-if="state.numFilters.length" class="btn btn-sm btn-link p-0 text-muted"
+                            t-on-click="clearNumFilters">Limpiar</button>
                     <div class="ms-auto">
                         <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
                                 t-on-click="downloadExport">

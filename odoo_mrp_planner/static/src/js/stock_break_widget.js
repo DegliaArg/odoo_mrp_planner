@@ -31,7 +31,25 @@ import { downloadCsv } from "./planner_export";
 const STOCK_PERSIST_KEYS = [
     'filterType', 'search', 'locationIds',
     'sortField', 'sortDir', 'page', 'pageSize',
-    'groupBy', 'selectedGroup',
+    'groupBy', 'selectedGroup', 'numFilters',
+];
+
+// Columnas numéricas filtrables (operador + valor/columna). 'rotation' usa la
+// unidad activa (días/meses); el resto lee su campo directo.
+const NUM_COLS = [
+    { key: 'qty',          label: 'Stock actual' },
+    { key: 'min_qty',      label: 'Mínimo' },
+    { key: 'qty_forecast', label: 'Pronóstico' },
+    { key: 'bom_lead',     label: 'Plazo fab. (días)' },
+    { key: 'rotation',     label: 'Rotación' },
+];
+const NUM_OPS = [
+    { op: '>',  label: '>' },
+    { op: '>=', label: '≥' },
+    { op: '<',  label: '<' },
+    { op: '<=', label: '≤' },
+    { op: '=',  label: '=' },
+    { op: '!=', label: '≠' },
 ];
 
 const STOCK_COLS = [
@@ -101,8 +119,14 @@ class StockBreakWidget extends Component {
             mosByProduct:     {},
             mosLoading:       {},
             selected:         {},
+            // Filtros numéricos por columna (operador + valor o columna); AND entre sí
+            numFilters:       [],
+            numOpen:          false,
+            numDraft:         { col: 'qty', op: '<', mode: 'value', value: null, col2: 'min_qty' },
         });
         this.colsStock = useColManager('stock_break', STOCK_COLS);
+        this.numColOptions = NUM_COLS;
+        this.numOps = NUM_OPS;
 
         // Restaurar filtros de la última visita (por empresa). Se guarda en cada
         // _applyClientSort(), el punto único por el que pasa todo cambio de filtro.
@@ -112,7 +136,11 @@ class StockBreakWidget extends Component {
 
         this._searchTimer = null;
         this._loadSeq     = 0;
-        this._closeLocDropdown = () => { this.state.locDropdownOpen = false; this.state.locSearch = ""; };
+        this._closeLocDropdown = () => {
+            this.state.locDropdownOpen = false;
+            this.state.locSearch = "";
+            this.state.numOpen = false;
+        };
 
         // ── Mecánica compartida de los paneles (planner_*): dropdown de
         //    ubicaciones, selección de filas y paginador ──
@@ -209,12 +237,50 @@ class StockBreakWidget extends Component {
      * aplicados (sin paginar). Base común de la tabla visible y del export CSV.
      * @returns {Array<Object>} Filas filtradas y ordenadas
      */
-    _filteredSortedRows(skipTypeFilter = false) {
-        let rows = [...this.state.allProducts];
+    /** Valor numérico de una columna filtrable para una fila (null si no hay dato). */
+    _numVal(row, key) {
+        let v;
+        if (key === 'bom_lead')      v = row.bom_lead_days;
+        else if (key === 'rotation') v = this.state.rotation_unit === 'months' ? row.rotation_months : row.rotation_days;
+        else                         v = row[key];
+        return (v === null || v === undefined) ? null : v;
+    }
 
-        // Filtro por texto (client-side): el name incluye la referencia interna [REF].
+    /** Compara a (op) b con tolerancia para igualdad/desigualdad. */
+    _numCompare(a, op, b) {
+        switch (op) {
+            case '>':  return a >  b;
+            case '>=': return a >= b;
+            case '<':  return a <  b;
+            case '<=': return a <= b;
+            case '=':  return Math.abs(a - b) < 1e-6;
+            case '!=': return Math.abs(a - b) >= 1e-6;
+        }
+        return true;
+    }
+
+    /** Filtros comunes a la tabla y a las pestañas de agrupación: búsqueda de
+     *  texto + condiciones numéricas (AND). Así todo compone: si hay agrupación
+     *  y filtros, las pestañas y los KPIs se calculan sobre este conjunto. */
+    _applyCommonFilters(rows) {
         const q = (this.state.search || '').trim().toLowerCase();
         if (q) rows = rows.filter(r => (r.name || '').toLowerCase().includes(q));
+        for (const c of this.state.numFilters) {
+            rows = rows.filter(r => {
+                const a = this._numVal(r, c.col);
+                if (a === null) return false;
+                const b = c.mode === 'col' ? this._numVal(r, c.col2) : c.value;
+                if (b === null || b === undefined) return false;
+                return this._numCompare(a, c.op, b);
+            });
+        }
+        return rows;
+    }
+
+    _filteredSortedRows(skipTypeFilter = false) {
+        // Base común: el name incluye la referencia interna [REF]; los filtros
+        // numéricos aplican siempre (no son el filtro de segmento).
+        let rows = this._applyCommonFilters([...this.state.allProducts]);
 
         // Filtro de tipo (omitible: las cards KPI son los selectores de
         // segmento y sus conteos no deben auto-filtrarse)
@@ -427,7 +493,9 @@ class StockBreakWidget extends Component {
     }
 
     get baseFilteredForGroups() {
-        let rows = [...this.state.allProducts];
+        // Mismo conjunto base que la tabla (búsqueda + filtros numéricos) para
+        // que los conteos de las pestañas reflejen lo que hay filtrado.
+        let rows = this._applyCommonFilters([...this.state.allProducts]);
         const f = this.state.filterType;
         if      (f === 'broken') rows = rows.filter(r => r.is_broken);
         else if (f === 'ok')     rows = rows.filter(r => r.has_min && !r.is_broken);
@@ -471,6 +539,52 @@ class StockBreakWidget extends Component {
 
     /** Etiqueta del botón del dropdown de ubicaciones (convención compartida). */
     get selectedLocLabel() { return this.locFilter.label; }
+
+    // ── Filtros numéricos por columna (operador + valor/columna) ──────────────
+
+    toggleNumDropdown(ev) {
+        ev.stopPropagation();
+        const open = !this.state.numOpen;
+        this.state.locDropdownOpen = false;
+        this.state.numOpen = open;
+    }
+    setNumMode(mode) { this.state.numDraft.mode = mode; }
+
+    /** Agrega la condición en construcción a la lista (AND). Ignora si falta el
+     *  valor (modo valor) o si compara una columna consigo misma. */
+    addNumFilter() {
+        const d = this.state.numDraft;
+        if (d.mode === 'value' && (d.value === null || d.value === undefined || d.value === '' || Number.isNaN(Number(d.value)))) return;
+        if (d.mode === 'col' && d.col2 === d.col) return;
+        this.state.numFilters = [...this.state.numFilters, {
+            col: d.col, op: d.op, mode: d.mode,
+            value: d.mode === 'value' ? Number(d.value) : null,
+            col2: d.mode === 'col' ? d.col2 : null,
+        }];
+        this.state.numDraft = { ...d, value: null };  // listo para agregar otra
+        this.state.page = 1;
+        this._applyClientSort();
+    }
+    removeNumFilter(idx) {
+        this.state.numFilters = this.state.numFilters.filter((_, i) => i !== idx);
+        this.state.page = 1;
+        this._applyClientSort();
+    }
+    clearNumFilters() {
+        if (!this.state.numFilters.length) return;
+        this.state.numFilters = [];
+        this.state.page = 1;
+        this._applyClientSort();
+    }
+    _numColLabel(key) { return (NUM_COLS.find(c => c.key === key) || {}).label || key; }
+    _numOpLabel(op)   { return (NUM_OPS.find(o => o.op === op) || {}).label || op; }
+
+    /** Etiqueta legible de una condición para el chip: "Stock actual < 10" o
+     *  "Stock actual < Mínimo". */
+    numFilterLabel(c) {
+        const right = c.mode === 'col' ? this._numColLabel(c.col2) : this.fmt(c.value);
+        return `${this._numColLabel(c.col)} ${this._numOpLabel(c.op)} ${right}`;
+    }
 
     /**
      * Maneja el evento `input` del campo de búsqueda nativo.

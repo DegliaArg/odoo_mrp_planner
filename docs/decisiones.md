@@ -533,6 +533,24 @@ volumen. Decisión (charlada y acordada): hacerlo **configurable**.
   ponderación por Horas de CT, que es una aproximación (Σ tiempo de operaciones
   ÷ cantidad de la BoM); confirmar que las BoM de Giacomelli tengan operaciones.
 
+## Filtro numérico por columna en Quiebres de stock (2026-08-10)
+
+A pedido de Franco, la tabla de quiebres gana un filtro numérico estilo Odoo
+sobre las columnas numéricas (Stock actual, Mínimo, Pronóstico, Plazo fab.,
+Rotación).
+
+- ✅ **Implementado (v18.0.7.8.0):** botón "Filtro numérico" con popover que arma
+  condiciones `columna [>, ≥, <, ≤, =, ≠] (valor | otra columna)`. "Contra qué"
+  puede ser un número fijo **o** otra columna numérica (ej. "Stock < Mínimo",
+  "Pronóstico < Mínimo"). Cada condición queda como chip removible; se combinan
+  con **Y**. Todo client-side (el dataset ya está cargado), instantáneo.
+- Compone con el resto: búsqueda + tipo + ubicación + numérico aplican juntos, y
+  la agrupación (pestañas) y los KPIs/totales se calculan sobre ese conjunto ya
+  filtrado (`_applyCommonFilters` es la base común de la tabla y de
+  `baseFilteredForGroups`). Persistido en `numFilters` (sobrevive al remontaje).
+- La igualdad/desigualdad usa tolerancia (1e-6) para floats; las filas sin dato
+  en la columna comparada no matchean.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

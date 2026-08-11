@@ -74,6 +74,31 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             yield ('%04d-%02d' % (cur.year, cur.month), str(seg_from), str(seg_to))
             cur += relativedelta(months=1)
 
+    def _pa_product_sectors(self, first_day, last_day):
+        """Mapea producto → sectores (etiquetas de los centros de trabajo de sus
+        OT del período). Un producto puede caer en varios sectores (M2M), igual
+        que en Carga de CT. Permite agrupar por sector las pestañas que están
+        agregadas por producto. Productos sin OT quedan sin sector.
+
+        :returns: dict {product_id: [nombres de sector ordenados]}.
+        """
+        mode = self._pa_mode()
+        first_str = fields.Datetime.to_string(first_day)
+        last_str  = fields.Datetime.to_string(last_day)
+        domain = ([('state', 'not in', ('cancel', 'draft'))]
+                  + self._pa_mo_period_domain(mode, first_str, last_str)
+                  + no_subcontract_domain(self.env)
+                  + self._pa_wh_mo_domain())
+        mos = self.env['mrp.production'].search(domain)
+        prod_sectors = defaultdict(set)
+        for mo in mos:
+            if not mo.product_id:
+                continue
+            tags = mo.workorder_ids.workcenter_id.tag_ids.mapped('name')
+            if tags:
+                prod_sectors[mo.product_id.id].update(tags)
+        return {pid: sorted(s) for pid, s in prod_sectors.items()}
+
     # ════════════════════════ Pestaña OFs ════════════════════════
 
     def _pa_of_rows(self, first_day, last_day):
@@ -91,7 +116,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
 
         by_prod = defaultdict(lambda: {
             'ofs': 0, 'programado': 0.0, 'producido': 0.0,
-            'terminadas': 0, 'en_curso': 0, 'atrasadas': 0, 'uom': '',
+            'terminadas': 0, 'en_curso': 0, 'atrasadas': 0, 'uom': '', 'sectors': set(),
         })
         for mo in mos:
             pid = mo.product_id.id
@@ -101,6 +126,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             b['name'] = mo.product_id.display_name
             b['category'] = mo.product_id.categ_id.name or _('Sin categoría')
             b['uom'] = mo.product_uom_id.name if mo.product_uom_id else ''
+            b['sectors'].update(mo.workorder_ids.workcenter_id.tag_ids.mapped('name'))
             b['ofs'] += 1
             b['programado'] += mo.product_qty or 0.0
             b['producido']  += mo.qty_produced or 0.0
@@ -118,6 +144,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                 'product_id': pid,
                 'name':       b.get('name', ''),
                 'category':   b.get('category', _('Sin categoría')),
+                'sectors':    sorted(b['sectors']),
                 'uom':        b['uom'],
                 'ofs':        b['ofs'],
                 'programado': round(prog, 2),
@@ -166,6 +193,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                                    'odoo_mrp_planner.group_prod')
         data = self.get_comparison_data(date_from, date_to, page=1, page_size=200,
                                         sort_field='planned_qty', sort_dir='desc')
+        first_day, last_day = self._wc_parse_range(date_from, date_to)
+        sectors_map = self._pa_product_sectors(first_day, last_day)
         items = data.get('items', [])
         rows = []
         for it in items:
@@ -173,6 +202,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                 'product_id': it['product_id'],
                 'name':       it['product'],
                 'uom':        it.get('uom', ''),
+                'sectors':    sectors_map.get(it['product_id'], []),
                 'programado': it['planned_qty'],
                 'producido':  it['produced_qty'],
                 'desvio':     round((it['planned_qty'] or 0.0) - (it['produced_qty'] or 0.0), 2),
@@ -242,7 +272,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             return max(0.0, min(1.0, ov / total))
 
         by_prod = defaultdict(lambda: {
-            'plan_h': 0.0, 'real_h': 0.0, 'ofs': set(), 'uom': '',
+            'plan_h': 0.0, 'real_h': 0.0, 'ofs': set(), 'uom': '', 'sectors': set(),
         })
         for w in wos:
             prod = w.production_id.product_id
@@ -263,6 +293,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             b = by_prod[prod.id]
             b['name'] = prod.display_name
             b['category'] = prod.categ_id.name or _('Sin categoría')
+            b['sectors'].update(w.workcenter_id.tag_ids.mapped('name'))
             b['plan_h'] += (w.duration_expected or 0.0) / 60.0 * frac
             b['real_h'] += (w.duration or 0.0) / 60.0 * frac
             b['ofs'].add(w.production_id.id)
@@ -274,6 +305,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                 'product_id': pid,
                 'name':       b.get('name', ''),
                 'category':   b.get('category', _('Sin categoría')),
+                'sectors':    sorted(b['sectors']),
                 'ofs':        len(b['ofs']),
                 'plan_h':     round(plan, 1),
                 'real_h':     round(b['real_h'], 1),

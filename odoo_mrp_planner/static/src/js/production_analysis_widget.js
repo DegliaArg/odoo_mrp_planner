@@ -125,11 +125,17 @@ const EVOL_COLS = [
     { key: "efic_pct",   label: "Eficiencia %",  width: 120, align: "center" },
     { key: "scrap",      label: "Scrap",         width:  95, align: "center" },
 ];
+// Facetas de agrupación reutilizables. Sector es M2M (un producto puede caer en
+// varios, como en Carga de CT); Categoría es escalar. El accesor devuelve la(s)
+// clave(s) de cada fila.
+const SECTOR_GROUP   = { key: "sector",   label: "Sector",    accessor: r => (r.sectors && r.sectors.length) ? r.sectors : ["Sin sector"] };
+const CATEGORY_GROUP = { key: "category", label: "Categoría", accessor: r => [r.category || "Sin categoría"] };
+
 const TABS = [
     { key: "wc",    label: "Carga de CT",             icon: "fa-tachometer" },
     { key: "ofs",   label: "OFs",                     icon: "fa-wrench" },
     { key: "cumpl", label: "Producido vs Programado", icon: "fa-bar-chart" },
-    { key: "efic",  label: "Eficiencia",              icon: "fa-bolt" },
+    { key: "efic",  label: "Plan vs Real",            icon: "fa-balance-scale" },
     { key: "scrap", label: "Scrap",                   icon: "fa-trash" },
     { key: "evol",  label: "Evolución",               icon: "fa-line-chart" },
 ];
@@ -175,16 +181,19 @@ class TableCtl {
         if (q) rows = rows.filter(r => this.cfg.textFields.some(f => (r[f] || "").toLowerCase().includes(q)));
         return applyNumericFilters(rows, this.numFilters, (r, k) => this._numVal(r, k));
     }
+    _activeGroupDef() { return (this.cfg.groupDefs || []).find(d => d.key === this.groupBy) || null; }
     get groupsForTabs() {
-        if (!this.cfg.groupKey || this.groupBy !== this.cfg.groupKey) return null;
-        return buildGroupTabs(this.filteredRows, r => [r[this.cfg.groupKey] || "—"]);
+        const d = this._activeGroupDef();
+        if (!d) return null;
+        return buildGroupTabs(this.filteredRows, d.accessor);
     }
     get activeGroupKey() { return resolveActiveGroup(this.groupsForTabs || [], this.s[this._k("SelGroup")]); }
     setGroup(k) { this.s[this._k("SelGroup")] = k; this.s[this._k("Page")] = 1; }
     get groupedRows() {
-        if (!this.cfg.groupKey || this.groupBy !== this.cfg.groupKey) return this.filteredRows;
+        const d = this._activeGroupDef();
+        if (!d) return this.filteredRows;
         const a = this.activeGroupKey;
-        return this.filteredRows.filter(r => (r[this.cfg.groupKey] || "—") === a);
+        return this.filteredRows.filter(r => d.accessor(r).includes(a));
     }
     get sortedRows() { return sortRows(this.groupedRows, this.sortColV, this.sortDirV); }
     get pagedRows()  { return pageSlice(this.sortedRows, this.page, this.s.pageSize); }
@@ -204,9 +213,8 @@ class TableCtl {
     viewRow(row) { this.cfg.onViewRow(row, this.w); }
 
     get cols()         { return this.cfg.cols; }
-    get groupKey()     { return this.cfg.groupKey; }
     get numColOptions(){ return this.cfg.numCols; }
-    get groupByDefs()  { return this.cfg.groupKey ? [{ key: this.cfg.groupKey, label: this.cfg.groupLabel }] : []; }
+    get groupByDefs()  { return (this.cfg.groupDefs || []).map(d => ({ key: d.key, label: d.label })); }
     get widgetKey()    { return "production_analysis_" + this.cfg.prefix; }
     get placeholder()  { return this.cfg.placeholder; }
     get emptyMsg()     { return this.cfg.emptyMsg; }
@@ -706,16 +714,24 @@ class ProductionAnalysisWidget extends Component {
             (r.workcenter || "").toLowerCase().includes(q));
         return applyNumericFilters(rows, this.state.scrapNumFilters, (r, k) => this._numVal(r, k));
     }
+    /** Facetas de agrupación del scrap: por sector (M2M) o por categoría. */
+    _scrapGroupDef() {
+        if (this.state.scrapGroupBy === "sector") return SECTOR_GROUP;
+        if (this.state.scrapGroupBy === "category") return CATEGORY_GROUP;
+        return null;
+    }
     get scrapAllGroupsForTabs() {
-        if (this.state.scrapGroupBy !== "category") return null;
-        return buildGroupTabs(this.scrapFilteredRows, r => [r.category || "Sin categoría"]);
+        const d = this._scrapGroupDef();
+        if (!d) return null;
+        return buildGroupTabs(this.scrapFilteredRows, d.accessor);
     }
     get scrapActiveGroupKey() { return resolveActiveGroup(this.scrapAllGroupsForTabs || [], this.state.scrapSelectedGroup); }
     setScrapGroup(key) { this.state.scrapSelectedGroup = key; this.state.scrapPage = 1; }
     get scrapGroupedRows() {
-        if (this.state.scrapGroupBy !== "category") return this.scrapFilteredRows;
+        const d = this._scrapGroupDef();
+        if (!d) return this.scrapFilteredRows;
         const active = this.scrapActiveGroupKey;
-        return this.scrapFilteredRows.filter(r => (r.category || "Sin categoría") === active);
+        return this.scrapFilteredRows.filter(r => d.accessor(r).includes(active));
     }
     get scrapSortedRows() { return sortRows(this.scrapGroupedRows, this.state.scrapSortCol, this.state.scrapSortDir); }
     get scrapPagedRows()  { return pageSlice(this.scrapSortedRows, this.state.scrapPage, this.state.pageSize); }
@@ -884,7 +900,7 @@ class ProductionAnalysisWidget extends Component {
     _ofCfg() {
         return {
             prefix: "of", cols: OF_COLS, numCols: OF_NUM_COLS,
-            groupKey: "category", groupLabel: "Categoría", textFields: ["name", "category"],
+            groupDefs: [SECTOR_GROUP, CATEGORY_GROUP], textFields: ["name", "category"],
             placeholder: "Buscar producto o categoría…", emptyMsg: "Sin OFs en el período/filtros.",
             unit: "producto(s)",
             computeKpis: (rows) => {
@@ -943,7 +959,7 @@ class ProductionAnalysisWidget extends Component {
         const WEIGHT_LABELS = { qty: "cantidad", cost: "costo estándar", sale_price: "precio de venta", wc_hours: "horas de ruta" };
         return {
             prefix: "cmp", cols: CMP_COLS, numCols: CMP_NUM_COLS,
-            groupKey: null, textFields: ["name"],
+            groupDefs: [SECTOR_GROUP], textFields: ["name"],
             placeholder: "Buscar producto…", emptyMsg: "Sin datos de comparativo en el período/filtros.",
             unit: "producto(s)",
             // KPIs ponderados del backend: describen TODO el período (no las filas
@@ -997,7 +1013,7 @@ class ProductionAnalysisWidget extends Component {
     _efCfg() {
         return {
             prefix: "ef", cols: EF_COLS, numCols: EF_NUM_COLS,
-            groupKey: "category", groupLabel: "Categoría", textFields: ["name", "category"],
+            groupDefs: [SECTOR_GROUP, CATEGORY_GROUP], textFields: ["name", "category"],
             placeholder: "Buscar producto o categoría…", emptyMsg: "Sin OT con horas en el período/filtros.",
             unit: "producto(s)",
             computeKpis: (rows) => {

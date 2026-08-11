@@ -105,6 +105,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         first_day, last_day = self._wc_parse_range(date_from, date_to)
         scraps = self.env['stock.scrap'].search(self._scrap_domain(first_day, last_day))
         produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day)
+        sectors_map = self._pa_product_sectors(first_day, last_day)
 
         by_prod = defaultdict(lambda: {
             'qty': 0.0, 'ops': 0, 'uom': '', 'wc': defaultdict(float),
@@ -135,6 +136,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 'product_id': pid,
                 'name':       b.get('name', ''),
                 'category':   b.get('category', _('Sin categoría')),
+                'sectors':    sectors_map.get(pid, []),
                 'workcenter': top_wc,
                 'qty':        round(b['qty'], 2),
                 'ops':        b['ops'],

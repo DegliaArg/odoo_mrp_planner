@@ -247,7 +247,7 @@
                                 t-props="{
                                     search:         state.scrapSearch,
                                     activeGroupBy:  state.scrapGroupBy,
-                                    groupByDefs: [ { key: 'category', label: 'Categoría' } ],
+                                    groupByDefs: [ { key: 'sector', label: 'Sector' }, { key: 'category', label: 'Categoría' } ],
                                     onSearch:        (t) => this.setScrapSearch(t),
                                     onGroupByChange: (k) => this.setScrapGroupBy(k),
                                     numericFields:     scrapNumColOptions,
@@ -258,7 +258,7 @@
                         </div>
 
                         <!-- Pestañas de agrupamiento por categoría -->
-                        <t t-if="state.scrapGroupBy === 'category' and scrapAllGroupsForTabs">
+                        <t t-if="scrapAllGroupsForTabs">
                             <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
                                 <t t-foreach="scrapAllGroupsForTabs" t-as="g" t-key="'sgt_' + g.key">
                                     <li class="nav-item">
@@ -382,9 +382,12 @@
                 </t>
             </t>
 
-            <!-- ════════════════ PESTAÑA: Eficiencia ════════════════ -->
+            <!-- ════════════════ PESTAÑA: Plan vs Real (precisión de planificación) ════════════════ -->
             <t t-if="state.tab === 'efic'">
                 <t t-call="odoo_mrp_planner.ProdAnalysisDateBar"/>
+                <div class="alert alert-light border py-1 px-2 small mb-2 text-muted">
+                    <i class="fa fa-info-circle me-1"/>Precisión de planificación: tiempo <b>real</b> vs <b>planificado</b> de las OT. <b>No</b> es el Performance del OEE (eso requiere registro de paros en taller).
+                </div>
                 <div t-if="state.efError" class="alert alert-danger py-2 mb-2">
                     <i class="fa fa-exclamation-triangle me-2"/><t t-esc="state.efError"/>
                 </div>
@@ -395,7 +398,7 @@
                     <div t-att-class="state.efLoading ? 'opacity-50 pe-none' : ''">
                         <div class="o_planner_section_title mb-2">
                             <i class="fa fa-line-chart me-2 text-muted"/>
-                            <span class="text-uppercase fw-bold text-muted small">Evolución de la eficiencia (%)</span>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución del cumplimiento de tiempos (%)</span>
                         </div>
                         <div style="height:220px;" class="mb-4"><canvas t-ref="efTrend"/></div>
                         <t t-call="odoo_mrp_planner.ProdAnalysisTableBlock">
@@ -523,7 +526,7 @@
         </div>
 
         <!-- Pestañas de agrupamiento -->
-        <t t-if="ctl.groupKey and ctl.groupBy === ctl.groupKey and ctl.groupsForTabs">
+        <t t-if="ctl.groupsForTabs">
             <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
                 <t t-foreach="ctl.groupsForTabs" t-as="g" t-key="'pg_' + g.key">
                     <li class="nav-item">

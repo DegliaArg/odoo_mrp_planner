@@ -57,15 +57,19 @@ const WC_NUM_COLS = [
 ];
 const SCRAP_COLS = [
     { key: "name",       label: "Producto",         width: 220, fixed: true, align: "start" },
-    { key: "category",   label: "Categoría",        width: 140, align: "start" },
-    { key: "workcenter", label: "Centro de trabajo",width: 150, align: "start" },
-    { key: "qty",        label: "Cantidad",         width: 110, align: "center" },
-    { key: "uom",        label: "UdM",              width:  80, align: "center" },
-    { key: "ops",        label: "Operaciones",      width: 110, align: "center" },
-    { key: "pct",        label: "% del total",      width: 100, align: "center" },
+    { key: "category",   label: "Categoría",        width: 130, align: "start" },
+    { key: "workcenter", label: "Centro de trabajo",width: 140, align: "start" },
+    { key: "qty",        label: "Desecho",          width: 100, align: "center" },
+    { key: "uom",        label: "UdM",              width:  70, align: "center" },
+    { key: "producido",  label: "Producido",        width: 100, align: "center" },
+    { key: "tasa",       label: "Tasa scrap %",     width: 110, align: "center" },
+    { key: "ops",        label: "Operaciones",      width: 100, align: "center" },
+    { key: "pct",        label: "% del total",      width:  95, align: "center" },
 ];
 const SCRAP_NUM_COLS = [
-    { key: "qty", label: "Cantidad" },
+    { key: "qty", label: "Desecho" },
+    { key: "producido", label: "Producido" },
+    { key: "tasa", label: "Tasa scrap %" },
     { key: "ops", label: "Operaciones" },
     { key: "pct", label: "% del total" },
 ];
@@ -651,24 +655,32 @@ class ProductionAnalysisWidget extends Component {
             return new Date(+y, +mo - 1, 1).toLocaleString("es", { month: "short", year: "2-digit" });
         });
         this.scrapTrendChart = new Chart(el, {
-            type: "bar",
             data: {
                 labels,
-                datasets: [{
-                    label: "Cantidad desechada",
-                    data: t.map(m => m.qty),
-                    backgroundColor: "rgba(220,53,69,0.55)",
-                    borderColor: "#dc3545",
-                    borderWidth: 1,
-                }],
+                datasets: [
+                    { type: "bar", label: "Cantidad desechada", yAxisID: "y",
+                      data: t.map(m => m.qty), backgroundColor: "rgba(220,53,69,0.45)",
+                      borderColor: "#dc3545", borderWidth: 1, order: 2 },
+                    { type: "line", label: "Tasa de scrap %", yAxisID: "y1",
+                      data: t.map(m => m.tasa), borderColor: "#6f42c1",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25,
+                      pointRadius: 3, order: 1 },
+                ],
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { y: { min: 0 } },
+                scales: {
+                    y:  { min: 0, position: "left", title: { display: true, text: "Cantidad" } },
+                    y1: { min: 0, position: "right", grid: { drawOnChartArea: false },
+                          ticks: { callback: v => v + "%" }, title: { display: true, text: "Tasa %" } },
+                },
                 plugins: {
-                    legend: { display: false },
+                    legend: { display: true, position: "bottom" },
                     tooltip: { callbacks: { label: (ctx) => {
                         const m = t[ctx.dataIndex];
+                        if (ctx.datasetIndex === 1) {
+                            return m.tasa === null ? "Tasa: s/prod" : `Tasa: ${m.tasa}%`;
+                        }
                         return `${fmt(m.qty)} u. desechadas · ${m.ops} operación(es)`;
                     } } },
                 },
@@ -713,23 +725,43 @@ class ProductionAnalysisWidget extends Component {
     scrapNextPage() { this.scrapPager.next(); }
     scrapPrevPage() { this.scrapPager.prev(); }
 
-    /** KPIs del scrap: describen las filas visibles. */
+    /** KPIs del scrap: describen las filas visibles. La tasa se calcula sobre los
+     *  productos terminados visibles (desecho ÷ (producido + desecho)); los
+     *  insumos (sin producción) suman aparte en "desecho de insumos". */
     get scrapKpis() {
         const rows = this.scrapGroupedRows;
-        let qty = 0, ops = 0;
-        for (const r of rows) { qty += r.qty || 0; ops += r.ops || 0; }
+        let qty = 0, ops = 0, prod = 0, scrapTerm = 0, scrapIns = 0;
+        for (const r of rows) {
+            qty += r.qty || 0; ops += r.ops || 0;
+            if (r.es_insumo) { scrapIns += r.qty || 0; }
+            else { prod += r.producido || 0; scrapTerm += r.qty || 0; }
+        }
+        const denom = scrapTerm + prod;
         return {
-            qty:      Math.round(qty * 100) / 100,
+            qty:       Math.round(qty * 100) / 100,
             ops,
-            products: rows.length,
+            products:  rows.length,
+            producido: Math.round(prod * 100) / 100,
+            insumos:   Math.round(scrapIns * 100) / 100,
+            tasa:      denom > 0 ? Math.round(scrapTerm / denom * 1000) / 10 : null,
         };
+    }
+    /** Semáforo de la tasa de scrap: acá "más alto = peor". */
+    scrapRateClass(pct) {
+        if (pct === null || pct === undefined) return "text-muted";
+        if (pct >= 10) return "text-danger fw-semibold";
+        if (pct >= 3) return "text-warning fw-semibold";
+        return "text-success fw-semibold";
     }
     get scrapKpiCards() {
         const k = this.scrapKpis;
         return [
-            { key: "qty",      label: "Cantidad desechada", value: fmt(k.qty),      cls: "text-danger fw-semibold" },
-            { key: "ops",      label: "Operaciones",        value: fmt(k.ops),      cls: "" },
-            { key: "products", label: "Productos",          value: fmt(k.products), cls: "" },
+            { key: "qty",      label: "Desecho total",  value: fmt(k.qty),      cls: "text-danger fw-semibold" },
+            { key: "tasa",     label: "Tasa de scrap %", value: k.tasa === null ? "s/prod" : fmtPct(k.tasa),
+              cls: this.scrapRateClass(k.tasa) },
+            { key: "insumos",  label: "Desecho insumos", value: fmt(k.insumos),  cls: "" },
+            { key: "ops",      label: "Operaciones",     value: fmt(k.ops),      cls: "" },
+            { key: "products", label: "Productos",       value: fmt(k.products), cls: "" },
         ];
     }
     scrapKpiTooltip(key) {
@@ -738,6 +770,10 @@ class ProductionAnalysisWidget extends Component {
         switch (key) {
             case "qty":
                 return `Cantidad total desechada de ${scope} en el período (desechos validados)\nSuma de la cantidad de cada operación de desecho\n→ ${fmt(k.qty)} u.\nOjo: suma unidades posiblemente mixtas (distintos productos/UdM); leer como tendencia, no como magnitud única.`;
+            case "tasa":
+                return `Qué parte de lo procesado se desechó (dimensión Calidad del OEE), sobre los productos terminados visibles\nDesecho ÷ (Producido + Desecho) × 100\n→ ${fmt(k.qty - k.insumos)} ÷ (${fmt(k.producido)} + ${fmt(k.qty - k.insumos)}) × 100 = ${k.tasa === null ? "s/prod" : fmtPct(k.tasa)}\nVerde < 3% · Amarillo < 10% · Rojo ≥ 10%. «s/prod» = no hubo producción en el rango. Unidades mixtas: leer como indicador.`;
+            case "insumos":
+                return `Desecho de insumos/componentes visibles (productos sin producción propia en el período)\nSuma del desecho de esos productos\n→ ${fmt(k.insumos)} u.\nSe informa aparte porque no comparte denominador con ningún terminado (no entra en la tasa).`;
             case "ops":
                 return `Cantidad de operaciones de desecho de ${scope} en el período\nConteo de registros de stock.scrap validados\n→ ${fmt(k.ops)} operación(es)`;
             case "products":
@@ -752,6 +788,8 @@ class ProductionAnalysisWidget extends Component {
             workcenter: "Centro de trabajo con más cantidad desechada del producto (— si el desecho no proviene de una OT).",
             qty:        "Cantidad total desechada del producto en el período (desechos validados).",
             uom:        "Unidad de medida del producto.",
+            producido:  "Cantidad producida del producto en el período (mismo criterio de fechas que el resto del panel). 0 = insumo sin producción propia.",
+            tasa:       "Tasa de scrap: Desecho ÷ (Producido + Desecho) × 100. «—» = insumo sin producción en el rango.",
             ops:        "Cantidad de operaciones de desecho del producto en el período.",
             pct:        "Participación del producto sobre la cantidad total desechada del período.",
         }[col.key] || col.label;
@@ -759,8 +797,13 @@ class ProductionAnalysisWidget extends Component {
     }
     scrapCellValue(row, key) {
         if (key === "pct") return fmtPct(row.pct);
-        if (key === "qty" || key === "ops") return fmt(row[key]);
+        if (key === "tasa") return row.tasa === null || row.tasa === undefined ? "—" : fmtPct(row.tasa);
+        if (key === "qty" || key === "ops" || key === "producido") return fmt(row[key]);
         return row[key] || "—";
+    }
+    scrapCellClass(row, key) {
+        if (key === "tasa") return this.scrapRateClass(row.tasa);
+        return "";
     }
 
     // ── Drill: desechos ─────────────────────────────────────────────────────────

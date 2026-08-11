@@ -292,7 +292,7 @@
                                 <tbody>
                                     <tr t-foreach="scrapPagedRows" t-as="row" t-key="row.product_id">
                                         <t t-foreach="scrapCols" t-as="col" t-key="col.key">
-                                            <td t-att-class="col.align === 'center' ? 'text-center' : (col.align === 'end' ? 'text-end' : '')">
+                                            <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + scrapCellClass(row, col.key)">
                                                 <t t-if="col.key === 'name'">
                                                     <span t-esc="row.name"/>
                                                     <button class="btn btn-sm btn-link py-0 px-1 ms-1"

@@ -26,6 +26,7 @@ Relacionado con:
 - mrp_planner_dashboard_wc._wc_parse_range / _wc_load_by_center.
 """
 import logging
+import pytz
 from datetime import datetime, date
 from collections import defaultdict
 
@@ -381,3 +382,157 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             'crit_pct':   (cfg.wc_load_crit_pct if cfg else 0) or 90,
             'cumpl_green': (cfg.comparison_pct_green if cfg else 0) or 90,
         }
+
+    # ════════════════════════ Pestaña OEE (avanzado) ════════════════════════
+    # OEE = Disponibilidad × Rendimiento × Calidad, con la descomposición por
+    # buckets nativos de Odoo (mrp.workcenter.productivity.loss_type). Los tres
+    # indicadores comparten numerador (tiempo productivo) sobre tres bases de
+    # tiempo: OEE ÷ tiempo registrado (PPT), OOE ÷ turno de calendario, TEEP ÷
+    # calendario 24×7. Solo tiene sentido si se registran tiempos/paros en taller;
+    # se gatea con la config enable_oee.
+
+    def _oee_allowed_wc(self):
+        """Centros de trabajo activos visibles según el filtro de almacén del
+        usuario (mismos criterios que get_wc_tags)."""
+        Wc = self.env['mrp.workcenter']
+        active = Wc.search([('active', '=', True)])
+        allowed_ids = self._get_wh_domains().allowed_ids
+        if allowed_ids is None:
+            return active
+        if not allowed_ids:
+            return Wc.browse()
+        rel = self.env['mrp.workorder'].search([
+            ('workcenter_id', 'in', active.ids),
+            ('production_id.picking_type_id.warehouse_id', 'in', allowed_ids),
+        ]).mapped('workcenter_id')
+        return rel
+
+    def _oee_calendar_hours(self, wc, first_day, last_day):
+        """Horas de calendario (turno) del centro en el rango, descontando
+        feriados/licencias. Denominador de OOE."""
+        cal = wc.resource_calendar_id
+        if not cal:
+            return 0.0
+        try:
+            return cal.get_work_hours_count(
+                first_day.replace(tzinfo=pytz.UTC), last_day.replace(tzinfo=pytz.UTC),
+                compute_leaves=True)
+        except Exception as e:
+            _logger.debug("OEE: error calendario %s: %s", cal.name, e)
+            return 0.0
+
+    def _oee_rows(self, first_day, last_day):
+        """OEE por centro de trabajo a partir del registro nativo de
+        productividad. Devuelve (rows, has_data).
+
+        Buckets: productive / availability / performance / quality (horas).
+        PPT = suma de todo lo registrado. Run = PPT − availability. Net = Run −
+        performance. Fully = productive.
+          Disponibilidad = Run ÷ PPT · Rendimiento = Net ÷ Run ·
+          Calidad = productive ÷ Net · OEE = productive ÷ PPT.
+          OOE = productive ÷ horas de turno (calendario) · TEEP = productive ÷ (24×días).
+        """
+        if 'mrp.workcenter.productivity' not in self.env:
+            return [], False
+        Prod = self.env['mrp.workcenter.productivity']
+        wcs = self._oee_allowed_wc()
+        if not wcs:
+            return [], False
+
+        first_str = fields.Datetime.to_string(first_day)
+        last_str  = fields.Datetime.to_string(last_day)
+        records = Prod.search([
+            ('workcenter_id', 'in', wcs.ids),
+            ('date_start', '>=', first_str),
+            ('date_start', '<=', last_str),
+        ])
+
+        by_wc = defaultdict(lambda: {'productive': 0.0, 'availability': 0.0,
+                                     'performance': 0.0, 'quality': 0.0})
+        for r in records:
+            lt = (r.loss_id.loss_type if r.loss_id else None) or 'availability'
+            if lt not in ('productive', 'availability', 'performance', 'quality'):
+                lt = 'availability'
+            by_wc[r.workcenter_id.id][lt] += (r.duration or 0.0) / 60.0  # minutos → horas
+
+        days = (last_day.date() - first_day.date()).days + 1
+        all_available = 24.0 * max(days, 1)
+
+        def _pct(num, den):
+            return round(num / den * 100, 1) if den and den > 0 else None
+
+        rows = []
+        for wc in wcs:
+            b = by_wc.get(wc.id)
+            if not b:
+                continue
+            productive, av, pe, qu = b['productive'], b['availability'], b['performance'], b['quality']
+            ppt = productive + av + pe + qu
+            if ppt <= 0:
+                continue
+            run = ppt - av
+            net = run - pe
+            disponible = self._oee_calendar_hours(wc, first_day, last_day)
+            rows.append({
+                'wc_id':        wc.id,
+                'name':         wc.name,
+                'sectors':      wc.tag_ids.mapped('name'),
+                'availability': _pct(run, ppt),
+                'performance':  _pct(net, run),
+                'quality':      _pct(productive, net),
+                'oee':          _pct(productive, ppt),
+                'ooe':          _pct(productive, disponible),
+                'teep':         _pct(productive, all_available),
+                'productive_h': round(productive, 1),
+                'ppt_h':        round(ppt, 1),
+                'run_h':        round(run, 1),
+                'net_h':        round(net, 1),
+                'avail_loss_h': round(av, 1),
+                'perf_loss_h':  round(pe, 1),
+                'qual_loss_h':  round(qu, 1),
+                'disponible_h': round(disponible, 1),
+                'allavail_h':   round(all_available, 1),
+            })
+        return rows, True
+
+    @api.model
+    def get_oee_analysis(self, date_from, date_to):
+        """OEE/OOE/TEEP por centro de trabajo (nivel avanzado). has_data=False si
+        no hay registros de productividad en el período (para avisar en vez de
+        mostrar ceros engañosos)."""
+        self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
+                                   'odoo_mrp_planner.group_prod')
+        first_day, last_day = self._wc_parse_range(date_from, date_to)
+        rows, has_data = self._oee_rows(first_day, last_day)
+        return {
+            'rows': rows,
+            'has_data': has_data,
+            'oee_green': 85, 'oee_warn': 60,   # referencias world-class (fijas por ahora)
+        }
+
+    @api.model
+    def get_oee_trend(self, date_from, date_to):
+        """Evolución mensual de OEE/OOE/TEEP (agregado de todos los centros:
+        Σ tiempo productivo ÷ cada base de tiempo del mes)."""
+        self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
+                                   'odoo_mrp_planner.group_prod')
+        trend = []
+        for ym, seg_from, seg_to in self._pa_months(date_from, date_to):
+            first_day, last_day = self._wc_parse_range(seg_from, seg_to)
+            rows, _hd = self._oee_rows(first_day, last_day)
+            prod = sum(r['productive_h'] for r in rows)
+            ppt  = sum(r['ppt_h'] for r in rows)
+            days = (last_day.date() - first_day.date()).days + 1
+            all_available = 24.0 * max(days, 1) * (len(rows) or 1)
+            disponible = 0.0
+            for r in rows:
+                # recomputo horas de turno agregadas para OOE mensual
+                wc = self.env['mrp.workcenter'].browse(r['wc_id'])
+                disponible += self._oee_calendar_hours(wc, first_day, last_day)
+            trend.append({
+                'ym':   ym,
+                'oee':  round(prod / ppt * 100, 1) if ppt > 0 else None,
+                'ooe':  round(prod / disponible * 100, 1) if disponible > 0 else None,
+                'teep': round(prod / all_available * 100, 1) if all_available > 0 else None,
+            })
+        return {'trend': trend}

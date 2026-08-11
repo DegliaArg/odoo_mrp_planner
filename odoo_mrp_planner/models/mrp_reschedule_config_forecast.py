@@ -66,6 +66,14 @@ class MrpRescheduleConfigForecast(models.Model):
             'Proporcional: distribuye las cantidades según el tiempo que solapa el período; '
             'el producido usa los movimientos reales de stock con fecha en el período.')
 
+    enable_oee = fields.Boolean(
+        string='Habilitar análisis OEE (avanzado)', default=False,
+        help='Muestra la pestaña OEE (OEE/OOE/TEEP por centro de trabajo) en el panel de '
+             'Análisis de producción. Requiere que se registren los tiempos y paros de los '
+             'centros en la app Taller/Órdenes de trabajo (mrp.workcenter.productivity con '
+             'motivos de pérdida). Apagado (por defecto): el panel se queda en el nivel '
+             'Calidad, sin OEE.')
+
     wc_load_warn_pct = fields.Integer(
         string='Carga de CT — umbral amarillo (%)', default=70,
         help='La carga de centros de trabajo (planificado ÷ disponible) se muestra en amarillo desde este %.')

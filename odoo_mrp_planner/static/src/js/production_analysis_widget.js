@@ -131,11 +131,28 @@ const EVOL_COLS = [
 const SECTOR_GROUP   = { key: "sector",   label: "Sector",    accessor: r => (r.sectors && r.sectors.length) ? r.sectors : ["Sin sector"] };
 const CATEGORY_GROUP = { key: "category", label: "Categoría", accessor: r => [r.category || "Sin categoría"] };
 
+const OEE_COLS = [
+    { key: "name",         label: "Centro de trabajo", width: 200, fixed: true, align: "start" },
+    { key: "availability", label: "Disp. %",           width:  90, align: "center" },
+    { key: "performance",  label: "Rend. %",           width:  90, align: "center" },
+    { key: "quality",      label: "Calidad %",         width: 100, align: "center" },
+    { key: "oee",          label: "OEE %",             width:  90, align: "center" },
+    { key: "ooe",          label: "OOE %",             width:  90, align: "center" },
+    { key: "teep",         label: "TEEP %",            width:  90, align: "center" },
+    { key: "productive_h", label: "Productivo (h)",    width: 110, align: "center" },
+];
+const OEE_NUM_COLS = [
+    { key: "availability", label: "Disponibilidad %" }, { key: "performance", label: "Rendimiento %" },
+    { key: "quality", label: "Calidad %" }, { key: "oee", label: "OEE %" },
+    { key: "ooe", label: "OOE %" }, { key: "teep", label: "TEEP %" },
+    { key: "productive_h", label: "Productivo (h)" },
+];
 const TABS = [
     { key: "wc",    label: "Carga de CT",             icon: "fa-tachometer" },
     { key: "ofs",   label: "OFs",                     icon: "fa-wrench" },
     { key: "cumpl", label: "Producido vs Programado", icon: "fa-bar-chart" },
     { key: "efic",  label: "Plan vs Real",            icon: "fa-balance-scale" },
+    { key: "oee",   label: "OEE",                     icon: "fa-heartbeat" },
     { key: "scrap", label: "Scrap",                   icon: "fa-trash" },
     { key: "evol",  label: "Evolución",               icon: "fa-line-chart" },
 ];
@@ -238,7 +255,6 @@ class ProductionAnalysisWidget extends Component {
         this.numColOptions = WC_NUM_COLS;
         this.scrapCols = SCRAP_COLS;
         this.scrapNumColOptions = SCRAP_NUM_COLS;
-        this.tabs = TABS;
 
         this.state = useState({
             tab:      "wc",
@@ -246,6 +262,7 @@ class ProductionAnalysisWidget extends Component {
             dateTo:   today(),
             tagId:    null,
             tags:     [],
+            enableOee: false,
             // Tabla Carga de CT
             search:       "",
             numFilters:   [],
@@ -292,6 +309,11 @@ class ProductionAnalysisWidget extends Component {
             // Evolución (resumen mensual)
             evolRows: [], evolWarnPct: 70, evolCritPct: 90, evolGreen: 90,
             evolLoaded: false, evolLoading: false, evolError: null,
+            // Tabla OEE (avanzado)
+            oeeRows: [], oeeSearch: "", oeeNumFilters: [], oeeGroupBy: null, oeeSelGroup: null,
+            oeeSortCol: "oee", oeeSortDir: "desc", oeePage: 1, oeeTrend: [],
+            oeeHasData: true, oeeGreen: 85, oeeWarn: 60,
+            oeeLoaded: false, oeeLoading: false, oeeError: null,
         });
 
         this._chartDirty = false;
@@ -300,6 +322,7 @@ class ProductionAnalysisWidget extends Component {
         this._cmpChartDirty = false;
         this._efChartDirty = false;
         this._evolChartDirty = false;
+        this._oeeChartDirty = false;
         this.pager = makePager(this, () => this.sortedRows.length);
         // Pager propio del tab Scrap (makePager está fijado a state.page).
         const self = this;
@@ -316,13 +339,15 @@ class ProductionAnalysisWidget extends Component {
         this.cmpTrendRef  = useRef("cmpTrend");
         this.efTrendRef   = useRef("efTrend");
         this.evolTrendRef = useRef("evolTrend");
-        this.ofTrendChart = this.cmpTrendChart = this.efTrendChart = this.evolTrendChart = null;
+        this.oeeTrendRef  = useRef("oeeTrend");
+        this.ofTrendChart = this.cmpTrendChart = this.efTrendChart = this.evolTrendChart = this.oeeTrendChart = null;
 
         // Controladores de tabla (una config por pestaña, misma maquinaria)
         this.ctls = {
             of:  new TableCtl(this, this._ofCfg()),
             cmp: new TableCtl(this, this._cmpCfg()),
             ef:  new TableCtl(this, this._efCfg()),
+            oee: new TableCtl(this, this._oeeCfg()),
         };
 
         onMounted(async () => {
@@ -341,10 +366,12 @@ class ProductionAnalysisWidget extends Component {
             if (this._cmpChartDirty && this.cmpTrendRef.el) this._renderCmpTrend();
             if (this._efChartDirty && this.efTrendRef.el) this._renderEfTrend();
             if (this._evolChartDirty && this.evolTrendRef.el) this._renderEvolTrend();
+            if (this._oeeChartDirty && this.oeeTrendRef.el) this._renderOeeTrend();
         });
         onWillUnmount(() => {
             for (const c of [this.trendChart, this.scrapTrendChart, this.ofTrendChart,
-                             this.cmpTrendChart, this.efTrendChart, this.evolTrendChart]) {
+                             this.cmpTrendChart, this.efTrendChart, this.evolTrendChart,
+                             this.oeeTrendChart]) {
                 if (c) c.destroy();
             }
         });
@@ -402,6 +429,11 @@ class ProductionAnalysisWidget extends Component {
         return `${t} Clic en el encabezado para ordenar.`;
     }
 
+    /** Pestañas visibles: la de OEE solo si está habilitada en Ajustes. */
+    get tabs() {
+        return this.state.enableOee ? TABS : TABS.filter(t => t.key !== "oee");
+    }
+
     // ── Navegación de pestañas ──────────────────────────────────────────────────
     setTab(key) {
         this.state.tab = key;
@@ -410,6 +442,7 @@ class ProductionAnalysisWidget extends Component {
         if (key === "ofs")   { this._ofChartDirty = true; if (!this.state.ofLoaded) this._loadOf(); }
         if (key === "cumpl") { this._cmpChartDirty = true; if (!this.state.cmpLoaded) this._loadCmp(); }
         if (key === "efic")  { this._efChartDirty = true; if (!this.state.efLoaded) this._loadEf(); }
+        if (key === "oee")   { this._oeeChartDirty = true; if (!this.state.oeeLoaded) this._loadOee(); }
         if (key === "evol")  { this._evolChartDirty = true; if (!this.state.evolLoaded) this._loadEvol(); }
     }
 
@@ -418,6 +451,7 @@ class ProductionAnalysisWidget extends Component {
         try {
             const d = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
             this.state.tags = (d && d.tags) || [];
+            this.state.enableOee = !!(d && d.enable_oee);
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[ProdAnalysis]", e);
         }
@@ -461,6 +495,7 @@ class ProductionAnalysisWidget extends Component {
         if (this.state.ofLoaded)    this._loadOf();
         if (this.state.cmpLoaded)   this._loadCmp();
         if (this.state.efLoaded)    this._loadEf();
+        if (this.state.oeeLoaded)   this._loadOee();
         if (this.state.evolLoaded)  this._loadEvol();
     }
 
@@ -894,6 +929,17 @@ class ProductionAnalysisWidget extends Component {
             target: "current",
         });
     }
+    _openProductivity(ids, name) {
+        this.action.doAction({
+            type: "ir.actions.act_window", name,
+            res_model: "mrp.workcenter.productivity",
+            domain: [["workcenter_id", "in", ids],
+                     ["date_start", ">=", this.state.dateFrom + " 00:00:00"],
+                     ["date_start", "<=", this.state.dateTo + " 23:59:59"]],
+            views: [[false, "list"], [false, "form"]],
+            target: "current",
+        });
+    }
 
     // ════════════════ Config de las pestañas con TableCtl ════════════════
 
@@ -1059,6 +1105,74 @@ class ProductionAnalysisWidget extends Component {
         };
     }
 
+    _oeeCfg() {
+        const oeeCls = (pct, w) => w.rateClass(pct, w.state.oeeGreen, w.state.oeeWarn);
+        return {
+            prefix: "oee", cols: OEE_COLS, numCols: OEE_NUM_COLS,
+            groupDefs: [SECTOR_GROUP], textFields: ["name"],
+            placeholder: "Buscar centro de trabajo…", emptyMsg: "Sin registros de productividad en el período/filtros.",
+            unit: "centro(s)", rowKey: "wc_id",
+            computeKpis: (rows) => {
+                let prod = 0, ppt = 0, run = 0, net = 0, disp = 0, allav = 0;
+                for (const r of rows) {
+                    prod += r.productive_h || 0; ppt += r.ppt_h || 0; run += r.run_h || 0;
+                    net += r.net_h || 0; disp += r.disponible_h || 0; allav += r.allavail_h || 0;
+                }
+                const p = (n, d) => d > 0 ? Math.round(n / d * 1000) / 10 : null;
+                return {
+                    oee: p(prod, ppt), ooe: p(prod, disp), teep: p(prod, allav),
+                    availability: p(run, ppt), performance: p(net, run), quality: p(prod, net),
+                    productive: Math.round(prod * 10) / 10, wcs: rows.length,
+                };
+            },
+            kpiCards: (k, w) => [
+                { key: "oee",        label: "OEE %",         value: fmtPct(k.oee),  cls: oeeCls(k.oee, w) },
+                { key: "ooe",        label: "OOE %",         value: fmtPct(k.ooe),  cls: oeeCls(k.ooe, w) },
+                { key: "teep",       label: "TEEP %",        value: fmtPct(k.teep), cls: oeeCls(k.teep, w) },
+                { key: "productive", label: "Productivo (h)", value: fmt(k.productive), cls: "" },
+                { key: "wcs",        label: "Centros",       value: fmt(k.wcs),     cls: "" },
+            ],
+            kpiTooltip: (key, k, w) => {
+                const scope = `${k.wcs} centro(s) visible(s)`;
+                const bench = `Referencia world-class: verde ≥ ${w.state.oeeGreen}% · amarillo ≥ ${w.state.oeeWarn}%.`;
+                switch (key) {
+                    case "oee":  return `Efectividad global del equipo en ${scope}, contra el tiempo REGISTRADO de producción (PPT)\nDisponibilidad × Rendimiento × Calidad = Productivo ÷ PPT\n→ ${fmtPct(k.availability)} × ${fmtPct(k.performance)} × ${fmtPct(k.quality)} = ${fmtPct(k.oee)}\n${bench}`;
+                    case "ooe":  return `Efectividad contra el tiempo de TURNO de calendario (más exigente que OEE)\nProductivo ÷ horas de turno\n→ ${fmtPct(k.ooe)}\nCae por debajo del OEE cuando el turno tiene tiempo no registrado.`;
+                    case "teep": return `Efectividad contra el calendario COMPLETO (24×7): cuánto de la capacidad teórica se aprovecha\nProductivo ÷ (24 h × días)\n→ ${fmtPct(k.teep)}\nEl más exigente de los tres.`;
+                    case "productive": return `Horas plenamente productivas de ${scope} (tiempo registrado como productivo)\nSuma del tiempo productivo\n→ ${fmt(k.productive)} h`;
+                    case "wcs": return `Centros de trabajo con registro de productividad en el período\n→ ${fmt(k.wcs)} centro(s)`;
+                }
+                return "";
+            },
+            colTitle: (col) => {
+                const t = {
+                    name: "Centro de trabajo. El botón abre sus registros de productividad del período.",
+                    availability: "Disponibilidad = tiempo corriendo ÷ tiempo registrado. Pérdidas: paros/averías/cambios.",
+                    performance: "Rendimiento = tiempo neto ÷ tiempo corriendo. Pérdidas: micro-paradas y velocidad reducida.",
+                    quality: "Calidad = tiempo de producto bueno ÷ tiempo neto. Pérdidas: scrap/reproceso.",
+                    oee: "OEE = Disp. × Rend. × Calidad, contra el tiempo registrado de producción.",
+                    ooe: "OOE = productivo ÷ horas de turno del calendario (más exigente que OEE).",
+                    teep: "TEEP = productivo ÷ calendario 24×7 (el más exigente).",
+                    productive_h: "Horas plenamente productivas registradas.",
+                }[col.key] || col.label;
+                return `${t} Clic en el encabezado para ordenar.`;
+            },
+            cellValue: (row, key) => {
+                if (["availability", "performance", "quality", "oee", "ooe", "teep"].includes(key)) return fmtPct(row[key]);
+                if (key === "productive_h") return fmt(row[key]);
+                return row[key] || "—";
+            },
+            cellClass: (row, key, w) => {
+                if (["oee", "ooe", "teep", "availability", "performance", "quality"].includes(key)) {
+                    return w.rateClass(row[key], w.state.oeeGreen, w.state.oeeWarn);
+                }
+                return "";
+            },
+            onViewAll: (rows, w) => w._openProductivity(rows.map(r => r.wc_id), "Registros de productividad del período"),
+            onViewRow: (row, w) => w._openProductivity([row.wc_id], `Productividad — ${row.name}`),
+        };
+    }
+
     // ════════════════ Carga de datos de las nuevas pestañas ════════════════
 
     async _loadOf() {
@@ -1114,6 +1228,26 @@ class ProductionAnalysisWidget extends Component {
             console.error("[ProdAnalysis]", e);
             this.state.efError = (e && e.data && e.data.message) || e.message || String(e);
         } finally { this.state.efLoading = false; }
+    }
+
+    async _loadOee() {
+        this.state.oeeLoading = true; this.state.oeeError = null;
+        try {
+            const [table, trend] = await Promise.all([
+                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo]),
+            ]);
+            this.state.oeeRows = table.rows || [];
+            this.state.oeeHasData = !!table.has_data;
+            this.state.oeeGreen = table.oee_green || 85;
+            this.state.oeeWarn  = table.oee_warn || 60;
+            this.state.oeeTrend = trend.trend || [];
+            this.state.oeePage = 1; this.state.oeeLoaded = true;
+            this._oeeChartDirty = true; this._renderOeeTrend();
+        } catch (e) {
+            console.error("[ProdAnalysis]", e);
+            this.state.oeeError = (e && e.data && e.data.message) || e.message || String(e);
+        } finally { this.state.oeeLoading = false; }
     }
 
     async _loadEvol() {
@@ -1218,6 +1352,33 @@ class ProductionAnalysisWidget extends Component {
                             : `${m.eficiencia}% — real ${fmt(m.real_h)} h / plan ${fmt(m.plan_h)} h`;
                     } } },
                 },
+            },
+        });
+    }
+
+    _renderOeeTrend() {
+        const el = this.oeeTrendRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.oeeTrendChart) { this.oeeTrendChart.destroy(); this.oeeTrendChart = null; }
+        this._oeeChartDirty = false;
+        const t = this.state.oeeTrend || [];
+        this.oeeTrendChart = new Chart(el, {
+            type: "line",
+            data: {
+                labels: this._monthLabels(t),
+                datasets: [
+                    { label: "OEE %",  data: t.map(m => m.oee),  borderColor: "#198754",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                    { label: "OOE %",  data: t.map(m => m.ooe),  borderColor: "#0d6efd",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                    { label: "TEEP %", data: t.map(m => m.teep), borderColor: "#6c757d",
+                      backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, max: 100, ticks: { callback: v => v + "%" } } },
+                plugins: { legend: { display: true, position: "bottom" } },
             },
         });
     }

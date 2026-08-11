@@ -585,7 +585,40 @@ reutilizable. Helper compartido `applyNumericFilters` en `planner_table.js`.
   drills nativos de Odoo con "Agregar filtro personalizado" para filtrar por
   número si hace falta.
 
+## Panel de Análisis de producción — OEE/OOE/TEEP y nivel de captura (2026-08-11)
+
+**Contexto.** El panel de Análisis de producción mide la parte productiva por pestañas.
+La dimensión **Calidad** (tasa de scrap = desecho ÷ (producido + desecho)) es exacta y no
+depende de ningún registro extra, así que se implementó directo en la pestaña Scrap.
+
+**Decisión sobre OEE / OOE / TEEP.** Las tres son Disponibilidad × Rendimiento × Calidad
+sobre tres bases de tiempo (tiempo registrado / turno de calendario / calendario 24×7).
+Su descomposición A×P×Q **requiere que se registren tiempos y paros con motivo** en la app
+Taller/Órdenes de trabajo (`mrp.workcenter.productivity` con `loss_type`
+availability/performance/quality/productive). Sin ese registro, Disponibilidad y Rendimiento
+no se pueden separar de forma confiable (el tiempo de una avería queda escondido dentro de
+`duration`), por lo que un OEE armado sin él sería un compuesto inventado en dos tercios.
+
+**Implementación (módulo estándar, no cableado a un cliente):** se agregó el toggle de
+config `enable_oee` (Ajustes → Producción, apagado por defecto). Apagado = nivel Calidad
+(sin OEE). Encendido = aparece la pestaña **OEE** por centro de trabajo, que **lee el dato
+nativo** de Odoo y arma OEE/OOE/TEEP + la descomposición. Si no hay registros de
+productividad en el período, avisa "sin registros" en vez de mostrar ceros. Así el módulo
+sirve tanto para quien registra paros (enciende y ve OEE real) como para quien no (lo deja
+apagado). Giacomelli hoy **no** registra paros → queda en nivel Calidad.
+
+**Mapeo de denominadores (para retomar/validar):** PPT = tiempo registrado; Run = PPT −
+pérdidas de disponibilidad; Net = Run − pérdidas de rendimiento; Fully = tiempo productivo.
+OEE = productivo ÷ PPT · OOE = productivo ÷ horas de turno (resource.calendar) · TEEP =
+productivo ÷ (24 h × días). **A validar en staging:** unidad de `mrp.workcenter.productivity.duration`
+(se asumió minutos) y los valores de `loss_id.loss_type`.
+
+**Reencuadre de "Eficiencia":** la pestaña plan-vs-real se renombró **"Plan vs Real"** con
+nota de que es precisión de planificación, **no** el Performance del OEE.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los
   configurables del análisis de clientes — diferencia aceptada por ahora.
+- **Benchmarks de OEE hardcodeados** (verde ≥ 85%, amarillo ≥ 60%) — podrían hacerse
+  configurables (o leer `oee_target` del centro) si el cliente lo pide.

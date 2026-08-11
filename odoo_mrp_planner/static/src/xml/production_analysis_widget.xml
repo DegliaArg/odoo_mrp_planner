@@ -408,6 +408,39 @@
                 </t>
             </t>
 
+            <!-- ════════════════ PESTAÑA: OEE (avanzado, gateada por Ajustes) ════════════════ -->
+            <t t-if="state.tab === 'oee'">
+                <t t-call="odoo_mrp_planner.ProdAnalysisDateBar"/>
+                <div class="alert alert-light border py-1 px-2 small mb-2 text-muted">
+                    <i class="fa fa-info-circle me-1"/>OEE = Disponibilidad × Rendimiento × Calidad, por centro de trabajo. Se calcula con el <b>registro nativo de paros</b> de Odoo (app Taller). OEE vs OOE vs TEEP = mismo numerador sobre tiempo registrado / turno / calendario 24×7.
+                </div>
+                <div t-if="state.oeeError" class="alert alert-danger py-2 mb-2">
+                    <i class="fa fa-exclamation-triangle me-2"/><t t-esc="state.oeeError"/>
+                </div>
+                <div t-if="state.oeeLoading and !ctls.oee.rows.length" class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/><div class="mt-2 small">Cargando datos…</div>
+                </div>
+                <!-- Sin registro de productividad: avisar en vez de mostrar ceros -->
+                <div t-if="!state.oeeError and state.oeeLoaded and !state.oeeLoading and !ctls.oee.rows.length"
+                     class="alert alert-warning py-3">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    <b>Sin registros de productividad en el período.</b>
+                    El OEE necesita que se registren tiempos y paros de los centros en la app Taller/Órdenes de trabajo. Sin ese dato no se puede calcular (no se muestran ceros para no confundir).
+                </div>
+                <t t-if="!state.oeeError and ctls.oee.rows.length">
+                    <div t-att-class="state.oeeLoading ? 'opacity-50 pe-none' : ''">
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-line-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Evolución de OEE / OOE / TEEP (%)</span>
+                        </div>
+                        <div style="height:240px;" class="mb-4"><canvas t-ref="oeeTrend"/></div>
+                        <t t-call="odoo_mrp_planner.ProdAnalysisTableBlock">
+                            <t t-set="ctl" t-value="ctls.oee"/>
+                        </t>
+                    </div>
+                </t>
+            </t>
+
             <!-- ════════════════ PESTAÑA: Evolución ════════════════ -->
             <t t-if="state.tab === 'evol'">
                 <t t-call="odoo_mrp_planner.ProdAnalysisDateBar"/>
@@ -558,7 +591,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr t-foreach="ctl.pagedRows" t-as="row" t-key="row.product_id">
+                    <tr t-foreach="ctl.pagedRows" t-as="row" t-key="row_index">
                         <t t-foreach="ctl.cols" t-as="col" t-key="col.key">
                             <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + ctl.cellClass(row, col.key)">
                                 <t t-if="col.key === 'name'">

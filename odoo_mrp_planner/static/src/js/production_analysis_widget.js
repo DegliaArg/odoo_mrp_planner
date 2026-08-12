@@ -261,6 +261,7 @@ class ProductionAnalysisWidget extends Component {
             tagId:    null,
             tags:     [],
             enableOee: false,
+            barTopN:  10,   // Top-N de los gráficos de ranking (10/20/50)
             // Tabla Carga de CT
             search:       "",
             numFilters:   [],
@@ -340,14 +341,13 @@ class ProductionAnalysisWidget extends Component {
         this.oeeTrendRef  = useRef("oeeTrend");
         this.ofTrendChart = this.cmpTrendChart = this.efTrendChart = this.evolTrendChart = this.oeeTrendChart = null;
 
-        // Segundo gráfico analítico por pestaña (composición / ranking / Pareto).
-        this.wcBarsRef      = useRef("wcBars");
+        // Segundo gráfico analítico por pestaña (ranking / Pareto).
         this.scrapParetoRef = useRef("scrapPareto");
         this.ofBarsRef      = useRef("ofBars");
         this.cmpBarsRef     = useRef("cmpBars");
         this.efBarsRef      = useRef("efBars");
         this.oeeBarsRef     = useRef("oeeBars");
-        this.wcBarsChart = this.scrapParetoChart = this.ofBarsChart = null;
+        this.scrapParetoChart = this.ofBarsChart = null;
         this.cmpBarsChart = this.efBarsChart = this.oeeBarsChart = null;
 
         // Controladores de tabla (una config por pestaña, misma maquinaria)
@@ -368,7 +368,7 @@ class ProductionAnalysisWidget extends Component {
             }
         });
         onPatched(() => {
-            if (this._chartDirty && this.trendRef.el) { this._renderTrend(); this._renderWcBars(); }
+            if (this._chartDirty && this.trendRef.el) this._renderTrend();
             if (this._scrapChartDirty && this.scrapTrendRef.el) { this._renderScrapTrend(); this._renderScrapPareto(); }
             if (this._ofChartDirty && this.ofTrendRef.el) { this._renderOfTrend(); this._renderOfBars(); }
             if (this._cmpChartDirty && this.cmpTrendRef.el) { this._renderCmpTrend(); this._renderCmpBars(); }
@@ -379,7 +379,7 @@ class ProductionAnalysisWidget extends Component {
         onWillUnmount(() => {
             for (const c of [this.trendChart, this.scrapTrendChart, this.ofTrendChart,
                              this.cmpTrendChart, this.efTrendChart, this.evolTrendChart,
-                             this.oeeTrendChart, this.wcBarsChart, this.scrapParetoChart,
+                             this.oeeTrendChart, this.scrapParetoChart,
                              this.ofBarsChart, this.cmpBarsChart, this.efBarsChart,
                              this.oeeBarsChart]) {
                 if (c) c.destroy();
@@ -434,7 +434,7 @@ class ProductionAnalysisWidget extends Component {
             no_planificado: "Horas ejecutadas que superaron (o no tenían) plan: máx(0, real − plan).",
             carga_pct:      "Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).",
             holgura:        "Capacidad libre: Disponible − Planificado. Negativa = sobrecarga.",
-            eficiencia:     "Ejecutado ÷ Planificado × 100. Por encima de 100% se tardó más de lo previsto.",
+            eficiencia:     "Planificado ÷ Ejecutado × 100. Por encima de 100% se hizo en menos tiempo del previsto (más eficiente).",
         }[col.key] || col.label;
         return `${t} Clic en el encabezado para ordenar.`;
     }
@@ -485,7 +485,6 @@ class ProductionAnalysisWidget extends Component {
             this.state.page    = 1;
             this._chartDirty   = true;
             this._renderTrend();
-            this._renderWcBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -1069,7 +1068,7 @@ class ProductionAnalysisWidget extends Component {
                 let plan = 0, real = 0, ofs = 0;
                 for (const r of rows) { plan += r.plan_h || 0; real += r.real_h || 0; ofs += r.ofs || 0; }
                 return { plan_h: Math.round(plan * 10) / 10, real_h: Math.round(real * 10) / 10,
-                         eficiencia: plan > 0 ? Math.round(real / plan * 1000) / 10 : null, products: rows.length };
+                         eficiencia: real > 0 ? Math.round(plan / real * 1000) / 10 : null, products: rows.length };
             },
             kpiCards: (k) => [
                 { key: "plan_h",     label: "Plan (h)",     value: fmt(k.plan_h),     cls: "" },
@@ -1082,7 +1081,7 @@ class ProductionAnalysisWidget extends Component {
                 switch (key) {
                     case "plan_h":     return `Horas planificadas de ${scope}: duración esperada de las OT (criterio de fechas de Ajustes)\nSuma de la duración esperada\n→ ${fmt(k.plan_h)} h`;
                     case "real_h":     return `Horas reales registradas en las OT de ${scope}\nSuma de la duración real\n→ ${fmt(k.real_h)} h`;
-                    case "eficiencia": return `Cuánto se tardó respecto de lo previsto, en ${scope}\nReal ÷ Planificado × 100\n→ ${fmt(k.real_h)} ÷ ${fmt(k.plan_h)} × 100 = ${fmtPct(k.eficiencia)}\nPor encima de 100% se tardó más de lo previsto.`;
+                    case "eficiencia": return `Eficiencia de la planificación en ${scope}: qué parte del tiempo previsto alcanzó para lo ejecutado\nPlanificado ÷ Real × 100\n→ ${fmt(k.plan_h)} ÷ ${fmt(k.real_h)} × 100 = ${fmtPct(k.eficiencia)}\nPor encima de 100% se hizo en menos tiempo del previsto (más eficiente).`;
                     case "products":   return `Productos con OT y horas en el período\nConteo de productos únicos\n→ ${fmt(k.products)}`;
                 }
                 return "";
@@ -1094,7 +1093,7 @@ class ProductionAnalysisWidget extends Component {
                     ofs: "Cantidad de OFs del producto con OT en el período.",
                     plan_h: "Horas planificadas (duración esperada de las OT).",
                     real_h: "Horas reales registradas en las OT.",
-                    eficiencia: "Real ÷ Planificado × 100. Por encima de 100% se tardó más de lo previsto.",
+                    eficiencia: "Planificado ÷ Real × 100. Por encima de 100% se hizo en menos tiempo del previsto (más eficiente).",
                 }[col.key] || col.label;
                 return `${t} Clic en el encabezado para ordenar.`;
             },
@@ -1351,8 +1350,8 @@ class ProductionAnalysisWidget extends Component {
                     legend: { display: false },
                     tooltip: { callbacks: { label: (ctx) => {
                         const m = t[ctx.dataIndex];
-                        return m.eficiencia === null ? "Sin plan"
-                            : `${m.eficiencia}% — real ${fmt(m.real_h)} h / plan ${fmt(m.plan_h)} h`;
+                        return m.eficiencia === null ? "Sin datos"
+                            : `${m.eficiencia}% — plan ${fmt(m.plan_h)} h / real ${fmt(m.real_h)} h`;
                     } } },
                 },
             },
@@ -1423,90 +1422,78 @@ class ProductionAnalysisWidget extends Component {
         });
     }
 
-    // ── Segundos gráficos analíticos (composición / ranking / Pareto) ───────────
-    /** Top-N filas por una clave numérica (desc), para los gráficos de ranking. */
-    _topN(rows, key, n = 12) {
+    // ── Segundos gráficos analíticos (ranking / Pareto) ─────────────────────────
+    /** Top-N filas por una clave numérica (desc). N = selector del panel. */
+    _topN(rows, key) {
+        const n = this.state.barTopN || 10;
         return [...(rows || [])].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, n);
+    }
+    /** Código del producto para las etiquetas de los gráficos: el "[código]" del
+     *  display_name; si no lo tiene, el nombre recortado. Mantiene el eje legible. */
+    _prodCode(name) {
+        const m = (name || "").match(/^\[([^\]]+)\]/);
+        if (m) return m[1];
+        return (name || "").length > 16 ? (name.slice(0, 15) + "…") : (name || "");
     }
     /** Colores base reutilizados en los datasets. */
     get _palette() {
         return { blue: "#0d6efd", green: "#198754", orange: "#fd7e14",
                  purple: "#6610f2", red: "#dc3545", gray: "#6c757d", teal: "#20c997" };
     }
-
-    /** Carga de CT: composición horizontal de horas por CT (ejecutado + pendiente
-     *  + no planificado), ordenada por carga. Muestra dónde está el cuello. */
-    _renderWcBars() {
-        const el = this.wcBarsRef.el;
-        if (!el || typeof Chart === "undefined") return;
-        if (this.wcBarsChart) { this.wcBarsChart.destroy(); this.wcBarsChart = null; }
-        const p = this._palette;
-        const rows = this._topN(this.state.rows, "planificado", 15);
-        this.wcBarsChart = new Chart(el, {
-            type: "bar",
-            data: {
-                labels: rows.map(r => r.name),
-                datasets: [
-                    { label: "Ejecutado", data: rows.map(r => r.ejecutado), backgroundColor: p.green, stack: "h" },
-                    { label: "Pendiente", data: rows.map(r => r.pendiente), backgroundColor: p.blue, stack: "h" },
-                    { label: "No planif.", data: rows.map(r => r.no_planificado), backgroundColor: p.orange, stack: "h" },
-                    { label: "Disponible", data: rows.map(r => r.disponible), type: "line",
-                      borderColor: p.gray, backgroundColor: "transparent", pointStyle: "line", borderDash: [4, 3] },
-                ],
-            },
-            options: {
-                indexAxis: "y", responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true, beginAtZero: true, title: { display: true, text: "Horas" } },
-                          y: { stacked: true } },
-                plugins: { legend: { display: true, position: "bottom" } },
-            },
-        });
+    /** Cambia el Top-N y re-dibuja el gráfico de ranking de la pestaña activa. */
+    onBarTopNChange(ev) {
+        this.state.barTopN = parseInt(ev.target.value) || 10;
+        const t = this.state.tab;
+        if (t === "ofs")   this._renderOfBars();
+        else if (t === "cumpl") this._renderCmpBars();
+        else if (t === "efic")  this._renderEfBars();
+        else if (t === "scrap") this._renderScrapPareto();
     }
 
-    /** Scrap: Pareto por producto (barras de cantidad + acumulado %). */
+    /** Scrap: Pareto por producto (solo barras de cantidad, top-N). */
     _renderScrapPareto() {
         const el = this.scrapParetoRef.el;
         if (!el || typeof Chart === "undefined") return;
         if (this.scrapParetoChart) { this.scrapParetoChart.destroy(); this.scrapParetoChart = null; }
         const p = this._palette;
-        const rows = this._topN(this.state.scrapRows, "qty", 15);
-        const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
-        let acc = 0;
-        const cum = rows.map(r => { acc += r.qty || 0; return total > 0 ? Math.round(acc / total * 1000) / 10 : null; });
+        const rows = this._topN(this.state.scrapRows, "qty");
         this.scrapParetoChart = new Chart(el, {
+            type: "bar",
             data: {
-                labels: rows.map(r => r.name),
+                labels: rows.map(r => this._prodCode(r.name)),
                 datasets: [
-                    { type: "bar", label: "Desecho", yAxisID: "y", order: 2,
-                      data: rows.map(r => r.qty), backgroundColor: "rgba(220,53,69,0.55)", borderColor: p.red, borderWidth: 1 },
-                    { type: "line", label: "Acumulado %", yAxisID: "y1", order: 1,
-                      data: cum, borderColor: p.purple, backgroundColor: "transparent", tension: 0.2, pointRadius: 3 },
+                    { label: "Desecho", data: rows.map(r => r.qty),
+                      backgroundColor: "rgba(220,53,69,0.55)", borderColor: p.red, borderWidth: 1 },
                 ],
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: {
-                    y:  { min: 0, position: "left", title: { display: true, text: "Cantidad" } },
-                    y1: { min: 0, max: 100, position: "right", grid: { drawOnChartArea: false },
-                          ticks: { callback: v => v + "%" }, title: { display: true, text: "Acum. %" } },
+                scales: { x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 40 } },
+                          y: { min: 0, beginAtZero: true, title: { display: true, text: "Cantidad" } } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { title: (items) => {
+                        const r = rows[items[0].dataIndex];
+                        return r ? r.name : "";
+                    } } },
                 },
-                plugins: { legend: { display: true, position: "bottom" } },
             },
         });
     }
 
     /** Barras agrupadas de dos series por fila (top-N), reutilizado por
-     *  OFs (programado vs producido), Comparativo y Eficiencia (plan vs real). */
+     *  OFs (programado vs producido), Comparativo y Eficiencia (plan vs real).
+     *  Etiquetas = código del producto; el nombre completo va en el tooltip. */
     _renderGroupedBars(chartKey, ref, rows, sortKey, s1, s2) {
         const el = ref.el;
         if (!el || typeof Chart === "undefined") return;
         if (this[chartKey]) { this[chartKey].destroy(); this[chartKey] = null; }
         const p = this._palette;
-        const top = this._topN(rows, sortKey, 12);
+        const top = this._topN(rows, sortKey);
         this[chartKey] = new Chart(el, {
             type: "bar",
             data: {
-                labels: top.map(r => r.name),
+                labels: top.map(r => this._prodCode(r.name)),
                 datasets: [
                     { label: s1.label, data: top.map(r => r[s1.key]), backgroundColor: p[s1.color] },
                     { label: s2.label, data: top.map(r => r[s2.key]), backgroundColor: p[s2.color] },
@@ -1516,7 +1503,13 @@ class ProductionAnalysisWidget extends Component {
                 responsive: true, maintainAspectRatio: false,
                 scales: { x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 40 } },
                           y: { beginAtZero: true } },
-                plugins: { legend: { display: true, position: "bottom" } },
+                plugins: {
+                    legend: { display: true, position: "bottom" },
+                    tooltip: { callbacks: { title: (items) => {
+                        const r = top[items[0].dataIndex];
+                        return r ? r.name : "";
+                    } } },
+                },
             },
         });
     }

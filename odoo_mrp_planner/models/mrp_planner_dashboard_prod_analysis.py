@@ -355,7 +355,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                 'ofs':        len(b['ofs']),
                 'plan_h':     round(plan, 1),
                 'real_h':     round(b['real_h'], 1),
-                'eficiencia': round(b['real_h'] / plan * 100, 1) if plan > 0 else None,
+                # Eficiencia de planificación: Planificado ÷ Real (>100% = más rápido).
+                'eficiencia': round(plan / b['real_h'] * 100, 1) if b['real_h'] > 0 else None,
             })
         return rows, mode
 
@@ -389,7 +390,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             real = sum(r['real_h'] for r in rows)
             trend.append({
                 'ym':         ym,
-                'eficiencia': round(real / plan * 100, 1) if plan > 0 else None,
+                'eficiencia': round(plan / real * 100, 1) if real > 0 else None,
                 'plan_h':     round(plan, 1),
                 'real_h':     round(real, 1),
             })

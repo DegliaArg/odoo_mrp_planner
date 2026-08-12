@@ -336,7 +336,9 @@ class MrpPlannerDashboardWc(models.TransientModel):
                 **r,
                 'carga_pct':   round(plan / disp * 100, 1) if disp > 0 else None,
                 'holgura':     round(disp - plan, 1),
-                'eficiencia':  round(ejec / plan * 100, 1) if plan > 0 else None,
+                # Eficiencia de planificación: Planificado ÷ Ejecutado (>100% = se
+                # hizo en menos tiempo del previsto).
+                'eficiencia':  round(plan / ejec * 100, 1) if ejec > 0 else None,
             })
         tot_avail = sum(r['disponible']  for r in rows)
         tot_plan  = sum(r['planificado'] for r in rows)

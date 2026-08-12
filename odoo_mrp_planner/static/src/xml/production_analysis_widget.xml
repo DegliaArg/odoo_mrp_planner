@@ -65,6 +65,15 @@
                             <canvas t-ref="wcTrend"/>
                         </div>
 
+                        <!-- Composición de horas por CT (top 15 por planificado) -->
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bars me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Composición de horas por centro</span>
+                        </div>
+                        <div style="height:320px;" class="mb-4">
+                            <canvas t-ref="wcBars"/>
+                        </div>
+
                         <!-- KPIs (describen las filas visibles) -->
                         <div class="d-flex gap-2 mb-3">
                             <t t-foreach="kpiCards" t-as="card" t-key="card.key">
@@ -229,6 +238,15 @@
                             <canvas t-ref="scrapTrend"/>
                         </div>
 
+                        <!-- Pareto de scrap por producto (top 15) -->
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-sort-amount-desc me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Pareto de scrap por producto</span>
+                        </div>
+                        <div style="height:320px;" class="mb-4">
+                            <canvas t-ref="scrapPareto"/>
+                        </div>
+
                         <!-- KPIs (describen las filas visibles) -->
                         <div class="d-flex gap-2 mb-3">
                             <t t-foreach="scrapKpiCards" t-as="card" t-key="card.key">
@@ -358,6 +376,11 @@
                             <span class="text-uppercase fw-bold text-muted small">Evolución de OFs</span>
                         </div>
                         <div style="height:220px;" class="mb-4"><canvas t-ref="ofTrend"/></div>
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bar-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Programado vs producido (top 12)</span>
+                        </div>
+                        <div style="height:300px;" class="mb-4"><canvas t-ref="ofBars"/></div>
                         <t t-call="odoo_mrp_planner.ProdAnalysisTableBlock">
                             <t t-set="ctl" t-value="ctls.of"/>
                         </t>
@@ -381,6 +404,11 @@
                             <span class="text-uppercase fw-bold text-muted small">Evolución del cumplimiento (%)</span>
                         </div>
                         <div style="height:220px;" class="mb-4"><canvas t-ref="cmpTrend"/></div>
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bar-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Programado vs producido por producto (top 12)</span>
+                        </div>
+                        <div style="height:300px;" class="mb-4"><canvas t-ref="cmpBars"/></div>
                         <div t-if="state.cmpTruncated" class="alert alert-warning py-1 px-2 small mb-2">
                             <i class="fa fa-info-circle me-1"/>Mostrando los primeros <t t-esc="ctls.cmp.rows.length"/> de <t t-esc="state.cmpTotal"/> productos (los de mayor cantidad programada). Los KPIs consideran todo el período.
                         </div>
@@ -410,6 +438,11 @@
                             <span class="text-uppercase fw-bold text-muted small">Evolución del cumplimiento de tiempos (%)</span>
                         </div>
                         <div style="height:220px;" class="mb-4"><canvas t-ref="efTrend"/></div>
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bar-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Horas plan vs real por producto (top 12)</span>
+                        </div>
+                        <div style="height:300px;" class="mb-4"><canvas t-ref="efBars"/></div>
                         <t t-call="odoo_mrp_planner.ProdAnalysisTableBlock">
                             <t t-set="ctl" t-value="ctls.ef"/>
                         </t>
@@ -443,6 +476,11 @@
                             <span class="text-uppercase fw-bold text-muted small">Evolución de OEE / OOE / TEEP (%)</span>
                         </div>
                         <div style="height:240px;" class="mb-4"><canvas t-ref="oeeTrend"/></div>
+                        <div class="o_planner_section_title mb-2">
+                            <i class="fa fa-bar-chart me-2 text-muted"/>
+                            <span class="text-uppercase fw-bold text-muted small">Componentes e índices del período (%)</span>
+                        </div>
+                        <div style="height:260px;" class="mb-4"><canvas t-ref="oeeBars"/></div>
                         <t t-call="odoo_mrp_planner.ProdAnalysisTableBlock">
                             <t t-set="ctl" t-value="ctls.oee"/>
                         </t>

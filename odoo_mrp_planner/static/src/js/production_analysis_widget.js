@@ -340,6 +340,16 @@ class ProductionAnalysisWidget extends Component {
         this.oeeTrendRef  = useRef("oeeTrend");
         this.ofTrendChart = this.cmpTrendChart = this.efTrendChart = this.evolTrendChart = this.oeeTrendChart = null;
 
+        // Segundo gráfico analítico por pestaña (composición / ranking / Pareto).
+        this.wcBarsRef      = useRef("wcBars");
+        this.scrapParetoRef = useRef("scrapPareto");
+        this.ofBarsRef      = useRef("ofBars");
+        this.cmpBarsRef     = useRef("cmpBars");
+        this.efBarsRef      = useRef("efBars");
+        this.oeeBarsRef     = useRef("oeeBars");
+        this.wcBarsChart = this.scrapParetoChart = this.ofBarsChart = null;
+        this.cmpBarsChart = this.efBarsChart = this.oeeBarsChart = null;
+
         // Controladores de tabla (una config por pestaña, misma maquinaria)
         this.ctls = {
             of:  new TableCtl(this, this._ofCfg()),
@@ -358,18 +368,20 @@ class ProductionAnalysisWidget extends Component {
             }
         });
         onPatched(() => {
-            if (this._chartDirty && this.trendRef.el) this._renderTrend();
-            if (this._scrapChartDirty && this.scrapTrendRef.el) this._renderScrapTrend();
-            if (this._ofChartDirty && this.ofTrendRef.el) this._renderOfTrend();
-            if (this._cmpChartDirty && this.cmpTrendRef.el) this._renderCmpTrend();
-            if (this._efChartDirty && this.efTrendRef.el) this._renderEfTrend();
+            if (this._chartDirty && this.trendRef.el) { this._renderTrend(); this._renderWcBars(); }
+            if (this._scrapChartDirty && this.scrapTrendRef.el) { this._renderScrapTrend(); this._renderScrapPareto(); }
+            if (this._ofChartDirty && this.ofTrendRef.el) { this._renderOfTrend(); this._renderOfBars(); }
+            if (this._cmpChartDirty && this.cmpTrendRef.el) { this._renderCmpTrend(); this._renderCmpBars(); }
+            if (this._efChartDirty && this.efTrendRef.el) { this._renderEfTrend(); this._renderEfBars(); }
             if (this._evolChartDirty && this.evolTrendRef.el) this._renderEvolTrend();
-            if (this._oeeChartDirty && this.oeeTrendRef.el) this._renderOeeTrend();
+            if (this._oeeChartDirty && this.oeeTrendRef.el) { this._renderOeeTrend(); this._renderOeeBars(); }
         });
         onWillUnmount(() => {
             for (const c of [this.trendChart, this.scrapTrendChart, this.ofTrendChart,
                              this.cmpTrendChart, this.efTrendChart, this.evolTrendChart,
-                             this.oeeTrendChart]) {
+                             this.oeeTrendChart, this.wcBarsChart, this.scrapParetoChart,
+                             this.ofBarsChart, this.cmpBarsChart, this.efBarsChart,
+                             this.oeeBarsChart]) {
                 if (c) c.destroy();
             }
         });
@@ -473,6 +485,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.page    = 1;
             this._chartDirty   = true;
             this._renderTrend();
+            this._renderWcBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -677,6 +690,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.scrapLoaded = true;
             this._scrapChartDirty  = true;
             this._renderScrapTrend();
+            this._renderScrapPareto();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.scrapError = (e && e.data && e.data.message) || e.message || String(e);
@@ -1174,7 +1188,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.ofRows = table.rows || [];
             this.state.ofTrend = trend.trend || [];
             this.state.ofPage = 1; this.state.ofLoaded = true;
-            this._ofChartDirty = true; this._renderOfTrend();
+            this._ofChartDirty = true; this._renderOfTrend(); this._renderOfBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.ofError = (e && e.data && e.data.message) || e.message || String(e);
@@ -1195,7 +1209,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.cmpTruncated = !!table.truncated; this.state.cmpTotal = table.total || 0;
             this.state.cmpTrend = trend.trend || [];
             this.state.cmpPage = 1; this.state.cmpLoaded = true;
-            this._cmpChartDirty = true; this._renderCmpTrend();
+            this._cmpChartDirty = true; this._renderCmpTrend(); this._renderCmpBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.cmpError = (e && e.data && e.data.message) || e.message || String(e);
@@ -1212,7 +1226,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.efRows = table.rows || [];
             this.state.efTrend = trend.trend || [];
             this.state.efPage = 1; this.state.efLoaded = true;
-            this._efChartDirty = true; this._renderEfTrend();
+            this._efChartDirty = true; this._renderEfTrend(); this._renderEfBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.efError = (e && e.data && e.data.message) || e.message || String(e);
@@ -1232,7 +1246,7 @@ class ProductionAnalysisWidget extends Component {
             this.state.oeeWarn  = table.oee_warn || 60;
             this.state.oeeTrend = trend.trend || [];
             this.state.oeePage = 1; this.state.oeeLoaded = true;
-            this._oeeChartDirty = true; this._renderOeeTrend();
+            this._oeeChartDirty = true; this._renderOeeTrend(); this._renderOeeBars();
         } catch (e) {
             console.error("[ProdAnalysis]", e);
             this.state.oeeError = (e && e.data && e.data.message) || e.message || String(e);
@@ -1379,22 +1393,182 @@ class ProductionAnalysisWidget extends Component {
         this._evolChartDirty = false;
         const t = this.state.evolRows || [];
         this.evolTrendChart = new Chart(el, {
-            type: "line",
             data: {
                 labels: this._monthLabels(t),
                 datasets: [
-                    { label: "Carga %", data: t.map(m => m.carga_pct), borderColor: "#0d6efd",
+                    { type: "bar", label: "Producido", yAxisID: "y1", order: 3,
+                      data: t.map(m => m.producido), backgroundColor: "rgba(13,110,253,0.15)",
+                      borderColor: "#0d6efd", borderWidth: 1 },
+                    { type: "line", label: "Carga %", yAxisID: "y", order: 1,
+                      data: t.map(m => m.carga_pct), borderColor: "#0d6efd",
                       backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
-                    { label: "Cumplimiento %", data: t.map(m => m.cumpl_pct), borderColor: "#6610f2",
+                    { type: "line", label: "Cumplimiento %", yAxisID: "y", order: 1,
+                      data: t.map(m => m.cumpl_pct), borderColor: "#6610f2",
                       backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
-                    { label: "Eficiencia %", data: t.map(m => m.efic_pct), borderColor: "#fd7e14",
+                    { type: "line", label: "Eficiencia %", yAxisID: "y", order: 1,
+                      data: t.map(m => m.efic_pct), borderColor: "#fd7e14",
                       backgroundColor: "transparent", spanGaps: true, tension: 0.25, pointRadius: 3 },
                 ],
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { y: { min: 0, ticks: { callback: v => v + "%" } } },
+                scales: {
+                    y:  { min: 0, position: "left", ticks: { callback: v => v + "%" },
+                          title: { display: true, text: "Tasas %" } },
+                    y1: { min: 0, position: "right", grid: { drawOnChartArea: false },
+                          title: { display: true, text: "Producido" } },
+                },
                 plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+
+    // ── Segundos gráficos analíticos (composición / ranking / Pareto) ───────────
+    /** Top-N filas por una clave numérica (desc), para los gráficos de ranking. */
+    _topN(rows, key, n = 12) {
+        return [...(rows || [])].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, n);
+    }
+    /** Colores base reutilizados en los datasets. */
+    get _palette() {
+        return { blue: "#0d6efd", green: "#198754", orange: "#fd7e14",
+                 purple: "#6610f2", red: "#dc3545", gray: "#6c757d", teal: "#20c997" };
+    }
+
+    /** Carga de CT: composición horizontal de horas por CT (ejecutado + pendiente
+     *  + no planificado), ordenada por carga. Muestra dónde está el cuello. */
+    _renderWcBars() {
+        const el = this.wcBarsRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.wcBarsChart) { this.wcBarsChart.destroy(); this.wcBarsChart = null; }
+        const p = this._palette;
+        const rows = this._topN(this.state.rows, "planificado", 15);
+        this.wcBarsChart = new Chart(el, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r.name),
+                datasets: [
+                    { label: "Ejecutado", data: rows.map(r => r.ejecutado), backgroundColor: p.green, stack: "h" },
+                    { label: "Pendiente", data: rows.map(r => r.pendiente), backgroundColor: p.blue, stack: "h" },
+                    { label: "No planif.", data: rows.map(r => r.no_planificado), backgroundColor: p.orange, stack: "h" },
+                    { label: "Disponible", data: rows.map(r => r.disponible), type: "line",
+                      borderColor: p.gray, backgroundColor: "transparent", pointStyle: "line", borderDash: [4, 3] },
+                ],
+            },
+            options: {
+                indexAxis: "y", responsive: true, maintainAspectRatio: false,
+                scales: { x: { stacked: true, beginAtZero: true, title: { display: true, text: "Horas" } },
+                          y: { stacked: true } },
+                plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+
+    /** Scrap: Pareto por producto (barras de cantidad + acumulado %). */
+    _renderScrapPareto() {
+        const el = this.scrapParetoRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.scrapParetoChart) { this.scrapParetoChart.destroy(); this.scrapParetoChart = null; }
+        const p = this._palette;
+        const rows = this._topN(this.state.scrapRows, "qty", 15);
+        const total = rows.reduce((s, r) => s + (r.qty || 0), 0);
+        let acc = 0;
+        const cum = rows.map(r => { acc += r.qty || 0; return total > 0 ? Math.round(acc / total * 1000) / 10 : null; });
+        this.scrapParetoChart = new Chart(el, {
+            data: {
+                labels: rows.map(r => r.name),
+                datasets: [
+                    { type: "bar", label: "Desecho", yAxisID: "y", order: 2,
+                      data: rows.map(r => r.qty), backgroundColor: "rgba(220,53,69,0.55)", borderColor: p.red, borderWidth: 1 },
+                    { type: "line", label: "Acumulado %", yAxisID: "y1", order: 1,
+                      data: cum, borderColor: p.purple, backgroundColor: "transparent", tension: 0.2, pointRadius: 3 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y:  { min: 0, position: "left", title: { display: true, text: "Cantidad" } },
+                    y1: { min: 0, max: 100, position: "right", grid: { drawOnChartArea: false },
+                          ticks: { callback: v => v + "%" }, title: { display: true, text: "Acum. %" } },
+                },
+                plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+
+    /** Barras agrupadas de dos series por fila (top-N), reutilizado por
+     *  OFs (programado vs producido), Comparativo y Eficiencia (plan vs real). */
+    _renderGroupedBars(chartKey, ref, rows, sortKey, s1, s2) {
+        const el = ref.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this[chartKey]) { this[chartKey].destroy(); this[chartKey] = null; }
+        const p = this._palette;
+        const top = this._topN(rows, sortKey, 12);
+        this[chartKey] = new Chart(el, {
+            type: "bar",
+            data: {
+                labels: top.map(r => r.name),
+                datasets: [
+                    { label: s1.label, data: top.map(r => r[s1.key]), backgroundColor: p[s1.color] },
+                    { label: s2.label, data: top.map(r => r[s2.key]), backgroundColor: p[s2.color] },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { ticks: { autoSkip: false, maxRotation: 60, minRotation: 40 } },
+                          y: { beginAtZero: true } },
+                plugins: { legend: { display: true, position: "bottom" } },
+            },
+        });
+    }
+    _renderOfBars() {
+        this._renderGroupedBars("ofBarsChart", this.ofBarsRef, this.state.ofRows,
+            "programado", { key: "programado", label: "Programado", color: "blue" },
+            { key: "producido", label: "Producido", color: "green" });
+    }
+    _renderCmpBars() {
+        this._renderGroupedBars("cmpBarsChart", this.cmpBarsRef, this.state.cmpRows,
+            "programado", { key: "programado", label: "Programado", color: "blue" },
+            { key: "producido", label: "Producido", color: "green" });
+    }
+    _renderEfBars() {
+        this._renderGroupedBars("efBarsChart", this.efBarsRef, this.state.efRows,
+            "plan_h", { key: "plan_h", label: "Plan (h)", color: "blue" },
+            { key: "real_h", label: "Real (h)", color: "orange" });
+    }
+
+    /** OEE: barras de las componentes agregadas (Disp./Rend./Calidad) y los tres
+     *  índices (OEE/OOE/TEEP), con línea de referencia world-class. */
+    _renderOeeBars() {
+        const el = this.oeeBarsRef.el;
+        if (!el || typeof Chart === "undefined") return;
+        if (this.oeeBarsChart) { this.oeeBarsChart.destroy(); this.oeeBarsChart = null; }
+        // Agregado del período (todas las filas cargadas): Σ tiempo ÷ cada base.
+        let prod = 0, ppt = 0, run = 0, net = 0, disp = 0, allav = 0;
+        for (const r of this.state.oeeRows || []) {
+            prod += r.productive_h || 0; ppt += r.ppt_h || 0; run += r.run_h || 0;
+            net += r.net_h || 0; disp += r.disponible_h || 0; allav += r.allavail_h || 0;
+        }
+        const pc = (n, d) => d > 0 ? Math.round(n / d * 1000) / 10 : null;
+        const k = { availability: pc(run, ppt), performance: pc(net, run), quality: pc(prod, net),
+                    oee: pc(prod, ppt), ooe: pc(prod, disp), teep: pc(prod, allav) };
+        const labels = ["Disponibilidad", "Rendimiento", "Calidad", "OEE", "OOE", "TEEP"];
+        const data   = [k.availability, k.performance, k.quality, k.oee, k.ooe, k.teep];
+        const green = this.state.oeeGreen;
+        const colorFor = v => (v === null || v === undefined) ? "#adb5bd"
+            : (v >= green ? "#198754" : (v >= this.state.oeeWarn ? "#ffc107" : "#dc3545"));
+        this.oeeBarsChart = new Chart(el, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [{ label: "%", data, backgroundColor: data.map(colorFor) }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { min: 0, max: 100, ticks: { callback: v => v + "%" } } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y}% (world-class ≥ ${green}%)` } },
+                },
             },
         });
     }

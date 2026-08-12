@@ -130,7 +130,46 @@ class MrpPlannerDashboardWc(models.TransientModel):
             .astimezone(pytz.UTC).replace(tzinfo=None)
         return first_day, last_day
 
-    def _wc_load_by_center(self, first_day, last_day, tag_id=None):
+    def _wc_fetch_data(self, first_day, last_day, tag_id=None):
+        """Prefetch de centros de trabajo + sus OT que solapan [first_day, last_day].
+
+        Se busca UNA sola vez el rango completo. La tabla/gráfico lo usan directo
+        y la evolución mensual reutiliza el mismo recordset filtrando por mes en
+        memoria (ver get_wc_load_trend), evitando N búsquedas SQL.
+
+        :returns: (workcenters, wos_by_wc, allowed_ids) — wos_by_wc = dict
+                  {wc_id: [workorder, ...]} con TODAS las OT del rango.
+        """
+        domain = [('active', '=', True)]
+        if tag_id:
+            domain.append(('tag_ids', 'in', int(tag_id)))
+        workcenters = self.env['mrp.workcenter'].search(domain)
+
+        allowed_ids = self._get_wh_domains().allowed_ids
+        wos_domain = [
+            ('workcenter_id', 'in', workcenters.ids),
+            ('state', 'not in', ('cancel',)),
+            ('date_start', '!=', False),
+            ('date_start', '<=', fields.Datetime.to_string(last_day)),
+            '|',
+            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
+            ('date_finished', '=', False),
+            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
+            ('company_id', '=', self.env.company.id),
+        ]
+        if allowed_ids is not None:
+            if not allowed_ids:
+                wos_domain.append(('id', '=', False))
+            else:
+                wos_domain.append(('production_id.picking_type_id.warehouse_id', 'in', allowed_ids))
+        all_wos = self.env['mrp.workorder'].search(wos_domain)
+        wos_by_wc = defaultdict(list)
+        for wo in all_wos:
+            wos_by_wc[wo.workcenter_id.id].append(wo)
+        return workcenters, wos_by_wc, allowed_ids
+
+    def _wc_load_by_center(self, first_day, last_day, tag_id=None, prefetch=None,
+                           cal_cache=None):
         """Carga por centro de trabajo en [first_day, last_day] (UTC naive).
 
         Una fila por CT con actividad, asignando cada OT al período con el MISMO
@@ -138,18 +177,23 @@ class MrpPlannerDashboardWc(models.TransientModel):
         forecast (comparison_date_mode). Base compartida del gráfico, la tabla
         de detalle y la evolución mensual.
 
-        :returns: (rows, wc_mode) — rows = list[dict] por CT con
-                  wc_id/name/tags/disponible/planificado/ejecutado/pendiente/
-                  no_planificado; wc_mode = criterio de fechas usado.
+        :param prefetch: (workcenters, wos_by_wc, allowed_ids) ya obtenidos con
+                         _wc_fetch_data sobre un rango que CONTENGA a este; si es
+                         None se buscan acá. Las OT fuera del segmento aportan
+                         fracción 0 (se filtran igual), así que los números son
+                         idénticos a buscar el segmento directo.
+        :param cal_cache: dict compartido de horas de calendario (para no
+                          recalcular el mismo intervalo entre meses/CTs).
+        :returns: (rows, wc_mode).
         """
-        domain = [('active', '=', True)]
-        if tag_id:
-            domain.append(('tag_ids', 'in', int(tag_id)))
-        workcenters = self.env['mrp.workcenter'].search(domain)
+        if prefetch is None:
+            workcenters, wos_by_wc, allowed_ids = self._wc_fetch_data(first_day, last_day, tag_id)
+        else:
+            workcenters, wos_by_wc, allowed_ids = prefetch
 
         # Caché de horas brutas de calendario: evita recalcular el mismo intervalo
-        # cuando varios CTs comparten el mismo resource.calendar.
-        _cal_hours_cache = {}
+        # cuando varios CTs comparten el mismo resource.calendar (y entre meses).
+        _cal_hours_cache = cal_cache if cal_cache is not None else {}
 
         def _avail_hours(calendar, dt_start, dt_end):
             key = (calendar.id, dt_start, dt_end)
@@ -173,28 +217,6 @@ class MrpPlannerDashboardWc(models.TransientModel):
             # La eficiencia del CT NO multiplica la capacidad (en Odoo ajusta la
             # duración esperada de las operaciones, no las horas del calendario).
             return _cal_hours_cache[key]
-
-        allowed_ids = self._get_wh_domains().allowed_ids
-        wos_domain = [
-            ('workcenter_id', 'in', workcenters.ids),
-            ('state', 'not in', ('cancel',)),
-            ('date_start', '!=', False),
-            ('date_start', '<=', fields.Datetime.to_string(last_day)),
-            '|',
-            ('date_finished', '>=', fields.Datetime.to_string(first_day)),
-            ('date_finished', '=', False),
-            ('production_id.location_src_id.is_subcontracting_location', '!=', True),
-            ('company_id', '=', self.env.company.id),
-        ]
-        if allowed_ids is not None:
-            if not allowed_ids:
-                wos_domain.append(('id', '=', False))
-            else:
-                wos_domain.append(('production_id.picking_type_id.warehouse_id', 'in', allowed_ids))
-        all_wos = self.env['mrp.workorder'].search(wos_domain)
-        wos_by_wc = defaultdict(list)
-        for wo in all_wos:
-            wos_by_wc[wo.workcenter_id.id].append(wo)
 
         now_utc = fields.Datetime.now()
         _cfg    = self.env['mrp.reschedule.config'].get_config()
@@ -350,6 +372,12 @@ class MrpPlannerDashboardWc(models.TransientModel):
         d_to   = datetime.strptime(date_to, '%Y-%m-%d').date()
         _cfg = self.env['mrp.reschedule.config'].get_config()
 
+        # Un solo prefetch del rango completo + una caché de calendario compartida:
+        # cada mes se calcula filtrando el recordset en memoria (sin re-buscar).
+        full_first, full_last = self._wc_parse_range(date_from, date_to)
+        prefetch = self._wc_fetch_data(full_first, full_last, tag_id)
+        cal_cache = {}
+
         trend = []
         cur = date(d_from.year, d_from.month, 1)
         # Cota defensiva de 36 meses para no disparar cálculos enormes.
@@ -360,7 +388,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
             seg_from = max(cur, d_from)
             seg_to   = min(m_end, d_to)
             first_day, last_day = self._wc_parse_range(str(seg_from), str(seg_to))
-            rows, _ = self._wc_load_by_center(first_day, last_day, tag_id)
+            rows, _ = self._wc_load_by_center(first_day, last_day, tag_id,
+                                              prefetch=prefetch, cal_cache=cal_cache)
             disp = sum(r['disponible'] for r in rows)
             plan = sum(r['planificado'] for r in rows)
             trend.append({

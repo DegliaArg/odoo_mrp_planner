@@ -185,7 +185,7 @@
             <!-- ════════════════ PESTAÑA: Scrap ════════════════ -->
             <t t-if="state.tab === 'scrap'">
 
-                <!-- Filtros de la vista (rango; comparte fechas con Carga de CT) -->
+                <!-- Filtros de la vista (rango + sector; comparte fechas con Carga de CT) -->
                 <div class="d-flex align-items-end gap-3 mb-3 flex-wrap">
                     <div class="d-flex align-items-center gap-1">
                         <label class="form-label mb-0 small text-muted">Desde</label>
@@ -196,6 +196,15 @@
                         <label class="form-label mb-0 small text-muted">Hasta</label>
                         <input type="date" class="form-control form-control-sm" style="width:150px;"
                                t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Sector</label>
+                        <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
+                            <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
+                            <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                                <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
+                            </t>
+                        </select>
                     </div>
                 </div>
 
@@ -505,7 +514,7 @@
         </div>
     </t>
 
-    <!-- ════════════════ Barra de rango (reusada por las nuevas pestañas) ════════════════ -->
+    <!-- ════════════════ Barra de rango + sector (reusada por las nuevas pestañas) ════════════════ -->
     <t t-name="odoo_mrp_planner.ProdAnalysisDateBar">
         <div class="d-flex align-items-end gap-3 mb-3 flex-wrap">
             <div class="d-flex align-items-center gap-1">
@@ -517,6 +526,15 @@
                 <label class="form-label mb-0 small text-muted">Hasta</label>
                 <input type="date" class="form-control form-control-sm" style="width:150px;"
                        t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Sector</label>
+                <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
+                    <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
+                    <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                        <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
+                    </t>
+                </select>
             </div>
         </div>
     </t>

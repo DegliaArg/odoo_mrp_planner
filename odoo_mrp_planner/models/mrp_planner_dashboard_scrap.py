@@ -30,7 +30,6 @@ from collections import defaultdict
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, api, fields, _
-from odoo.addons.odoo_mrp_planner.models.mrp_planner_helpers import no_subcontract_domain
 
 _logger = logging.getLogger(__name__)
 
@@ -57,22 +56,23 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 domain.append(('location_id.warehouse_id', 'in', allowed_ids))
         return domain
 
-    def _scrap_produced_by_product(self, first_day, last_day):
+    def _scrap_produced_by_product(self, first_day, last_day, tag_id=None, mos=None):
         """Cantidad producida del rango por producto (denominador de la tasa de
-        scrap), con el mismo criterio de fechas/subcontratación/almacén que las
-        demás pestañas del panel.
+        scrap y filtro de sector efectivo), con el mismo criterio de
+        fechas/subcontratación/almacén que las demás pestañas del panel.
 
+        :param tag_id: acota a las OFs cuyas OT tocan ese sector (tag de CT).
+        :param mos: recordset prefetch-eado de un rango contenedor (evolución
+                    mensual); se filtra al segmento en memoria.
         :returns: (produced_map {product_id: qty}, total_produced).
         """
-        mode = self._pa_mode()
-        first_str = fields.Datetime.to_string(first_day)
-        last_str  = fields.Datetime.to_string(last_day)
-        domain = ([('state', 'not in', ('cancel', 'draft'))]
-                  + self._pa_mo_period_domain(mode, first_str, last_str)
-                  + no_subcontract_domain(self.env)
-                  + self._pa_wh_mo_domain())
+        if mos is None:
+            mos = self._pa_fetch_mos(first_day, last_day, tag_id)
+        else:
+            mode = self._pa_mode()
+            mos = mos.filtered(lambda m: self._pa_mo_in_period(m, mode, first_day, last_day))
         produced = defaultdict(float)
-        for mo in self.env['mrp.production'].search(domain):
+        for mo in mos:
             if mo.product_id:
                 produced[mo.product_id.id] += mo.qty_produced or 0.0
         return produced, sum(produced.values())
@@ -88,29 +88,34 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         return round(scrap_qty / denom * 100, 1) if denom > 0 else None
 
     @api.model
-    def get_scrap_analysis(self, date_from, date_to):
+    def get_scrap_analysis(self, date_from, date_to, tag_id=None):
         """Desechos validados del rango agrupados por producto.
 
-        Cada fila lleva el producto, su categoría, el centro de trabajo con más
-        desechos, la cantidad desechada, las operaciones, el % sobre el total del
-        desecho, la cantidad producida del período y la tasa de scrap
-        (desecho ÷ (producido + desecho)). Los productos sin producción en el
-        período se marcan como insumos (tasa = None): su desecho se informa
-        aparte, no se mezcla en la tasa.
+        Solo se consideran los desechos de productos CON producción propia en el
+        período (terminados): el desecho de insumos/componentes se excluye por
+        completo (tabla, total y %), porque no comparte denominador con ningún
+        terminado. Cada fila lleva el producto, su categoría, el centro de
+        trabajo con más desechos, la cantidad desechada, el % sobre el total, la
+        cantidad producida y la tasa de scrap (desecho ÷ (producido + desecho)).
 
+        :param tag_id: acota al sector (tag de CT) vía la producción del período.
         :returns: dict {'rows': list[dict], 'totals': dict}.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
         scraps = self.env['stock.scrap'].search(self._scrap_domain(first_day, last_day))
-        produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day)
+        produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day, tag_id)
         sectors_map = self._pa_product_sectors(first_day, last_day)
 
         by_prod = defaultdict(lambda: {
             'qty': 0.0, 'ops': 0, 'uom': '', 'wc': defaultdict(float),
         })
         for s in scraps:
+            # Solo terminados del sector: los insumos (sin producción propia) y
+            # los productos fuera del sector quedan fuera del panel.
+            if produced_map.get(s.product_id.id, 0.0) <= 0:
+                continue
             b = by_prod[s.product_id.id]
             b['qty'] += s.scrap_qty or 0.0
             b['ops'] += 1
@@ -122,16 +127,9 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 b['wc'][wc.name] += s.scrap_qty or 0.0
 
         total_qty = sum(b['qty'] for b in by_prod.values())
-        scrap_terminados = scrap_insumos = 0.0
         rows = []
         for pid, b in by_prod.items():
             top_wc = max(b['wc'].items(), key=lambda kv: kv[1])[0] if b['wc'] else '—'
-            producido = round(produced_map.get(pid, 0.0), 2)
-            es_insumo = produced_map.get(pid, 0.0) <= 0
-            if es_insumo:
-                scrap_insumos += b['qty']
-            else:
-                scrap_terminados += b['qty']
             rows.append({
                 'product_id': pid,
                 'name':       b.get('name', ''),
@@ -141,14 +139,13 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 'qty':        round(b['qty'], 2),
                 'ops':        b['ops'],
                 'uom':        b['uom'],
-                'producido':  producido,
-                'es_insumo':  es_insumo,
+                'producido':  round(produced_map.get(pid, 0.0), 2),
                 'tasa':       self._scrap_rate(b['qty'], produced_map.get(pid, 0.0)),
                 'pct':        round(b['qty'] / total_qty * 100, 1) if total_qty > 0 else None,
             })
         # Tasa global a nivel planta: desecho de terminados ÷ (producido + ese desecho).
         # Suma unidades posiblemente mixtas ⇒ leer como indicador, no magnitud exacta.
-        tasa_global = self._scrap_rate(scrap_terminados, total_produced)
+        tasa_global = self._scrap_rate(total_qty, total_produced)
         return {
             'rows': rows,
             'totals': {
@@ -157,18 +154,21 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 'products':  len(by_prod),
                 'producido': round(total_produced, 2),
                 'tasa':      tasa_global,
-                'insumos':   round(scrap_insumos, 2),
             },
         }
 
     @api.model
-    def get_scrap_trend(self, date_from, date_to):
+    def get_scrap_trend(self, date_from, date_to, tag_id=None):
         """Evolución mensual de la cantidad desechada y de la tasa de scrap.
 
-        Un punto por mes calendario que solape el rango. La cantidad suma
-        unidades posiblemente mixtas (distintos productos/UdM), útil como
-        tendencia relativa. La tasa mensual = desecho de terminados ÷
-        (producido + ese desecho) del mes (None si no hubo producción).
+        Un punto por mes calendario que solape el rango. Solo cuenta el desecho
+        de terminados (los insumos se excluyen, igual que la tabla). La cantidad
+        suma unidades posiblemente mixtas (distintos productos/UdM), útil como
+        tendencia relativa. La tasa mensual = desecho ÷ (producido + desecho) del
+        mes (None si no hubo producción).
+
+        Un solo prefetch (desechos + OFs del rango completo); cada mes filtra en
+        memoria en vez de re-buscar.
 
         :returns: dict {'trend': [{'ym','qty','ops','tasa'}]}.
         """
@@ -176,6 +176,10 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                                    'odoo_mrp_planner.group_prod')
         d_from = datetime.strptime(date_from, '%Y-%m-%d').date()
         d_to   = datetime.strptime(date_to, '%Y-%m-%d').date()
+
+        full_first, full_last = self._wc_parse_range(date_from, date_to)
+        all_scraps = self.env['stock.scrap'].search(self._scrap_domain(full_first, full_last))
+        all_mos    = self._pa_fetch_mos(full_first, full_last, tag_id)
 
         trend = []
         cur = date(d_from.year, d_from.month, 1)
@@ -186,16 +190,16 @@ class MrpPlannerDashboardScrap(models.TransientModel):
             seg_from = max(cur, d_from)
             seg_to   = min(m_end, d_to)
             first_day, last_day = self._wc_parse_range(str(seg_from), str(seg_to))
-            scraps = self.env['stock.scrap'].search(self._scrap_domain(first_day, last_day))
-            produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day)
-            scrap_terminados = sum(
-                s.scrap_qty or 0.0 for s in scraps
-                if produced_map.get(s.product_id.id, 0.0) > 0
-            )
+            scraps = all_scraps.filtered(
+                lambda s: s.date_done and first_day <= s.date_done <= last_day)
+            produced_map, total_produced = self._scrap_produced_by_product(
+                first_day, last_day, tag_id, mos=all_mos)
+            terminados = scraps.filtered(lambda s: produced_map.get(s.product_id.id, 0.0) > 0)
+            scrap_terminados = sum(s.scrap_qty or 0.0 for s in terminados)
             trend.append({
                 'ym':   '%04d-%02d' % (cur.year, cur.month),
-                'qty':  round(sum(s.scrap_qty or 0.0 for s in scraps), 2),
-                'ops':  len(scraps),
+                'qty':  round(scrap_terminados, 2),
+                'ops':  len(terminados),
                 'tasa': self._scrap_rate(scrap_terminados, total_produced),
             })
             cur += relativedelta(months=1)

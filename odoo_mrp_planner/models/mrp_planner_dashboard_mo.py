@@ -395,7 +395,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         return {pid: 1.0 for pid in product_ids}, 0
 
     @api.model
-    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None):
+    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None, tag_id=None):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
 
@@ -427,6 +427,10 @@ class MrpPlannerDashboardMo(models.TransientModel):
 
         no_sc = no_subcontract_domain(self.env)
         wh_mo = ([('picking_type_id.warehouse_id', '=', int(warehouse_id))] if warehouse_id else self._get_wh_domains().mo) + [('company_id', '=', self.env.company.id)]
+        # Filtro de sector (tag de CT) para el Análisis de producción; None en el
+        # panel principal ⇒ no altera su comportamiento.
+        if tag_id:
+            wh_mo = wh_mo + [('workorder_ids.workcenter_id.tag_ids', 'in', int(tag_id))]
 
         cfg  = self.env['mrp.reschedule.config'].get_config()
         mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'

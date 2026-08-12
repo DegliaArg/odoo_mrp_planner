@@ -63,14 +63,12 @@ const SCRAP_COLS = [
     { key: "uom",        label: "UdM",              width:  70, align: "center" },
     { key: "producido",  label: "Producido",        width: 100, align: "center" },
     { key: "tasa",       label: "Tasa scrap %",     width: 110, align: "center" },
-    { key: "ops",        label: "Operaciones",      width: 100, align: "center" },
     { key: "pct",        label: "% del total",      width:  95, align: "center" },
 ];
 const SCRAP_NUM_COLS = [
     { key: "qty", label: "Desecho" },
     { key: "producido", label: "Producido" },
     { key: "tasa", label: "Tasa scrap %" },
-    { key: "ops", label: "Operaciones" },
     { key: "pct", label: "% del total" },
 ];
 const OF_COLS = [
@@ -485,10 +483,10 @@ class ProductionAnalysisWidget extends Component {
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value || firstOfYear(); this._reloadActive(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value || today(); this._reloadActive(); }
-    onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._loadWc(); }
+    onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._reloadActive(); }
 
-    /** Recarga las fuentes ya abiertas al cambiar el rango (la de Carga de CT
-     *  siempre; el resto solo si su pestaña se visitó). */
+    /** Recarga las fuentes ya abiertas al cambiar el rango o el sector (la de
+     *  Carga de CT siempre; el resto solo si su pestaña se visitó). */
     _reloadActive() {
         this._loadWc();
         if (this.state.scrapLoaded) this._loadScrap();
@@ -668,9 +666,9 @@ class ProductionAnalysisWidget extends Component {
         try {
             const [table, trend] = await Promise.all([
                 this.orm.call("mrp.planner.dashboard", "get_scrap_analysis",
-                              [this.state.dateFrom, this.state.dateTo]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
                 this.orm.call("mrp.planner.dashboard", "get_scrap_trend",
-                              [this.state.dateFrom, this.state.dateTo]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
             ]);
             this.state.scrapRows   = table.rows || [];
             this.state.scrapTotals = table.totals || {};
@@ -776,25 +774,19 @@ class ProductionAnalysisWidget extends Component {
     scrapNextPage() { this.scrapPager.next(); }
     scrapPrevPage() { this.scrapPager.prev(); }
 
-    /** KPIs del scrap: describen las filas visibles. La tasa se calcula sobre los
-     *  productos terminados visibles (desecho ÷ (producido + desecho)); los
-     *  insumos (sin producción) suman aparte en "desecho de insumos". */
+    /** KPIs del scrap: describen las filas visibles. Solo hay terminados (los
+     *  insumos se excluyen en backend). La tasa = desecho ÷ (producido + desecho)
+     *  de los productos visibles. */
     get scrapKpis() {
         const rows = this.scrapGroupedRows;
-        let qty = 0, ops = 0, prod = 0, scrapTerm = 0, scrapIns = 0;
-        for (const r of rows) {
-            qty += r.qty || 0; ops += r.ops || 0;
-            if (r.es_insumo) { scrapIns += r.qty || 0; }
-            else { prod += r.producido || 0; scrapTerm += r.qty || 0; }
-        }
-        const denom = scrapTerm + prod;
+        let qty = 0, prod = 0;
+        for (const r of rows) { qty += r.qty || 0; prod += r.producido || 0; }
+        const denom = qty + prod;
         return {
             qty:       Math.round(qty * 100) / 100,
-            ops,
             products:  rows.length,
             producido: Math.round(prod * 100) / 100,
-            insumos:   Math.round(scrapIns * 100) / 100,
-            tasa:      denom > 0 ? Math.round(scrapTerm / denom * 1000) / 10 : null,
+            tasa:      denom > 0 ? Math.round(qty / denom * 1000) / 10 : null,
         };
     }
     /** Semáforo de la tasa de scrap: acá "más alto = peor". */
@@ -807,11 +799,10 @@ class ProductionAnalysisWidget extends Component {
     get scrapKpiCards() {
         const k = this.scrapKpis;
         return [
-            { key: "qty",      label: "Desecho total",  value: fmt(k.qty),      cls: "text-danger fw-semibold" },
+            { key: "qty",      label: "Desecho total",   value: fmt(k.qty),      cls: "text-danger fw-semibold" },
             { key: "tasa",     label: "Tasa de scrap %", value: k.tasa === null ? "s/prod" : fmtPct(k.tasa),
               cls: this.scrapRateClass(k.tasa) },
-            { key: "insumos",  label: "Desecho insumos", value: fmt(k.insumos),  cls: "" },
-            { key: "ops",      label: "Operaciones",     value: fmt(k.ops),      cls: "" },
+            { key: "producido", label: "Producido",      value: fmt(k.producido), cls: "" },
             { key: "products", label: "Productos",       value: fmt(k.products), cls: "" },
         ];
     }
@@ -820,15 +811,13 @@ class ProductionAnalysisWidget extends Component {
         const scope = `${k.products} producto(s) visible(s)`;
         switch (key) {
             case "qty":
-                return `Cantidad total desechada de ${scope} en el período (desechos validados)\nSuma de la cantidad de cada operación de desecho\n→ ${fmt(k.qty)} u.\nOjo: suma unidades posiblemente mixtas (distintos productos/UdM); leer como tendencia, no como magnitud única.`;
+                return `Cantidad total desechada de ${scope} en el período (desechos validados de productos terminados)\nSuma de la cantidad de cada desecho\n→ ${fmt(k.qty)} u.\nOjo: suma unidades posiblemente mixtas (distintos productos/UdM); leer como tendencia, no como magnitud única.`;
             case "tasa":
-                return `Qué parte de lo procesado se desechó (dimensión Calidad del OEE), sobre los productos terminados visibles\nDesecho ÷ (Producido + Desecho) × 100\n→ ${fmt(k.qty - k.insumos)} ÷ (${fmt(k.producido)} + ${fmt(k.qty - k.insumos)}) × 100 = ${k.tasa === null ? "s/prod" : fmtPct(k.tasa)}\nVerde < 3% · Amarillo < 10% · Rojo ≥ 10%. «s/prod» = no hubo producción en el rango. Unidades mixtas: leer como indicador.`;
-            case "insumos":
-                return `Desecho de insumos/componentes visibles (productos sin producción propia en el período)\nSuma del desecho de esos productos\n→ ${fmt(k.insumos)} u.\nSe informa aparte porque no comparte denominador con ningún terminado (no entra en la tasa).`;
-            case "ops":
-                return `Cantidad de operaciones de desecho de ${scope} en el período\nConteo de registros de stock.scrap validados\n→ ${fmt(k.ops)} operación(es)`;
+                return `Qué parte de lo procesado se desechó (dimensión Calidad del OEE), sobre los productos terminados visibles\nDesecho ÷ (Producido + Desecho) × 100\n→ ${fmt(k.qty)} ÷ (${fmt(k.producido)} + ${fmt(k.qty)}) × 100 = ${k.tasa === null ? "s/prod" : fmtPct(k.tasa)}\nVerde < 3% · Amarillo < 10% · Rojo ≥ 10%. «s/prod» = no hubo producción en el rango. Unidades mixtas: leer como indicador.`;
+            case "producido":
+                return `Cantidad producida de los productos visibles en el período (denominador de la tasa)\nSuma de lo producido de cada producto\n→ ${fmt(k.producido)} u.`;
             case "products":
-                return `Productos distintos con al menos un desecho en el período\nConteo de productos únicos\n→ ${fmt(k.products)} producto(s)`;
+                return `Productos terminados distintos con al menos un desecho en el período\nConteo de productos únicos\n→ ${fmt(k.products)} producto(s)`;
         }
         return "";
     }
@@ -1179,8 +1168,8 @@ class ProductionAnalysisWidget extends Component {
         this.state.ofLoading = true; this.state.ofError = null;
         try {
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo]),
-                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
+                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
             ]);
             this.state.ofRows = table.rows || [];
             this.state.ofTrend = trend.trend || [];
@@ -1196,8 +1185,8 @@ class ProductionAnalysisWidget extends Component {
         this.state.cmpLoading = true; this.state.cmpError = null;
         try {
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo]),
-                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
             ]);
             this.state.cmpRows = table.rows || [];
             this.state.cmpKpisData = table.kpis || {};
@@ -1217,8 +1206,8 @@ class ProductionAnalysisWidget extends Component {
         this.state.efLoading = true; this.state.efError = null;
         try {
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo]),
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
             ]);
             this.state.efRows = table.rows || [];
             this.state.efTrend = trend.trend || [];
@@ -1234,8 +1223,8 @@ class ProductionAnalysisWidget extends Component {
         this.state.oeeLoading = true; this.state.oeeError = null;
         try {
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo]),
-                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]),
             ]);
             this.state.oeeRows = table.rows || [];
             this.state.oeeHasData = !!table.has_data;
@@ -1254,7 +1243,7 @@ class ProductionAnalysisWidget extends Component {
         this.state.evolLoading = true; this.state.evolError = null;
         try {
             const data = await this.orm.call("mrp.planner.dashboard", "get_evolution_analysis",
-                                             [this.state.dateFrom, this.state.dateTo]);
+                                             [this.state.dateFrom, this.state.dateTo, this.state.tagId || null]);
             this.state.evolRows = data.rows || [];
             this.state.evolWarnPct = data.warn_pct || 70;
             this.state.evolCritPct = data.crit_pct || 90;

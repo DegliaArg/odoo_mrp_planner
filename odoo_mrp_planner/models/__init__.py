@@ -6,6 +6,7 @@ from . import mrp_forecast_line
 from . import res_users
 from . import mrp_abc_helpers
 from . import mrp_reschedule_config
+from . import mrp_planner_shift
 from . import mrp_reschedule_config_forecast
 from . import mrp_reschedule_config_categories
 from . import mrp_reschedule_config_inventory

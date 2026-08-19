@@ -72,7 +72,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             return bool(ds and ds <= last_day and (not df or df >= first_day))
         return bool(df and first_day <= df <= last_day)
 
-    def _pa_fetch_mos(self, first_day, last_day, tag_id=None, product_type_ids=None):
+    def _pa_fetch_mos(self, first_day, last_day, tag_id=None, product_type_ids=None,
+                      shift_ids=None):
         """OFs del rango (criterio de fechas de Ajustes), opcionalmente acotadas
         al sector (tag de CT de alguna de sus OT). Prefetch compartido por la
         tabla, los KPIs y la evolución de las pestañas basadas en OFs."""
@@ -87,7 +88,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             domain.append(('workorder_ids.workcenter_id.tag_ids', 'in', int(tag_id)))
         if product_type_ids:
             domain.append(('product_id.product_tmpl_id.x_product_type_ids', 'in', list(product_type_ids)))
-        return self.env['mrp.production'].search(domain)
+        mos = self.env['mrp.production'].search(domain)
+        return self._pa_shift_filter_mos(mos, shift_ids)
 
     def _pa_months(self, date_from, date_to):
         """Itera los meses calendario que solapan el rango (máx. 36), acotando
@@ -131,7 +133,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
 
     # ════════════════════════ Pestaña OFs ════════════════════════
 
-    def _pa_of_rows(self, first_day, last_day, tag_id=None, mos=None, product_type_ids=None):
+    def _pa_of_rows(self, first_day, last_day, tag_id=None, mos=None, product_type_ids=None,
+                    shift_ids=None):
         """OFs del rango agregadas por producto. Base de la tabla, los KPIs y la
         evolución mensual de OFs.
 
@@ -141,7 +144,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         """
         mode = self._pa_mode()
         if mos is None:
-            mos = self._pa_fetch_mos(first_day, last_day, tag_id, product_type_ids)
+            mos = self._pa_fetch_mos(first_day, last_day, tag_id, product_type_ids, shift_ids)
         else:
             mos = mos.filtered(lambda m: self._pa_mo_in_period(m, mode, first_day, last_day))
         now_s = fields.Datetime.now()
@@ -199,22 +202,99 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         return {'product_types': [{'id': t.id, 'name': t.name} for t in types]}
 
     @api.model
-    def get_of_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_shifts(self):
+        """Turnos configurados para el filtro de horas del análisis de producción."""
+        self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
+                                   'odoo_mrp_planner.group_prod')
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        if not cfg:
+            return {'shifts': []}
+        shifts = cfg.shift_ids
+        return {'shifts': [{'id': s.id, 'name': s.name,
+                             'hour_from': s.hour_from, 'hour_to': s.hour_to}
+                            for s in shifts]}
+
+    def _pa_shift_filter_wos(self, wos, shift_ids):
+        """Filtra OTs en memoria por turno: se conservan las cuya date_start (en
+        huso del usuario) cae dentro de alguno de los turnos seleccionados.
+
+        Turnos que cruzan la medianoche (hour_from > hour_to) se tratan correctamente.
+        """
+        if not shift_ids:
+            return wos
+        shifts = self.env['mrp.planner.shift'].browse(shift_ids)
+        if not shifts:
+            return wos
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+
+        def _in_shift(dt):
+            if not dt:
+                return False
+            dt_local = pytz.UTC.localize(dt).astimezone(tz)
+            h = dt_local.hour + dt_local.minute / 60.0
+            for s in shifts:
+                hf, ht = s.hour_from, s.hour_to
+                if hf > ht:  # overnight
+                    if h >= hf or h < ht:
+                        return True
+                else:
+                    if hf <= h < ht:
+                        return True
+            return False
+
+        return wos.filtered(lambda w: _in_shift(w.date_start))
+
+    def _pa_shift_filter_mos(self, mos, shift_ids):
+        """Filtra OFs en memoria por turno: se conservan las que tienen al menos
+        una OT cuya date_start (en huso del usuario) cae en algún turno."""
+        if not shift_ids:
+            return mos
+        shifts = self.env['mrp.planner.shift'].browse(shift_ids)
+        if not shifts:
+            return mos
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+
+        def _in_shift(dt):
+            if not dt:
+                return False
+            dt_local = pytz.UTC.localize(dt).astimezone(tz)
+            h = dt_local.hour + dt_local.minute / 60.0
+            for s in shifts:
+                hf, ht = s.hour_from, s.hour_to
+                if hf > ht:
+                    if h >= hf or h < ht:
+                        return True
+                else:
+                    if hf <= h < ht:
+                        return True
+            return False
+
+        def _mo_in_shift(mo):
+            return any(_in_shift(w.date_start) for w in mo.workorder_ids)
+
+        return mos.filtered(_mo_in_shift)
+
+    @api.model
+    def get_of_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                        shift_ids=None):
         """OFs del rango por producto (cantidades, estados y atrasos)."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
-        rows, mode = self._pa_of_rows(first_day, last_day, tag_id, product_type_ids=product_type_ids)
+        rows, mode = self._pa_of_rows(first_day, last_day, tag_id,
+                                      product_type_ids=product_type_ids,
+                                      shift_ids=shift_ids)
         return {'rows': rows, 'date_mode': mode}
 
     @api.model
-    def get_of_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_of_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                     shift_ids=None):
         """Evolución mensual de OFs: totales del período y terminadas."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         # Un solo prefetch del rango completo; cada mes filtra en memoria.
         full_first, full_last = self._wc_parse_range(date_from, date_to)
-        mos = self._pa_fetch_mos(full_first, full_last, tag_id, product_type_ids)
+        mos = self._pa_fetch_mos(full_first, full_last, tag_id, product_type_ids, shift_ids)
         trend = []
         for ym, seg_from, seg_to in self._pa_months(date_from, date_to):
             first_day, last_day = self._wc_parse_range(seg_from, seg_to)
@@ -229,7 +309,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
     # ═══════════════════ Pestaña Producido vs Programado ═══════════════════
 
     @api.model
-    def get_comparison_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_comparison_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                                shift_ids=None):
         """Comparativo producido vs programado por producto, reutilizando la
         lógica ponderada del panel principal (get_comparison_data). Devuelve
         todas las filas (hasta el tope del método base) para paginar del lado
@@ -238,7 +319,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                                    'odoo_mrp_planner.group_prod')
         data = self.get_comparison_data(date_from, date_to, page=1, page_size=200,
                                         sort_field='planned_qty', sort_dir='desc',
-                                        tag_id=tag_id, product_type_ids=product_type_ids)
+                                        tag_id=tag_id, product_type_ids=product_type_ids,
+                                        shift_ids=shift_ids)
         first_day, last_day = self._wc_parse_range(date_from, date_to)
         sectors_map = self._pa_product_sectors(first_day, last_day)
         items = data.get('items', [])
@@ -263,7 +345,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         }
 
     @api.model
-    def get_comparison_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_comparison_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                             shift_ids=None):
         """Evolución mensual del cumplimiento % ponderado."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
@@ -273,7 +356,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         trend = []
         for ym, seg_from, seg_to in self._pa_months(date_from, date_to):
             data = self.get_comparison_data(seg_from, seg_to, page=1, page_size=1,
-                                            tag_id=tag_id, product_type_ids=product_type_ids)
+                                            tag_id=tag_id, product_type_ids=product_type_ids,
+                                            shift_ids=shift_ids)
             k = data.get('kpis', {})
             trend.append({
                 'ym':        ym,
@@ -285,7 +369,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
 
     # ════════════════════════ Pestaña Eficiencia ════════════════════════
 
-    def _pa_fetch_wos(self, first_day, last_day, tag_id=None, product_type_ids=None):
+    def _pa_fetch_wos(self, first_day, last_day, tag_id=None, product_type_ids=None,
+                      shift_ids=None):
         """OT del rango, opcionalmente acotadas al sector (tag del CT). Prefetch
         compartido por la tabla de eficiencia y su evolución mensual."""
         allowed_ids = self._get_wh_domains().allowed_ids
@@ -308,9 +393,11 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
                 wos_domain.append(('id', '=', False))
             else:
                 wos_domain.append(('production_id.picking_type_id.warehouse_id', 'in', allowed_ids))
-        return self.env['mrp.workorder'].search(wos_domain)
+        wos = self.env['mrp.workorder'].search(wos_domain)
+        return self._pa_shift_filter_wos(wos, shift_ids)
 
-    def _pa_efficiency_rows(self, first_day, last_day, tag_id=None, wos=None, product_type_ids=None):
+    def _pa_efficiency_rows(self, first_day, last_day, tag_id=None, wos=None,
+                            product_type_ids=None, shift_ids=None):
         """Horas planificadas vs reales por producto, a partir de las OT del
         rango. Mismo criterio de fechas y prorrateo que la carga de CT.
 
@@ -320,7 +407,7 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         mode = self._pa_mode()
         now_utc = fields.Datetime.now()
         if wos is None:
-            wos = self._pa_fetch_wos(first_day, last_day, tag_id, product_type_ids)
+            wos = self._pa_fetch_wos(first_day, last_day, tag_id, product_type_ids, shift_ids)
 
         def _overlap_frac(w_start, w_end, p_start, p_end):
             if not w_start:
@@ -375,12 +462,15 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         return rows, mode
 
     @api.model
-    def get_efficiency_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_efficiency_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                                shift_ids=None):
         """Eficiencia (real ÷ planificado) por producto, a partir de las OT."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
-        rows, mode = self._pa_efficiency_rows(first_day, last_day, tag_id, product_type_ids=product_type_ids)
+        rows, mode = self._pa_efficiency_rows(first_day, last_day, tag_id,
+                                              product_type_ids=product_type_ids,
+                                              shift_ids=shift_ids)
         cfg = self.env['mrp.reschedule.config'].get_config()
         return {
             'rows': rows,
@@ -390,12 +480,13 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         }
 
     @api.model
-    def get_efficiency_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_efficiency_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                             shift_ids=None):
         """Evolución mensual de la eficiencia % (Σ real ÷ Σ plan)."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         full_first, full_last = self._wc_parse_range(date_from, date_to)
-        wos = self._pa_fetch_wos(full_first, full_last, tag_id, product_type_ids)
+        wos = self._pa_fetch_wos(full_first, full_last, tag_id, product_type_ids, shift_ids)
         trend = []
         for ym, seg_from, seg_to in self._pa_months(date_from, date_to):
             first_day, last_day = self._wc_parse_range(seg_from, seg_to)
@@ -413,17 +504,18 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
     # ════════════════════════ Pestaña Evolución ════════════════════════
 
     @api.model
-    def get_evolution_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_evolution_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                               shift_ids=None):
         """Resumen mensual que compone las tasas (%) de carga, cumplimiento y
         eficiencia junto con OFs terminadas, producido y scrap. Combina los
         building blocks de las otras pestañas para no duplicar lógica."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
-        carga = {m['ym']: m for m in self.get_wc_load_trend(date_from, date_to, tag_id, product_type_ids)['trend']}
-        cumpl = {m['ym']: m for m in self.get_comparison_trend(date_from, date_to, tag_id, product_type_ids)['trend']}
-        efic  = {m['ym']: m for m in self.get_efficiency_trend(date_from, date_to, tag_id, product_type_ids)['trend']}
-        scrap = {m['ym']: m for m in self.get_scrap_trend(date_from, date_to, tag_id, product_type_ids)['trend']}
-        ofs   = {m['ym']: m for m in self.get_of_trend(date_from, date_to, tag_id, product_type_ids)['trend']}
+        carga = {m['ym']: m for m in self.get_wc_load_trend(date_from, date_to, tag_id, product_type_ids, shift_ids)['trend']}
+        cumpl = {m['ym']: m for m in self.get_comparison_trend(date_from, date_to, tag_id, product_type_ids, shift_ids)['trend']}
+        efic  = {m['ym']: m for m in self.get_efficiency_trend(date_from, date_to, tag_id, product_type_ids, shift_ids)['trend']}
+        scrap = {m['ym']: m for m in self.get_scrap_trend(date_from, date_to, tag_id, product_type_ids, shift_ids)['trend']}
+        ofs   = {m['ym']: m for m in self.get_of_trend(date_from, date_to, tag_id, product_type_ids, shift_ids)['trend']}
 
         cfg = self.env['mrp.reschedule.config'].get_config()
         rows = []
@@ -494,7 +586,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             cal_cache[key] = h
         return h
 
-    def _oee_fetch(self, first_day, last_day, tag_id=None, product_type_ids=None):
+    def _oee_fetch(self, first_day, last_day, tag_id=None, product_type_ids=None,
+                   shift_ids=None):
         """Prefetch de centros visibles + sus registros de productividad del
         rango. Compartido por la tabla y la evolución mensual (una sola query)."""
         wcs = self._oee_allowed_wc(tag_id)
@@ -508,10 +601,30 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
             if product_type_ids:
                 oee_domain.append(('workorder_id.production_id.product_id.product_tmpl_id.x_product_type_ids', 'in', list(product_type_ids)))
             records = records.search(oee_domain)
+            if shift_ids:
+                tz = pytz.timezone(self.env.user.tz or 'UTC')
+                shifts = self.env['mrp.planner.shift'].browse(shift_ids)
+
+                def _in_shift(dt):
+                    if not dt:
+                        return False
+                    dt_local = pytz.UTC.localize(dt).astimezone(tz)
+                    h = dt_local.hour + dt_local.minute / 60.0
+                    for s in shifts:
+                        hf, ht = s.hour_from, s.hour_to
+                        if hf > ht:
+                            if h >= hf or h < ht:
+                                return True
+                        else:
+                            if hf <= h < ht:
+                                return True
+                    return False
+
+                records = records.filtered(lambda r: _in_shift(r.date_start))
         return wcs, records
 
     def _oee_rows(self, first_day, last_day, tag_id=None, wcs=None, records=None,
-                  cal_cache=None, product_type_ids=None):
+                  cal_cache=None, product_type_ids=None, shift_ids=None):
         """OEE por centro de trabajo a partir del registro nativo de
         productividad. Devuelve (rows, has_data).
 
@@ -528,7 +641,8 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         if 'mrp.workcenter.productivity' not in self.env:
             return [], False
         if wcs is None or records is None:
-            wcs, records = self._oee_fetch(first_day, last_day, tag_id, product_type_ids)
+            wcs, records = self._oee_fetch(first_day, last_day, tag_id, product_type_ids,
+                                           shift_ids)
         else:
             records = records.filtered(
                 lambda r: r.date_start and first_day <= r.date_start <= last_day)
@@ -584,14 +698,17 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         return rows, True
 
     @api.model
-    def get_oee_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_oee_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                         shift_ids=None):
         """OEE/OOE/TEEP por centro de trabajo (nivel avanzado). has_data=False si
         no hay registros de productividad en el período (para avisar en vez de
         mostrar ceros engañosos)."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
-        rows, has_data = self._oee_rows(first_day, last_day, tag_id, product_type_ids=product_type_ids)
+        rows, has_data = self._oee_rows(first_day, last_day, tag_id,
+                                        product_type_ids=product_type_ids,
+                                        shift_ids=shift_ids)
         return {
             'rows': rows,
             'has_data': has_data,
@@ -599,14 +716,16 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         }
 
     @api.model
-    def get_oee_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_oee_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                      shift_ids=None):
         """Evolución mensual de OEE/OOE/TEEP (agregado de todos los centros:
         Σ tiempo productivo ÷ cada base de tiempo del mes)."""
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         # Un solo prefetch (centros + registros del rango) y caché de calendario.
         full_first, full_last = self._wc_parse_range(date_from, date_to)
-        wcs, records = self._oee_fetch(full_first, full_last, tag_id, product_type_ids)
+        wcs, records = self._oee_fetch(full_first, full_last, tag_id, product_type_ids,
+                                       shift_ids)
         cal_cache = {}
         trend = []
         for ym, seg_from, seg_to in self._pa_months(date_from, date_to):

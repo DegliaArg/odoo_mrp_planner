@@ -130,7 +130,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
             .astimezone(pytz.UTC).replace(tzinfo=None)
         return first_day, last_day
 
-    def _wc_fetch_data(self, first_day, last_day, tag_id=None, product_type_ids=None):
+    def _wc_fetch_data(self, first_day, last_day, tag_id=None, product_type_ids=None,
+                       shift_ids=None):
         """Prefetch de centros de trabajo + sus OT que solapan [first_day, last_day].
 
         Se busca UNA sola vez el rango completo. La tabla/gráfico lo usan directo
@@ -165,13 +166,15 @@ class MrpPlannerDashboardWc(models.TransientModel):
             else:
                 wos_domain.append(('production_id.picking_type_id.warehouse_id', 'in', allowed_ids))
         all_wos = self.env['mrp.workorder'].search(wos_domain)
+        if shift_ids:
+            all_wos = self._pa_shift_filter_wos(all_wos, shift_ids)
         wos_by_wc = defaultdict(list)
         for wo in all_wos:
             wos_by_wc[wo.workcenter_id.id].append(wo)
         return workcenters, wos_by_wc, allowed_ids
 
     def _wc_load_by_center(self, first_day, last_day, tag_id=None, prefetch=None,
-                           cal_cache=None, product_type_ids=None):
+                           cal_cache=None, product_type_ids=None, shift_ids=None):
         """Carga por centro de trabajo en [first_day, last_day] (UTC naive).
 
         Una fila por CT con actividad, asignando cada OT al período con el MISMO
@@ -189,7 +192,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         :returns: (rows, wc_mode).
         """
         if prefetch is None:
-            workcenters, wos_by_wc, allowed_ids = self._wc_fetch_data(first_day, last_day, tag_id, product_type_ids)
+            workcenters, wos_by_wc, allowed_ids = self._wc_fetch_data(first_day, last_day, tag_id, product_type_ids, shift_ids)
         else:
             workcenters, wos_by_wc, allowed_ids = prefetch
 
@@ -318,7 +321,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
         }
 
     @api.model
-    def get_wc_load_table(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_wc_load_table(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                          shift_ids=None):
         """Tabla de detalle por CT: una fila por centro con horas y métricas
         derivadas (carga %, holgura = disponible − planificado, eficiencia =
         ejecutado ÷ planificado). Para el panel de Análisis de producción.
@@ -329,7 +333,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
         rows, wc_mode = self._wc_load_by_center(first_day, last_day, tag_id,
-                                                product_type_ids=product_type_ids)
+                                                product_type_ids=product_type_ids,
+                                                shift_ids=shift_ids)
         _cfg = self.env['mrp.reschedule.config'].get_config()
 
         out = []
@@ -361,7 +366,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
         }
 
     @api.model
-    def get_wc_load_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
+    def get_wc_load_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+                          shift_ids=None):
         """Evolución mensual de la carga % de CT en el rango (histórico).
 
         Un punto por mes calendario que solape el rango; cada mes se acota al
@@ -380,7 +386,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
         # Un solo prefetch del rango completo + una caché de calendario compartida:
         # cada mes se calcula filtrando el recordset en memoria (sin re-buscar).
         full_first, full_last = self._wc_parse_range(date_from, date_to)
-        prefetch = self._wc_fetch_data(full_first, full_last, tag_id, product_type_ids)
+        prefetch = self._wc_fetch_data(full_first, full_last, tag_id, product_type_ids,
+                                       shift_ids)
         cal_cache = {}
 
         trend = []

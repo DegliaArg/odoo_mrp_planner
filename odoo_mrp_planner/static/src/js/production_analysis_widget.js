@@ -298,6 +298,7 @@ class ProductionAnalysisWidget extends Component {
             ofGreen: 90, ofWarn: 50, ofLoaded: false, ofLoading: false, ofError: null,
             moDateMode: "finish_date",
             productTypeIds: [], productTypes: [],
+            shiftIds: [], shifts: [],
             // Tabla Producido vs Programado
             cmpRows: [], cmpSearch: "", cmpNumFilters: [], cmpGroupBy: null, cmpSelGroup: null,
             cmpSortCol: "programado", cmpSortDir: "desc", cmpPage: 1, cmpTrend: [],
@@ -363,7 +364,7 @@ class ProductionAnalysisWidget extends Component {
         onMounted(async () => {
             try {
                 await loadBundle("web.chartjs_lib");
-                await Promise.all([this._loadTags(), this._loadProductTypes()]);
+                await Promise.all([this._loadTags(), this._loadProductTypes(), this._loadShifts()]);
                 await this._loadWc();
             } catch (e) {
                 if (e.message !== "Component is destroyed") console.error("[ProdAnalysis]", e);
@@ -478,16 +479,26 @@ class ProductionAnalysisWidget extends Component {
         }
     }
 
+    async _loadShifts() {
+        try {
+            const d = await this.orm.call("mrp.planner.dashboard", "get_shifts", []);
+            this.state.shifts = (d && d.shifts) || [];
+        } catch (e) {
+            if (e.message !== "Component is destroyed") console.error("[ProdAnalysis]", e);
+        }
+    }
+
     async _loadWc() {
         this.state.loading = true;
         this.state.error   = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
                 this.orm.call("mrp.planner.dashboard", "get_wc_load_table",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
                 this.orm.call("mrp.planner.dashboard", "get_wc_load_trend",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.rows    = table.rows || [];
             this.state.totals  = table.totals || {};
@@ -510,6 +521,10 @@ class ProductionAnalysisWidget extends Component {
     onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._reloadActive(); }
     onProductTypeChange(ev) {
         this.state.productTypeIds = Array.from(ev.target.selectedOptions).map(o => parseInt(o.value));
+        this._reloadActive();
+    }
+    onShiftChange(ev) {
+        this.state.shiftIds = Array.from(ev.target.selectedOptions).map(o => parseInt(o.value));
         this._reloadActive();
     }
 
@@ -693,11 +708,12 @@ class ProductionAnalysisWidget extends Component {
         this.state.scrapError   = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
                 this.orm.call("mrp.planner.dashboard", "get_scrap_analysis",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
                 this.orm.call("mrp.planner.dashboard", "get_scrap_trend",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.scrapRows   = table.rows || [];
             this.state.scrapTotals = table.totals || {};
@@ -1211,9 +1227,10 @@ class ProductionAnalysisWidget extends Component {
         this.state.ofLoading = true; this.state.ofError = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
-                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.ofRows = table.rows || [];
             this.state.moDateMode = table.date_mode || "finish_date";
@@ -1230,9 +1247,10 @@ class ProductionAnalysisWidget extends Component {
         this.state.cmpLoading = true; this.state.cmpError = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
-                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.cmpRows = table.rows || [];
             this.state.moDateMode = table.date_mode || "finish_date";
@@ -1253,9 +1271,10 @@ class ProductionAnalysisWidget extends Component {
         this.state.efLoading = true; this.state.efError = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.efRows = table.rows || [];
             this.state.efTrend = trend.trend || [];
@@ -1271,9 +1290,10 @@ class ProductionAnalysisWidget extends Component {
         this.state.oeeLoading = true; this.state.oeeError = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
-                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
             ]);
             this.state.oeeRows = table.rows || [];
             this.state.oeeHasData = !!table.has_data;
@@ -1292,8 +1312,9 @@ class ProductionAnalysisWidget extends Component {
         this.state.evolLoading = true; this.state.evolError = null;
         try {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
+            const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const data = await this.orm.call("mrp.planner.dashboard", "get_evolution_analysis",
-                                             [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds]);
+                                             [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]);
             this.state.evolRows = data.rows || [];
             this.state.evolWarnPct = data.warn_pct || 70;
             this.state.evolCritPct = data.crit_pct || 90;

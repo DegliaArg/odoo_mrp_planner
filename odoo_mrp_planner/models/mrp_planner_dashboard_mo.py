@@ -395,7 +395,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         return {pid: 1.0 for pid in product_ids}, 0
 
     @api.model
-    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None, tag_id=None, product_type_ids=None):
+    def get_comparison_data(self, date_from, date_to, warehouse_id=None, page=1, page_size=50, sort_field=None, sort_dir='desc', search=None, tag_id=None, product_type_ids=None, shift_ids=None):
         """
         Retorna la comparativa producido vs. programado agrupada por producto para el rango dado.
 
@@ -470,6 +470,9 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 ('date_finished', '>=', first_day_str),
                 ('date_finished', '=', False),
             ] + no_sc + wh_mo)
+
+        if shift_ids:
+            all_mos = self._pa_shift_filter_mos(all_mos, shift_ids)
 
         product_data = {}
 

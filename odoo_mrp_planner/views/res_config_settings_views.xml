@@ -203,6 +203,16 @@
                                         <field name="comparison_fill_cap" widget="boolean_toggle"
                                                help="Con tope al 100% por producto, la sobreproducción de un producto no compensa el faltante de otro (recomendado para un mix). Sin tope, el cumplimiento puede superar 100%."/>
                                     </group>
+                                    <group string="Turnos de producción"
+                                           help="Defina los turnos para poder filtrar el Análisis de producción por horario. Cada turno tiene un nombre y un rango horario. Los turnos que cruzan la medianoche (Hora fin &lt; Hora inicio) se detectan automáticamente.">
+                                        <field name="shift_ids" nolabel="1">
+                                            <list editable="bottom">
+                                                <field name="name" string="Turno"/>
+                                                <field name="hour_from" widget="float_time" string="Desde"/>
+                                                <field name="hour_to"   widget="float_time" string="Hasta"/>
+                                            </list>
+                                        </field>
+                                    </group>
                                 </div>
 
                             </div>

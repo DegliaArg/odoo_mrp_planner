@@ -52,6 +52,17 @@
                             </t>
                         </select>
                     </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Turno</label>
+                        <select class="form-select form-select-sm" multiple="multiple"
+                                style="width:160px;" t-on-change="onShiftChange">
+                            <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                <option t-att-value="sh.id"
+                                        t-att-selected="state.shiftIds.includes(sh.id)"
+                                        t-esc="sh.name"/>
+                            </t>
+                        </select>
+                    </div>
                 </div>
 
                 <div t-if="state.error" class="alert alert-danger py-2 mb-2">
@@ -225,6 +236,17 @@
                                 <option t-att-value="pt.id"
                                         t-att-selected="state.productTypeIds.includes(pt.id)"
                                         t-esc="pt.name"/>
+                            </t>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="form-label mb-0 small text-muted">Turno</label>
+                        <select class="form-select form-select-sm" multiple="multiple"
+                                style="width:160px;" t-on-change="onShiftChange">
+                            <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                <option t-att-value="sh.id"
+                                        t-att-selected="state.shiftIds.includes(sh.id)"
+                                        t-esc="sh.name"/>
                             </t>
                         </select>
                     </div>
@@ -611,6 +633,17 @@
                         <option t-att-value="pt.id"
                                 t-att-selected="state.productTypeIds.includes(pt.id)"
                                 t-esc="pt.name"/>
+                    </t>
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Turno</label>
+                <select class="form-select form-select-sm" multiple="multiple"
+                        style="width:160px;" t-on-change="onShiftChange">
+                    <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                        <option t-att-value="sh.id"
+                                t-att-selected="state.shiftIds.includes(sh.id)"
+                                t-esc="sh.name"/>
                     </t>
                 </select>
             </div>

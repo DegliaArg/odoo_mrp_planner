@@ -18,6 +18,12 @@ from odoo import models, fields
 class MrpRescheduleConfigForecast(models.Model):
     _inherit = 'mrp.reschedule.config'
 
+    # ── Turnos de producción ──────────────────────────────────────────────────
+
+    shift_ids = fields.One2many(
+        'mrp.planner.shift', 'config_id',
+        string='Turnos de producción')
+
     # ── Forecast ─────────────────────────────────────────────────────────────
 
     # Umbrales de color de brechas y precisión del forecast (antes hardcodeados)

@@ -56,19 +56,19 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 domain.append(('location_id.warehouse_id', 'in', allowed_ids))
         return domain
 
-    def _scrap_produced_by_product(self, first_day, last_day, tag_id=None, mos=None,
+    def _scrap_produced_by_product(self, first_day, last_day, tag_ids=None, mos=None,
                                    product_type_ids=None, shift_ids=None):
         """Cantidad producida del rango por producto (denominador de la tasa de
         scrap y filtro de sector efectivo), con el mismo criterio de
         fechas/subcontratación/almacén que las demás pestañas del panel.
 
-        :param tag_id: acota a las OFs cuyas OT tocan ese sector (tag de CT).
+        :param tag_ids: acota a las OFs cuyas OT tocan ese sector (tag de CT).
         :param mos: recordset prefetch-eado de un rango contenedor (evolución
                     mensual); se filtra al segmento en memoria.
         :returns: (produced_map {product_id: qty}, total_produced).
         """
         if mos is None:
-            mos = self._pa_fetch_mos(first_day, last_day, tag_id, product_type_ids, shift_ids)
+            mos = self._pa_fetch_mos(first_day, last_day, tag_ids,product_type_ids, shift_ids)
         else:
             mode = self._pa_mode()
             mos = mos.filtered(lambda m: self._pa_mo_in_period(m, mode, first_day, last_day))
@@ -89,7 +89,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         return round(scrap_qty / denom * 100, 1) if denom > 0 else None
 
     @api.model
-    def get_scrap_analysis(self, date_from, date_to, tag_id=None, product_type_ids=None,
+    def get_scrap_analysis(self, date_from, date_to, tag_ids=None, product_type_ids=None,
                            shift_ids=None):
         """Desechos validados del rango agrupados por producto.
 
@@ -100,20 +100,20 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         trabajo con más desechos, la cantidad desechada, el % sobre el total, la
         cantidad producida y la tasa de scrap (desecho ÷ (producido + desecho)).
 
-        :param tag_id: acota al sector (tag de CT) vía la producción del período.
+        :param tag_ids: acota al sector (tag de CT) vía la producción del período.
         :returns: dict {'rows': list[dict], 'totals': dict}.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
         scraps = self.env['stock.scrap'].search(self._scrap_domain(first_day, last_day))
-        produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day, tag_id,
+        produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day, tag_ids,
                                                                          product_type_ids=product_type_ids,
                                                                          shift_ids=shift_ids)
         sectors_map = self._pa_product_sectors(first_day, last_day)
 
         by_prod = defaultdict(lambda: {
-            'qty': 0.0, 'ops': 0, 'uom': '', 'wc': defaultdict(float),
+            'qty': 0.0, 'ops': 0, 'uom': '', 'almacenes': set(),
         })
         for s in scraps:
             # Solo terminados del sector: los insumos (sin producción propia) y
@@ -126,20 +126,20 @@ class MrpPlannerDashboardScrap(models.TransientModel):
             b['uom'] = s.product_uom_id.name or ''
             b['name'] = s.product_id.display_name
             b['category'] = s.product_id.categ_id.name or _('Sin categoría')
-            wc = s.workorder_id.workcenter_id
-            if wc:
-                b['wc'][wc.name] += s.scrap_qty or 0.0
+            wh = (s.workorder_id.production_id.picking_type_id.warehouse_id
+                  or s.location_id.warehouse_id)
+            if wh:
+                b['almacenes'].add(wh.name)
 
         total_qty = sum(b['qty'] for b in by_prod.values())
         rows = []
         for pid, b in by_prod.items():
-            top_wc = max(b['wc'].items(), key=lambda kv: kv[1])[0] if b['wc'] else '—'
             rows.append({
                 'product_id': pid,
                 'name':       b.get('name', ''),
                 'category':   b.get('category', _('Sin categoría')),
-                'sectors':    sectors_map.get(pid, []),
-                'workcenter': top_wc,
+                'sector':     ', '.join(sorted(sectors_map.get(pid, []))) or '—',
+                'almacen':    ', '.join(sorted(b.get('almacenes', set()))) or '—',
                 'qty':        round(b['qty'], 2),
                 'ops':        b['ops'],
                 'uom':        b['uom'],
@@ -162,7 +162,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         }
 
     @api.model
-    def get_scrap_trend(self, date_from, date_to, tag_id=None, product_type_ids=None,
+    def get_scrap_trend(self, date_from, date_to, tag_ids=None, product_type_ids=None,
                         shift_ids=None):
         """Evolución mensual de la cantidad desechada y de la tasa de scrap.
 
@@ -184,7 +184,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
 
         full_first, full_last = self._wc_parse_range(date_from, date_to)
         all_scraps = self.env['stock.scrap'].search(self._scrap_domain(full_first, full_last))
-        all_mos    = self._pa_fetch_mos(full_first, full_last, tag_id, product_type_ids, shift_ids)
+        all_mos    = self._pa_fetch_mos(full_first, full_last, tag_ids,product_type_ids, shift_ids)
 
         trend = []
         cur = date(d_from.year, d_from.month, 1)
@@ -198,7 +198,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
             scraps = all_scraps.filtered(
                 lambda s: s.date_done and first_day <= s.date_done <= last_day)
             produced_map, total_produced = self._scrap_produced_by_product(
-                first_day, last_day, tag_id, mos=all_mos,
+                first_day, last_day, tag_ids,mos=all_mos,
                 product_type_ids=product_type_ids, shift_ids=shift_ids)
             terminados = scraps.filtered(lambda s: produced_map.get(s.product_id.id, 0.0) > 0)
             scrap_terminados = sum(s.scrap_qty or 0.0 for s in terminados)

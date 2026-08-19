@@ -34,12 +34,30 @@
                     </div>
                     <div class="d-flex align-items-center gap-1">
                         <label class="form-label mb-0 small text-muted">Sector</label>
-                        <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
-                            <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
-                            <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
-                                <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
-                            </t>
-                        </select>
+                        <div class="dropdown">
+                            <button type="button"
+                                    class="form-select form-select-sm text-start"
+                                    style="width:180px;"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                <t t-if="state.tagIds.length"><t t-esc="state.tagIds.length"/> seleccionado(s)</t>
+                                <t t-else="">Todos los sectores</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.tagIds.includes(tg.id)"
+                                                   t-att-data-id="tg.id"
+                                                   t-on-change="onTagToggle"/>
+                                            <t t-esc="tg.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
                     </div>
                     <t t-if="state.productTypes.length">
                         <div class="d-flex align-items-center gap-1">
@@ -293,12 +311,30 @@
                     </div>
                     <div class="d-flex align-items-center gap-1">
                         <label class="form-label mb-0 small text-muted">Sector</label>
-                        <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
-                            <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
-                            <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
-                                <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
-                            </t>
-                        </select>
+                        <div class="dropdown">
+                            <button type="button"
+                                    class="form-select form-select-sm text-start"
+                                    style="width:180px;"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                <t t-if="state.tagIds.length"><t t-esc="state.tagIds.length"/> seleccionado(s)</t>
+                                <t t-else="">Todos los sectores</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.tagIds.includes(tg.id)"
+                                                   t-att-data-id="tg.id"
+                                                   t-on-change="onTagToggle"/>
+                                            <t t-esc="tg.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
                     </div>
                     <t t-if="state.productTypes.length">
                         <div class="d-flex align-items-center gap-1">
@@ -722,12 +758,30 @@
             </div>
             <div class="d-flex align-items-center gap-1">
                 <label class="form-label mb-0 small text-muted">Sector</label>
-                <select class="form-select form-select-sm" style="width:180px;" t-on-change="onTagChange">
-                    <option value="" t-att-selected="!state.tagId">Todos los sectores</option>
-                    <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
-                        <option t-att-value="tg.id" t-att-selected="state.tagId === tg.id" t-esc="tg.name"/>
-                    </t>
-                </select>
+                <div class="dropdown">
+                    <button type="button"
+                            class="form-select form-select-sm text-start"
+                            style="width:180px;"
+                            data-bs-toggle="dropdown"
+                            data-bs-auto-close="outside"
+                            aria-expanded="false">
+                        <t t-if="state.tagIds.length"><t t-esc="state.tagIds.length"/> seleccionado(s)</t>
+                        <t t-else="">Todos los sectores</t>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <t t-foreach="state.tags" t-as="tg" t-key="tg.id">
+                            <li>
+                                <label class="dropdown-item d-flex align-items-center gap-2">
+                                    <input type="checkbox"
+                                           t-att-checked="state.tagIds.includes(tg.id)"
+                                           t-att-data-id="tg.id"
+                                           t-on-change="onTagToggle"/>
+                                    <t t-esc="tg.name"/>
+                                </label>
+                            </li>
+                        </t>
+                    </ul>
+                </div>
             </div>
             <t t-if="state.productTypes.length">
                 <div class="d-flex align-items-center gap-1">

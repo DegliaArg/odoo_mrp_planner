@@ -59,14 +59,15 @@ const WC_NUM_COLS = [
     { key: "eficiencia_ejec", label: "Ef. ejec. %" },
 ];
 const SCRAP_COLS = [
-    { key: "name",       label: "Producto",         width: 220, fixed: true, align: "start" },
-    { key: "category",   label: "Categoría",        width: 130, align: "start" },
-    { key: "workcenter", label: "Centro de trabajo",width: 140, align: "start" },
-    { key: "qty",        label: "Desecho",          width: 100, align: "center" },
-    { key: "uom",        label: "UdM",              width:  70, align: "center" },
-    { key: "producido",  label: "Producido",        width: 100, align: "center" },
-    { key: "tasa",       label: "Tasa scrap %",     width: 110, align: "center" },
-    { key: "pct",        label: "% del total",      width:  95, align: "center" },
+    { key: "name",      label: "Producto",     width: 220, fixed: true, align: "start" },
+    { key: "category",  label: "Categoría",    width: 130, align: "start" },
+    { key: "sector",    label: "Sector",       width: 140, align: "start" },
+    { key: "almacen",   label: "Almacén",      width: 130, align: "start" },
+    { key: "qty",       label: "Desecho",      width: 100, align: "center" },
+    { key: "uom",       label: "UdM",          width:  70, align: "center" },
+    { key: "producido", label: "Producido",    width: 100, align: "center" },
+    { key: "tasa",      label: "Tasa scrap %", width: 110, align: "center" },
+    { key: "pct",       label: "% del total",  width:  95, align: "center" },
 ];
 const SCRAP_NUM_COLS = [
     { key: "qty", label: "Desecho" },
@@ -261,7 +262,7 @@ class ProductionAnalysisWidget extends Component {
             tab:      "wc",
             dateFrom: firstOfYear(),
             dateTo:   today(),
-            tagId:    null,
+            tagIds:   [],
             tags:     [],
             enableOee: false,
             barTopN:  10,   // Top-N de los gráficos de ranking (10/20/50)
@@ -525,9 +526,9 @@ class ProductionAnalysisWidget extends Component {
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
                 this.orm.call("mrp.planner.dashboard", "get_wc_load_table",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
                 this.orm.call("mrp.planner.dashboard", "get_wc_load_trend",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.rows    = table.rows || [];
             this.state.totals  = table.totals || {};
@@ -547,7 +548,13 @@ class ProductionAnalysisWidget extends Component {
 
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value || firstOfYear(); this._reloadActive(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value || today(); this._reloadActive(); }
-    onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._reloadActive(); }
+    onTagToggle(ev) {
+        const id = parseInt(ev.target.dataset.id);
+        const ids = this.state.tagIds;
+        const idx = ids.indexOf(id);
+        if (idx === -1) ids.push(id); else ids.splice(idx, 1);
+        this._reloadActive();
+    }
     onProductTypeToggle(ev) {
         const id = parseInt(ev.target.dataset.id);
         const ids = [...this.state.productTypeIds];
@@ -748,9 +755,9 @@ class ProductionAnalysisWidget extends Component {
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
                 this.orm.call("mrp.planner.dashboard", "get_scrap_analysis",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
                 this.orm.call("mrp.planner.dashboard", "get_scrap_trend",
-                              [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                              [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.scrapRows   = table.rows || [];
             this.state.scrapTotals = table.totals || {};
@@ -906,10 +913,11 @@ class ProductionAnalysisWidget extends Component {
     }
     scrapColTitle(col) {
         const t = {
-            name:       "Producto desechado. Clic en el botón para ver sus operaciones de desecho.",
-            category:   "Categoría de producto del ítem desechado.",
-            workcenter: "Centro de trabajo con más cantidad desechada del producto (— si el desecho no proviene de una OT).",
-            qty:        "Cantidad total desechada del producto en el período (desechos validados).",
+            name:      "Producto desechado. Clic para ver sus operaciones de desecho.",
+            category:  "Categoría de producto del ítem desechado.",
+            sector:    "Sector(es) de producción del producto en el período, tomados de los centros de trabajo de sus OFs.",
+            almacen:   "Almacén de la OF de producción relacionada al desecho.",
+            qty:       "Cantidad total desechada del producto en el período (desechos validados).",
             uom:        "Unidad de medida del producto.",
             producido:  "Cantidad producida del producto en el período (mismo criterio de fechas que el resto del panel). 0 = insumo sin producción propia.",
             tasa:       "Tasa de scrap: Desecho ÷ (Producido + Desecho) × 100. «—» = insumo sin producción en el rango.",
@@ -1266,8 +1274,8 @@ class ProductionAnalysisWidget extends Component {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
-                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_of_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_of_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.ofRows = table.rows || [];
             this.state.moDateMode = table.date_mode || "finish_date";
@@ -1286,8 +1294,8 @@ class ProductionAnalysisWidget extends Component {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
-                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.cmpRows = table.rows || [];
             this.state.moDateMode = table.date_mode || "finish_date";
@@ -1310,8 +1318,8 @@ class ProductionAnalysisWidget extends Component {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
-                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_efficiency_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.efRows = table.rows || [];
             this.state.efTrend = trend.trend || [];
@@ -1329,8 +1337,8 @@ class ProductionAnalysisWidget extends Component {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const [table, trend] = await Promise.all([
-                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
-                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
+                this.orm.call("mrp.planner.dashboard", "get_oee_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
             this.state.oeeRows = table.rows || [];
             this.state.oeeHasData = !!table.has_data;
@@ -1351,7 +1359,7 @@ class ProductionAnalysisWidget extends Component {
             const ptIds = this.state.productTypeIds.length ? this.state.productTypeIds : null;
             const shIds = this.state.shiftIds.length ? this.state.shiftIds : null;
             const data = await this.orm.call("mrp.planner.dashboard", "get_evolution_analysis",
-                                             [this.state.dateFrom, this.state.dateTo, this.state.tagId || null, ptIds, shIds]);
+                                             [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]);
             this.state.evolRows = data.rows || [];
             this.state.evolWarnPct = data.warn_pct || 70;
             this.state.evolCritPct = data.crit_pct || 90;

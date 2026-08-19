@@ -42,29 +42,51 @@
                         </select>
                     </div>
                     <t t-if="state.productTypes.length">
-                        <div class="d-flex align-items-center gap-1 flex-wrap">
-                            <span class="small text-muted">Tipo producto</span>
-                            <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                <button type="button"
-                                        t-att-data-id="pt.id"
-                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="onProductTypeToggle">
-                                    <t t-esc="pt.name"/>
-                                </button>
-                            </t>
+                        <div class="dropdown">
+                            <button type="button"
+                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.productTypeIds.includes(pt.id)"
+                                                   t-att-data-id="pt.id"
+                                                   t-on-change="onProductTypeToggle"/>
+                                            <t t-esc="pt.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
                         </div>
                     </t>
                     <t t-if="state.shiftsEnabled and state.shifts.length">
-                        <div class="d-flex align-items-center gap-1 flex-wrap">
-                            <span class="small text-muted">Turno</span>
-                            <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                                <button type="button"
-                                        t-att-data-id="sh.id"
-                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="onShiftToggle">
-                                    <t t-esc="sh.name"/>
-                                </button>
-                            </t>
+                        <div class="dropdown">
+                            <button type="button"
+                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.shiftIds.includes(sh.id)"
+                                                   t-att-data-id="sh.id"
+                                                   t-on-change="onShiftToggle"/>
+                                            <t t-esc="sh.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
                         </div>
                     </t>
                 </div>
@@ -233,29 +255,51 @@
                         </select>
                     </div>
                     <t t-if="state.productTypes.length">
-                        <div class="d-flex align-items-center gap-1 flex-wrap">
-                            <span class="small text-muted">Tipo producto</span>
-                            <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                <button type="button"
-                                        t-att-data-id="pt.id"
-                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="onProductTypeToggle">
-                                    <t t-esc="pt.name"/>
-                                </button>
-                            </t>
+                        <div class="dropdown">
+                            <button type="button"
+                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.productTypeIds.includes(pt.id)"
+                                                   t-att-data-id="pt.id"
+                                                   t-on-change="onProductTypeToggle"/>
+                                            <t t-esc="pt.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
                         </div>
                     </t>
                     <t t-if="state.shiftsEnabled and state.shifts.length">
-                        <div class="d-flex align-items-center gap-1 flex-wrap">
-                            <span class="small text-muted">Turno</span>
-                            <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                                <button type="button"
-                                        t-att-data-id="sh.id"
-                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="onShiftToggle">
-                                    <t t-esc="sh.name"/>
-                                </button>
-                            </t>
+                        <div class="dropdown">
+                            <button type="button"
+                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false">
+                                Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                    <li>
+                                        <label class="dropdown-item d-flex align-items-center gap-2">
+                                            <input type="checkbox"
+                                                   t-att-checked="state.shiftIds.includes(sh.id)"
+                                                   t-att-data-id="sh.id"
+                                                   t-on-change="onShiftToggle"/>
+                                            <t t-esc="sh.name"/>
+                                        </label>
+                                    </li>
+                                </t>
+                            </ul>
                         </div>
                     </t>
                 </div>
@@ -634,29 +678,51 @@
                 </select>
             </div>
             <t t-if="state.productTypes.length">
-                <div class="d-flex align-items-center gap-1 flex-wrap">
-                    <span class="small text-muted">Tipo producto</span>
-                    <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                        <button type="button"
-                                t-att-data-id="pt.id"
-                                t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                t-on-click="onProductTypeToggle">
-                            <t t-esc="pt.name"/>
-                        </button>
-                    </t>
+                <div class="dropdown">
+                    <button type="button"
+                            t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                            data-bs-toggle="dropdown"
+                            data-bs-auto-close="outside"
+                            aria-expanded="false">
+                        Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                            <li>
+                                <label class="dropdown-item d-flex align-items-center gap-2">
+                                    <input type="checkbox"
+                                           t-att-checked="state.productTypeIds.includes(pt.id)"
+                                           t-att-data-id="pt.id"
+                                           t-on-change="onProductTypeToggle"/>
+                                    <t t-esc="pt.name"/>
+                                </label>
+                            </li>
+                        </t>
+                    </ul>
                 </div>
             </t>
-            <t t-if="state.shifts.length">
-                <div class="d-flex align-items-center gap-1 flex-wrap">
-                    <span class="small text-muted">Turno</span>
-                    <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                        <button type="button"
-                                t-att-data-id="sh.id"
-                                t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                t-on-click="onShiftToggle">
-                            <t t-esc="sh.name"/>
-                        </button>
-                    </t>
+            <t t-if="state.shiftsEnabled and state.shifts.length">
+                <div class="dropdown">
+                    <button type="button"
+                            t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
+                            data-bs-toggle="dropdown"
+                            data-bs-auto-close="outside"
+                            aria-expanded="false">
+                        Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                            <li>
+                                <label class="dropdown-item d-flex align-items-center gap-2">
+                                    <input type="checkbox"
+                                           t-att-checked="state.shiftIds.includes(sh.id)"
+                                           t-att-data-id="sh.id"
+                                           t-on-change="onShiftToggle"/>
+                                    <t t-esc="sh.name"/>
+                                </label>
+                            </li>
+                        </t>
+                    </ul>
                 </div>
             </t>
         </div>

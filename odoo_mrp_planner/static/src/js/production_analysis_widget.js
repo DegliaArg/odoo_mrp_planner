@@ -522,7 +522,7 @@ class ProductionAnalysisWidget extends Component {
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value || today(); this._reloadActive(); }
     onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._reloadActive(); }
     onProductTypeToggle(ev) {
-        const id = parseInt(ev.currentTarget.dataset.id);
+        const id = parseInt(ev.target.dataset.id);
         const ids = [...this.state.productTypeIds];
         const idx = ids.indexOf(id);
         if (idx >= 0) ids.splice(idx, 1); else ids.push(id);
@@ -530,7 +530,7 @@ class ProductionAnalysisWidget extends Component {
         this._reloadActive();
     }
     onShiftToggle(ev) {
-        const id = parseInt(ev.currentTarget.dataset.id);
+        const id = parseInt(ev.target.dataset.id);
         const ids = [...this.state.shiftIds];
         const idx = ids.indexOf(id);
         if (idx >= 0) ids.splice(idx, 1); else ids.push(id);

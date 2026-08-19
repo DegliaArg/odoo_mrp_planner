@@ -41,19 +41,21 @@ const WC_COLS = [
     { key: "ejecutado",      label: "Ejecutado (h)",     width: 110, align: "center" },
     { key: "pendiente",      label: "Pendiente (h)",     width: 105, align: "center" },
     { key: "no_planificado", label: "No planif. (h)",    width: 110, align: "center" },
-    { key: "carga_pct",      label: "Carga %",           width:  90, align: "center" },
-    { key: "holgura",        label: "Holgura (h)",       width: 100, align: "center" },
-    { key: "eficiencia",     label: "Eficiencia %",      width: 105, align: "center" },
+    { key: "carga_pct",       label: "Carga %",           width:  90, align: "center" },
+    { key: "holgura",         label: "Holgura (h)",       width: 100, align: "center" },
+    { key: "eficiencia",      label: "Ef. plan. %",       width: 105, align: "center" },
+    { key: "eficiencia_ejec", label: "Ef. ejec. %",       width: 105, align: "center" },
 ];
 const WC_NUM_COLS = [
-    { key: "disponible",     label: "Disponible (h)" },
-    { key: "planificado",    label: "Planificado (h)" },
-    { key: "ejecutado",      label: "Ejecutado (h)" },
-    { key: "pendiente",      label: "Pendiente (h)" },
-    { key: "no_planificado", label: "No planificado (h)" },
-    { key: "carga_pct",      label: "Carga %" },
-    { key: "holgura",        label: "Holgura (h)" },
-    { key: "eficiencia",     label: "Eficiencia %" },
+    { key: "disponible",      label: "Disponible (h)" },
+    { key: "planificado",     label: "Planificado (h)" },
+    { key: "ejecutado",       label: "Ejecutado (h)" },
+    { key: "pendiente",       label: "Pendiente (h)" },
+    { key: "no_planificado",  label: "No planificado (h)" },
+    { key: "carga_pct",       label: "Carga %" },
+    { key: "holgura",         label: "Holgura (h)" },
+    { key: "eficiencia",      label: "Ef. plan. %" },
+    { key: "eficiencia_ejec", label: "Ef. ejec. %" },
 ];
 const SCRAP_COLS = [
     { key: "name",       label: "Producto",         width: 220, fixed: true, align: "start" },
@@ -435,9 +437,10 @@ class ProductionAnalysisWidget extends Component {
             ejecutado:      "Horas reales registradas en las OT del período (incluye las que siguen en curso).",
             pendiente:      "Horas planificadas aún no ejecutadas de las OT abiertas: máx(0, plan − real).",
             no_planificado: "Horas ejecutadas que superaron (o no tenían) plan: máx(0, real − plan).",
-            carga_pct:      "Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).",
-            holgura:        "Capacidad libre: Disponible − Planificado. Negativa = sobrecarga.",
-            eficiencia:     "Planificado ÷ Ejecutado × 100. Por encima de 100% se hizo en menos tiempo del previsto (más eficiente).",
+            carga_pct:       "Planificado ÷ Disponible × 100. Verde por debajo del aviso, amarillo hasta el crítico, rojo por encima (umbrales de Ajustes).",
+            holgura:         "Capacidad libre: Disponible − Planificado. Negativa = sobrecarga.",
+            eficiencia:      "Eficiencia de la planificación: Planificado ÷ Ejecutado × 100. Por encima de 100% se terminó en menos tiempo del previsto.",
+            eficiencia_ejec: "Eficiencia de la ejecución: Ejecutado ÷ Disponible × 100. Qué parte de la capacidad disponible se utilizó efectivamente. Por encima de 100% se registraron más horas que las de calendario.",
         }[col.key] || col.label;
         return `${t} Clic en el encabezado para ordenar.`;
     }
@@ -705,7 +708,7 @@ class ProductionAnalysisWidget extends Component {
     }
 
     cellValue(row, key) {
-        if (key === "carga_pct" || key === "eficiencia") return fmtPct(row[key]);
+        if (key === "carga_pct" || key === "eficiencia" || key === "eficiencia_ejec") return fmtPct(row[key]);
         if (key === "name") return row.name;
         return fmt(row[key]);
     }

@@ -46,8 +46,9 @@
                             <span class="small text-muted">Tipo producto</span>
                             <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
                                 <button type="button"
+                                        t-att-data-id="pt.id"
                                         t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="() => onProductTypeToggle(pt.id)">
+                                        t-on-click="onProductTypeToggle">
                                     <t t-esc="pt.name"/>
                                 </button>
                             </t>
@@ -58,8 +59,9 @@
                             <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
                                 <button type="button"
+                                        t-att-data-id="sh.id"
                                         t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="() => onShiftToggle(sh.id)">
+                                        t-on-click="onShiftToggle">
                                     <t t-esc="sh.name"/>
                                 </button>
                             </t>
@@ -235,8 +237,9 @@
                             <span class="small text-muted">Tipo producto</span>
                             <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
                                 <button type="button"
+                                        t-att-data-id="pt.id"
                                         t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="() => onProductTypeToggle(pt.id)">
+                                        t-on-click="onProductTypeToggle">
                                     <t t-esc="pt.name"/>
                                 </button>
                             </t>
@@ -247,8 +250,9 @@
                             <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
                                 <button type="button"
+                                        t-att-data-id="sh.id"
                                         t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                        t-on-click="() => onShiftToggle(sh.id)">
+                                        t-on-click="onShiftToggle">
                                     <t t-esc="sh.name"/>
                                 </button>
                             </t>
@@ -634,8 +638,9 @@
                     <span class="small text-muted">Tipo producto</span>
                     <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
                         <button type="button"
+                                t-att-data-id="pt.id"
                                 t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                t-on-click="() => onProductTypeToggle(pt.id)">
+                                t-on-click="onProductTypeToggle">
                             <t t-esc="pt.name"/>
                         </button>
                     </t>
@@ -646,8 +651,9 @@
                     <span class="small text-muted">Turno</span>
                     <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
                         <button type="button"
+                                t-att-data-id="sh.id"
                                 t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
-                                t-on-click="() => onShiftToggle(sh.id)">
+                                t-on-click="onShiftToggle">
                             <t t-esc="sh.name"/>
                         </button>
                     </t>

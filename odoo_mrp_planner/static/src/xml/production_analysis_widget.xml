@@ -41,28 +41,30 @@
                             </t>
                         </select>
                     </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label class="form-label mb-0 small text-muted">Tipo producto</label>
-                        <select class="form-select form-select-sm" multiple="multiple"
-                                style="width:180px;" t-on-change="onProductTypeChange">
+                    <t t-if="state.productTypes.length">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="small text-muted">Tipo producto</span>
                             <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                <option t-att-value="pt.id"
-                                        t-att-selected="state.productTypeIds.includes(pt.id)"
-                                        t-esc="pt.name"/>
+                                <button type="button"
+                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                        t-on-click="() => onProductTypeToggle(pt.id)">
+                                    <t t-esc="pt.name"/>
+                                </button>
                             </t>
-                        </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label class="form-label mb-0 small text-muted">Turno</label>
-                        <select class="form-select form-select-sm" multiple="multiple"
-                                style="width:160px;" t-on-change="onShiftChange">
+                        </div>
+                    </t>
+                    <t t-if="state.shifts.length">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                                <option t-att-value="sh.id"
-                                        t-att-selected="state.shiftIds.includes(sh.id)"
-                                        t-esc="sh.name"/>
+                                <button type="button"
+                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                        t-on-click="() => onShiftToggle(sh.id)">
+                                    <t t-esc="sh.name"/>
+                                </button>
                             </t>
-                        </select>
-                    </div>
+                        </div>
+                    </t>
                 </div>
 
                 <div t-if="state.error" class="alert alert-danger py-2 mb-2">
@@ -228,28 +230,30 @@
                             </t>
                         </select>
                     </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label class="form-label mb-0 small text-muted">Tipo producto</label>
-                        <select class="form-select form-select-sm" multiple="multiple"
-                                style="width:180px;" t-on-change="onProductTypeChange">
+                    <t t-if="state.productTypes.length">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="small text-muted">Tipo producto</span>
                             <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                <option t-att-value="pt.id"
-                                        t-att-selected="state.productTypeIds.includes(pt.id)"
-                                        t-esc="pt.name"/>
+                                <button type="button"
+                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                        t-on-click="() => onProductTypeToggle(pt.id)">
+                                    <t t-esc="pt.name"/>
+                                </button>
                             </t>
-                        </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label class="form-label mb-0 small text-muted">Turno</label>
-                        <select class="form-select form-select-sm" multiple="multiple"
-                                style="width:160px;" t-on-change="onShiftChange">
+                        </div>
+                    </t>
+                    <t t-if="state.shifts.length">
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                                <option t-att-value="sh.id"
-                                        t-att-selected="state.shiftIds.includes(sh.id)"
-                                        t-esc="sh.name"/>
+                                <button type="button"
+                                        t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                        t-on-click="() => onShiftToggle(sh.id)">
+                                    <t t-esc="sh.name"/>
+                                </button>
                             </t>
-                        </select>
-                    </div>
+                        </div>
+                    </t>
                 </div>
 
                 <div t-if="state.scrapError" class="alert alert-danger py-2 mb-2">
@@ -625,28 +629,30 @@
                     </t>
                 </select>
             </div>
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Tipo producto</label>
-                <select class="form-select form-select-sm" multiple="multiple"
-                        style="width:180px;" t-on-change="onProductTypeChange">
+            <t t-if="state.productTypes.length">
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <span class="small text-muted">Tipo producto</span>
                     <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                        <option t-att-value="pt.id"
-                                t-att-selected="state.productTypeIds.includes(pt.id)"
-                                t-esc="pt.name"/>
+                        <button type="button"
+                                t-att-class="'btn btn-sm py-0 px-2 ' + (state.productTypeIds.includes(pt.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                t-on-click="() => onProductTypeToggle(pt.id)">
+                            <t t-esc="pt.name"/>
+                        </button>
                     </t>
-                </select>
-            </div>
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Turno</label>
-                <select class="form-select form-select-sm" multiple="multiple"
-                        style="width:160px;" t-on-change="onShiftChange">
+                </div>
+            </t>
+            <t t-if="state.shifts.length">
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <span class="small text-muted">Turno</span>
                     <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                        <option t-att-value="sh.id"
-                                t-att-selected="state.shiftIds.includes(sh.id)"
-                                t-esc="sh.name"/>
+                        <button type="button"
+                                t-att-class="'btn btn-sm py-0 px-2 ' + (state.shiftIds.includes(sh.id) ? 'btn-secondary' : 'btn-outline-secondary')"
+                                t-on-click="() => onShiftToggle(sh.id)">
+                            <t t-esc="sh.name"/>
+                        </button>
                     </t>
-                </select>
-            </div>
+                </div>
+            </t>
         </div>
     </t>
 

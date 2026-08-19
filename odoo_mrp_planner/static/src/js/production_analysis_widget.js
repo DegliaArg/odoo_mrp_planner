@@ -519,12 +519,18 @@ class ProductionAnalysisWidget extends Component {
     onDateFromChange(ev) { this.state.dateFrom = ev.target.value || firstOfYear(); this._reloadActive(); }
     onDateToChange(ev)   { this.state.dateTo   = ev.target.value || today(); this._reloadActive(); }
     onTagChange(ev)      { this.state.tagId = ev.target.value ? parseInt(ev.target.value) : null; this._reloadActive(); }
-    onProductTypeChange(ev) {
-        this.state.productTypeIds = Array.from(ev.target.selectedOptions).map(o => parseInt(o.value));
+    onProductTypeToggle(id) {
+        const ids = [...this.state.productTypeIds];
+        const idx = ids.indexOf(id);
+        if (idx >= 0) ids.splice(idx, 1); else ids.push(id);
+        this.state.productTypeIds = ids;
         this._reloadActive();
     }
-    onShiftChange(ev) {
-        this.state.shiftIds = Array.from(ev.target.selectedOptions).map(o => parseInt(o.value));
+    onShiftToggle(id) {
+        const ids = [...this.state.shiftIds];
+        const idx = ids.indexOf(id);
+        if (idx >= 0) ids.splice(idx, 1); else ids.push(id);
+        this.state.shiftIds = ids;
         this._reloadActive();
     }
 

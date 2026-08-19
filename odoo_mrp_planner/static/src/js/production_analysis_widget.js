@@ -1104,20 +1104,40 @@ class ProductionAnalysisWidget extends Component {
             // KPIs ponderados del backend: describen TODO el período (no las filas
             // filtradas), porque la ponderación por valor/horas vive en el servidor.
             computeKpis: (rows, w) => w.state.cmpKpisData || {},
-            kpiCards: (k, w) => [
-                { key: "planned",   label: "Programado",     value: fmt(k.planned),  cls: "" },
-                { key: "produced",  label: "Producido",      value: fmt(k.produced), cls: "" },
-                { key: "pct",       label: "Cumplimiento %", value: k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct),
-                  cls: w.rateClass(k.pct, k.pct_green || 90, k.pct_warn || 50) },
-                { key: "on_target", label: "En target",      value: `${k.on_target || 0}/${k.planned_products || 0}`, cls: "" },
-                { key: "desvio",    label: "Desvío",         value: fmt(k.desvio),   cls: k.desvio > 0 ? "text-warning fw-semibold" : "" },
-            ],
+            kpiCards: (k, w) => {
+                const method = k.accuracy_method || 'accuracy';
+                const accVal = method === 'attainment' ? k.pct
+                             : method === 'bias'       ? k.bias_plan
+                             :                          k.accuracy_plan;
+                const accLabel = method === 'attainment' ? 'Cumplimiento plan %'
+                               : method === 'bias'       ? 'Sesgo del plan %'
+                               :                          'Exactitud del plan %';
+                const accFmt = (v) => v === null || v === undefined ? 's/plan' : fmtPct(v);
+                const accCls = method === 'bias'
+                    ? (k.bias_plan > 5 ? 'text-warning fw-semibold' : k.bias_plan < -5 ? 'text-danger fw-semibold' : '')
+                    : w.rateClass(accVal, k.pct_green || 90, k.pct_warn || 50);
+                return [
+                    { key: "planned",   label: "Programado",      value: fmt(k.planned),  cls: "" },
+                    { key: "produced",  label: "Producido",        value: fmt(k.produced), cls: "" },
+                    { key: "pct",       label: "Cumplimiento %",   value: k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct),
+                      cls: w.rateClass(k.pct, k.pct_green || 90, k.pct_warn || 50) },
+                    { key: "accuracy",  label: accLabel,           value: accFmt(accVal),  cls: accCls },
+                    { key: "on_target", label: "En target",        value: `${k.on_target || 0}/${k.planned_products || 0}`, cls: "" },
+                    { key: "desvio",    label: "Desvío",           value: fmt(k.desvio),   cls: k.desvio > 0 ? "text-warning fw-semibold" : "" },
+                ];
+            },
             kpiTooltip: (key, k) => {
                 const wl = WEIGHT_LABELS[k.weight_mode] || k.weight_mode || "costo estándar";
+                const method = k.accuracy_method || 'accuracy';
                 switch (key) {
                     case "planned":   return `Programado ponderado del período (por ${wl})\nΣ (cantidad programada × peso del producto)\n→ ${fmt(k.planned)}`;
                     case "produced":  return `Producido ponderado del período (por ${wl})\nΣ (cantidad producida × peso del producto)\n→ ${fmt(k.produced)}`;
                     case "pct":       return `Cumplimiento ponderado del período (por ${wl})${k.fill_cap ? ", con tope 100% por producto" : ""}\nProducido ÷ Programado × 100\n→ ${k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct)}\nVerde ≥ ${k.pct_green}% · Amarillo ≥ ${k.pct_warn}% (umbrales de Ajustes)`;
+                    case "accuracy": {
+                        if (method === 'attainment') return `Cumplimiento del plan (por ${wl}): solo penaliza la sub-producción\nΣ mín(producido, programado) ÷ Σ programado × 100\n→ ${k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct)}\nLa sobreproducción de un producto no compensa el faltante de otro.`;
+                        if (method === 'bias')       return `Sesgo del plan (por ${wl}): dirección sistemática de la desviación\n(Σ producido − Σ programado) ÷ Σ programado × 100\n→ ${fmtPct(k.bias_plan)}\nPositivo = sobreproducción sistemática · Negativo = sub-producción sistemática.`;
+                        return `Exactitud del plan (por ${wl}): penaliza tanto el exceso como el faltante\n100 − Σ|producido − programado| ÷ Σ programado × 100\n→ ${fmtPct(k.accuracy_plan)}\n100% = plan ejecutado perfecto · 0% = desvío total en todos los productos.`;
+                    }
                     case "on_target": return `Productos que alcanzaron el umbral verde (≥ ${k.pct_green}%)\nConteo mix-justo (cada producto cuenta una vez)\n→ ${k.on_target || 0} de ${k.planned_products || 0} con plan`;
                     case "desvio":    return `Faltante ponderado: Programado − Producido del período\n→ ${fmt(k.desvio)}${k.excluded ? `\n${k.excluded} producto(s) sin peso para el criterio elegido (no ponderan).` : ""}`;
                 }

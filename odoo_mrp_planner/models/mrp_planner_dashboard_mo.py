@@ -572,7 +572,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
         weights, excluded = self._comparison_unit_weights(
             [x['product_id'] for x in items], weight_mode)
 
-        wp = wprod = wprod_cap = 0.0
+        wp = wprod = wprod_cap = w_abs_dev = 0.0
         on_target = planned_products = 0
         for x in items:
             w  = weights.get(x['product_id'], 0.0)
@@ -581,6 +581,7 @@ class MrpPlannerDashboardMo(models.TransientModel):
             wp        += pl * w
             wprod     += pr * w
             wprod_cap += min(pr, pl) * w
+            w_abs_dev += abs(pr - pl) * w
             if pl > 0:
                 planned_products += 1
                 if pr / pl * 100 >= green:
@@ -595,6 +596,9 @@ class MrpPlannerDashboardMo(models.TransientModel):
         total_planned   = wp
         total_produced  = wprod
         desvio          = round(wp - wprod, 2)
+        accuracy_plan   = round(100 - w_abs_dev / wp * 100, 1) if wp > 0 else None
+        bias_plan       = round((wprod - wp) / wp * 100, 1) if wp > 0 else None
+        accuracy_method = (cfg.prod_plan_accuracy_method if cfg else None) or 'accuracy'
         ofs_in_progress = sum(1 for mo in all_mos if mo.state == 'progress')
 
         if search:
@@ -634,10 +638,13 @@ class MrpPlannerDashboardMo(models.TransientModel):
                 'pct_warn':        (cfg.comparison_pct_warn if cfg else 0) or 50,
                 'pct':             pct,
                 'ofs_done':        ofs_done,
-                'desvio':          desvio,
-                'ofs_in_progress': ofs_in_progress,
-                'weight_mode':     weight_mode,
-                'fill_cap':        fill_cap,
+                'desvio':           desvio,
+                'accuracy_plan':    accuracy_plan,
+                'bias_plan':        bias_plan,
+                'accuracy_method':  accuracy_method,
+                'ofs_in_progress':  ofs_in_progress,
+                'weight_mode':      weight_mode,
+                'fill_cap':         fill_cap,
                 'on_target':       on_target,
                 'planned_products': planned_products,
                 'excluded':        excluded,

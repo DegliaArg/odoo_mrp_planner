@@ -203,6 +203,31 @@
                                         <field name="comparison_fill_cap" widget="boolean_toggle"
                                                help="Con tope al 100% por producto, la sobreproducción de un producto no compensa el faltante de otro (recomendado para un mix). Sin tope, el cumplimiento puede superar 100%."/>
                                     </group>
+                                    <group string="Producido vs Programado — Métrica de precisión"
+                                           help="Indicador adicional que se muestra junto al cumplimiento estándar. Permite elegir la perspectiva de evaluación del plan: solo sub-producción, desviación simétrica o sesgo direccional.">
+                                        <field name="prod_plan_accuracy_method" widget="radio" nolabel="1"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="prod_plan_accuracy_method != 'attainment'">
+                                            <b>Cumplimiento del plan:</b> Σ mín(producido, programado) ÷ Σ programado × 100.<br/>
+                                            · Solo penaliza la sub-producción: si se produce más de lo programado, ese exceso no suma ni resta.<br/>
+                                            · La sobreproducción de un producto no compensa el faltante de otro.<br/>
+                                            · Equivale al indicador <i>Schedule Attainment</i> o <i>Fill Rate</i> del plan, muy usado en manufactura.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="prod_plan_accuracy_method != 'accuracy'">
+                                            <b>Exactitud del plan:</b> 100 − Σ|producido − programado| ÷ Σ programado × 100.<br/>
+                                            · Penaliza por igual el exceso y el faltante: cualquier desviación del plan reduce la exactitud.<br/>
+                                            · Ponderado por volumen planificado: los productos con más plan pesan más en el resultado.<br/>
+                                            · 100% = ejecución perfecta del plan · 0% = desvío total en todos los productos. Robusto para mix variado.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="prod_plan_accuracy_method != 'bias'">
+                                            <b>Sesgo del plan:</b> (Σ producido − Σ programado) ÷ Σ programado × 100.<br/>
+                                            · Valor con signo: positivo = tendencia a sobreproducir · negativo = tendencia a sub-producir.<br/>
+                                            · Mide la <i>dirección</i> sistemática de la desviación, no su magnitud total.<br/>
+                                            · Útil para detectar si el área de planificación ajusta consistentemente de más o de menos.
+                                        </div>
+                                    </group>
                                     <group string="Turnos de producción"
                                            help="Defina los turnos para poder filtrar el Análisis de producción por horario. Cada turno tiene un nombre y un rango horario. Los turnos que cruzan la medianoche (Hora fin &lt; Hora inicio) se detectan automáticamente.">
                                         <field name="enable_shifts" widget="boolean_toggle"/>

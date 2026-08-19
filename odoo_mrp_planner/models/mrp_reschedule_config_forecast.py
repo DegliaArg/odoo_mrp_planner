@@ -128,6 +128,19 @@ class MrpRescheduleConfigForecast(models.Model):
              '(criterio de fill rate, recomendado para un mix de producción). Si está '
              'desactivado, la sobreproducción se acredita y el cumplimiento puede superar 100%.')
 
+    prod_plan_accuracy_method = fields.Selection([
+        ('attainment', 'Cumplimiento del plan'),
+        ('accuracy',   'Exactitud del plan'),
+        ('bias',       'Sesgo del plan'),
+    ], string='Métrica de precisión del plan', default='accuracy',
+       help='Indicador adicional que se muestra en el panel Producido vs Programado.\n'
+            '• Cumplimiento del plan: Σ mín(producido, programado) ÷ Σ programado × 100. '
+            'Solo penaliza la sub-producción; la sobreproducción de un producto no compensa el faltante de otro.\n'
+            '• Exactitud del plan: 100 − Σ|producido − programado| ÷ Σ programado × 100. '
+            'Penaliza tanto el exceso como el faltante, ponderado por volumen planificado.\n'
+            '• Sesgo del plan: (Σ producido − Σ programado) ÷ Σ programado × 100. '
+            'Valor positivo = sobreproducción sistemática. Negativo = sub-producción sistemática.')
+
     forecast_rotation_unit = fields.Selection([
         ('days',   'Días'),
         ('months', 'Meses'),

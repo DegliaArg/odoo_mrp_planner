@@ -207,12 +207,15 @@ class MrpPlannerDashboardProdAnalysis(models.TransientModel):
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         cfg = self.env['mrp.reschedule.config'].get_config()
-        if not cfg:
-            return {'shifts': []}
+        if not cfg or not cfg.enable_shifts:
+            return {'shifts_enabled': False, 'shifts': []}
         shifts = cfg.shift_ids
-        return {'shifts': [{'id': s.id, 'name': s.name,
-                             'hour_from': s.hour_from, 'hour_to': s.hour_to}
-                            for s in shifts]}
+        return {
+            'shifts_enabled': True,
+            'shifts': [{'id': s.id, 'name': s.name,
+                        'hour_from': s.hour_from, 'hour_to': s.hour_to}
+                       for s in shifts],
+        }
 
     def _pa_shift_filter_wos(self, wos, shift_ids):
         """Filtra OTs en memoria por turno: se conservan las cuya date_start (en

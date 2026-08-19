@@ -20,6 +20,12 @@ class MrpRescheduleConfigForecast(models.Model):
 
     # ── Turnos de producción ──────────────────────────────────────────────────
 
+    enable_shifts = fields.Boolean(
+        string='Habilitar filtro por turno', default=False,
+        help='Muestra los botones de turno en el Análisis de producción. '
+             'Desactivado por defecto; actívelo solo si usa turnos de producción '
+             'y quiere filtrar el análisis por horario.')
+
     shift_ids = fields.One2many(
         'mrp.planner.shift', 'config_id',
         string='Turnos de producción')

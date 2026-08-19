@@ -54,7 +54,7 @@
                             </t>
                         </div>
                     </t>
-                    <t t-if="state.shifts.length">
+                    <t t-if="state.shiftsEnabled and state.shifts.length">
                         <div class="d-flex align-items-center gap-1 flex-wrap">
                             <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
@@ -245,7 +245,7 @@
                             </t>
                         </div>
                     </t>
-                    <t t-if="state.shifts.length">
+                    <t t-if="state.shiftsEnabled and state.shifts.length">
                         <div class="d-flex align-items-center gap-1 flex-wrap">
                             <span class="small text-muted">Turno</span>
                             <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">

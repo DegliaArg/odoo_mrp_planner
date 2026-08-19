@@ -298,7 +298,7 @@ class ProductionAnalysisWidget extends Component {
             ofGreen: 90, ofWarn: 50, ofLoaded: false, ofLoading: false, ofError: null,
             moDateMode: "finish_date",
             productTypeIds: [], productTypes: [],
-            shiftIds: [], shifts: [],
+            shiftIds: [], shifts: [], shiftsEnabled: false,
             // Tabla Producido vs Programado
             cmpRows: [], cmpSearch: "", cmpNumFilters: [], cmpGroupBy: null, cmpSelGroup: null,
             cmpSortCol: "programado", cmpSortDir: "desc", cmpPage: 1, cmpTrend: [],
@@ -482,7 +482,9 @@ class ProductionAnalysisWidget extends Component {
     async _loadShifts() {
         try {
             const d = await this.orm.call("mrp.planner.dashboard", "get_shifts", []);
+            this.state.shiftsEnabled = !!(d && d.shifts_enabled);
             this.state.shifts = (d && d.shifts) || [];
+            if (!this.state.shiftsEnabled) this.state.shiftIds = [];
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[ProdAnalysis]", e);
         }

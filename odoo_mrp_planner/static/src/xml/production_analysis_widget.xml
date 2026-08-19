@@ -41,6 +41,19 @@
                             </t>
                         </select>
                     </div>
+                    <t t-if="state.productTypes.length">
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Tipo producto</label>
+                            <select class="form-select form-select-sm" multiple="multiple"
+                                    style="width:180px;" t-on-change="onProductTypeChange">
+                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                    <option t-att-value="pt.id"
+                                            t-att-selected="state.productTypeIds.includes(pt.id)"
+                                            t-esc="pt.name"/>
+                                </t>
+                            </select>
+                        </div>
+                    </t>
                 </div>
 
                 <div t-if="state.error" class="alert alert-danger py-2 mb-2">
@@ -206,6 +219,19 @@
                             </t>
                         </select>
                     </div>
+                    <t t-if="state.productTypes.length">
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Tipo producto</label>
+                            <select class="form-select form-select-sm" multiple="multiple"
+                                    style="width:180px;" t-on-change="onProductTypeChange">
+                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                    <option t-att-value="pt.id"
+                                            t-att-selected="state.productTypeIds.includes(pt.id)"
+                                            t-esc="pt.name"/>
+                                </t>
+                            </select>
+                        </div>
+                    </t>
                 </div>
 
                 <div t-if="state.scrapError" class="alert alert-danger py-2 mb-2">
@@ -581,6 +607,19 @@
                     </t>
                 </select>
             </div>
+            <t t-if="state.productTypes.length">
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Tipo producto</label>
+                    <select class="form-select form-select-sm" multiple="multiple"
+                            style="width:180px;" t-on-change="onProductTypeChange">
+                        <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                            <option t-att-value="pt.id"
+                                    t-att-selected="state.productTypeIds.includes(pt.id)"
+                                    t-esc="pt.name"/>
+                        </t>
+                    </select>
+                </div>
+            </t>
         </div>
     </t>
 

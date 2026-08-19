@@ -130,7 +130,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             .astimezone(pytz.UTC).replace(tzinfo=None)
         return first_day, last_day
 
-    def _wc_fetch_data(self, first_day, last_day, tag_id=None):
+    def _wc_fetch_data(self, first_day, last_day, tag_id=None, product_type_ids=None):
         """Prefetch de centros de trabajo + sus OT que solapan [first_day, last_day].
 
         Se busca UNA sola vez el rango completo. La tabla/gráfico lo usan directo
@@ -157,6 +157,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
             ('production_id.location_src_id.is_subcontracting_location', '!=', True),
             ('company_id', '=', self.env.company.id),
         ]
+        if product_type_ids:
+            wos_domain.append(('production_id.product_id.product_tmpl_id.x_product_type_ids', 'in', list(product_type_ids)))
         if allowed_ids is not None:
             if not allowed_ids:
                 wos_domain.append(('id', '=', False))
@@ -169,7 +171,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         return workcenters, wos_by_wc, allowed_ids
 
     def _wc_load_by_center(self, first_day, last_day, tag_id=None, prefetch=None,
-                           cal_cache=None):
+                           cal_cache=None, product_type_ids=None):
         """Carga por centro de trabajo en [first_day, last_day] (UTC naive).
 
         Una fila por CT con actividad, asignando cada OT al período con el MISMO
@@ -187,7 +189,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         :returns: (rows, wc_mode).
         """
         if prefetch is None:
-            workcenters, wos_by_wc, allowed_ids = self._wc_fetch_data(first_day, last_day, tag_id)
+            workcenters, wos_by_wc, allowed_ids = self._wc_fetch_data(first_day, last_day, tag_id, product_type_ids)
         else:
             workcenters, wos_by_wc, allowed_ids = prefetch
 
@@ -316,7 +318,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         }
 
     @api.model
-    def get_wc_load_table(self, date_from, date_to, tag_id=None):
+    def get_wc_load_table(self, date_from, date_to, tag_id=None, product_type_ids=None):
         """Tabla de detalle por CT: una fila por centro con horas y métricas
         derivadas (carga %, holgura = disponible − planificado, eficiencia =
         ejecutado ÷ planificado). Para el panel de Análisis de producción.
@@ -326,7 +328,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
         self._ensure_planner_group('odoo_mrp_planner.group_prod_read',
                                    'odoo_mrp_planner.group_prod')
         first_day, last_day = self._wc_parse_range(date_from, date_to)
-        rows, wc_mode = self._wc_load_by_center(first_day, last_day, tag_id)
+        rows, wc_mode = self._wc_load_by_center(first_day, last_day, tag_id,
+                                                product_type_ids=product_type_ids)
         _cfg = self.env['mrp.reschedule.config'].get_config()
 
         out = []
@@ -358,7 +361,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         }
 
     @api.model
-    def get_wc_load_trend(self, date_from, date_to, tag_id=None):
+    def get_wc_load_trend(self, date_from, date_to, tag_id=None, product_type_ids=None):
         """Evolución mensual de la carga % de CT en el rango (histórico).
 
         Un punto por mes calendario que solape el rango; cada mes se acota al
@@ -377,7 +380,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
         # Un solo prefetch del rango completo + una caché de calendario compartida:
         # cada mes se calcula filtrando el recordset en memoria (sin re-buscar).
         full_first, full_last = self._wc_parse_range(date_from, date_to)
-        prefetch = self._wc_fetch_data(full_first, full_last, tag_id)
+        prefetch = self._wc_fetch_data(full_first, full_last, tag_id, product_type_ids)
         cal_cache = {}
 
         trend = []
@@ -391,7 +394,8 @@ class MrpPlannerDashboardWc(models.TransientModel):
             seg_to   = min(m_end, d_to)
             first_day, last_day = self._wc_parse_range(str(seg_from), str(seg_to))
             rows, _ = self._wc_load_by_center(first_day, last_day, tag_id,
-                                              prefetch=prefetch, cal_cache=cal_cache)
+                                              prefetch=prefetch, cal_cache=cal_cache,
+                                              product_type_ids=product_type_ids)
             disp = sum(r['disponible'] for r in rows)
             plan = sum(r['planificado'] for r in rows)
             trend.append({

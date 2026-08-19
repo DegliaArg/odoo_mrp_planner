@@ -42,53 +42,88 @@
                         </select>
                     </div>
                     <t t-if="state.productTypes.length">
-                        <div class="dropdown">
-                            <button type="button"
-                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                                    data-bs-toggle="dropdown"
-                                    data-bs-auto-close="outside"
-                                    aria-expanded="false">
-                                Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                    <li>
-                                        <label class="dropdown-item d-flex align-items-center gap-2">
-                                            <input type="checkbox"
-                                                   t-att-checked="state.productTypeIds.includes(pt.id)"
-                                                   t-att-data-id="pt.id"
-                                                   t-on-change="onProductTypeToggle"/>
-                                            <t t-esc="pt.name"/>
-                                        </label>
-                                    </li>
-                                </t>
-                            </ul>
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Tipo</label>
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="form-select form-select-sm text-start"
+                                        style="width:160px;"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <t t-if="state.productTypeIds.length"><t t-esc="state.productTypeIds.length"/> seleccionado(s)</t>
+                                    <t t-else="">Todos</t>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                       t-att-checked="state.productTypeIds.includes(pt.id)"
+                                                       t-att-data-id="pt.id"
+                                                       t-on-change="onProductTypeToggle"/>
+                                                <t t-esc="pt.name"/>
+                                            </label>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
                         </div>
                     </t>
                     <t t-if="state.shiftsEnabled and state.shifts.length">
-                        <div class="dropdown">
-                            <button type="button"
-                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                                    data-bs-toggle="dropdown"
-                                    data-bs-auto-close="outside"
-                                    aria-expanded="false">
-                                Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Turno</label>
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="form-select form-select-sm text-start"
+                                        style="width:160px;"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <t t-if="state.shiftIds.length"><t t-esc="state.shiftIds.length"/> seleccionado(s)</t>
+                                    <t t-else="">Todos</t>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                       t-att-checked="state.shiftIds.includes(sh.id)"
+                                                       t-att-data-id="sh.id"
+                                                       t-on-change="onShiftToggle"/>
+                                                <t t-esc="sh.name"/>
+                                            </label>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                        </div>
+                    </t>
+                    <!-- Selector de columnas visibles -->
+                    <div class="dropdown ms-auto">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false">
+                            <i class="fa fa-columns me-1"/>Columnas
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <t t-foreach="wcColDefs" t-as="col" t-key="col.key">
+                                <t t-if="!col.fixed">
                                     <li>
                                         <label class="dropdown-item d-flex align-items-center gap-2">
                                             <input type="checkbox"
-                                                   t-att-checked="state.shiftIds.includes(sh.id)"
-                                                   t-att-data-id="sh.id"
-                                                   t-on-change="onShiftToggle"/>
-                                            <t t-esc="sh.name"/>
+                                                   t-att-checked="state.wcColVis[col.key]"
+                                                   t-att-data-col-key="col.key"
+                                                   t-on-change="(ev) => toggleWcCol(ev.target.dataset.colKey)"/>
+                                            <t t-esc="col.label"/>
                                         </label>
                                     </li>
                                 </t>
-                            </ul>
-                        </div>
-                    </t>
+                            </t>
+                        </ul>
+                    </div>
                 </div>
 
                 <div t-if="state.error" class="alert alert-danger py-2 mb-2">
@@ -172,12 +207,23 @@
                                 <thead class="table-light" style="position:sticky; top:0; z-index:3;">
                                     <tr>
                                         <t t-foreach="tableCols" t-as="col" t-key="col.key">
-                                            <th t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + 'user-select-none'"
-                                                style="cursor:pointer; white-space:nowrap;"
+                                            <th t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + 'user-select-none' + (wcCols.state.dragOver === col.key ? ' o_col_drag_over' : '')"
+                                                t-att-style="'cursor:pointer; white-space:nowrap; position:relative;' + (wcCols.colGroupStyle(col.key) || '')"
                                                 t-att-title="colTitle(col)"
-                                                t-on-click="() => this.setSort(col.key)">
+                                                t-att-data-col-key="col.key"
+                                                t-att-draggable="col.fixed ? 'false' : 'true'"
+                                                t-on-click="() => this.setSort(col.key)"
+                                                t-on-dragstart="wcCols.onDragStart"
+                                                t-on-dragover.prevent="wcCols.onDragOver"
+                                                t-on-drop.prevent="wcCols.onDrop"
+                                                t-on-dragend="wcCols.onDragEnd">
                                                 <t t-esc="col.label"/>
                                                 <i t-att-class="sortIcon(col.key)"/>
+                                                <div t-if="!col.fixed"
+                                                     class="o_col_resize_handle"
+                                                     t-att-data-col-key="col.key"
+                                                     t-on-mousedown.stop="wcCols.onResizeStart"
+                                                     t-on-click.stop="() => {}"/>
                                             </th>
                                         </t>
                                     </tr>
@@ -255,51 +301,61 @@
                         </select>
                     </div>
                     <t t-if="state.productTypes.length">
-                        <div class="dropdown">
-                            <button type="button"
-                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                                    data-bs-toggle="dropdown"
-                                    data-bs-auto-close="outside"
-                                    aria-expanded="false">
-                                Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                                    <li>
-                                        <label class="dropdown-item d-flex align-items-center gap-2">
-                                            <input type="checkbox"
-                                                   t-att-checked="state.productTypeIds.includes(pt.id)"
-                                                   t-att-data-id="pt.id"
-                                                   t-on-change="onProductTypeToggle"/>
-                                            <t t-esc="pt.name"/>
-                                        </label>
-                                    </li>
-                                </t>
-                            </ul>
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Tipo</label>
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="form-select form-select-sm text-start"
+                                        style="width:160px;"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <t t-if="state.productTypeIds.length"><t t-esc="state.productTypeIds.length"/> seleccionado(s)</t>
+                                    <t t-else="">Todos</t>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                       t-att-checked="state.productTypeIds.includes(pt.id)"
+                                                       t-att-data-id="pt.id"
+                                                       t-on-change="onProductTypeToggle"/>
+                                                <t t-esc="pt.name"/>
+                                            </label>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
                         </div>
                     </t>
                     <t t-if="state.shiftsEnabled and state.shifts.length">
-                        <div class="dropdown">
-                            <button type="button"
-                                    t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                                    data-bs-toggle="dropdown"
-                                    data-bs-auto-close="outside"
-                                    aria-expanded="false">
-                                Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                                    <li>
-                                        <label class="dropdown-item d-flex align-items-center gap-2">
-                                            <input type="checkbox"
-                                                   t-att-checked="state.shiftIds.includes(sh.id)"
-                                                   t-att-data-id="sh.id"
-                                                   t-on-change="onShiftToggle"/>
-                                            <t t-esc="sh.name"/>
-                                        </label>
-                                    </li>
-                                </t>
-                            </ul>
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Turno</label>
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="form-select form-select-sm text-start"
+                                        style="width:160px;"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <t t-if="state.shiftIds.length"><t t-esc="state.shiftIds.length"/> seleccionado(s)</t>
+                                    <t t-else="">Todos</t>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                       t-att-checked="state.shiftIds.includes(sh.id)"
+                                                       t-att-data-id="sh.id"
+                                                       t-on-change="onShiftToggle"/>
+                                                <t t-esc="sh.name"/>
+                                            </label>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
                         </div>
                     </t>
                 </div>
@@ -412,12 +468,8 @@
                                         <t t-foreach="scrapCols" t-as="col" t-key="col.key">
                                             <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + scrapCellClass(row, col.key)">
                                                 <t t-if="col.key === 'name'">
-                                                    <span t-esc="row.name"/>
-                                                    <button class="btn btn-sm btn-link py-0 px-1 ms-1"
-                                                            title="Ver operaciones de desecho del producto"
-                                                            t-on-click.stop="() => this.openProductScraps(row)">
-                                                        <i class="fa fa-external-link"/>
-                                                    </button>
+                                                    <a href="#" t-on-click.prevent="() => this.openProductScraps(row)"
+                                                       t-esc="row.name"/>
                                                 </t>
                                                 <t t-else="">
                                                     <t t-esc="scrapCellValue(row, col.key)"/>
@@ -678,51 +730,61 @@
                 </select>
             </div>
             <t t-if="state.productTypes.length">
-                <div class="dropdown">
-                    <button type="button"
-                            t-att-class="'btn btn-sm dropdown-toggle ' + (state.productTypeIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                            data-bs-toggle="dropdown"
-                            data-bs-auto-close="outside"
-                            aria-expanded="false">
-                        Tipo<t t-if="state.productTypeIds.length"> (<t t-esc="state.productTypeIds.length"/>)</t>
-                    </button>
-                    <ul class="dropdown-menu">
-                        <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
-                            <li>
-                                <label class="dropdown-item d-flex align-items-center gap-2">
-                                    <input type="checkbox"
-                                           t-att-checked="state.productTypeIds.includes(pt.id)"
-                                           t-att-data-id="pt.id"
-                                           t-on-change="onProductTypeToggle"/>
-                                    <t t-esc="pt.name"/>
-                                </label>
-                            </li>
-                        </t>
-                    </ul>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Tipo</label>
+                    <div class="dropdown">
+                        <button type="button"
+                                class="form-select form-select-sm text-start"
+                                style="width:160px;"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false">
+                            <t t-if="state.productTypeIds.length"><t t-esc="state.productTypeIds.length"/> seleccionado(s)</t>
+                            <t t-else="">Todos</t>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <t t-foreach="state.productTypes" t-as="pt" t-key="pt.id">
+                                <li>
+                                    <label class="dropdown-item d-flex align-items-center gap-2">
+                                        <input type="checkbox"
+                                               t-att-checked="state.productTypeIds.includes(pt.id)"
+                                               t-att-data-id="pt.id"
+                                               t-on-change="onProductTypeToggle"/>
+                                        <t t-esc="pt.name"/>
+                                    </label>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
                 </div>
             </t>
             <t t-if="state.shiftsEnabled and state.shifts.length">
-                <div class="dropdown">
-                    <button type="button"
-                            t-att-class="'btn btn-sm dropdown-toggle ' + (state.shiftIds.length ? 'btn-secondary' : 'btn-outline-secondary')"
-                            data-bs-toggle="dropdown"
-                            data-bs-auto-close="outside"
-                            aria-expanded="false">
-                        Turno<t t-if="state.shiftIds.length"> (<t t-esc="state.shiftIds.length"/>)</t>
-                    </button>
-                    <ul class="dropdown-menu">
-                        <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
-                            <li>
-                                <label class="dropdown-item d-flex align-items-center gap-2">
-                                    <input type="checkbox"
-                                           t-att-checked="state.shiftIds.includes(sh.id)"
-                                           t-att-data-id="sh.id"
-                                           t-on-change="onShiftToggle"/>
-                                    <t t-esc="sh.name"/>
-                                </label>
-                            </li>
-                        </t>
-                    </ul>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Turno</label>
+                    <div class="dropdown">
+                        <button type="button"
+                                class="form-select form-select-sm text-start"
+                                style="width:160px;"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false">
+                            <t t-if="state.shiftIds.length"><t t-esc="state.shiftIds.length"/> seleccionado(s)</t>
+                            <t t-else="">Todos</t>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <t t-foreach="state.shifts" t-as="sh" t-key="sh.id">
+                                <li>
+                                    <label class="dropdown-item d-flex align-items-center gap-2">
+                                        <input type="checkbox"
+                                               t-att-checked="state.shiftIds.includes(sh.id)"
+                                               t-att-data-id="sh.id"
+                                               t-on-change="onShiftToggle"/>
+                                        <t t-esc="sh.name"/>
+                                    </label>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
                 </div>
             </t>
         </div>
@@ -802,11 +864,8 @@
                         <t t-foreach="ctl.cols" t-as="col" t-key="col.key">
                             <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + ctl.cellClass(row, col.key)">
                                 <t t-if="col.key === 'name'">
-                                    <span t-esc="row.name"/>
-                                    <button class="btn btn-sm btn-link py-0 px-1 ms-1"
-                                            title="Ver detalle" t-on-click.stop="() => ctl.viewRow(row)">
-                                        <i class="fa fa-external-link"/>
-                                    </button>
+                                    <a href="#" t-on-click.prevent="() => ctl.viewRow(row)"
+                                       t-esc="row.name"/>
                                 </t>
                                 <t t-else="">
                                     <t t-esc="ctl.cellValue(row, col.key)"/>

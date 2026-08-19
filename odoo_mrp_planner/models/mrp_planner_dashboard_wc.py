@@ -45,6 +45,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             'name': _('Análisis de producción'),
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
+            'domain': [('id', '=', rec.id)],
             'view_mode': 'form',
             'view_id': self.env.ref('odoo_mrp_planner.mrp_production_analysis_form').id,
             'target': 'main',

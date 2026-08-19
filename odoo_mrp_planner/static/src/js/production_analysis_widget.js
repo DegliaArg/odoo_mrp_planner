@@ -27,6 +27,7 @@ import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { sortRows, buildGroupTabs, resolveActiveGroup, pageSlice, makePager, applyNumericFilters } from "@odoo_mrp_planner/js/planner_table";
+import { useColManager } from "@odoo_mrp_planner/js/column_manager";
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -251,7 +252,7 @@ class ProductionAnalysisWidget extends Component {
         this.scrapTrendRef = useRef("scrapTrend");
         this.trendChart = null;
         this.scrapTrendChart = null;
-        this.tableCols = WC_COLS;
+        this.wcCols = useColManager("prod_analysis_wc", WC_COLS);
         this.numColOptions = WC_NUM_COLS;
         this.scrapCols = SCRAP_COLS;
         this.scrapNumColOptions = SCRAP_NUM_COLS;
@@ -264,6 +265,10 @@ class ProductionAnalysisWidget extends Component {
             tags:     [],
             enableOee: false,
             barTopN:  10,   // Top-N de los gráficos de ranking (10/20/50)
+            // Visibilidad de columnas de la tabla CT (todas visibles por defecto)
+            wcColVis: { disponible:true, planificado:true, ejecutado:true, pendiente:true,
+                        no_planificado:true, carga_pct:true, holgura:true,
+                        eficiencia:true, eficiencia_ejec:true },
             // Tabla Carga de CT
             search:       "",
             numFilters:   [],
@@ -319,6 +324,12 @@ class ProductionAnalysisWidget extends Component {
             oeeHasData: true, oeeGreen: 85, oeeWarn: 60,
             oeeLoaded: false, oeeLoading: false, oeeError: null,
         });
+
+        // Restaurar visibilidad de columnas CT desde localStorage
+        try {
+            const saved = JSON.parse(localStorage.getItem('_planner_wc_col_vis') || 'null');
+            if (saved && typeof saved === 'object') Object.assign(this.state.wcColVis, saved);
+        } catch(e) {}
 
         this._chartDirty = false;
         this._scrapChartDirty = false;
@@ -426,6 +437,19 @@ class ProductionAnalysisWidget extends Component {
                 return `Horas ejecutadas que superaron (o no tenían) plan, en ${scope}\nSuma de máx(0, real del período − plan del período)\n→ ${f(k.no_planificado)} h`;
         }
         return "";
+    }
+
+    /** Columnas visibles de la tabla CT, en el orden gestionado por useColManager. */
+    get tableCols() {
+        return this.wcCols.visibleCols().filter(col => col.fixed || !!this.state.wcColVis[col.key]);
+    }
+
+    /** Todas las columnas WC (para el picker de visibilidad). */
+    get wcColDefs() { return WC_COLS; }
+
+    toggleWcCol(key) {
+        this.state.wcColVis[key] = !this.state.wcColVis[key];
+        try { localStorage.setItem('_planner_wc_col_vis', JSON.stringify(this.state.wcColVis)); } catch(e) {}
     }
 
     /** Tooltips de los encabezados de columna (misma estructura/estilo). */

@@ -93,16 +93,16 @@ const OF_NUM_COLS = [
     { key: "atrasadas", label: "Atrasadas" },
 ];
 const CMP_COLS = [
-    { key: "name",       label: "Producto",       width: 240, fixed: true, align: "start" },
-    { key: "uom",        label: "UdM",            width:  80, align: "center" },
-    { key: "programado", label: "Programado",     width: 120, align: "center" },
-    { key: "producido",  label: "Producido",      width: 120, align: "center" },
-    { key: "desvio",     label: "Desvío",         width: 110, align: "center" },
-    { key: "pct",        label: "Cumplimiento %", width: 130, align: "center" },
+    { key: "name",       label: "Producto",   width: 240, fixed: true, align: "start" },
+    { key: "uom",        label: "UdM",        width:  80, align: "center" },
+    { key: "programado", label: "Programado", width: 120, align: "center" },
+    { key: "producido",  label: "Producido",  width: 120, align: "center" },
+    { key: "desvio",     label: "Desvío",     width: 110, align: "center" },
+    { key: "precision",  label: "Precisión %", width: 130, align: "center" },
 ];
 const CMP_NUM_COLS = [
     { key: "programado", label: "Programado" }, { key: "producido", label: "Producido" },
-    { key: "desvio", label: "Desvío" }, { key: "pct", label: "Cumplimiento %" },
+    { key: "desvio", label: "Desvío" }, { key: "precision", label: "Precisión %" },
 ];
 const EF_COLS = [
     { key: "name",       label: "Producto",     width: 240, fixed: true, align: "start" },
@@ -1129,23 +1129,46 @@ class ProductionAnalysisWidget extends Component {
                 return "";
             },
             colTitle: (col) => {
+                if (col.key === "precision") {
+                    const method = (this.state.cmpKpisData || {}).accuracy_method || 'accuracy';
+                    if (method === 'attainment') return "Cumplimiento del plan por producto: min(producido, programado) ÷ programado × 100. Clic para ordenar.";
+                    if (method === 'bias')       return "Sesgo del plan por producto: (producido − programado) ÷ programado × 100. Positivo = sobreproducción · Negativo = sub-producción. Clic para ordenar.";
+                    return "Exactitud del plan por producto: 100 − |producido − programado| ÷ programado × 100. Penaliza tanto el exceso como el faltante. Clic para ordenar.";
+                }
                 const t = {
                     name: "Producto fabricado. El botón abre sus OFs del período.",
                     uom: "Unidad de medida.",
                     programado: "Cantidad programada del producto (sin ponderar).",
                     producido: "Cantidad producida del producto (sin ponderar).",
                     desvio: "Programado − Producido del producto.",
-                    pct: "Producido ÷ Programado × 100 del producto. «s/plan» = producido sin cantidad programada.",
                 }[col.key] || col.label;
                 return `${t} Clic en el encabezado para ordenar.`;
             },
             cellValue: (row, key) => {
-                if (key === "pct") return row.pct === null || row.pct === undefined ? "s/plan" : fmtPct(row.pct);
+                if (key === "precision") {
+                    const q = row.programado || 0;
+                    if (q === 0) return "s/plan";
+                    const method = (this.state.cmpKpisData || {}).accuracy_method || 'accuracy';
+                    if (method === 'attainment') return row.pct === null || row.pct === undefined ? "s/plan" : fmtPct(Math.min(row.pct, 100));
+                    if (method === 'bias')       return fmtPct((row.producido - q) / q * 100);
+                    return fmtPct(100 - Math.abs(row.desvio) / q * 100);
+                }
                 if (["programado", "producido", "desvio"].includes(key)) return fmt(row[key]);
                 return row[key] || "—";
             },
             cellClass: (row, key, w) => {
-                if (key === "pct") return w.rateClass(row.pct, w.state.cmpGreen, w.state.cmpWarn);
+                if (key === "precision") {
+                    const method = (this.state.cmpKpisData || {}).accuracy_method || 'accuracy';
+                    const q = row.programado || 0;
+                    if (q === 0) return "";
+                    if (method === 'bias') {
+                        const bias = (row.producido - q) / q * 100;
+                        return bias > 5 ? "text-warning fw-semibold" : bias < -5 ? "text-danger fw-semibold" : "";
+                    }
+                    const val = method === 'attainment' ? Math.min(row.pct || 0, 100)
+                                                        : 100 - Math.abs(row.desvio) / q * 100;
+                    return w.rateClass(val, w.state.cmpGreen, w.state.cmpWarn);
+                }
                 if (key === "desvio" && row.desvio > 0) return "text-warning";
                 return "";
             },

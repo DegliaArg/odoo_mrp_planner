@@ -569,15 +569,6 @@
             <!-- ════════════════ PESTAÑA: Producido vs Programado ════════════════ -->
             <t t-if="state.tab === 'cumpl'">
                 <t t-call="odoo_mrp_planner.ProdAnalysisDateBar"/>
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <label class="form-label mb-0 small text-muted">Métrica adicional</label>
-                    <select class="form-select form-select-sm" style="width:auto;" t-on-change="onCmpAccuracyMethodChange">
-                        <option value="" t-att-selected="!state.cmpAccuracyMethod">Según Ajustes</option>
-                        <option value="accuracy" t-att-selected="state.cmpAccuracyMethod === 'accuracy'">Exactitud del plan</option>
-                        <option value="attainment" t-att-selected="state.cmpAccuracyMethod === 'attainment'">Cumplimiento del plan</option>
-                        <option value="bias" t-att-selected="state.cmpAccuracyMethod === 'bias'">Sesgo del plan</option>
-                    </select>
-                </div>
                 <div t-if="state.cmpError" class="alert alert-danger py-2 mb-2">
                     <i class="fa fa-exclamation-triangle me-2"/><t t-esc="state.cmpError"/>
                 </div>

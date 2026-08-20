@@ -310,7 +310,6 @@ class ProductionAnalysisWidget extends Component {
             cmpRows: [], cmpSearch: "", cmpNumFilters: [], cmpGroupBy: null, cmpSelGroup: null,
             cmpSortCol: "programado", cmpSortDir: "desc", cmpPage: 1, cmpTrend: [],
             cmpKpisData: {}, cmpGreen: 90, cmpWarn: 50, cmpTruncated: false, cmpTotal: 0,
-            cmpAccuracyMethod: null,   // null = usar el valor de Ajustes (k.accuracy_method)
             cmpLoaded: false, cmpLoading: false, cmpError: null,
             // Tabla Eficiencia
             efRows: [], efSearch: "", efNumFilters: [], efGroupBy: null, efSelGroup: null,
@@ -570,10 +569,6 @@ class ProductionAnalysisWidget extends Component {
         if (idx >= 0) ids.splice(idx, 1); else ids.push(id);
         this.state.shiftIds = ids;
         this._reloadActive();
-    }
-
-    onCmpAccuracyMethodChange(ev) {
-        this.state.cmpAccuracyMethod = ev.target.value || null;
     }
 
     /** Recarga las fuentes ya abiertas al cambiar el rango o el sector (la de
@@ -1098,7 +1093,7 @@ class ProductionAnalysisWidget extends Component {
             // filtradas), porque la ponderación por valor/horas vive en el servidor.
             computeKpis: (rows, w) => w.state.cmpKpisData || {},
             kpiCards: (k, w) => {
-                const method = w.state.cmpAccuracyMethod || k.accuracy_method || 'accuracy';
+                const method = k.accuracy_method || 'accuracy';
                 const accVal = method === 'attainment' ? k.pct
                              : method === 'bias'       ? k.bias_plan
                              :                          k.accuracy_plan;
@@ -1121,7 +1116,7 @@ class ProductionAnalysisWidget extends Component {
             },
             kpiTooltip: (key, k, w) => {
                 const wl = WEIGHT_LABELS[k.weight_mode] || k.weight_mode || "costo estándar";
-                const method = w.state.cmpAccuracyMethod || k.accuracy_method || 'accuracy';
+                const method = k.accuracy_method || 'accuracy';
                 switch (key) {
                     case "planned":   return `Programado ponderado del período (por ${wl})\nΣ (cantidad programada × peso del producto)\n→ ${fmt(k.planned)}`;
                     case "produced":  return `Producido ponderado del período (por ${wl})\nΣ (cantidad producida × peso del producto)\n→ ${fmt(k.produced)}`;

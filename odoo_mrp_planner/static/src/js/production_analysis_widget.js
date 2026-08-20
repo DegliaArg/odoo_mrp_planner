@@ -311,6 +311,7 @@ class ProductionAnalysisWidget extends Component {
             cmpRows: [], cmpSearch: "", cmpNumFilters: [], cmpGroupBy: null, cmpSelGroup: null,
             cmpSortCol: "programado", cmpSortDir: "desc", cmpPage: 1, cmpTrend: [],
             cmpKpisData: {}, cmpGreen: 90, cmpWarn: 50, cmpTruncated: false, cmpTotal: 0,
+            cmpAccuracyMethod: null,   // null = usar el valor de Ajustes (k.accuracy_method)
             cmpLoaded: false, cmpLoading: false, cmpError: null,
             // Tabla Eficiencia
             efRows: [], efSearch: "", efNumFilters: [], efGroupBy: null, efSelGroup: null,
@@ -570,6 +571,10 @@ class ProductionAnalysisWidget extends Component {
         if (idx >= 0) ids.splice(idx, 1); else ids.push(id);
         this.state.shiftIds = ids;
         this._reloadActive();
+    }
+
+    onCmpAccuracyMethodChange(ev) {
+        this.state.cmpAccuracyMethod = ev.target.value || null;
     }
 
     /** Recarga las fuentes ya abiertas al cambiar el rango o el sector (la de
@@ -1105,7 +1110,7 @@ class ProductionAnalysisWidget extends Component {
             // filtradas), porque la ponderación por valor/horas vive en el servidor.
             computeKpis: (rows, w) => w.state.cmpKpisData || {},
             kpiCards: (k, w) => {
-                const method = k.accuracy_method || 'accuracy';
+                const method = w.state.cmpAccuracyMethod || k.accuracy_method || 'accuracy';
                 const accVal = method === 'attainment' ? k.pct
                              : method === 'bias'       ? k.bias_plan
                              :                          k.accuracy_plan;
@@ -1126,9 +1131,9 @@ class ProductionAnalysisWidget extends Component {
                     { key: "desvio",    label: "Desvío",           value: fmt(k.desvio),   cls: k.desvio > 0 ? "text-warning fw-semibold" : "" },
                 ];
             },
-            kpiTooltip: (key, k) => {
+            kpiTooltip: (key, k, w) => {
                 const wl = WEIGHT_LABELS[k.weight_mode] || k.weight_mode || "costo estándar";
-                const method = k.accuracy_method || 'accuracy';
+                const method = w.state.cmpAccuracyMethod || k.accuracy_method || 'accuracy';
                 switch (key) {
                     case "planned":   return `Programado ponderado del período (por ${wl})\nΣ (cantidad programada × peso del producto)\n→ ${fmt(k.planned)}`;
                     case "produced":  return `Producido ponderado del período (por ${wl})\nΣ (cantidad producida × peso del producto)\n→ ${fmt(k.produced)}`;
@@ -1714,7 +1719,7 @@ class ProductionAnalysisWidget extends Component {
             producido: "Producido ponderado del mes (comparativo).",
             carga_pct: "Carga de CT del mes: planificado ÷ disponible × 100.",
             cumpl_pct: "Cumplimiento ponderado del mes: producido ÷ programado × 100.",
-            efic_pct: "Eficiencia del mes: real ÷ planificado × 100.",
+            efic_pct: "Eficiencia del mes: planificado ÷ real × 100. Por encima de 100% se ejecutó en menos tiempo del previsto.",
             scrap: "Cantidad desechada del mes (unidades mixtas).",
         }[col.key] || col.label;
         return t;

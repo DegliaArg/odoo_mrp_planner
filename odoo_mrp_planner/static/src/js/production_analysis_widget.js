@@ -62,7 +62,6 @@ const SCRAP_COLS = [
     { key: "name",      label: "Producto",     width: 220, fixed: true, align: "start" },
     { key: "category",  label: "Categoría",    width: 130, align: "start" },
     { key: "sector",    label: "Sector",       width: 140, align: "start" },
-    { key: "almacen",   label: "Almacén",      width: 130, align: "start" },
     { key: "qty",       label: "Desecho",      width: 100, align: "center" },
     { key: "uom",       label: "UdM",          width:  70, align: "center" },
     { key: "producido", label: "Producido",    width: 100, align: "center" },
@@ -733,16 +732,6 @@ class ProductionAnalysisWidget extends Component {
             target: "current",
         });
     }
-    openWc(row) {
-        this.action.doAction({
-            type: "ir.actions.act_window",
-            res_model: "mrp.workcenter",
-            res_id: row.wc_id,
-            views: [[false, "form"]],
-            target: "current",
-        });
-    }
-
     cellValue(row, key) {
         if (key === "carga_pct" || key === "eficiencia" || key === "eficiencia_ejec") return fmtPct(row[key]);
         if (key === "name") return row.name;
@@ -921,7 +910,6 @@ class ProductionAnalysisWidget extends Component {
             name:      "Producto desechado. Clic para ver sus operaciones de desecho.",
             category:  "Categoría de producto del ítem desechado.",
             sector:    "Sector(es) de producción del producto en el período, tomados de los centros de trabajo de sus OFs.",
-            almacen:   "Almacén de la OF de producción relacionada al desecho.",
             qty:       "Cantidad total desechada del producto en el período (desechos validados).",
             uom:        "Unidad de medida del producto.",
             producido:  "Cantidad producida del producto en el período (mismo criterio de fechas que el resto del panel). 0 = insumo sin producción propia.",

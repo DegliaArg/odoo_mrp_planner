@@ -251,13 +251,8 @@
                                         <t t-foreach="tableCols" t-as="col" t-key="col.key">
                                             <td t-att-class="col.align === 'center' ? 'text-center' : (col.align === 'end' ? 'text-end' : '')">
                                                 <t t-if="col.key === 'name'">
-                                                    <a href="#" t-on-click.prevent="() => this.openWc(row)"
+                                                    <a href="#" t-on-click.prevent="() => this.openWcOrders(row)"
                                                        t-esc="row.name"/>
-                                                    <button class="btn btn-sm btn-link py-0 px-1 ms-1"
-                                                            title="Ver órdenes de trabajo del centro"
-                                                            t-on-click.stop="() => this.openWcOrders(row)">
-                                                        <i class="fa fa-external-link"/>
-                                                    </button>
                                                 </t>
                                                 <t t-elif="col.key === 'carga_pct'">
                                                     <span t-att-class="cargaClass(row.carga_pct)" t-esc="fmtPct(row.carga_pct)"/>

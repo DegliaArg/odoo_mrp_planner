@@ -1107,8 +1107,6 @@ class ProductionAnalysisWidget extends Component {
                 return [
                     { key: "planned",   label: "Programado",      value: fmt(k.planned),  cls: "" },
                     { key: "produced",  label: "Producido",        value: fmt(k.produced), cls: "" },
-                    { key: "pct",       label: "Cumplimiento %",   value: k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct),
-                      cls: w.rateClass(k.pct, k.pct_green || 90, k.pct_warn || 50) },
                     { key: "accuracy",  label: accLabel,           value: accFmt(accVal),  cls: accCls },
                     { key: "on_target", label: "En target",        value: `${k.on_target || 0}/${k.planned_products || 0}`, cls: "" },
                     { key: "desvio",    label: "Desvío",           value: fmt(k.desvio),   cls: k.desvio > 0 ? "text-warning fw-semibold" : "" },
@@ -1120,7 +1118,6 @@ class ProductionAnalysisWidget extends Component {
                 switch (key) {
                     case "planned":   return `Programado ponderado del período (por ${wl})\nΣ (cantidad programada × peso del producto)\n→ ${fmt(k.planned)}`;
                     case "produced":  return `Producido ponderado del período (por ${wl})\nΣ (cantidad producida × peso del producto)\n→ ${fmt(k.produced)}`;
-                    case "pct":       return `Cumplimiento ponderado del período (por ${wl})${k.fill_cap ? ", con tope 100% por producto" : ""}\nProducido ÷ Programado × 100\n→ ${k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct)}\nVerde ≥ ${k.pct_green}% · Amarillo ≥ ${k.pct_warn}% (umbrales de Ajustes)`;
                     case "accuracy": {
                         if (method === 'attainment') return `Cumplimiento del plan (por ${wl}): solo penaliza la sub-producción\nΣ mín(producido, programado) ÷ Σ programado × 100\n→ ${k.pct === null || k.pct === undefined ? "s/plan" : fmtPct(k.pct)}\nLa sobreproducción de un producto no compensa el faltante de otro.`;
                         if (method === 'bias')       return `Sesgo del plan (por ${wl}): dirección sistemática de la desviación\n(Σ producido − Σ programado) ÷ Σ programado × 100\n→ ${fmtPct(k.bias_plan)}\nPositivo = sobreproducción sistemática · Negativo = sub-producción sistemática.`;

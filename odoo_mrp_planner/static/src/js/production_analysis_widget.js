@@ -1145,29 +1145,16 @@ class ProductionAnalysisWidget extends Component {
                 return `${t} Clic en el encabezado para ordenar.`;
             },
             cellValue: (row, key) => {
-                if (key === "precision") {
-                    const q = row.programado || 0;
-                    if (q === 0) return "s/plan";
-                    const method = (this.state.cmpKpisData || {}).accuracy_method || 'accuracy';
-                    if (method === 'attainment') return row.pct === null || row.pct === undefined ? "s/plan" : fmtPct(Math.min(row.pct, 100));
-                    if (method === 'bias')       return fmtPct((row.producido - q) / q * 100);
-                    return fmtPct(100 - Math.abs(row.desvio) / q * 100);
-                }
+                if (key === "precision") return row.precision === null || row.precision === undefined ? "s/plan" : fmtPct(row.precision);
                 if (["programado", "producido", "desvio"].includes(key)) return fmt(row[key]);
                 return row[key] || "—";
             },
             cellClass: (row, key, w) => {
                 if (key === "precision") {
+                    if (row.precision === null || row.precision === undefined) return "";
                     const method = (this.state.cmpKpisData || {}).accuracy_method || 'accuracy';
-                    const q = row.programado || 0;
-                    if (q === 0) return "";
-                    if (method === 'bias') {
-                        const bias = (row.producido - q) / q * 100;
-                        return bias > 5 ? "text-warning fw-semibold" : bias < -5 ? "text-danger fw-semibold" : "";
-                    }
-                    const val = method === 'attainment' ? Math.min(row.pct || 0, 100)
-                                                        : 100 - Math.abs(row.desvio) / q * 100;
-                    return w.rateClass(val, w.state.cmpGreen, w.state.cmpWarn);
+                    if (method === 'bias') return row.precision > 5 ? "text-warning fw-semibold" : row.precision < -5 ? "text-danger fw-semibold" : "";
+                    return w.rateClass(row.precision, w.state.cmpGreen, w.state.cmpWarn);
                 }
                 if (key === "desvio" && row.desvio > 0) return "text-warning";
                 return "";
@@ -1325,7 +1312,17 @@ class ProductionAnalysisWidget extends Component {
                 this.orm.call("mrp.planner.dashboard", "get_comparison_analysis", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
                 this.orm.call("mrp.planner.dashboard", "get_comparison_trend", [this.state.dateFrom, this.state.dateTo, this.state.tagIds.length ? this.state.tagIds : null, ptIds, shIds]),
             ]);
-            this.state.cmpRows = table.rows || [];
+            const _cmpMethod = (table.kpis || {}).accuracy_method || 'accuracy';
+            this.state.cmpRows = (table.rows || []).map(row => {
+                const q = row.programado || 0;
+                let precision = null;
+                if (q > 0) {
+                    if (_cmpMethod === 'attainment') precision = row.pct !== null && row.pct !== undefined ? Math.min(row.pct, 100) : null;
+                    else if (_cmpMethod === 'bias')  precision = (row.producido - q) / q * 100;
+                    else                             precision = 100 - Math.abs(row.desvio) / q * 100;
+                }
+                return { ...row, precision };
+            });
             this.state.moDateMode = table.date_mode || "finish_date";
             this.state.cmpKpisData = table.kpis || {};
             this.state.cmpGreen = (table.kpis && table.kpis.pct_green) || 90;

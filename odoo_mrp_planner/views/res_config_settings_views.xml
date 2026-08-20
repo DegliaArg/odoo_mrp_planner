@@ -231,8 +231,9 @@
                                     <group string="Turnos de producción"
                                            help="Defina los turnos para poder filtrar el Análisis de producción por horario. Cada turno tiene un nombre y un rango horario. Los turnos que cruzan la medianoche (Hora fin &lt; Hora inicio) se detectan automáticamente.">
                                         <field name="enable_shifts" widget="boolean_toggle"/>
-                                        <field name="shift_ids" nolabel="1"
-                                               invisible="not enable_shifts">
+                                    </group>
+                                    <group invisible="not enable_shifts">
+                                        <field name="shift_ids" nolabel="1">
                                             <list editable="bottom">
                                                 <field name="name" string="Turno"/>
                                                 <field name="hour_from" widget="float_time" string="Desde"/>

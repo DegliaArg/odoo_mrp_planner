@@ -5,7 +5,7 @@
          ACCIÓN SERVIDOR — Producción
     ════════════════════════════════════════════════════════════════════ -->
     <record id="action_mrp_planner_dashboard_open" model="ir.actions.server">
-        <field name="name">Panel de Producción</field>
+        <field name="name">Panel de producción</field>
         <field name="model_id" ref="model_mrp_planner_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open()</field>
@@ -15,14 +15,14 @@
          ACCIÓN SERVIDOR — Compras
     ════════════════════════════════════════════════════════════════════ -->
     <record id="action_mrp_planner_compras_open" model="ir.actions.server">
-        <field name="name">Panel de Compras</field>
+        <field name="name">Panel de compras</field>
         <field name="model_id" ref="model_mrp_planner_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_compras()</field>
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         VISTA FORM — Panel de Producción
+         VISTA FORM — Panel de producción
          Muestra: alertas OFs · OFs widget · quiebres de stock · carga WC
     ════════════════════════════════════════════════════════════════════ -->
     <record id="mrp_planner_dashboard_form" model="ir.ui.view">
@@ -36,7 +36,7 @@
                         <!-- Encabezado -->
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Panel de Producción</h4>
+                                <h4 class="mb-0 fw-bold">Panel de producción</h4>
                             </div>
                             <div class="col-auto d-flex gap-2 align-items-center">
                                 <widget name="refresh_stamp"/>
@@ -97,7 +97,7 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         VISTA FORM — Panel de Compras
+         VISTA FORM — Panel de compras
          Muestra: alertas OCs/recepciones · widget OCs
     ════════════════════════════════════════════════════════════════════ -->
     <record id="mrp_compras_dashboard_form" model="ir.ui.view">
@@ -111,7 +111,7 @@
                         <!-- Encabezado -->
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Panel de Compras</h4>
+                                <h4 class="mb-0 fw-bold">Panel de compras</h4>
                             </div>
                             <div class="col-auto d-flex gap-2 align-items-center">
                                 <widget name="refresh_stamp"/>
@@ -247,7 +247,7 @@
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_produccion_panel_menu"
-              name="Panel de Producción"
+              name="Panel de producción"
               parent="mrp_produccion_menu"
               sequence="1"
               action="action_mrp_planner_dashboard_open"
@@ -261,7 +261,7 @@
               groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_compras_panel_menu"
-              name="Panel de Compras"
+              name="Panel de compras"
               parent="mrp_compras_menu"
               sequence="1"
               action="action_mrp_planner_compras_open"

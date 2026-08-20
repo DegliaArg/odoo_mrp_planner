@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — Indicadores y análisis',
-    'version': '18.0.12.7.0',
+    'version': '18.0.12.8.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.

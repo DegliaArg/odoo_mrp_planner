@@ -91,14 +91,14 @@
         <field name="name">mrp.ventas.dashboard.form</field>
         <field name="model">mrp.planner.dashboard</field>
         <field name="arch" type="xml">
-            <form string="Panel de Ventas" create="false" edit="false" delete="false">
+            <form string="Panel de ventas" create="false" edit="false" delete="false">
                 <sheet>
                     <div class="o_planner_dashboard container-fluid p-4">
 
                         <!-- Encabezado -->
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Panel de Ventas</h4>
+                                <h4 class="mb-0 fw-bold">Panel de ventas</h4>
                             </div>
                             <div class="col-auto d-flex gap-2 align-items-center">
                                 <widget name="refresh_stamp"/>
@@ -154,18 +154,18 @@
         </field>
     </record>
 
-    <!-- ── Vista Análisis de Clientes ──────────────────────────────────── -->
+    <!-- ── Vista Análisis de clientes ──────────────────────────────────── -->
     <record id="mrp_customer_analysis_form" model="ir.ui.view">
         <field name="name">mrp.customer.analysis.form</field>
         <field name="model">mrp.planner.dashboard</field>
         <field name="arch" type="xml">
-            <form string="Análisis de Clientes" create="false" edit="false" delete="false">
+            <form string="Análisis de clientes" create="false" edit="false" delete="false">
                 <sheet>
                     <div class="o_planner_dashboard container-fluid p-4">
 
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Análisis de Clientes</h4>
+                                <h4 class="mb-0 fw-bold">Análisis de clientes</h4>
                             </div>
                             <div class="col-auto d-flex gap-2 align-items-center">
                                 <widget name="refresh_stamp"/>
@@ -190,9 +190,9 @@
         </field>
     </record>
 
-    <!-- ── Acción de servidor: Análisis de Clientes ──────────────────────── -->
+    <!-- ── Acción de servidor: Análisis de clientes ──────────────────────── -->
     <record id="action_mrp_customer_analysis_open" model="ir.actions.server">
-        <field name="name">Análisis de Clientes</field>
+        <field name="name">Análisis de clientes</field>
         <field name="model_id" ref="model_mrp_planner_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_customer_analysis()</field>
@@ -200,7 +200,7 @@
 
     <!-- ── Acción de servidor para abrir el panel de Ventas ──────────────── -->
     <record id="action_mrp_ventas_dashboard_open" model="ir.actions.server">
-        <field name="name">Panel de Ventas</field>
+        <field name="name">Panel de ventas</field>
         <field name="model_id" ref="model_mrp_planner_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_ventas()</field>
@@ -214,14 +214,14 @@
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_ventas_panel_menu"
-              name="Panel de Ventas"
+              name="Panel de ventas"
               parent="mrp_ventas_menu"
               sequence="1"
               action="action_mrp_ventas_dashboard_open"
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_ventas_customer_analysis_menu"
-              name="Análisis de Clientes"
+              name="Análisis de clientes"
               parent="mrp_ventas_menu"
               sequence="3"
               action="action_mrp_customer_analysis_open"

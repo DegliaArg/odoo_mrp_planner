@@ -5,7 +5,7 @@
         <div class="o_production_analysis_widget">
 
             <!-- ── Pestañas ─────────────────────────────────────────────── -->
-            <ul class="nav nav-tabs mb-3" style="flex-wrap:nowrap; overflow-x:auto;">
+            <ul class="nav nav-tabs mb-3" style="flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;">
                 <t t-foreach="tabs" t-as="tb" t-key="tb.key">
                     <li class="nav-item">
                         <button t-att-class="'nav-link' + (state.tab === tb.key ? ' active fw-semibold' : ' text-muted')"
@@ -205,7 +205,7 @@
 
                         <!-- Pestañas de agrupamiento por sector -->
                         <t t-if="state.groupBy === 'tag' and allGroupsForTabs">
-                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;">
                                 <t t-foreach="allGroupsForTabs" t-as="g" t-key="'gt_' + g.key">
                                     <li class="nav-item">
                                         <button t-att-class="'nav-link px-3 py-1 ' + (activeGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
@@ -469,7 +469,7 @@
 
                         <!-- Pestañas de agrupamiento por categoría -->
                         <t t-if="scrapAllGroupsForTabs">
-                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;">
                                 <t t-foreach="scrapAllGroupsForTabs" t-as="g" t-key="'sgt_' + g.key">
                                     <li class="nav-item">
                                         <button t-att-class="'nav-link px-3 py-1 ' + (scrapActiveGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"
@@ -892,7 +892,7 @@
 
         <!-- Pestañas de agrupamiento -->
         <t t-if="ctl.groupsForTabs">
-            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+            <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;">
                 <t t-foreach="ctl.groupsForTabs" t-as="g" t-key="'pg_' + g.key">
                     <li class="nav-item">
                         <button t-att-class="'nav-link px-3 py-1 ' + (ctl.activeGroupKey === g.key ? 'active fw-semibold' : 'text-muted')"

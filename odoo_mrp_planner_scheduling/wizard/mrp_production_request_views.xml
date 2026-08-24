@@ -307,14 +307,11 @@
         <field name="target">current</field>
     </record>
 
-    <!-- noupdate="1": active se gestiona programáticamente por _sync_scheduling_group -->
-    <data noupdate="1">
-        <menuitem id="mrp_reschedule_menu_request"
-                  name="Programaciones"
-                  parent="odoo_mrp_planner.mrp_planeacion_menu"
-                  sequence="10"
-                  action="action_mrp_production_request"
-                  groups="odoo_mrp_planner_scheduling.group_scheduling"/>
-    </data>
+    <menuitem id="mrp_reschedule_menu_request"
+              name="Programaciones"
+              parent="odoo_mrp_planner.mrp_planeacion_menu"
+              sequence="10"
+              action="action_mrp_production_request"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
 
 </odoo>

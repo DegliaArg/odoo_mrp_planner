@@ -359,14 +359,11 @@
     </record>
 
     <!-- ── Menús bajo "Planificador" (root definido en mrp_reschedule_alert_views.xml) ── -->
-    <!-- noupdate="1": active se gestiona programáticamente por _sync_scheduling_group -->
-    <data noupdate="1">
-        <menuitem id="mrp_reschedule_menu_plans"
-                  name="Reprogramación"
-                  parent="odoo_mrp_planner.mrp_planeacion_menu"
-                  sequence="20"
-                  action="action_mrp_reschedule_plan"
-                  groups="odoo_mrp_planner_scheduling.group_scheduling"/>
-    </data>
+    <menuitem id="mrp_reschedule_menu_plans"
+              name="Reprogramación"
+              parent="odoo_mrp_planner.mrp_planeacion_menu"
+              sequence="20"
+              action="action_mrp_reschedule_plan"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
 
 </odoo>

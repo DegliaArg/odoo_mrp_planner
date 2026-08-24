@@ -1074,39 +1074,45 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
-    /** Pedidos del período agrupados por estado — drilldown global de cumplimiento. */
+    /** Líneas de pedidos del período agrupadas por estado de entrega — drilldown global de cumplimiento. */
     openDeliveryOrders() {
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Pedidos del período — cumplimiento',
-            res_model: 'sale.order',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Líneas de pedidos — cumplimiento de entrega',
+            res_model: 'sale.order.line',
+            views:     [[false, 'list']],
             domain: [
-                ['state', 'in', ['sale', 'done']],
-                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['order_id.state', 'in', ['sale', 'done']],
+                ['order_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['order_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
-            context: { group_by: ['state'] },
+            context: {
+                list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list',
+                group_by: ['order_id.delivery_status', 'order_id'],
+            },
             target: 'current',
         });
     }
 
-    /** Pedidos del cliente en el período agrupados por estado — drilldown de cumplimiento. */
+    /** Líneas de pedidos del cliente en el período agrupadas por estado de entrega — drilldown de cumplimiento. */
     openCustomerDeliveryOrders(partnerId) {
         const row = this.state.allRows.find(r => r.partner_id === partnerId);
         const partnerIds = (row && row.partner_ids) || [partnerId];
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      'Pedidos del período — cumplimiento',
-            res_model: 'sale.order',
-            views:     [[false, 'list'], [false, 'form']],
+            name:      'Líneas de pedidos — cumplimiento de entrega',
+            res_model: 'sale.order.line',
+            views:     [[false, 'list']],
             domain: [
-                ['partner_id', 'child_of', partnerIds],
-                ['state', 'in', ['sale', 'done']],
-                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
-                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+                ['order_id.partner_id', 'child_of', partnerIds],
+                ['order_id.state', 'in', ['sale', 'done']],
+                ['order_id.date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['order_id.date_order', '<=', this.state.dateTo   + ' 23:59:59'],
             ],
-            context: { group_by: ['state'] },
+            context: {
+                list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list',
+                group_by: ['order_id.delivery_status', 'order_id'],
+            },
             target: 'current',
         });
     }

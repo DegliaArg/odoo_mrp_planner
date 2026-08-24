@@ -166,6 +166,24 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         )
         all_prod_ids = list({ln['product_id'][0] for ln in po_line_data if ln['product_id']})
 
+        # Normalización de moneda: convertir price_unit a moneda de la empresa antes de
+        # cualquier comparación, para evitar mezclar ARS vs USD en la variación de precio.
+        company = self.env.company
+        company_currency = company.currency_id
+        pos.mapped('currency_id')  # prefetch en batch
+        po_currency = {po.id: po.currency_id for po in pos}
+        po_date_all = {po.id: po.date_order for po in pos}
+
+        def _to_company_ccy(price, po_id):
+            cur = po_currency.get(po_id)
+            if not price or not cur or cur == company_currency:
+                return price
+            date = po_date_all.get(po_id)
+            try:
+                return cur._convert(price, company_currency, company, date)
+            except Exception:
+                return price
+
         # Referencia de variación de precio, tomada del mismo ajuste que la clasificación ABC:
         # 'previous' (precio anterior pagado), 'standard' (costo estándar) o 'pricelist'.
         price_method = (cfg and cfg.supplier_price_var_method) or 'previous'
@@ -197,7 +215,7 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         if price_method == 'previous':
             # Variación vs. el precio anterior pagado del mismo producto al mismo proveedor,
             # entre compras sucesivas dentro del rango del análisis (signo = tendencia).
-            po_date = {po.id: po.date_order for po in pos}
+            # price_unit se convierte a moneda de la empresa para comparar correctamente.
             hist = {}
             for ln in po_line_data:
                 po_id      = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
@@ -206,10 +224,10 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                 if partner_id not in partner_data:
                     continue
                 partner_data[partner_id]['products'].add(prod_id)
-                do = po_date.get(po_id)
+                do = po_date_all.get(po_id)
                 if not do or not ln['price_unit'] or ln['price_unit'] <= 0:
                     continue
-                hist.setdefault((partner_id, prod_id), []).append((do, ln['price_unit']))
+                hist.setdefault((partner_id, prod_id), []).append((do, _to_company_ccy(ln['price_unit'], po_id)))
             for (partner_id, _prod), seq in hist.items():
                 seq.sort(key=lambda x: x[0])
                 pd = partner_data[partner_id]
@@ -233,8 +251,9 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                     ref = si_tmpl_map.get((partner_id, tmpl_id), 0.0) if tmpl_id else 0.0
                 else:
                     ref = std_map.get(prod_id, 0.0)
-                if ref > 0 and ln['price_unit'] > 0:
-                    pd['pvar_sum']   += (ln['price_unit'] - ref) / ref * 100
+                converted_price = _to_company_ccy(ln['price_unit'], po_id)
+                if ref > 0 and converted_price > 0:
+                    pd['pvar_sum']   += (converted_price - ref) / ref * 100
                     pd['pvar_count'] += 1
 
         # Solo recepciones completadas de tipo entrante para calcular cumplimiento

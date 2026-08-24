@@ -174,16 +174,18 @@ class MrpForecastCalcMixin(models.TransientModel):
                     if fc_data[pid].get('product_tmpl_id')]
         if tmpl_ids:
             tmpl_info = {}
-            _tmpl_rows = self.env['product.template'].browse(tmpl_ids).read(
-                ['id', 'x_sale_category', 'categ_id', 'x_product_type_ids', 'list_price']
-            )
+            _pt_fields = ['id', 'x_sale_category', 'categ_id', 'list_price']
+            if 'x_product_type_ids' in self.env['product.template']._fields:
+                _pt_fields.append('x_product_type_ids')
+            _tmpl_rows = self.env['product.template'].browse(tmpl_ids).read(_pt_fields)
             _categ_ids = list({r['categ_id'][0] for r in _tmpl_rows if r['categ_id']})
             _categ_names = {c['id']: c['name'] for c in
                             self.env['product.category'].browse(_categ_ids).read(['id', 'name'])}
-            _type_ids_all = list({tid for r in _tmpl_rows for tid in (r['x_product_type_ids'] or [])})
-            _type_names = {tp['id']: tp['name'] for tp in
-                           self.env['x.product.type'].browse(_type_ids_all).read(['id', 'name'])} \
-                          if _type_ids_all else {}
+            _type_ids_all = list({tid for r in _tmpl_rows for tid in (r.get('x_product_type_ids') or [])})
+            _type_names = {}
+            if _type_ids_all and 'x.product.type' in self.env:
+                _type_names = {tp['id']: tp['name'] for tp in
+                               self.env['x.product.type'].browse(_type_ids_all).read(['id', 'name'])}
             for _tr in _tmpl_rows:
                 _categ_id = _tr['categ_id'][0] if _tr['categ_id'] else False
                 tmpl_info[_tr['id']] = {

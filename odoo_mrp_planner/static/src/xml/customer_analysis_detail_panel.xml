@@ -81,15 +81,6 @@
                         </div>
                     </div>
                     <div class="col">
-                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('avg_price', row)">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
-                                     style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
-                                <div class="small text-muted">Precio promedio</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col">
                         <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('delivery_pct', row)">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + deliveryClass(row.delivery_pct)"
@@ -100,6 +91,15 @@
                                 <button class="btn btn-sm btn-link w-100 py-1"
                                         title="Ver pedidos del cliente agrupados por estado"
                                         t-on-click="() => this.openCustomerDeliveryOrders(row.partner_id)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('avg_price', row)">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
+                                     style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
+                                <div class="small text-muted">Precio promedio</div>
                             </div>
                         </div>
                     </div>

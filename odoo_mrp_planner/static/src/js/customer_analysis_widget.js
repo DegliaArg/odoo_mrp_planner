@@ -330,7 +330,7 @@ class CustomerAnalysisWidget extends Component {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
-                [this.state.dateFrom, this.state.dateTo, null, this.state.localAmountMethod]
+                [this.state.dateFrom, this.state.dateTo, null]
             );
             if (res.error) {
                 this.state.loadError = res.error;
@@ -343,12 +343,10 @@ class CustomerAnalysisWidget extends Component {
             if (res.config && !res.config.show_category) {
                 this.state.visibleCols.customer_category = false;
             }
-            this._applySort();
-            // Resetear las llaves de redraw DESPUÉS del await: el patch intermedio
-            // (mientras carga) las consumía y los gráficos quedaban en blanco.
-            this._topChartKey  = '';
-            this._topDonutKey  = '';
-            this._lastChartKey = null;
+            // _applyAmountMethod remapea amounts, recalcula ABC y llama _applySort.
+            // Resetea también las llaves de redraw de gráficos (DESPUÉS del await,
+            // para evitar que el patch del spinner las consuma antes de renderizar).
+            this._applyAmountMethod(this.state.localAmountMethod);
         } catch (e) {
             console.error('[CustomerAnalysis]', e);
             this.state.loadError = e?.message || String(e);
@@ -620,9 +618,15 @@ class CustomerAnalysisWidget extends Component {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
-                [this.state.chartDateFrom, this.state.chartDateTo, null, this.state.localAmountMethod]
+                [this.state.chartDateFrom, this.state.chartDateTo, null]
             );
             this._chartAllRows = res.rows || [];
+            // Aplicar método activo al dataset propio del gráfico
+            const _cfg   = this.state.config;
+            const _isR   = this.effectiveAmountMethod === 'real';
+            const _abc_a = ((_cfg && _cfg.abc_a_pct) || 20) / 100.0;
+            const _abc_b = _abc_a + ((_cfg && _cfg.abc_b_pct) || 50) / 100.0;
+            this._remapRowAmounts(this._chartAllRows, _isR, _abc_a, _abc_b);
         } catch (e) {
             console.error('[CustomerAnalysis] rango del gráfico', e);
             this._chartAllRows = null;
@@ -970,14 +974,55 @@ class CustomerAnalysisWidget extends Component {
             || 'pxq';
     }
 
-    /** Cambia el método de valorización en vivo y recarga tabla + panel abierto. */
-    async setLocalAmountMethod(method) {
+    /**
+     * Remapea total_amount / prev_amount / avg_price / trend_pct / abc_segment
+     * en un array de filas sin tocar el backend. Usado al cambiar el método de
+     * valorización y al cargar filas del rango propio del gráfico.
+     */
+    _remapRowAmounts(rows, isReal, abc_a, abc_b) {
+        for (const r of rows) {
+            r.total_amount = isReal ? (r.total_amount_real || 0) : (r.total_amount_pxq || 0);
+            r.prev_amount  = isReal ? (r.prev_amount_real  || 0) : (r.prev_amount_pxq  || 0);
+            r.avg_price    = r.qty_ordered > 0
+                ? Math.round(r.total_amount / r.qty_ordered * 100) / 100 : 0;
+            r.trend_pct    = r.prev_amount > 0
+                ? Math.round((r.total_amount - r.prev_amount) / r.prev_amount * 10000) / 100
+                : null;
+        }
+        // Recálculo de ABC (Pareto exclusivo: cumulate AFTER assigning)
+        const total  = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
+        const sorted = [...rows].sort((a, b) => (b.total_amount || 0) - (a.total_amount || 0));
+        let cum = 0;
+        for (const r of sorted) {
+            if (total <= 0 || !r.total_amount) { r.abc_segment = 'C'; continue; }
+            if (cum < abc_a) r.abc_segment = 'A';
+            else if (cum < abc_b) r.abc_segment = 'B';
+            else r.abc_segment = 'C';
+            cum += r.total_amount / total;
+        }
+    }
+
+    /** Aplica el método activo a allRows y _chartAllRows; luego refresca tabla y gráficos. */
+    _applyAmountMethod(method) {
+        const isReal = (method || (this.state.config && this.state.config.amount_method) || 'pxq') === 'real';
+        const cfg    = this.state.config;
+        const abc_a  = ((cfg && cfg.abc_a_pct) || 20) / 100.0;
+        const abc_b  = abc_a + ((cfg && cfg.abc_b_pct) || 50) / 100.0;
+        this._remapRowAmounts(this.state.allRows, isReal, abc_a, abc_b);
+        if (this._chartAllRows) this._remapRowAmounts(this._chartAllRows, isReal, abc_a, abc_b);
+        this._topChartKey  = '';
+        this._topDonutKey  = '';
+        this._lastChartKey = null;
+        this._applySort();
+    }
+
+    /** Cambia el método de valorización: swap instantáneo en tabla + recarga del panel si está abierto. */
+    setLocalAmountMethod(method) {
         this.state.localAmountMethod = method;
-        this._load();
+        this._applyAmountMethod(method);
         if (this.state.panelPartnerId) {
-            const { toggleDetail } = await import('./customer_analysis_panel.js');
             const id = this.state.panelPartnerId;
-            this.state.panelPartnerId = null;  // resetear para que toggleDetail lo recargue
+            this.state.panelPartnerId = null;
             toggleDetail(this, id);
         }
     }

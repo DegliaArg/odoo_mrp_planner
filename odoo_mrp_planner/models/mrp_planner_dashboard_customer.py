@@ -176,18 +176,19 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 )
             }
 
-            def _line_amount(g):
-                if use_pxq:
-                    _pi = prod_info.get(g['product_id'][0], {}) if g.get('product_id') else {}
-                    return (g.get('product_uom_qty') or 0.0) * (_pi.get('lst_price') or 0.0)
-                return g.get('price_subtotal') or 0.0
-
-            order_amount = defaultdict(float)   # importe por pedido según el método
+            # Ambos métodos se computan siempre: el frontend puede swap instantáneo
+            # entre PxQ y Real sin volver a llamar al backend.
+            order_amount_pxq  = defaultdict(float)
+            order_amount_real = defaultdict(float)
             partner_prod = defaultdict(lambda: defaultdict(float))
             partner_fam  = defaultdict(lambda: defaultdict(float))
             for g in sol_detail:
-                amt = _line_amount(g)
-                order_amount[g['order_id'][0]] += amt
+                _pi      = prod_info.get(g['product_id'][0], {}) if g.get('product_id') else {}
+                amt_pxq  = (g.get('product_uom_qty') or 0.0) * (_pi.get('lst_price') or 0.0)
+                amt_real = g.get('price_subtotal') or 0.0
+                order_amount_pxq[g['order_id'][0]]  += amt_pxq
+                order_amount_real[g['order_id'][0]] += amt_real
+                amt = amt_pxq if use_pxq else amt_real  # top_product/family usan el método configurado
                 if not g.get('product_id'):
                     continue
                 pid = order_to_partner.get(g['order_id'][0])
@@ -240,21 +241,20 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 ['order_partner_id', 'product_id'],
                 lazy=False,
             )
+            _prev_pids = list({g['product_id'][0] for g in prev_line_groups if g.get('product_id')})
             _prev_lst = {}
-            if use_pxq:
-                _prev_pids = list({g['product_id'][0] for g in prev_line_groups if g.get('product_id')})
-                if _prev_pids:
-                    _prev_lst = {p['id']: (p['lst_price'] or 0.0) for p in
-                                 self.env['product.product'].sudo().browse(_prev_pids).read(['id', 'lst_price'])}
-            prev_amount = defaultdict(float)
+            if _prev_pids:
+                _prev_lst = {p['id']: (p['lst_price'] or 0.0) for p in
+                             self.env['product.product'].sudo().browse(_prev_pids).read(['id', 'lst_price'])}
+            prev_amount_pxq  = defaultdict(float)
+            prev_amount_real = defaultdict(float)
             for g in prev_line_groups:
                 if not g.get('order_partner_id'):
                     continue
-                if use_pxq:
-                    _amt = (g.get('product_uom_qty') or 0.0) * (_prev_lst.get(g['product_id'][0], 0.0) if g.get('product_id') else 0.0)
-                else:
-                    _amt = g.get('price_subtotal') or 0.0
-                prev_amount[g['order_partner_id'][0]] += _amt
+                _pid = g['order_partner_id'][0]
+                prev_amount_pxq[_pid]  += (g.get('product_uom_qty') or 0.0) * (
+                    _prev_lst.get(g['product_id'][0], 0.0) if g.get('product_id') else 0.0)
+                prev_amount_real[_pid] += g.get('price_subtotal') or 0.0
 
             # ── 5b. Entregas físicas del período (tasa física) ────────────────
             # Salidas completadas cuya fecha de efectivización cae DENTRO del
@@ -343,7 +343,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 gaps = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
                 avg_days_between = round(sum(gaps) / len(gaps), 1) if gaps else None
 
-                total_amount = sum(order_amount.get(s['id'], 0.0) for s in sos)
+                total_amount_pxq  = sum(order_amount_pxq.get(s['id'],  0.0) for s in sos)
+                total_amount_real = sum(order_amount_real.get(s['id'], 0.0) for s in sos)
+                total_amount = total_amount_pxq if use_pxq else total_amount_real
                 total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
                 total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
                 delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
@@ -400,9 +402,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                         lt_comp_sum += max(d for d, _ in per_pick)
                         lt_comp_n   += 1
 
-                prods      = partner_prod.get(pid, {})
-                fams       = partner_fam.get(pid, {})
-                prev_amt   = prev_amount.get(pid, 0.0)
+                prods         = partner_prod.get(pid, {})
+                fams          = partner_fam.get(pid, {})
+                prev_amt_pxq  = prev_amount_pxq.get(pid,  0.0)
+                prev_amt_real = prev_amount_real.get(pid, 0.0)
+                prev_amt      = prev_amt_pxq if use_pxq else prev_amt_real
                 sp_counts  = defaultdict(int)
                 for s in sos:
                     if s.get('user_id'):
@@ -418,6 +422,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'province':          (pinfo.get('state_id')    or (0, ''))[1],
                     'order_count':       order_count,
                     'total_amount':      round(total_amount, 2),
+                    'total_amount_pxq':  round(total_amount_pxq, 2),
+                    'total_amount_real': round(total_amount_real, 2),
                     'avg_price':         round(total_amount / total_ordered, 2) if total_ordered else 0.0,
                     'qty_ordered':       round(total_ordered, 1),
                     'qty_delivered':     round(total_deliv, 1),
@@ -445,6 +451,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'top_family':        max(fams,  key=fams.get)  if fams  else '',
                     'trend_pct':         round((total_amount - prev_amt) / prev_amt * 100, 1) if prev_amt > 0 else None,
                     'prev_amount':       round(prev_amt, 2),
+                    'prev_amount_pxq':   round(prev_amt_pxq, 2),
+                    'prev_amount_real':  round(prev_amt_real, 2),
                     'abc_segment':       '',  # se calcula abajo: ABC del período (Pareto sobre el importe del rango)
                     'frequency_segment': self._freq_segment(avg_days_between, days_since, risk_days),
                     'partner_tag':       tag.get('name', '') or '',
@@ -503,8 +511,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     base['partner_name']  = _main_name
                     base['unified_names'] = [r['partner_name'] for r in group
                                              if r['partner_id'] != _main_id]
-                    for f in ('order_count', 'total_amount', 'qty_ordered', 'qty_delivered',
-                              'qty_delivered_phys', 'ontime_ok', 'ontime_total', 'prev_amount',
+                    for f in ('order_count', 'total_amount', 'total_amount_pxq', 'total_amount_real',
+                              'qty_ordered', 'qty_delivered', 'qty_delivered_phys',
+                              'ontime_ok', 'ontime_total',
+                              'prev_amount', 'prev_amount_pxq', 'prev_amount_real',
                               'lt_w_num', 'lt_w_den', 'lt_first_sum', 'lt_first_n',
                               'lt_comp_sum', 'lt_comp_n'):
                         base[f] = sum(r[f] or 0 for r in group)

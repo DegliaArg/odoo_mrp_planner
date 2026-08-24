@@ -464,6 +464,11 @@ class MrpRescheduleAlert(models.Model):
             ('date_planned', '<', now),
             ('receipt_status', 'not in', ['full']),
         ])
+        if cfg and cfg.exclude_service_pos:
+            pos = pos.filtered(lambda p: not (
+                p.order_line.filtered(lambda l: l.product_id) and
+                all(l.product_id.type == 'service' for l in p.order_line.filtered(lambda l: l.product_id))
+            ))
 
         # Preload all open po_delayed alerts indexed by purchase_id
         by_po = {
@@ -524,6 +529,11 @@ class MrpRescheduleAlert(models.Model):
             ('date_planned', '>=', now),
             ('date_planned', '<=', future_limit),
         ])
+        if cfg and cfg.exclude_service_pos:
+            pos = pos.filtered(lambda p: not (
+                p.order_line.filtered(lambda l: l.product_id) and
+                all(l.product_id.type == 'service' for l in p.order_line.filtered(lambda l: l.product_id))
+            ))
 
         by_po = {
             a.purchase_id.id: a
@@ -786,3 +796,20 @@ class MrpRescheduleAlert(models.Model):
         ])
         if stale_pick:
             stale_pick.write({'resolved': True, 'resolve_date': now})
+
+        # po_delayed / po_upcoming de OCs de solo servicios: resolver si la config lo excluye
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg and cfg.exclude_service_pos:
+            svc_candidates = self.search([
+                ('company_id', '=', self.env.company.id),
+                ('alert_type', 'in', ('po_delayed', 'po_upcoming')),
+                ('resolved', '=', False),
+            ])
+            if svc_candidates:
+                stale_svc = svc_candidates.filtered(lambda a: (
+                    a.purchase_id and
+                    a.purchase_id.order_line.filtered(lambda l: l.product_id) and
+                    all(l.product_id.type == 'service' for l in a.purchase_id.order_line.filtered(lambda l: l.product_id))
+                ))
+                if stale_svc:
+                    stale_svc.write({'resolved': True, 'resolve_date': now})

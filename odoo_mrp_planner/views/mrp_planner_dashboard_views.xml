@@ -232,32 +232,25 @@
               sequence="65"
               web_icon="odoo_mrp_planner,static/description/icon.png"/>
 
-    <!-- ── Barra superior 1: Planificación ───────────────────────────────── -->
+    <!-- ── Sección Producción ────────────────────────────────────────────── -->
     <menuitem id="mrp_planeacion_menu"
-              name="Planificación"
-              parent="mrp_planner_menu_root"
-              sequence="10"
-              groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
-
-    <!-- Grupo Producción (contenedor bajo Planificación) -->
-    <menuitem id="mrp_produccion_menu"
               name="Producción"
-              parent="mrp_planeacion_menu"
+              parent="mrp_planner_menu_root"
               sequence="10"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_produccion_panel_menu"
               name="Panel de producción"
-              parent="mrp_produccion_menu"
+              parent="mrp_planeacion_menu"
               sequence="1"
               action="action_mrp_planner_dashboard_open"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>
 
-    <!-- Grupo Compras (contenedor bajo Planificación) -->
+    <!-- ── Sección Compras (misma jerarquía que Ventas e Inventario) ──────── -->
     <menuitem id="mrp_compras_menu"
               name="Compras"
-              parent="mrp_planeacion_menu"
-              sequence="20"
+              parent="mrp_planner_menu_root"
+              sequence="25"
               groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_compras_panel_menu"

@@ -14,11 +14,8 @@
         <field name="implied_ids" eval="[(4, ref('group_scheduling'))]"/>
     </record>
 
-    <!-- Menús del panel visibles también para el grupo Programación -->
+    <!-- Menú Producción visible también para el grupo Programación -->
     <record id="odoo_mrp_planner.mrp_planeacion_menu" model="ir.ui.menu">
-        <field name="groups_id" eval="[(4, ref('group_scheduling'))]"/>
-    </record>
-    <record id="odoo_mrp_planner.mrp_produccion_menu" model="ir.ui.menu">
         <field name="groups_id" eval="[(4, ref('group_scheduling'))]"/>
     </record>
 

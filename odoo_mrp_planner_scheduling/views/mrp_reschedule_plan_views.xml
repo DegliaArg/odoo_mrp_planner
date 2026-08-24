@@ -363,7 +363,7 @@
     <data noupdate="1">
         <menuitem id="mrp_reschedule_menu_plans"
                   name="Reprogramación"
-                  parent="odoo_mrp_planner.mrp_produccion_menu"
+                  parent="odoo_mrp_planner.mrp_planeacion_menu"
                   sequence="20"
                   action="action_mrp_reschedule_plan"
                   groups="odoo_mrp_planner_scheduling.group_scheduling"/>

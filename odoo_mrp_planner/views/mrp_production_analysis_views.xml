@@ -42,7 +42,7 @@
     <!-- Submenú bajo Producción (se suma; el Panel de Producción queda igual) -->
     <menuitem id="mrp_produccion_analisis_menu"
               name="Análisis de producción"
-              parent="odoo_mrp_planner.mrp_produccion_menu"
+              parent="odoo_mrp_planner.mrp_planeacion_menu"
               sequence="2"
               action="action_mrp_production_analysis_open"
               groups="odoo_mrp_planner.group_prod_read,odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"/>

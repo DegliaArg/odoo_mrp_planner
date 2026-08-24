@@ -18,7 +18,7 @@ import { restoreFilters, saveFilters } from "./filter_persistence";
 import { destroyPanelCharts, destroyCharts, drawTopChart, drawTopDonut, drawPanelCharts, CHART_COLORS } from "./customer_analysis_charts";
 import {
     toggleDetail, toggleRow, getSortedOrders, sortRowOrders, panelTopProducts,
-    setPanelMetric, setPanelChartMode, setPanelTopN, sortPanelProds, setPanelProdMode,
+    setPanelMetric, setPanelChartMode, setPanelTopN, sortPanelProds,
 } from "./customer_analysis_panel";
 import { buildGroupTabs, pageSlice, makePager, applyNumericFilters } from "./planner_table";
 import { makeSelection } from "./planner_selection";
@@ -211,11 +211,10 @@ class CustomerAnalysisWidget extends Component {
             panelData:      null,
             panelPartnerId: null,
             localAmountMethod: null,    // null = usar config global; 'pxq' | 'real' = override del usuario
-            panelMetric:    'amount',   // 'amount' | 'qty'
-            panelChartMode: 'bar',      // 'bar' | 'line'
+            panelMetric:    'amount',       // 'amount' | 'qty'
+            panelChartMode: 'bar',          // 'bar' | 'line'
             panelTopN:      10,
-            panelProdMode:  'ordered',  // 'ordered' | 'pending'
-            panelProdSort:  'amount',   // columna de sort en top artículos
+            panelProdSort:  'qty_pending',  // columna de sort en top artículos
             panelProdDir:   'desc',
             rowOrderSort:   'date',     // columna de sort en tabla de pedidos inline
             rowOrderDir:    'desc',
@@ -776,9 +775,8 @@ class CustomerAnalysisWidget extends Component {
         const map = { A: '#198754', B: '#0d6efd', C: '#ffc107', D: '#6c757d', E: '#c8d2dc' };
         return map[name] || '#6c757d';
     }
-    setPanelTopN(n)         { setPanelTopN(this, n); }
-    sortPanelProds(key)     { sortPanelProds(this, key); }
-    setPanelProdMode(mode)  { setPanelProdMode(this, mode); }
+    setPanelTopN(n)     { setPanelTopN(this, n); }
+    sortPanelProds(key) { sortPanelProds(this, key); }
 
     openProduct(tmplId) {
         if (!tmplId) return;

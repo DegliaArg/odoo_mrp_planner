@@ -234,27 +234,18 @@
                             <i class="fa fa-cubes me-1 text-muted"/>
                             <span class="text-uppercase fw-bold text-muted small">Top artículos</span>
                         </div>
-                        <div class="ms-auto d-flex align-items-center gap-2">
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button t-att-class="'btn btn-sm ' + (state.panelProdMode !== 'pending' ? 'btn-primary' : 'btn-outline-secondary')"
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                                <button t-att-class="state.panelTopN === n ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                                         style="font-size:11px; padding:1px 8px;"
-                                        title="Artículos por monto pedido en el período"
-                                        t-on-click="() => this.setPanelProdMode('ordered')">Pedidos</button>
-                                <button t-att-class="'btn btn-sm ' + (state.panelProdMode === 'pending' ? 'btn-primary' : 'btn-outline-secondary')"
-                                        style="font-size:11px; padding:1px 8px;"
-                                        title="Artículos con cantidad pendiente de entrega"
-                                        t-on-click="() => this.setPanelProdMode('pending')">Pendientes</button>
-                            </div>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
-                                    <button t-att-class="state.panelTopN === n ? 'btn btn-primary' : 'btn btn-outline-secondary'"
-                                            style="font-size:11px; padding:1px 8px;"
-                                            t-on-click="() => this.setPanelTopN(n)">
-                                        <t t-esc="'Top ' + n"/>
-                                    </button>
-                                </t>
-                            </div>
+                                        t-on-click="() => this.setPanelTopN(n)">
+                                    <t t-esc="'Top ' + n"/>
+                                </button>
+                            </t>
                         </div>
+                    </div>
+                    <div class="text-muted" style="font-size:10px; margin-bottom:3px;">
+                        <i class="fa fa-info-circle me-1"/>El Top varía según la columna por la que se ordena.
                     </div>
                     <div class="border rounded bg-white" style="overflow:auto; max-height:220px;">
                         <table class="table table-sm table-hover mb-0" style="font-size:11px;">
@@ -262,24 +253,23 @@
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
                                     <t t-foreach="[
-                                        {key:'name',          label:'Artículo',   cls:'',            tip:'Nombre del artículo (variante de producto). Clic para abrir ficha.'},
-                                        {key:'sale_category', label:'Cat.',        cls:'text-center', tip:'Categoría de venta A–E asignada al artículo.'},
-                                        {key:'family',        label:'Familia',     cls:'',            tip:'Familia (categoría interna) del producto.'},
-                                        {key:'qty_ordered',   label:'Pedido',      cls:'text-end',    tip:'Total de unidades pedidas del artículo en el período.'},
-                                        {key:'qty_delivered', label:'Entregado',   cls:'text-end',    tip:'Unidades entregadas (a la fecha) de los pedidos del período (qty_delivered).'},
-                                        {key:'amount',        label:'Monto',       cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
-                                        {key:'unit_price',    label:'P. unit.',    cls:'text-end',    tip:'Precio unitario promedio del período: Monto ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
-                                        {key:'delivery_pct',  label:'% Cumplim.',  cls:'text-end',    tip:'Tasa de cumplimiento: entregado de los pedidos del período ÷ pedido × 100. Semáforo configurable en Ajustes.'},
-                                        {key:'order_count',   label:'OVs',         cls:'text-end',    tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
+                                        {key:'name',          label:'Artículo',      cls:'',            tip:'Nombre del artículo (variante de producto). Clic para abrir ficha.'},
+                                        {key:'sale_category', label:'Cat.',           cls:'text-center', tip:'Categoría de venta A–E asignada al artículo.'},
+                                        {key:'family',        label:'Familia',        cls:'',            tip:'Familia (categoría interna) del producto.'},
+                                        {key:'qty_ordered',   label:'Pedido',         cls:'text-end',    tip:'Total de unidades pedidas del artículo en el período.'},
+                                        {key:'qty_delivered', label:'Entregado',      cls:'text-end',    tip:'Unidades entregadas (a la fecha) de los pedidos del período (qty_delivered).'},
+                                        {key:'qty_pending',   label:'Sin entregar',   cls:'text-end',    tip:'Unidades sin entregar: pedido − entregado. Cero o negativo se muestra como —.'},
+                                        {key:'amount',        label:'Monto',          cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
+                                        {key:'unit_price',    label:'P. unit.',       cls:'text-end',    tip:'Precio unitario promedio del período: Monto ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
+                                        {key:'delivery_pct',  label:'% Cumplim.',     cls:'text-end',    tip:'Tasa de cumplimiento: entregado de los pedidos del período ÷ pedido × 100. Semáforo configurable en Ajustes.'},
+                                        {key:'order_count',   label:'OVs',            cls:'text-end',    tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
                                     ]" t-as="col" t-key="col.key">
-                                        <t t-set="colSortKey" t-value="col.key === 'amount' &amp;&amp; state.panelProdMode === 'pending' ? 'qty_pending' : col.key"/>
                                         <th t-att-class="col.cls + ' user-select-none'"
                                             t-att-title="col.tip"
                                             style="padding:3px 8px; cursor:pointer; white-space:nowrap;"
-                                            t-on-click="() => this.sortPanelProds(colSortKey)">
-                                            <t t-if="col.key === 'amount' and state.panelProdMode === 'pending'">Pendiente</t>
-                                            <t t-else="" t-esc="col.label"/>
-                                            <t t-if="state.panelProdSort === colSortKey">
+                                            t-on-click="() => this.sortPanelProds(col.key)">
+                                            <t t-esc="col.label"/>
+                                            <t t-if="state.panelProdSort === col.key">
                                                 <i t-att-class="state.panelProdDir === 'desc' ? 'fa fa-sort-desc ms-1' : 'fa fa-sort-asc ms-1'"/>
                                             </t>
                                             <t t-else="">
@@ -319,8 +309,11 @@
                                             <t t-esc="fmt(prod.qty_delivered)"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;">
-                                            <t t-if="state.panelProdMode === 'pending'" t-esc="fmt(prod.qty_pending)"/>
-                                            <t t-else="" t-esc="fmtMoney(prod.amount)"/>
+                                            <t t-if="prod.qty_pending > 0" t-esc="fmt(prod.qty_pending)"/>
+                                            <span t-else="" class="text-muted">—</span>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
+                                            <t t-esc="fmtMoney(prod.amount)"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;"
                                             title="Precio unitario promedio del período (Monto ÷ pedido).">

@@ -569,7 +569,7 @@ class ForecastWidget extends Component {
     downloadExport() {
         const d = this.state.data;
         if (!d || !d.rows || !d.months) return;
-        downloadForecastExcel(this.baseFilteredRows, d.months, this.state.periodFrom, this.state.periodTo, d);
+        downloadForecastExcel(this.baseFilteredRows, d.months, this.state.periodFrom, this.state.periodTo, d, this.state.visibleCols);
     }
 }
 

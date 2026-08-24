@@ -6,17 +6,26 @@ const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','
 
 /**
  * Genera y descarga el forecast como Excel SpreadsheetML.
- * @param {Array}    rows       - Filas filtradas del widget (baseFilteredRows).
- * @param {string[]} months     - Array de "YYYY-MM" del período.
- * @param {string}   periodFrom - Período inicial "YYYY-MM-DD".
- * @param {string}   periodTo   - Período final "YYYY-MM-DD".
- * @param {Object}   [data]     - Payload del dashboard (state.data); se usa para
- *                                mo_coverage_denominator (denominador de cobertura de OFs).
+ * @param {Array}    rows        - Filas filtradas del widget (baseFilteredRows).
+ * @param {string[]} months      - Array de "YYYY-MM" del período.
+ * @param {string}   periodFrom  - Período inicial "YYYY-MM-DD".
+ * @param {string}   periodTo    - Período final "YYYY-MM-DD".
+ * @param {Object}   [data]      - Payload del dashboard (state.data).
+ * @param {Object}   [visibleCols] - Estado de visibilidad de columnas (state.visibleCols).
  */
-export function downloadForecastExcel(rows, months, periodFrom, periodTo, data) {
+export function downloadForecastExcel(rows, months, periodFrom, periodTo, data, visibleCols = {}) {
+    const vc = visibleCols;
+    const showTotal = vc.total && (vc.forecast || vc.mos || vc.delivered || vc.demand_delivered);
+    const showAcc   = showTotal && vc.forecast && vc.delivered;
+    const covDenominator = data && data.mo_coverage_denominator;
+
     const esc = s => String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const covDenominator = data && data.mo_coverage_denominator;
+    const strCell    = v  => `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`;
+    const numCell    = v  => `<Cell><Data ss:Type="Number">${v == null ? 0 : v}</Data></Cell>`;
+    const numOrEmpty = v  => v !== null && v !== undefined
+        ? `<Cell><Data ss:Type="Number">${v}</Data></Cell>`
+        : `<Cell><Data ss:Type="String"></Data></Cell>`;
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
@@ -25,62 +34,71 @@ export function downloadForecastExcel(rows, months, periodFrom, periodTo, data) 
   <Table>
    <Row>`;
 
-    xml += `<Cell><Data ss:Type="String">Artículo</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Cat. venta</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Precio venta</Data></Cell>`;
+    // — Columnas estáticas izquierdas —
+    xml += strCell('Artículo');
+    if (vc.saleCategory) xml += strCell('Cat. venta');
+    if (vc.productCateg) xml += strCell('Familia');
+    if (vc.productTypes) xml += strCell('Tipo');
+    if (vc.listPrice)    xml += strCell('P. venta');
+    if (vc.stock)        xml += strCell('Stock');
+    if (vc.rotation)     xml += strCell('Rotación (d)');
+    if (vc.coverage)     xml += strCell('Cobertura (d)');
+    if (vc.demand)       xml += strCell('Demanda');
+
+    // — Columnas por mes —
     months.forEach(ym => {
         const [y, m] = ym.split('-');
         const label = `${MONTHS_ES[parseInt(m) - 1]} ${y}`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - Forecast</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - OFs</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - %</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - Entregado</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - Cumplim.</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(label)} - Demanda</Data></Cell>`;
+        if (vc.forecast)         xml += strCell(`${label} - Forecast`);
+        if (vc.mos)              xml += strCell(`${label} - OFs`);
+        if (vc.mos)              xml += strCell(`${label} - % Cob.`);
+        if (vc.delivered)        xml += strCell(`${label} - Entregado`);
+        if (vc.demand_delivered) xml += strCell(`${label} - Cumplim.`);
     });
-    xml += `<Cell><Data ss:Type="String">Total Forecast</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Total OFs</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">% Cobertura OFs</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Total Entregado</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Total Cumplim.</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Total Demanda</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Stock</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Rotación (d)</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Cobertura (d)</Data></Cell>`;
-    xml += `<Cell><Data ss:Type="String">Precisión %</Data></Cell>`;
+
+    // — Columnas de totales —
+    if (showTotal) {
+        if (vc.forecast)         xml += strCell('Total Forecast');
+        if (vc.mos)              xml += strCell('Total OFs');
+        if (vc.mos)              xml += strCell('% Cob. OFs');
+        if (vc.delivered)        xml += strCell('Total Entregado');
+        if (vc.demand_delivered) xml += strCell('Total Cumplim.');
+        if (showAcc)             xml += strCell('Precisión %');
+    }
     xml += '</Row>';
 
+    // — Filas de datos —
     rows.forEach(row => {
         xml += '<Row>';
-        xml += `<Cell><Data ss:Type="String">${esc(row.product)}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="String">${esc(row.sale_category || '')}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.list_price || 0}</Data></Cell>`;
+
+        xml += strCell(row.product);
+        if (vc.saleCategory) xml += strCell(row.sale_category || '');
+        if (vc.productCateg) xml += strCell(row.product_categ || '');
+        if (vc.productTypes) xml += strCell(row.product_types || '');
+        if (vc.listPrice)    xml += numCell(row.list_price || 0);
+        if (vc.stock)        xml += numCell(row.stock_qty || 0);
+        if (vc.rotation)     xml += numOrEmpty(row.rotation_days);
+        if (vc.coverage)     xml += numOrEmpty(row.coverage_days);
+        if (vc.demand)       xml += numCell(row.total_so_demand || 0);
+
         months.forEach(ym => {
-            const cell = (row.cells || []).find(c => c.month === ym) || {};
-            const covPct = cell.month ? moCovPctCell(cell, covDenominator) : 0;
-            xml += `<Cell><Data ss:Type="Number">${cell.forecast || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${cell.mos || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${covPct || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${cell.delivered || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${cell.demand_delivered || 0}</Data></Cell>`;
-            xml += `<Cell><Data ss:Type="Number">${cell.so_demand || 0}</Data></Cell>`;
+            const cell    = (row.cells || []).find(c => c.month === ym) || {};
+            const covPct  = cell.month ? moCovPctCell(cell, covDenominator) : 0;
+            if (vc.forecast)         xml += numCell(cell.forecast || 0);
+            if (vc.mos)              xml += numCell(cell.mos || 0);
+            if (vc.mos)              xml += numCell(covPct || 0);
+            if (vc.delivered)        xml += numCell(cell.delivered || 0);
+            if (vc.demand_delivered) xml += numCell(cell.demand_delivered || 0);
         });
-        xml += `<Cell><Data ss:Type="Number">${row.total_forecast || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.total_mos || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${moCovPctRow(row, covDenominator) || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.total_delivered || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.total_demand_delivered || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.total_so_demand || 0}</Data></Cell>`;
-        xml += `<Cell><Data ss:Type="Number">${row.stock_qty || 0}</Data></Cell>`;
-        xml += row.rotation_days !== null && row.rotation_days !== undefined
-            ? `<Cell><Data ss:Type="Number">${row.rotation_days}</Data></Cell>`
-            : `<Cell><Data ss:Type="String"></Data></Cell>`;
-        xml += row.coverage_days !== null && row.coverage_days !== undefined
-            ? `<Cell><Data ss:Type="Number">${row.coverage_days}</Data></Cell>`
-            : `<Cell><Data ss:Type="String"></Data></Cell>`;
-        xml += row.total_forecast_acc !== null && row.total_forecast_acc !== undefined
-            ? `<Cell><Data ss:Type="Number">${row.total_forecast_acc}</Data></Cell>`
-            : `<Cell><Data ss:Type="String"></Data></Cell>`;
+
+        if (showTotal) {
+            if (vc.forecast)         xml += numCell(row.total_forecast || 0);
+            if (vc.mos)              xml += numCell(row.total_mos || 0);
+            if (vc.mos)              xml += numCell(moCovPctRow(row, covDenominator) || 0);
+            if (vc.delivered)        xml += numCell(row.total_delivered || 0);
+            if (vc.demand_delivered) xml += numCell(row.total_demand_delivered || 0);
+            if (showAcc)             xml += numOrEmpty(row.total_forecast_acc);
+        }
         xml += '</Row>';
     });
 

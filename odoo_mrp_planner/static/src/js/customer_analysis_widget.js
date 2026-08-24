@@ -210,6 +210,7 @@ class CustomerAnalysisWidget extends Component {
             panelLoading:   false,
             panelData:      null,
             panelPartnerId: null,
+            localAmountMethod: null,    // null = usar config global; 'pxq' | 'real' = override del usuario
             panelMetric:    'amount',   // 'amount' | 'qty'
             panelChartMode: 'bar',      // 'bar' | 'line'
             panelTopN:      10,
@@ -328,7 +329,7 @@ class CustomerAnalysisWidget extends Component {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
-                [this.state.dateFrom, this.state.dateTo, null]
+                [this.state.dateFrom, this.state.dateTo, null, this.state.localAmountMethod]
             );
             if (res.error) {
                 this.state.loadError = res.error;
@@ -618,7 +619,7 @@ class CustomerAnalysisWidget extends Component {
             const res = await this.orm.call(
                 'mrp.planner.dashboard',
                 'get_customer_analysis_data',
-                [this.state.chartDateFrom, this.state.chartDateTo, null]
+                [this.state.chartDateFrom, this.state.chartDateTo, null, this.state.localAmountMethod]
             );
             this._chartAllRows = res.rows || [];
         } catch (e) {
@@ -960,18 +961,37 @@ class CustomerAnalysisWidget extends Component {
      * Nota del método de valorización activo para los tooltips de montos.
      * En PxQ incluye el aviso de que no considera precios históricos.
      */
+    /** Método de valorización efectivo: override del usuario o config global. */
+    get effectiveAmountMethod() {
+        return this.state.localAmountMethod
+            || (this.state.config && this.state.config.amount_method)
+            || 'pxq';
+    }
+
+    /** Cambia el método de valorización en vivo y recarga tabla + panel abierto. */
+    async setLocalAmountMethod(method) {
+        this.state.localAmountMethod = method;
+        this._load();
+        if (this.state.panelPartnerId) {
+            const { toggleDetail } = await import('./customer_analysis_panel.js');
+            const id = this.state.panelPartnerId;
+            this.state.panelPartnerId = null;  // resetear para que toggleDetail lo recargue
+            toggleDetail(this, id);
+        }
+    }
+
     amountNote() {
-        const m = this.state.config && this.state.config.amount_method;
+        const m = this.effectiveAmountMethod;
         if (m === 'real') {
-            return '\nValorización: importe real de pedidos (con descuentos, sin impuestos) — configurable en Ajustes → Ventas.';
+            return '\nValorización: importe real de pedidos (con descuentos, sin impuestos).';
         }
         return '\nValorización: PxQ a precio de lista ACTUAL de la ficha (cantidad × precio de venta).'
-             + '\n⚠ No considera precios históricos: si cambia la lista, el pasado se revaloriza. No cuadra con la facturación. Configurable en Ajustes → Ventas.';
+             + '\n⚠ No considera precios históricos: si cambia la lista, el pasado se revaloriza. No cuadra con la facturación.';
     }
 
     /** Sufijo del label de los montos según el método activo. */
     get amountLabelSuffix() {
-        return (this.state.config && this.state.config.amount_method) === 'real' ? '' : ' (PxQ)';
+        return this.effectiveAmountMethod === 'real' ? '' : ' (PxQ)';
     }
 
     /** Nota para tooltips de montos/piezas cuando los servicios están excluidos en Ajustes. */

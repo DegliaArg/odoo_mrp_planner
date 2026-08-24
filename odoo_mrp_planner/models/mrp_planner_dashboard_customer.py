@@ -71,7 +71,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
     # ── Método principal ─────────────────────────────────────────────────────
 
     @api.model
-    def get_customer_analysis_data(self, period_from, period_to, warehouse_ids=None):
+    def get_customer_analysis_data(self, period_from, period_to, warehouse_ids=None, amount_method_override=None):
         """
         Retorna todas las filas de clientes con sus métricas para el período dado.
         El front carga todo de una vez y gestiona sort/filter/paginación en memoria.
@@ -97,6 +97,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         except Exception as e:
             _logger.error('[CustomerAnalysis] _ca_config error: %s', e, exc_info=True)
             cfg = {}
+        if amount_method_override in ('pxq', 'real'):
+            cfg = dict(cfg, amount_method=amount_method_override)
 
         try:
             today      = fields.Date.today()
@@ -602,7 +604,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
     @api.model
     def get_customer_detail(self, partner_id, period_from, period_to, warehouse_ids=None,
-                            partner_ids=None):
+                            partner_ids=None, amount_method_override=None):
         """
         Retorna datos detallados de un cliente para el panel lateral:
         evolución mensual, mix de familias y lista de OVs.
@@ -671,6 +673,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         # Con "Excluir servicios" activo, las líneas de tipo Servicio quedan fuera
         # del panel (evolución mensual, mix, top de artículos y piezas).
         _cfg_detail      = self._ca_config()
+        if amount_method_override in ('pxq', 'real'):
+            _cfg_detail = dict(_cfg_detail, amount_method=amount_method_override)
         exclude_services = bool(_cfg_detail.get('exclude_services'))
         use_pxq          = _cfg_detail.get('amount_method', 'pxq') == 'pxq'
         svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []

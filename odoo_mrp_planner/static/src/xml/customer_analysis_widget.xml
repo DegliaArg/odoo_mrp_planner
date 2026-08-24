@@ -453,9 +453,19 @@
                         </div>
                     </div>
 
-                    <span class="ms-auto text-muted small">
-                        <t t-esc="state.totalFiltered"/> cliente(s)
-                    </span>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <span class="text-muted small"><t t-esc="state.totalFiltered"/> cliente(s)</span>
+                        <div class="btn-group btn-group-sm" title="Valorización monetaria de los montos">
+                            <button t-att-class="'btn btn-sm ' + (effectiveAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    title="PxQ: cantidad × precio de lista actual"
+                                    t-on-click="() => this.setLocalAmountMethod('pxq')">PxQ</button>
+                            <button t-att-class="'btn btn-sm ' + (effectiveAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:11px; padding:1px 8px;"
+                                    title="Real: importe efectivo de cada pedido (con descuentos)"
+                                    t-on-click="() => this.setLocalAmountMethod('real')">Real</button>
+                        </div>
+                    </div>
 
                     <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
                             title="Exportar tabla a Excel (.xls) con las columnas visibles"

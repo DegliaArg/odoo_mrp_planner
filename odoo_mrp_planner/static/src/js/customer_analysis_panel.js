@@ -40,7 +40,7 @@ export async function toggleDetail(widget, partnerId) {
         const data = await widget.orm.call(
             "mrp.planner.dashboard",
             "get_customer_detail",
-            [partnerId, state.dateFrom, state.dateTo, null, partnerIds]
+            [partnerId, state.dateFrom, state.dateTo, null, partnerIds, state.localAmountMethod]
         );
         state.panelData = data;
     } catch (e) {
@@ -74,7 +74,7 @@ export async function toggleRow(widget, partnerId) {
             const data = await widget.orm.call(
                 "mrp.planner.dashboard",
                 "get_customer_detail",
-                [partnerId, state.dateFrom, state.dateTo, null, partnerIds]
+                [partnerId, state.dateFrom, state.dateTo, null, partnerIds, state.localAmountMethod]
             );
             state.rowOrders[partnerId] = data.orders || [];
         } catch (e) {

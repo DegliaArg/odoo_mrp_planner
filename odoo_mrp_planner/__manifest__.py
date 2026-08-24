@@ -47,7 +47,7 @@ Programación y reprogramación
     'website': 'https://deglia.xyz',
     'license': 'OPL-1',
     'category': 'Manufacturing',
-    'depends': ['mrp', 'mrp_subcontracting', 'purchase', 'stock', 'mail', 'sale', 'sale_stock'],
+    'depends': ['mrp', 'mrp_subcontracting', 'purchase', 'stock', 'mail', 'sale'],
     'data': [
         'security/groups.xml',
         'security/ir_rules.xml',

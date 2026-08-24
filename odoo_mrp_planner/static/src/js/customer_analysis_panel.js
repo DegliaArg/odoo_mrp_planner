@@ -114,7 +114,12 @@ export function sortRowOrders(widget, key) {
 /** Top de artículos del panel, ordenado y recortado a panelTopN. */
 export function panelTopProducts(widget) {
     const state = widget.state;
-    const all = state.panelData?.top_products || [];
+    const isPending = state.panelProdMode === 'pending';
+    const raw = (state.panelData?.top_products || []).map((p) => ({
+        ...p,
+        qty_pending: Math.max(0, (p.qty_ordered || 0) - (p.qty_delivered || 0)),
+    }));
+    const all = isPending ? raw.filter((p) => p.qty_pending > 0) : raw;
     const key = state.panelProdSort;
     const dir = state.panelProdDir === "desc" ? -1 : 1;
     const sorted = [...all].sort((a, b) => {
@@ -124,6 +129,16 @@ export function panelTopProducts(widget) {
         return dir * (va - vb);
     });
     return sorted.slice(0, state.panelTopN);
+}
+
+/** Cambia el modo de la tabla de top artículos (pedidos / pendientes). */
+export function setPanelProdMode(widget, mode) {
+    const state = widget.state;
+    if (state.panelProdMode !== mode) {
+        state.panelProdMode = mode;
+        state.panelProdSort = mode === 'pending' ? 'qty_pending' : 'amount';
+        state.panelProdDir  = 'desc';
+    }
 }
 
 /** Métrica del panel (monto/cantidad): resetea el sort del top de artículos. */

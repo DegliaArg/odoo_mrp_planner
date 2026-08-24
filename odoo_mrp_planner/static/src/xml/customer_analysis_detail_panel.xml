@@ -258,11 +258,11 @@
                                         {key:'family',        label:'Familia',        cls:'',            tip:'Familia (categoría interna) del producto.'},
                                         {key:'qty_ordered',   label:'Pedido',         cls:'text-end',    tip:'Total de unidades pedidas del artículo en el período.'},
                                         {key:'qty_delivered', label:'Entregado',      cls:'text-end',    tip:'Unidades entregadas (a la fecha) de los pedidos del período (qty_delivered).'},
-                                        {key:'qty_pending',   label:'Sin entregar',   cls:'text-end',    tip:'Unidades sin entregar: pedido − entregado. Cero o negativo se muestra como —.'},
-                                        {key:'amount',        label:'Monto',          cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
-                                        {key:'unit_price',    label:'P. unit.',       cls:'text-end',    tip:'Precio unitario promedio del período: Monto ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
-                                        {key:'delivery_pct',  label:'% Cumplim.',     cls:'text-end',    tip:'Tasa de cumplimiento: entregado de los pedidos del período ÷ pedido × 100. Semáforo configurable en Ajustes.'},
-                                        {key:'order_count',   label:'OVs',            cls:'text-end',    tip:'Cantidad de órdenes de venta que incluyen este artículo.'},
+                                        {key:'qty_pending',    label:'Sin entregar',   cls:'text-end',    tip:'Unidades sin entregar: pedido − entregado. Cero se muestra como —.'},
+                                        {key:'amount_pending', label:'Monto s/e',      cls:'text-end',    tip:'Importe estimado sin entregar: unidades sin entregar × precio unitario promedio del período.'},
+                                        {key:'amount',         label:'Monto',          cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
+                                        {key:'unit_price',     label:'P. unit.',       cls:'text-end',    tip:'Precio unitario promedio del período: Monto ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
+                                        {key:'delivery_pct',   label:'% Cumplim.',     cls:'text-end',    tip:'Tasa de cumplimiento: entregado de los pedidos del período ÷ pedido × 100. Semáforo configurable en Ajustes.'},
                                     ]" t-as="col" t-key="col.key">
                                         <th t-att-class="col.cls + ' user-select-none'"
                                             t-att-title="col.tip"
@@ -313,6 +313,10 @@
                                             <span t-else="" class="text-muted">—</span>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;">
+                                            <t t-if="prod.amount_pending > 0" t-esc="fmtMoney(prod.amount_pending)"/>
+                                            <span t-else="" class="text-muted">—</span>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;">
                                             <t t-esc="fmtMoney(prod.amount)"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;"
@@ -326,10 +330,6 @@
                                             <span t-att-class="deliveryClass(prod.delivery_pct)">
                                                 <t t-esc="fmtPct(prod.delivery_pct)"/>
                                             </span>
-                                        </td>
-                                        <td class="text-end text-muted" style="padding:2px 8px;"
-                                            title="Cantidad de OVs que incluyen este artículo en el período.">
-                                            <t t-esc="prod.order_count"/>
                                         </td>
                                     </tr>
                                 </t>

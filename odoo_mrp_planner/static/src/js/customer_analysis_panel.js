@@ -114,10 +114,13 @@ export function sortRowOrders(widget, key) {
 /** Top de artículos del panel, con qty_pending calculado, ordenado y recortado a panelTopN. */
 export function panelTopProducts(widget) {
     const state = widget.state;
-    const all = (state.panelData?.top_products || []).map((p) => ({
-        ...p,
-        qty_pending: Math.max(0, (p.qty_ordered || 0) - (p.qty_delivered || 0)),
-    }));
+    const all = (state.panelData?.top_products || []).map((p) => {
+        const qty_p = Math.max(0, (p.qty_ordered || 0) - (p.qty_delivered || 0));
+        const amt_p = p.qty_ordered > 0
+            ? Math.round(qty_p * (p.amount || 0) / p.qty_ordered * 100) / 100
+            : 0;
+        return { ...p, qty_pending: qty_p, amount_pending: amt_p };
+    });
     const key = state.panelProdSort;
     const dir = state.panelProdDir === "desc" ? -1 : 1;
     const sorted = [...all].sort((a, b) => {

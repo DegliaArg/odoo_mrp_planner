@@ -1088,7 +1088,7 @@ class CustomerAnalysisWidget extends Component {
             ],
             context: {
                 list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list',
-                group_by: ['order_id.delivery_status', 'order_id'],
+                group_by: ['delivery_status', 'order_id'],
             },
             target: 'current',
         });
@@ -1111,7 +1111,7 @@ class CustomerAnalysisWidget extends Component {
             ],
             context: {
                 list_view_ref: 'odoo_mrp_planner.view_sale_order_line_planner_list',
-                group_by: ['order_id.delivery_status', 'order_id'],
+                group_by: ['delivery_status', 'order_id'],
             },
             target: 'current',
         });

@@ -228,7 +228,7 @@
               groups="odoo_mrp_planner.group_sales_read,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_ventas_forecast_lineas_menu"
-              name="Líneas de Forecast"
+              name="Líneas de forecast"
               parent="mrp_ventas_menu"
               sequence="5"
               action="action_mrp_forecast_line"

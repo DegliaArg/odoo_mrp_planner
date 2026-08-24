@@ -293,6 +293,11 @@
                                      t-esc="fmtPct(state.kpis.fulfillment_pct)"/>
                                 <div class="o_planner_label text-nowrap">Tasa cumplimiento</div>
                             </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1"
+                                        title="Ver pedidos del período agrupados por estado"
+                                        t-on-click="() => this.openDeliveryOrders()">Ver →</button>
+                            </div>
                         </div>
                     </div>
                     <div class="flex-fill" style="min-width:0; flex-basis:0;">

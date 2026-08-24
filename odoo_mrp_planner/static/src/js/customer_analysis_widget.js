@@ -1074,6 +1074,43 @@ class CustomerAnalysisWidget extends Component {
         });
     }
 
+    /** Pedidos del período agrupados por estado — drilldown global de cumplimiento. */
+    openDeliveryOrders() {
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Pedidos del período — cumplimiento',
+            res_model: 'sale.order',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['state', 'in', ['sale', 'done']],
+                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            context: { group_by: ['state'] },
+            target: 'current',
+        });
+    }
+
+    /** Pedidos del cliente en el período agrupados por estado — drilldown de cumplimiento. */
+    openCustomerDeliveryOrders(partnerId) {
+        const row = this.state.allRows.find(r => r.partner_id === partnerId);
+        const partnerIds = (row && row.partner_ids) || [partnerId];
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      'Pedidos del período — cumplimiento',
+            res_model: 'sale.order',
+            views:     [[false, 'list'], [false, 'form']],
+            domain: [
+                ['partner_id', 'child_of', partnerIds],
+                ['state', 'in', ['sale', 'done']],
+                ['date_order', '>=', this.state.dateFrom + ' 00:00:00'],
+                ['date_order', '<=', this.state.dateTo   + ' 23:59:59'],
+            ],
+            context: { group_by: ['state'] },
+            target: 'current',
+        });
+    }
+
     openKpiDrilldown(type) {
         const baseDomain = [
             ['state', 'in', ['sale', 'done']],

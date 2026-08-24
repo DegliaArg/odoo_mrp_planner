@@ -215,7 +215,9 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
         if price_method == 'previous':
             # Variación vs. el precio anterior pagado del mismo producto al mismo proveedor,
             # entre compras sucesivas dentro del rango del análisis (signo = tendencia).
-            # price_unit se convierte a moneda de la empresa para comparar correctamente.
+            # Si ambas órdenes están en la misma moneda se comparan directamente (sin conversión),
+            # evitando que la devaluación infle la variación cuando el precio en origen no cambió.
+            # Solo se convierte a moneda de empresa cuando las monedas difieren entre sí.
             hist = {}
             for ln in po_line_data:
                 po_id      = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']
@@ -227,16 +229,25 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
                 do = po_date_all.get(po_id)
                 if not do or not ln['price_unit'] or ln['price_unit'] <= 0:
                     continue
-                hist.setdefault((partner_id, prod_id), []).append((do, _to_company_ccy(ln['price_unit'], po_id)))
+                cur = po_currency.get(po_id)
+                hist.setdefault((partner_id, prod_id), []).append((do, ln['price_unit'], cur, po_id))
             for (partner_id, _prod), seq in hist.items():
                 seq.sort(key=lambda x: x[0])
                 pd = partner_data[partner_id]
                 for i in range(1, len(seq)):
-                    prev_price = seq[i - 1][1]
+                    _dp, prev_price, prev_cur, prev_po = seq[i - 1]
+                    _dc, curr_price, curr_cur, curr_po = seq[i]
                     if prev_price <= 0:
                         continue
-                    pd['pvar_sum']   += (seq[i][1] - prev_price) / prev_price * 100
-                    pd['pvar_count'] += 1
+                    if prev_cur and curr_cur and prev_cur == curr_cur:
+                        pd['pvar_sum']   += (curr_price - prev_price) / prev_price * 100
+                        pd['pvar_count'] += 1
+                    else:
+                        prev_ccy = _to_company_ccy(prev_price, prev_po)
+                        curr_ccy = _to_company_ccy(curr_price, curr_po)
+                        if prev_ccy > 0:
+                            pd['pvar_sum']   += (curr_ccy - prev_ccy) / prev_ccy * 100
+                            pd['pvar_count'] += 1
         else:
             for ln in po_line_data:
                 po_id    = ln['order_id'][0] if isinstance(ln['order_id'], (list, tuple)) else ln['order_id']

@@ -8,7 +8,7 @@
         <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2">
             <div class="row g-2 align-items-end">
 
-                <!-- Sector (tags) -->
+                <!-- Sector (select) -->
                 <div class="col-12 col-lg-7">
                     <div class="d-flex align-items-center gap-2">
                         <span class="text-muted small fw-semibold">Sector:</span>
@@ -45,11 +45,11 @@
             </div>
         </div>
 
-        <!-- ── Indicación inicial si no hay sector seleccionado ────────────── -->
+        <!-- ── Sin sector seleccionado ────────────────────────────────────── -->
         <t t-if="!state.tagIds.length &amp;&amp; !state.loading">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-filter fa-2x mb-2 d-block"/>
-                <p class="mb-0">Seleccioná al menos un sector para ver el análisis.</p>
+                <p class="mb-0">Seleccioná un sector para ver el análisis.</p>
             </div>
         </t>
 
@@ -70,181 +70,184 @@
         </t>
 
         <!-- ── Sin resultados ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !state.weeks.length">
+        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !state.wcRows.length">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-inbox fa-2x mb-2 d-block"/>
-                <p class="mb-0">No hay OFs del sector en el período seleccionado.</p>
+                <p class="mb-0">No hay OTs del sector en el período seleccionado.</p>
             </div>
         </t>
 
-        <!-- ── Resumen global ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; state.weeks.length">
+        <!-- ── Tabla CT × Semana ───────────────────────────────────────────── -->
+        <t t-if="!state.loading &amp;&amp; state.wcRows.length">
+
+            <!-- Resumen -->
             <div class="d-flex gap-3 mb-3 text-muted small">
-                <span><strong class="text-body"><t t-esc="state.weeks.length"/></strong> semana(s)</span>
+                <span><strong class="text-body"><t t-esc="state.weekKeys.length"/></strong> semana(s)</span>
                 <span><strong class="text-body"><t t-esc="state.totalMos"/></strong> OF(s)</span>
                 <span><strong class="text-body"><t t-esc="state.totalPos"/></strong> OC(s)</span>
             </div>
-        </t>
 
-        <!-- ── Semanas ─────────────────────────────────────────────────────── -->
-        <t t-foreach="state.weeks" t-as="week" t-key="week.week_label + week.year">
-            <div class="o_pca_week card mb-3">
-
-                <!-- Encabezado de semana -->
-                <div class="card-header d-flex align-items-center gap-2 py-2"
-                     style="cursor:pointer"
-                     t-on-click="() => this.toggleWeek(week.week_label + week.year)">
-                    <i t-att-class="'fa fa-fw ' + (isWeekCollapsed(week.week_label + week.year) ? 'fa-chevron-right' : 'fa-chevron-down')"/>
-                    <span class="fw-bold" t-esc="week.week_label + ' ' + week.year"/>
-                    <span class="text-muted small">
-                        <t t-esc="fmtDate(week.date_from)"/> – <t t-esc="fmtDate(week.date_to)"/>
-                    </span>
-                    <span class="ms-auto d-flex gap-2 small text-muted">
-                        <span><t t-esc="week.mo_count"/> OF(s)</span>
-                        <span><t t-esc="week.po_count"/> OC(s)</span>
-                    </span>
-                </div>
-
-                <!-- Contenido de la semana -->
-                <t t-if="!isWeekCollapsed(week.week_label + week.year)">
-                    <div class="card-body p-0">
-
-                        <!-- ── OFs de la semana ─────────────────────────────── -->
-                        <t t-foreach="week.mos" t-as="mo" t-key="mo.mo_id">
-
-                            <!-- Fila de la OF -->
-                            <div class="o_pca_mo_row d-flex align-items-center gap-2 px-3 py-2 border-bottom"
-                                 style="cursor:pointer; background:#fafafa"
-                                 t-on-click="() => this.toggleMo(mo.mo_id)">
-
-                                <i t-att-class="'fa fa-fw ' + (isMoExpanded(mo.mo_id) ? 'fa-chevron-down' : 'fa-chevron-right') + ' text-muted'"/>
-
-                                <!-- Alerta de estado OCs -->
-                                <i t-att-class="'fa fa-fw ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"
-                                   t-att-title="mo.has_late_pos ? 'Tiene OCs atrasadas' : mo.has_pending_pos ? 'Tiene OCs sin confirmar' : 'OCs al día'"/>
-
-                                <!-- Nombre y producto de la OF -->
-                                <div class="flex-grow-1">
-                                    <span class="fw-semibold me-2" t-esc="mo.mo_name"/>
-                                    <span class="text-muted" t-esc="mo.product_name"/>
-                                </div>
-
-                                <!-- Cantidad y UdM -->
-                                <div class="text-muted small text-end" style="min-width:90px">
-                                    <span t-esc="fmtQty(mo.qty)"/> <span t-esc="mo.uom"/>
-                                </div>
-
-                                <!-- Estado de la OF -->
-                                <div style="min-width:90px" class="text-end">
-                                    <span t-att-class="moStateClass(mo.state)" t-esc="mo.state_label"/>
-                                </div>
-
-                                <!-- Fecha OT sector -->
-                                <div class="text-muted small text-end" style="min-width:120px">
-                                    <i class="fa fa-calendar-o me-1"/>
-                                    <t t-esc="mo.wo_date"/>
-                                </div>
-
-                                <!-- Contador de OCs -->
-                                <div class="text-muted small text-end" style="min-width:65px">
-                                    <i class="fa fa-shopping-cart me-1"/>
-                                    <t t-esc="mo.pos_count"/> OC
-                                </div>
-
-                                <!-- Botón abrir OF -->
-                                <button class="btn btn-sm btn-link p-0 ms-1"
-                                        title="Abrir OF"
-                                        t-on-click.stop="() => this.openMo(mo)">
-                                    <i class="fa fa-external-link"/>
-                                </button>
-                            </div>
-
-                            <!-- ── OCs de la OF (expandidas) ──────────────────── -->
-                            <t t-if="isMoExpanded(mo.mo_id)">
-                                <t t-if="!mo.pos.length">
-                                    <div class="px-5 py-2 text-muted fst-italic small border-bottom">
-                                        Sin órdenes de compra encontradas en la cadena MTO.
+            <div class="table-responsive mb-3">
+                <table class="table table-bordered table-sm o_pca_matrix" style="min-width:500px">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="o_pca_wc_header" style="min-width:150px;vertical-align:middle">
+                                Centro de trabajo
+                            </th>
+                            <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
+                                <th class="text-center o_pca_week_header" style="min-width:140px">
+                                    <div class="fw-bold">
+                                        <t t-esc="state.weekLabels[wk].label"/>
+                                        <span class="text-muted fw-normal ms-1">
+                                            <t t-esc="state.weekLabels[wk].year"/>
+                                        </span>
                                     </div>
-                                </t>
-                                <t t-if="mo.pos.length">
-                                    <div class="o_pca_po_table">
-                                        <table class="table table-sm table-hover mb-0" style="font-size:0.82rem">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th style="padding-left:3.5rem">OC</th>
-                                                    <th>Proveedor</th>
-                                                    <th>Componente</th>
-                                                    <th class="text-center">F. Entrega</th>
-                                                    <th class="text-end">Pedido</th>
-                                                    <th class="text-end">Recibido</th>
-                                                    <th class="text-center">%</th>
-                                                    <th class="text-center">Estado</th>
-                                                    <th/>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <t t-foreach="mo.pos" t-as="po" t-key="po.po_id + '_' + po.product">
-                                                    <tr t-att-class="rowClass(po)">
-                                                        <td style="padding-left:3.5rem; white-space:nowrap">
-                                                            <t t-esc="po.po_name"/>
-                                                            <t t-if="po.is_subcontract">
-                                                                <span class="badge bg-info text-dark ms-1" title="Subcontratación">SC</span>
-                                                            </t>
-                                                        </td>
-                                                        <td t-esc="po.partner"/>
-                                                        <td class="text-muted" t-esc="po.product"/>
-                                                        <td class="text-center">
-                                                            <t t-if="po.is_late">
-                                                                <span class="text-danger fw-semibold">
-                                                                    <i class="fa fa-exclamation-triangle me-1"/>
-                                                                    <t t-esc="fmtDate(po.date_planned)"/>
-                                                                </span>
-                                                            </t>
-                                                            <t t-else="">
-                                                                <t t-esc="fmtDate(po.date_planned)"/>
-                                                            </t>
-                                                        </td>
-                                                        <td class="text-end" t-esc="fmtQty(po.qty_ordered)"/>
-                                                        <td class="text-end" t-esc="fmtQty(po.qty_received)"/>
-                                                        <td class="text-center">
-                                                            <t t-if="po.pct_received >= 100">
-                                                                <span class="text-success fw-semibold">
-                                                                    <i class="fa fa-check me-1"/>100%
-                                                                </span>
-                                                            </t>
-                                                            <t t-else="">
-                                                                <t t-esc="fmtPct(po.pct_received)"/>
-                                                            </t>
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <span t-att-class="poStateClass(po.state)" t-esc="po.state_label"/>
-                                                        </td>
-                                                        <td class="text-center">
-                                                            <button class="btn btn-sm btn-link p-0"
-                                                                    title="Abrir OC"
-                                                                    t-on-click="() => this.openPo(po)">
-                                                                <i class="fa fa-external-link"/>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                </t>
-                                            </tbody>
-                                        </table>
+                                    <div class="text-muted" style="font-size:0.72rem">
+                                        <t t-esc="fmtDate(state.weekLabels[wk].date_from)"/>
+                                        <span> – </span>
+                                        <t t-esc="fmtDate(state.weekLabels[wk].date_to)"/>
                                     </div>
-                                </t>
+                                </th>
                             </t>
-
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="state.wcRows" t-as="row" t-key="row.wc_id">
+                            <tr>
+                                <td class="o_pca_wc_cell fw-semibold align-middle" style="background:#f8f9fa">
+                                    <t t-esc="row.wc_name"/>
+                                </td>
+                                <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
+                                    <td class="o_pca_cell align-top p-1">
+                                        <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
+                                            <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-primary bg-primary bg-opacity-10' : 'border-light bg-light')"
+                                                 style="cursor:pointer;font-size:0.8rem"
+                                                 t-on-click="() => this.selectMo(mo)">
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <i t-att-class="'fa fa-fw fa-xs ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"/>
+                                                    <span class="fw-semibold text-truncate flex-grow-1" style="max-width:100px" t-esc="mo.mo_name"/>
+                                                    <button class="btn p-0 ms-auto o_pca_chip_open"
+                                                            title="Abrir OF"
+                                                            t-on-click.stop="() => this.openMo(mo)">
+                                                        <i class="fa fa-external-link fa-xs text-muted"/>
+                                                    </button>
+                                                </div>
+                                                <div class="text-muted text-truncate" style="font-size:0.72rem;max-width:130px" t-esc="mo.product_name"/>
+                                                <div class="d-flex align-items-center gap-2 mt-1" style="font-size:0.72rem">
+                                                    <span t-att-class="moStateClass(mo.state)" t-esc="mo.state_label"/>
+                                                    <span class="text-muted">
+                                                        <i class="fa fa-shopping-cart fa-xs me-1"/>
+                                                        <t t-esc="mo.pos_count"/>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </td>
+                                </t>
+                            </tr>
                         </t>
-                        <!-- fin loop OFs -->
-
-                    </div>
-                </t>
-                <!-- fin contenido semana -->
-
+                    </tbody>
+                </table>
             </div>
-            <!-- fin card semana -->
+
+            <!-- ── Panel de detalle: OCs de la OF seleccionada ─────────────── -->
+            <t t-if="state.activeMoData">
+                <div class="o_pca_detail card border-primary mb-3">
+                    <div class="card-header d-flex align-items-center gap-2 py-2 bg-primary bg-opacity-10">
+                        <i class="fa fa-industry text-primary"/>
+                        <span class="fw-bold text-primary" t-esc="state.activeMoData.mo_name"/>
+                        <span class="text-muted">–</span>
+                        <span t-esc="state.activeMoData.product_name"/>
+                        <span class="text-muted small">
+                            (<t t-esc="fmtQty(state.activeMoData.qty)"/>
+                            <span class="ms-1"><t t-esc="state.activeMoData.uom"/></span>)
+                        </span>
+                        <span t-att-class="moStateClass(state.activeMoData.state)" t-esc="state.activeMoData.state_label"/>
+                        <button class="btn btn-sm btn-link p-0" title="Abrir OF"
+                                t-on-click="() => this.openMo(state.activeMoData)">
+                            <i class="fa fa-external-link"/>
+                        </button>
+                        <button class="btn btn-sm btn-link text-muted ms-auto p-0" title="Cerrar"
+                                t-on-click="closeMoDetail">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <t t-if="!state.activeMoData.pos.length">
+                            <div class="px-4 py-3 text-muted fst-italic small">
+                                Sin órdenes de compra encontradas en la cadena MTO.
+                            </div>
+                        </t>
+                        <t t-if="state.activeMoData.pos.length">
+                            <table class="table table-sm table-hover mb-0" style="font-size:0.82rem">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">OC</th>
+                                        <th>Proveedor</th>
+                                        <th>Componente</th>
+                                        <th class="text-center">F. Entrega</th>
+                                        <th class="text-end">Pedido</th>
+                                        <th class="text-end">Recibido</th>
+                                        <th class="text-center">%</th>
+                                        <th class="text-center">Estado</th>
+                                        <th/>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="state.activeMoData.pos" t-as="po" t-key="po.po_id + '_' + po.product">
+                                        <tr t-att-class="rowClass(po)">
+                                            <td class="ps-3" style="white-space:nowrap">
+                                                <t t-esc="po.po_name"/>
+                                                <t t-if="po.is_subcontract">
+                                                    <span class="badge bg-info text-dark ms-1" title="Subcontratación">SC</span>
+                                                </t>
+                                            </td>
+                                            <td t-esc="po.partner"/>
+                                            <td class="text-muted" t-esc="po.product"/>
+                                            <td class="text-center">
+                                                <t t-if="po.is_late">
+                                                    <span class="text-danger fw-semibold">
+                                                        <i class="fa fa-exclamation-triangle me-1"/>
+                                                        <t t-esc="fmtDate(po.date_planned)"/>
+                                                    </span>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-esc="fmtDate(po.date_planned)"/>
+                                                </t>
+                                            </td>
+                                            <td class="text-end" t-esc="fmtQty(po.qty_ordered)"/>
+                                            <td class="text-end" t-esc="fmtQty(po.qty_received)"/>
+                                            <td class="text-center">
+                                                <t t-if="po.pct_received >= 100">
+                                                    <span class="text-success fw-semibold">
+                                                        <i class="fa fa-check me-1"/>100%
+                                                    </span>
+                                                </t>
+                                                <t t-else="">
+                                                    <t t-esc="fmtPct(po.pct_received)"/>
+                                                </t>
+                                            </td>
+                                            <td class="text-center">
+                                                <span t-att-class="poStateClass(po.state)" t-esc="po.state_label"/>
+                                            </td>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-link p-0"
+                                                        title="Abrir OC"
+                                                        t-on-click="() => this.openPo(po)">
+                                                    <i class="fa fa-external-link"/>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </t>
+                    </div>
+                </div>
+            </t>
+
         </t>
-        <!-- fin loop semanas -->
+        <!-- fin contenido -->
 
     </div>
 </t>

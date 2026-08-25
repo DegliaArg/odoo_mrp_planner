@@ -72,26 +72,29 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
     @api.model
     def get_purchase_analysis(self, tag_ids, date_from, date_to):
         """
-        Devuelve OFs del sector (tag_ids) con OT en el rango de fechas,
-        agrupadas por semana ISO, con todas las OCs descendientes a cualquier
-        profundidad de la cadena MTO.
+        Devuelve estructura para tabla doble entrada CT × semana ISO.
 
-        :param tag_ids: list[int] — IDs de mrp.workcenter.tag (sector).
-        :param date_from: str 'YYYY-MM-DD' — inicio del rango.
-        :param date_to:   str 'YYYY-MM-DD' — fin del rango.
-        :returns: dict con 'weeks' (lista de semanas con OFs y OCs).
+        Filas: centros de trabajo del sector (tag_ids).
+        Columnas: semanas ISO del rango de fechas.
+        Celdas: lista de OTs planificadas para ese CT en esa semana,
+                cada una con sus OCs descendientes (BFS por cadena MTO).
+
+        :param tag_ids: list[int] — IDs de mrp.workcenter.tag.
+        :param date_from: str 'YYYY-MM-DD'
+        :param date_to:   str 'YYYY-MM-DD'
+        :returns: dict con week_keys, week_labels, wc_rows, total_mos, total_pos.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_purchase',
                                    'odoo_mrp_planner.group_purchase_admin')
 
+        _EMPTY = {'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_mos': 0, 'total_pos': 0}
         if not tag_ids:
-            return {'weeks': [], 'total_mos': 0, 'total_pos': 0}
+            return _EMPTY
 
         date_from_dt = datetime.strptime(date_from, '%Y-%m-%d')
-        date_to_dt   = datetime.strptime(date_to,   '%Y-%m-%d').replace(
+        date_to_dt   = datetime.strptime(date_to, '%Y-%m-%d').replace(
             hour=23, minute=59, second=59)
 
-        # 1. OTs del sector en el rango
         wo_domain = [
             ('workcenter_id.tag_ids', 'in', list(tag_ids)),
             ('date_start', '>=', fields.Datetime.to_string(date_from_dt)),
@@ -101,47 +104,55 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
         ]
         workorders = self.env['mrp.workorder'].search(wo_domain, order='date_start asc')
 
-        # Mapa mo_id → date_start más temprana de sus OTs en el sector
-        mo_earliest = {}
-        for wo in workorders:
-            mo_id = wo.production_id.id
-            if not mo_id:
-                continue
-            if mo_id not in mo_earliest or (wo.date_start and wo.date_start < mo_earliest[mo_id]):
-                mo_earliest[mo_id] = wo.date_start
+        if not workorders:
+            return _EMPTY
 
-        if not mo_earliest:
-            return {'weeks': [], 'total_mos': 0, 'total_pos': 0}
-
-        mos = self.env['mrp.production'].browse(list(mo_earliest.keys()))
-
-        # 2. Para cada OF raíz, recolectar OCs descendientes (BFS)
         today = fields.Date.today()
-        mo_po_lines = {}
-        for mo in mos:
-            mo_po_lines[mo.id] = self._pca_collect_po_lines(mo)
 
-        # 3. Agrupar por semana ISO
-        weeks_data = defaultdict(list)
-        for mo in mos:
-            dt = mo_earliest.get(mo.id)
+        # BFS una sola vez por OF única
+        mo_po_data = {}
+        for mo in workorders.mapped('production_id'):
+            if mo.id not in mo_po_data:
+                po_lines = self._pca_collect_po_lines(mo)
+                mo_po_data[mo.id] = self._pca_format_po_lines(po_lines, today)
+
+        # Agrupar OTs por (wc_id, week_key)
+        wc_cell_map = defaultdict(lambda: defaultdict(list))
+        wc_names = {}
+        week_info = {}
+
+        for wo in workorders:
+            dt = wo.date_start
             if not dt:
                 continue
             if isinstance(dt, str):
                 dt = datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
             iso = dt.isocalendar()
-            week_key = (iso[0], int(iso[1]))
+            year, week = iso[0], int(iso[1])
+            week_key = f'{year}-W{week:02d}'
 
-            po_lines = mo_po_lines.get(mo.id, self.env['purchase.order.line'])
-            pos_data = self._pca_format_po_lines(po_lines, today)
+            if week_key not in week_info:
+                monday = datetime.fromisocalendar(year, week, 1).date()
+                sunday = datetime.fromisocalendar(year, week, 7).date()
+                week_info[week_key] = {
+                    'label':     f'W{week:02d}',
+                    'year':      year,
+                    'date_from': str(monday),
+                    'date_to':   str(sunday),
+                }
 
-            weeks_data[week_key].append({
+            wc = wo.workcenter_id
+            wc_names[wc.id] = wc.name
+
+            mo = wo.production_id
+            pos_data = mo_po_data.get(mo.id, [])
+
+            wc_cell_map[wc.id][week_key].append({
+                'wo_id':          wo.id,
                 'mo_id':          mo.id,
                 'mo_name':        mo.name or '',
-                'product_id':     mo.product_id.id,
                 'product_name':   mo.product_id.display_name or '',
                 'qty':            mo.product_qty or 0.0,
-                'qty_produced':   mo.qty_produced or 0.0,
                 'uom':            mo.product_uom_id.name or '',
                 'state':          mo.state,
                 'state_label':    _MO_STATE_LABEL.get(mo.state, mo.state),
@@ -152,29 +163,26 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 'has_pending_pos': any(p['state'] in ('draft', 'sent') for p in pos_data),
             })
 
-        # 4. Construir lista de semanas ordenadas
-        weeks = []
-        total_pos = 0
-        for (year, week) in sorted(weeks_data.keys()):
-            monday = datetime.fromisocalendar(year, week, 1).date()
-            sunday = datetime.fromisocalendar(year, week, 7).date()
-            week_mos = weeks_data[(year, week)]
-            week_pos = sum(m['pos_count'] for m in week_mos)
-            total_pos += week_pos
-            weeks.append({
-                'week_label': f'W{week:02d}',
-                'year':       year,
-                'date_from':  str(monday),
-                'date_to':    str(sunday),
-                'mos':        week_mos,
-                'mo_count':   len(week_mos),
-                'po_count':   week_pos,
+        week_keys = sorted(week_info.keys())
+
+        wc_rows = []
+        for wc_id in sorted(wc_names.keys(), key=lambda i: wc_names[i]):
+            cells = {wk: wc_cell_map[wc_id].get(wk, []) for wk in week_keys}
+            wc_rows.append({
+                'wc_id':   wc_id,
+                'wc_name': wc_names[wc_id],
+                'cells':   cells,
             })
 
+        all_mo_ids = {wo.production_id.id for wo in workorders}
+        all_po_ids = {po['po_id'] for data in mo_po_data.values() for po in data}
+
         return {
-            'weeks':      weeks,
-            'total_mos':  len(mos),
-            'total_pos':  total_pos,
+            'week_keys':   week_keys,
+            'week_labels': week_info,
+            'wc_rows':     wc_rows,
+            'total_mos':   len(all_mo_ids),
+            'total_pos':   len(all_po_ids),
         }
 
     # ── Helpers privados ──────────────────────────────────────────────────────

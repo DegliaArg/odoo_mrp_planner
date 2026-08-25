@@ -52,17 +52,19 @@ class PurchaseAnalysisWidget extends Component {
         this.action = useService("action");
 
         this.state = useState({
-            tags:       [],
-            tagIds:     [],
-            dateFrom:   firstOfMonth(),
-            dateTo:     lastOfMonth(),
-            weeks:      [],
-            totalMos:   0,
-            totalPos:   0,
-            loading:    true,
-            error:      null,
-            expandedMos: {},   // mo_id → bool
-            expandedWeeks: {}, // week_label → bool (true = collapsed)
+            tags:         [],
+            tagIds:       [],
+            dateFrom:     firstOfMonth(),
+            dateTo:       lastOfMonth(),
+            weekKeys:     [],
+            weekLabels:   {},
+            wcRows:       [],
+            totalMos:     0,
+            totalPos:     0,
+            loading:      true,
+            error:        null,
+            activeMoId:   null,
+            activeMoData: null,
         });
 
         onMounted(async () => {
@@ -87,31 +89,29 @@ class PurchaseAnalysisWidget extends Component {
 
     async _loadData() {
         if (!this.state.tagIds.length) {
-            this.state.weeks    = [];
-            this.state.totalMos = 0;
-            this.state.totalPos = 0;
-            this.state.loading  = false;
+            this.state.weekKeys   = [];
+            this.state.weekLabels = {};
+            this.state.wcRows     = [];
+            this.state.totalMos   = 0;
+            this.state.totalPos   = 0;
+            this.state.loading    = false;
             return;
         }
-        this.state.loading = true;
-        this.state.error   = null;
+        this.state.loading    = true;
+        this.state.error      = null;
+        this.state.activeMoId = null;
+        this.state.activeMoData = null;
         try {
             const result = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_purchase_analysis",
                 [this.state.tagIds, this.state.dateFrom, this.state.dateTo]
             );
-            this.state.weeks    = (result && result.weeks)     || [];
-            this.state.totalMos = (result && result.total_mos) || 0;
-            this.state.totalPos = (result && result.total_pos) || 0;
-            // Expandir todas las semanas por defecto
-            const expanded = {};
-            for (const w of this.state.weeks) {
-                if (!(w.week_label in this.state.expandedWeeks)) {
-                    expanded[w.week_label] = false; // false = visible
-                }
-            }
-            Object.assign(this.state.expandedWeeks, expanded);
+            this.state.weekKeys   = (result && result.week_keys)   || [];
+            this.state.weekLabels = (result && result.week_labels) || {};
+            this.state.wcRows     = (result && result.wc_rows)     || [];
+            this.state.totalMos   = (result && result.total_mos)   || 0;
+            this.state.totalPos   = (result && result.total_pos)   || 0;
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
             this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -138,22 +138,21 @@ class PurchaseAnalysisWidget extends Component {
         this._loadData();
     }
 
-    // ── Expandir/colapsar ───────────────────────────────────────────────────
+    // ── Selección de OF para ver detalle OCs ────────────────────────────────
 
-    toggleWeek(weekLabel) {
-        this.state.expandedWeeks[weekLabel] = !this.state.expandedWeeks[weekLabel];
+    selectMo(mo) {
+        if (this.state.activeMoId === mo.mo_id) {
+            this.state.activeMoId   = null;
+            this.state.activeMoData = null;
+        } else {
+            this.state.activeMoId   = mo.mo_id;
+            this.state.activeMoData = mo;
+        }
     }
 
-    isWeekCollapsed(weekLabel) {
-        return !!this.state.expandedWeeks[weekLabel];
-    }
-
-    toggleMo(moId) {
-        this.state.expandedMos[moId] = !this.state.expandedMos[moId];
-    }
-
-    isMoExpanded(moId) {
-        return !!this.state.expandedMos[moId];
+    closeMoDetail() {
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
     }
 
     // ── Formateo y clases ───────────────────────────────────────────────────

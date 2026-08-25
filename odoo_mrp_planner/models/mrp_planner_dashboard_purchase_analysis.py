@@ -261,8 +261,18 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             current_level = new_children
 
         # Todos los MOs de la cadena
-        all_mos    = MO.browse(list(all_mo_ids))
-        all_names  = [mo.name for mo in all_mos if mo.name]
+        all_mos   = MO.browse(list(all_mo_ids))
+        all_names = [mo.name for mo in all_mos if mo.name]
+
+        # Product_ids de componentes consumidos por cada root MO (de sus move_raw_ids,
+        # ya en cache del BFS). Se usa para filtrar las líneas de OC al final.
+        root_bom_products = {mo.id: set() for mo in root_mos}
+        for mo in all_mos:
+            root_id = mo_to_root.get(mo.id)
+            if root_id in root_bom_products:
+                for raw in mo.move_raw_ids:
+                    if raw.product_id:
+                        root_bom_products[root_id].add(raw.product_id.id)
 
         # UNA query para todas las OCs (origin exacto, usa índice)
         all_pos = PO.search([
@@ -326,12 +336,27 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             if 'subcontract_production_ids' in PO._fields:
                 all_lines_rs.mapped('order_id.subcontract_production_ids')
 
-        # Formatear por root MO
+        # Map line_id → product_id (desde cache del prefetch, sin query)
+        line_pid_map = {
+            line.id: line.product_id.id
+            for line in POL.browse(list(all_unique_ids))
+        } if all_unique_ids else {}
+
+        # Formatear por root MO filtrando por árbol de consumo (LdM real)
         result = {}
         for mo in root_mos:
-            line_ids = root_line_ids.get(mo.id, set())
+            all_ids  = root_line_ids.get(mo.id, set())
+            bom_pids = root_bom_products.get(mo.id, set())
+            if bom_pids:
+                # Solo incluir líneas cuyo producto está en la cadena de consumo
+                filtered_ids = {
+                    lid for lid in all_ids
+                    if line_pid_map.get(lid) in bom_pids
+                }
+            else:
+                filtered_ids = all_ids   # sin info de LdM, mostrar todo
             result[mo.id] = self._pca_format_po_lines(
-                POL.browse(list(line_ids)), today)
+                POL.browse(list(filtered_ids)), today)
 
         return result
 

@@ -111,15 +111,15 @@
         <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
 
             <div class="table-responsive mb-3">
-                <table class="table table-bordered table-sm o_pca_matrix" style="min-width:500px">
+                <table class="table table-bordered table-sm o_pca_matrix" style="min-width:500px;table-layout:fixed">
                     <thead class="table-light">
                         <tr>
-                            <th class="o_pca_wc_header" style="min-width:150px;vertical-align:middle">
+                            <th class="o_pca_wc_header" style="width:160px;vertical-align:middle">
                                 Centro de trabajo
                             </th>
                             <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
                                 <th t-att-class="'text-center o_pca_week_header' + (wk == currentWeekKey ? ' table-active' : '')"
-                                    style="min-width:140px">
+                                    style="width:160px">
                                     <div class="fw-bold">
                                         <t t-esc="state.weekLabels[wk].label"/>
                                         <span class="text-muted fw-normal ms-1">

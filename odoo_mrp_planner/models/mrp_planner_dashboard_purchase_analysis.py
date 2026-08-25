@@ -168,7 +168,11 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 'pos':            pos_data,
                 'pos_count':      len(pos_data),
                 'has_late_pos':   any(p['is_late'] for p in pos_data),
-                'has_pending_pos': any(p['state'] in ('draft', 'sent') for p in pos_data),
+                'has_pending_pos': any(
+                    p['state'] in ('draft', 'sent')
+                    or (p['state'] == 'purchase' and p['pct_received'] < 100)
+                    for p in pos_data
+                ),
             })
 
         week_keys = sorted(week_info.keys())

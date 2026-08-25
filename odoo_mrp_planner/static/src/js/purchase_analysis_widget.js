@@ -236,14 +236,16 @@ class PurchaseAnalysisWidget extends Component {
     }
 
     moAlertClass(mo) {
-        if (mo.has_late_pos) return "text-danger";
+        if (mo.has_late_pos)    return "text-danger";
         if (mo.has_pending_pos) return "text-warning";
+        if (!mo.pos_count)      return "text-muted";
         return "text-success";
     }
 
     moAlertIcon(mo) {
-        if (mo.has_late_pos) return "fa-exclamation-circle";
+        if (mo.has_late_pos)    return "fa-exclamation-circle";
         if (mo.has_pending_pos) return "fa-clock-o";
+        if (!mo.pos_count)      return "fa-minus";
         return "fa-check-circle";
     }
 

@@ -199,31 +199,68 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
     # ── Helpers privados ──────────────────────────────────────────────────────
 
     def _pca_collect_po_lines(self, root_mo):
-        """BFS desde root_mo recorriendo la cadena de moves para encontrar
-        todas las purchase.order.line descendientes a cualquier profundidad.
+        """Recopila todas las purchase.order.line relacionadas con root_mo
+        y sus OFs descendientes a cualquier profundidad.
 
-        Sigue: move_raw_ids → move_orig_ids → purchase_line_id (hoja)
-                                             → production_id (nodo intermedio)
+        Usa dos estrategias combinadas para cubrir los distintos casos de
+        cómo Odoo vincula la cadena de fabricación:
+
+        Estrategia 1 — por movimientos de stock:
+            move_raw_ids → move_orig_ids → purchase_line_id  (OC directa)
+                                         → production_id      (OF hija)
+
+        Estrategia 2 — por campo origin:
+            Las OFs hijas tienen en su `origin` el nombre de la OF madre.
+            Las OCs tienen en su `origin` el nombre de la OF que las generó.
+            Esto cubre los casos en que el scheduler crea los documentos sin
+            enlazar los movimientos de stock.
         """
-        visited = set()
-        queue   = [root_mo]
-        line_ids = set()
+        visited_mo = set()
+        queue = [root_mo]
+        all_mos = []
 
+        # BFS: recopila todas las OFs de la cadena
         while queue:
-            batch = queue
-            queue = []
-            for mo in batch:
-                if mo.id in visited:
-                    continue
-                visited.add(mo.id)
-                for raw_move in mo.move_raw_ids:
-                    for supply_move in raw_move.move_orig_ids:
-                        if supply_move.purchase_line_id:
-                            line_ids.add(supply_move.purchase_line_id.id)
-                        # Nodo intermedio: OF hija que produce este componente
-                        child_mo = supply_move.production_id
-                        if child_mo and child_mo.id not in visited:
-                            queue.append(child_mo)
+            mo = queue.pop(0)
+            if mo.id in visited_mo:
+                continue
+            visited_mo.add(mo.id)
+            all_mos.append(mo)
+
+            # Estrategia 1: OFs hijas vía movimientos
+            for raw in mo.move_raw_ids:
+                for sup in raw.move_orig_ids:
+                    if sup.production_id and sup.production_id.id not in visited_mo:
+                        queue.append(sup.production_id)
+
+            # Estrategia 2: OFs hijas vía campo origin
+            if mo.name:
+                children = self.env['mrp.production'].search([
+                    ('origin', 'ilike', mo.name),
+                    ('id', 'not in', list(visited_mo)),
+                    ('state', 'not in', ['cancel']),
+                ])
+                for child in children:
+                    if child.id not in visited_mo:
+                        queue.append(child)
+
+        # Recopila líneas de OC de todas las OFs encontradas
+        line_ids = set()
+        for mo in all_mos:
+            # Estrategia 1: vía movimientos con purchase_line_id
+            for raw in mo.move_raw_ids:
+                for sup in raw.move_orig_ids:
+                    if sup.purchase_line_id:
+                        line_ids.add(sup.purchase_line_id.id)
+
+            # Estrategia 2: vía campo origin de la OC
+            if mo.name:
+                pos = self.env['purchase.order'].search([
+                    ('origin', 'ilike', mo.name),
+                    ('state', 'not in', ['cancel']),
+                ])
+                for po in pos:
+                    line_ids.update(po.order_line.ids)
 
         if not line_ids:
             return self.env['purchase.order.line']

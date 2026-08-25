@@ -53,11 +53,11 @@
                 <!-- Toggle terminadas -->
                 <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
                     <input class="form-check-input" type="checkbox" role="switch"
-                           id="pca_hide_finished"
-                           t-att-checked="state.hideFinished"
-                           t-on-change="toggleHideFinished"/>
+                           id="pca_show_finished"
+                           t-att-checked="state.showFinished"
+                           t-on-change="toggleShowFinished"/>
                     <label class="form-check-label text-muted small fw-semibold mb-0"
-                           for="pca_hide_finished">Ocultar OFs terminadas</label>
+                           for="pca_show_finished">Mostrar OFs terminadas</label>
                 </div>
 
                 <!-- Fechas (al final, separadas del resto) -->
@@ -111,11 +111,11 @@
         <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
 
             <div class="table-responsive mb-3">
-                <table class="table table-bordered table-sm o_pca_matrix" style="min-width:500px;table-layout:fixed">
-                    <thead class="table-light">
+                <table class="table table-hover o_pca_matrix" style="min-width:500px;table-layout:fixed">
+                    <thead>
                         <tr>
-                            <th class="o_pca_wc_header" style="width:160px;vertical-align:middle">
-                                Centro de trabajo
+                            <th class="o_pca_wc_header" style="width:160px">
+                                CT
                             </th>
                             <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
                                 <th t-att-class="'text-center o_pca_week_header' + (wk == currentWeekKey ? ' table-active' : '')"
@@ -141,11 +141,11 @@
                     <tbody>
                         <t t-foreach="filteredWcRows()" t-as="row" t-key="row.wc_id">
                             <tr>
-                                <td class="o_pca_wc_cell fw-semibold align-middle" style="background:#f8f9fa">
+                                <td class="o_pca_wc_cell">
                                     <t t-esc="row.wc_name"/>
                                 </td>
                                 <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
-                                    <td t-att-class="'o_pca_cell align-top p-1' + (wk == currentWeekKey ? ' bg-secondary bg-opacity-10' : '')">
+                                    <td t-att-class="'o_pca_cell' + (wk == currentWeekKey ? ' bg-secondary bg-opacity-10' : '')">
                                         <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
                                             <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-secondary shadow-sm' : (mo.has_late_pos ? 'border-danger' : 'border-light bg-light'))"
                                                  style="cursor:pointer;font-size:0.8rem"

@@ -56,7 +56,7 @@ class PurchaseAnalysisWidget extends Component {
             tagIds:       [],
             wcs:          [],   // CTs disponibles para el sector seleccionado
             wcFilterId:   null, // CT seleccionado (null = todos)
-            hideFinished: true, // ocultar OFs con estado 'done'
+            showFinished: false, // mostrar OFs con estado 'done'
             searchText:   '',   // búsqueda por nombre de producto
             dateFrom:     firstOfMonth(),
             dateTo:       lastOfMonth(),
@@ -163,8 +163,8 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoData = null;
     }
 
-    toggleHideFinished() {
-        this.state.hideFinished = !this.state.hideFinished;
+    toggleShowFinished() {
+        this.state.showFinished = !this.state.showFinished;
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
     }
@@ -318,9 +318,9 @@ class PurchaseAnalysisWidget extends Component {
             : this.state.wcRows;
 
         const search       = (this.state.searchText || "").trim().toLowerCase();
-        const hideFinished = this.state.hideFinished;
+        const showFinished = this.state.showFinished;
 
-        if (!search && !hideFinished) return rows;
+        if (!search && showFinished) return rows;
 
         const result = [];
         for (const row of rows) {
@@ -328,7 +328,7 @@ class PurchaseAnalysisWidget extends Component {
             let hasVisible = false;
             for (const wk of this.state.weekKeys) {
                 let mos = row.cells[wk] || [];
-                if (hideFinished) {
+                if (!showFinished) {
                     mos = mos.filter(mo => mo.state !== "done");
                 }
                 if (search) {

@@ -110,6 +110,11 @@ class MrpPlannerDashboardWc(models.TransientModel):
 
         enable_scheduling = self.env['mrp.reschedule.config']._scheduling_ui_enabled()
         _cfg = self.env['mrp.reschedule.config'].get_config()
+        default_tag_id = (
+            _cfg.purchase_analysis_default_tag_id.id
+            if _cfg and _cfg.purchase_analysis_default_tag_id
+            else None
+        )
         return {
             'tags': [
                 {'id': tag.id, 'name': tag.name}
@@ -118,6 +123,7 @@ class MrpPlannerDashboardWc(models.TransientModel):
             ],
             'enable_scheduling': enable_scheduling,
             'enable_oee': bool(_cfg.enable_oee) if _cfg else False,
+            'default_purchase_analysis_tag_id': default_tag_id,
         }
 
     @api.model

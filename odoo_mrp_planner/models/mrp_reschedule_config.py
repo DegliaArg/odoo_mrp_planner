@@ -113,6 +113,14 @@ class MrpRescheduleConfig(models.Model):
         help='Rotación mayor a este valor → rojo con ícono de advertencia.'
     )
 
+    purchase_analysis_default_tag_id = fields.Many2one(
+        'mrp.workcenter.tag',
+        string='Sector predeterminado (Análisis de compras)',
+        help='Sector que se preselecciona automáticamente al abrir el Análisis de compras. '
+             'El usuario puede cambiarlo en cualquier momento desde el widget.',
+        ondelete='set null',
+    )
+
     show_po_services_tab = fields.Boolean(
         string='Mostrar pestaña de servicios en OCs',
         default=False,

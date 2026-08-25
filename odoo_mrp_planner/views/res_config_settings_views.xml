@@ -252,6 +252,10 @@
 
                                 <!-- Columna izquierda: alertas + panel + umbrales análisis -->
                                 <div class="col-6">
+                                    <group string="Análisis de compras">
+                                        <field name="purchase_analysis_default_tag_id"
+                                               help="Sector (etiqueta de CT) que se preselecciona al abrir el Análisis de compras. El usuario puede cambiarlo desde el widget."/>
+                                    </group>
                                     <group string="Alertas — OCs y recepciones">
                                         <field name="alert_po_critical_days"
                                                help="Días de retraso a partir de los cuales una OC vencida pasa de alerta amarilla a roja."/>

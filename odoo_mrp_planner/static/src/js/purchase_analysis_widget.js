@@ -88,7 +88,17 @@ class PurchaseAnalysisWidget extends Component {
 
     async _loadTags() {
         const d = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
-        this.state.tags    = (d && d.tags) || [];
+        this.state.tags = (d && d.tags) || [];
+        const defaultTagId = d && d.default_purchase_analysis_tag_id;
+        if (defaultTagId && !this.state.tagIds.length) {
+            const found = this.state.tags.find(t => t.id === defaultTagId);
+            if (found) {
+                this.state.tagIds = [defaultTagId];
+                await this._loadWcs();
+                await this._loadData();
+                return;
+            }
+        }
         this.state.loading = false;
     }
 

@@ -1,0 +1,247 @@
+/** @odoo-module **/
+
+/**
+ * Panel de Análisis de compras productivas.
+ *
+ * Muestra las OFs del sector seleccionado (tag de CT) con sus OTs planificadas
+ * en el rango de fechas, agrupadas por semana ISO, y para cada OF despliega
+ * todas las OCs descendientes a cualquier profundidad de la cadena MTO.
+ *
+ * RPC: get_wc_tags, get_purchase_analysis
+ */
+
+import { Component, useState, onMounted } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+
+function toDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function firstOfMonth() {
+    const d = new Date();
+    return toDateStr(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+function lastOfMonth() {
+    const d = new Date();
+    return toDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}
+
+const PO_STATE_CLASS = {
+    draft:    "badge bg-secondary",
+    sent:     "badge bg-warning text-dark",
+    purchase: "badge bg-primary",
+    done:     "badge bg-success",
+    cancel:   "badge bg-danger",
+};
+
+const MO_STATE_CLASS = {
+    draft:     "badge bg-secondary",
+    confirmed: "badge bg-info text-dark",
+    progress:  "badge bg-primary",
+    to_close:  "badge bg-warning text-dark",
+    done:      "badge bg-success",
+    cancel:    "badge bg-danger",
+};
+
+class PurchaseAnalysisWidget extends Component {
+    static template = "odoo_mrp_planner.PurchaseAnalysisWidget";
+    static props = { record: { type: Object, optional: true }, "*": true };
+
+    setup() {
+        this.orm    = useService("orm");
+        this.action = useService("action");
+
+        this.state = useState({
+            tags:       [],
+            tagIds:     [],
+            dateFrom:   firstOfMonth(),
+            dateTo:     lastOfMonth(),
+            weeks:      [],
+            totalMos:   0,
+            totalPos:   0,
+            loading:    true,
+            error:      null,
+            expandedMos: {},   // mo_id → bool
+            expandedWeeks: {}, // week_label → bool (true = collapsed)
+        });
+
+        onMounted(async () => {
+            try {
+                await this._loadTags();
+                await this._loadData();
+            } catch (e) {
+                if (e.message !== "Component is destroyed") {
+                    this.state.error = (e && e.data && e.data.message) || e.message || String(e);
+                    this.state.loading = false;
+                }
+            }
+        });
+    }
+
+    // ── Carga de datos ──────────────────────────────────────────────────────
+
+    async _loadTags() {
+        const d = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
+        this.state.tags = (d && d.tags) || [];
+    }
+
+    async _loadData() {
+        if (!this.state.tagIds.length) {
+            this.state.weeks    = [];
+            this.state.totalMos = 0;
+            this.state.totalPos = 0;
+            this.state.loading  = false;
+            return;
+        }
+        this.state.loading = true;
+        this.state.error   = null;
+        try {
+            const result = await this.orm.call(
+                "mrp.planner.dashboard",
+                "get_purchase_analysis",
+                [this.state.tagIds, this.state.dateFrom, this.state.dateTo]
+            );
+            this.state.weeks    = (result && result.weeks)     || [];
+            this.state.totalMos = (result && result.total_mos) || 0;
+            this.state.totalPos = (result && result.total_pos) || 0;
+            // Expandir todas las semanas por defecto
+            const expanded = {};
+            for (const w of this.state.weeks) {
+                if (!(w.week_label in this.state.expandedWeeks)) {
+                    expanded[w.week_label] = false; // false = visible
+                }
+            }
+            Object.assign(this.state.expandedWeeks, expanded);
+        } catch (e) {
+            console.error("[PurchaseAnalysis]", e);
+            this.state.error = (e && e.data && e.data.message) || e.message || String(e);
+        } finally {
+            this.state.loading = false;
+        }
+    }
+
+    // ── Handlers de filtros ─────────────────────────────────────────────────
+
+    onTagToggle(ev) {
+        const id = parseInt(ev.currentTarget.dataset.id);
+        const ids = this.state.tagIds;
+        const idx = ids.indexOf(id);
+        if (idx === -1) ids.push(id); else ids.splice(idx, 1);
+        this._loadData();
+    }
+
+    onTagSelectAll() {
+        this.state.tagIds = this.state.tags.map(t => t.id);
+        this._loadData();
+    }
+
+    onTagClearAll() {
+        this.state.tagIds = [];
+        this._loadData();
+    }
+
+    onDateFromChange(ev) {
+        this.state.dateFrom = ev.target.value || firstOfMonth();
+        this._loadData();
+    }
+
+    onDateToChange(ev) {
+        this.state.dateTo = ev.target.value || lastOfMonth();
+        this._loadData();
+    }
+
+    // ── Expandir/colapsar ───────────────────────────────────────────────────
+
+    toggleWeek(weekLabel) {
+        this.state.expandedWeeks[weekLabel] = !this.state.expandedWeeks[weekLabel];
+    }
+
+    isWeekCollapsed(weekLabel) {
+        return !!this.state.expandedWeeks[weekLabel];
+    }
+
+    toggleMo(moId) {
+        this.state.expandedMos[moId] = !this.state.expandedMos[moId];
+    }
+
+    isMoExpanded(moId) {
+        return !!this.state.expandedMos[moId];
+    }
+
+    // ── Formateo y clases ───────────────────────────────────────────────────
+
+    poStateClass(state) {
+        return PO_STATE_CLASS[state] || "badge bg-secondary";
+    }
+
+    moStateClass(state) {
+        return MO_STATE_CLASS[state] || "badge bg-secondary";
+    }
+
+    isTagSelected(id) {
+        return this.state.tagIds.includes(id);
+    }
+
+    fmtDate(d) {
+        if (!d) return "—";
+        const [y, m, day] = d.split("-");
+        return `${day}/${m}/${y}`;
+    }
+
+    fmtQty(n) {
+        if (n === null || n === undefined) return "—";
+        return Number(n).toLocaleString("es", { maximumFractionDigits: 2 });
+    }
+
+    fmtPct(n) {
+        if (n === null || n === undefined) return "—";
+        return Number(n).toFixed(1) + "%";
+    }
+
+    rowClass(po) {
+        if (po.is_late) return "table-danger";
+        if (po.state === "draft" || po.state === "sent") return "table-warning";
+        if (po.pct_received >= 100) return "table-success";
+        return "";
+    }
+
+    moAlertClass(mo) {
+        if (mo.has_late_pos) return "text-danger";
+        if (mo.has_pending_pos) return "text-warning";
+        return "text-success";
+    }
+
+    moAlertIcon(mo) {
+        if (mo.has_late_pos) return "fa-exclamation-circle";
+        if (mo.has_pending_pos) return "fa-clock-o";
+        return "fa-check-circle";
+    }
+
+    // ── Navegación ──────────────────────────────────────────────────────────
+
+    openMo(mo) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: `OF ${mo.mo_name}`,
+            res_model: "mrp.production",
+            res_id: mo.mo_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+
+    openPo(po) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: `OC ${po.po_name}`,
+            res_model: "purchase.order",
+            res_id: po.po_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+}
+
+registry.category("view_widgets").add("purchase_analysis_widget", {
+    component: PurchaseAnalysisWidget,
+});

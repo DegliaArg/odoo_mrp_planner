@@ -12,6 +12,16 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
+         ACCIÓN SERVIDOR — Análisis de compras
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="action_mrp_planner_purchase_analysis_open" model="ir.actions.server">
+        <field name="name">Análisis de compras</field>
+        <field name="model_id" ref="model_mrp_planner_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_purchase_analysis()</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
          ACCIÓN SERVIDOR — Compras
     ════════════════════════════════════════════════════════════════════ -->
     <record id="action_mrp_planner_compras_open" model="ir.actions.server">
@@ -223,6 +233,40 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
+         VISTA FORM — Análisis de compras
+         Muestra: seguimiento semanal de OFs del sector con sus OCs hijas
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="mrp_purchase_analysis_form" model="ir.ui.view">
+        <field name="name">mrp.planner.dashboard.purchase.analysis.form</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Análisis de compras" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+
+                        <!-- Encabezado -->
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">Análisis de compras</h4>
+                            </div>
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
+                                <button name="action_refresh_purchase_analysis" type="object"
+                                        string="Actualizar"
+                                        class="btn btn-outline-primary btn-sm"/>
+                            </div>
+                        </div>
+
+                        <!-- Widget principal -->
+                        <widget name="purchase_analysis_widget"/>
+
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
          MENÚ
     ════════════════════════════════════════════════════════════════════ -->
 
@@ -258,6 +302,13 @@
               parent="mrp_compras_menu"
               sequence="1"
               action="action_mrp_planner_compras_open"
+              groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+
+    <menuitem id="mrp_compras_purchase_analysis_menu"
+              name="Análisis de compras"
+              parent="mrp_compras_menu"
+              sequence="2"
+              action="action_mrp_planner_purchase_analysis_open"
               groups="odoo_mrp_planner.group_purchase,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_admin,base.group_system"/>
 
 </odoo>

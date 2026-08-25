@@ -32,6 +32,7 @@ from . import mrp_planner_dashboard_supplier
 from . import mrp_planner_dashboard_customer
 from . import mrp_planner_detail_dashboard
 from . import mrp_planner_dashboard_inventory
+from . import mrp_planner_dashboard_purchase_analysis
 from . import purchase_order
 from . import sale_order_line
 from . import stock_picking

@@ -116,6 +116,8 @@ Programación y reprogramación
             'odoo_mrp_planner/static/src/xml/inventory_dashboard_widget.xml',
             'odoo_mrp_planner/static/src/js/production_analysis_widget.js',
             'odoo_mrp_planner/static/src/xml/production_analysis_widget.xml',
+            'odoo_mrp_planner/static/src/js/purchase_analysis_widget.js',
+            'odoo_mrp_planner/static/src/xml/purchase_analysis_widget.xml',
         ],
     },
     'installable': True,

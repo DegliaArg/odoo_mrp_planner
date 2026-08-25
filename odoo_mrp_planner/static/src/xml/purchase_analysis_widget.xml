@@ -195,10 +195,10 @@
 
             <!-- ── Panel de detalle: OCs de la OF seleccionada ─────────────── -->
             <t t-if="state.activeMoData">
-                <div class="o_pca_detail card border-primary mb-3">
-                    <div class="card-header d-flex align-items-center gap-2 py-2 bg-primary bg-opacity-10">
-                        <i class="fa fa-industry text-primary"/>
-                        <span class="fw-bold text-primary" t-esc="state.activeMoData.mo_name"/>
+                <div class="o_pca_detail card border-0 shadow-sm mb-3">
+                    <div class="card-header d-flex align-items-center gap-2 py-2 bg-light border-bottom">
+                        <i class="fa fa-industry text-muted"/>
+                        <span class="fw-bold" t-esc="state.activeMoData.mo_name"/>
                         <span class="text-muted">–</span>
                         <span t-esc="state.activeMoData.product_name"/>
                         <span class="text-muted small">
@@ -206,7 +206,7 @@
                             <span class="ms-1"><t t-esc="state.activeMoData.uom"/></span>)
                         </span>
                         <span t-att-class="moStateClass(state.activeMoData.state)" t-esc="state.activeMoData.state_label"/>
-                        <button class="btn btn-sm btn-link p-0" title="Abrir OF"
+                        <button class="btn btn-sm btn-link text-muted p-0" title="Abrir OF"
                                 t-on-click="() => this.openMo(state.activeMoData)">
                             <i class="fa fa-external-link"/>
                         </button>
@@ -228,7 +228,7 @@
                                         <th class="ps-3">OC</th>
                                         <th>Proveedor</th>
                                         <th>Componente</th>
-                                        <th class="text-center">F. Entrega</th>
+                                        <th class="text-center">Fecha de entrega</th>
                                         <th class="text-end">Pedido</th>
                                         <th class="text-end">Recibido</th>
                                         <th class="text-center">%</th>

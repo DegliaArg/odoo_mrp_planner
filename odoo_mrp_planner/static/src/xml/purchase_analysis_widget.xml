@@ -71,7 +71,7 @@
                            t-att-value="state.dateTo"
                            t-on-change="onDateToChange"/>
                     <button class="btn btn-sm btn-outline-secondary" title="Exportar a PDF" t-on-click="exportToPdf">
-                        <i class="fa fa-file-pdf-o me-1"/>PDF
+                        <i class="fa fa-file-pdf-o me-1"/>Exportar
                     </button>
                 </div>
 

@@ -16,6 +16,7 @@ Agrupación por semana ISO del date_start de la OT del sector seleccionado
 que pertenece a cada OF (la más temprana si hay varias).
 """
 import logging
+import re as _re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -264,6 +265,22 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
         all_mos   = MO.browse(list(all_mo_ids))
         all_names = [mo.name for mo in all_mos if mo.name]
 
+        # Para OFs parciales (backorders) el origin de la OC apunta al nombre de
+        # la OF original (MO/001), no al de la parcial (MO/001-01).
+        # Calculamos los nombres base recorriendo la cadena de sufijos numéricos.
+        all_names_set = set(all_names)
+        backorder_bases = set()   # nombres base que NO están ya en all_names_set
+        for name in all_names:
+            curr = name
+            while True:
+                base = _re.sub(r'-\d+$', '', curr)
+                if base == curr or base in all_names_set:
+                    break
+                backorder_bases.add(base)
+                curr = base
+        search_names     = all_names + list(backorder_bases)
+        search_names_set = all_names_set | backorder_bases
+
         # Product_ids de componentes consumidos por cada root MO (de sus move_raw_ids,
         # ya en cache del BFS). Se usa para filtrar las líneas de OC al final.
         root_bom_products = {mo.id: set() for mo in root_mos}
@@ -276,14 +293,14 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
 
         # UNA query para todas las OCs (origin exacto, usa índice)
         all_pos = PO.search([
-            ('origin', 'in', all_names),
+            ('origin', 'in', search_names),
             ('state', 'not in', ['cancel']),
-        ]) if all_names else PO
+        ]) if search_names else PO
 
         # Fallback: algunos POs tienen origin concatenado ("MO1, MO2") — no matchea exacto.
         # Buscamos POs cuyo origin CONTIENE alguno de los nombres que no tuvieron match exacto.
         exact_origins = {(po.origin or '').strip() for po in all_pos}
-        missed_names = [n for n in all_names if n not in exact_origins]
+        missed_names = [n for n in search_names if n not in exact_origins]
         if missed_names:
             _logger.debug(
                 '[PCA] %d MO name(s) sin match exacto en origin de OC: %s',
@@ -313,16 +330,14 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             if 'subcontract_production_ids' in PO._fields:
                 all_pos.mapped('subcontract_production_ids')
 
-        # Map: mo_name → po_lines
+        # Map: mo_name/base_name → po_lines
         # El campo origin puede ser un nombre exacto ("VL/MO/03361") o varios
         # concatenados ("VL/MO/03361, VL/MO/04500"). Indexamos por cada segmento.
-        all_names_set = set(all_names)
         name_to_lines = {}
         for po in all_pos:
             origin = (po.origin or '').strip()
-            # Intentar split por coma para origins concatenados
             parts = [p.strip() for p in origin.split(',')]
-            matched = [p for p in parts if p in all_names_set]
+            matched = [p for p in parts if p in search_names_set]
             if not matched:
                 matched = [origin]  # fallback: usar el origin completo
             for key in matched:
@@ -350,10 +365,25 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             if root_id not in root_line_ids:
                 continue
             bucket = root_line_ids[root_id]
-            # origin-based
+            # origin-based (nombre exacto)
             for line in name_to_lines.get(mo.name or '', []):
                 bucket.add(line.id)
                 all_unique_ids.add(line.id)
+            # origin-based (nombres base, para backorders como MO/001-01 → MO/001)
+            if mo.name:
+                curr = mo.name
+                while True:
+                    base = _re.sub(r'-\d+$', '', curr)
+                    if base == curr or base in all_names_set:
+                        if base != mo.name:  # es un nombre base distinto
+                            for line in name_to_lines.get(base, []):
+                                bucket.add(line.id)
+                                all_unique_ids.add(line.id)
+                        break
+                    for line in name_to_lines.get(base, []):
+                        bucket.add(line.id)
+                        all_unique_ids.add(line.id)
+                    curr = base
             # moves-based
             for lid in move_lines_by_mo.get(mo.id, set()):
                 bucket.add(lid)

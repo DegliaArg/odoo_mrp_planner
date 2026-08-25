@@ -360,44 +360,128 @@ class PurchaseAnalysisWidget extends Component {
         const weekKeys   = this.state.weekKeys;
         const weekLabels = this.state.weekLabels;
 
-        let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Análisis de Compras</title>
-<style>
-body { font-family: Arial, sans-serif; font-size: 11px; color: #222; }
-h2 { font-size: 14px; margin-bottom: 10px; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
-th { background: #f0f0f0; font-weight: 600; font-size: 10px; }
-.chip { border: 1px solid #ddd; border-radius: 3px; padding: 3px 5px; margin-bottom: 4px; }
-.chip-name { font-weight: 700; }
-.chip-product { color: #555; }
-.chip-meta { color: #777; font-size: 9px; }
-@media print { @page { size: landscape; margin: 1cm; } }
-</style></head><body>`;
+        const now = new Date().toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" });
+        const sectorLabel = this.state.tags.find(t => t.id === this.state.tagIds[0])?.name || "";
 
-        html += `<h2>Análisis de Compras</h2><table><thead><tr><th>CT</th>`;
-        for (const wk of weekKeys) {
-            const lbl = weekLabels[wk];
-            html += `<th>${lbl.label} ${lbl.year}<br><span style="font-weight:normal;font-size:9px">${lbl.date_from} – ${lbl.date_to}</span></th>`;
-        }
-        html += `</tr></thead><tbody>`;
+        const MO_COLORS = {
+            draft: "#6c757d", confirmed: "#0dcaf0", progress: "#0d6efd",
+            to_close: "#ffc107", done: "#198754", cancel: "#dc3545",
+        };
+        const MO_ALERT_COLOR = { late: "#dc3545", pending: "#ffc107", none: "#adb5bd", ok: "#198754" };
 
+        const chipAlert = mo => {
+            if (mo.has_late_pos)    return MO_ALERT_COLOR.late;
+            if (mo.has_pending_pos) return MO_ALERT_COLOR.pending;
+            if (!mo.pos_count)      return MO_ALERT_COLOR.none;
+            return MO_ALERT_COLOR.ok;
+        };
+
+        let tbody = "";
         for (const row of rows) {
-            html += `<tr><td><strong>${row.wc_name}</strong></td>`;
+            tbody += `<tr><td class="wc-cell">${row.wc_name}</td>`;
             for (const wk of weekKeys) {
                 const mos = row.cells[wk] || [];
-                html += `<td>`;
+                tbody += `<td class="mo-cell">`;
                 for (const mo of mos) {
-                    html += `<div class="chip"><div class="chip-name">${mo.mo_name}</div>` +
-                            `<div class="chip-product">${mo.product_name}</div>` +
-                            `<div class="chip-meta">${this.fmtQty(mo.qty)} ${mo.uom} · ${mo.state_label} · ${mo.pos_count} OC(s)</div></div>`;
+                    const stColor  = MO_COLORS[mo.state] || "#6c757d";
+                    const alColor  = chipAlert(mo);
+                    tbody += `<div class="chip">` +
+                        `<div class="chip-head">` +
+                        `<span class="chip-dot" style="background:${alColor}"></span>` +
+                        `<span class="chip-name">${mo.mo_name}</span>` +
+                        `</div>` +
+                        `<div class="chip-product">${mo.product_name}</div>` +
+                        `<div class="chip-meta">` +
+                        `<span class="badge" style="background:${stColor}">${mo.state_label}</span>` +
+                        ` ${this.fmtQty(mo.qty)} ${mo.uom}` +
+                        ` · <span style="color:#495057">🛒 ${mo.pos_count}</span>` +
+                        `</div>` +
+                        `</div>`;
                 }
-                html += `</td>`;
+                tbody += `</td>`;
             }
-            html += `</tr>`;
+            tbody += `</tr>`;
         }
 
-        html += `</tbody></table></body></html>`;
+        let thead = `<tr><th class="th-wc">Centro de trabajo</th>`;
+        for (const wk of weekKeys) {
+            const lbl = weekLabels[wk];
+            thead += `<th class="th-week">${lbl.label} <span class="th-year">${lbl.year}</span><br>` +
+                     `<span class="th-dates">${lbl.date_from} – ${lbl.date_to}</span></th>`;
+        }
+        thead += `</tr>`;
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<title>Análisis de Compras – ${sectorLabel}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5px; color: #212529; background: #fff; }
+
+  /* Encabezado del documento */
+  .doc-header { display: flex; align-items: center; justify-content: space-between;
+                padding: 18px 24px 14px; border-bottom: 2px solid #875a7b; margin-bottom: 18px; }
+  .doc-title   { font-size: 18px; font-weight: 700; color: #875a7b; letter-spacing: -0.3px; }
+  .doc-sub     { font-size: 11px; color: #6c757d; margin-top: 2px; }
+  .doc-meta    { text-align: right; font-size: 10px; color: #6c757d; line-height: 1.6; }
+
+  /* Tabla principal */
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: 1px solid #dee2e6; padding: 5px 6px; vertical-align: top; }
+
+  .th-wc   { width: 130px; background: #f3edf7; color: #4a235a; font-size: 9.5px;
+             font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .th-week { background: #f3edf7; color: #4a235a; font-size: 9px; font-weight: 700;
+             text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
+  .th-year  { font-weight: 400; }
+  .th-dates { font-size: 8px; font-weight: 400; color: #7b5ea7; }
+
+  .wc-cell  { background: #faf7fc; font-weight: 600; color: #4a235a; font-size: 10px;
+              vertical-align: middle; }
+  .mo-cell  { background: #fff; }
+
+  /* Chip de OF */
+  .chip       { border: 1px solid #e2d9f3; border-radius: 4px; padding: 4px 5px;
+                margin-bottom: 4px; background: #fdfcff; }
+  .chip:last-child { margin-bottom: 0; }
+  .chip-head  { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+  .chip-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .chip-name  { font-weight: 700; font-size: 10px; color: #212529; }
+  .chip-product { font-size: 9px; color: #6c757d; margin-bottom: 3px;
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip-meta  { font-size: 9px; color: #495057; }
+  .badge      { display: inline-block; padding: 1px 5px; border-radius: 3px;
+                color: #fff; font-size: 8.5px; font-weight: 600; vertical-align: middle; }
+
+  /* Footer */
+  .doc-footer { margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 8px;
+                font-size: 9px; color: #adb5bd; display: flex; justify-content: space-between; }
+
+  @media print {
+    @page { size: landscape; margin: 1.2cm 1cm; }
+    body { font-size: 9.5px; }
+    .doc-header { padding: 12px 0 10px; }
+  }
+</style></head><body>
+<div class="doc-header">
+  <div>
+    <div class="doc-title">Análisis de Compras Productivas</div>
+    <div class="doc-sub">${sectorLabel ? "Sector: " + sectorLabel : ""}</div>
+  </div>
+  <div class="doc-meta">
+    <div>${now}</div>
+    <div>${weekLabels[weekKeys[0]]?.date_from || ""} – ${weekLabels[weekKeys[weekKeys.length - 1]]?.date_to || ""}</div>
+    <div>${rows.reduce((acc, r) => acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0)} OFs · ${rows.length} centros de trabajo</div>
+  </div>
+</div>
+<table>
+  <thead>${thead}</thead>
+  <tbody>${tbody}</tbody>
+</table>
+<div class="doc-footer">
+  <span>Planificador de Producción – Deglia</span>
+  <span>Impreso el ${now}</span>
+</div>
+</body></html>`;
 
         const win = window.open("", "_blank");
         win.document.write(html);

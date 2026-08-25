@@ -245,7 +245,7 @@
                                                 </t>
                                             </td>
                                             <td t-esc="po.partner"/>
-                                            <td class="text-muted" t-esc="po.product"/>
+                                            <td class="text-muted" t-esc="po.product_ref"/>
                                             <td class="text-center">
                                                 <t t-if="po.is_late">
                                                     <span class="text-danger fw-semibold">

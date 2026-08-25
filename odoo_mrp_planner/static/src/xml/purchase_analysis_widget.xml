@@ -51,12 +51,14 @@
                 </div>
 
                 <!-- Toggle terminadas -->
-                <button t-att-class="'btn btn-sm ' + (state.hideFinished ? 'btn-warning' : 'btn-outline-secondary')"
-                        t-on-click="toggleHideFinished"
-                        title="Mostrar u ocultar OFs ya terminadas">
-                    <i t-att-class="'fa me-1 ' + (state.hideFinished ? 'fa-eye-slash' : 'fa-eye')"/>
-                    Terminadas
-                </button>
+                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="pca_hide_finished"
+                           t-att-checked="state.hideFinished"
+                           t-on-change="toggleHideFinished"/>
+                    <label class="form-check-label text-muted small fw-semibold mb-0"
+                           for="pca_hide_finished">Ocultar terminadas</label>
+                </div>
 
                 <!-- Fechas (al final, separadas del resto) -->
                 <div class="d-flex align-items-center gap-2 ms-auto">

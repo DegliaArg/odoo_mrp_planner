@@ -57,12 +57,12 @@
                            t-att-checked="state.hideFinished"
                            t-on-change="toggleHideFinished"/>
                     <label class="form-check-label text-muted small fw-semibold mb-0"
-                           for="pca_hide_finished">Ocultar terminadas</label>
+                           for="pca_hide_finished">Ocultar OFs terminadas</label>
                 </div>
 
                 <!-- Fechas (al final, separadas del resto) -->
                 <div class="d-flex align-items-center gap-2 ms-auto">
-                    <span class="text-muted small fw-semibold">OT desde:</span>
+                    <span class="text-muted small fw-semibold">Fechas:</span>
                     <input type="date" class="form-control form-control-sm" style="width:145px"
                            t-att-value="state.dateFrom"
                            t-on-change="onDateFromChange"/>

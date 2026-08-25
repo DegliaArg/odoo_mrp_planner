@@ -60,12 +60,7 @@
                            for="pca_show_finished">Mostrar OFs terminadas</label>
                 </div>
 
-                <!-- PDF export -->
-                <button class="btn btn-sm btn-outline-secondary" title="Exportar a PDF" t-on-click="exportToPdf">
-                    <i class="fa fa-file-pdf-o me-1"/>PDF
-                </button>
-
-                <!-- Fechas (al final, separadas del resto) -->
+                <!-- Fechas + PDF export (al final, separados del resto) -->
                 <div class="d-flex align-items-center gap-2 ms-auto">
                     <span class="text-muted small fw-semibold">Fechas:</span>
                     <input type="date" class="form-control form-control-sm" style="width:145px"
@@ -75,6 +70,9 @@
                     <input type="date" class="form-control form-control-sm" style="width:145px"
                            t-att-value="state.dateTo"
                            t-on-change="onDateToChange"/>
+                    <button class="btn btn-sm btn-outline-secondary" title="Exportar a PDF" t-on-click="exportToPdf">
+                        <i class="fa fa-file-pdf-o me-1"/>PDF
+                    </button>
                 </div>
 
             </div>

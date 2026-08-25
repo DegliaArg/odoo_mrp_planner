@@ -71,6 +71,7 @@ Programación y reprogramación
     'assets': {
         'web.assets_backend': [
             'odoo_mrp_planner/static/src/css/reschedule_gantt.css',
+            'odoo_mrp_planner/static/src/css/production_analysis_widget.css',
             'odoo_mrp_planner/static/src/css/purchase_analysis_widget.css',
             'odoo_mrp_planner/static/src/js/column_manager.js',
             'odoo_mrp_planner/static/src/js/filter_persistence.js',

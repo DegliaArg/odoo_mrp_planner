@@ -1,0 +1,61 @@
+/* ── Production Analysis Tables ──────────────────────────────────────── */
+
+/* Contenedor: borde exterior con radio, sin borde interno del .table-responsive */
+.o_production_analysis_widget .table-responsive {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+/* Tabla base */
+.o_production_analysis_widget .table {
+    font-size: 0.82rem;
+    margin-bottom: 0;
+}
+
+/* Eliminar la cuadrícula Word: bordes de celda → solo separador inferior */
+.o_production_analysis_widget .table-bordered th,
+.o_production_analysis_widget .table-bordered td {
+    border: none !important;
+    border-bottom: 1px solid #e9ecef !important;
+}
+
+/* Thead: separador inferior más marcado + fondo sutil */
+.o_production_analysis_widget .table-bordered thead th {
+    background: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #495057;
+    padding: 0.5rem 0.5rem;
+    white-space: nowrap;
+}
+
+/* Última fila sin separador inferior */
+.o_production_analysis_widget .table-bordered > tbody > tr:last-child > td {
+    border-bottom: none !important;
+}
+
+/* Hover suave */
+.o_production_analysis_widget .table-hover > tbody > tr:hover > * {
+    background-color: rgba(0, 0, 0, 0.025) !important;
+}
+
+/* Sub-filas de desglose (scrap por motivo) */
+.o_production_analysis_widget .table tbody tr.table-light td {
+    border-bottom: 1px solid #f0f0f0 !important;
+    color: #6c757d;
+}
+
+/* Columna fija (primera col nombre): sombra derecha sutil cuando hay scroll */
+.o_production_analysis_widget .table th:first-child,
+.o_production_analysis_widget .table td:first-child {
+    padding-left: 0.75rem;
+}
+
+/* Barra de sección (títulos de bloque dentro de cada tab) */
+.o_production_analysis_widget .o_planner_section_title {
+    padding: 0.25rem 0;
+}

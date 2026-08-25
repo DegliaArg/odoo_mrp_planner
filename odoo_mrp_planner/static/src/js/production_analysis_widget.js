@@ -62,6 +62,7 @@ const SCRAP_COLS = [
     { key: "name",      label: "Producto",     width: 220, fixed: true, align: "start" },
     { key: "category",  label: "Categoría",    width: 130, align: "start" },
     { key: "sector",    label: "Sector",       width: 140, align: "start" },
+    { key: "reasons",   label: "Motivos",      width: 190, align: "start" },
     { key: "qty",       label: "Desecho",      width: 100, align: "center" },
     { key: "uom",       label: "UdM",          width:  70, align: "center" },
     { key: "producido", label: "Producido",    width: 100, align: "center" },
@@ -905,6 +906,7 @@ class ProductionAnalysisWidget extends Component {
             name:      "Producto desechado. Clic para ver sus operaciones de desecho.",
             category:  "Categoría de producto del ítem desechado.",
             sector:    "Sector(es) de producción del producto en el período, tomados de los centros de trabajo de sus OFs.",
+            reasons:   "Motivos de scrap registrados en las operaciones de desecho del período.",
             qty:       "Cantidad total desechada del producto en el período (desechos validados).",
             uom:        "Unidad de medida del producto.",
             producido:  "Cantidad producida del producto en el período (mismo criterio de fechas que el resto del panel). 0 = insumo sin producción propia.",
@@ -918,6 +920,7 @@ class ProductionAnalysisWidget extends Component {
         if (key === "pct") return fmtPct(row.pct);
         if (key === "tasa") return row.tasa === null || row.tasa === undefined ? "—" : fmtPct(row.tasa);
         if (key === "qty" || key === "ops" || key === "producido") return fmt(row[key]);
+        if (key === "reasons") return (row.reasons && row.reasons.length) ? row.reasons.join(", ") : "—";
         return row[key] || "—";
     }
     scrapCellClass(row, key) {

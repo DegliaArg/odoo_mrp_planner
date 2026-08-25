@@ -113,7 +113,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
         sectors_map = self._pa_product_sectors(first_day, last_day)
 
         by_prod = defaultdict(lambda: {
-            'qty': 0.0, 'ops': 0, 'uom': '', 'almacenes': set(),
+            'qty': 0.0, 'ops': 0, 'uom': '', 'almacenes': set(), 'reasons': set(),
         })
         for s in scraps:
             # Solo terminados del sector: los insumos (sin producción propia) y
@@ -130,6 +130,8 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                   or s.location_id.warehouse_id)
             if wh:
                 b['almacenes'].add(wh.name)
+            for tag in s.scrap_reason_tag_ids:
+                b['reasons'].add(tag.name)
 
         total_qty = sum(b['qty'] for b in by_prod.values())
         rows = []
@@ -146,6 +148,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                 'producido':  round(produced_map.get(pid, 0.0), 2),
                 'tasa':       self._scrap_rate(b['qty'], produced_map.get(pid, 0.0)),
                 'pct':        round(b['qty'] / total_qty * 100, 1) if total_qty > 0 else None,
+                'reasons':    sorted(b.get('reasons', set())),
             })
         # Tasa global a nivel planta: desecho de terminados ÷ (producido + ese desecho).
         # Suma unidades posiblemente mixtas ⇒ leer como indicador, no magnitud exacta.

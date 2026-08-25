@@ -57,6 +57,7 @@ class PurchaseAnalysisWidget extends Component {
             wcs:          [],   // CTs disponibles para el sector seleccionado
             wcFilterId:   null, // CT seleccionado (null = todos)
             hideFinished: true, // ocultar OFs con estado 'done'
+            searchText:   '',   // búsqueda por nombre de producto
             dateFrom:     firstOfMonth(),
             dateTo:       lastOfMonth(),
             weekKeys:     [],
@@ -158,6 +159,12 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoData = null;
     }
 
+    onSearchChange(ev) {
+        this.state.searchText   = ev.target.value;
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
+    }
+
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value || firstOfMonth();
         this._loadData();
@@ -248,17 +255,27 @@ class PurchaseAnalysisWidget extends Component {
             ? this.state.wcRows.filter(r => r.wc_id === this.state.wcFilterId)
             : this.state.wcRows;
 
-        if (!this.state.hideFinished) return rows;
+        const search       = (this.state.searchText || "").trim().toLowerCase();
+        const hideFinished = this.state.hideFinished;
 
-        // Filtrar OFs terminadas (done) y omitir filas que quedan vacías
+        if (!search && !hideFinished) return rows;
+
         const result = [];
         for (const row of rows) {
             const cells = {};
             let hasVisible = false;
             for (const wk of this.state.weekKeys) {
-                const visible = (row.cells[wk] || []).filter(mo => mo.state !== "done");
-                cells[wk] = visible;
-                if (visible.length) hasVisible = true;
+                let mos = row.cells[wk] || [];
+                if (hideFinished) {
+                    mos = mos.filter(mo => mo.state !== "done");
+                }
+                if (search) {
+                    mos = mos.filter(mo =>
+                        (mo.product_name || "").toLowerCase().includes(search)
+                    );
+                }
+                cells[wk] = mos;
+                if (mos.length) hasVisible = true;
             }
             if (hasVisible) {
                 result.push({ wc_id: row.wc_id, wc_name: row.wc_name, cells });

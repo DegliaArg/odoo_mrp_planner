@@ -42,6 +42,14 @@
                     </select>
                 </div>
 
+                <!-- Búsqueda por producto -->
+                <div class="input-group input-group-sm" style="width:200px">
+                    <span class="input-group-text"><i class="fa fa-search"/></span>
+                    <input type="text" class="form-control" placeholder="Buscar producto…"
+                           t-att-value="state.searchText"
+                           t-on-input="onSearchChange"/>
+                </div>
+
                 <!-- Toggle terminadas -->
                 <button t-att-class="'btn btn-sm ' + (state.hideFinished ? 'btn-warning' : 'btn-outline-secondary')"
                         t-on-click="toggleHideFinished"

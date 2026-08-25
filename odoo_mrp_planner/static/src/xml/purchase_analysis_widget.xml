@@ -116,7 +116,8 @@
                                 Centro de trabajo
                             </th>
                             <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
-                                <th class="text-center o_pca_week_header" style="min-width:140px">
+                                <th t-att-class="'text-center o_pca_week_header' + (wk == currentWeekKey ? ' table-info' : '')"
+                                    style="min-width:140px">
                                     <div class="fw-bold">
                                         <t t-esc="state.weekLabels[wk].label"/>
                                         <span class="text-muted fw-normal ms-1">
@@ -128,6 +129,9 @@
                                         <span> – </span>
                                         <t t-esc="fmtDate(state.weekLabels[wk].date_to)"/>
                                     </div>
+                                    <t t-if="wk == currentWeekKey">
+                                        <span class="badge bg-info text-dark mt-1" style="font-size:0.62rem">Esta semana</span>
+                                    </t>
                                 </th>
                             </t>
                         </tr>
@@ -139,7 +143,7 @@
                                     <t t-esc="row.wc_name"/>
                                 </td>
                                 <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
-                                    <td class="o_pca_cell align-top p-1">
+                                    <td t-att-class="'o_pca_cell align-top p-1' + (wk == currentWeekKey ? ' bg-info bg-opacity-10' : '')">
                                         <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
                                             <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-primary bg-primary bg-opacity-10' : (mo.has_late_pos ? 'border-danger' : 'border-light bg-light'))"
                                                  style="cursor:pointer;font-size:0.8rem"

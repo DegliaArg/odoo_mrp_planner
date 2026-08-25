@@ -284,6 +284,18 @@ class PurchaseAnalysisWidget extends Component {
         return result;
     }
 
+    // ── Semana actual ───────────────────────────────────────────────────
+
+    get currentWeekKey() {
+        const d = new Date();
+        const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const dayNum = utc.getUTCDay() || 7;
+        utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
+        return `${utc.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+    }
+
     // ── Navegación ──────────────────────────────────────────────────────────
 
     openMo(mo) {

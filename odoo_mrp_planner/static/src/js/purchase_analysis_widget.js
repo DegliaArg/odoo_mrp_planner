@@ -230,6 +230,17 @@ class PurchaseAnalysisWidget extends Component {
         return "fa-check-circle";
     }
 
+    // ── OCs únicas (una fila por OC, no por línea) para lista inline ────────
+
+    uniquePos(mo) {
+        const seen = new Set();
+        return (mo.pos || []).filter(p => {
+            if (seen.has(p.po_id)) return false;
+            seen.add(p.po_id);
+            return true;
+        });
+    }
+
     // ── Filas visibles (con filtro CT aplicado) ─────────────────────────────
 
     filteredWcRows() {

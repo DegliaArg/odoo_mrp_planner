@@ -160,6 +160,22 @@
                                                         <t t-esc="mo.pos_count"/>
                                                     </span>
                                                 </div>
+
+                                                <!-- Lista inline de OCs (visible solo cuando el chip está activo) -->
+                                                <t t-if="state.activeMoId == mo.mo_id">
+                                                    <div class="mt-1 pt-1 border-top">
+                                                        <t t-if="!mo.pos.length">
+                                                            <span class="text-muted fst-italic" style="font-size:0.7rem">Sin OCs</span>
+                                                        </t>
+                                                        <t t-foreach="mo.pos" t-as="poc" t-key="poc.po_id + '_' + poc.product">
+                                                            <div class="d-flex align-items-center gap-1 mb-1" style="font-size:0.7rem">
+                                                                <i t-att-class="'fa fa-xs fa-fw ' + (poc.is_late ? 'fa-exclamation-triangle text-danger' : 'fa-minus text-muted')"/>
+                                                                <span class="text-truncate flex-grow-1" style="max-width:85px" t-esc="poc.product"/>
+                                                                <span t-att-class="poStateClass(poc.state)" style="font-size:0.65rem;padding:1px 4px;flex-shrink:0" t-esc="poc.state_label"/>
+                                                            </div>
+                                                        </t>
+                                                    </div>
+                                                </t>
                                             </div>
                                         </t>
                                     </td>

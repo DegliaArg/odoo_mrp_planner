@@ -177,7 +177,7 @@
                                                         </t>
                                                         <t t-foreach="mo.pos" t-as="poc" t-key="poc.po_id + '_' + poc.product">
                                                             <div class="d-flex align-items-center gap-2 mb-1" style="font-size:0.78rem">
-                                                                <i t-att-class="'fa fa-fw ' + (poc.state === 'done' ? 'fa-check-circle text-success' : poc.is_late ? 'fa-exclamation-circle text-danger' : poc.state === 'purchase' ? 'fa-clock-o text-warning' : 'fa-circle-o text-muted')"/>
+                                                                <i t-att-class="'fa fa-fw ' + (poc.pct_received >= 100 ? 'fa-check-circle text-success' : poc.is_late ? 'fa-exclamation-circle text-danger' : poc.state === 'purchase' ? 'fa-clock-o text-warning' : 'fa-circle-o text-muted')"/>
                                                                 <span class="flex-grow-1 text-truncate" t-esc="poc.product"/>
                                                             </div>
                                                         </t>

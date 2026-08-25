@@ -122,21 +122,9 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Handlers de filtros ─────────────────────────────────────────────────
 
-    onTagToggle(ev) {
-        const id = parseInt(ev.currentTarget.dataset.id);
-        const ids = this.state.tagIds;
-        const idx = ids.indexOf(id);
-        if (idx === -1) ids.push(id); else ids.splice(idx, 1);
-        this._loadData();
-    }
-
-    onTagSelectAll() {
-        this.state.tagIds = this.state.tags.map(t => t.id);
-        this._loadData();
-    }
-
-    onTagClearAll() {
-        this.state.tagIds = [];
+    onTagChange(ev) {
+        const val = ev.target.value;
+        this.state.tagIds = val ? [parseInt(val)] : [];
         this._loadData();
     }
 
@@ -176,10 +164,6 @@ class PurchaseAnalysisWidget extends Component {
 
     moStateClass(state) {
         return MO_STATE_CLASS[state] || "badge bg-secondary";
-    }
-
-    isTagSelected(id) {
-        return this.state.tagIds.includes(id);
     }
 
     fmtDate(d) {

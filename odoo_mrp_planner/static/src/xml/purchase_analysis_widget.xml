@@ -10,22 +10,20 @@
 
                 <!-- Sector (tags) -->
                 <div class="col-12 col-lg-7">
-                    <div class="d-flex align-items-center gap-1 flex-wrap">
-                        <span class="text-muted small me-1 fw-semibold">Sector:</span>
-                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                            <button
-                                t-att-class="'btn btn-sm ' + (isTagSelected(tag.id) ? 'btn-primary' : 'btn-outline-secondary')"
-                                t-att-data-id="tag.id"
-                                t-on-click="onTagToggle">
-                                <t t-esc="tag.name"/>
-                            </button>
-                        </t>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-semibold">Sector:</span>
+                        <select class="form-select form-select-sm" style="width:auto;min-width:200px"
+                                t-on-change="onTagChange">
+                            <option value="">Seleccionar sector…</option>
+                            <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                                <option t-att-value="tag.id"
+                                        t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
+                                    <t t-esc="tag.name"/>
+                                </option>
+                            </t>
+                        </select>
                         <t t-if="!state.tags.length">
                             <span class="text-muted small fst-italic">Sin sectores configurados</span>
-                        </t>
-                        <t t-if="state.tags.length > 1">
-                            <button class="btn btn-sm btn-link text-muted p-0 ms-1" t-on-click="onTagSelectAll">Todo</button>
-                            <button class="btn btn-sm btn-link text-muted p-0" t-on-click="onTagClearAll">Limpiar</button>
                         </t>
                     </div>
                 </div>

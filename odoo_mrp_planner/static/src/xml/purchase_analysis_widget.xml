@@ -42,6 +42,14 @@
                     </select>
                 </div>
 
+                <!-- Toggle terminadas -->
+                <button t-att-class="'btn btn-sm ' + (state.hideFinished ? 'btn-warning' : 'btn-outline-secondary')"
+                        t-on-click="toggleHideFinished"
+                        title="Mostrar u ocultar OFs ya terminadas">
+                    <i t-att-class="'fa me-1 ' + (state.hideFinished ? 'fa-eye-slash' : 'fa-eye')"/>
+                    Terminadas
+                </button>
+
                 <!-- Fechas (al final, separadas del resto) -->
                 <div class="d-flex align-items-center gap-2 ms-auto">
                     <span class="text-muted small fw-semibold">OT desde:</span>

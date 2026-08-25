@@ -272,7 +272,7 @@
 
     <!-- ── App raíz ──────────────────────────────────────────────────────── -->
     <menuitem id="mrp_planner_menu_root"
-              name="Planificación"
+              name="KPIs"
               sequence="65"
               web_icon="odoo_mrp_planner,static/description/icon.png"/>
 

@@ -6,40 +6,52 @@
 
         <!-- ── Filtros ─────────────────────────────────────────────────────── -->
         <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2">
-            <div class="row g-2 align-items-end">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
 
-                <!-- Sector (select) -->
-                <div class="col-12 col-lg-7">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted small fw-semibold">Sector:</span>
-                        <select class="form-select form-select-sm" style="width:auto;min-width:200px"
-                                t-on-change="onTagChange">
-                            <option value="">Seleccionar sector…</option>
-                            <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                                <option t-att-value="tag.id"
-                                        t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
-                                    <t t-esc="tag.name"/>
-                                </option>
-                            </t>
-                        </select>
-                        <t t-if="!state.tags.length">
-                            <span class="text-muted small fst-italic">Sin sectores configurados</span>
+                <!-- Sector -->
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small fw-semibold">Sector:</span>
+                    <select class="form-select form-select-sm" style="width:auto;min-width:180px"
+                            t-on-change="onTagChange">
+                        <option value="">Seleccionar sector…</option>
+                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                            <option t-att-value="tag.id"
+                                    t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
+                                <t t-esc="tag.name"/>
+                            </option>
                         </t>
-                    </div>
+                    </select>
+                    <t t-if="!state.tags.length">
+                        <span class="text-muted small fst-italic">Sin sectores configurados</span>
+                    </t>
                 </div>
 
-                <!-- Rango de fechas -->
-                <div class="col-12 col-lg-5">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="text-muted small fw-semibold">OT desde:</span>
-                        <input type="date" class="form-control form-control-sm" style="width:145px"
-                               t-att-value="state.dateFrom"
-                               t-on-change="onDateFromChange"/>
-                        <span class="text-muted small">hasta:</span>
-                        <input type="date" class="form-control form-control-sm" style="width:145px"
-                               t-att-value="state.dateTo"
-                               t-on-change="onDateToChange"/>
-                    </div>
+                <!-- CT (se habilita cuando hay sector seleccionado) -->
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small fw-semibold">CT:</span>
+                    <select class="form-select form-select-sm" style="width:auto;min-width:180px"
+                            t-att-disabled="!state.tagIds.length"
+                            t-on-change="onWcChange">
+                        <option value="">Todos</option>
+                        <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
+                            <option t-att-value="wc.id"
+                                    t-att-selected="state.wcFilterId == wc.id">
+                                <t t-esc="wc.name"/>
+                            </option>
+                        </t>
+                    </select>
+                </div>
+
+                <!-- Fechas (al final, separadas del resto) -->
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <span class="text-muted small fw-semibold">OT desde:</span>
+                    <input type="date" class="form-control form-control-sm" style="width:145px"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                    <span class="text-muted small">hasta:</span>
+                    <input type="date" class="form-control form-control-sm" style="width:145px"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
                 </div>
 
             </div>
@@ -70,7 +82,7 @@
         </t>
 
         <!-- ── Sin resultados ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !state.wcRows.length">
+        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !filteredWcRows().length">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-inbox fa-2x mb-2 d-block"/>
                 <p class="mb-0">No hay OTs del sector en el período seleccionado.</p>
@@ -78,7 +90,7 @@
         </t>
 
         <!-- ── Tabla CT × Semana ───────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; state.wcRows.length">
+        <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
 
             <!-- Resumen -->
             <div class="d-flex gap-3 mb-3 text-muted small">
@@ -112,7 +124,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="state.wcRows" t-as="row" t-key="row.wc_id">
+                        <t t-foreach="filteredWcRows()" t-as="row" t-key="row.wc_id">
                             <tr>
                                 <td class="o_pca_wc_cell fw-semibold align-middle" style="background:#f8f9fa">
                                     <t t-esc="row.wc_name"/>

@@ -54,6 +54,8 @@ class PurchaseAnalysisWidget extends Component {
         this.state = useState({
             tags:         [],
             tagIds:       [],
+            wcs:          [],   // CTs disponibles para el sector seleccionado
+            wcFilterId:   null, // CT seleccionado (null = todos)
             dateFrom:     firstOfMonth(),
             dateTo:       lastOfMonth(),
             weekKeys:     [],
@@ -70,7 +72,7 @@ class PurchaseAnalysisWidget extends Component {
         onMounted(async () => {
             try {
                 await this._loadTags();
-                await this._loadData();
+                // No cargamos datos hasta que el usuario seleccione un sector
             } catch (e) {
                 if (e.message !== "Component is destroyed") {
                     this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -84,7 +86,20 @@ class PurchaseAnalysisWidget extends Component {
 
     async _loadTags() {
         const d = await this.orm.call("mrp.planner.dashboard", "get_wc_tags", []);
-        this.state.tags = (d && d.tags) || [];
+        this.state.tags    = (d && d.tags) || [];
+        this.state.loading = false;
+    }
+
+    async _loadWcs() {
+        if (!this.state.tagIds.length) {
+            this.state.wcs        = [];
+            this.state.wcFilterId = null;
+            return;
+        }
+        const wcs = await this.orm.call(
+            "mrp.planner.dashboard", "get_wcs_for_tags", [this.state.tagIds]);
+        this.state.wcs        = wcs || [];
+        this.state.wcFilterId = null;
     }
 
     async _loadData() {
@@ -125,7 +140,15 @@ class PurchaseAnalysisWidget extends Component {
     onTagChange(ev) {
         const val = ev.target.value;
         this.state.tagIds = val ? [parseInt(val)] : [];
+        this._loadWcs();
         this._loadData();
+    }
+
+    onWcChange(ev) {
+        const val = ev.target.value;
+        this.state.wcFilterId   = val ? parseInt(val) : null;
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
     }
 
     onDateFromChange(ev) {
@@ -198,6 +221,13 @@ class PurchaseAnalysisWidget extends Component {
         if (mo.has_late_pos) return "fa-exclamation-circle";
         if (mo.has_pending_pos) return "fa-clock-o";
         return "fa-check-circle";
+    }
+
+    // ── Filas visibles (con filtro CT aplicado) ─────────────────────────────
+
+    filteredWcRows() {
+        if (!this.state.wcFilterId) return this.state.wcRows;
+        return this.state.wcRows.filter(r => r.wc_id === this.state.wcFilterId);
     }
 
     // ── Navegación ──────────────────────────────────────────────────────────

@@ -70,6 +70,17 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
     # ── Datos para el widget ──────────────────────────────────────────────────
 
     @api.model
+    def get_wcs_for_tags(self, tag_ids):
+        """Devuelve los centros de trabajo que tienen alguno de los tags dados."""
+        self._ensure_planner_group('odoo_mrp_planner.group_purchase',
+                                   'odoo_mrp_planner.group_purchase_admin')
+        if not tag_ids:
+            return []
+        wcs = self.env['mrp.workcenter'].search(
+            [('tag_ids', 'in', list(tag_ids))], order='name asc')
+        return [{'id': wc.id, 'name': wc.name} for wc in wcs]
+
+    @api.model
     def get_purchase_analysis(self, tag_ids, date_from, date_to):
         """
         Devuelve estructura para tabla doble entrada CT × semana ISO.

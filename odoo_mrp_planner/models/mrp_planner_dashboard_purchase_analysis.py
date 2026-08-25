@@ -24,7 +24,7 @@ from odoo import models, api, fields, _
 _logger = logging.getLogger(__name__)
 
 _PO_STATE_LABEL = {
-    'draft':    'Borrador',
+    'draft':    'Cotización',
     'sent':     'Enviada',
     'purchase': 'OC',
     'done':     'Bloqueada',

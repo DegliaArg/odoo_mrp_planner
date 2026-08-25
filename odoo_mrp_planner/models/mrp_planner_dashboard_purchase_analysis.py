@@ -120,12 +120,9 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
 
         today = fields.Date.today()
 
-        # BFS una sola vez por OF única
-        mo_po_data = {}
-        for mo in workorders.mapped('production_id'):
-            if mo.id not in mo_po_data:
-                po_lines = self._pca_collect_po_lines(mo)
-                mo_po_data[mo.id] = self._pca_format_po_lines(po_lines, today)
+        # BFS batch para todas las OFs raíz de una sola vez
+        root_mos = workorders.mapped('production_id')
+        mo_po_data = self._pca_batch_po_data(root_mos, today)
 
         # Agrupar OTs por (wc_id, week_key)
         wc_cell_map = defaultdict(lambda: defaultdict(list))
@@ -198,73 +195,145 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
 
     # ── Helpers privados ──────────────────────────────────────────────────────
 
-    def _pca_collect_po_lines(self, root_mo):
-        """Recopila todas las purchase.order.line relacionadas con root_mo
-        y sus OFs descendientes a cualquier profundidad.
+    def _pca_batch_po_data(self, root_mos, today):
+        """BFS batch para TODOS los root_mos en conjunto.
 
-        Usa dos estrategias combinadas para cubrir los distintos casos de
-        cómo Odoo vincula la cadena de fabricación:
+        En vez de N BFS individuales con ilike por MO, hace:
+        - UNA query por nivel del BFS (origin IN [nombres del nivel])
+        - UNA query global para todas las OCs al final
 
-        Estrategia 1 — por movimientos de stock:
-            move_raw_ids → move_orig_ids → purchase_line_id  (OC directa)
-                                         → production_id      (OF hija)
-
-        Estrategia 2 — por campo origin:
-            Las OFs hijas tienen en su `origin` el nombre de la OF madre.
-            Las OCs tienen en su `origin` el nombre de la OF que las generó.
-            Esto cubre los casos en que el scheduler crea los documentos sin
-            enlazar los movimientos de stock.
+        Retorna: {root_mo_id: [po_line_dicts]}
         """
-        visited_mo = set()
-        queue = [root_mo]
-        all_mos = []
+        MO  = self.env['mrp.production']
+        PO  = self.env['purchase.order']
+        POL = self.env['purchase.order.line']
 
-        # BFS: recopila todas las OFs de la cadena
-        while queue:
-            mo = queue.pop(0)
-            if mo.id in visited_mo:
-                continue
-            visited_mo.add(mo.id)
-            all_mos.append(mo)
+        if not root_mos:
+            return {}
 
-            # Estrategia 1: OFs hijas vía movimientos
-            for raw in mo.move_raw_ids:
-                for sup in raw.move_orig_ids:
-                    if sup.production_id and sup.production_id.id not in visited_mo:
-                        queue.append(sup.production_id)
+        # Map mo_id → root_mo_id que lo originó
+        mo_to_root = {mo.id: mo.id for mo in root_mos}
+        all_mo_ids = set(mo_to_root)
+        current_level = root_mos   # recordset
 
-            # Estrategia 2: OFs hijas vía campo origin
-            if mo.name:
-                children = self.env['mrp.production'].search([
-                    ('origin', 'ilike', mo.name),
-                    ('id', 'not in', list(visited_mo)),
-                    ('state', 'not in', ['cancel']),
-                ])
-                for child in children:
-                    if child.id not in visited_mo:
-                        queue.append(child)
+        # BFS nivel a nivel — una query por nivel
+        while current_level:
+            current_names = [mo.name for mo in current_level if mo.name]
+            if not current_names:
+                break
 
-        # Recopila líneas de OC de todas las OFs encontradas
-        line_ids = set()
+            # Estrategia 1: OFs hijas vía origin (UNA query exacta, usa índice)
+            children_q = MO.search([
+                ('origin', 'in', current_names),
+                ('id', 'not in', list(all_mo_ids)),
+                ('state', 'not in', ['cancel']),
+            ])
+
+            # Estrategia 2: OFs hijas vía movimientos (batch con mapped)
+            children_m = current_level.mapped(
+                'move_raw_ids.move_orig_ids.production_id'
+            ).filtered(lambda m: m.id not in all_mo_ids)
+
+            all_children = children_q | children_m
+            if not all_children:
+                break
+
+            # Build child_id → parent_mo_id desde los moves (ya en cache)
+            child_to_parent = {}
+            for parent in current_level:
+                for raw in parent.move_raw_ids:
+                    for sup in raw.move_orig_ids:
+                        if sup.production_id and sup.production_id.id not in child_to_parent:
+                            child_to_parent[sup.production_id.id] = parent.id
+
+            # Asignar ownership a los hijos
+            name_to_parent_id = {mo.name: mo.id for mo in current_level if mo.name}
+            for child in all_children:
+                if child.id in mo_to_root:
+                    continue
+                origin = (child.origin or '').strip()
+                parent_id = name_to_parent_id.get(origin) or child_to_parent.get(child.id)
+                if parent_id:
+                    mo_to_root[child.id] = mo_to_root.get(parent_id, parent_id)
+
+            new_children = all_children.filtered(lambda m: m.id not in all_mo_ids)
+            all_mo_ids.update(new_children.ids)
+            current_level = new_children
+
+        # Todos los MOs de la cadena
+        all_mos    = MO.browse(list(all_mo_ids))
+        all_names  = [mo.name for mo in all_mos if mo.name]
+
+        # UNA query para todas las OCs (origin exacto, usa índice)
+        all_pos = PO.search([
+            ('origin', 'in', all_names),
+            ('state', 'not in', ['cancel']),
+        ]) if all_names else PO
+
+        # Prefetch para evitar N+1 en _pca_format_po_lines
+        if all_pos:
+            all_pos.mapped('order_line.product_id')
+            all_pos.mapped('order_line.date_planned')
+            all_pos.mapped('order_line.qty_received')
+            all_pos.mapped('partner_id')
+            if 'subcontract_production_ids' in PO._fields:
+                all_pos.mapped('subcontract_production_ids')
+
+        # Map: mo_name → po_lines
+        name_to_lines = {}
+        for po in all_pos:
+            name_to_lines.setdefault((po.origin or '').strip(), []).extend(po.order_line)
+
+        # Moves-based: prefetch y recopilar
+        if all_mos:
+            all_mos.mapped('move_raw_ids.move_orig_ids.purchase_line_id')
+
+        move_lines_by_mo = {}   # mo_id → set of line_ids
         for mo in all_mos:
-            # Estrategia 1: vía movimientos con purchase_line_id
+            lids = set()
             for raw in mo.move_raw_ids:
                 for sup in raw.move_orig_ids:
                     if sup.purchase_line_id:
-                        line_ids.add(sup.purchase_line_id.id)
+                        lids.add(sup.purchase_line_id.id)
+            move_lines_by_mo[mo.id] = lids
 
-            # Estrategia 2: vía campo origin de la OC
-            if mo.name:
-                pos = self.env['purchase.order'].search([
-                    ('origin', 'ilike', mo.name),
-                    ('state', 'not in', ['cancel']),
-                ])
-                for po in pos:
-                    line_ids.update(po.order_line.ids)
+        # Build root_mo_id → set of line_ids
+        root_line_ids = {mo.id: set() for mo in root_mos}
+        all_unique_ids = set()
 
-        if not line_ids:
-            return self.env['purchase.order.line']
-        return self.env['purchase.order.line'].browse(list(line_ids))
+        for mo in all_mos:
+            root_id = mo_to_root.get(mo.id)
+            if root_id not in root_line_ids:
+                continue
+            bucket = root_line_ids[root_id]
+            # origin-based
+            for line in name_to_lines.get(mo.name or '', []):
+                bucket.add(line.id)
+                all_unique_ids.add(line.id)
+            # moves-based
+            for lid in move_lines_by_mo.get(mo.id, set()):
+                bucket.add(lid)
+                all_unique_ids.add(lid)
+
+        # Prefetch todos los campos de línea de una vez
+        if all_unique_ids:
+            all_lines_rs = POL.browse(list(all_unique_ids))
+            all_lines_rs.mapped('order_id.partner_id')
+            all_lines_rs.mapped('order_id.state')
+            all_lines_rs.mapped('product_id')
+            all_lines_rs.mapped('qty_received')
+            all_lines_rs.mapped('date_planned')
+            if 'subcontract_production_ids' in PO._fields:
+                all_lines_rs.mapped('order_id.subcontract_production_ids')
+
+        # Formatear por root MO
+        result = {}
+        for mo in root_mos:
+            line_ids = root_line_ids.get(mo.id, set())
+            result[mo.id] = self._pca_format_po_lines(
+                POL.browse(list(line_ids)), today)
+
+        return result
 
     def _pca_format_po_lines(self, po_lines, today):
         """Convierte un recordset de purchase.order.line en una lista de dicts

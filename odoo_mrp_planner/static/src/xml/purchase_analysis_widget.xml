@@ -100,13 +100,6 @@
         <!-- ── Tabla CT × Semana ───────────────────────────────────────────── -->
         <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
 
-            <!-- Resumen -->
-            <div class="d-flex gap-3 mb-3 text-muted small">
-                <span><strong class="text-body"><t t-esc="state.weekKeys.length"/></strong> semana(s)</span>
-                <span><strong class="text-body"><t t-esc="state.totalMos"/></strong> OF(s)</span>
-                <span><strong class="text-body"><t t-esc="state.totalPos"/></strong> OC(s)</span>
-            </div>
-
             <div class="table-responsive mb-3">
                 <table class="table table-bordered table-sm o_pca_matrix" style="min-width:500px">
                     <thead class="table-light">
@@ -140,7 +133,7 @@
                                 <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
                                     <td class="o_pca_cell align-top p-1">
                                         <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
-                                            <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-primary bg-primary bg-opacity-10' : 'border-light bg-light')"
+                                            <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-primary bg-primary bg-opacity-10' : (mo.has_late_pos ? 'border-danger' : 'border-light bg-light'))"
                                                  style="cursor:pointer;font-size:0.8rem"
                                                  t-on-click="() => this.selectMo(mo)">
                                                 <div class="d-flex align-items-center gap-1">

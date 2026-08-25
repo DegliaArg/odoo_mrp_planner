@@ -132,6 +132,7 @@ const EVOL_COLS = [
 // clave(s) de cada fila.
 const SECTOR_GROUP   = { key: "sector",   label: "Sector",    accessor: r => (r.sectors && r.sectors.length) ? r.sectors : ["Sin sector"] };
 const CATEGORY_GROUP = { key: "category", label: "Categoría", accessor: r => [r.category || "Sin categoría"] };
+const REASON_GROUP   = { key: "reason",   label: "Motivo",    accessor: r => (r.reasons_breakdown && r.reasons_breakdown.length) ? r.reasons_breakdown.map(rb => rb.name) : ["Sin motivo"] };
 
 const OEE_COLS = [
     { key: "name",         label: "Centro de trabajo", width: 200, fixed: true, align: "start" },
@@ -289,7 +290,7 @@ class ProductionAnalysisWidget extends Component {
             // Tabla Scrap
             scrapSearch:       "",
             scrapNumFilters:   [],
-            scrapGroupBy:      null,   // null | 'category'
+            scrapGroupBy:      null,
             scrapSelectedGroup:null,
             scrapSortCol:      "qty",
             scrapSortDir:      "desc",
@@ -300,6 +301,8 @@ class ProductionAnalysisWidget extends Component {
             scrapLoaded:       false,
             scrapLoading:      false,
             scrapError:        null,
+            scrapReasonIds:    [],   // motivos seleccionados (multi-select)
+            scrapExpanded:     {},   // product_id → bool (fila expandida)
             // Tabla OFs
             ofRows: [], ofSearch: "", ofNumFilters: [], ofGroupBy: null, ofSelGroup: null,
             ofSortCol: "programado", ofSortDir: "desc", ofPage: 1, ofTrend: [],
@@ -813,6 +816,32 @@ class ProductionAnalysisWidget extends Component {
     setScrapGroupBy(key) { this.state.scrapGroupBy = key; this.state.scrapSelectedGroup = null; this.state.scrapPage = 1; }
     addScrapNumFilter(cond) { this.state.scrapNumFilters = [...this.state.scrapNumFilters, cond]; this.state.scrapPage = 1; }
     removeScrapNumFilter(idx) { this.state.scrapNumFilters = this.state.scrapNumFilters.filter((_, i) => i !== idx); this.state.scrapPage = 1; }
+
+    toggleScrapReason(ev) {
+        const name = ev.target.dataset.name;
+        const ids = this.state.scrapReasonIds;
+        this.state.scrapReasonIds = ids.includes(name) ? ids.filter(n => n !== name) : [...ids, name];
+        this.state.scrapPage = 1;
+    }
+    toggleScrapExpand(pid) {
+        this.state.scrapExpanded[pid] = !this.state.scrapExpanded[pid];
+    }
+    isScrapExpanded(pid) { return !!this.state.scrapExpanded[pid]; }
+
+    get scrapAvailableReasons() {
+        const seen = new Set();
+        for (const r of this.state.scrapRows) {
+            for (const rb of (r.reasons_breakdown || [])) seen.add(rb.name);
+        }
+        return [...seen].sort((a, b) => a.localeCompare(b, "es"));
+    }
+
+    scrapBreakdownValue(rb, col) {
+        if (col === "qty")  return fmt(rb.qty);
+        if (col === "ops")  return String(rb.ops);
+        if (col === "pct")  return rb.pct_of_product !== null && rb.pct_of_product !== undefined ? fmtPct(rb.pct_of_product) : "—";
+        return "";
+    }
     setScrapSort(col) {
         if (this.state.scrapSortCol === col) this.state.scrapSortDir = this.state.scrapSortDir === "asc" ? "desc" : "asc";
         else { this.state.scrapSortCol = col; this.state.scrapSortDir = "asc"; }
@@ -824,13 +853,17 @@ class ProductionAnalysisWidget extends Component {
         if (q) rows = rows.filter(r =>
             (r.name || "").toLowerCase().includes(q) ||
             (r.category || "").toLowerCase().includes(q) ||
-            (r.workcenter || "").toLowerCase().includes(q));
+            (r.reasons || []).some(rn => rn.toLowerCase().includes(q)));
+        const rs = this.state.scrapReasonIds;
+        if (rs.length) rows = rows.filter(r =>
+            (r.reasons_breakdown || []).some(rb => rs.includes(rb.name)));
         return applyNumericFilters(rows, this.state.scrapNumFilters, (r, k) => this._numVal(r, k));
     }
-    /** Facetas de agrupación del scrap: por sector (M2M) o por categoría. */
+    /** Facetas de agrupación del scrap: por sector (M2M), categoría o motivo (M2M). */
     _scrapGroupDef() {
-        if (this.state.scrapGroupBy === "sector") return SECTOR_GROUP;
+        if (this.state.scrapGroupBy === "sector")   return SECTOR_GROUP;
         if (this.state.scrapGroupBy === "category") return CATEGORY_GROUP;
+        if (this.state.scrapGroupBy === "reason")   return REASON_GROUP;
         return null;
     }
     get scrapAllGroupsForTabs() {

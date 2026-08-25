@@ -389,6 +389,35 @@
                             </div>
                         </div>
                     </t>
+                    <t t-if="scrapAvailableReasons.length">
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="form-label mb-0 small text-muted">Motivo</label>
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="form-select form-select-sm text-start"
+                                        style="width:170px;"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <t t-if="state.scrapReasonIds.length"><t t-esc="state.scrapReasonIds.length"/> seleccionado(s)</t>
+                                    <t t-else="">Todos</t>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <t t-foreach="scrapAvailableReasons" t-as="rn" t-key="rn">
+                                        <li>
+                                            <label class="dropdown-item d-flex align-items-center gap-2">
+                                                <input type="checkbox"
+                                                       t-att-checked="state.scrapReasonIds.includes(rn)"
+                                                       t-att-data-name="rn"
+                                                       t-on-change="toggleScrapReason"/>
+                                                <t t-esc="rn"/>
+                                            </label>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                        </div>
+                    </t>
                 </div>
 
                 <div t-if="state.scrapError" class="alert alert-danger py-2 mb-2">
@@ -452,7 +481,7 @@
                                 t-props="{
                                     search:         state.scrapSearch,
                                     activeGroupBy:  state.scrapGroupBy,
-                                    groupByDefs: [ { key: 'sector', label: 'Sector' }, { key: 'category', label: 'Categoría' } ],
+                                    groupByDefs: [ { key: 'sector', label: 'Sector' }, { key: 'category', label: 'Categoría' }, { key: 'reason', label: 'Motivo' } ],
                                     onSearch:        (t) => this.setScrapSearch(t),
                                     onGroupByChange: (k) => this.setScrapGroupBy(k),
                                     numericFields:     scrapNumColOptions,
@@ -495,19 +524,57 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr t-foreach="scrapPagedRows" t-as="row" t-key="row.product_id">
-                                        <t t-foreach="scrapCols" t-as="col" t-key="col.key">
-                                            <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + scrapCellClass(row, col.key)">
-                                                <t t-if="col.key === 'name'">
-                                                    <a href="#" t-on-click.prevent="() => this.openProductScraps(row)"
-                                                       t-esc="row.name"/>
-                                                </t>
-                                                <t t-else="">
-                                                    <t t-esc="scrapCellValue(row, col.key)"/>
-                                                </t>
-                                            </td>
+                                    <t t-foreach="scrapPagedRows" t-as="row" t-key="row.product_id">
+                                        <!-- Fila de producto -->
+                                        <tr>
+                                            <t t-foreach="scrapCols" t-as="col" t-key="col.key">
+                                                <td t-att-class="(col.align === 'center' ? 'text-center ' : (col.align === 'end' ? 'text-end ' : '')) + scrapCellClass(row, col.key)">
+                                                    <t t-if="col.key === 'name'">
+                                                        <a href="#" t-on-click.prevent="() => this.openProductScraps(row)"
+                                                           t-esc="row.name"/>
+                                                    </t>
+                                                    <t t-elif="col.key === 'reasons'">
+                                                        <t t-if="row.reasons_breakdown and row.reasons_breakdown.length">
+                                                            <button class="btn btn-sm btn-link p-0 text-start"
+                                                                    t-on-click="() => this.toggleScrapExpand(row.product_id)">
+                                                                <i t-att-class="'fa fa-fw ' + (isScrapExpanded(row.product_id) ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                                                                <span class="ms-1 text-muted" style="font-size:0.8rem">
+                                                                    <t t-esc="row.reasons_breakdown.length"/>
+                                                                    <t t-if="row.reasons_breakdown.length === 1"> motivo</t>
+                                                                    <t t-else=""> motivos</t>
+                                                                </span>
+                                                            </button>
+                                                        </t>
+                                                        <t t-else="">—</t>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <t t-esc="scrapCellValue(row, col.key)"/>
+                                                    </t>
+                                                </td>
+                                            </t>
+                                        </tr>
+                                        <!-- Sub-filas: desglose por motivo -->
+                                        <t t-if="isScrapExpanded(row.product_id)">
+                                            <t t-foreach="row.reasons_breakdown" t-as="rb" t-key="rb.name">
+                                                <tr class="table-light" style="font-size:0.79rem;">
+                                                    <t t-foreach="scrapCols" t-as="col" t-key="col.key">
+                                                        <td t-att-class="col.align === 'center' ? 'text-center' : (col.align === 'end' ? 'text-end' : '')">
+                                                            <t t-if="col.key === 'name'">
+                                                                <span class="ms-4 text-muted">
+                                                                    <i class="fa fa-tag fa-xs me-1"/>
+                                                                    <t t-esc="rb.name"/>
+                                                                </span>
+                                                            </t>
+                                                            <t t-elif="col.key === 'qty' or col.key === 'ops' or col.key === 'pct'">
+                                                                <t t-esc="scrapBreakdownValue(rb, col.key)"/>
+                                                            </t>
+                                                            <t t-else=""/>
+                                                        </td>
+                                                    </t>
+                                                </tr>
+                                            </t>
                                         </t>
-                                    </tr>
+                                    </t>
                                     <tr t-if="!scrapPagedRows.length">
                                         <td t-att-colspan="scrapCols.length" class="text-center text-muted py-3">
                                             Sin desechos en el período/filtros.

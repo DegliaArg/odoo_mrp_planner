@@ -114,6 +114,7 @@ class MrpPlannerDashboardScrap(models.TransientModel):
 
         by_prod = defaultdict(lambda: {
             'qty': 0.0, 'ops': 0, 'uom': '', 'almacenes': set(), 'reasons': set(),
+            'qty_by_reason': defaultdict(lambda: {'qty': 0.0, 'ops': 0}),
         })
         for s in scraps:
             # Solo terminados del sector: los insumos (sin producción propia) y
@@ -130,25 +131,43 @@ class MrpPlannerDashboardScrap(models.TransientModel):
                   or s.location_id.warehouse_id)
             if wh:
                 b['almacenes'].add(wh.name)
-            for tag in s.scrap_reason_tag_ids:
-                b['reasons'].add(tag.name)
+            tags = s.scrap_reason_tag_ids
+            if tags:
+                for tag in tags:
+                    b['reasons'].add(tag.name)
+                    b['qty_by_reason'][tag.name]['qty'] += s.scrap_qty or 0.0
+                    b['qty_by_reason'][tag.name]['ops'] += 1
+            else:
+                b['qty_by_reason'][_('Sin motivo')]['qty'] += s.scrap_qty or 0.0
+                b['qty_by_reason'][_('Sin motivo')]['ops'] += 1
 
         total_qty = sum(b['qty'] for b in by_prod.values())
         rows = []
         for pid, b in by_prod.items():
+            prod_qty = b['qty']
+            reasons_breakdown = [
+                {
+                    'name': rname,
+                    'qty':  round(rdata['qty'], 2),
+                    'ops':  rdata['ops'],
+                    'pct_of_product': round(rdata['qty'] / prod_qty * 100, 1) if prod_qty > 0 else None,
+                }
+                for rname, rdata in sorted(b['qty_by_reason'].items())
+            ]
             rows.append({
-                'product_id': pid,
-                'name':       b.get('name', ''),
-                'category':   b.get('category', _('Sin categoría')),
-                'sector':     ', '.join(sorted(sectors_map.get(pid, []))) or '—',
-                'almacen':    ', '.join(sorted(b.get('almacenes', set()))) or '—',
-                'qty':        round(b['qty'], 2),
-                'ops':        b['ops'],
-                'uom':        b['uom'],
-                'producido':  round(produced_map.get(pid, 0.0), 2),
-                'tasa':       self._scrap_rate(b['qty'], produced_map.get(pid, 0.0)),
-                'pct':        round(b['qty'] / total_qty * 100, 1) if total_qty > 0 else None,
-                'reasons':    sorted(b.get('reasons', set())),
+                'product_id':        pid,
+                'name':              b.get('name', ''),
+                'category':          b.get('category', _('Sin categoría')),
+                'sector':            ', '.join(sorted(sectors_map.get(pid, []))) or '—',
+                'almacen':           ', '.join(sorted(b.get('almacenes', set()))) or '—',
+                'qty':               round(prod_qty, 2),
+                'ops':               b['ops'],
+                'uom':               b['uom'],
+                'producido':         round(produced_map.get(pid, 0.0), 2),
+                'tasa':              self._scrap_rate(prod_qty, produced_map.get(pid, 0.0)),
+                'pct':               round(prod_qty / total_qty * 100, 1) if total_qty > 0 else None,
+                'reasons':           sorted(b.get('reasons', set())),
+                'reasons_breakdown': reasons_breakdown,
             })
         # Tasa global a nivel planta: desecho de terminados ÷ (producido + ese desecho).
         # Suma unidades posiblemente mixtas ⇒ leer como indicador, no magnitud exacta.

@@ -69,6 +69,7 @@ class PurchaseAnalysisWidget extends Component {
             error:        null,
             activeMoId:   null,
             activeMoData: null,
+            activeMoWcId: null,
         });
 
         onMounted(async () => {
@@ -161,18 +162,21 @@ class PurchaseAnalysisWidget extends Component {
         this.state.wcFilterId   = val ? parseInt(val) : null;
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     toggleShowFinished() {
         this.state.showFinished = !this.state.showFinished;
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     onSearchChange(ev) {
         this.state.searchText   = ev.target.value;
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     onDateFromChange(ev) {
@@ -187,19 +191,22 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Selección de OF para ver detalle OCs ────────────────────────────────
 
-    selectMo(mo) {
+    selectMo(mo, wcId) {
         if (this.state.activeMoId === mo.mo_id) {
             this.state.activeMoId   = null;
             this.state.activeMoData = null;
+            this.state.activeMoWcId = null;
         } else {
             this.state.activeMoId   = mo.mo_id;
             this.state.activeMoData = mo;
+            this.state.activeMoWcId = wcId ?? null;
         }
     }
 
     closeMoDetail() {
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     // ── Formateo y clases ───────────────────────────────────────────────────
@@ -344,6 +351,59 @@ class PurchaseAnalysisWidget extends Component {
             }
         }
         return result;
+    }
+
+    // ── Exportar a PDF ─────────────────────────────────────────────────
+
+    exportToPdf() {
+        const rows       = this.filteredWcRows();
+        const weekKeys   = this.state.weekKeys;
+        const weekLabels = this.state.weekLabels;
+
+        let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Análisis de Compras</title>
+<style>
+body { font-family: Arial, sans-serif; font-size: 11px; color: #222; }
+h2 { font-size: 14px; margin-bottom: 10px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; font-weight: 600; font-size: 10px; }
+.chip { border: 1px solid #ddd; border-radius: 3px; padding: 3px 5px; margin-bottom: 4px; }
+.chip-name { font-weight: 700; }
+.chip-product { color: #555; }
+.chip-meta { color: #777; font-size: 9px; }
+@media print { @page { size: landscape; margin: 1cm; } }
+</style></head><body>`;
+
+        html += `<h2>Análisis de Compras</h2><table><thead><tr><th>CT</th>`;
+        for (const wk of weekKeys) {
+            const lbl = weekLabels[wk];
+            html += `<th>${lbl.label} ${lbl.year}<br><span style="font-weight:normal;font-size:9px">${lbl.date_from} – ${lbl.date_to}</span></th>`;
+        }
+        html += `</tr></thead><tbody>`;
+
+        for (const row of rows) {
+            html += `<tr><td><strong>${row.wc_name}</strong></td>`;
+            for (const wk of weekKeys) {
+                const mos = row.cells[wk] || [];
+                html += `<td>`;
+                for (const mo of mos) {
+                    html += `<div class="chip"><div class="chip-name">${mo.mo_name}</div>` +
+                            `<div class="chip-product">${mo.product_name}</div>` +
+                            `<div class="chip-meta">${this.fmtQty(mo.qty)} ${mo.uom} · ${mo.state_label} · ${mo.pos_count} OC(s)</div></div>`;
+                }
+                html += `</td>`;
+            }
+            html += `</tr>`;
+        }
+
+        html += `</tbody></table></body></html>`;
+
+        const win = window.open("", "_blank");
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        win.print();
     }
 
     // ── Semana actual ───────────────────────────────────────────────────

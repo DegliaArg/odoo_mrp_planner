@@ -280,6 +280,30 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             ('state', 'not in', ['cancel']),
         ]) if all_names else PO
 
+        # Fallback: algunos POs tienen origin concatenado ("MO1, MO2") — no matchea exacto.
+        # Buscamos POs cuyo origin CONTIENE alguno de los nombres que no tuvieron match exacto.
+        exact_origins = {(po.origin or '').strip() for po in all_pos}
+        missed_names = [n for n in all_names if n not in exact_origins]
+        if missed_names:
+            _logger.debug(
+                '[PCA] %d MO name(s) sin match exacto en origin de OC: %s',
+                len(missed_names), missed_names[:10],
+            )
+            from odoo.osv import expression as expr
+            ilike_clauses = [[('origin', 'ilike', n)] for n in missed_names]
+            fallback_pos = PO.search(expr.AND([
+                expr.OR(ilike_clauses),
+                [('state', 'not in', ['cancel'])],
+            ]))
+            # Sólo añadir los que realmente contienen el nombre (evitar falsos positivos)
+            missed_set = set(missed_names)
+            fallback_pos = fallback_pos.filtered(
+                lambda po: any(n in (po.origin or '') for n in missed_set)
+            )
+            if fallback_pos:
+                _logger.debug('[PCA] Fallback encontró %d OC(s) adicional(es)', len(fallback_pos))
+            all_pos = all_pos | fallback_pos
+
         # Prefetch para evitar N+1 en _pca_format_po_lines
         if all_pos:
             all_pos.mapped('order_line.product_id')
@@ -290,9 +314,19 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 all_pos.mapped('subcontract_production_ids')
 
         # Map: mo_name → po_lines
+        # El campo origin puede ser un nombre exacto ("VL/MO/03361") o varios
+        # concatenados ("VL/MO/03361, VL/MO/04500"). Indexamos por cada segmento.
+        all_names_set = set(all_names)
         name_to_lines = {}
         for po in all_pos:
-            name_to_lines.setdefault((po.origin or '').strip(), []).extend(po.order_line)
+            origin = (po.origin or '').strip()
+            # Intentar split por coma para origins concatenados
+            parts = [p.strip() for p in origin.split(',')]
+            matched = [p for p in parts if p in all_names_set]
+            if not matched:
+                matched = [origin]  # fallback: usar el origin completo
+            for key in matched:
+                name_to_lines.setdefault(key, []).extend(po.order_line)
 
         # Moves-based: prefetch y recopilar
         if all_mos:

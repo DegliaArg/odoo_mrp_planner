@@ -48,7 +48,7 @@
         </div>
 
         <!-- ── Indicación inicial si no hay sector seleccionado ────────────── -->
-        <t t-if="!state.tagIds.length and !state.loading">
+        <t t-if="!state.tagIds.length &amp;&amp; !state.loading">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-filter fa-2x mb-2 d-block"/>
                 <p class="mb-0">Seleccioná al menos un sector para ver el análisis.</p>
@@ -64,7 +64,7 @@
         </t>
 
         <!-- ── Error ───────────────────────────────────────────────────────── -->
-        <t t-if="state.error and !state.loading">
+        <t t-if="state.error &amp;&amp; !state.loading">
             <div class="alert alert-danger">
                 <i class="fa fa-exclamation-triangle me-1"/>
                 <t t-esc="state.error"/>
@@ -72,7 +72,7 @@
         </t>
 
         <!-- ── Sin resultados ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading and !state.error and state.tagIds.length and !state.weeks.length">
+        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !state.weeks.length">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-inbox fa-2x mb-2 d-block"/>
                 <p class="mb-0">No hay OFs del sector en el período seleccionado.</p>
@@ -80,7 +80,7 @@
         </t>
 
         <!-- ── Resumen global ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading and state.weeks.length">
+        <t t-if="!state.loading &amp;&amp; state.weeks.length">
             <div class="d-flex gap-3 mb-3 text-muted small">
                 <span><strong class="text-body" t-esc="state.weeks.length"/> semana(s)</span>
                 <span><strong class="text-body" t-esc="state.totalMos"/> OF(s)</strong></span>

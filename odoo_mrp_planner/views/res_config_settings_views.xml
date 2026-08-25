@@ -240,6 +240,32 @@
                                             </list>
                                         </field>
                                     </group>
+                                    <group string="Forecast — Cobertura de OFs">
+                                        <field name="forecast_mo_coverage_show_pct"
+                                               widget="boolean_toggle"
+                                               help="Muestra el porcentaje de cobertura junto a las cantidades de OFs en la tabla. Desactivar simplifica la tabla si la columna resulta densa."/>
+                                        <field name="forecast_mo_coverage_denominator" widget="radio" nolabel="1"
+                                               invisible="not forecast_mo_coverage_show_pct"
+                                               class="mt-1"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="not forecast_mo_coverage_show_pct or forecast_mo_coverage_denominator != 'forecast'">
+                                            <b>Forecast:</b> OFs ÷ forecast × 100. Mide si la producción planificada cubre el plan. Verde = 100 %, amarillo = por encima del umbral configurado, rojo = por debajo.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="not forecast_mo_coverage_show_pct or forecast_mo_coverage_denominator != 'so_demand'">
+                                            <b>Demanda SO:</b> OFs ÷ pedidos confirmados × 100. Mide si la producción planificada cubre lo que realmente pidieron los clientes.
+                                        </div>
+                                        <field name="forecast_mo_coverage_color_scope" widget="radio" nolabel="1"
+                                               class="mt-2"/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_mo_coverage_color_scope != 'both'">
+                                            <b>Celdas mensuales y total:</b> cada mes se colorea individualmente según su cobertura. Útil para detectar meses críticos de un vistazo.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="forecast_mo_coverage_color_scope != 'total_only'">
+                                            <b>Solo columna de totales:</b> los meses individuales se muestran sin color; el total del período se colorea. Reduce el ruido visual cuando hay muchos meses.
+                                        </div>
+                                    </group>
                                 </div>
 
                             </div>
@@ -787,33 +813,6 @@
                                         <div class="text-muted small border-start border-2 ps-2 mt-1"
                                              invisible="not forecast_coverage_alerts_enabled">
                                             <b>Ejemplo:</b> con umbral rojo = 15 días y amarillo = 30 días: un producto con 10 días de cobertura aparece en rojo; con 25 días, en amarillo; con más de 30, en verde.
-                                        </div>
-                                    </group>
-
-                                    <group string="Forecast — Cobertura de OFs">
-                                        <field name="forecast_mo_coverage_show_pct"
-                                               widget="boolean_toggle"
-                                               help="Muestra el porcentaje de cobertura junto a las cantidades de OFs en la tabla. Desactivar simplifica la tabla si la columna resulta densa."/>
-                                        <field name="forecast_mo_coverage_denominator" widget="radio" nolabel="1"
-                                               invisible="not forecast_mo_coverage_show_pct"
-                                               class="mt-1"/>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="not forecast_mo_coverage_show_pct or forecast_mo_coverage_denominator != 'forecast'">
-                                            <b>Forecast:</b> OFs ÷ forecast × 100. Mide si la producción planificada cubre el plan. Verde = 100 %, amarillo = por encima del umbral configurado, rojo = por debajo.
-                                        </div>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="not forecast_mo_coverage_show_pct or forecast_mo_coverage_denominator != 'so_demand'">
-                                            <b>Demanda SO:</b> OFs ÷ pedidos confirmados × 100. Mide si la producción planificada cubre lo que realmente pidieron los clientes.
-                                        </div>
-                                        <field name="forecast_mo_coverage_color_scope" widget="radio" nolabel="1"
-                                               class="mt-2"/>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="forecast_mo_coverage_color_scope != 'both'">
-                                            <b>Celdas mensuales y total:</b> cada mes se colorea individualmente según su cobertura. Útil para detectar meses críticos de un vistazo.
-                                        </div>
-                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                             invisible="forecast_mo_coverage_color_scope != 'total_only'">
-                                            <b>Solo columna de totales:</b> los meses individuales se muestran sin color; el total del período se colorea. Reduce el ruido visual cuando hay muchos meses.
                                         </div>
                                     </group>
 

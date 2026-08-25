@@ -82,9 +82,9 @@
         <!-- ── Resumen global ──────────────────────────────────────────────── -->
         <t t-if="!state.loading &amp;&amp; state.weeks.length">
             <div class="d-flex gap-3 mb-3 text-muted small">
-                <span><strong class="text-body" t-esc="state.weeks.length"/> semana(s)</span>
-                <span><strong class="text-body" t-esc="state.totalMos"/> OF(s)</strong></span>
-                <span><strong class="text-body" t-esc="state.totalPos"/> OC(s)</strong></span>
+                <span><strong class="text-body"><t t-esc="state.weeks.length"/></strong> semana(s)</span>
+                <span><strong class="text-body"><t t-esc="state.totalMos"/></strong> OF(s)</span>
+                <span><strong class="text-body"><t t-esc="state.totalPos"/></strong> OC(s)</span>
             </div>
         </t>
 

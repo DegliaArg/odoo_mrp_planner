@@ -149,6 +149,7 @@
                                         <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
                                             <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'border-secondary shadow-sm' : (mo.has_late_pos ? 'border-danger' : 'border-light bg-light'))"
                                                  style="cursor:pointer;font-size:0.8rem"
+                                                 t-att-title="moTooltip(mo)"
                                                  t-on-click="() => this.selectMo(mo)">
                                                 <div class="d-flex align-items-center gap-1">
                                                     <i t-att-class="'fa fa-fw fa-xs ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"/>

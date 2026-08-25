@@ -235,6 +235,56 @@ class PurchaseAnalysisWidget extends Component {
         return "";
     }
 
+    moTooltip(mo) {
+        const lines = [];
+
+        // Título de estado
+        if (mo.has_late_pos)
+            lines.push("⚠  Hay OCs vencidas sin recibir completamente");
+        else if (mo.has_pending_pos)
+            lines.push("⏳  Hay OCs pendientes de recepción");
+        else if (!mo.pos_count)
+            lines.push("—  Sin órdenes de compra en la cadena MTO");
+        else
+            lines.push("✓  Todos los materiales fueron recibidos");
+
+        if (!mo.pos_count) return lines.join("\n");
+
+        // Agrupar líneas por OC
+        const byPo = {};
+        for (const p of mo.pos) {
+            if (!byPo[p.po_name]) byPo[p.po_name] = { items: [], hasLate: false };
+            byPo[p.po_name].items.push(p);
+            if (p.is_late) byPo[p.po_name].hasLate = true;
+        }
+
+        lines.push("");
+        const MAX_POS = 6;
+        let poCount = 0;
+        for (const [poName, data] of Object.entries(byPo)) {
+            if (poCount >= MAX_POS) { lines.push(`   … y ${Object.keys(byPo).length - MAX_POS} OC(s) más`); break; }
+            lines.push(`📄 ${poName}${data.hasLate ? "  ⚠" : ""}`);
+            for (const p of data.items) {
+                const icon = p.pct_received >= 100 ? "✓" : p.is_late ? "⚠" : "·";
+                lines.push(`   ${icon}  ${p.product}  →  ${this.fmtQty(p.qty_ordered)} ped / ${this.fmtQty(p.qty_received)} rec  (${this.fmtPct(p.pct_received)})`);
+            }
+            poCount++;
+        }
+
+        // Resumen final
+        const nLate     = mo.pos.filter(p => p.is_late).length;
+        const nComplete = mo.pos.filter(p => p.pct_received >= 100).length;
+        const nPending  = mo.pos_count - nLate - nComplete;
+        const parts = [];
+        if (nComplete) parts.push(`${nComplete} completa${nComplete !== 1 ? "s" : ""}`);
+        if (nPending)  parts.push(`${nPending} pendiente${nPending !== 1 ? "s" : ""}`);
+        if (nLate)     parts.push(`${nLate} atrasada${nLate !== 1 ? "s" : ""}`);
+        lines.push("");
+        lines.push(`${mo.pos_count} línea${mo.pos_count !== 1 ? "s" : ""}  ·  ${parts.join("  ·  ")}`);
+
+        return lines.join("\n");
+    }
+
     moAlertClass(mo) {
         if (mo.has_late_pos)    return "text-danger";
         if (mo.has_pending_pos) return "text-warning";

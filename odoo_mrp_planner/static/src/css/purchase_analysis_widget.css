@@ -29,7 +29,7 @@
 /* Columna CT — celdas de datos */
 .o_pca_wc_cell {
     text-align: center;
-    vertical-align: middle;
+    vertical-align: middle !important;
     background: #f8f9fa;
     border-right: 2px solid #dee2e6 !important;
     font-weight: 600;

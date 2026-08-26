@@ -386,15 +386,12 @@ class PurchaseAnalysisWidget extends Component {
                     const stColor  = MO_COLORS[mo.state] || "#6c757d";
                     const alColor  = chipAlert(mo);
                     tbody += `<div class="chip">` +
-                        `<div class="chip-head">` +
-                        `<span class="chip-dot" style="background:${alColor}"></span>` +
-                        `<span class="chip-name">${mo.mo_name}</span>` +
-                        `</div>` +
+                        `<div><span class="chip-dot" style="background-color:${alColor}"></span>` +
+                        `<span class="chip-name">${mo.mo_name}</span></div>` +
                         `<div class="chip-product">${mo.product_name}</div>` +
                         `<div class="chip-meta">` +
-                        `<span class="badge" style="background:${stColor}">${mo.state_label}</span>` +
-                        ` ${this.fmtQty(mo.qty)} ${mo.uom}` +
-                        ` · <span style="color:#495057">🛒 ${mo.pos_count}</span>` +
+                        `<span class="badge" style="background-color:${stColor}">${mo.state_label}</span>` +
+                        ` ${this.fmtQty(mo.qty)} ${mo.uom} &middot; ${mo.pos_count} OC(s)` +
                         `</div>` +
                         `</div>`;
                 }
@@ -415,62 +412,65 @@ class PurchaseAnalysisWidget extends Component {
 <title>Análisis de Compras – ${sectorLabel}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5px; color: #212529; background: #fff; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5px; color: #212529; background: #fff;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   /* Encabezado del documento */
-  .doc-header { display: flex; align-items: center; justify-content: space-between;
-                padding: 18px 24px 14px; border-bottom: 2px solid #875a7b; margin-bottom: 18px; }
+  .doc-header { padding: 18px 24px 14px; border-bottom: 2px solid #875a7b; margin-bottom: 18px;
+                overflow: hidden; }
+  .doc-header-left  { float: left; }
+  .doc-header-right { float: right; text-align: right; font-size: 10px; color: #6c757d; line-height: 1.7; }
   .doc-title   { font-size: 18px; font-weight: 700; color: #875a7b; letter-spacing: -0.3px; }
   .doc-sub     { font-size: 11px; color: #6c757d; margin-top: 2px; }
-  .doc-meta    { text-align: right; font-size: 10px; color: #6c757d; line-height: 1.6; }
 
   /* Tabla principal */
   table { border-collapse: collapse; width: 100%; table-layout: fixed; }
   th, td { border: 1px solid #dee2e6; padding: 5px 6px; vertical-align: top; }
 
-  .th-wc   { width: 130px; background: #f3edf7; color: #4a235a; font-size: 9.5px;
+  .th-wc   { width: 130px; background-color: #f3edf7; color: #4a235a; font-size: 9.5px;
              font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-  .th-week { background: #f3edf7; color: #4a235a; font-size: 9px; font-weight: 700;
+  .th-week { background-color: #f3edf7; color: #4a235a; font-size: 9px; font-weight: 700;
              text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
   .th-year  { font-weight: 400; }
-  .th-dates { font-size: 8px; font-weight: 400; color: #7b5ea7; }
+  .th-dates { font-size: 8px; font-weight: 400; color: #7b5ea7; display: block; }
 
-  .wc-cell  { background: #faf7fc; font-weight: 600; color: #4a235a; font-size: 10px;
-              vertical-align: middle; }
-  .mo-cell  { background: #fff; }
+  .wc-cell  { background-color: #faf7fc; font-weight: 600; color: #4a235a; font-size: 10px;
+              vertical-align: middle; text-align: center; }
+  .mo-cell  { background-color: #fff; }
 
-  /* Chip de OF */
-  .chip       { border: 1px solid #e2d9f3; border-radius: 4px; padding: 4px 5px;
-                margin-bottom: 4px; background: #fdfcff; }
+  /* Chip de OF — sin flex para máxima compatibilidad PDF */
+  .chip         { border: 1px solid #e2d9f3; border-radius: 4px; padding: 4px 5px;
+                  margin-bottom: 4px; background-color: #fdfcff; }
   .chip:last-child { margin-bottom: 0; }
-  .chip-head  { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
-  .chip-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .chip-name  { font-weight: 700; font-size: 10px; color: #212529; }
-  .chip-product { font-size: 9px; color: #6c757d; margin-bottom: 3px;
-                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .chip-meta  { font-size: 9px; color: #495057; }
-  .badge      { display: inline-block; padding: 1px 5px; border-radius: 3px;
-                color: #fff; font-size: 8.5px; font-weight: 600; vertical-align: middle; }
+  .chip-dot     { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+                  vertical-align: middle; margin-right: 3px; }
+  .chip-name    { display: inline; font-weight: 700; font-size: 10px; color: #212529; }
+  .chip-product { font-size: 9px; color: #6c757d; margin: 2px 0 3px; }
+  .chip-meta    { font-size: 9px; color: #495057; }
+  .badge        { display: inline-block; padding: 1px 5px; border-radius: 3px;
+                  color: #fff; font-size: 8.5px; font-weight: 600; vertical-align: middle; }
 
   /* Footer */
   .doc-footer { margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 8px;
-                font-size: 9px; color: #adb5bd; display: flex; justify-content: space-between; }
+                font-size: 9px; color: #adb5bd; overflow: hidden; }
+  .doc-footer-left  { float: left; }
+  .doc-footer-right { float: right; }
 
   @media print {
-    @page { size: landscape; margin: 1.2cm 1cm; }
+    @page { size: landscape; margin: 1.2cm 1cm 0 1cm; }
     body { font-size: 9.5px; }
     .doc-header { padding: 12px 0 10px; }
   }
 </style></head><body>
 <div class="doc-header">
-  <div>
-    <div class="doc-title">Análisis de Compras Productivas</div>
-    <div class="doc-sub">${sectorLabel ? "Sector: " + sectorLabel : ""}</div>
-  </div>
-  <div class="doc-meta">
+  <div class="doc-header-right">
     <div>${now}</div>
     <div>${weekLabels[weekKeys[0]]?.date_from || ""} – ${weekLabels[weekKeys[weekKeys.length - 1]]?.date_to || ""}</div>
-    <div>${rows.reduce((acc, r) => acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0)} OFs · ${rows.length} centros de trabajo</div>
+    <div>${rows.reduce((acc, r) => acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0)} OFs &middot; ${rows.length} CTs</div>
+  </div>
+  <div class="doc-header-left">
+    <div class="doc-title">Análisis de Compras Productivas</div>
+    <div class="doc-sub">${sectorLabel ? "Sector: " + sectorLabel : ""}</div>
   </div>
 </div>
 <table>
@@ -478,8 +478,8 @@ class PurchaseAnalysisWidget extends Component {
   <tbody>${tbody}</tbody>
 </table>
 <div class="doc-footer">
-  <span>Planificador de Producción – Deglia</span>
-  <span>Impreso el ${now}</span>
+  <span class="doc-footer-left">Planificador de Producción – Deglia</span>
+  <span class="doc-footer-right">Impreso el ${now}</span>
 </div>
 </body></html>`;
 

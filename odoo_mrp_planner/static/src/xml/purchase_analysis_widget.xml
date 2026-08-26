@@ -110,6 +110,12 @@
         <!-- ── Tabla CT × Semana ───────────────────────────────────────────── -->
         <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
 
+            <div class="d-flex justify-content-end mb-2">
+                <button class="btn btn-sm btn-outline-secondary" title="Exportar tabla a PDF" t-on-click="exportToPdf">
+                    <i class="fa fa-file-pdf-o me-1"/>Exportar PDF
+                </button>
+            </div>
+
             <div class="table-responsive mb-3">
                 <table class="table table-hover o_pca_matrix" style="min-width:500px;table-layout:fixed">
                     <thead>

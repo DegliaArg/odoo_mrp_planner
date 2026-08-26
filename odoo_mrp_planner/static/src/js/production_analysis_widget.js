@@ -25,6 +25,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, sortIcon } from "@odoo_mrp_planner/js/forecast_formatters";
+import { downloadExcelXml } from "@odoo_mrp_planner/js/planner_export";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { sortRows, buildGroupTabs, resolveActiveGroup, pageSlice, makePager, applyNumericFilters } from "@odoo_mrp_planner/js/planner_table";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
@@ -241,15 +242,15 @@ class TableCtl {
     get rowKey()       { return this.cfg.rowKey || "product_id"; }
     get unit()         { return this.cfg.unit || "producto(s)"; }
 
-    exportCsv() {
+    exportXls() {
         const cols = this.cols;
-        const rows = this.sortedRows;
-        const headers = cols.map(c => c.label);
-        const data = rows.map(r => cols.map(c => {
-            const v = this.cellValue(r, c.key);
-            return v == null ? '' : String(v);
-        }));
-        this.w._downloadCsv(`${this.cfg.prefix}_export.csv`, headers, data);
+        downloadExcelXml({
+            filename: `${this.cfg.prefix}_export.xls`,
+            sheet: this.cfg.prefix,
+            headers: cols.map(c => c.label),
+            rows: this.sortedRows,
+            cell: r => cols.map(c => this.cellValue(r, c.key) ?? ''),
+        });
     }
 }
 
@@ -748,40 +749,38 @@ class ProductionAnalysisWidget extends Component {
         return fmt(row[key]);
     }
 
-    // ── Export CSV ─────────────────────────────────────────────────────────────
-    _downloadCsv(filename, headers, rows) {
-        const esc = v => {
-            const s = String(v == null ? '' : v);
-            return (s.includes(',') || s.includes('"') || s.includes('\n'))
-                ? `"${s.replace(/"/g, '""')}"` : s;
-        };
-        const lines = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
-        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    exportWcCsv() {
+    // ── Export Excel ──────────────────────────────────────────────────────────
+    exportWcXls() {
         const cols = this.tableCols;
-        const headers = cols.map(c => c.label);
-        const data = this.sortedRows.map(r => cols.map(c => String(this.cellValue(r, c.key) ?? '')));
-        this._downloadCsv('carga_ct.csv', headers, data);
+        downloadExcelXml({
+            filename: `carga_ct_${this.state.dateFrom}_${this.state.dateTo}.xls`,
+            sheet: 'Carga CT',
+            headers: cols.map(c => c.label),
+            rows: this.sortedRows,
+            cell: r => cols.map(c => this.cellValue(r, c.key) ?? ''),
+        });
     }
 
-    exportScrapCsv() {
+    exportScrapXls() {
         const cols = SCRAP_COLS;
-        const headers = cols.map(c => c.label);
-        const data = this.scrapSortedRows.map(r => cols.map(c => String(this.scrapCellValue(r, c.key) ?? '')));
-        this._downloadCsv('scrap.csv', headers, data);
+        downloadExcelXml({
+            filename: `scrap_${this.state.dateFrom}_${this.state.dateTo}.xls`,
+            sheet: 'Scrap',
+            headers: cols.map(c => c.label),
+            rows: this.scrapSortedRows,
+            cell: r => cols.map(c => this.scrapCellValue(r, c.key) ?? ''),
+        });
     }
 
-    exportEvolCsv() {
+    exportEvolXls() {
         const cols = this.evolCols;
-        const headers = cols.map(c => c.label);
-        const data = (this.state.evolRows || []).map(r => cols.map(c => String(this.evolCellValue(r, c.key) ?? '')));
-        this._downloadCsv('evolucion.csv', headers, data);
+        downloadExcelXml({
+            filename: `evolucion_${this.state.dateFrom}_${this.state.dateTo}.xls`,
+            sheet: 'Evolución',
+            headers: cols.map(c => c.label),
+            rows: this.state.evolRows || [],
+            cell: r => cols.map(c => this.evolCellValue(r, c.key) ?? ''),
+        });
     }
 
     // ════════════════════ Scrap ════════════════════

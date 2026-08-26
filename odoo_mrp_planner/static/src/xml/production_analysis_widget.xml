@@ -203,8 +203,8 @@
                                         onNumFilterRemove: (i) => this.removeNumFilter(i)
                                     }"/>
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary text-nowrap" t-on-click="exportWcCsv" title="Exportar tabla a Excel (CSV)">
-                                <i class="fa fa-download me-1"/>Excel
+                            <button class="btn btn-sm btn-outline-success text-nowrap" t-on-click="exportWcXls" title="Exportar tabla a Excel">
+                                <i class="fa fa-download me-1"/>Exportar
                             </button>
                         </div>
 
@@ -496,8 +496,8 @@
                                         onNumFilterRemove: (i) => this.removeScrapNumFilter(i)
                                     }"/>
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary text-nowrap" t-on-click="exportScrapCsv" title="Exportar tabla a Excel (CSV)">
-                                <i class="fa fa-download me-1"/>Excel
+                            <button class="btn btn-sm btn-outline-success text-nowrap" t-on-click="exportScrapXls" title="Exportar tabla a Excel">
+                                <i class="fa fa-download me-1"/>Exportar
                             </button>
                         </div>
 
@@ -784,8 +784,8 @@
 
                         <!-- Tabla mensual -->
                         <div class="d-flex justify-content-end mb-1">
-                            <button class="btn btn-sm btn-outline-secondary text-nowrap" t-on-click="exportEvolCsv" title="Exportar tabla a Excel (CSV)">
-                                <i class="fa fa-download me-1"/>Excel
+                            <button class="btn btn-sm btn-outline-success text-nowrap" t-on-click="exportEvolXls" title="Exportar tabla a Excel">
+                                <i class="fa fa-download me-1"/>Exportar
                             </button>
                         </div>
                         <div class="table-responsive" style="max-height:60vh; overflow:auto;">
@@ -958,8 +958,8 @@
                     onNumFilterRemove: (i) => ctl.removeNumFilter(i)
                 }"/>
             </div>
-            <button class="btn btn-sm btn-outline-secondary text-nowrap" t-on-click="() => ctl.exportCsv()" title="Exportar tabla a Excel (CSV)">
-                <i class="fa fa-download me-1"/>Excel
+            <button class="btn btn-sm btn-outline-success text-nowrap" t-on-click="() => ctl.exportXls()" title="Exportar tabla a Excel">
+                <i class="fa fa-download me-1"/>Exportar
             </button>
         </div>
 

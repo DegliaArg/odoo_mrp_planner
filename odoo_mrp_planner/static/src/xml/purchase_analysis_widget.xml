@@ -110,7 +110,7 @@
         </t>
 
         <!-- ── Sin resultados ──────────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !filteredWcRows().length">
+        <t t-if="!state.loading &amp;&amp; !state.error &amp;&amp; state.tagIds.length &amp;&amp; !state.filteredRows.length">
             <div class="text-center text-muted py-5">
                 <i class="fa fa-inbox fa-2x mb-2 d-block"/>
                 <p class="mb-0">No hay OTs del sector en el período seleccionado.</p>
@@ -118,10 +118,10 @@
         </t>
 
         <!-- ── Tabla CT × Semana ───────────────────────────────────────────── -->
-        <t t-if="!state.loading &amp;&amp; filteredWcRows().length">
+        <t t-if="!state.loading &amp;&amp; state.filteredRows.length">
 
             <!-- KPI cards — calculadas una sola vez con t-set -->
-            <t t-set="kpi" t-value="kpiData"/>
+            <t t-set="kpi" t-value="state.kpi"/>
             <div class="d-flex gap-3 mb-3">
 
                 <!-- OCs vencidas (rojo) -->
@@ -278,7 +278,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="filteredWcRows()" t-as="row" t-key="row.wc_id">
+                        <t t-foreach="state.filteredRows" t-as="row" t-key="row.wc_id">
                             <t>
                                 <tr>
                                     <td class="o_pca_wc_cell">

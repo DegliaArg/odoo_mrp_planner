@@ -75,6 +75,8 @@ class PurchaseAnalysisWidget extends Component {
             activeMoWcId:   null,
             expandedGroups: {},
             weekPage:       0,
+            filteredRows:   [],
+            kpi:            { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
         });
 
         onMounted(async () => {
@@ -163,6 +165,7 @@ class PurchaseAnalysisWidget extends Component {
             // Auto-navegar a la página que contiene la semana actual
             const cwIdx = this.state.weekKeys.indexOf(this.currentWeekKey);
             this.state.weekPage = cwIdx >= 0 ? Math.floor(cwIdx / 4) : 0;
+            this._recompute();
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
             this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -186,6 +189,7 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
         this.state.activeMoWcId = null;
+        this._recompute();
     }
 
     toggleShowFinished() {
@@ -193,6 +197,7 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
         this.state.activeMoWcId = null;
+        this._recompute();
     }
 
     onSearchChange(ev) {
@@ -200,6 +205,7 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
         this.state.activeMoWcId = null;
+        this._recompute();
     }
 
     onDateFromChange(ev) {
@@ -377,28 +383,30 @@ class PurchaseAnalysisWidget extends Component {
         this.state.expandedGroups[key] = !this.state.expandedGroups[key];
     }
 
-    // ── KPIs de compras ─────────────────────────────────────────────────────
+    // ── Cómputo reactivo de filas filtradas y KPIs ──────────────────────────
+    // Llamar explícitamente cuando cambian datos o filtros; evita recalcular
+    // en cada ciclo de render de OWL.
 
-    get kpiData() {
+    _recompute() {
+        const rows = this._computeFilteredRows();
+        this.state.filteredRows = rows;
+
         const seen = new Set();
         const mos  = [];
-        for (const row of this.filteredWcRows()) {
+        for (const row of rows) {
             for (const wk of this.state.weekKeys) {
                 for (const mo of (row.cells[wk] || [])) {
-                    if (!seen.has(mo.mo_id)) {
-                        seen.add(mo.mo_id);
-                        mos.push(mo);
-                    }
+                    if (!seen.has(mo.mo_id)) { seen.add(mo.mo_id); mos.push(mo); }
                 }
             }
         }
         const active = mos.filter(m => m.state !== 'done' && m.state !== 'cancel');
-        return {
-            late:       mos.filter(m => m.has_late_pos),
-            pending:    mos.filter(m => !m.has_late_pos && m.has_pending_pos),
-            toApprove:  mos.filter(m => m.has_to_approve_pos && !m.has_late_pos),
-            noPos:      active.filter(m => m.pos_count === 0),
-            ok:         mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
+        this.state.kpi = {
+            late:      mos.filter(m => m.has_late_pos),
+            pending:   mos.filter(m => !m.has_late_pos && m.has_pending_pos),
+            toApprove: mos.filter(m => m.has_to_approve_pos && !m.has_late_pos),
+            noPos:     active.filter(m => m.pos_count === 0),
+            ok:        mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
         };
     }
 
@@ -416,7 +424,7 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Filas visibles (con filtro CT aplicado) ─────────────────────────────
 
-    filteredWcRows() {
+    _computeFilteredRows() {
         let rows = this.state.wcFilterId
             ? this.state.wcRows.filter(r => r.wc_id === this.state.wcFilterId)
             : this.state.wcRows;
@@ -453,7 +461,7 @@ class PurchaseAnalysisWidget extends Component {
     // ── Exportar a PDF (estilo reporte Odoo con datos de empresa) ──────
 
     exportToPdf() {
-        const rows       = this.filteredWcRows();
+        const rows       = this.state.filteredRows;
         const weekKeys   = this.state.weekKeys;
         const weekLabels = this.state.weekLabels;
         const co         = this._company || {};
@@ -714,7 +722,7 @@ class PurchaseAnalysisWidget extends Component {
     // ── Abrir lista de OCs por aprobar ──────────────────────────────────
 
     openToApprovePOs() {
-        const mos = this.kpiData.toApprove;
+        const mos = this.state.kpi.toApprove;
         const poIds = new Set();
         for (const mo of mos) {
             for (const po of (mo.pos || [])) {

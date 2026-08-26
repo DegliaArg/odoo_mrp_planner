@@ -6,62 +6,67 @@
 
         <!-- ── Filtros ─────────────────────────────────────────────────────── -->
         <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex flex-column gap-2">
 
-                <!-- Sector -->
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small fw-semibold">Sector:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:180px"
-                            t-on-change="onTagChange">
-                        <option value="">Seleccionar sector…</option>
-                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                            <option t-att-value="tag.id"
-                                    t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
-                                <t t-esc="tag.name"/>
-                            </option>
+                <!-- Fila 1: filtros principales -->
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+
+                    <!-- Sector -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-semibold">Sector:</span>
+                        <select class="form-select form-select-sm" style="width:auto;min-width:180px"
+                                t-on-change="onTagChange">
+                            <option value="">Seleccionar sector…</option>
+                            <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                                <option t-att-value="tag.id"
+                                        t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
+                                    <t t-esc="tag.name"/>
+                                </option>
+                            </t>
+                        </select>
+                        <t t-if="!state.tags.length">
+                            <span class="text-muted small fst-italic">Sin sectores configurados</span>
                         </t>
-                    </select>
-                    <t t-if="!state.tags.length">
-                        <span class="text-muted small fst-italic">Sin sectores configurados</span>
-                    </t>
+                    </div>
+
+                    <!-- CT (se habilita cuando hay sector seleccionado) -->
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-semibold">CT:</span>
+                        <select class="form-select form-select-sm" style="width:auto;min-width:180px"
+                                t-att-disabled="!state.tagIds.length"
+                                t-on-change="onWcChange">
+                            <option value="">Todos</option>
+                            <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
+                                <option t-att-value="wc.id"
+                                        t-att-selected="state.wcFilterId == wc.id">
+                                    <t t-esc="wc.name"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+
+                    <!-- Búsqueda por producto -->
+                    <div class="input-group input-group-sm" style="width:200px">
+                        <span class="input-group-text"><i class="fa fa-search"/></span>
+                        <input type="text" class="form-control" placeholder="Buscar producto…"
+                               t-att-value="state.searchText"
+                               t-on-input="onSearchChange"/>
+                    </div>
+
+                    <!-- Toggle terminadas -->
+                    <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="pca_show_finished"
+                               t-att-checked="state.showFinished"
+                               t-on-change="toggleShowFinished"/>
+                        <label class="form-check-label text-muted small fw-semibold mb-0"
+                               for="pca_show_finished">Mostrar OFs terminadas</label>
+                    </div>
+
                 </div>
 
-                <!-- CT (se habilita cuando hay sector seleccionado) -->
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small fw-semibold">CT:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:180px"
-                            t-att-disabled="!state.tagIds.length"
-                            t-on-change="onWcChange">
-                        <option value="">Todos</option>
-                        <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
-                            <option t-att-value="wc.id"
-                                    t-att-selected="state.wcFilterId == wc.id">
-                                <t t-esc="wc.name"/>
-                            </option>
-                        </t>
-                    </select>
-                </div>
-
-                <!-- Búsqueda por producto -->
-                <div class="input-group input-group-sm" style="width:200px">
-                    <span class="input-group-text"><i class="fa fa-search"/></span>
-                    <input type="text" class="form-control" placeholder="Buscar producto…"
-                           t-att-value="state.searchText"
-                           t-on-input="onSearchChange"/>
-                </div>
-
-                <!-- Toggle terminadas -->
-                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch"
-                           id="pca_show_finished"
-                           t-att-checked="state.showFinished"
-                           t-on-change="toggleShowFinished"/>
-                    <label class="form-check-label text-muted small fw-semibold mb-0"
-                           for="pca_show_finished">Mostrar OFs terminadas</label>
-                </div>
-
-                <!-- Fechas + PDF export (al final, separados del resto) -->
-                <div class="d-flex align-items-center gap-2 ms-auto">
+                <!-- Fila 2: fechas + exportar (siempre a la derecha) -->
+                <div class="d-flex align-items-center gap-2 justify-content-end">
                     <span class="text-muted small fw-semibold">Fechas:</span>
                     <input type="date" class="form-control form-control-sm" style="width:145px"
                            t-att-value="state.dateFrom"

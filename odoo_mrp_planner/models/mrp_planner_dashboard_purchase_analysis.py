@@ -276,9 +276,10 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             curr = name
             while True:
                 base = _re.sub(r'-\d+$', '', curr)
-                if base == curr or base in all_names_set:
+                if base == curr:
                     break
-                backorder_bases.add(base)
+                if base not in all_names_set:
+                    backorder_bases.add(base)
                 curr = base
         search_names     = all_names + list(backorder_bases)
         search_names_set = all_names_set | backorder_bases
@@ -372,15 +373,15 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 bucket.add(line.id)
                 all_unique_ids.add(line.id)
             # origin-based (nombres base, para backorders como MO/001-01 → MO/001)
+            # Recorremos toda la cadena de sufijos (-01, -02 …) sin detenernos
+            # si el nombre base ya está en all_names_set; de lo contrario, cuando
+            # VL/MO/03352-01 y VL/MO/03352-02 son ambas raíces, la parcial -02
+            # solo mira hasta -01 (sin OC) y nunca llega a la OC de VL/MO/03352.
             if mo.name:
                 curr = mo.name
                 while True:
                     base = _re.sub(r'-\d+$', '', curr)
-                    if base == curr or base in all_names_set:
-                        if base != mo.name:  # es un nombre base distinto
-                            for line in name_to_lines.get(base, []):
-                                bucket.add(line.id)
-                                all_unique_ids.add(line.id)
+                    if base == curr:
                         break
                     for line in name_to_lines.get(base, []):
                         bucket.add(line.id)

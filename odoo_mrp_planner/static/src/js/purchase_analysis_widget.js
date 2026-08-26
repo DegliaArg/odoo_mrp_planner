@@ -607,7 +607,7 @@ class PurchaseAnalysisWidget extends Component {
 </div>
 
 <div class="rpt-title-row">
-  <span class="rpt-title">Análisis de Compras Productivas</span>
+  <span class="rpt-title">Análisis de compras productivas</span>
   <span class="rpt-date">${now}</span>
   <div class="rpt-meta">
     ${sectorLabel ? `<span class="rpt-chip">Sector: ${esc(sectorLabel)}</span>` : ""}

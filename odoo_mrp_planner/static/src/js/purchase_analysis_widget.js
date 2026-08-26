@@ -48,8 +48,10 @@ class PurchaseAnalysisWidget extends Component {
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
-        this.orm    = useService("orm");
-        this.action = useService("action");
+        this.orm            = useService("orm");
+        this.action         = useService("action");
+        this.companyService = useService("company");
+        this._company       = {};
 
         this.state = useState({
             tags:         [],
@@ -73,6 +75,7 @@ class PurchaseAnalysisWidget extends Component {
         });
 
         onMounted(async () => {
+            this._loadCompany();   // fire-and-forget; no bloquea la carga principal
             try {
                 await this._loadTags();
                 // No cargamos datos hasta que el usuario seleccione un sector
@@ -113,6 +116,20 @@ class PurchaseAnalysisWidget extends Component {
             "mrp.planner.dashboard", "get_wcs_for_tags", [this.state.tagIds]);
         this.state.wcs        = wcs || [];
         this.state.wcFilterId = null;
+    }
+
+    async _loadCompany() {
+        try {
+            const companyId = this.companyService?.currentCompany?.id || 1;
+            const [co] = await this.orm.read(
+                "res.company", [companyId],
+                ["name", "logo", "primary_color", "secondary_color",
+                 "street", "city", "zip", "phone", "email", "website"]
+            );
+            this._company = co || {};
+        } catch (e) {
+            console.warn("[PurchaseAnalysis] Could not load company info:", e);
+        }
     }
 
     async _loadData() {
@@ -353,29 +370,61 @@ class PurchaseAnalysisWidget extends Component {
         return result;
     }
 
-    // ── Exportar a PDF ─────────────────────────────────────────────────
+    // ── Exportar a PDF (estilo reporte Odoo con datos de empresa) ──────
 
     exportToPdf() {
         const rows       = this.filteredWcRows();
         const weekKeys   = this.state.weekKeys;
         const weekLabels = this.state.weekLabels;
+        const co         = this._company || {};
 
-        const now = new Date().toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" });
+        // ── Colores de empresa ──────────────────────────────────────────
+        const primary = (co.primary_color && /^#[0-9a-f]{6}$/i.test(co.primary_color))
+            ? co.primary_color : "#875a7b";
+        const rgb = primary.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+        const [pr, pg, pb] = rgb
+            ? [parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16)]
+            : [135, 90, 123];
+        const rgba08  = `rgba(${pr},${pg},${pb},0.08)`;
+        const rgba18  = `rgba(${pr},${pg},${pb},0.18)`;
+        const rgba35  = `rgba(${pr},${pg},${pb},0.35)`;
+
+        // ── Datos de empresa ────────────────────────────────────────────
+        const logoSrc  = co.logo ? `data:image/png;base64,${co.logo}` : "";
+        const coName   = co.name   || "";
+        const coAddr   = [co.street, [co.zip, co.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+        const coContact= [co.phone, co.email].filter(Boolean).join("  ·  ");
+
+        // ── Textos del documento ────────────────────────────────────────
+        const now = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
         const sectorLabel = this.state.tags.find(t => t.id === this.state.tagIds[0])?.name || "";
+        const dateFrom    = this.fmtDate(this.state.dateFrom);
+        const dateTo      = this.fmtDate(this.state.dateTo);
+        const totalMos    = rows.reduce((acc, r) =>
+            acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0);
 
+        // ── Colores semánticos de OF ────────────────────────────────────
         const MO_COLORS = {
             draft: "#6c757d", confirmed: "#0dcaf0", progress: "#0d6efd",
             to_close: "#ffc107", done: "#198754", cancel: "#dc3545",
         };
-        const MO_ALERT_COLOR = { late: "#dc3545", pending: "#ffc107", none: "#adb5bd", ok: "#198754" };
-
         const chipAlert = mo => {
-            if (mo.has_late_pos)    return MO_ALERT_COLOR.late;
-            if (mo.has_pending_pos) return MO_ALERT_COLOR.pending;
-            if (!mo.pos_count)      return MO_ALERT_COLOR.none;
-            return MO_ALERT_COLOR.ok;
+            if (mo.has_late_pos)    return "#dc3545";
+            if (mo.has_pending_pos) return "#fd7e14";
+            if (!mo.pos_count)      return "#adb5bd";
+            return "#198754";
         };
 
+        // ── Cabecera de la tabla ────────────────────────────────────────
+        let thead = `<tr><th class="th-wc">CT</th>`;
+        for (const wk of weekKeys) {
+            const lbl = weekLabels[wk];
+            thead += `<th class="th-week">${lbl.label} <span style="font-weight:400">${lbl.year}</span>` +
+                     `<span class="th-dates">${lbl.date_from} – ${lbl.date_to}</span></th>`;
+        }
+        thead += `</tr>`;
+
+        // ── Filas de la tabla ───────────────────────────────────────────
         let tbody = "";
         for (const row of rows) {
             tbody += `<tr><td class="wc-cell">${row.wc_name}</td>`;
@@ -383,104 +432,165 @@ class PurchaseAnalysisWidget extends Component {
                 const mos = row.cells[wk] || [];
                 tbody += `<td class="mo-cell">`;
                 for (const mo of mos) {
-                    const stColor  = MO_COLORS[mo.state] || "#6c757d";
-                    const alColor  = chipAlert(mo);
-                    tbody += `<div class="chip">` +
-                        `<div><span class="chip-dot" style="background-color:${alColor}"></span>` +
+                    const stColor = MO_COLORS[mo.state] || "#6c757d";
+                    const alColor = chipAlert(mo);
+                    tbody +=
+                        `<div class="chip">` +
+                        `<div><span class="chip-dot" style="background:${alColor}"></span>` +
                         `<span class="chip-name">${mo.mo_name}</span></div>` +
                         `<div class="chip-product">${mo.product_name}</div>` +
                         `<div class="chip-meta">` +
-                        `<span class="badge" style="background-color:${stColor}">${mo.state_label}</span>` +
-                        ` ${this.fmtQty(mo.qty)} ${mo.uom} &middot; ${mo.pos_count} OC(s)` +
-                        `</div>` +
-                        `</div>`;
+                        `<span class="badge" style="background:${stColor}">${mo.state_label}</span> ` +
+                        `${this.fmtQty(mo.qty)} ${mo.uom} &middot; ${mo.pos_count} OC(s)` +
+                        `</div></div>`;
                 }
                 tbody += `</td>`;
             }
             tbody += `</tr>`;
         }
 
-        let thead = `<tr><th class="th-wc">Centro de trabajo</th>`;
-        for (const wk of weekKeys) {
-            const lbl = weekLabels[wk];
-            thead += `<th class="th-week">${lbl.label} <span class="th-year">${lbl.year}</span><br>` +
-                     `<span class="th-dates">${lbl.date_from} – ${lbl.date_to}</span></th>`;
-        }
-        thead += `</tr>`;
-
-        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+        // ── HTML del documento ──────────────────────────────────────────
+        const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
 <title>Análisis de Compras – ${sectorLabel}</title>
 <style>
+  /* ── Estilos generales ── */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5px; color: #212529; background: #fff;
-         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-  /* Encabezado del documento */
-  .doc-header { padding: 18px 24px 14px; border-bottom: 2px solid #875a7b; margin-bottom: 18px;
-                overflow: hidden; }
-  .doc-header-left  { float: left; }
-  .doc-header-right { float: right; text-align: right; font-size: 10px; color: #6c757d; line-height: 1.7; }
-  .doc-title   { font-size: 18px; font-weight: 700; color: #875a7b; letter-spacing: -0.3px; }
-  .doc-sub     { font-size: 11px; color: #6c757d; margin-top: 2px; }
-
-  /* Tabla principal */
-  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-  th, td { border: 1px solid #dee2e6; padding: 5px 6px; vertical-align: top; }
-
-  .th-wc   { width: 130px; background-color: #f3edf7; color: #4a235a; font-size: 9.5px;
-             font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-  .th-week { background-color: #f3edf7; color: #4a235a; font-size: 9px; font-weight: 700;
-             text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
-  .th-year  { font-weight: 400; }
-  .th-dates { font-size: 8px; font-weight: 400; color: #7b5ea7; display: block; }
-
-  .wc-cell  { background-color: #faf7fc; font-weight: 600; color: #4a235a; font-size: 10px;
-              vertical-align: middle; text-align: center; }
-  .mo-cell  { background-color: #fff; }
-
-  /* Chip de OF — sin flex para máxima compatibilidad PDF */
-  .chip         { border: 1px solid #e2d9f3; border-radius: 4px; padding: 4px 5px;
-                  margin-bottom: 4px; background-color: #fdfcff; }
-  .chip:last-child { margin-bottom: 0; }
-  .chip-dot     { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-                  vertical-align: middle; margin-right: 3px; }
-  .chip-name    { display: inline; font-weight: 700; font-size: 10px; color: #212529; }
-  .chip-product { font-size: 9px; color: #6c757d; margin: 2px 0 3px; }
-  .chip-meta    { font-size: 9px; color: #495057; }
-  .badge        { display: inline-block; padding: 1px 5px; border-radius: 3px;
-                  color: #fff; font-size: 8.5px; font-weight: 600; vertical-align: middle; }
-
-  /* Footer */
-  .doc-footer { margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 8px;
-                font-size: 9px; color: #adb5bd; overflow: hidden; }
-  .doc-footer-left  { float: left; }
-  .doc-footer-right { float: right; }
-
-  @media print {
-    @page { size: landscape; margin: 1.2cm 1cm 0 1cm; }
-    body { font-size: 9.5px; }
-    .doc-header { padding: 12px 0 10px; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.5px; color: #212529; background: #fff;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-</style></head><body>
-<div class="doc-header">
-  <div class="doc-header-right">
-    <div>${now}</div>
-    <div>${weekLabels[weekKeys[0]]?.date_from || ""} – ${weekLabels[weekKeys[weekKeys.length - 1]]?.date_to || ""}</div>
-    <div>${rows.reduce((acc, r) => acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0)} OFs &middot; ${rows.length} CTs</div>
+
+  /* ── Banda superior de color ── */
+  .rpt-band      { background: ${primary}; height: 5px; }
+  .rpt-band-sm   { height: 3px; }
+
+  /* ── Cabecera: logo izq + empresa der ── */
+  .rpt-header { overflow: hidden; padding: 12px 20px 10px; border-bottom: 1px solid #e9ecef; }
+  .rpt-logo-wrap { float: left; }
+  .rpt-logo   { max-height: 56px; max-width: 180px; display: block; object-fit: contain; }
+  .rpt-co     { float: right; text-align: right; font-size: 8.5px; color: #6c757d; line-height: 1.55; }
+  .rpt-co-name{ display: block; font-size: 11px; font-weight: 700; color: #212529; margin-bottom: 1px; }
+
+  /* ── Fila de título ── */
+  .rpt-title-row { overflow: hidden; padding: 9px 20px 8px; border-bottom: 1px solid #e9ecef; }
+  .rpt-title  { float: left; font-size: 15px; font-weight: 700; color: ${primary}; line-height: 1.2; }
+  .rpt-date   { float: right; font-size: 8.5px; color: #6c757d; line-height: 15px; }
+  .rpt-meta   { clear: both; margin-top: 4px; }
+  .rpt-chip   {
+    display: inline-block; font-size: 8px; font-weight: 600;
+    color: ${primary}; background: ${rgba08};
+    border: 1px solid ${rgba18}; border-radius: 3px;
+    padding: 1px 7px; margin-right: 5px;
+  }
+
+  /* ── Tabla ── */
+  .rpt-table-wrap { padding: 10px 0 0; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: 1px solid #dee2e6; padding: 4px 5px; vertical-align: top; }
+
+  /* Columna CT */
+  .th-wc  {
+    width: 120px; background: ${primary}; color: #fff;
+    font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; vertical-align: middle; text-align: center;
+  }
+  /* Columnas de semana */
+  .th-week {
+    background: ${rgba08}; color: ${primary};
+    font-size: 8.5px; font-weight: 700; text-align: center;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .th-dates { display: block; font-size: 7px; font-weight: 400; color: #6c757d; margin-top: 1px; }
+
+  /* Celda CT */
+  .wc-cell {
+    background: ${rgba08}; font-weight: 600; color: ${primary};
+    font-size: 9px; vertical-align: middle; text-align: center;
+    border-right: 2px solid ${rgba35} !important;
+    word-break: break-word;
+  }
+  /* Celda de OFs */
+  .mo-cell { background: #fff; }
+
+  /* ── Chips de OF ── */
+  .chip {
+    border: 1px solid #e9ecef; border-radius: 3px; padding: 3px 4px;
+    margin-bottom: 3px; background: #fff;
+  }
+  .chip:last-child { margin-bottom: 0; }
+  .chip-dot     { display: inline-block; width: 6px; height: 6px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
+  .chip-name    { font-weight: 700; font-size: 9px; color: #212529; }
+  .chip-product { font-size: 8px; color: #6c757d; margin: 1px 0 2px; }
+  .chip-meta    { font-size: 8px; color: #495057; }
+  .badge        { display: inline-block; padding: 1px 4px; border-radius: 2px; color: #fff; font-size: 7.5px; font-weight: 600; vertical-align: middle; }
+
+  /* ── Footer ── */
+  .rpt-footer {
+    overflow: hidden; margin-top: 12px;
+    border-top: 1px solid #e9ecef; padding: 6px 20px 4px;
+    font-size: 8px; color: #adb5bd;
+  }
+  .rpt-footer-left  { float: left; }
+  .rpt-footer-right { float: right; }
+
+  /* ── Reglas de impresión ── */
+  @media print {
+    @page {
+      size: A4 landscape;
+      margin: 0.8cm 0.7cm 0.6cm 0.7cm;
+    }
+    body { font-size: 8.5px; }
+    /* Evitar corte de chips en saltos de página */
+    .chip { page-break-inside: avoid; break-inside: avoid; }
+    tr   { page-break-inside: avoid; break-inside: avoid; }
+    /* Repetir cabecera en cada página */
+    thead { display: table-header-group; }
+    /* La banda de pie queda en la última página */
+    .rpt-band-sm { display: none; }
+  }
+</style>
+</head><body>
+
+<div class="rpt-band"></div>
+
+<div class="rpt-header">
+  <div class="rpt-logo-wrap">
+    ${logoSrc
+        ? `<img class="rpt-logo" src="${logoSrc}" onerror="this.style.display='none'" alt="${coName}">`
+        : `<span style="font-size:13px;font-weight:700;color:${primary};">${coName}</span>`}
   </div>
-  <div class="doc-header-left">
-    <div class="doc-title">Análisis de Compras Productivas</div>
-    <div class="doc-sub">${sectorLabel ? "Sector: " + sectorLabel : ""}</div>
+  <div class="rpt-co">
+    ${coName    ? `<span class="rpt-co-name">${coName}</span>` : ""}
+    ${coAddr    ? `<span>${coAddr}</span><br>` : ""}
+    ${coContact ? `<span>${coContact}</span>` : ""}
   </div>
 </div>
-<table>
-  <thead>${thead}</thead>
-  <tbody>${tbody}</tbody>
-</table>
-<div class="doc-footer">
-  <span class="doc-footer-left">Planificador de Producción – Deglia</span>
-  <span class="doc-footer-right">Impreso el ${now}</span>
+
+<div class="rpt-title-row">
+  <span class="rpt-title">Análisis de Compras Productivas</span>
+  <span class="rpt-date">${now}</span>
+  <div class="rpt-meta">
+    ${sectorLabel ? `<span class="rpt-chip">Sector: ${sectorLabel}</span>` : ""}
+    <span class="rpt-chip">${dateFrom} – ${dateTo}</span>
+    <span class="rpt-chip">${totalMos} OFs &middot; ${rows.length} CT(s)</span>
+  </div>
 </div>
+
+<div class="rpt-table-wrap">
+  <table>
+    <thead>${thead}</thead>
+    <tbody>${tbody}</tbody>
+  </table>
+</div>
+
+<div class="rpt-footer">
+  <span class="rpt-footer-left">${coName ? coName + " — " : ""}Planificador de Producción</span>
+  <span class="rpt-footer-right">Impreso el ${now}</span>
+</div>
+<div class="rpt-band rpt-band-sm"></div>
+
 </body></html>`;
 
         const win = window.open("", "_blank");

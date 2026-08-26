@@ -79,6 +79,8 @@ class PurchaseAnalysisWidget extends Component {
             kpi:            { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
             tagDropdownOpen: false,
             wcDropdownOpen:  false,
+            tagMenuPos:      { top: 0, left: 0 },
+            wcMenuPos:       { top: 0, left: 0 },
         });
 
         onMounted(async () => {
@@ -164,10 +166,8 @@ class PurchaseAnalysisWidget extends Component {
             this.state.wcRows     = (result && result.wc_rows)     || [];
             this.state.totalMos   = (result && result.total_mos)   || 0;
             this.state.totalPos   = (result && result.total_pos)   || 0;
-            // Ventana deslizante: poner la semana actual como primera visible
-            const cwIdx    = this.state.weekKeys.indexOf(this.currentWeekKey);
-            const maxStart = Math.max(0, this.state.weekKeys.length - 4);
-            this.state.weekPage = cwIdx >= 0 ? Math.min(cwIdx, maxStart) : 0;
+            const cwIdx = this.state.weekKeys.indexOf(this.currentWeekKey);
+            this.state.weekPage = cwIdx >= 0 ? Math.floor(cwIdx / 4) : 0;
             this._recompute();
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
@@ -179,12 +179,20 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Handlers de filtros ─────────────────────────────────────────────────
 
-    toggleTagDropdown() {
+    toggleTagDropdown(ev) {
+        if (!this.state.tagDropdownOpen) {
+            const rect = ev.currentTarget.getBoundingClientRect();
+            this.state.tagMenuPos = { top: rect.bottom + 3, left: rect.left };
+        }
         this.state.tagDropdownOpen = !this.state.tagDropdownOpen;
         this.state.wcDropdownOpen  = false;
     }
 
-    toggleWcDropdown() {
+    toggleWcDropdown(ev) {
+        if (!this.state.wcDropdownOpen) {
+            const rect = ev.currentTarget.getBoundingClientRect();
+            this.state.wcMenuPos = { top: rect.bottom + 3, left: rect.left };
+        }
         this.state.wcDropdownOpen  = !this.state.wcDropdownOpen;
         this.state.tagDropdownOpen = false;
     }
@@ -750,14 +758,13 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Paginación de semanas (máx. 4 por página) ──────────────────────
 
-    // Ventana deslizante de 4 semanas: weekPage = índice de la primera visible
     get visibleWeekKeys() {
-        return this.state.weekKeys.slice(this.state.weekPage, this.state.weekPage + 4);
+        const page = this.state.weekPage;
+        return this.state.weekKeys.slice(page * 4, (page + 1) * 4);
     }
 
-    // Posiciones válidas de inicio: para N semanas hay max(1, N-3) posiciones
     get weekPageCount() {
-        return Math.max(1, this.state.weekKeys.length - 3);
+        return Math.max(1, Math.ceil(this.state.weekKeys.length / 4));
     }
 
     prevPage() {
@@ -776,16 +783,6 @@ class PurchaseAnalysisWidget extends Component {
             this.state.activeMoData = null;
             this.state.activeMoWcId = null;
         }
-    }
-
-    jumpToWeek(wk) {
-        const idx = this.state.weekKeys.indexOf(wk);
-        if (idx < 0) return;
-        const maxStart = Math.max(0, this.state.weekKeys.length - 4);
-        this.state.weekPage    = Math.min(idx, maxStart);
-        this.state.activeMoId   = null;
-        this.state.activeMoData = null;
-        this.state.activeMoWcId = null;
     }
 
     // ── Abrir lista de OCs por aprobar ──────────────────────────────────

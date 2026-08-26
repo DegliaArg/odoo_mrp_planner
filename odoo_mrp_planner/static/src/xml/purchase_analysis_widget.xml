@@ -9,7 +9,7 @@
         </t>
 
         <!-- ── Filtros (una sola línea, scroll horizontal si hace falta) ─── -->
-        <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2" style="overflow-x:auto;">
+        <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2" style="overflow-x:auto;position:relative;z-index:1045;">
             <div class="d-flex align-items-center gap-2" style="min-width:max-content;">
 
                 <!-- Fechas -->
@@ -36,7 +36,8 @@
                             <i t-att-class="'fa ms-1 ' + (state.tagDropdownOpen ? 'fa-caret-up' : 'fa-caret-down')"/>
                         </button>
                         <t t-if="state.tagDropdownOpen">
-                            <div class="o_pca_dropdown_menu">
+                            <div class="o_pca_dropdown_menu"
+                                 t-att-style="'top:' + state.tagMenuPos.top + 'px;left:' + state.tagMenuPos.left + 'px;'">
                                 <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
                                     <label class="o_pca_dropdown_item" t-on-click.stop="() => this.toggleTag(tag.id)">
                                         <input type="checkbox" class="form-check-input me-2"
@@ -61,7 +62,8 @@
                                 <i t-att-class="'fa ms-1 ' + (state.wcDropdownOpen ? 'fa-caret-up' : 'fa-caret-down')"/>
                             </button>
                             <t t-if="state.wcDropdownOpen">
-                                <div class="o_pca_dropdown_menu">
+                                <div class="o_pca_dropdown_menu"
+                                     t-att-style="'top:' + state.wcMenuPos.top + 'px;left:' + state.wcMenuPos.left + 'px;'">
                                     <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
                                         <label class="o_pca_dropdown_item" t-on-click.stop="() => this.toggleWc(wc.id)">
                                             <input type="checkbox" class="form-check-input me-2"
@@ -214,32 +216,40 @@
 
             </div>
 
-            <!-- Barra de semanas: ventana deslizante continua, siempre visible -->
-            <t t-if="state.weekKeys.length">
-                <div class="o_pca_week_bar mb-2">
-                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav"
+            <!-- Navegación de páginas de semanas (solo si hay más de 4 semanas) -->
+            <t t-if="weekPageCount > 1">
+                <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                    <button class="btn btn-sm btn-outline-secondary"
                             t-att-disabled="state.weekPage === 0"
                             t-on-click="prevPage">
-                        <i class="fa fa-chevron-left"/>
+                        <i class="fa fa-chevron-left me-1"/>Anterior
                     </button>
-                    <div class="o_pca_week_strip">
-                        <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
-                            <t t-set="lbl"   t-value="state.weekLabels[wk]"/>
-                            <t t-set="isVis" t-value="visibleWeekKeys.includes(wk)"/>
-                            <t t-set="isCur" t-value="wk == currentWeekKey"/>
-                            <button t-att-class="'o_pca_week_pill btn btn-sm '
-                                + (isVis ? (isCur ? 'btn-primary o_pca_week_current' : 'btn-primary') : (isCur ? 'btn-outline-primary' : 'btn-outline-secondary'))"
-                                    t-att-title="fmtDate(lbl.date_from) + ' – ' + fmtDate(lbl.date_to)"
-                                    t-on-click="() => this.jumpToWeek(wk)">
-                                <span class="o_pca_pill_wk" t-esc="lbl.label"/>
-                                <span class="o_pca_pill_yr" t-esc="lbl.year"/>
-                            </button>
+                    <div class="flex-grow-1 text-center" style="font-size:0.85rem">
+                        <t t-if="visibleWeekKeys.length">
+                            <span class="fw-semibold">
+                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].label"/>
+                            </span>
+                            <span class="text-muted ms-1">
+                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].year"/>
+                            </span>
+                            <t t-if="visibleWeekKeys.length > 1">
+                                <span class="text-muted mx-2">–</span>
+                                <span class="fw-semibold">
+                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].label"/>
+                                </span>
+                                <span class="text-muted ms-1">
+                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].year"/>
+                                </span>
+                            </t>
+                            <span class="text-muted ms-2" style="font-size:0.78rem">
+                                (<t t-esc="state.weekPage + 1"/>/<t t-esc="weekPageCount"/>)
+                            </span>
                         </t>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav"
+                    <button class="btn btn-sm btn-outline-secondary"
                             t-att-disabled="state.weekPage >= weekPageCount - 1"
                             t-on-click="nextPage">
-                        <i class="fa fa-chevron-right"/>
+                        Siguiente<i class="fa fa-chevron-right ms-1"/>
                     </button>
                 </div>
             </t>

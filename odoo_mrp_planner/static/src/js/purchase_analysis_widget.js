@@ -477,16 +477,16 @@ class PurchaseAnalysisWidget extends Component {
         const rgba18  = `rgba(${pr},${pg},${pb},0.18)`;
         const rgba35  = `rgba(${pr},${pg},${pb},0.35)`;
 
+        // ── Escape HTML para evitar rotura con nombres especiales ──────
+        const esc = s => String(s ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
         // ── Datos de empresa (con escape) ───────────────────────────────
         const logoSrc  = co.logo ? `data:image/png;base64,${co.logo}` : "";
         const coName   = esc(co.name   || "");
         const coAddr   = esc([co.street, [co.zip, co.city].filter(Boolean).join(" ")].filter(Boolean).join(", "));
         const coContact= "";
-
-        // ── Escape HTML para evitar rotura con nombres especiales ──────
-        const esc = s => String(s ?? "")
-            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
         // ── Textos del documento ────────────────────────────────────────
         const now = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });

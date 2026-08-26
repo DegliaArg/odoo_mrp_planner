@@ -74,9 +74,11 @@ class PurchaseAnalysisWidget extends Component {
             activeMoData:  null,
             activeMoWcId:  null,
             expandedGroups:{},
-            weekPage:      0,   // índice de la primera semana visible (ventana deslizante)
-            filteredRows:  [],
-            kpi:           { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
+            weekPage:       0,   // índice de la primera semana visible (ventana deslizante)
+            filteredRows:   [],
+            kpi:            { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
+            tagDropdownOpen: false,
+            wcDropdownOpen:  false,
         });
 
         onMounted(async () => {
@@ -177,6 +179,21 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Handlers de filtros ─────────────────────────────────────────────────
 
+    toggleTagDropdown() {
+        this.state.tagDropdownOpen = !this.state.tagDropdownOpen;
+        this.state.wcDropdownOpen  = false;
+    }
+
+    toggleWcDropdown() {
+        this.state.wcDropdownOpen  = !this.state.wcDropdownOpen;
+        this.state.tagDropdownOpen = false;
+    }
+
+    closeDropdowns() {
+        this.state.tagDropdownOpen = false;
+        this.state.wcDropdownOpen  = false;
+    }
+
     toggleTag(tagId) {
         const ids = this.state.tagIds;
         this.state.tagIds = ids.includes(tagId)
@@ -195,6 +212,22 @@ class PurchaseAnalysisWidget extends Component {
         this.state.activeMoData = null;
         this.state.activeMoWcId = null;
         this._recompute();
+    }
+
+    get tagFilterLabel() {
+        if (!this.state.tagIds.length) return "Seleccionar…";
+        const names = this.state.tags
+            .filter(t => this.state.tagIds.includes(t.id))
+            .map(t => t.name);
+        return names.length <= 2 ? names.join(", ") : `${names.length} sectores`;
+    }
+
+    get wcFilterLabel() {
+        if (!this.state.wcFilterIds.length) return "Todos";
+        const names = this.state.wcs
+            .filter(w => this.state.wcFilterIds.includes(w.id))
+            .map(w => w.name);
+        return names.length <= 2 ? names.join(", ") : `${names.length} CTs`;
     }
 
     toggleShowFinished() {

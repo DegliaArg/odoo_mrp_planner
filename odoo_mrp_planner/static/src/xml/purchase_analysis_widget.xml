@@ -3,6 +3,10 @@
 
 <t t-name="odoo_mrp_planner.PurchaseAnalysisWidget">
     <div class="o_purchase_analysis_widget">
+        <!-- Backdrop transparente para cerrar dropdowns al hacer click fuera -->
+        <t t-if="state.tagDropdownOpen or state.wcDropdownOpen">
+            <div style="position:fixed;inset:0;z-index:1040" t-on-click="closeDropdowns"/>
+        </t>
 
         <!-- ── Filtros (una sola línea, scroll horizontal si hace falta) ─── -->
         <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2" style="overflow-x:auto;">
@@ -22,30 +26,53 @@
 
                 <div class="vr mx-1"/>
 
-                <!-- Sector — pills multi-select -->
-                <div class="d-flex align-items-center gap-1 flex-wrap">
+                <!-- Sector — dropdown multi-select con checkboxes -->
+                <div class="d-flex align-items-center gap-1">
                     <span class="text-muted small fw-semibold">Sector:</span>
-                    <t t-if="!state.tags.length">
-                        <span class="text-muted small fst-italic">Sin sectores</span>
-                    </t>
-                    <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                        <button t-att-class="'btn btn-xs o_pca_filter_pill ' + (state.tagIds.includes(tag.id) ? 'btn-info text-white' : 'btn-outline-secondary')"
-                                t-on-click="() => this.toggleTag(tag.id)">
-                            <t t-esc="tag.name"/>
+                    <div class="o_pca_dropdown">
+                        <button class="btn btn-sm btn-outline-secondary o_pca_dropdown_btn"
+                                t-on-click.stop="toggleTagDropdown">
+                            <span t-esc="tagFilterLabel"/>
+                            <i t-att-class="'fa ms-1 ' + (state.tagDropdownOpen ? 'fa-caret-up' : 'fa-caret-down')"/>
                         </button>
-                    </t>
+                        <t t-if="state.tagDropdownOpen">
+                            <div class="o_pca_dropdown_menu">
+                                <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                                    <label class="o_pca_dropdown_item" t-on-click.stop="() => this.toggleTag(tag.id)">
+                                        <input type="checkbox" class="form-check-input me-2"
+                                               t-att-checked="state.tagIds.includes(tag.id)"
+                                               t-on-click.stop="() => this.toggleTag(tag.id)"/>
+                                        <t t-esc="tag.name"/>
+                                    </label>
+                                </t>
+                            </div>
+                        </t>
+                    </div>
                 </div>
 
-                <!-- CT — pills multi-select (visible solo si hay sectores activos) -->
+                <!-- CT — dropdown multi-select (visible solo si hay sectores activos) -->
                 <t t-if="state.tagIds.length and state.wcs.length">
-                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <div class="d-flex align-items-center gap-1">
                         <span class="text-muted small fw-semibold">CT:</span>
-                        <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
-                            <button t-att-class="'btn btn-xs o_pca_filter_pill ' + (state.wcFilterIds.includes(wc.id) ? 'btn-secondary text-white' : 'btn-outline-secondary')"
-                                    t-on-click="() => this.toggleWc(wc.id)">
-                                <t t-esc="wc.name"/>
+                        <div class="o_pca_dropdown">
+                            <button class="btn btn-sm btn-outline-secondary o_pca_dropdown_btn"
+                                    t-on-click.stop="toggleWcDropdown">
+                                <span t-esc="wcFilterLabel"/>
+                                <i t-att-class="'fa ms-1 ' + (state.wcDropdownOpen ? 'fa-caret-up' : 'fa-caret-down')"/>
                             </button>
-                        </t>
+                            <t t-if="state.wcDropdownOpen">
+                                <div class="o_pca_dropdown_menu">
+                                    <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
+                                        <label class="o_pca_dropdown_item" t-on-click.stop="() => this.toggleWc(wc.id)">
+                                            <input type="checkbox" class="form-check-input me-2"
+                                                   t-att-checked="state.wcFilterIds.includes(wc.id)"
+                                                   t-on-click.stop="() => this.toggleWc(wc.id)"/>
+                                            <t t-esc="wc.name"/>
+                                        </label>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
                     </div>
                 </t>
 
@@ -205,7 +232,7 @@
                                     t-att-title="fmtDate(lbl.date_from) + ' – ' + fmtDate(lbl.date_to)"
                                     t-on-click="() => this.jumpToWeek(wk)">
                                 <span class="o_pca_pill_wk" t-esc="lbl.label"/>
-                                <span class="o_pca_pill_yr" t-esc="String(lbl.year)"/>
+                                <span class="o_pca_pill_yr" t-esc="lbl.year"/>
                             </button>
                         </t>
                     </div>

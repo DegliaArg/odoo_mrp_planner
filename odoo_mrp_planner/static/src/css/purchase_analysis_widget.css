@@ -1,11 +1,46 @@
-/* ── Filter pills (sector / CT) ───────────────────────────────────── */
+/* ── Dropdown multi-select (sector / CT) ─────────────────────────── */
 
-.o_pca_filter_pill {
-    font-size: 0.72rem;
-    padding: 2px 8px;
-    border-radius: 20px;
-    line-height: 1.4;
-    white-space: nowrap;
+.o_pca_dropdown {
+    position: relative;
+}
+
+.o_pca_dropdown_btn {
+    min-width: 140px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.82rem;
+}
+
+.o_pca_dropdown_menu {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    z-index: 1050;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    padding: 4px 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.o_pca_dropdown_item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    user-select: none;
+    color: #212529;
+}
+
+.o_pca_dropdown_item:hover {
+    background: #f0f4ff;
 }
 
 /* ── Week bar: barra continua de semanas ──────────────────────────── */

@@ -389,11 +389,16 @@ class PurchaseAnalysisWidget extends Component {
         const rgba18  = `rgba(${pr},${pg},${pb},0.18)`;
         const rgba35  = `rgba(${pr},${pg},${pb},0.35)`;
 
-        // ── Datos de empresa ────────────────────────────────────────────
+        // ── Datos de empresa (con escape) ───────────────────────────────
         const logoSrc  = co.logo ? `data:image/png;base64,${co.logo}` : "";
-        const coName   = co.name   || "";
-        const coAddr   = [co.street, [co.zip, co.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-        const coContact= [co.phone, co.email].filter(Boolean).join("  ·  ");
+        const coName   = esc(co.name   || "");
+        const coAddr   = esc([co.street, [co.zip, co.city].filter(Boolean).join(" ")].filter(Boolean).join(", "));
+        const coContact= esc([co.phone, co.email].filter(Boolean).join("  ·  "));
+
+        // ── Escape HTML para evitar rotura con nombres especiales ──────
+        const esc = s => String(s ?? "")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
         // ── Textos del documento ────────────────────────────────────────
         const now = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" });
@@ -419,15 +424,15 @@ class PurchaseAnalysisWidget extends Component {
         let thead = `<tr><th class="th-wc">CT</th>`;
         for (const wk of weekKeys) {
             const lbl = weekLabels[wk];
-            thead += `<th class="th-week">${lbl.label} <span style="font-weight:400">${lbl.year}</span>` +
-                     `<span class="th-dates">${lbl.date_from} – ${lbl.date_to}</span></th>`;
+            thead += `<th class="th-week">${esc(lbl.label)} <span style="font-weight:400">${esc(lbl.year)}</span>` +
+                     `<span class="th-dates">${esc(lbl.date_from)} – ${esc(lbl.date_to)}</span></th>`;
         }
         thead += `</tr>`;
 
         // ── Filas de la tabla ───────────────────────────────────────────
         let tbody = "";
         for (const row of rows) {
-            tbody += `<tr><td class="wc-cell">${row.wc_name}</td>`;
+            tbody += `<tr><td class="wc-cell">${esc(row.wc_name)}</td>`;
             for (const wk of weekKeys) {
                 const mos = row.cells[wk] || [];
                 tbody += `<td class="mo-cell">`;
@@ -437,11 +442,11 @@ class PurchaseAnalysisWidget extends Component {
                     tbody +=
                         `<div class="chip">` +
                         `<div><span class="chip-dot" style="background:${alColor}"></span>` +
-                        `<span class="chip-name">${mo.mo_name}</span></div>` +
-                        `<div class="chip-product">${mo.product_name}</div>` +
+                        `<span class="chip-name">${esc(mo.mo_name)}</span></div>` +
+                        `<div class="chip-product">${esc(mo.product_name)}</div>` +
                         `<div class="chip-meta">` +
-                        `<span class="badge" style="background:${stColor}">${mo.state_label}</span> ` +
-                        `${this.fmtQty(mo.qty)} ${mo.uom} &middot; ${mo.pos_count} OC(s)` +
+                        `<span class="badge" style="background:${stColor}">${esc(mo.state_label)}</span> ` +
+                        `${esc(this.fmtQty(mo.qty))} ${esc(mo.uom)} &middot; ${mo.pos_count} OC(s)` +
                         `</div></div>`;
                 }
                 tbody += `</td>`;
@@ -539,15 +544,12 @@ class PurchaseAnalysisWidget extends Component {
   @media print {
     @page {
       size: A4 landscape;
-      margin: 0.8cm 0.7cm 0.6cm 0.7cm;
+      margin: 1.4cm 1.2cm 1.2cm 1.2cm;
     }
     body { font-size: 8.5px; }
-    /* Evitar corte de chips en saltos de página */
     .chip { page-break-inside: avoid; break-inside: avoid; }
     tr   { page-break-inside: avoid; break-inside: avoid; }
-    /* Repetir cabecera en cada página */
     thead { display: table-header-group; }
-    /* La banda de pie queda en la última página */
     .rpt-band-sm { display: none; }
   }
 </style>
@@ -572,8 +574,8 @@ class PurchaseAnalysisWidget extends Component {
   <span class="rpt-title">Análisis de Compras Productivas</span>
   <span class="rpt-date">${now}</span>
   <div class="rpt-meta">
-    ${sectorLabel ? `<span class="rpt-chip">Sector: ${sectorLabel}</span>` : ""}
-    <span class="rpt-chip">${dateFrom} – ${dateTo}</span>
+    ${sectorLabel ? `<span class="rpt-chip">Sector: ${esc(sectorLabel)}</span>` : ""}
+    <span class="rpt-chip">${esc(dateFrom)} – ${esc(dateTo)}</span>
     <span class="rpt-chip">${totalMos} OFs &middot; ${rows.length} CT(s)</span>
   </div>
 </div>

@@ -66,45 +66,49 @@
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.13) !important;
 }
 
-/* Chip seleccionado — azul tenue, notorio sin ser agresivo */
+/* Chip seleccionado — borde primario tenue, sin violeta */
 .o_pca_mo_chip_active {
-    background: rgba(13, 110, 253, 0.07);
+    background: rgba(13, 110, 253, 0.06);
     border-color: #0d6efd !important;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
 }
 
 /* ── Panel detalle inline ─────────────────────────────────────────── */
 
-/* Separación visual nítida respecto a la matriz */
+/* El espacio viene del padding del <td> en el XML (10px arriba) */
 .o_pca_detail {
-    background: #f5f8ff !important;
-    border-top: 3px solid #0d6efd !important;
-    border-bottom: 1px solid #c0d4f5 !important;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    background: #fff;
+    overflow: hidden;
 }
 
 /* Cabecera del panel (nombre OF + estado) */
-.o_pca_detail > div:first-child {
-    background: #e6eefc !important;
-    border-bottom-color: #b8d0f5 !important;
+.o_pca_detail_header {
+    background: #f1f3f5;
+    border-bottom: 1px solid #dee2e6;
+    font-size: 0.83rem;
 }
 
 /* Encabezados de la tablita */
 .o_pca_detail .table thead th {
-    background: #e6eefc !important;
-    color: #1a3a6c;
-    font-size: 0.75rem;
+    background: #f8f9fa;
+    color: #343a40;
+    font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border-bottom: 2px solid #b8d0f5 !important;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid #ced4da !important;
+    border-top: none !important;
 }
 
 /* Separadores de filas */
 .o_pca_detail .table td {
-    border-color: #dce8f9 !important;
+    border-color: #e9ecef !important;
+    font-size: 0.82rem;
 }
 
-/* Hover suave en filas de la tablita */
+/* Hover suave */
 .o_pca_detail .table-hover > tbody > tr:hover > * {
-    background-color: rgba(13, 110, 253, 0.04) !important;
+    background-color: #f8f9fa !important;
 }

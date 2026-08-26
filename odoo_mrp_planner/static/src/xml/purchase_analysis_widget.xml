@@ -4,26 +4,28 @@
 <t t-name="odoo_mrp_planner.PurchaseAnalysisWidget">
     <div class="o_purchase_analysis_widget">
 
-        <!-- ── Filtros ─────────────────────────────────────────────────────── -->
-        <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
+        <!-- ── Filtros (una sola línea, scroll horizontal si hace falta) ─── -->
+        <div class="o_pca_filters card mb-3 border-0 bg-light px-3 py-2" style="overflow-x:auto;">
+            <div class="d-flex align-items-center gap-2" style="min-width:max-content;">
 
                 <!-- Fechas -->
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-1">
                     <span class="text-muted small fw-semibold">Desde:</span>
-                    <input type="date" class="form-control form-control-sm" style="width:145px"
+                    <input type="date" class="form-control form-control-sm" style="width:128px"
                            t-att-value="state.dateFrom"
                            t-on-change="onDateFromChange"/>
                     <span class="text-muted small">hasta:</span>
-                    <input type="date" class="form-control form-control-sm" style="width:145px"
+                    <input type="date" class="form-control form-control-sm" style="width:128px"
                            t-att-value="state.dateTo"
                            t-on-change="onDateToChange"/>
                 </div>
 
+                <div class="vr mx-1"/>
+
                 <!-- Sector -->
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-1">
                     <span class="text-muted small fw-semibold">Sector:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:160px"
+                    <select class="form-select form-select-sm" style="width:auto;min-width:140px"
                             t-on-change="onTagChange">
                         <option value="">Seleccionar sector…</option>
                         <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
@@ -39,9 +41,9 @@
                 </div>
 
                 <!-- CT -->
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-1">
                     <span class="text-muted small fw-semibold">CT:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:160px"
+                    <select class="form-select form-select-sm" style="width:auto;min-width:140px"
                             t-att-disabled="!state.tagIds.length"
                             t-on-change="onWcChange">
                         <option value="">Todos</option>
@@ -54,8 +56,10 @@
                     </select>
                 </div>
 
+                <div class="vr mx-1"/>
+
                 <!-- Búsqueda por producto -->
-                <div class="input-group input-group-sm" style="width:190px">
+                <div class="input-group input-group-sm" style="width:170px">
                     <span class="input-group-text"><i class="fa fa-search"/></span>
                     <input type="text" class="form-control" placeholder="Buscar producto…"
                            t-att-value="state.searchText"
@@ -63,7 +67,7 @@
                 </div>
 
                 <!-- Toggle OFs terminadas -->
-                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
+                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0 ms-1">
                     <input class="form-check-input" type="checkbox" role="switch"
                            id="pca_show_finished"
                            t-att-checked="state.showFinished"
@@ -72,13 +76,11 @@
                            for="pca_show_finished">Mostrar OFs terminadas</label>
                 </div>
 
-                <!-- Exportar PDF (solo icono, rojo) -->
-                <div class="ms-auto">
-                    <button class="btn btn-sm btn-outline-secondary" title="Exportar tabla a PDF"
-                            t-on-click="exportToPdf">
-                        <i class="fa fa-file-pdf-o" style="color:#dc3545;"/>
-                    </button>
-                </div>
+                <!-- Exportar PDF (solo icono, rojo) — ms-auto empuja a la derecha sin wrap -->
+                <button class="btn btn-sm btn-outline-secondary ms-auto" title="Exportar tabla a PDF"
+                        t-on-click="exportToPdf">
+                    <i class="fa fa-file-pdf-o" style="color:#dc3545;"/>
+                </button>
 
             </div>
         </div>
@@ -206,9 +208,9 @@
                                 <!-- Panel detalle inline: aparece bajo el CT de la tarjeta activa -->
                                 <t t-if="state.activeMoData and state.activeMoWcId == row.wc_id">
                                     <tr class="o_pca_detail_row">
-                                        <td t-att-colspan="state.weekKeys.length + 1" class="p-0 border-0">
-                                            <div class="o_pca_detail border-top border-bottom bg-white">
-                                                <div class="d-flex align-items-center gap-2 py-2 px-3 bg-light border-bottom">
+                                        <td t-att-colspan="state.weekKeys.length + 1" style="padding:10px 0 4px;border:none;">
+                                            <div class="o_pca_detail">
+                                                <div class="o_pca_detail_header d-flex align-items-center gap-2 py-2 px-3">
                                                     <i class="fa fa-industry text-muted"/>
                                                     <span class="fw-bold" t-esc="state.activeMoData.mo_name"/>
                                                     <span class="text-muted">–</span>

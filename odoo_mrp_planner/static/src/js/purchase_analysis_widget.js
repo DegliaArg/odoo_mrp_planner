@@ -396,7 +396,7 @@ class PurchaseAnalysisWidget extends Component {
         return {
             late:       mos.filter(m => m.has_late_pos),
             pending:    mos.filter(m => !m.has_late_pos && m.has_pending_pos),
-            toApprove:  mos.filter(m => m.has_to_approve_pos),
+            toApprove:  mos.filter(m => m.has_to_approve_pos && !m.has_late_pos),
             noPos:      active.filter(m => m.pos_count === 0),
             ok:         mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
         };

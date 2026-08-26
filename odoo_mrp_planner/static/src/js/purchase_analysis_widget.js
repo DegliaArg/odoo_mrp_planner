@@ -27,11 +27,12 @@ function lastOfMonth() {
 }
 
 const PO_STATE_CLASS = {
-    draft:    "badge bg-secondary",
-    sent:     "badge bg-warning text-dark",
-    purchase: "badge bg-primary",
-    done:     "badge bg-success",
-    cancel:   "badge bg-danger",
+    draft:          "badge bg-secondary",
+    sent:           "badge bg-warning text-dark",
+    "to approve":   "badge bg-info text-dark",
+    purchase:       "badge bg-primary",
+    done:           "badge bg-success",
+    cancel:         "badge bg-danger",
 };
 
 const MO_STATE_CLASS = {
@@ -71,7 +72,8 @@ class PurchaseAnalysisWidget extends Component {
             error:        null,
             activeMoId:   null,
             activeMoData: null,
-            activeMoWcId: null,
+            activeMoWcId:   null,
+            expandedGroups: {},
         });
 
         onMounted(async () => {
@@ -334,6 +336,43 @@ class PurchaseAnalysisWidget extends Component {
         });
     }
 
+    // ── Agrupación de backorders por nombre madre ───────────────────────────
+
+    _groupedCell(mos, wcId, wk) {
+        // 1. Deduplicar por mo_id (varias OTs del mismo MO → un chip)
+        const seenId = new Set();
+        const unique = (mos || []).filter(mo => {
+            if (seenId.has(mo.mo_id)) return false;
+            seenId.add(mo.mo_id);
+            return true;
+        });
+
+        // 2. Agrupar por nombre base (elimina sufijo -NN de backorders)
+        const groupMap = new Map();
+        for (const mo of unique) {
+            const base = mo.mo_name.replace(/-\d+$/, '');
+            if (!groupMap.has(base)) groupMap.set(base, []);
+            groupMap.get(base).push(mo);
+        }
+
+        // 3. Construir objetos de grupo con clave única por celda
+        return Array.from(groupMap.entries()).map(([baseName, members]) => ({
+            key:           `${wcId}|${wk}|${baseName}`,
+            baseName,
+            mos:           members,
+            isGroup:       members.length > 1,
+            hasLatePos:    members.some(m => m.has_late_pos),
+            hasPendingPos: members.some(m => !m.has_late_pos && m.has_pending_pos),
+            posCount:      members.reduce((s, m) => s + (m.pos_count || 0), 0),
+            totalQty:      members.reduce((s, m) => s + (m.qty || 0), 0),
+            uom:           members[0].uom,
+        }));
+    }
+
+    toggleGroup(key) {
+        this.state.expandedGroups[key] = !this.state.expandedGroups[key];
+    }
+
     // ── KPIs de compras ─────────────────────────────────────────────────────
 
     get kpiData() {
@@ -351,10 +390,11 @@ class PurchaseAnalysisWidget extends Component {
         }
         const active = mos.filter(m => m.state !== 'done' && m.state !== 'cancel');
         return {
-            late:    mos.filter(m => m.has_late_pos),
-            pending: mos.filter(m => !m.has_late_pos && m.has_pending_pos),
-            noPos:   active.filter(m => m.pos_count === 0),
-            ok:      mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
+            late:       mos.filter(m => m.has_late_pos),
+            pending:    mos.filter(m => !m.has_late_pos && m.has_pending_pos),
+            toApprove:  mos.filter(m => m.has_to_approve_pos),
+            noPos:      active.filter(m => m.pos_count === 0),
+            ok:         mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
         };
     }
 

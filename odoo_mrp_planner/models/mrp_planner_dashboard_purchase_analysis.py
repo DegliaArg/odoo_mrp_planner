@@ -25,11 +25,12 @@ from odoo import models, api, fields, _
 _logger = logging.getLogger(__name__)
 
 _PO_STATE_LABEL = {
-    'draft':    'Cotización',
-    'sent':     'Enviada',
-    'purchase': 'OC',
-    'done':     'Bloqueada',
-    'cancel':   'Cancelada',
+    'draft':      'Cotización',
+    'sent':       'Enviada',
+    'to approve': 'Por aprobar',
+    'purchase':   'OC',
+    'done':       'Bloqueada',
+    'cancel':     'Cancelada',
 }
 _MO_STATE_LABEL = {
     'draft':     'Borrador',
@@ -169,7 +170,8 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 'pos':            pos_data,
                 'pos_count':      len(pos_data),
                 'has_late_pos':   any(p['is_late'] for p in pos_data),
-                'has_pending_pos': any(p['state'] in ('draft', 'sent') for p in pos_data),
+                'has_pending_pos':    any(p['state'] in ('draft', 'sent') for p in pos_data),
+                'has_to_approve_pos': any(p['state'] == 'to approve' for p in pos_data),
             })
 
         week_keys = sorted(week_info.keys())
@@ -443,7 +445,7 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             pct_received = round(qty_received / qty_ordered * 100, 1) if qty_ordered > 0 else 0.0
 
             is_late = (
-                po.state in ('purchase', 'sent', 'draft')
+                po.state in ('purchase', 'sent', 'draft', 'to approve')
                 and date_planned_d is not None
                 and date_planned_d < today
                 and qty_received < qty_ordered

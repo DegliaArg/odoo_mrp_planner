@@ -158,6 +158,23 @@
                     </div>
                 </div>
 
+                <!-- OCs por aprobar (azul info) -->
+                <div class="flex-fill" style="min-width:0;flex-basis:0;">
+                    <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                         title="OFs con al menos una OC en estado 'Por aprobar' (requiere aprobación del responsable de compras)">
+                        <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
+                            <i class="fa fa-thumbs-o-up fa-lg text-info mb-1 d-block"/>
+                            <div class="o_planner_number text-info" t-esc="kpi.toApprove.length"/>
+                            <div class="o_planner_label">OFs con OC por aprobar</div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-att-disabled="!kpi.toApprove.length"
+                                    t-on-click="() => this.openKpiMos(kpi.toApprove, 'OFs con OC por aprobar')">Ver →</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Sin OC en cadena (gris) -->
                 <div class="flex-fill" style="min-width:0;flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
@@ -231,7 +248,10 @@
                                     </td>
                                     <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
                                         <td t-att-class="'o_pca_cell' + (wk == currentWeekKey ? ' bg-secondary bg-opacity-10' : '')">
-                                            <t t-foreach="row.cells[wk]" t-as="mo" t-key="mo.wo_id">
+                                            <t t-foreach="_groupedCell(row.cells[wk], row.wc_id, wk)" t-as="grp" t-key="grp.key">
+                                            <!-- MO individual (sin parciales) -->
+                                            <t t-if="!grp.isGroup">
+                                                <t t-set="mo" t-value="grp.mos[0]"/>
                                                 <div t-att-class="'o_pca_mo_chip rounded p-1 mb-1 border ' + (state.activeMoId == mo.mo_id ? 'o_pca_mo_chip_active' : (mo.has_late_pos ? 'border-danger' : 'o_pca_chip_default'))"
                                                      style="cursor:pointer;font-size:0.8rem"
                                                      t-att-title="moTooltip(mo)"
@@ -258,7 +278,6 @@
                                                             <t t-esc="mo.pos_count"/>
                                                         </span>
                                                     </div>
-
                                                     <!-- Lista inline de OCs (visible solo cuando el chip está activo) -->
                                                     <t t-if="state.activeMoId == mo.mo_id">
                                                         <div class="mt-2 pt-2 border-top">
@@ -275,6 +294,62 @@
                                                     </t>
                                                 </div>
                                             </t>
+                                            <!-- Grupo de OFs parciales (backorders agrupados por nombre madre) -->
+                                            <t t-else="">
+                                                <div t-att-class="'o_pca_mo_chip o_pca_mo_group rounded p-1 mb-1 border ' + (grp.hasLatePos ? 'border-danger' : 'o_pca_chip_default')"
+                                                     style="font-size:0.8rem">
+                                                    <!-- Cabecera: click expande/colapsa -->
+                                                    <div class="d-flex align-items-center gap-1" style="cursor:pointer"
+                                                         t-on-click="() => this.toggleGroup(grp.key)">
+                                                        <i t-att-class="'fa fa-fw fa-xs ' + (grp.hasLatePos ? 'fa-exclamation-circle text-danger' : grp.hasPendingPos ? 'fa-clock-o text-warning' : grp.posCount > 0 ? 'fa-check-circle text-success' : 'fa-minus text-muted')"/>
+                                                        <span class="fw-semibold text-truncate flex-grow-1" style="max-width:78px" t-esc="grp.baseName"/>
+                                                        <span class="badge bg-secondary" style="font-size:0.6rem;white-space:nowrap">
+                                                            <t t-esc="grp.mos.length"/> parc.
+                                                        </span>
+                                                        <i t-att-class="'fa fa-xs ms-1 text-muted ' + (state.expandedGroups[grp.key] ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                                                    </div>
+                                                    <!-- Resumen agregado del grupo -->
+                                                    <div class="text-muted" style="font-size:0.72rem;margin-top:2px">
+                                                        <i class="fa fa-cubes fa-xs me-1"/>
+                                                        <t t-esc="fmtQty(grp.totalQty)"/>
+                                                        <span class="ms-1" t-esc="grp.uom"/>
+                                                        <span class="mx-1">·</span>
+                                                        <i class="fa fa-shopping-cart fa-xs me-1"/>
+                                                        <t t-esc="grp.posCount"/> OC(s)
+                                                    </div>
+                                                    <!-- Sub-chips de cada parcial (visible cuando expandido) -->
+                                                    <t t-if="state.expandedGroups[grp.key]">
+                                                        <div class="mt-1 pt-1 border-top">
+                                                            <t t-foreach="grp.mos" t-as="mo" t-key="mo.mo_id">
+                                                                <div t-att-class="'o_pca_mo_chip o_pca_sub_chip rounded p-1 mb-1 border bg-white ' + (state.activeMoId == mo.mo_id ? 'o_pca_mo_chip_active' : (mo.has_late_pos ? 'border-danger' : 'o_pca_chip_default'))"
+                                                                     style="cursor:pointer;font-size:0.75rem"
+                                                                     t-att-title="moTooltip(mo)"
+                                                                     t-on-click.stop="() => this.selectMo(mo, row.wc_id)">
+                                                                    <div class="d-flex align-items-center gap-1">
+                                                                        <i t-att-class="'fa fa-fw fa-xs ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"/>
+                                                                        <span class="fw-semibold text-truncate flex-grow-1" style="max-width:75px" t-esc="mo.mo_name"/>
+                                                                        <button class="btn p-0 ms-auto o_pca_chip_open"
+                                                                                title="Abrir OF"
+                                                                                t-on-click.stop="() => this.openMo(mo)">
+                                                                            <i class="fa fa-external-link fa-xs text-muted"/>
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="text-muted text-truncate" style="font-size:0.68rem;max-width:110px" t-esc="mo.product_name"/>
+                                                                    <div class="d-flex align-items-center gap-2 mt-1" style="font-size:0.68rem">
+                                                                        <span t-att-class="moStateClass(mo.state)" t-esc="mo.state_label"/>
+                                                                        <span class="text-muted">
+                                                                            <i class="fa fa-cubes fa-xs me-1"/>
+                                                                            <t t-esc="fmtQty(mo.qty)"/>
+                                                                            <span class="ms-1" t-esc="mo.uom"/>
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </t>
+                                                        </div>
+                                                    </t>
+                                                </div>
+                                            </t>
+                                        </t>
                                         </td>
                                     </t>
                                 </tr>

@@ -82,6 +82,25 @@
     box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
 }
 
+/* ── Chip grupo de backorders ─────────────────────────────────────── */
+
+/* Chip madre: fondo ligeramente rayado para distinguirlo del chip individual */
+.o_pca_mo_group {
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 4px,
+        rgba(0,0,0,0.018) 4px,
+        rgba(0,0,0,0.018) 8px
+    ) !important;
+}
+
+/* Sub-chips de parciales: más compactos y con indent visual */
+.o_pca_sub_chip {
+    margin-left: 4px;
+    font-size: 0.75rem !important;
+}
+
 /* ── Panel detalle inline ─────────────────────────────────────────── */
 
 /* El espacio viene del padding del <td> en el XML (10px arriba) */

@@ -58,4 +58,5 @@
 /* Barra de sección (títulos de bloque dentro de cada tab) */
 .o_production_analysis_widget .o_planner_section_title {
     padding: 0.25rem 0;
+    text-transform: uppercase;
 }

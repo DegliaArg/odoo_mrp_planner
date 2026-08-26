@@ -501,6 +501,15 @@ class PurchaseAnalysisWidget extends Component {
         const totalMos    = rows.reduce((acc, r) =>
             acc + weekKeys.reduce((a, wk) => a + (r.cells[wk]?.length || 0), 0), 0);
 
+        // Rango de semanas para el encabezado del PDF
+        const firstWkLabel = weekKeys.length ? weekLabels[weekKeys[0]] : null;
+        const lastWkLabel  = weekKeys.length ? weekLabels[weekKeys[weekKeys.length - 1]] : null;
+        const weekRangeStr = firstWkLabel && lastWkLabel
+            ? (firstWkLabel === lastWkLabel
+                ? `${esc(firstWkLabel.label)} ${esc(String(firstWkLabel.year))}`
+                : `${esc(firstWkLabel.label)} – ${esc(lastWkLabel.label)} · ${esc(String(lastWkLabel.year))}`)
+            : "";
+
         // ── Colores semánticos de OF ────────────────────────────────────
         const MO_COLORS = {
             draft: "#6c757d", confirmed: "#0dcaf0", progress: "#0d6efd",
@@ -573,7 +582,9 @@ class PurchaseAnalysisWidget extends Component {
 
   /* ── Fila de título ── */
   .rpt-title-row { overflow: hidden; padding: 9px 20px 8px; border-bottom: 1px solid #e9ecef; }
-  .rpt-title  { float: left; font-size: 15px; font-weight: 700; color: ${primary}; line-height: 1.2; }
+  .rpt-title-wrap { float: left; }
+  .rpt-title  { display: block; font-size: 15px; font-weight: 700; color: ${primary}; line-height: 1.2; }
+  .rpt-weeks  { display: block; font-size: 11.5px; font-weight: 600; color: #343a40; margin-top: 3px; letter-spacing: 0.01em; }
   .rpt-date   { float: right; font-size: 8.5px; color: #6c757d; line-height: 15px; }
   .rpt-meta   { clear: both; margin-top: 4px; }
   .rpt-chip   {
@@ -664,7 +675,10 @@ class PurchaseAnalysisWidget extends Component {
 </div>
 
 <div class="rpt-title-row">
-  <span class="rpt-title">Análisis de compras productivas</span>
+  <div class="rpt-title-wrap">
+    <span class="rpt-title">Análisis de compras productivas</span>
+    ${weekRangeStr ? `<span class="rpt-weeks">Semanas ${weekRangeStr}</span>` : ""}
+  </div>
   <span class="rpt-date">${now}</span>
   <div class="rpt-meta">
     ${sectorLabel ? `<span class="rpt-chip">Sector: ${esc(sectorLabel)}</span>` : ""}

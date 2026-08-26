@@ -442,6 +442,23 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
             result[mo.id] = self._pca_format_po_lines(
                 POL.browse(list(filtered_ids)), today)
 
+        # Propagar datos de OC a TODOS los backorders de la misma familia.
+        # El BFS atribuye las OCs al backorder "representativo" (el que resolvió
+        # el origin match); los demás tienen pos=[]. Al compartir los datos,
+        # cualquier sub-chip del grupo muestra las OCs al hacer click.
+        base_pos_cache = {}
+        for mo in root_mos:
+            if mo.name and result.get(mo.id):
+                base = _re.sub(r'-\d+$', '', mo.name)
+                if base != mo.name:
+                    base_pos_cache.setdefault(base, result[mo.id])
+
+        for mo in root_mos:
+            if mo.name and not result.get(mo.id):
+                base = _re.sub(r'-\d+$', '', mo.name)
+                if base != mo.name and base in base_pos_cache:
+                    result[mo.id] = base_pos_cache[base]
+
         return result
 
     def _pca_format_po_lines(self, po_lines, today):

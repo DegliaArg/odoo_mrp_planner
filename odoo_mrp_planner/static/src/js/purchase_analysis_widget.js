@@ -366,17 +366,22 @@ class PurchaseAnalysisWidget extends Component {
         }
 
         // 3. Construir objetos de grupo con clave única por celda
-        return Array.from(groupMap.entries()).map(([baseName, members]) => ({
-            key:           `${wcId}|${wk}|${baseName}`,
-            baseName,
-            mos:           members,
-            isGroup:       members.length > 1,
-            hasLatePos:    members.some(m => m.has_late_pos),
-            hasPendingPos: members.some(m => !m.has_late_pos && m.has_pending_pos),
-            posCount:      members.reduce((s, m) => s + (m.pos_count || 0), 0),
-            totalQty:      members.reduce((s, m) => s + (m.qty || 0), 0),
-            uom:           members[0].uom,
-        }));
+        return Array.from(groupMap.entries()).map(([baseName, members]) => {
+            // Contar PO IDs únicos entre todos los miembros (evita inflar el conteo
+            // cuando las OCs se propagan a todos los backorders de la familia)
+            const uniquePoIds = new Set(members.flatMap(m => (m.pos || []).map(p => p.po_id)));
+            return {
+                key:           `${wcId}|${wk}|${baseName}`,
+                baseName,
+                mos:           members,
+                isGroup:       members.length > 1,
+                hasLatePos:    members.some(m => m.has_late_pos),
+                hasPendingPos: members.some(m => !m.has_late_pos && m.has_pending_pos),
+                posCount:      uniquePoIds.size,
+                totalQty:      members.reduce((s, m) => s + (m.qty || 0), 0),
+                uom:           members[0].uom,
+            };
+        });
     }
 
     toggleGroup(key) {

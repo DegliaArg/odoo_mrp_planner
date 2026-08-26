@@ -170,7 +170,7 @@
                         <div class="card-footer p-0">
                             <button class="btn btn-sm btn-link w-100 py-1"
                                     t-att-disabled="!kpi.toApprove.length"
-                                    t-on-click="() => this.openKpiMos(kpi.toApprove, 'OFs con OC por aprobar')">Ver →</button>
+                                    t-on-click="openToApprovePOs">Ver →</button>
                         </div>
                     </div>
                 </div>
@@ -211,6 +211,44 @@
 
             </div>
 
+            <!-- Navegación de páginas de semanas (solo si hay más de 4 semanas) -->
+            <t t-if="weekPageCount > 1">
+                <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                    <button class="btn btn-sm btn-outline-secondary"
+                            t-att-disabled="state.weekPage === 0"
+                            t-on-click="prevPage">
+                        <i class="fa fa-chevron-left me-1"/>Anterior
+                    </button>
+                    <div class="flex-grow-1 text-center" style="font-size:0.85rem">
+                        <t t-if="visibleWeekKeys.length">
+                            <span class="fw-semibold">
+                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].label"/>
+                            </span>
+                            <span class="text-muted ms-1">
+                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].year"/>
+                            </span>
+                            <t t-if="visibleWeekKeys.length > 1">
+                                <span class="text-muted mx-2">–</span>
+                                <span class="fw-semibold">
+                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].label"/>
+                                </span>
+                                <span class="text-muted ms-1">
+                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].year"/>
+                                </span>
+                            </t>
+                            <span class="text-muted ms-2" style="font-size:0.78rem">
+                                (<t t-esc="state.weekPage + 1"/>/<t t-esc="weekPageCount"/>)
+                            </span>
+                        </t>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            t-att-disabled="state.weekPage >= weekPageCount - 1"
+                            t-on-click="nextPage">
+                        Siguiente<i class="fa fa-chevron-right ms-1"/>
+                    </button>
+                </div>
+            </t>
+
             <div class="table-responsive mb-3">
                 <table class="table table-hover o_pca_matrix" style="min-width:500px;table-layout:fixed">
                     <thead>
@@ -218,7 +256,7 @@
                             <th class="o_pca_wc_header" style="width:160px">
                                 CT
                             </th>
-                            <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
+                            <t t-foreach="visibleWeekKeys" t-as="wk" t-key="wk">
                                 <th t-att-class="'text-center o_pca_week_header' + (wk == currentWeekKey ? ' table-active' : '')"
                                     style="width:160px">
                                     <div class="fw-bold">
@@ -246,7 +284,7 @@
                                     <td class="o_pca_wc_cell">
                                         <t t-esc="row.wc_name"/>
                                     </td>
-                                    <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
+                                    <t t-foreach="visibleWeekKeys" t-as="wk" t-key="wk">
                                         <td t-att-class="'o_pca_cell' + (wk == currentWeekKey ? ' bg-secondary bg-opacity-10' : '')">
                                             <t t-foreach="_groupedCell(row.cells[wk], row.wc_id, wk)" t-as="grp" t-key="grp.key">
                                             <!-- MO individual (sin parciales) -->
@@ -258,14 +296,14 @@
                                                      t-on-click="() => this.selectMo(mo, row.wc_id)">
                                                     <div class="d-flex align-items-center gap-1">
                                                         <i t-att-class="'fa fa-fw fa-xs ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"/>
-                                                        <span class="fw-semibold text-truncate flex-grow-1" style="max-width:100px" t-esc="mo.mo_name"/>
+                                                        <span class="fw-semibold text-truncate flex-grow-1" t-esc="mo.mo_name"/>
                                                         <button class="btn p-0 ms-auto o_pca_chip_open"
                                                                 title="Abrir OF"
                                                                 t-on-click.stop="() => this.openMo(mo)">
                                                             <i class="fa fa-external-link fa-xs text-muted"/>
                                                         </button>
                                                     </div>
-                                                    <div class="text-muted text-truncate" style="font-size:0.72rem;max-width:130px" t-esc="mo.product_name"/>
+                                                    <div class="text-muted text-truncate" style="font-size:0.72rem" t-esc="mo.product_name"/>
                                                     <div class="text-muted" style="font-size:0.72rem">
                                                         <i class="fa fa-cubes fa-xs me-1"/>
                                                         <t t-esc="fmtQty(mo.qty)"/>
@@ -302,7 +340,7 @@
                                                     <div class="d-flex align-items-center gap-1" style="cursor:pointer"
                                                          t-on-click="() => this.toggleGroup(grp.key)">
                                                         <i t-att-class="'fa fa-fw fa-xs ' + (grp.hasLatePos ? 'fa-exclamation-circle text-danger' : grp.hasPendingPos ? 'fa-clock-o text-warning' : grp.posCount > 0 ? 'fa-check-circle text-success' : 'fa-minus text-muted')"/>
-                                                        <span class="fw-semibold text-truncate flex-grow-1" style="max-width:78px" t-esc="grp.baseName"/>
+                                                        <span class="fw-semibold text-truncate flex-grow-1" t-esc="grp.baseName"/>
                                                         <span class="badge bg-secondary" style="font-size:0.6rem;white-space:nowrap">
                                                             <t t-esc="grp.mos.length"/> parc.
                                                         </span>
@@ -327,14 +365,14 @@
                                                                      t-on-click.stop="() => this.selectMo(mo, row.wc_id)">
                                                                     <div class="d-flex align-items-center gap-1">
                                                                         <i t-att-class="'fa fa-fw fa-xs ' + moAlertIcon(mo) + ' ' + moAlertClass(mo)"/>
-                                                                        <span class="fw-semibold text-truncate flex-grow-1" style="max-width:75px" t-esc="mo.mo_name"/>
+                                                                        <span class="fw-semibold text-truncate flex-grow-1" t-esc="mo.mo_name"/>
                                                                         <button class="btn p-0 ms-auto o_pca_chip_open"
                                                                                 title="Abrir OF"
                                                                                 t-on-click.stop="() => this.openMo(mo)">
                                                                             <i class="fa fa-external-link fa-xs text-muted"/>
                                                                         </button>
                                                                     </div>
-                                                                    <div class="text-muted text-truncate" style="font-size:0.68rem;max-width:110px" t-esc="mo.product_name"/>
+                                                                    <div class="text-muted text-truncate" style="font-size:0.68rem" t-esc="mo.product_name"/>
                                                                     <div class="d-flex align-items-center gap-2 mt-1" style="font-size:0.68rem">
                                                                         <span t-att-class="moStateClass(mo.state)" t-esc="mo.state_label"/>
                                                                         <span class="text-muted">
@@ -357,7 +395,7 @@
                                 <!-- Panel detalle inline: aparece bajo el CT de la tarjeta activa -->
                                 <t t-if="state.activeMoData and state.activeMoWcId == row.wc_id">
                                     <tr class="o_pca_detail_row">
-                                        <td t-att-colspan="state.weekKeys.length + 1" style="padding:10px 0 4px;border:none;">
+                                        <td t-att-colspan="visibleWeekKeys.length + 1" style="padding:10px 0 4px;border:none;">
                                             <div class="o_pca_detail">
                                                 <div class="o_pca_detail_header d-flex align-items-center gap-2 py-2 px-3">
                                                     <i class="fa fa-industry text-muted"/>

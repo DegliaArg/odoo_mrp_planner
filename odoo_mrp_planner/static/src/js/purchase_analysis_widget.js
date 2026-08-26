@@ -74,6 +74,7 @@ class PurchaseAnalysisWidget extends Component {
             activeMoData: null,
             activeMoWcId:   null,
             expandedGroups: {},
+            weekPage:       0,
         });
 
         onMounted(async () => {
@@ -159,6 +160,9 @@ class PurchaseAnalysisWidget extends Component {
             this.state.wcRows     = (result && result.wc_rows)     || [];
             this.state.totalMos   = (result && result.total_mos)   || 0;
             this.state.totalPos   = (result && result.total_pos)   || 0;
+            // Auto-navegar a la página que contiene la semana actual
+            const cwIdx = this.state.weekKeys.indexOf(this.currentWeekKey);
+            this.state.weekPage = cwIdx >= 0 ? Math.floor(cwIdx / 4) : 0;
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
             this.state.error = (e && e.data && e.data.message) || e.message || String(e);
@@ -676,6 +680,56 @@ class PurchaseAnalysisWidget extends Component {
         win.document.close();
         win.focus();
         win.print();
+    }
+
+    // ── Paginación de semanas (máx. 4 por página) ──────────────────────
+
+    get visibleWeekKeys() {
+        const page = this.state.weekPage;
+        return this.state.weekKeys.slice(page * 4, (page + 1) * 4);
+    }
+
+    get weekPageCount() {
+        return Math.max(1, Math.ceil(this.state.weekKeys.length / 4));
+    }
+
+    prevPage() {
+        if (this.state.weekPage > 0) {
+            this.state.weekPage    -= 1;
+            this.state.activeMoId   = null;
+            this.state.activeMoData = null;
+            this.state.activeMoWcId = null;
+        }
+    }
+
+    nextPage() {
+        if (this.state.weekPage < this.weekPageCount - 1) {
+            this.state.weekPage    += 1;
+            this.state.activeMoId   = null;
+            this.state.activeMoData = null;
+            this.state.activeMoWcId = null;
+        }
+    }
+
+    // ── Abrir lista de OCs por aprobar ──────────────────────────────────
+
+    openToApprovePOs() {
+        const mos = this.kpiData.toApprove;
+        const poIds = new Set();
+        for (const mo of mos) {
+            for (const po of (mo.pos || [])) {
+                if (po.state === 'to approve') poIds.add(po.po_id);
+            }
+        }
+        if (!poIds.size) return;
+        this.action.doAction({
+            type: 'ir.actions.act_window',
+            name: 'OCs por aprobar',
+            res_model: 'purchase.order',
+            domain: [['id', 'in', Array.from(poIds)]],
+            views: [[false, 'list'], [false, 'form']],
+            target: 'current',
+        });
     }
 
     // ── Semana actual ───────────────────────────────────────────────────

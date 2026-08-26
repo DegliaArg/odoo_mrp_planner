@@ -221,7 +221,20 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
 
         # BFS nivel a nivel — una query por nivel
         while current_level:
-            current_names = [mo.name for mo in current_level if mo.name]
+            # Buscar por nombre exacto Y por nombre base (sin sufijo -001, -002…)
+            # para que ADH/MO.origin="VL/MO/02994" matchee cuando los roots son
+            # los backorders VL/MO/02994-001, VL/MO/02994-002, etc.
+            current_names_set = set()
+            base_to_parent_id = {}   # base_name → MO id representativo del nivel actual
+            for mo in current_level:
+                if mo.name:
+                    current_names_set.add(mo.name)
+                    base = _re.sub(r'-\d+$', '', mo.name)
+                    if base != mo.name:
+                        current_names_set.add(base)
+                        if base not in base_to_parent_id:
+                            base_to_parent_id[base] = mo.id
+            current_names = list(current_names_set)
             if not current_names:
                 break
 
@@ -249,8 +262,12 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                         if sup.production_id and sup.production_id.id not in child_to_parent:
                             child_to_parent[sup.production_id.id] = parent.id
 
-            # Asignar ownership a los hijos
+            # Asignar ownership a los hijos.
+            # name_to_parent_id incluye nombres exactos Y nombres base para que
+            # un hijo con origin="VL/MO/02994" encuentre su padre aunque los roots
+            # sean VL/MO/02994-001, VL/MO/02994-002, etc.
             name_to_parent_id = {mo.name: mo.id for mo in current_level if mo.name}
+            name_to_parent_id.update(base_to_parent_id)
             for child in all_children:
                 if child.id in mo_to_root:
                     continue
@@ -283,45 +300,6 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                 curr = base
         search_names     = all_names + list(backorder_bases)
         search_names_set = all_names_set | backorder_bases
-
-        # ── Cadena upstream via campo origin (backorders inter-sector) ────────
-        # En Odoo el backorder MO hereda el origin del padre. Por eso
-        # TS/MO/04447-001.origin = "ADH/MO/04455" (no "TS/MO/04447").
-        # Para encontrar la OC hay que seguir la cadena de origin hacia arriba
-        # hasta el MO cuyo nombre figura como origin en la OC.
-        upstream_origins_map = defaultdict(set)   # root_mo_id → {origin_strings}
-        _origins_queue = {}                        # origin_str → {root_mo_ids}
-        _visited_up = set(all_names_set)
-
-        for mo in root_mos:
-            orig = (mo.origin or '').strip()
-            if orig and orig not in _visited_up:
-                _origins_queue.setdefault(orig, set()).add(mo.id)
-
-        while _origins_queue:
-            for orig, rids in _origins_queue.items():
-                for rid in rids:
-                    upstream_origins_map[rid].add(orig)
-            _visited_up.update(_origins_queue)
-            ancestor_mos = MO.search([
-                ('name', 'in', list(_origins_queue)),
-                ('state', 'not in', ['cancel']),
-            ])
-            _next_queue = {}
-            for anc in ancestor_mos:
-                nxt = (anc.origin or '').strip()
-                if nxt and nxt not in _visited_up:
-                    for rid in _origins_queue.get(anc.name, set()):
-                        _next_queue.setdefault(nxt, set()).add(rid)
-            _origins_queue = _next_queue
-
-        all_upstream_names = (
-            set().union(*upstream_origins_map.values())
-            if upstream_origins_map else set()
-        )
-        extra_upstream = all_upstream_names - all_names_set - backorder_bases
-        search_names     = search_names + list(extra_upstream)
-        search_names_set = search_names_set | all_upstream_names
 
         # Product_ids de componentes consumidos por cada root MO (de sus move_raw_ids,
         # ya en cache del BFS). Se usa para filtrar las líneas de OC al final.
@@ -426,12 +404,6 @@ class MrpPlannerDashboardPurchaseAnalysis(models.TransientModel):
                         bucket.add(line.id)
                         all_unique_ids.add(line.id)
                     curr = base
-            # upstream origin chain (solo para el root MO mismo)
-            if mo.id == root_id:
-                for origin_name in upstream_origins_map.get(root_id, set()):
-                    for line in name_to_lines.get(origin_name, []):
-                        bucket.add(line.id)
-                        all_unique_ids.add(line.id)
             # moves-based
             for lid in move_lines_by_mo.get(mo.id, set()):
                 bucket.add(lid)

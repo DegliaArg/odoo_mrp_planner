@@ -429,7 +429,7 @@ class PurchaseAnalysisWidget extends Component {
         const logoSrc  = co.logo ? `data:image/png;base64,${co.logo}` : "";
         const coName   = esc(co.name   || "");
         const coAddr   = esc([co.street, [co.zip, co.city].filter(Boolean).join(" ")].filter(Boolean).join(", "));
-        const coContact= esc([co.phone, co.email].filter(Boolean).join("  ·  "));
+        const coContact= esc(co.phone || "");
 
         // ── Escape HTML para evitar rotura con nombres especiales ──────
         const esc = s => String(s ?? "")

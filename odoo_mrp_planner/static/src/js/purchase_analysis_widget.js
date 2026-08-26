@@ -55,28 +55,28 @@ class PurchaseAnalysisWidget extends Component {
         this._company       = {};
 
         this.state = useState({
-            tags:         [],
-            tagIds:       [],
-            wcs:          [],   // CTs disponibles para el sector seleccionado
-            wcFilterId:   null, // CT seleccionado (null = todos)
-            showFinished: false, // mostrar OFs con estado 'done'
-            searchText:   '',   // búsqueda por nombre de producto
-            dateFrom:     firstOfMonth(),
-            dateTo:       lastOfMonth(),
-            weekKeys:     [],
-            weekLabels:   {},
-            wcRows:       [],
-            totalMos:     0,
-            totalPos:     0,
-            loading:      true,
-            error:        null,
-            activeMoId:   null,
-            activeMoData: null,
-            activeMoWcId:   null,
-            expandedGroups: {},
-            weekPage:       0,
-            filteredRows:   [],
-            kpi:            { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
+            tags:          [],
+            tagIds:        [],
+            wcs:           [],   // CTs disponibles para los sectores seleccionados
+            wcFilterIds:   [],   // CTs activos (vacío = todos)
+            showFinished:  false,
+            searchText:    '',
+            dateFrom:      firstOfMonth(),
+            dateTo:        lastOfMonth(),
+            weekKeys:      [],
+            weekLabels:    {},
+            wcRows:        [],
+            totalMos:      0,
+            totalPos:      0,
+            loading:       true,
+            error:         null,
+            activeMoId:    null,
+            activeMoData:  null,
+            activeMoWcId:  null,
+            expandedGroups:{},
+            weekPage:      0,   // índice de la primera semana visible (ventana deslizante)
+            filteredRows:  [],
+            kpi:           { late: [], pending: [], toApprove: [], noPos: [], ok: [] },
         });
 
         onMounted(async () => {
@@ -114,13 +114,13 @@ class PurchaseAnalysisWidget extends Component {
     async _loadWcs() {
         if (!this.state.tagIds.length) {
             this.state.wcs        = [];
-            this.state.wcFilterId = null;
+            this.state.wcFilterIds = [];
             return;
         }
         const wcs = await this.orm.call(
             "mrp.planner.dashboard", "get_wcs_for_tags", [this.state.tagIds]);
-        this.state.wcs        = wcs || [];
-        this.state.wcFilterId = null;
+        this.state.wcs         = wcs || [];
+        this.state.wcFilterIds = [];
     }
 
     async _loadCompany() {
@@ -162,9 +162,10 @@ class PurchaseAnalysisWidget extends Component {
             this.state.wcRows     = (result && result.wc_rows)     || [];
             this.state.totalMos   = (result && result.total_mos)   || 0;
             this.state.totalPos   = (result && result.total_pos)   || 0;
-            // Auto-navegar a la página que contiene la semana actual
-            const cwIdx = this.state.weekKeys.indexOf(this.currentWeekKey);
-            this.state.weekPage = cwIdx >= 0 ? Math.floor(cwIdx / 4) : 0;
+            // Ventana deslizante: poner la semana actual como primera visible
+            const cwIdx    = this.state.weekKeys.indexOf(this.currentWeekKey);
+            const maxStart = Math.max(0, this.state.weekKeys.length - 4);
+            this.state.weekPage = cwIdx >= 0 ? Math.min(cwIdx, maxStart) : 0;
             this._recompute();
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
@@ -176,16 +177,20 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Handlers de filtros ─────────────────────────────────────────────────
 
-    onTagChange(ev) {
-        const val = ev.target.value;
-        this.state.tagIds = val ? [parseInt(val)] : [];
+    toggleTag(tagId) {
+        const ids = this.state.tagIds;
+        this.state.tagIds = ids.includes(tagId)
+            ? ids.filter(id => id !== tagId)
+            : [...ids, tagId];
         this._loadWcs();
         this._loadData();
     }
 
-    onWcChange(ev) {
-        const val = ev.target.value;
-        this.state.wcFilterId   = val ? parseInt(val) : null;
+    toggleWc(wcId) {
+        const ids = this.state.wcFilterIds;
+        this.state.wcFilterIds  = ids.includes(wcId)
+            ? ids.filter(id => id !== wcId)
+            : [...ids, wcId];
         this.state.activeMoId   = null;
         this.state.activeMoData = null;
         this.state.activeMoWcId = null;
@@ -430,8 +435,9 @@ class PurchaseAnalysisWidget extends Component {
     // ── Filas visibles (con filtro CT aplicado) ─────────────────────────────
 
     _computeFilteredRows() {
-        let rows = this.state.wcFilterId
-            ? this.state.wcRows.filter(r => r.wc_id === this.state.wcFilterId)
+        const wcIds = this.state.wcFilterIds;
+        let rows = wcIds.length
+            ? this.state.wcRows.filter(r => wcIds.includes(r.wc_id))
             : this.state.wcRows;
 
         const search       = (this.state.searchText || "").trim().toLowerCase();
@@ -711,13 +717,14 @@ class PurchaseAnalysisWidget extends Component {
 
     // ── Paginación de semanas (máx. 4 por página) ──────────────────────
 
+    // Ventana deslizante de 4 semanas: weekPage = índice de la primera visible
     get visibleWeekKeys() {
-        const page = this.state.weekPage;
-        return this.state.weekKeys.slice(page * 4, (page + 1) * 4);
+        return this.state.weekKeys.slice(this.state.weekPage, this.state.weekPage + 4);
     }
 
+    // Posiciones válidas de inicio: para N semanas hay max(1, N-3) posiciones
     get weekPageCount() {
-        return Math.max(1, Math.ceil(this.state.weekKeys.length / 4));
+        return Math.max(1, this.state.weekKeys.length - 3);
     }
 
     prevPage() {
@@ -736,6 +743,16 @@ class PurchaseAnalysisWidget extends Component {
             this.state.activeMoData = null;
             this.state.activeMoWcId = null;
         }
+    }
+
+    jumpToWeek(wk) {
+        const idx = this.state.weekKeys.indexOf(wk);
+        if (idx < 0) return;
+        const maxStart = Math.max(0, this.state.weekKeys.length - 4);
+        this.state.weekPage    = Math.min(idx, maxStart);
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     // ── Abrir lista de OCs por aprobar ──────────────────────────────────

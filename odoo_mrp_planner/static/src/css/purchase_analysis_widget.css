@@ -1,3 +1,63 @@
+/* ── Filter pills (sector / CT) ───────────────────────────────────── */
+
+.o_pca_filter_pill {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* ── Week bar: barra continua de semanas ──────────────────────────── */
+
+.o_pca_week_bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.o_pca_week_nav {
+    flex-shrink: 0;
+    padding: 3px 8px;
+}
+
+.o_pca_week_strip {
+    display: flex;
+    gap: 3px;
+    overflow-x: auto;
+    flex: 1;
+    padding: 2px 0;
+    scrollbar-width: none;
+}
+.o_pca_week_strip::-webkit-scrollbar { display: none; }
+
+.o_pca_week_pill {
+    flex-shrink: 0;
+    min-width: 46px;
+    padding: 3px 7px;
+    text-align: center;
+    line-height: 1.15;
+    border-radius: 5px;
+}
+
+.o_pca_pill_wk {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.o_pca_pill_yr {
+    display: block;
+    font-size: 0.6rem;
+    opacity: 0.78;
+}
+
+/* Semana actual visible: subrayado para distinguirla de las otras 3 */
+.o_pca_week_pill.o_pca_week_current {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
 /* ── Purchase Analysis Matrix ─────────────────────────────────────── */
 
 .o_pca_matrix {

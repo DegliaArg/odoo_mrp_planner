@@ -22,39 +22,32 @@
 
                 <div class="vr mx-1"/>
 
-                <!-- Sector -->
-                <div class="d-flex align-items-center gap-1">
+                <!-- Sector — pills multi-select -->
+                <div class="d-flex align-items-center gap-1 flex-wrap">
                     <span class="text-muted small fw-semibold">Sector:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:140px"
-                            t-on-change="onTagChange">
-                        <option value="">Seleccionar sector…</option>
-                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
-                            <option t-att-value="tag.id"
-                                    t-att-selected="state.tagIds.length &amp;&amp; state.tagIds[0] == tag.id">
-                                <t t-esc="tag.name"/>
-                            </option>
-                        </t>
-                    </select>
                     <t t-if="!state.tags.length">
                         <span class="text-muted small fst-italic">Sin sectores</span>
                     </t>
+                    <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                        <button t-att-class="'btn btn-xs o_pca_filter_pill ' + (state.tagIds.includes(tag.id) ? 'btn-info text-white' : 'btn-outline-secondary')"
+                                t-on-click="() => this.toggleTag(tag.id)">
+                            <t t-esc="tag.name"/>
+                        </button>
+                    </t>
                 </div>
 
-                <!-- CT -->
-                <div class="d-flex align-items-center gap-1">
-                    <span class="text-muted small fw-semibold">CT:</span>
-                    <select class="form-select form-select-sm" style="width:auto;min-width:140px"
-                            t-att-disabled="!state.tagIds.length"
-                            t-on-change="onWcChange">
-                        <option value="">Todos</option>
+                <!-- CT — pills multi-select (visible solo si hay sectores activos) -->
+                <t t-if="state.tagIds.length and state.wcs.length">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <span class="text-muted small fw-semibold">CT:</span>
                         <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
-                            <option t-att-value="wc.id"
-                                    t-att-selected="state.wcFilterId == wc.id">
+                            <button t-att-class="'btn btn-xs o_pca_filter_pill ' + (state.wcFilterIds.includes(wc.id) ? 'btn-secondary text-white' : 'btn-outline-secondary')"
+                                    t-on-click="() => this.toggleWc(wc.id)">
                                 <t t-esc="wc.name"/>
-                            </option>
+                            </button>
                         </t>
-                    </select>
-                </div>
+                    </div>
+                </t>
 
                 <div class="vr mx-1"/>
 
@@ -194,40 +187,32 @@
 
             </div>
 
-            <!-- Navegación de páginas de semanas (solo si hay más de 4 semanas) -->
-            <t t-if="weekPageCount > 1">
-                <div class="d-flex align-items-center gap-2 mb-2 px-1">
-                    <button class="btn btn-sm btn-outline-secondary"
+            <!-- Barra de semanas: ventana deslizante continua, siempre visible -->
+            <t t-if="state.weekKeys.length">
+                <div class="o_pca_week_bar mb-2">
+                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav"
                             t-att-disabled="state.weekPage === 0"
                             t-on-click="prevPage">
-                        <i class="fa fa-chevron-left me-1"/>Anterior
+                        <i class="fa fa-chevron-left"/>
                     </button>
-                    <div class="flex-grow-1 text-center" style="font-size:0.85rem">
-                        <t t-if="visibleWeekKeys.length">
-                            <span class="fw-semibold">
-                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].label"/>
-                            </span>
-                            <span class="text-muted ms-1">
-                                <t t-esc="state.weekLabels[visibleWeekKeys[0]].year"/>
-                            </span>
-                            <t t-if="visibleWeekKeys.length > 1">
-                                <span class="text-muted mx-2">–</span>
-                                <span class="fw-semibold">
-                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].label"/>
-                                </span>
-                                <span class="text-muted ms-1">
-                                    <t t-esc="state.weekLabels[visibleWeekKeys[visibleWeekKeys.length - 1]].year"/>
-                                </span>
-                            </t>
-                            <span class="text-muted ms-2" style="font-size:0.78rem">
-                                (<t t-esc="state.weekPage + 1"/>/<t t-esc="weekPageCount"/>)
-                            </span>
+                    <div class="o_pca_week_strip">
+                        <t t-foreach="state.weekKeys" t-as="wk" t-key="wk">
+                            <t t-set="lbl"   t-value="state.weekLabels[wk]"/>
+                            <t t-set="isVis" t-value="visibleWeekKeys.includes(wk)"/>
+                            <t t-set="isCur" t-value="wk == currentWeekKey"/>
+                            <button t-att-class="'o_pca_week_pill btn btn-sm '
+                                + (isVis ? (isCur ? 'btn-primary o_pca_week_current' : 'btn-primary') : (isCur ? 'btn-outline-primary' : 'btn-outline-secondary'))"
+                                    t-att-title="fmtDate(lbl.date_from) + ' – ' + fmtDate(lbl.date_to)"
+                                    t-on-click="() => this.jumpToWeek(wk)">
+                                <span class="o_pca_pill_wk" t-esc="lbl.label"/>
+                                <span class="o_pca_pill_yr" t-esc="String(lbl.year)"/>
+                            </button>
                         </t>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary"
+                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav"
                             t-att-disabled="state.weekPage >= weekPageCount - 1"
                             t-on-click="nextPage">
-                        Siguiente<i class="fa fa-chevron-right ms-1"/>
+                        <i class="fa fa-chevron-right"/>
                     </button>
                 </div>
             </t>

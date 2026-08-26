@@ -60,10 +60,19 @@
 
 /* Chips */
 .o_pca_mo_chip {
-    transition: box-shadow 0.12s ease;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
+
+/* Estado por defecto: borde gris claro visible */
+.o_pca_chip_default {
+    background: #f8f9fa;
+    border-color: #ced4da !important;
+}
+
+/* Hover: borde más oscuro + sombra sutil */
 .o_pca_mo_chip:hover {
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.13) !important;
+    border-color: #6c757d !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
 }
 
 /* Chip seleccionado — borde primario tenue, sin violeta */

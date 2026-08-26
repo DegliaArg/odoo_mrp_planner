@@ -334,6 +334,42 @@ class PurchaseAnalysisWidget extends Component {
         });
     }
 
+    // ── KPIs de compras ─────────────────────────────────────────────────────
+
+    get kpiData() {
+        const seen = new Set();
+        const mos  = [];
+        for (const row of this.filteredWcRows()) {
+            for (const wk of this.state.weekKeys) {
+                for (const mo of (row.cells[wk] || [])) {
+                    if (!seen.has(mo.mo_id)) {
+                        seen.add(mo.mo_id);
+                        mos.push(mo);
+                    }
+                }
+            }
+        }
+        const active = mos.filter(m => m.state !== 'done' && m.state !== 'cancel');
+        return {
+            late:    mos.filter(m => m.has_late_pos),
+            pending: mos.filter(m => !m.has_late_pos && m.has_pending_pos),
+            noPos:   active.filter(m => m.pos_count === 0),
+            ok:      mos.filter(m => m.pos_count > 0 && !m.has_late_pos && !m.has_pending_pos),
+        };
+    }
+
+    openKpiMos(mos, label) {
+        if (!mos.length) return;
+        this.action.doAction({
+            type: 'ir.actions.act_window',
+            name: label || 'Órdenes de Fabricación',
+            res_model: 'mrp.production',
+            domain: [['id', 'in', mos.map(m => m.mo_id)]],
+            views: [[false, 'list'], [false, 'form']],
+            target: 'current',
+        });
+    }
+
     // ── Filas visibles (con filtro CT aplicado) ─────────────────────────────
 
     filteredWcRows() {

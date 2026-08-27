@@ -1,5 +1,5 @@
 {
-    'name': 'Planificador de producción — Programación y reprogramación',
+    'name': 'Planificación',
     'version': '18.0.5.2.2',
     'summary': 'Programación desde demanda y reprogramación en cascada para el Planificador MRP',
     'description': """

@@ -14,7 +14,7 @@
         <field name="name">mrp.reschedule.config.form</field>
         <field name="model">mrp.reschedule.config</field>
         <field name="arch" type="xml">
-            <form string="Configuración del planificador" create="false" delete="false">
+            <form string="Configuración de KPIs" create="false" delete="false">
                 <sheet>
                     <h2>Configuración de KPIs</h2>
                     <notebook>
@@ -905,7 +905,7 @@
     </record>
 
     <record id="action_mrp_reschedule_config" model="ir.actions.act_window">
-        <field name="name">Configuración del planificador</field>
+        <field name="name">Configuración de KPIs</field>
         <field name="res_model">mrp.reschedule.config</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="mrp_reschedule_config_form_view"/>

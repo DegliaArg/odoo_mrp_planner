@@ -166,8 +166,11 @@ class PurchaseAnalysisWidget extends Component {
             this.state.wcRows     = (result && result.wc_rows)     || [];
             this.state.totalMos   = (result && result.total_mos)   || 0;
             this.state.totalPos   = (result && result.total_pos)   || 0;
-            const cwIdx = this.state.weekKeys.indexOf(this.currentWeekKey);
-            this.state.weekPage = cwIdx >= 0 ? Math.floor(cwIdx / 4) : 0;
+            const cwIdx  = this.state.weekKeys.indexOf(this.currentWeekKey);
+            const maxStart = Math.max(0, this.state.weekKeys.length - 4);
+            this.state.weekPage = cwIdx >= 0
+                ? Math.max(0, Math.min(cwIdx - 1, maxStart))
+                : 0;
             this._recompute();
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);
@@ -756,15 +759,35 @@ class PurchaseAnalysisWidget extends Component {
         win.print();
     }
 
-    // ── Paginación de semanas (máx. 4 por página) ──────────────────────
+    // ── Ventana deslizante de semanas (siempre 4 visibles) ─────────────
 
     get visibleWeekKeys() {
-        const page = this.state.weekPage;
-        return this.state.weekKeys.slice(page * 4, (page + 1) * 4);
+        return this.state.weekKeys.slice(this.state.weekPage, this.state.weekPage + 4);
     }
 
-    get weekPageCount() {
-        return Math.max(1, Math.ceil(this.state.weekKeys.length / 4));
+    get sliderMax() {
+        return Math.max(0, this.state.weekKeys.length - 4);
+    }
+
+    get firstWeekLabel() {
+        const wk = this.state.weekKeys[0];
+        if (!wk) return "";
+        const lbl = this.state.weekLabels[wk];
+        return lbl ? `${lbl.label} · ${lbl.year}` : wk;
+    }
+
+    get lastWeekLabel() {
+        const wk = this.state.weekKeys[this.state.weekKeys.length - 1];
+        if (!wk) return "";
+        const lbl = this.state.weekLabels[wk];
+        return lbl ? `${lbl.label} · ${lbl.year}` : wk;
+    }
+
+    onSliderChange(ev) {
+        this.state.weekPage     = parseInt(ev.target.value, 10);
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
     }
 
     prevPage() {
@@ -777,7 +800,7 @@ class PurchaseAnalysisWidget extends Component {
     }
 
     nextPage() {
-        if (this.state.weekPage < this.weekPageCount - 1) {
+        if (this.state.weekPage < this.sliderMax) {
             this.state.weekPage    += 1;
             this.state.activeMoId   = null;
             this.state.activeMoData = null;

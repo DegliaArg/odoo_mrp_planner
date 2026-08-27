@@ -358,10 +358,17 @@
         </field>
     </record>
 
-    <!-- ── Menús bajo "Planificador" (root definido en mrp_reschedule_alert_views.xml) ── -->
+    <!-- ── App raíz: Programación y reprogramación ── -->
+    <menuitem id="mrp_scheduling_menu_root"
+              name="Planificación"
+              sequence="66"
+              web_icon="odoo_mrp_planner_scheduling,static/description/icon.png"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+
+    <!-- ── Menús del app de Planificación ── -->
     <menuitem id="mrp_reschedule_menu_plans"
               name="Reprogramación"
-              parent="odoo_mrp_planner.mrp_planeacion_menu"
+              parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
               sequence="20"
               action="action_mrp_reschedule_plan"
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>

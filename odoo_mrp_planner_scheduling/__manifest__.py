@@ -44,6 +44,6 @@ qué usuarios ven los menús, botones y KPIs asociados.
         ],
     },
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': False,
 }

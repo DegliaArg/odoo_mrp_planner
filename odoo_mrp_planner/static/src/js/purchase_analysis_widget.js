@@ -166,11 +166,7 @@ class PurchaseAnalysisWidget extends Component {
             this.state.wcRows     = (result && result.wc_rows)     || [];
             this.state.totalMos   = (result && result.total_mos)   || 0;
             this.state.totalPos   = (result && result.total_pos)   || 0;
-            const cwIdx  = this.state.weekKeys.indexOf(this.currentWeekKey);
-            const maxStart = Math.max(0, this.state.weekKeys.length - 4);
-            this.state.weekPage = cwIdx >= 0
-                ? Math.max(0, Math.min(cwIdx - 1, maxStart))
-                : 0;
+            this.state.weekPage = 0;
             this._recompute();
         } catch (e) {
             console.error("[PurchaseAnalysis]", e);

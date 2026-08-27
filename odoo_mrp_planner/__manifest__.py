@@ -1,5 +1,5 @@
 {
-    'name': 'Planificador de producción — Indicadores y análisis',
+    'name': 'KPIs',
     'version': '18.0.12.15.2',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """

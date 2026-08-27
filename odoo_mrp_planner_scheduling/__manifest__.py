@@ -1,9 +1,9 @@
 {
     'name': 'Planificación',
     'version': '18.0.5.2.2',
-    'summary': 'Programación desde demanda y reprogramación en cascada para el Planificador MRP',
+    'summary': 'Programación desde demanda y reprogramación en cascada para el módulo KPIs',
     'description': """
-Extensión de programación del Planificador de producción.
+Extensión de programación del módulo KPIs de Deglia.
 
 Planificación desde demanda
 - Expansión automática de BOM con rutas, lead times y stock disponible.
@@ -14,7 +14,7 @@ Reprogramación en cascada
 - Recalcula fechas de OFs encadenadas respetando el calendario laboral.
 - Soporte multi-WC con prioridad configurable: cronológico, SPT o manual.
 - Planes persistentes con historial, Gantt y auditoría completa.
-- Creación de planes desde las alertas del planificador.
+- Creación de planes desde las alertas del módulo KPIs.
 
 La instalación NO habilita la función: se activa desde
 Planificación → Configuración, donde también se controla

@@ -698,7 +698,6 @@ class PurchaseAnalysisWidget extends Component {
     }
     body { font-size: 8.5px; }
     .chip { page-break-inside: avoid; break-inside: avoid; }
-    tr   { page-break-inside: avoid; break-inside: avoid; }
     thead { display: table-header-group; }
     .rpt-band-sm { display: none; }
   }

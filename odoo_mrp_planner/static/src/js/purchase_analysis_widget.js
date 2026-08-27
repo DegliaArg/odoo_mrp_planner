@@ -81,6 +81,7 @@ class PurchaseAnalysisWidget extends Component {
             wcDropdownOpen:  false,
             tagMenuPos:      { top: 0, left: 0 },
             wcMenuPos:       { top: 0, left: 0 },
+            hideEmptyCts:   true,
         });
 
         onMounted(async () => {
@@ -245,6 +246,14 @@ class PurchaseAnalysisWidget extends Component {
         this._recompute();
     }
 
+    toggleHideEmptyCts() {
+        this.state.hideEmptyCts = !this.state.hideEmptyCts;
+        this.state.activeMoId   = null;
+        this.state.activeMoData = null;
+        this.state.activeMoWcId = null;
+        this._recompute();
+    }
+
     onSearchChange(ev) {
         this.state.searchText   = ev.target.value;
         this.state.activeMoId   = null;
@@ -366,6 +375,22 @@ class PurchaseAnalysisWidget extends Component {
         return lines.join("\n");
     }
 
+    pcaKpiTooltip(key) {
+        const k = this.state.kpi;
+        const n = a => (a ? a.length : 0);
+        switch (key) {
+            case 'late':
+                return `OFs del sector con al menos una OC con fecha de entrega vencida y recepción incompleta\nCondición: date_planned < hoy y cantidad recibida < pedida\n→ ${n(k.late)} OF${n(k.late) !== 1 ? 's' : ''}`;
+            case 'pending':
+                return `OFs con OCs en estado Borrador o Enviada al proveedor (no confirmadas)\nNo incluye OFs con OCs ya vencidas\n→ ${n(k.pending)} OF${n(k.pending) !== 1 ? 's' : ''}`;
+            case 'to_approve':
+                return `OFs con al menos una OC en estado "Por aprobar"\nRequiere aprobación del responsable de compras antes de confirmarse\nNo incluye OFs con OCs ya vencidas\n→ ${n(k.toApprove)} OF${n(k.toApprove) !== 1 ? 's' : ''}`;
+            case 'ok':
+                return `OFs con OCs confirmadas y sin atrasos ni recepciones pendientes\nTodas las OCs de la cadena MTO están a tiempo y completas\n→ ${n(k.ok)} OF${n(k.ok) !== 1 ? 's' : ''}`;
+        }
+        return '';
+    }
+
     moAlertClass(mo) {
         if (mo.has_late_pos)    return "text-danger";
         if (mo.has_pending_pos) return "text-warning";
@@ -480,10 +505,12 @@ class PurchaseAnalysisWidget extends Component {
             ? this.state.wcRows.filter(r => wcIds.includes(r.wc_id))
             : this.state.wcRows;
 
-        const search       = (this.state.searchText || "").trim().toLowerCase();
-        const showFinished = this.state.showFinished;
+        const search        = (this.state.searchText || "").trim().toLowerCase();
+        const showFinished  = this.state.showFinished;
+        const hideEmptyCts  = this.state.hideEmptyCts;
 
-        if (!search && showFinished) return rows;
+        // Optimization: sin filtros de celda activos, devolver directo
+        if (!search && showFinished && !hideEmptyCts) return rows;
 
         const result = [];
         for (const row of rows) {
@@ -491,18 +518,14 @@ class PurchaseAnalysisWidget extends Component {
             let hasVisible = false;
             for (const wk of this.state.weekKeys) {
                 let mos = row.cells[wk] || [];
-                if (!showFinished) {
-                    mos = mos.filter(mo => mo.state !== "done");
-                }
-                if (search) {
-                    mos = mos.filter(mo =>
-                        (mo.product_name || "").toLowerCase().includes(search)
-                    );
-                }
+                if (!showFinished) mos = mos.filter(mo => mo.state !== "done");
+                if (search)        mos = mos.filter(mo => (mo.product_name || "").toLowerCase().includes(search));
                 cells[wk] = mos;
                 if (mos.length) hasVisible = true;
             }
-            if (hasVisible) {
+            // hideEmptyCts=true → solo filas con contenido visible
+            // hideEmptyCts=false → incluir siempre (mostrar CTs vacías)
+            if (hasVisible || !hideEmptyCts) {
                 result.push({ wc_id: row.wc_id, wc_name: row.wc_name, cells });
             }
         }

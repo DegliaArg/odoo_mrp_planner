@@ -98,6 +98,16 @@
                            for="pca_show_finished">Mostrar OFs terminadas</label>
                 </div>
 
+                <!-- Toggle ocultar CTs vacías -->
+                <div class="form-check form-switch d-flex align-items-center gap-2 mb-0 ms-1">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="pca_hide_empty_cts"
+                           t-att-checked="state.hideEmptyCts"
+                           t-on-change="toggleHideEmptyCts"/>
+                    <label class="form-check-label text-muted small fw-semibold mb-0"
+                           for="pca_hide_empty_cts">Ocultar CTs sin OFs</label>
+                </div>
+
                 <!-- Exportar PDF (solo icono, rojo) — ms-auto empuja a la derecha sin wrap -->
                 <button class="btn btn-sm btn-outline-secondary ms-auto" title="Exportar tabla a PDF"
                         t-on-click="exportToPdf">
@@ -149,7 +159,7 @@
                 <!-- OCs vencidas (rojo) -->
                 <div class="flex-fill" style="min-width:0;flex-basis:0;">
                     <div class="card o_planner_card o_planner_card_danger o_planner_kpi_card_lg h-100"
-                         title="OFs del sector que tienen al menos una OC con fecha de entrega vencida y sin recibir completamente">
+                         t-att-title="pcaKpiTooltip('late')">
                         <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
                             <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
                             <div class="o_planner_number text-danger" t-esc="kpi.late.length"/>
@@ -166,7 +176,7 @@
                 <!-- OCs sin confirmar (naranja) -->
                 <div class="flex-fill" style="min-width:0;flex-basis:0;">
                     <div class="card o_planner_card o_planner_card_warning o_planner_kpi_card_lg h-100"
-                         title="OFs con OCs todavía en borrador o enviadas (no confirmadas como OC)">
+                         t-att-title="pcaKpiTooltip('pending')">
                         <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
                             <i class="fa fa-clock-o fa-lg text-warning mb-1 d-block"/>
                             <div class="o_planner_number text-warning" t-esc="kpi.pending.length"/>
@@ -183,7 +193,7 @@
                 <!-- OCs por aprobar (azul info) -->
                 <div class="flex-fill" style="min-width:0;flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         title="OFs con al menos una OC en estado 'Por aprobar' (requiere aprobación del responsable de compras)">
+                         t-att-title="pcaKpiTooltip('to_approve')">
                         <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
                             <i class="fa fa-thumbs-o-up fa-lg text-info mb-1 d-block"/>
                             <div class="o_planner_number text-info" t-esc="kpi.toApprove.length"/>
@@ -200,7 +210,7 @@
                 <!-- Al día (verde) -->
                 <div class="flex-fill" style="min-width:0;flex-basis:0;">
                     <div class="card o_planner_card o_planner_card_success o_planner_kpi_card_lg h-100"
-                         title="OFs con OCs confirmadas y sin retrasos en la cadena de abastecimiento">
+                         t-att-title="pcaKpiTooltip('ok')">
                         <div class="card-body text-center py-2 d-flex flex-column align-items-center justify-content-center">
                             <i class="fa fa-check-circle fa-lg text-success mb-1 d-block"/>
                             <div class="o_planner_number text-success" t-esc="kpi.ok.length"/>

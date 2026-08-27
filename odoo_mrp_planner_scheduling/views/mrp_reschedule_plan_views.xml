@@ -366,6 +366,13 @@
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>
 
     <!-- ── Menús del app de Planificación ── -->
+    <menuitem id="mrp_scheduling_menu_config"
+              name="Configuración"
+              parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
+              sequence="99"
+              action="odoo_mrp_planner_scheduling.action_mrp_scheduling_config"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+
     <menuitem id="mrp_reschedule_menu_request"
               name="Programaciones"
               parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"

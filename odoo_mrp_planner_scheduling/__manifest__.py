@@ -16,9 +16,9 @@ Reprogramación en cascada
 - Planes persistentes con historial, Gantt y auditoría completa.
 - Creación de planes desde las alertas del planificador.
 
-La instalación NO habilita la función: se activa desde Ajustes del
-planificador (Programación y reprogramación), donde también se controla
-qué usuarios ven los menús, botones y KPIs asociados.
+La instalación NO habilita la función: se activa desde
+Planificación → Configuración, donde también se controla
+qué usuarios ven los botones y KPIs asociados.
     """,
     'author': 'Deglia',
     'website': 'https://deglia.xyz',

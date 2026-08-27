@@ -219,11 +219,6 @@
             <!-- Slider de navegación de semanas (visible solo si hay más de 4) -->
             <t t-if="sliderMax > 0">
                 <div class="d-flex align-items-center gap-2 mb-3 px-1">
-                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav_btn"
-                            t-att-disabled="state.weekPage === 0"
-                            t-on-click="prevPage">
-                        <i class="fa fa-chevron-left"/>
-                    </button>
                     <div class="flex-grow-1">
                         <div class="d-flex align-items-center gap-2">
                             <span class="o_pca_slider_edge text-muted">
@@ -258,11 +253,6 @@
                             </t>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary o_pca_week_nav_btn"
-                            t-att-disabled="state.weekPage >= sliderMax"
-                            t-on-click="nextPage">
-                        <i class="fa fa-chevron-right"/>
-                    </button>
                 </div>
             </t>
 

@@ -24,14 +24,20 @@ class MrpProductionRequestMatrix(models.Model):
 
     @api.model
     def get_scheduling_matrix_filters(self):
-        """Devuelve sectores (tags de CT) y solicitudes recientes para los desplegables.
+        """Devuelve sectores (tags de CT), solicitudes recientes y el tag predeterminado.
 
-        :returns: dict con 'tags' y 'requests' (list of dicts).
+        :returns: dict con 'tags', 'requests' y 'default_scheduling_tag_id'.
         """
         tags = self.env['mrp.workcenter.tag'].search([], order='name')
         requests = self.env['mrp.production.request'].search(
             [('state', 'in', ('calculated', 'confirmed'))],
             order='id desc', limit=60,
+        )
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        default_tag_id = (
+            cfg.default_scheduling_tag_id.id
+            if cfg and cfg.default_scheduling_tag_id
+            else None
         )
         return {
             'tags': [{'id': t.id, 'name': t.name} for t in tags],
@@ -39,6 +45,7 @@ class MrpProductionRequestMatrix(models.Model):
                 {'id': r.id, 'name': r.name, 'state': r.state}
                 for r in requests
             ],
+            'default_scheduling_tag_id': default_tag_id,
         }
 
     @api.model

@@ -55,6 +55,12 @@ class MrpRescheduleConfig(models.Model):
              'Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs.',
     )
 
+    default_scheduling_tag_id = fields.Many2one(
+        'mrp.workcenter.tag',
+        string='Sector predeterminado del tablero de programación',
+        help='Sector que se preselecciona automáticamente al abrir el tablero de programación de producción.',
+    )
+
     def _sync_scheduling_group(self, enabled):
         """Activa/desactiva los menús y el grupo de scheduling según el toggle.
 

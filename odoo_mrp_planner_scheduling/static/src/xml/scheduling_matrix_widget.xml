@@ -40,7 +40,7 @@
                                    t-on-click.stop="() => this.toggleTag(tag.id)">
                                 <input type="checkbox"
                                        t-att-checked="state.tagIds.includes(tag.id)"
-                                       t-on-change.stop="() => this.toggleTag(tag.id)"/>
+                                       t-on-click.stop="() => this.toggleTag(tag.id)"/>
                                 <span t-esc="tag.name"/>
                             </label>
                         </t>
@@ -66,7 +66,7 @@
                                    t-on-click.stop="() => this.toggleWc(wc.id)">
                                 <input type="checkbox"
                                        t-att-checked="state.wcFilterIds.includes(wc.id)"
-                                       t-on-change.stop="() => this.toggleWc(wc.id)"/>
+                                       t-on-click.stop="() => this.toggleWc(wc.id)"/>
                                 <span t-esc="wc.name"/>
                             </label>
                         </t>
@@ -89,7 +89,7 @@
                                    t-on-click.stop="() => this.toggleRequest(req.id)">
                                 <input type="checkbox"
                                        t-att-checked="state.requestIds.includes(req.id)"
-                                       t-on-change.stop="() => this.toggleRequest(req.id)"/>
+                                       t-on-click.stop="() => this.toggleRequest(req.id)"/>
                                 <span t-esc="req.name"/>
                                 <span class="badge bg-secondary bg-opacity-50 ms-auto small"
                                       t-esc="requestStateLabel(req.state)"/>

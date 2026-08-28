@@ -128,22 +128,12 @@ class SchedulingMatrixWidget extends Component {
 
         onMounted(async () => {
             try {
-                await this._loadFilters();
-                // En modo embebido con una solicitud ya calculada, cargamos de inmediato
+                const defaultTagSelected = await this._loadFilters();
                 if (this._isEmbedded && embeddedId) {
-                    // Ajustar rango de fechas según start_from del record
-                    const startFrom = this.props.record.data.start_from;
-                    if (startFrom) {
-                        const d = typeof startFrom === 'string'
-                            ? new Date(startFrom)
-                            : startFrom;
-                        if (!isNaN(d)) {
-                            this.state.dateFrom = toDateStr(d);
-                            const dEnd = new Date(d);
-                            dEnd.setDate(dEnd.getDate() + 42);
-                            this.state.dateTo = toDateStr(dEnd);
-                        }
-                    }
+                    // Modo embebido: carga directa filtrada por la solicitud actual
+                    await this._loadData();
+                } else if (defaultTagSelected || this.state.tagIds.length) {
+                    // Standalone con tag predeterminado: carga automática
                     await this._loadData();
                 } else {
                     this.state.loading = false;
@@ -167,6 +157,18 @@ class SchedulingMatrixWidget extends Component {
         );
         this.state.tags     = result.tags     || [];
         this.state.requests = result.requests || [];
+
+        // Auto-seleccionar el tag predeterminado si está configurado y no hay selección previa
+        const defaultTagId = result.default_scheduling_tag_id;
+        if (defaultTagId && !this.state.tagIds.length) {
+            const found = this.state.tags.find(t => t.id === defaultTagId);
+            if (found) {
+                this.state.tagIds = [defaultTagId];
+                await this._loadWcs();
+                return true;   // indica que se preseleccionó un tag
+            }
+        }
+        return false;
     }
 
     async _loadWcs() {

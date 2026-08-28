@@ -55,6 +55,12 @@
 
                     </div>
 
+                    <!-- ══ TABLERO DE PROGRAMACIÓN ══════════════════════════════════ -->
+                    <group string="Tablero de programación">
+                        <field name="default_scheduling_tag_id"
+                               help="Sector que se preselecciona automáticamente al abrir el tablero de programación de producción."/>
+                    </group>
+
                 </sheet>
             </form>
         </field>

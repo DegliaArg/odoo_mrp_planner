@@ -77,6 +77,11 @@ class MrpProductionRequestMatrix(models.Model):
 
         :returns: dict con week_keys, week_labels, wc_rows y total_lines.
         """
+        _empty = lambda reason: {
+            'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0,
+            'empty_reason': reason,
+        }
+
         domain = [('record_type', '=', 'mrp'), ('new_date_start', '!=', False)]
         if request_ids:
             domain.append(('request_id', 'in', request_ids))
@@ -84,7 +89,7 @@ class MrpProductionRequestMatrix(models.Model):
         lines = self.env['mrp.production.request.line'].search(domain)
 
         if not lines:
-            return {'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0}
+            return _empty('no_lines')
 
         # Filtrar por rango de fechas
         if date_from:
@@ -95,12 +100,12 @@ class MrpProductionRequestMatrix(models.Model):
             lines = lines.filtered(lambda l: l.new_date_start < dt_to)
 
         if not lines:
-            return {'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0}
+            return _empty('no_date_match')
 
         # CTs con líneas asignadas
         wc_ids_in_lines = {l.workcenter_id.id for l in lines if l.workcenter_id}
         if not wc_ids_in_lines:
-            return {'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0}
+            return _empty('no_workcenter')
 
         # Filtrar CTs por tags de sector si se especificaron
         wcs = self.env['mrp.workcenter'].browse(list(wc_ids_in_lines))
@@ -109,7 +114,7 @@ class MrpProductionRequestMatrix(models.Model):
             wcs = wcs.filtered(lambda w: tag_id_set & set(w.tag_ids.ids))
 
         if not wcs:
-            return {'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0}
+            return _empty('no_tag_match')
 
         valid_wc_ids = set(wcs.ids)
         lines = lines.filtered(lambda l: l.workcenter_id.id in valid_wc_ids)

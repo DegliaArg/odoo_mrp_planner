@@ -162,7 +162,25 @@
             <div t-elif="!state.loading and !state.weekKeys.length"
                  class="text-center text-muted py-5">
                 <i class="fa fa-calendar-o fa-3x mb-3 d-block"/>
-                <p>Sin MOs planificadas en el período seleccionado.</p>
+                <t t-if="state.emptyReason === 'no_lines'">
+                    <p class="mb-1 fw-semibold">No hay líneas MRP planificadas.</p>
+                    <p class="small">Calculá al menos una solicitud de programación antes de abrir el tablero.</p>
+                </t>
+                <t t-elif="state.emptyReason === 'no_date_match'">
+                    <p class="mb-1 fw-semibold">Las líneas planificadas están fuera del período seleccionado.</p>
+                    <p class="small">Extendé el rango de fechas para ver datos históricos o futuros.</p>
+                </t>
+                <t t-elif="state.emptyReason === 'no_workcenter'">
+                    <p class="mb-1 fw-semibold">Las líneas planificadas no tienen centro de trabajo asignado.</p>
+                    <p class="small">Configurá los centros de trabajo en las operaciones de la LdM o en los productos compatibles.</p>
+                </t>
+                <t t-elif="state.emptyReason === 'no_tag_match'">
+                    <p class="mb-1 fw-semibold">Los centros de trabajo asignados no tienen el sector seleccionado.</p>
+                    <p class="small">Agregá etiquetas de sector a los centros de trabajo en Configuración → Centros de Trabajo.</p>
+                </t>
+                <t t-else="">
+                    <p>Sin MOs planificadas en el período seleccionado.</p>
+                </t>
             </div>
 
             <!-- ──────────────────────────────────────────────────────────── -->

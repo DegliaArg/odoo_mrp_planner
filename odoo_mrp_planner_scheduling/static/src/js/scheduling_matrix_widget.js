@@ -36,6 +36,13 @@ function mondayOfCurrentWeek() {
     return toDateStr(d);
 }
 
+function mondayNWeeksBack(n) {
+    const d = new Date();
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - (day - 1) - 7 * n);
+    return toDateStr(d);
+}
+
 function sundayInNWeeks(n) {
     const d = new Date();
     const day = d.getDay() || 7;
@@ -87,7 +94,7 @@ class SchedulingMatrixWidget extends Component {
             tagIds:       [],
             wcFilterIds:  [],
             requestIds:   embeddedId ? [embeddedId] : [],
-            dateFrom:     mondayOfCurrentWeek(),
+            dateFrom:     mondayNWeeksBack(2),
             dateTo:       sundayInNWeeks(6),
             searchText:   '',
             hideEmptyCts: true,
@@ -101,6 +108,7 @@ class SchedulingMatrixWidget extends Component {
             // Estado UI
             loading:      true,
             error:        null,
+            emptyReason:  null,
             weekPage:     0,
             filteredRows: [],
 
@@ -204,11 +212,12 @@ class SchedulingMatrixWidget extends Component {
                     this.state.dateTo,
                 ]
             );
-            this.state.weekKeys   = result.week_keys   || [];
-            this.state.weekLabels = result.week_labels || {};
-            this.state.wcRows     = result.wc_rows     || [];
-            this.state.totalLines = result.total_lines || 0;
-            this.state.weekPage   = 0;
+            this.state.weekKeys    = result.week_keys   || [];
+            this.state.weekLabels  = result.week_labels || {};
+            this.state.wcRows      = result.wc_rows     || [];
+            this.state.totalLines  = result.total_lines || 0;
+            this.state.emptyReason = result.empty_reason || null;
+            this.state.weekPage    = 0;
             this._recompute();
         } catch (e) {
             console.error("[SchedulingMatrix]", e);

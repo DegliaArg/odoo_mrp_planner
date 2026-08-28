@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Acción cliente para el tablero global de programación -->
+    <record id="action_mrp_scheduling_matrix" model="ir.actions.client">
+        <field name="name">Tablero de programación</field>
+        <field name="tag">mrp_scheduling_matrix_action</field>
+    </record>
+
+    <!-- Menú: Planificación / Tablero de programación -->
+    <menuitem
+        id="menu_mrp_scheduling_matrix"
+        name="Tablero de programación"
+        parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
+        action="action_mrp_scheduling_matrix"
+        sequence="5"
+        groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+
+</odoo>

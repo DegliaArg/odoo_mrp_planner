@@ -292,6 +292,12 @@
                                 </list>
                             </field>
                         </page>
+
+                        <page string="Tablero de programación" name="scheduling_matrix"
+                              invisible="state == 'draft'">
+                            <widget name="scheduling_matrix_widget"/>
+                        </page>
+
                     </notebook>
 
                 </sheet>

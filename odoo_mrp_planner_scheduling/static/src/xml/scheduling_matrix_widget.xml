@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+
+<t t-name="odoo_mrp_planner_scheduling.SchedulingMatrixWidget">
+    <div class="sm-root" t-on-click.stop="closeDropdowns">
+
+        <!-- ── Spinner de carga ── -->
+        <div t-if="state.loading" class="sm-loading text-center py-5">
+            <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
+            <p class="text-muted mt-2">Cargando programación…</p>
+        </div>
+
+        <!-- ── Error ── -->
+        <div t-elif="state.error" class="alert alert-danger m-3">
+            <i class="fa fa-exclamation-triangle me-2"/>
+            <t t-esc="state.error"/>
+        </div>
+
+        <!-- ── Contenido principal ── -->
+        <t t-else="">
+
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <!-- Barra de filtros                                             -->
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <div class="sm-filters d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
+
+                <!-- Sector (tags de CT) -->
+                <div class="sm-filter-group position-relative">
+                    <span class="sm-filter-label text-muted small me-1">Sector:</span>
+                    <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            t-on-click.stop="toggleTagDropdown">
+                        <t t-esc="tagFilterLabel"/>
+                        <i class="fa fa-chevron-down ms-1 small"/>
+                    </button>
+                    <div t-if="state.tagDropdownOpen"
+                         class="sm-dropdown shadow-sm border rounded bg-white"
+                         t-att-style="`position:fixed;top:${state.tagMenuPos.top}px;left:${state.tagMenuPos.left}px;z-index:1050;min-width:180px`">
+                        <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                            <label class="sm-dropdown-item d-flex align-items-center gap-2 px-3 py-1 small"
+                                   t-on-click.stop="() => this.toggleTag(tag.id)">
+                                <input type="checkbox"
+                                       t-att-checked="state.tagIds.includes(tag.id)"
+                                       t-on-change.stop="() => this.toggleTag(tag.id)"/>
+                                <span t-esc="tag.name"/>
+                            </label>
+                        </t>
+                        <div t-if="!state.tags.length" class="px-3 py-2 text-muted small">
+                            Sin sectores configurados
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CT (filtro secundario, solo cuando hay sectores seleccionados) -->
+                <div class="sm-filter-group position-relative" t-if="state.wcs.length">
+                    <span class="sm-filter-label text-muted small me-1">CT:</span>
+                    <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            t-on-click.stop="toggleWcDropdown">
+                        <t t-esc="wcFilterLabel"/>
+                        <i class="fa fa-chevron-down ms-1 small"/>
+                    </button>
+                    <div t-if="state.wcDropdownOpen"
+                         class="sm-dropdown shadow-sm border rounded bg-white"
+                         t-att-style="`position:fixed;top:${state.wcMenuPos.top}px;left:${state.wcMenuPos.left}px;z-index:1050;min-width:180px`">
+                        <t t-foreach="state.wcs" t-as="wc" t-key="wc.id">
+                            <label class="sm-dropdown-item d-flex align-items-center gap-2 px-3 py-1 small"
+                                   t-on-click.stop="() => this.toggleWc(wc.id)">
+                                <input type="checkbox"
+                                       t-att-checked="state.wcFilterIds.includes(wc.id)"
+                                       t-on-change.stop="() => this.toggleWc(wc.id)"/>
+                                <span t-esc="wc.name"/>
+                            </label>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- Solicitud (solo modo standalone) -->
+                <div class="sm-filter-group position-relative" t-if="!_isEmbedded and state.requests.length">
+                    <span class="sm-filter-label text-muted small me-1">Solicitud:</span>
+                    <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            t-on-click.stop="toggleRequestDropdown">
+                        <t t-esc="requestFilterLabel"/>
+                        <i class="fa fa-chevron-down ms-1 small"/>
+                    </button>
+                    <div t-if="state.requestDropdownOpen"
+                         class="sm-dropdown shadow-sm border rounded bg-white"
+                         t-att-style="`position:fixed;top:${state.requestMenuPos.top}px;left:${state.requestMenuPos.left}px;z-index:1050;min-width:200px`">
+                        <t t-foreach="state.requests" t-as="req" t-key="req.id">
+                            <label class="sm-dropdown-item d-flex align-items-center gap-2 px-3 py-1 small"
+                                   t-on-click.stop="() => this.toggleRequest(req.id)">
+                                <input type="checkbox"
+                                       t-att-checked="state.requestIds.includes(req.id)"
+                                       t-on-change.stop="() => this.toggleRequest(req.id)"/>
+                                <span t-esc="req.name"/>
+                                <span class="badge bg-secondary bg-opacity-50 ms-auto small"
+                                      t-esc="requestStateLabel(req.state)"/>
+                            </label>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- Separador -->
+                <div class="vr mx-1 d-none d-md-block"/>
+
+                <!-- Rango de fechas -->
+                <div class="sm-filter-group d-flex align-items-center gap-1">
+                    <span class="text-muted small">Desde</span>
+                    <input type="date" class="form-control form-control-sm sm-date-input"
+                           t-att-value="state.dateFrom"
+                           t-on-change="onDateFromChange"/>
+                    <span class="text-muted small">hasta</span>
+                    <input type="date" class="form-control form-control-sm sm-date-input"
+                           t-att-value="state.dateTo"
+                           t-on-change="onDateToChange"/>
+                </div>
+
+                <!-- Separador -->
+                <div class="vr mx-1 d-none d-md-block"/>
+
+                <!-- Búsqueda de producto -->
+                <div class="sm-filter-group">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="fa fa-search"/></span>
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="Buscar producto…"
+                               t-att-value="state.searchText"
+                               t-on-input="onSearchChange"/>
+                    </div>
+                </div>
+
+                <!-- Toggle ocultar CTs vacíos -->
+                <div class="sm-filter-group d-flex align-items-center gap-2 ms-auto">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="sm-hide-empty"
+                               t-att-checked="state.hideEmptyCts"
+                               t-on-change="toggleHideEmptyCts"/>
+                        <label class="form-check-label small text-muted" for="sm-hide-empty">
+                            Ocultar CTs vacíos
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Contador total -->
+                <div t-if="state.totalLines" class="text-muted small">
+                    <strong t-esc="state.totalLines"/> MOs
+                </div>
+
+            </div><!-- /sm-filters -->
+
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <!-- Mensaje: seleccioná un sector                               -->
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <div t-if="!state.tagIds.length and !state.requestIds.length"
+                 class="text-center text-muted py-5">
+                <i class="fa fa-sitemap fa-3x mb-3 d-block text-muted"/>
+                <p class="mb-1">Seleccioná un <strong>sector</strong> para ver la programación.</p>
+                <p class="small">O elegí una solicitud específica en el filtro de arriba.</p>
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <!-- Sin datos en el rango                                       -->
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <div t-elif="!state.loading and !state.weekKeys.length"
+                 class="text-center text-muted py-5">
+                <i class="fa fa-calendar-o fa-3x mb-3 d-block"/>
+                <p>Sin MOs planificadas en el período seleccionado.</p>
+            </div>
+
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <!-- Matriz                                                       -->
+            <!-- ──────────────────────────────────────────────────────────── -->
+            <t t-elif="state.weekKeys.length">
+
+                <!-- Slider de semanas -->
+                <div t-if="sliderMax > 0"
+                     class="sm-slider-wrap d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="prevPage">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <input type="range" class="form-range flex-grow-1"
+                           min="0" t-att-max="sliderMax" t-att-value="state.weekPage"
+                           t-on-input="onSliderChange"/>
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="nextPage">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
+                    <span class="text-muted small text-nowrap" t-esc="weekRangeLabel"/>
+                </div>
+
+                <!-- Tabla -->
+                <div class="sm-table-wrap table-responsive">
+                    <table class="sm-table table table-bordered mb-0">
+
+                        <!-- ── Cabecera de semanas ── -->
+                        <thead class="sm-thead">
+                            <tr>
+                                <th class="sm-th-wc">Centro de trabajo</th>
+                                <t t-foreach="visibleWeekKeys" t-as="wk" t-key="wk">
+                                    <th class="sm-th-week"
+                                        t-att-class="{ 'sm-current-week-header': wk === _currentWeekKey }">
+                                        <div class="d-flex align-items-baseline gap-1">
+                                            <span class="fw-semibold" t-esc="state.weekLabels[wk].label"/>
+                                            <span class="text-muted small" t-esc="state.weekLabels[wk].year"/>
+                                        </div>
+                                        <div class="sm-week-dates text-muted"
+                                             t-esc="`${state.weekLabels[wk].date_from} – ${state.weekLabels[wk].date_to}`"/>
+                                    </th>
+                                </t>
+                            </tr>
+                        </thead>
+
+                        <!-- ── Filas por CT ── -->
+                        <tbody>
+                            <t t-foreach="state.filteredRows" t-as="row" t-key="row.wc_id">
+
+                                <!-- Fila de datos -->
+                                <tr class="sm-row">
+
+                                    <!-- Celda: nombre del CT -->
+                                    <td class="sm-wc-cell">
+                                        <div class="sm-wc-name fw-semibold" t-esc="row.wc_name"/>
+                                        <div class="sm-wc-tags mt-1">
+                                            <t t-foreach="row.tag_names" t-as="tagName" t-key="tagName">
+                                                <span class="badge bg-secondary bg-opacity-25 text-secondary me-1 sm-sector-badge"
+                                                      t-esc="tagName"/>
+                                            </t>
+                                        </div>
+                                    </td>
+
+                                    <!-- Celdas por semana -->
+                                    <t t-foreach="visibleWeekKeys" t-as="wk" t-key="wk">
+                                        <t t-set="cellLines" t-value="row.cells[wk] || []"/>
+                                        <t t-set="loadPct"   t-value="getLoadPct(row, wk)"/>
+                                        <t t-set="cellKey"   t-value="`${row.wc_id}|${wk}`"/>
+
+                                        <td class="sm-cell align-top"
+                                            t-att-class="{
+                                                'sm-current-week': wk === _currentWeekKey,
+                                                'sm-drag-over': state.dragOverKey === cellKey and state.dragOverLineId === null,
+                                            }"
+                                            t-on-dragover="(ev) => this.onCellDragOver(ev, row.wc_id, wk)"
+                                            t-on-dragleave="(ev) => this.onCellDragLeave(ev)"
+                                            t-on-drop="(ev) => this.onCellDrop(ev, row.wc_id, wk)">
+
+                                            <!-- Barra de carga -->
+                                            <div t-if="loadPct !== null" class="sm-load-wrap mb-1">
+                                                <div class="sm-load-track">
+                                                    <div class="sm-load-bar"
+                                                         t-att-class="loadBarClass(loadPct)"
+                                                         t-att-style="`width:${Math.min(loadPct, 100)}%`"/>
+                                                </div>
+                                                <span class="sm-load-label"
+                                                      t-att-class="{
+                                                          'text-danger fw-bold': loadPct >= 100,
+                                                          'text-warning':        loadPct >= 80 and loadPct < 100,
+                                                          'text-muted':          loadPct < 80,
+                                                      }"
+                                                      t-esc="fmtPct(loadPct)"/>
+                                            </div>
+
+                                            <!-- Chips de MO -->
+                                            <t t-foreach="cellLines" t-as="line" t-key="line.line_id">
+
+                                                <!-- Indicador de inserción (arriba del chip) -->
+                                                <div class="sm-drop-indicator"
+                                                     t-att-class="{ 'sm-drop-indicator-active': state.dragOverLineId === line.line_id }"/>
+
+                                                <!-- Chip -->
+                                                <div class="sm-chip"
+                                                     draggable="true"
+                                                     t-att-class="{
+                                                         'sm-chip-active':    state.activeLineId === line.line_id,
+                                                         'sm-chip-dragging':  state.dragLineId   === line.line_id,
+                                                         'sm-chip-level-0':   line.level === 0,
+                                                         'sm-chip-child':     line.level > 0,
+                                                     }"
+                                                     t-on-click.stop="() => this.selectLine(line, row.wc_id)"
+                                                     t-on-dragstart="(ev) => this.onDragStart(ev, line, row.wc_id)"
+                                                     t-on-dragend="this.onDragEnd"
+                                                     t-on-dragover="(ev) => this.onChipDragOver(ev, line)"
+                                                     t-on-drop.stop="(ev) => this.onChipDrop(ev, line, row.wc_id, wk)">
+
+                                                    <!-- Header: tipo + nivel -->
+                                                    <div class="sm-chip-header d-flex align-items-center justify-content-between">
+                                                        <span class="sm-chip-type small fw-semibold"
+                                                              t-esc="line.type_label"/>
+                                                        <span t-if="line.level > 0"
+                                                              class="badge bg-secondary bg-opacity-50 small">
+                                                            N<t t-esc="line.level"/>
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- Producto -->
+                                                    <div class="sm-chip-product text-truncate"
+                                                         t-att-title="line.product_name"
+                                                         t-esc="line.product_name"/>
+
+                                                    <!-- Cantidad + duración -->
+                                                    <div class="sm-chip-meta text-muted">
+                                                        <span t-esc="fmtQty(line.qty)"/>
+                                                        <t t-if="line.uom">
+                                                            <span class="mx-1 text-muted">·</span>
+                                                            <span t-esc="line.uom"/>
+                                                        </t>
+                                                        <t t-if="line.duration_hours">
+                                                            <span class="mx-1 text-muted">·</span>
+                                                            <i class="fa fa-clock-o me-1"/>
+                                                            <span t-esc="fmtHours(line.duration_hours)"/>
+                                                        </t>
+                                                    </div>
+
+                                                    <!-- Fecha inicio -->
+                                                    <div class="sm-chip-date text-muted small"
+                                                         t-esc="line.date_start"/>
+
+                                                    <!-- Handle drag -->
+                                                    <div class="sm-chip-drag-handle text-muted">
+                                                        <i class="fa fa-grip-vertical"/>
+                                                    </div>
+
+                                                </div><!-- /sm-chip -->
+
+                                            </t><!-- /t-foreach lines -->
+
+                                            <!-- Zona de drop vacía al final -->
+                                            <div class="sm-cell-drop-end"/>
+
+                                        </td><!-- /sm-cell -->
+                                    </t><!-- /t-foreach weeks -->
+
+                                </tr><!-- /sm-row -->
+
+                                <!-- ── Panel de detalle (fila completa debajo del CT) ── -->
+                                <tr t-if="state.activeLineId !== null and state.activeWcId === row.wc_id"
+                                    class="sm-detail-row">
+                                    <td t-att-colspan="visibleWeekKeys.length + 1" class="p-0">
+                                        <div class="sm-detail-panel px-4 py-3 bg-light border-top border-bottom">
+
+                                            <!-- Cerrar -->
+                                            <button class="btn btn-sm btn-close float-end ms-2"
+                                                    t-on-click.stop="closeDetail"/>
+
+                                            <div class="row g-3 align-items-start">
+
+                                                <!-- Solicitud -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Solicitud</div>
+                                                    <button class="btn btn-link btn-sm p-0 fw-semibold"
+                                                            t-on-click.stop="() => this.openRequest(state.activeLineData)">
+                                                        <t t-esc="state.activeLineData.request_name"/>
+                                                        <i class="fa fa-external-link ms-1 small"/>
+                                                    </button>
+                                                </div>
+
+                                                <!-- Separador vertical -->
+                                                <div class="col-auto"><div class="vr h-100"/></div>
+
+                                                <!-- Producto -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Producto</div>
+                                                    <div class="fw-semibold" t-esc="state.activeLineData.product_name"/>
+                                                </div>
+
+                                                <!-- Tipo -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Tipo</div>
+                                                    <div t-esc="state.activeLineData.type_label"/>
+                                                </div>
+
+                                                <!-- Cantidad -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Cantidad</div>
+                                                    <div>
+                                                        <span t-esc="fmtQty(state.activeLineData.qty)"/>
+                                                        <span class="text-muted ms-1" t-esc="state.activeLineData.uom"/>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Duración -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Duración</div>
+                                                    <div t-esc="fmtHours(state.activeLineData.duration_hours)"/>
+                                                </div>
+
+                                                <!-- Separador -->
+                                                <div class="col-auto"><div class="vr h-100"/></div>
+
+                                                <!-- Inicio -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Inicio planificado</div>
+                                                    <div t-esc="state.activeLineData.date_start"/>
+                                                </div>
+
+                                                <!-- Fin -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">Fin planificado</div>
+                                                    <div t-esc="state.activeLineData.date_finish"/>
+                                                </div>
+
+                                                <!-- Plazo requerido -->
+                                                <div class="col-auto" t-if="state.activeLineData.item_deadline">
+                                                    <div class="sm-detail-label text-muted small">Plazo requerido</div>
+                                                    <div t-esc="state.activeLineData.item_deadline"/>
+                                                </div>
+
+                                                <!-- CT asignado -->
+                                                <div class="col-auto">
+                                                    <div class="sm-detail-label text-muted small">CT asignado</div>
+                                                    <div t-esc="state.activeLineData.workcenter_name"/>
+                                                </div>
+
+                                            </div><!-- /row -->
+                                        </div><!-- /sm-detail-panel -->
+                                    </td>
+                                </tr><!-- /sm-detail-row -->
+
+                            </t><!-- /t-foreach rows -->
+
+                            <!-- Sin filas visibles -->
+                            <tr t-if="!state.filteredRows.length">
+                                <td t-att-colspan="visibleWeekKeys.length + 1"
+                                    class="text-center text-muted py-4">
+                                    <i class="fa fa-inbox fa-2x d-block mb-2"/>
+                                    Sin MOs para los filtros seleccionados.
+                                </td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div><!-- /sm-table-wrap -->
+
+            </t><!-- /t-elif weekKeys -->
+
+        </t><!-- /t-else (contenido principal) -->
+
+    </div><!-- /sm-root -->
+</t>
+
+</templates>

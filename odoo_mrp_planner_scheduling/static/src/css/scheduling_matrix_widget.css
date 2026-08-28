@@ -1,0 +1,347 @@
+/* ── Tablero de Programación de Producción ────────────────────────────────── */
+
+/* ── Raíz ── */
+.sm-root {
+    font-size: 13px;
+}
+
+/* ── Filtros ── */
+.sm-filters {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    min-height: 48px;
+}
+
+.sm-filter-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+}
+
+.sm-filter-btn {
+    font-size: 12px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sm-date-input {
+    width: 130px;
+    font-size: 12px;
+}
+
+.sm-dropdown {
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6 !important;
+}
+
+.sm-dropdown-item {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+.sm-dropdown-item:hover {
+    background: #f8f9fa;
+}
+
+/* ── Tabla ── */
+.sm-table-wrap {
+    overflow-x: auto;
+}
+
+.sm-table {
+    table-layout: fixed;
+    min-width: 600px;
+    border-collapse: collapse;
+}
+
+/* ── Encabezados ── */
+.sm-thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #fff;
+}
+
+.sm-th-wc {
+    width: 160px;
+    min-width: 140px;
+    background: #f0f2f5;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #495057;
+    vertical-align: middle;
+    padding: 8px 10px;
+    position: sticky;
+    left: 0;
+    z-index: 11;
+}
+
+.sm-th-week {
+    width: 180px;
+    min-width: 160px;
+    text-align: center;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: #fff;
+    vertical-align: top;
+}
+
+.sm-current-week-header {
+    background: #e8f4ff !important;
+    border-bottom: 2px solid #0d6efd !important;
+}
+
+.sm-week-dates {
+    font-size: 10px;
+    margin-top: 1px;
+}
+
+/* ── Celda de CT (columna izquierda fija) ── */
+.sm-wc-cell {
+    background: #f8f9fa;
+    border-right: 2px solid #dee2e6 !important;
+    vertical-align: top;
+    padding: 8px 10px;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    min-width: 140px;
+    max-width: 160px;
+}
+
+.sm-wc-name {
+    font-size: 13px;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.sm-sector-badge {
+    font-size: 10px;
+    font-weight: 400;
+    padding: 1px 5px;
+}
+
+/* ── Celda de datos (semana × CT) ── */
+.sm-cell {
+    vertical-align: top;
+    padding: 6px 6px 4px;
+    background: #fff;
+    transition: background 0.12s;
+    min-width: 160px;
+}
+
+.sm-current-week {
+    background: #f0f7ff !important;
+}
+
+.sm-drag-over {
+    background: #e3f0ff !important;
+    outline: 2px dashed #0d6efd;
+    outline-offset: -2px;
+}
+
+.sm-cell-drop-end {
+    min-height: 10px;
+}
+
+/* ── Barra de carga ── */
+.sm-load-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sm-load-track {
+    flex: 1;
+    height: 5px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.sm-load-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sm-load-ok      { background: #198754; }
+.sm-load-warning { background: #fd7e14; }
+.sm-load-danger  { background: #dc3545; }
+
+.sm-load-label {
+    font-size: 10px;
+    font-weight: 600;
+    min-width: 30px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ── Indicador de inserción (drag between chips) ── */
+.sm-drop-indicator {
+    height: 3px;
+    margin: 1px 0;
+    border-radius: 2px;
+    background: transparent;
+    transition: background 0.12s;
+}
+
+.sm-drop-indicator-active {
+    background: #0d6efd;
+    box-shadow: 0 0 4px #0d6efd80;
+}
+
+/* ── Chips de MO ── */
+.sm-chip {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 5px 7px 4px;
+    margin-bottom: 4px;
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
+}
+
+.sm-chip:hover {
+    border-color: #adb5bd;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.sm-chip:last-child {
+    margin-bottom: 0;
+}
+
+/* OF raíz (nivel 0) */
+.sm-chip-level-0 {
+    border-left: 3px solid #0d6efd;
+}
+
+/* OF hija (nivel > 0) */
+.sm-chip-child {
+    border-left: 3px solid #adb5bd;
+    opacity: 0.9;
+}
+
+/* Chip seleccionado */
+.sm-chip-active {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
+}
+
+/* Chip siendo arrastrado */
+.sm-chip-dragging {
+    opacity: 0.4;
+    border-style: dashed;
+}
+
+.sm-chip-header {
+    margin-bottom: 2px;
+}
+
+.sm-chip-type {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+    font-weight: 700;
+}
+
+.sm-chip-product {
+    font-size: 12px;
+    font-weight: 600;
+    color: #212529;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sm-chip-meta {
+    font-size: 11px;
+    margin-top: 2px;
+    color: #6c757d;
+}
+
+.sm-chip-date {
+    font-size: 10px;
+    margin-top: 2px;
+    color: #adb5bd;
+}
+
+/* Handle de drag (arriba a la derecha) */
+.sm-chip-drag-handle {
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    font-size: 10px;
+    color: #ced4da;
+    opacity: 0;
+    transition: opacity 0.12s;
+    cursor: grab;
+}
+
+.sm-chip:hover .sm-chip-drag-handle {
+    opacity: 1;
+}
+
+/* ── Panel de detalle ── */
+.sm-detail-row td {
+    padding: 0 !important;
+}
+
+.sm-detail-panel {
+    border-top: 2px solid #0d6efd;
+    background: #f8fbff !important;
+    animation: sm-slide-in 0.12s ease-out;
+}
+
+@keyframes sm-slide-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sm-detail-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+}
+
+/* ── Slider de semanas ── */
+.sm-slider-wrap {
+    background: #fafafa;
+    border-bottom: 1px solid #e9ecef;
+    padding: 6px 12px;
+}
+
+/* ── Loading ── */
+.sm-loading {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .sm-th-wc, .sm-wc-cell {
+        width: 110px;
+        min-width: 90px;
+    }
+    .sm-th-week, .sm-cell {
+        min-width: 130px;
+    }
+    .sm-filter-btn {
+        max-width: 130px;
+    }
+}

@@ -250,8 +250,8 @@
                                                 <span class="sm-load-label"
                                                       t-att-class="{
                                                           'text-danger fw-bold': loadPct >= 100,
-                                                          'text-warning':        loadPct >= 80 and loadPct < 100,
-                                                          'text-muted':          loadPct < 80,
+                                                          'text-warning':        loadPct >= 80 and loadPct &lt; 100,
+                                                          'text-muted':          loadPct &lt; 80,
                                                       }"
                                                       t-esc="fmtPct(loadPct)"/>
                                             </div>

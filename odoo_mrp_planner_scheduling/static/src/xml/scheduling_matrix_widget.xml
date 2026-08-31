@@ -253,22 +253,25 @@
                                             <!-- Chips de OF -->
                                             <t t-foreach="cellMos" t-as="mo" t-key="mo.mo_id">
 
-                                                <!-- ── Barra de continuación (OF que empezó antes) ── -->
+                                                <!-- ── Chip de continuación (OF que empezó antes) ── -->
                                                 <t t-if="mo.is_continuation">
-                                                    <div class="sm-chip-cont"
-                                                         t-att-class="{ 'sm-chip-cont-last': mo.is_last_span, 'sm-chip-cont-done': mo.state === 'done' }"
+                                                    <div class="sm-chip sm-chip-cont"
+                                                         t-att-class="{ 'sm-chip-cont-last': mo.is_last_span, 'sm-chip-done': mo.state === 'done' }"
                                                          t-on-click.stop="(ev) => this.openMo(ev, mo)"
                                                          t-att-title="mo.mo_name + ' — continúa desde período anterior'">
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            <span class="sm-cont-arrow"
-                                                                  t-att-class="{ 'sm-cont-arrow-done': mo.state === 'done' }">&#8594;</span>
-                                                            <span class="sm-cont-ref text-truncate flex-grow-1"
+                                                        <div class="sm-chip-header d-flex align-items-start gap-1">
+                                                            <span class="sm-cont-badge" title="Continuación">&#8617;</span>
+                                                            <span class="sm-chip-ref fw-semibold flex-grow-1"
                                                                   t-esc="mo.mo_name"/>
-                                                            <span t-if="mo.is_last_span"
-                                                                  class="sm-chip-state badge small"
-                                                                  t-att-class="moStateClass(mo.state)"
-                                                                  t-esc="moStateLabel(mo.state)"/>
+                                                            <button class="btn btn-link btn-sm p-0 ms-1 sm-open-btn"
+                                                                    t-att-title="'Abrir ' + mo.mo_name"
+                                                                    t-on-click="(ev) => this.openMo(ev, mo)">
+                                                                <i class="fa fa-external-link small"/>
+                                                            </button>
                                                         </div>
+                                                        <div class="sm-cont-product text-truncate"
+                                                             t-att-title="mo.product_name"
+                                                             t-esc="mo.product_name"/>
                                                     </div>
                                                 </t>
 

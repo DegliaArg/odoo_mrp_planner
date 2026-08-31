@@ -346,56 +346,39 @@
     justify-content: center;
 }
 
-/* ── Barra de continuación (OF que arranca en período anterior) ──
-   Diseño tipo Gantt: franja full-width sin caja, solo borde izquierdo grueso. ── */
+/* ── Chip de continuación (OF que arranca en período anterior) ──
+   Misma caja que el chip normal, pero con fondo más tenue y ícono ↩ ── */
 .sm-chip-cont {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    border: none;
-    border-left: 4px solid #0d6efd;
-    border-radius: 0 3px 3px 0;
-    padding: 4px 8px 4px 6px;
-    margin-bottom: 3px;
-    background: #eef4ff;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.1s;
-    overflow: hidden;
-    min-height: 24px;
+    background: #f0f5ff;
+    border-left-color: #7aadfd;
+    opacity: 0.88;
 }
 
 .sm-chip-cont:hover {
-    background: #dce8fd;
+    opacity: 1;
+    border-left-color: #0d6efd;
+    border-color: #adb5bd;
 }
 
-.sm-chip-cont:last-child {
-    margin-bottom: 0;
-}
-
-/* Último período de la OF: cierra la franja con borde derecho */
+/* Último período del span: borde derecho para cerrar visualmente */
 .sm-chip-cont-last {
-    border-right: 4px solid #0d6efd;
-    border-radius: 0 3px 3px 0;
+    border-right-color: #7aadfd;
+    border-right-width: 2px;
 }
 
-.sm-cont-arrow {
-    font-size: 11px;
-    color: #4a8cdc;
+/* Ícono de continuación (↩) */
+.sm-cont-badge {
+    font-size: 13px;
+    color: #7aadfd;
     flex-shrink: 0;
     line-height: 1;
 }
 
-.sm-cont-ref {
+/* Producto en chip de continuación */
+.sm-cont-product {
     font-size: 11px;
-    color: #2c5f9e;
-    line-height: 1.2;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
+    color: #495057;
+    margin-top: 2px;
 }
 
 /* ── Chip de OF terminada (done) ── */
@@ -408,16 +391,6 @@
     color: #6c757d;
 }
 
-.sm-chip-cont-done {
-    border-left-color: #adb5bd;
-    border-right-color: #adb5bd;
-    background: #f1f3f5;
-}
-
-.sm-chip-cont-done .sm-cont-arrow,
-.sm-chip-cont-done .sm-cont-ref {
-    color: #6c757d;
-}
 
 .sm-state-done {
     background: #d1e7dd;

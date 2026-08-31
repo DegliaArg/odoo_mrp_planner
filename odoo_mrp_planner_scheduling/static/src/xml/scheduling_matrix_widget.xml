@@ -120,7 +120,7 @@
                                t-att-checked="state.hideEmptyRows"
                                t-on-change="toggleHideEmptyRows"/>
                         <label class="form-check-label small text-muted" for="sm-hide-empty">
-                            Ocultar vacíos
+                            Ocultar CTs vacíos
                         </label>
                     </div>
                 </div>
@@ -173,20 +173,43 @@
 
                         <!-- ── Cabecera ── -->
                         <thead class="sm-thead">
+
+                            <!--
+                                Fila 1: grupos (semana ISO o mes).
+                                Solo visible en modo semana o mes.
+                                Las columnas CT y Turno tienen rowspan=2 para
+                                abarcar ambas filas de cabecera.
+                            -->
+                            <tr t-if="visiblePeriodGroups">
+                                <th class="sm-th-wc" rowspan="2">Centro de trabajo</th>
+                                <th t-if="state.hasShifts" class="sm-th-shift" rowspan="2">Turno</th>
+                                <t t-foreach="visiblePeriodGroups" t-as="grp" t-key="grp.key">
+                                    <th class="sm-th-group" t-att-colspan="grp.span">
+                                        <div class="fw-semibold" t-esc="grp.label"/>
+                                        <div class="text-muted sm-period-sub" t-esc="grp.sublabel"/>
+                                    </th>
+                                </t>
+                            </tr>
+
+                            <!--
+                                Fila 2 (o única fila en modo día):
+                                CT y Turno aparecen solo cuando no hay grupos (modo día).
+                            -->
                             <tr>
-                                <th class="sm-th-wc">Máquina</th>
-                                <th t-if="state.hasShifts" class="sm-th-shift">Turno</th>
+                                <t t-if="!visiblePeriodGroups">
+                                    <th class="sm-th-wc">Centro de trabajo</th>
+                                    <th t-if="state.hasShifts" class="sm-th-shift">Turno</th>
+                                </t>
                                 <t t-foreach="visiblePeriodKeys" t-as="pk" t-key="pk">
                                     <th class="sm-th-period">
                                         <div class="fw-semibold small"
                                              t-esc="state.periodLabels[pk]?.label"/>
                                         <div class="text-muted sm-period-sub"
-                                             t-esc="state.periodLabels[pk]?.date_from
-                                                     ? state.periodLabels[pk].date_from + ' – ' + state.periodLabels[pk].date_to
-                                                     : state.periodLabels[pk]?.sublabel"/>
+                                             t-esc="state.periodLabels[pk]?.sublabel"/>
                                     </th>
                                 </t>
                             </tr>
+
                         </thead>
 
                         <!-- ── Filas CT × Turno ── -->
@@ -194,7 +217,7 @@
                             <t t-foreach="state.filteredRows" t-as="row" t-key="row.row_id">
                                 <tr class="sm-row">
 
-                                    <!-- Celda máquina (rowspan cuando hay turnos) -->
+                                    <!-- Celda CT (rowspan abarca todos los turnos visibles del CT) -->
                                     <td t-if="row.is_first_shift"
                                         class="sm-wc-cell align-middle"
                                         t-att-rowspan="row.shift_count > 1 ? row.shift_count : false">
@@ -244,7 +267,7 @@
                                                          t-att-title="mo.product_name"
                                                          t-esc="mo.product_name"/>
 
-                                                    <!-- Línea 3: cantidad · duración · inicio -->
+                                                    <!-- Línea 3: cantidad · duración -->
                                                     <div class="sm-chip-meta text-muted small">
                                                         <span t-esc="fmtQty(mo.qty)"/>
                                                         <t t-if="mo.uom">
@@ -270,10 +293,10 @@
                                                                 Componentes:
                                                             </div>
                                                             <t t-foreach="getComponents(mo.mo_id)" t-as="comp" t-key="comp_index">
-                                                                <div class="sm-comp-row d-flex justify-content-between small">
-                                                                    <span class="text-truncate me-1"
+                                                                <div class="sm-comp-row d-flex justify-content-between gap-2">
+                                                                    <span class="sm-comp-name"
                                                                           t-esc="comp.product_name"/>
-                                                                    <span class="text-nowrap text-muted">
+                                                                    <span class="sm-comp-qty text-muted text-nowrap">
                                                                         <t t-esc="fmtQty(comp.qty)"/>
                                                                         <t t-if="comp.uom">
                                                                             <span class="ms-1" t-esc="comp.uom"/>

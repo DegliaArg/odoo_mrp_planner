@@ -5,7 +5,7 @@
  *
  * Muestra TODAS las OFs confirmadas/en-curso organizadas en una matriz:
  *   Filas    = Centro de trabajo × Turno
- *   Columnas = Períodos (días / semanas / meses)
+ *   Columnas = Períodos (días / semanas → días / meses → semanas)
  *
  * Interacciones:
  *  - Click en chip → despliega componentes (movimientos de materia prima).
@@ -34,24 +34,17 @@ function daysFromToday(n) {
     return toDateStr(d);
 }
 
-/** Semana ISO actual (formato YYYY-Www) */
-function currentIsoWeekKey() {
+/** Lunes de la semana actual. */
+function mondayOfCurrentWeek() {
     const d = new Date();
-    const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = utc.getUTCDay() || 7;
-    utc.setUTCDate(utc.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
-    return `${utc.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    return d;
 }
 
-/** Retorna el date_from por defecto según granularidad (hoy o inicio de semana/mes). */
+/** date_from por defecto según granularidad. */
 function defaultDateFrom(gran) {
-    if (gran === 'week') {
-        const d = new Date();
-        d.setDate(d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1)); // lunes
-        return toDateStr(d);
-    }
+    if (gran === 'week') return toDateStr(mondayOfCurrentWeek());
     if (gran === 'month') {
         const d = new Date();
         d.setDate(1);
@@ -60,31 +53,36 @@ function defaultDateFrom(gran) {
     return todayStr();
 }
 
-/** Retorna el date_to por defecto según granularidad. */
+/** date_to por defecto según granularidad. */
 function defaultDateTo(gran) {
-    if (gran === 'week') return daysFromToday(6 * 7 - 1);
+    if (gran === 'week') return daysFromToday(41);   // 6 semanas completas
     if (gran === 'month') {
         const d = new Date();
-        d.setMonth(d.getMonth() + 2);
-        d.setDate(0); // último día del mes siguiente
+        d.setMonth(d.getMonth() + 3);
+        d.setDate(0);   // último día del 3er mes futuro
         return toDateStr(d);
     }
-    return daysFromToday(13); // 2 semanas de días
+    return daysFromToday(13);   // 2 semanas
 }
 
-/** Ventana visible de períodos según granularidad. */
+/**
+ * Tamaño de ventana visible en número de HOJAS.
+ *  day   → 7  hojas = días   → 1 semana visible
+ *  week  → 14 hojas = días   → 2 semanas visibles
+ *  month → 8  hojas = semanas → ~2 meses visibles
+ */
 function windowSize(gran) {
     if (gran === 'day')   return 7;
-    if (gran === 'month') return 3;
-    return 4;   // week
+    if (gran === 'month') return 8;
+    return 14;   // week
 }
 
-// ── Estado de la OF (etiqueta legible) ───────────────────────────────────────
+// ── Estado de la OF ───────────────────────────────────────────────────────────
 
 const MO_STATE_LABEL = {
-    confirmed:  'Confirmada',
-    progress:   'En proceso',
-    to_close:   'Por cerrar',
+    confirmed: 'Confirmada',
+    progress:  'En proceso',
+    to_close:  'Por cerrar',
 };
 
 const MO_STATE_CLASS = {
@@ -134,19 +132,17 @@ class SchedulingMatrixWidget extends Component {
             periodPage:    0,
             filteredRows:  [],
 
-            // Chips expandidos (set de mo_id)
+            // Chips expandidos
             expandedMoIds:    {},   // mo_id → true
             componentsCache:  {},   // mo_id → [components]
             loadingComponents: {},  // mo_id → true
 
-            // Estado de dropdowns
+            // Dropdowns
             tagDropdownOpen: false,
             wcDropdownOpen:  false,
             tagMenuPos: { top: 0, left: 0 },
             wcMenuPos:  { top: 0, left: 0 },
         });
-
-        this._currentPeriodKey = currentIsoWeekKey();
 
         onMounted(async () => {
             try {
@@ -203,11 +199,11 @@ class SchedulingMatrixWidget extends Component {
     }
 
     async _loadData() {
-        this.state.loading     = true;
-        this.state.error       = null;
-        this.state.expandedMoIds    = {};
-        this.state.componentsCache  = {};
-        this.state.loadingComponents = {};
+        this.state.loading        = true;
+        this.state.error          = null;
+        this.state.expandedMoIds      = {};
+        this.state.componentsCache    = {};
+        this.state.loadingComponents  = {};
 
         try {
             const result = await this.orm.call(
@@ -215,7 +211,7 @@ class SchedulingMatrixWidget extends Component {
                 'get_scheduling_board',
                 [],
                 {
-                    tag_ids:     this.state.tagIds.length     ? this.state.tagIds     : null,
+                    tag_ids:     this.state.tagIds.length ? this.state.tagIds : null,
                     date_from:   this.state.dateFrom,
                     date_to:     this.state.dateTo,
                     granularity: this.state.granularity,
@@ -328,17 +324,15 @@ class SchedulingMatrixWidget extends Component {
 
     async toggleChip(moId) {
         if (this.state.expandedMoIds[moId]) {
-            // Colapsar
             const next = { ...this.state.expandedMoIds };
             delete next[moId];
             this.state.expandedMoIds = next;
             return;
         }
 
-        // Expandir
         this.state.expandedMoIds = { ...this.state.expandedMoIds, [moId]: true };
 
-        if (this.state.componentsCache[moId]) return;  // ya cargados
+        if (this.state.componentsCache[moId]) return;
 
         this.state.loadingComponents = { ...this.state.loadingComponents, [moId]: true };
         try {
@@ -347,9 +341,9 @@ class SchedulingMatrixWidget extends Component {
                 'get_mo_components',
                 [moId]
             );
-            this.state.componentsCache  = { ...this.state.componentsCache,  [moId]: comps };
+            this.state.componentsCache = { ...this.state.componentsCache, [moId]: comps };
         } catch (e) {
-            this.state.componentsCache  = { ...this.state.componentsCache,  [moId]: [] };
+            this.state.componentsCache = { ...this.state.componentsCache, [moId]: [] };
         } finally {
             const next = { ...this.state.loadingComponents };
             delete next[moId];
@@ -357,7 +351,7 @@ class SchedulingMatrixWidget extends Component {
         }
     }
 
-    isExpanded(moId) { return !!this.state.expandedMoIds[moId]; }
+    isExpanded(moId)    { return !!this.state.expandedMoIds[moId]; }
     isLoadingComp(moId) { return !!this.state.loadingComponents[moId]; }
     getComponents(moId) { return this.state.componentsCache[moId] || []; }
 
@@ -385,34 +379,57 @@ class SchedulingMatrixWidget extends Component {
         const search    = (this.state.searchText || '').trim().toLowerCase();
         const hideEmpty = this.state.hideEmptyRows;
 
-        // Paso 1: filtrar por CT seleccionados
+        // Paso 1: filtrar por CT seleccionados en dropdown
         let rows = this.state.wcShiftRows;
         if (this.state.wcFilterIds.length) {
             rows = rows.filter(r => this.state.wcFilterIds.includes(r.wc_id));
         }
 
-        if (!search && !hideEmpty) return rows;
-
-        const result = [];
-        for (const row of rows) {
-            const cells = {};
-            let hasVisible = false;
-            for (const pk of this.state.periodKeys) {
-                let lines = row.cells[pk] || [];
-                if (search) {
-                    lines = lines.filter(l =>
-                        (l.mo_name      || '').toLowerCase().includes(search) ||
-                        (l.product_name || '').toLowerCase().includes(search)
-                    );
+        // Paso 2: filtrar por búsqueda y/o filas vacías
+        let result;
+        if (!search && !hideEmpty) {
+            result = rows;
+        } else {
+            const filtered = [];
+            for (const row of rows) {
+                const cells = {};
+                let hasVisible = false;
+                for (const pk of this.state.periodKeys) {
+                    let lines = row.cells[pk] || [];
+                    if (search) {
+                        lines = lines.filter(l =>
+                            (l.mo_name      || '').toLowerCase().includes(search) ||
+                            (l.product_name || '').toLowerCase().includes(search)
+                        );
+                    }
+                    cells[pk] = lines;
+                    if (lines.length) hasVisible = true;
                 }
-                cells[pk] = lines;
-                if (lines.length) hasVisible = true;
+                if (hasVisible || !hideEmpty) {
+                    filtered.push({ ...row, cells });
+                }
             }
-            if (hasVisible || !hideEmpty) {
-                result.push({ ...row, cells });
-            }
+            result = filtered;
         }
-        return result;
+
+        // Paso 3: recalcular is_first_shift y shift_count según las filas
+        // efectivamente visibles (crítico cuando hideEmptyRows elimina algunos
+        // turnos de un CT, el rowspan de la columna CT debe reflejar solo los
+        // turnos visibles).
+        const wcCounts = {};
+        for (const row of result) {
+            wcCounts[row.wc_id] = (wcCounts[row.wc_id] || 0) + 1;
+        }
+        const seenWcs = {};
+        return result.map(row => {
+            const isFirst = !seenWcs[row.wc_id];
+            seenWcs[row.wc_id] = true;
+            return {
+                ...row,
+                is_first_shift: isFirst,
+                shift_count:    wcCounts[row.wc_id],
+            };
+        });
     }
 
     // ── Ventana deslizante de períodos ────────────────────────────────────────
@@ -429,18 +446,55 @@ class SchedulingMatrixWidget extends Component {
         return Math.max(0, this.state.periodKeys.length - windowSize(this.state.granularity));
     }
 
+    /**
+     * Grupos de cabecera para semanas y meses.
+     * Retorna null en modo día (sin agrupación).
+     *
+     * Estructura: [{ key, label, sublabel, span }]
+     */
+    get visiblePeriodGroups() {
+        const labels = this.state.periodLabels;
+        const groups = [];
+        for (const pk of this.visiblePeriodKeys) {
+            const lbl = labels[pk];
+            if (!lbl?.group_key) return null;   // modo día: sin grupos
+            const last = groups[groups.length - 1];
+            if (last && last.key === lbl.group_key) {
+                last.span++;
+            } else {
+                groups.push({
+                    key:      lbl.group_key,
+                    label:    lbl.group_label,
+                    sublabel: lbl.group_sublabel,
+                    span:     1,
+                });
+            }
+        }
+        return groups.length ? groups : null;
+    }
+
     get periodRangeLabel() {
-        const keys = this.state.periodKeys;
+        const keys = this.visiblePeriodKeys;
         if (!keys.length) return '';
-        const from = keys[this.state.periodPage];
-        const wSize = windowSize(this.state.granularity);
-        const to   = keys[Math.min(this.state.periodPage + wSize - 1, keys.length - 1)];
-        const lbl  = this.state.periodLabels;
-        if (!from || !lbl[from]) return '';
-        const lf = lbl[from].label;
-        const lt = lbl[to]?.label;
-        const yr = lbl[from].sublabel;
-        if (from === to) return `${lf} · ${yr}`;
+        const labels = this.state.periodLabels;
+        const first  = labels[keys[0]];
+        if (!first) return '';
+
+        const groups = this.visiblePeriodGroups;
+        if (groups && groups.length) {
+            const gf = groups[0];
+            const gl = groups[groups.length - 1];
+            const yr = first.group_sublabel || keys[0].slice(0, 4);
+            if (gf.key === gl.key) return `${gf.label} · ${yr}`;
+            return `${gf.label} – ${gl.label} · ${yr}`;
+        }
+
+        // Modo día: mostrar rango de fechas
+        const last = labels[keys[keys.length - 1]];
+        const lf   = first.label;
+        const lt   = last?.label;
+        const yr   = keys[0].slice(0, 4);
+        if (keys[0] === keys[keys.length - 1]) return `${lf} · ${yr}`;
         return `${lf} – ${lt} · ${yr}`;
     }
 
@@ -474,24 +528,10 @@ class SchedulingMatrixWidget extends Component {
         const mins = Math.round((h - hrs) * 60);
         return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
     }
-
-    // Detectar si una fila es la primera del CT (para rowspan)
-    isFirstRowOfWc(rowIndex) {
-        const rows = this.state.filteredRows;
-        if (rowIndex === 0) return true;
-        return rows[rowIndex].wc_id !== rows[rowIndex - 1].wc_id;
-    }
-
-    // Cuántas filas tiene el CT de la fila dada (para rowspan)
-    wcRowspan(wc_id) {
-        return this.state.filteredRows.filter(r => r.wc_id === wc_id).length;
-    }
 }
 
-// Registrar como widget de vista (embebido en formulario)
 registry.category("view_widgets").add("scheduling_matrix_widget", {
     component: SchedulingMatrixWidget,
 });
 
-// Registrar como acción cliente (vista standalone desde menú)
 registry.category("actions").add("mrp_scheduling_matrix_action", SchedulingMatrixWidget);

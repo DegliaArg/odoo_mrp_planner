@@ -23,23 +23,24 @@ _DAY_ABBR   = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 
 def _all_period_keys(date_from_str, date_to_str, granularity):
-    """Genera todas las claves de período entre date_from y date_to (inclusive)."""
+    """
+    Genera las claves de HOJA según granularidad:
+      day   → días  (YYYY-MM-DD)
+      week  → días  (YYYY-MM-DD), agrupados luego por semana ISO en el frontend
+      month → semanas ISO (YYYY-Www), agrupadas por mes en el frontend
+    """
     dt_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
     dt_to   = datetime.strptime(date_to_str,   '%Y-%m-%d').date()
     keys = []
-    if granularity == 'day':
+    if granularity in ('day', 'week'):
+        # Hoja = día; para 'week', empezamos desde el lunes de la primera semana
+        if granularity == 'week':
+            dt_from = dt_from - timedelta(days=dt_from.weekday())
         d = dt_from
         while d <= dt_to:
             keys.append(d.strftime('%Y-%m-%d'))
             d += timedelta(days=1)
-    elif granularity == 'month':
-        y, m = dt_from.year, dt_from.month
-        while date_cls(y, m, 1) <= dt_to:
-            keys.append(f'{y}-{m:02d}')
-            m += 1
-            if m > 12:
-                m, y = 1, y + 1
-    else:   # week
+    else:   # month → hoja = semana ISO
         d = dt_from - timedelta(days=dt_from.weekday())
         while d <= dt_to:
             iso = d.isocalendar()
@@ -49,35 +50,51 @@ def _all_period_keys(date_from_str, date_to_str, granularity):
 
 
 def _period_label(key, granularity):
-    """Retorna un dict de display para una clave de período."""
-    if granularity == 'day':
+    """
+    Retorna un dict de display para una clave de hoja.
+
+    Para 'week' y 'month', incluye group_key / group_label / group_sublabel
+    para que el frontend construya la cabecera de dos niveles.
+    """
+    if granularity in ('day', 'week'):
+        # Hoja = día
         d = datetime.strptime(key, '%Y-%m-%d').date()
-        return {
-            'label':   f'{_DAY_ABBR[d.weekday()]} {d.day:02d}/{d.month:02d}',
-            'sublabel': str(d.year),
+        base = {
+            'label':   f'{d.day:02d}/{d.month:02d}',
+            'sublabel': _DAY_ABBR[d.weekday()],
         }
-    if granularity == 'month':
-        y, m = int(key[:4]), int(key[5:])
-        return {'label': _MONTH_ABBR[m - 1], 'sublabel': str(y)}
-    # week
+        if granularity == 'week':
+            iso = d.isocalendar()
+            yr, wk = iso[0], iso[1]
+            monday = datetime.fromisocalendar(yr, wk, 1).date()
+            sunday = datetime.fromisocalendar(yr, wk, 7).date()
+            base.update({
+                'group_key':      f'{yr}-W{wk:02d}',
+                'group_label':    f'Sem {wk:02d}',
+                'group_sublabel': str(yr),
+                'group_dates':    f'{monday.strftime("%d/%m")} – {sunday.strftime("%d/%m")}',
+            })
+        return base
+
+    # month → hoja = semana ISO
     yr, wk = int(key[:4]), int(key[6:])
     monday = datetime.fromisocalendar(yr, wk, 1).date()
     sunday = datetime.fromisocalendar(yr, wk, 7).date()
     return {
-        'label':     f'S{wk:02d}',
-        'sublabel':  str(yr),
-        'date_from': monday.strftime('%d/%m/%Y'),
-        'date_to':   sunday.strftime('%d/%m/%Y'),
+        'label':          f'S{wk:02d}',
+        'sublabel':       f'{monday.strftime("%d/%m")}–{sunday.strftime("%d/%m")}',
+        'group_key':      f'{monday.year}-{monday.month:02d}',
+        'group_label':    _MONTH_ABBR[monday.month - 1],
+        'group_sublabel': str(monday.year),
     }
 
 
 def _period_key_for_dt(dt_local, granularity):
-    """Devuelve la clave de período para un datetime local."""
+    """Devuelve la clave de hoja del período para un datetime local."""
     d = dt_local.date()
-    if granularity == 'day':
+    if granularity in ('day', 'week'):
         return d.strftime('%Y-%m-%d')
-    if granularity == 'month':
-        return f'{d.year}-{d.month:02d}'
+    # month → semana ISO
     iso = d.isocalendar()
     return f'{iso[0]}-W{iso[1]:02d}'
 

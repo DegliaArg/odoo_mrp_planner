@@ -61,6 +61,26 @@
                                help="Sector que se preselecciona automáticamente al abrir el tablero de programación de producción."/>
                     </group>
 
+                    <!-- ══ TURNOS (compartidos con los paneles) ════════════════════ -->
+                    <group string="Turnos de producción">
+                        <div class="text-muted small mb-2">
+                            Los turnos definen cómo se desglosan las filas del tablero por
+                            franja horaria (ej. 1°(06-14), 2°(14-22), 3°(22-06)).
+                            La configuración es compartida con el Panel de Producción.
+                        </div>
+                        <field name="enable_shifts" widget="boolean_toggle"
+                               string="Habilitar desglose por turnos en el tablero"/>
+                        <field name="shift_ids" nolabel="1"
+                               invisible="not enable_shifts"
+                               help="Defina los turnos para desglosar el tablero por horario. Los turnos que cruzan la medianoche (Hora fin &lt; Hora inicio) se detectan automáticamente.">
+                            <list editable="bottom">
+                                <field name="name"/>
+                                <field name="hour_from" widget="float_time"/>
+                                <field name="hour_to"   widget="float_time"/>
+                            </list>
+                        </field>
+                    </group>
+
                 </sheet>
             </form>
         </field>

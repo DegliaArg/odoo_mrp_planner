@@ -1,60 +1,131 @@
 """
 Módulo: mrp_scheduling_matrix.py
-Modelo: mrp.production.request (extensión)
 
-Métodos de backend para el widget de tablero de programación por semanas y CTs.
-Devuelven la estructura de datos que consume el componente OWL SchedulingMatrixWidget.
+Métodos de backend para el tablero de programación de producción.
 
-Responsabilidades:
-- get_scheduling_matrix: construye la matriz semanas × CTs con las líneas planificadas.
-- get_scheduling_matrix_filters: devuelve sectores y solicitudes disponibles para filtros.
-- get_scheduling_wcs_for_tags: CTs que pertenecen a uno o más sectores (tags).
-- action_resequence_lines: actualiza la secuencia de varias líneas de una vez.
-- action_reassign_wc: reasigna una línea a otro centro de trabajo.
+Fuente de datos: mrp.production (todas las OFs, no solo las generadas por
+solicitudes de programación).
+
+Organización: filas = CT × Turno, columnas = períodos (día / semana / mes).
+Los turnos provienen de mrp.planner.shift, configurados en mrp.reschedule.config.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_cls
+
+import pytz
 
 from odoo import models, api
 
+# ── Helpers de períodos ───────────────────────────────────────────────────────
 
-class MrpProductionRequestMatrix(models.Model):
-    _inherit = 'mrp.production.request'
+_MONTH_ABBR = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+_DAY_ABBR   = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+
+def _all_period_keys(date_from_str, date_to_str, granularity):
+    """Genera todas las claves de período entre date_from y date_to (inclusive)."""
+    dt_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+    dt_to   = datetime.strptime(date_to_str,   '%Y-%m-%d').date()
+    keys = []
+    if granularity == 'day':
+        d = dt_from
+        while d <= dt_to:
+            keys.append(d.strftime('%Y-%m-%d'))
+            d += timedelta(days=1)
+    elif granularity == 'month':
+        y, m = dt_from.year, dt_from.month
+        while date_cls(y, m, 1) <= dt_to:
+            keys.append(f'{y}-{m:02d}')
+            m += 1
+            if m > 12:
+                m, y = 1, y + 1
+    else:   # week
+        d = dt_from - timedelta(days=dt_from.weekday())
+        while d <= dt_to:
+            iso = d.isocalendar()
+            keys.append(f'{iso[0]}-W{iso[1]:02d}')
+            d += timedelta(weeks=1)
+    return keys
+
+
+def _period_label(key, granularity):
+    """Retorna un dict de display para una clave de período."""
+    if granularity == 'day':
+        d = datetime.strptime(key, '%Y-%m-%d').date()
+        return {
+            'label':   f'{_DAY_ABBR[d.weekday()]} {d.day:02d}/{d.month:02d}',
+            'sublabel': str(d.year),
+        }
+    if granularity == 'month':
+        y, m = int(key[:4]), int(key[5:])
+        return {'label': _MONTH_ABBR[m - 1], 'sublabel': str(y)}
+    # week
+    yr, wk = int(key[:4]), int(key[6:])
+    monday = datetime.fromisocalendar(yr, wk, 1).date()
+    sunday = datetime.fromisocalendar(yr, wk, 7).date()
+    return {
+        'label':     f'S{wk:02d}',
+        'sublabel':  str(yr),
+        'date_from': monday.strftime('%d/%m/%Y'),
+        'date_to':   sunday.strftime('%d/%m/%Y'),
+    }
+
+
+def _period_key_for_dt(dt_local, granularity):
+    """Devuelve la clave de período para un datetime local."""
+    d = dt_local.date()
+    if granularity == 'day':
+        return d.strftime('%Y-%m-%d')
+    if granularity == 'month':
+        return f'{d.year}-{d.month:02d}'
+    iso = d.isocalendar()
+    return f'{iso[0]}-W{iso[1]:02d}'
+
+
+def _shift_label(s):
+    """Etiqueta compacta del turno: nombre + rango horario."""
+    hf = int(s.hour_from)
+    ht = int(s.hour_to)
+    return f'{s.name} ({hf:02d}–{ht:02d})'
+
+
+# ── Extensión de mrp.production ───────────────────────────────────────────────
+
+class MrpProductionBoard(models.Model):
+    _inherit = 'mrp.production'
 
     # ── Filtros ───────────────────────────────────────────────────────────────
 
     @api.model
-    def get_scheduling_matrix_filters(self):
-        """Devuelve sectores (tags de CT), solicitudes recientes y el tag predeterminado.
-
-        :returns: dict con 'tags', 'requests' y 'default_scheduling_tag_id'.
-        """
+    def get_scheduling_board_filters(self):
+        """Devuelve sectores (tags de CT) y turnos disponibles."""
         tags = self.env['mrp.workcenter.tag'].search([], order='name')
-        requests = self.env['mrp.production.request'].search(
-            [('state', 'in', ('calculated', 'confirmed'))],
-            order='id desc', limit=60,
-        )
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        cfg  = self.env['mrp.reschedule.config'].get_config()
         default_tag_id = (
             cfg.default_scheduling_tag_id.id
-            if cfg and cfg.default_scheduling_tag_id
-            else None
+            if cfg and cfg.default_scheduling_tag_id else None
         )
+        shifts = []
+        if cfg and getattr(cfg, 'enable_shifts', False):
+            shifts = [
+                {
+                    'id':        s.id,
+                    'name':      s.name,
+                    'hour_from': s.hour_from,
+                    'hour_to':   s.hour_to,
+                    'label':     _shift_label(s),
+                }
+                for s in cfg.shift_ids.sorted('hour_from')
+            ]
         return {
-            'tags': [{'id': t.id, 'name': t.name} for t in tags],
-            'requests': [
-                {'id': r.id, 'name': r.name, 'state': r.state}
-                for r in requests
-            ],
+            'tags':                      [{'id': t.id, 'name': t.name} for t in tags],
             'default_scheduling_tag_id': default_tag_id,
+            'shifts':                    shifts,
         }
 
     @api.model
-    def get_scheduling_wcs_for_tags(self, tag_ids):
-        """Devuelve los centros de trabajo que tienen al menos uno de los tags dados.
-
-        :param tag_ids: list[int] — IDs de mrp.workcenter.tag.
-        :returns: list[dict] con 'id' y 'name' de cada CT.
-        """
+    def get_scheduling_board_wcs_for_tags(self, tag_ids):
+        """CTs activos que tienen al menos uno de los tags dados."""
         if not tag_ids:
             return []
         wcs = self.env['mrp.workcenter'].search(
@@ -63,245 +134,219 @@ class MrpProductionRequestMatrix(models.Model):
         )
         return [{'id': w.id, 'name': w.name} for w in wcs]
 
-    # ── Datos de la matriz ────────────────────────────────────────────────────
+    # ── Datos del tablero ─────────────────────────────────────────────────────
 
     @api.model
-    def get_scheduling_matrix(self, request_ids=None, tag_ids=None, date_from=None, date_to=None):
-        """Construye la matriz de programación: filas=CTs, columnas=semanas ISO, celdas=MOs.
+    def get_scheduling_board(self, tag_ids=None, date_from=None, date_to=None,
+                              granularity='day'):
+        """
+        Construye el tablero de programación.
+
+        Filas  = CT × Turno (o solo CT si no hay turnos configurados).
+        Columnas = TODOS los períodos del rango (días / semanas / meses),
+                   independientemente de si tienen OFs.
 
         Parámetros:
-        - request_ids: list[int] | None — filtrar por solicitudes específicas (None = todas).
-        - tag_ids:     list[int] | None — filtrar CTs por sector (tag). None = sin filtro.
+        - tag_ids:     list[int] | None  — filtrar CTs por sector.
         - date_from:   str 'YYYY-MM-DD' — inicio del rango (inclusive).
         - date_to:     str 'YYYY-MM-DD' — fin del rango (inclusive).
+        - granularity: 'day' | 'week' | 'month'.
 
-        :returns: dict con week_keys, week_labels, wc_rows y total_lines.
+        :returns: dict con period_keys, period_labels, wc_shift_rows, total_mos.
         """
         _empty = lambda reason: {
-            'week_keys': [], 'week_labels': {}, 'wc_rows': [], 'total_lines': 0,
-            'empty_reason': reason,
+            'period_keys': [], 'period_labels': {}, 'wc_shift_rows': [],
+            'total_mos': 0, 'empty_reason': reason,
         }
 
-        domain = [('record_type', '=', 'mrp'), ('new_date_start', '!=', False)]
-        if request_ids:
-            domain.append(('request_id', 'in', request_ids))
+        if not date_from or not date_to:
+            return _empty('no_dates')
 
-        lines = self.env['mrp.production.request.line'].search(domain)
+        # Todos los períodos del rango — siempre se muestran aunque estén vacíos
+        period_keys   = _all_period_keys(date_from, date_to, granularity)
+        period_labels = {k: _period_label(k, granularity) for k in period_keys}
 
-        if not lines:
-            return _empty('no_lines')
+        # Turnos de config
+        cfg    = self.env['mrp.reschedule.config'].get_config()
+        shifts = []
+        if cfg and getattr(cfg, 'enable_shifts', False):
+            shifts = list(cfg.shift_ids.sorted('hour_from'))
 
-        # Filtrar por rango de fechas
-        if date_from:
-            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
-            lines = lines.filtered(lambda l: l.new_date_start >= dt_from)
-        if date_to:
-            dt_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-            lines = lines.filtered(lambda l: l.new_date_start < dt_to)
-
-        if not lines:
-            return _empty('no_date_match')
-
-        # CTs con líneas asignadas
-        wc_ids_in_lines = {l.workcenter_id.id for l in lines if l.workcenter_id}
-        if not wc_ids_in_lines:
-            return _empty('no_workcenter')
-
-        # Filtrar CTs por tags de sector si se especificaron
-        wcs = self.env['mrp.workcenter'].browse(list(wc_ids_in_lines))
+        # CTs válidos según tags
         if tag_ids:
-            tag_id_set = set(tag_ids)
-            wcs = wcs.filtered(lambda w: tag_id_set & set(w.tag_ids.ids))
+            tagged_wcs   = self.env['mrp.workcenter'].search(
+                [('tag_ids', 'in', tag_ids), ('active', '=', True)]
+            )
+            valid_wc_ids = set(tagged_wcs.ids)
+        else:
+            valid_wc_ids = None   # None = todos
 
-        if not wcs:
-            return _empty('no_tag_match')
+        # Dominio de OFs
+        dt_from = datetime.strptime(date_from, '%Y-%m-%d')
+        dt_to   = datetime.strptime(date_to,   '%Y-%m-%d') + timedelta(days=1)
+        domain = [
+            ('state', 'in', ('confirmed', 'progress', 'to_close')),
+            ('date_start', '!=', False),
+            ('date_start', '>=', dt_from),
+            ('date_start', '<',  dt_to),
+        ]
+        mos = self.env['mrp.production'].search(domain, order='date_start, id')
 
-        valid_wc_ids = set(wcs.ids)
-        lines = lines.filtered(lambda l: l.workcenter_id.id in valid_wc_ids)
+        # Prefetch para evitar N+1
+        mos.mapped('product_id.uom_id')
+        mos.mapped('product_id.product_tmpl_id.x_centros_compatibles.workcenter_id')
+        mos.mapped('workorder_ids.workcenter_id')
 
-        # ── Calcular semanas ISO presentes ────────────────────────────────────
-        week_keys_set = set()
-        week_labels = {}
-        for line in lines:
-            dt = line.new_date_start
-            iso = dt.isocalendar()
-            year, week = iso[0], iso[1]
-            wk = f'{year}-W{week:02d}'
-            week_keys_set.add(wk)
-            if wk not in week_labels:
-                monday = datetime.fromisocalendar(year, week, 1)
-                sunday = datetime.fromisocalendar(year, week, 7)
-                week_labels[wk] = {
-                    'label': f'S{week:02d}',
-                    'year': year,
-                    'date_from': monday.strftime('%d/%m/%Y'),
-                    'date_to': sunday.strftime('%d/%m/%Y'),
-                }
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
 
-        week_keys = sorted(week_keys_set)
+        def _mo_wc(mo):
+            """Workcenter de la OF: primero WO, luego config de producto."""
+            for wo in mo.workorder_ids.sorted('sequence'):
+                wc = wo.workcenter_id
+                if wc and wc.active:
+                    if valid_wc_ids is None or wc.id in valid_wc_ids:
+                        return wc
+            centros = mo.product_id.product_tmpl_id.x_centros_compatibles.filtered(
+                'active'
+            ).sorted(lambda c: (not c.is_preferred, c.sequence))
+            for centro in centros:
+                wc = centro.workcenter_id
+                if wc and wc.active:
+                    if valid_wc_ids is None or wc.id in valid_wc_ids:
+                        return wc
+            return None
 
-        # ── Prefetch de datos relacionados (evita N+1) ────────────────────────
-        lines.mapped('product_id.uom_id')
-        lines.mapped('item_id.date_deadline')
-        lines.mapped('request_id.name')
+        def _mo_shift(dt_local):
+            """Turno al que pertenece una OF según su hora local de inicio."""
+            if not shifts:
+                return None
+            h = dt_local.hour + dt_local.minute / 60.0
+            for s in shifts:
+                hf, ht = s.hour_from, s.hour_to
+                if hf > ht:   # turno nocturno
+                    if h >= hf or h < ht:
+                        return s
+                else:
+                    if hf <= h < ht:
+                        return s
+            return None
 
-        # ── Agrupar líneas por (wc_id, semana) ───────────────────────────────
-        cells_by_wc_week = {}
-        for line in lines:
-            if not line.workcenter_id:
+        # Agrupar chips por (wc_id, shift_id_or_None, period_key)
+        wc_records   = {}   # wc_id → workcenter
+        cells_matrix = {}   # (wc_id, shift_id|None) → {period_key: [chips]}
+
+        total_mos = 0
+        for mo in mos:
+            wc = _mo_wc(mo)
+            if wc is None:
                 continue
-            dt = line.new_date_start
-            iso = dt.isocalendar()
-            wk = f'{iso[0]}-W{iso[1]:02d}'
-            wc_id = line.workcenter_id.id
-            key = (wc_id, wk)
-            if key not in cells_by_wc_week:
-                cells_by_wc_week[key] = []
 
-            req = line.request_id
-            item = line.item_id
-            uom = ''
-            if line.product_id and line.product_id.uom_id:
-                uom = line.product_id.uom_id.name
+            wc_records[wc.id] = wc
+            dt_local  = pytz.utc.localize(mo.date_start).astimezone(tz)
+            shift     = _mo_shift(dt_local)
+            shift_id  = shift.id if shift else None
+            pair      = (wc.id, shift_id)
+            pk        = _period_key_for_dt(dt_local, granularity)
 
-            cells_by_wc_week[key].append({
-                'line_id':        line.id,
-                'request_id':     req.id,
-                'request_name':   req.name,
-                'request_state':  req.state,
-                'product_name':   line.product_id.display_name if line.product_id else '',
-                'qty':            line.product_qty,
+            if pair not in cells_matrix:
+                cells_matrix[pair] = {}
+            if pk not in cells_matrix[pair]:
+                cells_matrix[pair][pk] = []
+
+            uom = mo.product_uom_id.name if mo.product_uom_id else ''
+            date_finish_str = ''
+            if mo.state == 'done' and mo.date_finished:
+                try:
+                    date_finish_str = (
+                        pytz.utc.localize(mo.date_finished)
+                        .astimezone(tz)
+                        .strftime('%d/%m %H:%M')
+                    )
+                except Exception:
+                    pass
+
+            # Duración: suma de work orders (minutos → horas), o 0
+            total_minutes = sum(
+                wo.duration_expected or 0 for wo in mo.workorder_ids
+            )
+            duration_hours = round(total_minutes / 60.0, 2) if total_minutes else 0.0
+
+            cells_matrix[pair][pk].append({
+                'mo_id':          mo.id,
+                'mo_name':        mo.name,
+                'product_name':   mo.product_id.display_name if mo.product_id else '',
+                'qty':            mo.product_qty,
                 'uom':            uom,
-                'date_start':     line.new_date_start.strftime('%d/%m/%Y %H:%M')
-                                  if line.new_date_start else '',
-                'date_finish':    line.new_date_finish.strftime('%d/%m/%Y %H:%M')
-                                  if line.new_date_finish else '',
-                'duration_hours': line.duration_hours,
-                'level':          line.level,
-                'sequence':       line.sequence,
-                'type_label':     line.type_label or '',
-                'workcenter_id':  line.workcenter_id.id,
-                'workcenter_name': line.workcenter_id.name,
-                'item_deadline':  item.date_deadline.strftime('%d/%m/%Y')
-                                  if item and item.date_deadline else '',
+                'duration_hours': duration_hours,
+                'date_start':     dt_local.strftime('%d/%m %H:%M'),
+                'date_finish':    date_finish_str,
+                'state':          mo.state,
             })
+            total_mos += 1
 
-        # ── Calcular capacidad semanal por CT ─────────────────────────────────
-        company_calendar = self.env.company.resource_calendar_id
+        # Construir wc_shift_rows en orden: CT (nombre) → turno (hour_from)
+        wcs_sorted = sorted(wc_records.values(), key=lambda w: w.name)
 
-        def _week_capacity_hours(wc, year, week):
-            cal = wc.resource_calendar_id or company_calendar
-            if not cal:
-                return 40.0
-            monday = datetime.fromisocalendar(year, week, 1).date()
-            total = 0.0
-            for att in cal.attendance_ids:
-                dow = int(att.dayofweek)  # '0'=Lunes … '6'=Domingo
-                day = monday + timedelta(days=dow)
-                if att.date_from and att.date_from > day:
-                    continue
-                if att.date_to and att.date_to < day:
-                    continue
-                total += att.hour_to - att.hour_from
-            return round(total, 2) if total > 0 else 40.0
-
-        # ── Construir wc_rows ─────────────────────────────────────────────────
-        wc_rows = []
-        for wc in wcs.sorted(lambda w: w.name):
-            cells = {}
-            planned_hours_per_week = {}
-            capacity_hours_per_week = {}
-
-            for wk in week_keys:
-                parts = wk.split('-W')
-                year_w, week_w = int(parts[0]), int(parts[1])
-                cell_lines = list(cells_by_wc_week.get((wc.id, wk), []))
-                cell_lines.sort(key=lambda l: (l['sequence'], l['line_id']))
-                cells[wk] = cell_lines
-
-                planned = sum(l['duration_hours'] for l in cell_lines)
-                capacity = _week_capacity_hours(wc, year_w, week_w)
-                planned_hours_per_week[wk] = round(planned, 2)
-                capacity_hours_per_week[wk] = capacity
-
+        wc_shift_rows = []
+        for wc in wcs_sorted:
             tag_names = [t.name for t in wc.tag_ids]
 
-            wc_rows.append({
-                'wc_id':                   wc.id,
-                'wc_name':                 wc.name,
-                'tag_names':               tag_names,
-                'cells':                   cells,
-                'planned_hours_per_week':  planned_hours_per_week,
-                'capacity_hours_per_week': capacity_hours_per_week,
-            })
+            if shifts:
+                rows_for_wc = []
+                for idx, s in enumerate(shifts):
+                    pair  = (wc.id, s.id)
+                    raw   = cells_matrix.get(pair, {})
+                    cells = {pk: raw.get(pk, []) for pk in period_keys}
+                    rows_for_wc.append({
+                        'row_id':         f'{wc.id}_{s.id}',
+                        'wc_id':          wc.id,
+                        'wc_name':        wc.name,
+                        'tag_names':      tag_names,
+                        'shift_id':       s.id,
+                        'shift_name':     s.name,
+                        'shift_label':    _shift_label(s),
+                        'is_first_shift': idx == 0,
+                        'shift_count':    len(shifts),
+                        'cells':          cells,
+                    })
+                wc_shift_rows.extend(rows_for_wc)
+            else:
+                pair  = (wc.id, None)
+                raw   = cells_matrix.get(pair, {})
+                cells = {pk: raw.get(pk, []) for pk in period_keys}
+                wc_shift_rows.append({
+                    'row_id':         str(wc.id),
+                    'wc_id':          wc.id,
+                    'wc_name':        wc.name,
+                    'tag_names':      tag_names,
+                    'shift_id':       None,
+                    'shift_name':     '',
+                    'shift_label':    '',
+                    'is_first_shift': True,
+                    'shift_count':    1,
+                    'cells':          cells,
+                })
 
         return {
-            'week_keys':   week_keys,
-            'week_labels': week_labels,
-            'wc_rows':     wc_rows,
-            'total_lines': len(lines),
+            'period_keys':   period_keys,
+            'period_labels': period_labels,
+            'wc_shift_rows': wc_shift_rows,
+            'total_mos':     total_mos,
+            'has_shifts':    bool(shifts),
         }
 
-    # ── Acciones de interacción ───────────────────────────────────────────────
-
     @api.model
-    def action_resequence_lines(self, sequence_map):
-        """Actualiza la secuencia de varias líneas a la vez.
-
-        Llamado después de un drag-and-drop de reordenamiento dentro de un CT.
-
-        :param sequence_map: list[dict] con {line_id, new_sequence}.
-        :returns: True.
-        """
-        for item in sequence_map:
-            line = self.env['mrp.production.request.line'].browse(item['line_id'])
-            if line.exists():
-                line.write({'sequence': item['new_sequence']})
-        return True
-
-    @api.model
-    def action_reassign_wc(self, line_id, new_wc_id):
-        """Reasigna una línea de plan a un centro de trabajo diferente.
-
-        Actualiza el workcenter_id de la línea y recalcula el resumen de carga
-        (mrp.production.request.wc) para los CTs afectados (origen y destino).
-
-        :param line_id:   int — ID de mrp.production.request.line.
-        :param new_wc_id: int — ID de mrp.workcenter destino.
-        :returns: True si se aplicó, False si la línea no existe.
-        """
-        line = self.env['mrp.production.request.line'].browse(line_id)
-        if not line.exists():
-            return False
-
-        old_wc_id = line.workcenter_id.id
-        line.write({'workcenter_id': new_wc_id})
-
-        # Recalcular resumen de carga para los CTs afectados
-        request = line.request_id
-        for wc_id in filter(None, {old_wc_id, new_wc_id}):
-            existing = request.wc_load_ids.filtered(lambda w: w.workcenter_id.id == wc_id)
-            affected = request.line_ids.filtered(
-                lambda l: l.workcenter_id.id == wc_id and l.record_type == 'mrp'
-            )
-            if affected:
-                total_hours = sum(affected.mapped('duration_hours'))
-                starts = [l.new_date_start for l in affected if l.new_date_start]
-                ends   = [l.new_date_finish for l in affected if l.new_date_finish]
-                vals = {
-                    'total_hours': round(total_hours, 2),
-                    'date_start':  min(starts) if starts else False,
-                    'date_end':    max(ends)   if ends   else False,
-                }
-                if existing:
-                    existing.write(vals)
-                else:
-                    self.env['mrp.production.request.wc'].create({
-                        'request_id':    request.id,
-                        'workcenter_id': wc_id,
-                        **vals,
-                    })
-            elif existing:
-                existing.unlink()
-
-        return True
+    def get_mo_components(self, mo_id):
+        """Devuelve los componentes (movimientos de materia prima) de la OF."""
+        mo = self.env['mrp.production'].browse(mo_id)
+        if not mo.exists():
+            return []
+        result = []
+        for move in mo.move_raw_ids.filtered(lambda m: m.state != 'cancel'):
+            uom = move.product_uom.name if move.product_uom else ''
+            result.append({
+                'product_name': move.product_id.display_name if move.product_id else '',
+                'qty':          move.product_uom_qty,
+                'uom':          uom,
+            })
+        return result

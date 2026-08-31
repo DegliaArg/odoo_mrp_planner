@@ -3,20 +3,17 @@
 /**
  * Tablero de Programación de Producción.
  *
- * Muestra las líneas planificadas de las solicitudes de programación (Circuit 2)
- * organizadas en una matriz semanas × centros de trabajo (CTs).
- *
- * Soporta dos modos:
- *  - Embebido: dentro del formulario de mrp.production.request (tab "Tablero").
- *  - Standalone: vista global desde el menú de Planificación.
+ * Muestra TODAS las OFs confirmadas/en-curso organizadas en una matriz:
+ *   Filas    = Centro de trabajo × Turno
+ *   Columnas = Períodos (días / semanas / meses)
  *
  * Interacciones:
- *  - Click en chip → panel de detalle.
- *  - Drag dentro del mismo CT → reordenar secuencia.
- *  - Drag a otro CT → reasignar centro de trabajo.
+ *  - Click en chip → despliega componentes (movimientos de materia prima).
+ *  - Selector de granularidad: Día / Semana / Mes.
+ *  - Filtros: sector (tag de CT), CT específico, rango de fechas, búsqueda.
  *
- * RPC: get_scheduling_matrix_filters, get_scheduling_wcs_for_tags,
- *      get_scheduling_matrix, action_resequence_lines, action_reassign_wc.
+ * RPC: get_scheduling_board_filters, get_scheduling_board_wcs_for_tags,
+ *      get_scheduling_board, get_mo_components
  */
 
 import { Component, useState, onMounted } from "@odoo/owl";
@@ -29,28 +26,15 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function mondayOfCurrentWeek() {
+function todayStr() { return toDateStr(new Date()); }
+
+function daysFromToday(n) {
     const d = new Date();
-    const day = d.getDay() || 7;
-    d.setDate(d.getDate() - (day - 1));
+    d.setDate(d.getDate() + n);
     return toDateStr(d);
 }
 
-function mondayNWeeksBack(n) {
-    const d = new Date();
-    const day = d.getDay() || 7;
-    d.setDate(d.getDate() - (day - 1) - 7 * n);
-    return toDateStr(d);
-}
-
-function sundayInNWeeks(n) {
-    const d = new Date();
-    const day = d.getDay() || 7;
-    d.setDate(d.getDate() - (day - 1) + 7 * n - 1);
-    return toDateStr(d);
-}
-
-// Semana ISO actual (formato YYYY-Www)
+/** Semana ISO actual (formato YYYY-Www) */
 function currentIsoWeekKey() {
     const d = new Date();
     const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -61,12 +45,52 @@ function currentIsoWeekKey() {
     return `${utc.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
-// ── Constantes de estilo ──────────────────────────────────────────────────────
+/** Retorna el date_from por defecto según granularidad (hoy o inicio de semana/mes). */
+function defaultDateFrom(gran) {
+    if (gran === 'week') {
+        const d = new Date();
+        d.setDate(d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1)); // lunes
+        return toDateStr(d);
+    }
+    if (gran === 'month') {
+        const d = new Date();
+        d.setDate(1);
+        return toDateStr(d);
+    }
+    return todayStr();
+}
 
-const REQUEST_STATE_LABEL = {
-    draft:      'Borrador',
-    calculated: 'Calculado',
-    confirmed:  'Creado',
+/** Retorna el date_to por defecto según granularidad. */
+function defaultDateTo(gran) {
+    if (gran === 'week') return daysFromToday(6 * 7 - 1);
+    if (gran === 'month') {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 2);
+        d.setDate(0); // último día del mes siguiente
+        return toDateStr(d);
+    }
+    return daysFromToday(13); // 2 semanas de días
+}
+
+/** Ventana visible de períodos según granularidad. */
+function windowSize(gran) {
+    if (gran === 'day')   return 7;
+    if (gran === 'month') return 3;
+    return 4;   // week
+}
+
+// ── Estado de la OF (etiqueta legible) ───────────────────────────────────────
+
+const MO_STATE_LABEL = {
+    confirmed:  'Confirmada',
+    progress:   'En proceso',
+    to_close:   'Por cerrar',
+};
+
+const MO_STATE_CLASS = {
+    confirmed: 'sm-state-confirmed',
+    progress:  'sm-state-progress',
+    to_close:  'sm-state-toclose',
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -80,68 +104,54 @@ class SchedulingMatrixWidget extends Component {
         this.action       = useService("action");
         this.notification = useService("notification");
 
-        // Modo embebido: hay un record (formulario de solicitud)
-        this._isEmbedded = !!(this.props.record && this.props.record.data);
-        const embeddedId = this._isEmbedded ? (this.props.record.data.id || null) : null;
+        const gran = 'day';
 
         this.state = useState({
-            // Opciones de filtros (desde backend)
-            tags:     [],
-            wcs:      [],
-            requests: [],
+            // Opciones de filtros
+            tags:   [],
+            wcs:    [],
 
             // Filtros activos
             tagIds:       [],
             wcFilterIds:  [],
-            requestIds:   embeddedId ? [embeddedId] : [],
-            dateFrom:     mondayNWeeksBack(2),
-            dateTo:       sundayInNWeeks(6),
+            dateFrom:     defaultDateFrom(gran),
+            dateTo:       defaultDateTo(gran),
+            granularity:  gran,
             searchText:   '',
-            hideEmptyCts: true,
+            hideEmptyRows: true,
 
-            // Datos de la matriz
-            weekKeys:   [],
-            weekLabels: {},
-            wcRows:     [],
-            totalLines: 0,
+            // Datos del tablero
+            periodKeys:    [],
+            periodLabels:  {},
+            wcShiftRows:   [],
+            totalMos:      0,
+            hasShifts:     false,
 
             // Estado UI
-            loading:      true,
-            error:        null,
-            emptyReason:  null,
-            weekPage:     0,
-            filteredRows: [],
+            loading:       true,
+            error:         null,
+            emptyReason:   null,
+            periodPage:    0,
+            filteredRows:  [],
 
-            // Selección para panel de detalle
-            activeLineId:   null,
-            activeLineData: null,
-            activeWcId:     null,
+            // Chips expandidos (set de mo_id)
+            expandedMoIds:    {},   // mo_id → true
+            componentsCache:  {},   // mo_id → [components]
+            loadingComponents: {},  // mo_id → true
 
             // Estado de dropdowns
-            tagDropdownOpen:     false,
-            wcDropdownOpen:      false,
-            requestDropdownOpen: false,
-            tagMenuPos:     { top: 0, left: 0 },
-            wcMenuPos:      { top: 0, left: 0 },
-            requestMenuPos: { top: 0, left: 0 },
-
-            // Estado de drag & drop
-            dragLineId:     null,
-            dragWcId:       null,
-            dragOverKey:    null,   // "wcId|wk" — celda sobre la que se arrastra
-            dragOverLineId: null,   // chip sobre el que se arrastra (insert-before)
+            tagDropdownOpen: false,
+            wcDropdownOpen:  false,
+            tagMenuPos: { top: 0, left: 0 },
+            wcMenuPos:  { top: 0, left: 0 },
         });
 
-        this._currentWeekKey = currentIsoWeekKey();
+        this._currentPeriodKey = currentIsoWeekKey();
 
         onMounted(async () => {
             try {
                 const defaultTagSelected = await this._loadFilters();
-                if (this._isEmbedded && embeddedId) {
-                    // Modo embebido: carga directa filtrada por la solicitud actual
-                    await this._loadData();
-                } else if (defaultTagSelected || this.state.tagIds.length) {
-                    // Standalone con tag predeterminado: carga automática
+                if (defaultTagSelected || this.state.tagIds.length) {
                     await this._loadData();
                 } else {
                     this.state.loading = false;
@@ -159,21 +169,19 @@ class SchedulingMatrixWidget extends Component {
 
     async _loadFilters() {
         const result = await this.orm.call(
-            'mrp.production.request',
-            'get_scheduling_matrix_filters',
+            'mrp.production',
+            'get_scheduling_board_filters',
             []
         );
-        this.state.tags     = result.tags     || [];
-        this.state.requests = result.requests || [];
+        this.state.tags = result.tags || [];
 
-        // Auto-seleccionar el tag predeterminado si está configurado y no hay selección previa
         const defaultTagId = result.default_scheduling_tag_id;
         if (defaultTagId && !this.state.tagIds.length) {
             const found = this.state.tags.find(t => t.id === defaultTagId);
             if (found) {
                 this.state.tagIds = [defaultTagId];
                 await this._loadWcs();
-                return true;   // indica que se preseleccionó un tag
+                return true;
             }
         }
         return false;
@@ -186,8 +194,8 @@ class SchedulingMatrixWidget extends Component {
             return;
         }
         const wcs = await this.orm.call(
-            'mrp.production.request',
-            'get_scheduling_wcs_for_tags',
+            'mrp.production',
+            'get_scheduling_board_wcs_for_tags',
             [this.state.tagIds]
         );
         this.state.wcs        = wcs || [];
@@ -195,32 +203,34 @@ class SchedulingMatrixWidget extends Component {
     }
 
     async _loadData() {
-        this.state.loading      = true;
-        this.state.error        = null;
-        this.state.activeLineId = null;
-        this.state.activeLineData = null;
-        this.state.activeWcId   = null;
+        this.state.loading     = true;
+        this.state.error       = null;
+        this.state.expandedMoIds    = {};
+        this.state.componentsCache  = {};
+        this.state.loadingComponents = {};
 
         try {
             const result = await this.orm.call(
-                'mrp.production.request',
-                'get_scheduling_matrix',
-                [
-                    this.state.requestIds.length ? this.state.requestIds : null,
-                    this.state.tagIds.length     ? this.state.tagIds     : null,
-                    this.state.dateFrom,
-                    this.state.dateTo,
-                ]
+                'mrp.production',
+                'get_scheduling_board',
+                [],
+                {
+                    tag_ids:     this.state.tagIds.length     ? this.state.tagIds     : null,
+                    date_from:   this.state.dateFrom,
+                    date_to:     this.state.dateTo,
+                    granularity: this.state.granularity,
+                }
             );
-            this.state.weekKeys    = result.week_keys   || [];
-            this.state.weekLabels  = result.week_labels || {};
-            this.state.wcRows      = result.wc_rows     || [];
-            this.state.totalLines  = result.total_lines || 0;
-            this.state.emptyReason = result.empty_reason || null;
-            this.state.weekPage    = 0;
+            this.state.periodKeys   = result.period_keys   || [];
+            this.state.periodLabels = result.period_labels || {};
+            this.state.wcShiftRows  = result.wc_shift_rows || [];
+            this.state.totalMos     = result.total_mos     || 0;
+            this.state.hasShifts    = result.has_shifts    || false;
+            this.state.emptyReason  = result.empty_reason  || null;
+            this.state.periodPage   = 0;
             this._recompute();
         } catch (e) {
-            console.error("[SchedulingMatrix]", e);
+            console.error("[SchedulingBoard]", e);
             this.state.error = (e?.data?.message) || e.message || String(e);
         } finally {
             this.state.loading = false;
@@ -234,9 +244,8 @@ class SchedulingMatrixWidget extends Component {
             const r = ev.currentTarget.getBoundingClientRect();
             this.state.tagMenuPos = { top: r.bottom + 3, left: r.left };
         }
-        this.state.tagDropdownOpen     = !this.state.tagDropdownOpen;
-        this.state.wcDropdownOpen      = false;
-        this.state.requestDropdownOpen = false;
+        this.state.tagDropdownOpen = !this.state.tagDropdownOpen;
+        this.state.wcDropdownOpen  = false;
     }
 
     toggleWcDropdown(ev) {
@@ -244,25 +253,13 @@ class SchedulingMatrixWidget extends Component {
             const r = ev.currentTarget.getBoundingClientRect();
             this.state.wcMenuPos = { top: r.bottom + 3, left: r.left };
         }
-        this.state.wcDropdownOpen      = !this.state.wcDropdownOpen;
-        this.state.tagDropdownOpen     = false;
-        this.state.requestDropdownOpen = false;
-    }
-
-    toggleRequestDropdown(ev) {
-        if (!this.state.requestDropdownOpen) {
-            const r = ev.currentTarget.getBoundingClientRect();
-            this.state.requestMenuPos = { top: r.bottom + 3, left: r.left };
-        }
-        this.state.requestDropdownOpen = !this.state.requestDropdownOpen;
-        this.state.tagDropdownOpen     = false;
-        this.state.wcDropdownOpen      = false;
+        this.state.wcDropdownOpen  = !this.state.wcDropdownOpen;
+        this.state.tagDropdownOpen = false;
     }
 
     closeDropdowns() {
-        this.state.tagDropdownOpen     = false;
-        this.state.wcDropdownOpen      = false;
-        this.state.requestDropdownOpen = false;
+        this.state.tagDropdownOpen = false;
+        this.state.wcDropdownOpen  = false;
     }
 
     async toggleTag(tagId) {
@@ -279,17 +276,7 @@ class SchedulingMatrixWidget extends Component {
         this.state.wcFilterIds = ids.includes(wcId)
             ? ids.filter(id => id !== wcId)
             : [...ids, wcId];
-        this._clearSelection();
         this._recompute();
-    }
-
-    async toggleRequest(requestId) {
-        if (this._isEmbedded) return;
-        const ids = this.state.requestIds;
-        this.state.requestIds = ids.includes(requestId)
-            ? ids.filter(id => id !== requestId)
-            : [...ids, requestId];
-        await this._loadData();
     }
 
     get tagFilterLabel() {
@@ -308,178 +295,84 @@ class SchedulingMatrixWidget extends Component {
         return names.length <= 2 ? names.join(", ") : `${names.length} CTs`;
     }
 
-    get requestFilterLabel() {
-        if (!this.state.requestIds.length) return "Todas";
-        const names = this.state.requests
-            .filter(r => this.state.requestIds.includes(r.id))
-            .map(r => r.name);
-        return names.length <= 2 ? names.join(", ") : `${names.length} solicitudes`;
-    }
-
     onSearchChange(ev) {
         this.state.searchText = ev.target.value;
-        this._clearSelection();
         this._recompute();
     }
 
     onDateFromChange(ev) {
-        this.state.dateFrom = ev.target.value || mondayOfCurrentWeek();
+        this.state.dateFrom = ev.target.value || defaultDateFrom(this.state.granularity);
         this._loadData();
     }
 
     onDateToChange(ev) {
-        this.state.dateTo = ev.target.value || sundayInNWeeks(6);
+        this.state.dateTo = ev.target.value || defaultDateTo(this.state.granularity);
         this._loadData();
     }
 
-    toggleHideEmptyCts() {
-        this.state.hideEmptyCts = !this.state.hideEmptyCts;
-        this._clearSelection();
+    toggleHideEmptyRows() {
+        this.state.hideEmptyRows = !this.state.hideEmptyRows;
         this._recompute();
     }
 
-    // ── Selección / panel de detalle ─────────────────────────────────────────
-
-    selectLine(line, wcId) {
-        if (this.state.activeLineId === line.line_id) {
-            this._clearSelection();
-        } else {
-            this.state.activeLineId   = line.line_id;
-            this.state.activeLineData = line;
-            this.state.activeWcId     = wcId;
-        }
+    async setGranularity(gran) {
+        if (gran === this.state.granularity) return;
+        this.state.granularity = gran;
+        this.state.dateFrom    = defaultDateFrom(gran);
+        this.state.dateTo      = defaultDateTo(gran);
+        this.state.periodPage  = 0;
+        await this._loadData();
     }
 
-    closeDetail() {
-        this._clearSelection();
-    }
+    // ── Chips: expandir / componentes ────────────────────────────────────────
 
-    _clearSelection() {
-        this.state.activeLineId   = null;
-        this.state.activeLineData = null;
-        this.state.activeWcId     = null;
-    }
-
-    // ── Drag & drop ───────────────────────────────────────────────────────────
-
-    onDragStart(ev, line, wcId) {
-        this.state.dragLineId = line.line_id;
-        this.state.dragWcId   = wcId;
-        ev.dataTransfer.effectAllowed = 'move';
-        ev.dataTransfer.setData('text/plain', String(line.line_id));
-    }
-
-    onDragEnd() {
-        this.state.dragLineId     = null;
-        this.state.dragWcId       = null;
-        this.state.dragOverKey    = null;
-        this.state.dragOverLineId = null;
-    }
-
-    onCellDragOver(ev, wcId, wk) {
-        ev.preventDefault();
-        ev.dataTransfer.dropEffect = 'move';
-        this.state.dragOverKey    = `${wcId}|${wk}`;
-        this.state.dragOverLineId = null;
-    }
-
-    onCellDragLeave(ev) {
-        // Solo limpiar si realmente salimos de la celda (no hacia un chip hijo)
-        if (!ev.currentTarget.contains(ev.relatedTarget)) {
-            this.state.dragOverKey = null;
-        }
-    }
-
-    onChipDragOver(ev, line) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.dataTransfer.dropEffect = 'move';
-        this.state.dragOverLineId = line.line_id;
-    }
-
-    async onChipDrop(ev, targetLine, targetWcId, wk) {
-        ev.preventDefault();
-        ev.stopPropagation();
-
-        const srcLineId = this.state.dragLineId;
-        const srcWcId   = this.state.dragWcId;
-
-        if (!srcLineId || srcLineId === targetLine.line_id) {
-            this.onDragEnd();
+    async toggleChip(moId) {
+        if (this.state.expandedMoIds[moId]) {
+            // Colapsar
+            const next = { ...this.state.expandedMoIds };
+            delete next[moId];
+            this.state.expandedMoIds = next;
             return;
         }
 
-        if (srcWcId === targetWcId) {
-            await this._reorderInCt(targetWcId, wk, srcLineId, targetLine.line_id);
-        } else {
-            await this._reassignToCt(srcLineId, targetWcId);
-        }
+        // Expandir
+        this.state.expandedMoIds = { ...this.state.expandedMoIds, [moId]: true };
 
-        this.onDragEnd();
-    }
+        if (this.state.componentsCache[moId]) return;  // ya cargados
 
-    async onCellDrop(ev, targetWcId, wk) {
-        ev.preventDefault();
-
-        const srcLineId = this.state.dragLineId;
-        const srcWcId   = this.state.dragWcId;
-
-        if (!srcLineId) { this.onDragEnd(); return; }
-
-        if (srcWcId !== targetWcId) {
-            // Soltar en celda de otro CT sin pasar por un chip → mover al final
-            await this._reassignToCt(srcLineId, targetWcId);
-        }
-        // Mismo CT, soltar en zona vacía → no hace falta reordenar
-
-        this.onDragEnd();
-    }
-
-    async _reorderInCt(wcId, wk, movedLineId, beforeLineId) {
-        const row = this.state.wcRows.find(r => r.wc_id === wcId);
-        if (!row) return;
-
-        const cell = [...(row.cells[wk] || [])];
-        const movedIdx = cell.findIndex(l => l.line_id === movedLineId);
-        if (movedIdx === -1) return;
-
-        const [movedItem] = cell.splice(movedIdx, 1);
-        const insertIdx   = cell.findIndex(l => l.line_id === beforeLineId);
-        if (insertIdx === -1) {
-            cell.push(movedItem);
-        } else {
-            cell.splice(insertIdx, 0, movedItem);
-        }
-
-        // Renumerar secuencias: 10, 20, 30, ...
-        const sequenceMap = cell.map((l, i) => ({
-            line_id: l.line_id, new_sequence: (i + 1) * 10,
-        }));
-
+        this.state.loadingComponents = { ...this.state.loadingComponents, [moId]: true };
         try {
-            await this.orm.call('mrp.production.request', 'action_resequence_lines', [sequenceMap]);
-            // Actualizar estado local sin recargar del servidor
-            row.cells[wk] = cell.map((l, i) => ({ ...l, sequence: (i + 1) * 10 }));
-            this._recompute();
-        } catch (e) {
-            this.notification.add(
-                (e?.data?.message) || 'Error al reordenar',
-                { type: 'danger', sticky: false }
+            const comps = await this.orm.call(
+                'mrp.production',
+                'get_mo_components',
+                [moId]
             );
+            this.state.componentsCache  = { ...this.state.componentsCache,  [moId]: comps };
+        } catch (e) {
+            this.state.componentsCache  = { ...this.state.componentsCache,  [moId]: [] };
+        } finally {
+            const next = { ...this.state.loadingComponents };
+            delete next[moId];
+            this.state.loadingComponents = next;
         }
     }
 
-    async _reassignToCt(lineId, newWcId) {
-        try {
-            await this.orm.call('mrp.production.request', 'action_reassign_wc', [lineId, newWcId]);
-            this.notification.add('CT reasignado correctamente.', { type: 'success', sticky: false });
-            await this._loadData();
-        } catch (e) {
-            this.notification.add(
-                (e?.data?.message) || 'Error al reasignar CT',
-                { type: 'danger', sticky: false }
-            );
-        }
+    isExpanded(moId) { return !!this.state.expandedMoIds[moId]; }
+    isLoadingComp(moId) { return !!this.state.loadingComponents[moId]; }
+    getComponents(moId) { return this.state.componentsCache[moId] || []; }
+
+    // ── Abrir OF en Odoo ─────────────────────────────────────────────────────
+
+    openMo(ev, mo) {
+        ev.stopPropagation();
+        this.action.doAction({
+            type:      'ir.actions.act_window',
+            name:      mo.mo_name,
+            res_model: 'mrp.production',
+            res_id:    mo.mo_id,
+            views:     [[false, 'form']],
+            target:    'current',
+        });
     }
 
     // ── Cómputo reactivo ─────────────────────────────────────────────────────
@@ -489,12 +382,14 @@ class SchedulingMatrixWidget extends Component {
     }
 
     _computeFilteredRows() {
-        let rows = this.state.wcFilterIds.length
-            ? this.state.wcRows.filter(r => this.state.wcFilterIds.includes(r.wc_id))
-            : this.state.wcRows;
-
         const search    = (this.state.searchText || '').trim().toLowerCase();
-        const hideEmpty = this.state.hideEmptyCts;
+        const hideEmpty = this.state.hideEmptyRows;
+
+        // Paso 1: filtrar por CT seleccionados
+        let rows = this.state.wcShiftRows;
+        if (this.state.wcFilterIds.length) {
+            rows = rows.filter(r => this.state.wcFilterIds.includes(r.wc_id));
+        }
 
         if (!search && !hideEmpty) return rows;
 
@@ -502,14 +397,15 @@ class SchedulingMatrixWidget extends Component {
         for (const row of rows) {
             const cells = {};
             let hasVisible = false;
-            for (const wk of this.state.weekKeys) {
-                let lines = row.cells[wk] || [];
+            for (const pk of this.state.periodKeys) {
+                let lines = row.cells[pk] || [];
                 if (search) {
                     lines = lines.filter(l =>
+                        (l.mo_name      || '').toLowerCase().includes(search) ||
                         (l.product_name || '').toLowerCase().includes(search)
                     );
                 }
-                cells[wk] = lines;
+                cells[pk] = lines;
                 if (lines.length) hasVisible = true;
             }
             if (hasVisible || !hideEmpty) {
@@ -519,54 +415,51 @@ class SchedulingMatrixWidget extends Component {
         return result;
     }
 
-    // ── Barra de carga ───────────────────────────────────────────────────────
+    // ── Ventana deslizante de períodos ────────────────────────────────────────
 
-    getLoadPct(row, wk) {
-        const planned  = row.planned_hours_per_week?.[wk] ?? 0;
-        const capacity = row.capacity_hours_per_week?.[wk] ?? 0;
-        if (!capacity) return null;
-        return Math.round((planned / capacity) * 100);
-    }
-
-    loadBarClass(pct) {
-        if (pct >= 100) return 'sm-load-danger';
-        if (pct >= 80)  return 'sm-load-warning';
-        return 'sm-load-ok';
-    }
-
-    // ── Ventana deslizante de semanas ─────────────────────────────────────────
-
-    get visibleWeekKeys() {
-        return this.state.weekKeys.slice(this.state.weekPage, this.state.weekPage + 4);
+    get visiblePeriodKeys() {
+        const wSize = windowSize(this.state.granularity);
+        return this.state.periodKeys.slice(
+            this.state.periodPage,
+            this.state.periodPage + wSize
+        );
     }
 
     get sliderMax() {
-        return Math.max(0, this.state.weekKeys.length - 4);
+        return Math.max(0, this.state.periodKeys.length - windowSize(this.state.granularity));
     }
 
-    get weekRangeLabel() {
-        const keys = this.state.weekKeys;
+    get periodRangeLabel() {
+        const keys = this.state.periodKeys;
         if (!keys.length) return '';
-        const from = keys[this.state.weekPage];
-        const to   = keys[Math.min(this.state.weekPage + 3, keys.length - 1)];
-        const lbl  = this.state.weekLabels;
+        const from = keys[this.state.periodPage];
+        const wSize = windowSize(this.state.granularity);
+        const to   = keys[Math.min(this.state.periodPage + wSize - 1, keys.length - 1)];
+        const lbl  = this.state.periodLabels;
         if (!from || !lbl[from]) return '';
-        if (from === to) return `${lbl[from].label} ${lbl[from].year}`;
-        return `${lbl[from].label} – ${lbl[to].label} · ${lbl[from].year}`;
+        const lf = lbl[from].label;
+        const lt = lbl[to]?.label;
+        const yr = lbl[from].sublabel;
+        if (from === to) return `${lf} · ${yr}`;
+        return `${lf} – ${lt} · ${yr}`;
     }
 
     onSliderChange(ev) {
-        this.state.weekPage = parseInt(ev.target.value, 10);
-        this._clearSelection();
+        this.state.periodPage = parseInt(ev.target.value, 10);
     }
 
     prevPage() {
-        if (this.state.weekPage > 0) { this.state.weekPage--; this._clearSelection(); }
+        if (this.state.periodPage > 0) this.state.periodPage--;
     }
 
     nextPage() {
-        if (this.state.weekPage < this.sliderMax) { this.state.weekPage++; this._clearSelection(); }
+        if (this.state.periodPage < this.sliderMax) this.state.periodPage++;
     }
+
+    // ── Helpers de estado ────────────────────────────────────────────────────
+
+    moStateLabel(state) { return MO_STATE_LABEL[state] || state; }
+    moStateClass(state) { return MO_STATE_CLASS[state] || ''; }
 
     // ── Helpers de formato ───────────────────────────────────────────────────
 
@@ -575,41 +468,30 @@ class SchedulingMatrixWidget extends Component {
         return Number(n).toLocaleString('es', { maximumFractionDigits: 2 });
     }
 
-    fmtPct(n) {
-        if (n === null || n === undefined) return '';
-        return `${n}%`;
-    }
-
     fmtHours(h) {
-        if (!h) return '—';
+        if (!h) return '';
         const hrs  = Math.floor(h);
         const mins = Math.round((h - hrs) * 60);
         return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
     }
 
-    requestStateLabel(state) {
-        return REQUEST_STATE_LABEL[state] || state;
+    // Detectar si una fila es la primera del CT (para rowspan)
+    isFirstRowOfWc(rowIndex) {
+        const rows = this.state.filteredRows;
+        if (rowIndex === 0) return true;
+        return rows[rowIndex].wc_id !== rows[rowIndex - 1].wc_id;
     }
 
-    // ── Apertura de MO en Odoo ───────────────────────────────────────────────
-
-    openRequest(line) {
-        if (!line.request_id) return;
-        this.action.doAction({
-            type:      'ir.actions.act_window',
-            name:      line.request_name,
-            res_model: 'mrp.production.request',
-            res_id:    line.request_id,
-            views:     [[false, 'form']],
-            target:    'current',
-        });
+    // Cuántas filas tiene el CT de la fila dada (para rowspan)
+    wcRowspan(wc_id) {
+        return this.state.filteredRows.filter(r => r.wc_id === wc_id).length;
     }
 }
 
-// Registrar como widget de vista (para uso en formulario con <widget name="..."/>)
+// Registrar como widget de vista (embebido en formulario)
 registry.category("view_widgets").add("scheduling_matrix_widget", {
     component: SchedulingMatrixWidget,
 });
 
-// Registrar como acción cliente (para vista standalone desde menú)
+// Registrar como acción cliente (vista standalone desde menú)
 registry.category("actions").add("mrp_scheduling_matrix_action", SchedulingMatrixWidget);

@@ -155,7 +155,7 @@ class MrpProductionBoard(models.Model):
 
     @api.model
     def get_scheduling_board(self, tag_ids=None, date_from=None, date_to=None,
-                              granularity='day'):
+                              granularity='day', include_done=False):
         """
         Construye el tablero de programación.
 
@@ -201,8 +201,11 @@ class MrpProductionBoard(models.Model):
         # Dominio de OFs
         dt_from = datetime.strptime(date_from, '%Y-%m-%d')
         dt_to   = datetime.strptime(date_to,   '%Y-%m-%d') + timedelta(days=1)
+        states = ['confirmed', 'progress', 'to_close']
+        if include_done:
+            states.append('done')
         domain = [
-            ('state', 'in', ('confirmed', 'progress', 'to_close')),
+            ('state', 'in', states),
             ('date_start', '!=', False),
             ('date_start', '>=', dt_from),
             ('date_start', '<',  dt_to),
@@ -251,6 +254,8 @@ class MrpProductionBoard(models.Model):
         # Agrupar chips por (wc_id, shift_id_or_None, period_key)
         wc_records   = {}   # wc_id → workcenter
         cells_matrix = {}   # (wc_id, shift_id|None) → {period_key: [chips]}
+        # Lookup O(1) de índice de período para calcular spans
+        period_key_index = {pk: i for i, pk in enumerate(period_keys)}
 
         total_mos = 0
         for mo in mos:
@@ -259,47 +264,72 @@ class MrpProductionBoard(models.Model):
                 continue
 
             wc_records[wc.id] = wc
-            dt_local  = pytz.utc.localize(mo.date_start).astimezone(tz)
-            shift     = _mo_shift(dt_local)
-            shift_id  = shift.id if shift else None
-            pair      = (wc.id, shift_id)
-            pk        = _period_key_for_dt(dt_local, granularity)
+            dt_local = pytz.utc.localize(mo.date_start).astimezone(tz)
+            shift    = _mo_shift(dt_local)
+            shift_id = shift.id if shift else None
+            pair     = (wc.id, shift_id)
 
-            if pair not in cells_matrix:
-                cells_matrix[pair] = {}
-            if pk not in cells_matrix[pair]:
-                cells_matrix[pair][pk] = []
+            pk_start = _period_key_for_dt(dt_local, granularity)
+            i_start  = period_key_index.get(pk_start)
+            if i_start is None:
+                continue   # OF empieza fuera del rango visible
 
-            uom = mo.product_uom_id.name if mo.product_uom_id else ''
-            date_finish_str = ''
-            if mo.state == 'done' and mo.date_finished:
+            # date_finished: Odoo lo computa como fin planificado incluso para
+            # OFs confirmadas/en-proceso (no solo para las terminadas).
+            date_end_local = None
+            if mo.date_finished:
                 try:
-                    date_finish_str = (
-                        pytz.utc.localize(mo.date_finished)
-                        .astimezone(tz)
-                        .strftime('%d/%m %H:%M')
+                    date_end_local = (
+                        pytz.utc.localize(mo.date_finished).astimezone(tz)
                     )
                 except Exception:
                     pass
 
-            # Duración: suma de work orders (minutos → horas), o 0
-            total_minutes = sum(
+            # Todas las claves de período que abarca esta OF
+            if date_end_local:
+                pk_end = _period_key_for_dt(date_end_local, granularity)
+                i_end  = period_key_index.get(pk_end, len(period_keys) - 1)
+                if i_end < i_start:
+                    i_end = i_start
+                span_keys = period_keys[i_start:i_end + 1]
+            else:
+                span_keys = [pk_start]
+
+            span_count = len(span_keys)
+            uom = mo.product_uom_id.name if mo.product_uom_id else ''
+            date_start_str = dt_local.strftime('%d/%m %H:%M')
+            date_end_str   = (
+                date_end_local.strftime('%d/%m %H:%M') if date_end_local else ''
+            )
+            total_minutes  = sum(
                 wo.duration_expected or 0 for wo in mo.workorder_ids
             )
             duration_hours = round(total_minutes / 60.0, 2) if total_minutes else 0.0
 
-            cells_matrix[pair][pk].append({
+            base_chip = {
                 'mo_id':          mo.id,
                 'mo_name':        mo.name,
                 'product_name':   mo.product_id.display_name if mo.product_id else '',
                 'qty':            mo.product_qty,
                 'uom':            uom,
                 'duration_hours': duration_hours,
-                'date_start':     dt_local.strftime('%d/%m %H:%M'),
-                'date_finish':    date_finish_str,
+                'date_start':     date_start_str,
+                'date_end':       date_end_str,
                 'state':          mo.state,
-            })
+                'span_count':     span_count,
+            }
+
             total_mos += 1
+            for idx, pk in enumerate(span_keys):
+                if pair not in cells_matrix:
+                    cells_matrix[pair] = {}
+                if pk not in cells_matrix[pair]:
+                    cells_matrix[pair][pk] = []
+                cells_matrix[pair][pk].append({
+                    **base_chip,
+                    'is_continuation': idx > 0,
+                    'is_last_span':    idx == span_count - 1,
+                })
 
         # Construir wc_shift_rows en orden: CT (nombre) → turno (hour_from)
         wcs_sorted = sorted(wc_records.values(), key=lambda w: w.name)

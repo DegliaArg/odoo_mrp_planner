@@ -337,6 +337,103 @@
     justify-content: center;
 }
 
+/* ── Chip de continuación (OF que arranca en período anterior) ── */
+.sm-chip-cont {
+    border: 1px solid #b8ccef;
+    border-left: 3px solid #0d6efd;
+    border-radius: 3px;
+    padding: 3px 7px;
+    margin-bottom: 3px;
+    background: linear-gradient(90deg, #dce8fd 0%, #f0f5ff 100%);
+    cursor: pointer;
+    user-select: none;
+    transition: box-shadow 0.12s;
+}
+
+.sm-chip-cont:hover {
+    box-shadow: 0 1px 3px rgba(13, 110, 253, 0.2);
+}
+
+.sm-chip-cont:last-child {
+    margin-bottom: 0;
+}
+
+/* Último período de la OF: cerrar el borde derecho */
+.sm-chip-cont-last {
+    border-right: 3px solid #0d6efd;
+}
+
+.sm-cont-arrow {
+    font-size: 12px;
+    color: #0d6efd;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.sm-cont-ref {
+    font-size: 11px;
+    color: #495057;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+/* ── Chip de OF terminada (done) ── */
+.sm-chip-done {
+    border-left-color: #6c757d;
+    opacity: 0.75;
+}
+
+.sm-chip-done .sm-chip-ref {
+    color: #6c757d;
+}
+
+.sm-chip-cont-done {
+    border-left-color: #6c757d;
+    border-right-color: #6c757d;
+    background: linear-gradient(90deg, #e9ecef 0%, #f8f9fa 100%);
+}
+
+.sm-cont-arrow-done {
+    color: #6c757d;
+}
+
+.sm-state-done {
+    background: #d1e7dd;
+    color: #0a3622;
+}
+
+/* ── OF que abarca múltiples períodos: borde derecho abierto ── */
+.sm-chip-spans {
+    border-right: 2px dashed #7aadfd;
+    border-radius: 4px 0 0 4px;
+}
+
+/* ── Botón "+" para crear OF en la celda ── */
+.sm-cell-add-btn {
+    display: none;
+    width: 100%;
+    padding: 2px 0;
+    font-size: 11px;
+    color: #0d6efd;
+    background: transparent;
+    border: 1px dashed #b8ccef;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.4;
+    margin-top: 2px;
+    transition: background 0.1s;
+}
+
+.sm-cell:hover .sm-cell-add-btn {
+    display: block;
+}
+
+.sm-cell-add-btn:hover {
+    background: #e8f0fe;
+    border-color: #0d6efd;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .sm-th-wc, .sm-wc-cell { width: 90px; min-width: 80px; }

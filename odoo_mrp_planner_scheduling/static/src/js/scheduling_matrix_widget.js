@@ -83,12 +83,14 @@ const MO_STATE_LABEL = {
     confirmed: 'Confirmada',
     progress:  'En proceso',
     to_close:  'Por cerrar',
+    done:      'Terminada',
 };
 
 const MO_STATE_CLASS = {
     confirmed: 'sm-state-confirmed',
     progress:  'sm-state-progress',
     to_close:  'sm-state-toclose',
+    done:      'sm-state-done',
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ class SchedulingMatrixWidget extends Component {
             granularity:  gran,
             searchText:   '',
             hideEmptyRows: true,
+            showDone:      false,
 
             // Datos del tablero
             periodKeys:    [],
@@ -211,10 +214,11 @@ class SchedulingMatrixWidget extends Component {
                 'get_scheduling_board',
                 [],
                 {
-                    tag_ids:     this.state.tagIds.length ? this.state.tagIds : null,
-                    date_from:   this.state.dateFrom,
-                    date_to:     this.state.dateTo,
-                    granularity: this.state.granularity,
+                    tag_ids:      this.state.tagIds.length ? this.state.tagIds : null,
+                    date_from:    this.state.dateFrom,
+                    date_to:      this.state.dateTo,
+                    granularity:  this.state.granularity,
+                    include_done: this.state.showDone,
                 }
             );
             this.state.periodKeys   = result.period_keys   || [];
@@ -309,6 +313,46 @@ class SchedulingMatrixWidget extends Component {
     toggleHideEmptyRows() {
         this.state.hideEmptyRows = !this.state.hideEmptyRows;
         this._recompute();
+    }
+
+    toggleShowDone() {
+        this.state.showDone = !this.state.showDone;
+        this._loadData();
+    }
+
+    // ── Crear OF desde celda ─────────────────────────────────────────────────
+
+    /**
+     * Convierte una clave de período en una fecha ISO string (YYYY-MM-DD).
+     * - Día:    clave ya es YYYY-MM-DD
+     * - Semana: calcula el lunes de la semana ISO
+     */
+    _pkToDateStr(pk) {
+        if (!pk.includes('W')) return pk;
+        const year = parseInt(pk.slice(0, 4));
+        const week = parseInt(pk.slice(6));
+        // Lunes de la semana ISO usando Jan 4 (siempre en semana 1)
+        const jan4 = new Date(Date.UTC(year, 0, 4));
+        const dayOfWeek = jan4.getUTCDay() || 7;
+        jan4.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);  // lunes sem 1
+        jan4.setUTCDate(jan4.getUTCDate() + (week - 1) * 7); // lunes sem N
+        return jan4.toISOString().slice(0, 10);
+    }
+
+    createMoInCell(ev, row, pk) {
+        ev.stopPropagation();
+        const dateStr = this._pkToDateStr(pk);
+        this.action.doAction(
+            {
+                type:      'ir.actions.act_window',
+                name:      'Nueva Orden de Fabricación',
+                res_model: 'mrp.production',
+                views:     [[false, 'form']],
+                target:    'new',
+                context:   { default_date_start: `${dateStr} 00:00:00` },
+            },
+            { onClose: () => this._loadData() }
+        );
     }
 
     async setGranularity(gran) {

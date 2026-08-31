@@ -129,10 +129,10 @@
 }
 
 .sm-th-period {
-    width: 160px;
-    min-width: 130px;
+    width: 220px;
+    min-width: 200px;
     text-align: center;
-    padding: 5px 6px;
+    padding: 5px 8px;
     font-size: 12px;
     background: #fff;
     vertical-align: top;
@@ -191,9 +191,9 @@
 /* ── Celda de datos ── */
 .sm-cell {
     vertical-align: top;
-    padding: 5px 5px 3px;
+    padding: 5px 6px 4px;
     background: #fff;
-    min-width: 130px;
+    min-width: 200px;
 }
 
 .sm-cell-empty {
@@ -205,8 +205,8 @@
     border: 1px solid #dee2e6;
     border-left: 3px solid #0d6efd;
     border-radius: 4px;
-    padding: 5px 7px 4px;
-    margin-bottom: 3px;
+    padding: 6px 8px 5px;
+    margin-bottom: 4px;
     background: #fff;
     cursor: pointer;
     user-select: none;
@@ -232,10 +232,14 @@
     margin-bottom: 2px;
 }
 
+/* La referencia de la OF es lo más importante: se muestra completa, sin corte */
 .sm-chip-ref {
-    font-size: 12px;
+    font-size: 13px;
     color: #212529;
-    line-height: 1.2;
+    line-height: 1.25;
+    min-width: 0;           /* permite que el flex item se encoja */
+    word-break: break-all;  /* rompe códigos tipo WH/MO/00001 si no entran */
+    white-space: normal;    /* cancela cualquier nowrap heredado */
 }
 
 .sm-open-btn {
@@ -280,16 +284,21 @@
     font-size: 11px;
     font-weight: 500;
     color: #343a40;
-    max-width: 100%;
+    margin-top: 2px;
+    /* Máximo 2 líneas con ellipsis al final */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.3;
 }
 
 .sm-chip-meta {
     font-size: 10px;
-    margin-top: 2px;
+    margin-top: 3px;
     color: #6c757d;
+    flex-wrap: wrap;
+    line-height: 1.5;
 }
 
 /* ── Componentes expandibles ── */
@@ -337,50 +346,62 @@
     justify-content: center;
 }
 
-/* ── Chip de continuación (OF que arranca en período anterior) ── */
+/* ── Barra de continuación (OF que arranca en período anterior) ──
+   Diseño tipo Gantt: franja full-width sin caja, solo borde izquierdo grueso. ── */
 .sm-chip-cont {
-    border: 1px solid #b8ccef;
-    border-left: 3px solid #0d6efd;
-    border-radius: 3px;
-    padding: 3px 7px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    border-left: 4px solid #0d6efd;
+    border-radius: 0 3px 3px 0;
+    padding: 4px 8px 4px 6px;
     margin-bottom: 3px;
-    background: linear-gradient(90deg, #dce8fd 0%, #f0f5ff 100%);
+    background: #eef4ff;
     cursor: pointer;
     user-select: none;
-    transition: box-shadow 0.12s;
+    transition: background 0.1s;
+    overflow: hidden;
+    min-height: 24px;
 }
 
 .sm-chip-cont:hover {
-    box-shadow: 0 1px 3px rgba(13, 110, 253, 0.2);
+    background: #dce8fd;
 }
 
 .sm-chip-cont:last-child {
     margin-bottom: 0;
 }
 
-/* Último período de la OF: cerrar el borde derecho */
+/* Último período de la OF: cierra la franja con borde derecho */
 .sm-chip-cont-last {
-    border-right: 3px solid #0d6efd;
+    border-right: 4px solid #0d6efd;
+    border-radius: 0 3px 3px 0;
 }
 
 .sm-cont-arrow {
-    font-size: 12px;
-    color: #0d6efd;
+    font-size: 11px;
+    color: #4a8cdc;
     flex-shrink: 0;
     line-height: 1;
 }
 
 .sm-cont-ref {
     font-size: 11px;
-    color: #495057;
+    color: #2c5f9e;
     line-height: 1.2;
-    font-weight: 500;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
 }
 
 /* ── Chip de OF terminada (done) ── */
 .sm-chip-done {
     border-left-color: #6c757d;
-    opacity: 0.75;
+    opacity: 0.72;
 }
 
 .sm-chip-done .sm-chip-ref {
@@ -388,12 +409,13 @@
 }
 
 .sm-chip-cont-done {
-    border-left-color: #6c757d;
-    border-right-color: #6c757d;
-    background: linear-gradient(90deg, #e9ecef 0%, #f8f9fa 100%);
+    border-left-color: #adb5bd;
+    border-right-color: #adb5bd;
+    background: #f1f3f5;
 }
 
-.sm-cont-arrow-done {
+.sm-chip-cont-done .sm-cont-arrow,
+.sm-chip-cont-done .sm-cont-ref {
     color: #6c757d;
 }
 
@@ -404,7 +426,7 @@
 
 /* ── OF que abarca múltiples períodos: borde derecho abierto ── */
 .sm-chip-spans {
-    border-right: 2px dashed #7aadfd;
+    border-right: 3px dashed #7aadfd;
     border-radius: 4px 0 0 4px;
 }
 

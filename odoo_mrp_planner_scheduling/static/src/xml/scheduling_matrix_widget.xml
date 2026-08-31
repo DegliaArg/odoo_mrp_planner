@@ -279,8 +279,8 @@
                                                          t-on-click.stop="() => this.toggleChip(mo.mo_id)">
 
                                                         <!-- Línea 1: referencia + estado + botón abrir -->
-                                                        <div class="sm-chip-header d-flex align-items-center gap-1">
-                                                            <span class="sm-chip-ref fw-semibold text-truncate flex-grow-1"
+                                                        <div class="sm-chip-header d-flex align-items-start gap-1">
+                                                            <span class="sm-chip-ref fw-semibold flex-grow-1"
                                                                   t-esc="mo.mo_name"/>
                                                             <span class="sm-chip-state badge small"
                                                                   t-att-class="moStateClass(mo.state)"

@@ -106,6 +106,59 @@ def _shift_label(s):
     return f'{s.name} ({hf:02d}–{ht:02d})'
 
 
+def _make_local_dt(d, h, tz_obj):
+    """Datetime local (con zona) a partir de una date y una hora en float."""
+    hours   = int(h)
+    minutes = min(int(round((h - hours) * 60)), 59)
+    try:
+        return tz_obj.localize(datetime(d.year, d.month, d.day, hours, minutes))
+    except Exception:
+        return datetime(d.year, d.month, d.day, hours, minutes, tzinfo=pytz.utc)
+
+
+def _mo_slots_with_shifts(dt_start, dt_end, shifts_sorted, granularity, period_key_index, tz_obj):
+    """
+    Devuelve la lista ordenada de (pk, shift_id) que cubre la OF,
+    considerando todos los turnos que se superponen con el intervalo
+    [dt_start, dt_end].  Las OFs puntuales (dt_start == dt_end) se asignan
+    al turno cuyo rango horario contiene la hora de inicio.
+    """
+    slots = []
+    seen  = set()
+    puntual = (dt_start >= dt_end)
+
+    d     = dt_start.date()
+    end_d = dt_end.date()
+
+    while d <= end_d:
+        for s in shifts_sorted:
+            hf, ht = s.hour_from, s.hour_to
+            sh_start = _make_local_dt(d, hf, tz_obj)
+            if ht > hf:
+                sh_end = _make_local_dt(d, ht, tz_obj)
+            else:
+                sh_end = _make_local_dt(d + timedelta(days=1), ht, tz_obj)
+
+            if puntual:
+                h_val = dt_start.hour + dt_start.minute / 60.0
+                if hf > ht:
+                    overlaps = h_val >= hf or h_val < ht
+                else:
+                    overlaps = hf <= h_val < ht
+            else:
+                overlaps = dt_start < sh_end and dt_end > sh_start
+
+            if overlaps:
+                pk = _period_key_for_dt(sh_start, granularity)
+                key = (pk, s.id)
+                if key not in seen and pk in period_key_index:
+                    seen.add(key)
+                    slots.append(key)
+        d += timedelta(days=1)
+
+    return slots
+
+
 # ── Extensión de mrp.production ───────────────────────────────────────────────
 
 class MrpProductionBoard(models.Model):
@@ -254,8 +307,8 @@ class MrpProductionBoard(models.Model):
         # Agrupar chips por (wc_id, shift_id_or_None, period_key)
         wc_records   = {}   # wc_id → workcenter
         cells_matrix = {}   # (wc_id, shift_id|None) → {period_key: [chips]}
-        # Lookup O(1) de índice de período para calcular spans
         period_key_index = {pk: i for i, pk in enumerate(period_keys)}
+        shifts_sorted    = sorted(shifts, key=lambda s: s.hour_from)
 
         total_mos = 0
         for mo in mos:
@@ -264,46 +317,49 @@ class MrpProductionBoard(models.Model):
                 continue
 
             wc_records[wc.id] = wc
-            dt_local = pytz.utc.localize(mo.date_start).astimezone(tz)
-            shift    = _mo_shift(dt_local)
-            shift_id = shift.id if shift else None
-            pair     = (wc.id, shift_id)
-
-            pk_start = _period_key_for_dt(dt_local, granularity)
-            i_start  = period_key_index.get(pk_start)
-            if i_start is None:
-                continue   # OF empieza fuera del rango visible
+            dt_start = pytz.utc.localize(mo.date_start).astimezone(tz)
 
             # date_finished: Odoo lo computa como fin planificado incluso para
-            # OFs confirmadas/en-proceso (no solo para las terminadas).
-            date_end_local = None
+            # OFs confirmadas/en-proceso (no solo terminadas).
+            dt_end = None
             if mo.date_finished:
                 try:
-                    date_end_local = (
-                        pytz.utc.localize(mo.date_finished).astimezone(tz)
-                    )
+                    dt_end = pytz.utc.localize(mo.date_finished).astimezone(tz)
                 except Exception:
                     pass
+            if dt_end is None or dt_end <= dt_start:
+                dt_end = dt_start   # OF puntual
 
-            # Todas las claves de período que abarca esta OF
-            if date_end_local:
-                pk_end = _period_key_for_dt(date_end_local, granularity)
+            # Cálculo de slots (pk, shift_id) que cubre esta OF
+            if shifts_sorted:
+                # Con turnos: recorrer todos los turnos de cada día entre
+                # inicio y fin, comprobando superposición real con el intervalo
+                # de la OF.  Esto garantiza que si la OF va de Mañana del lunes
+                # al Mañana del martes, aparezca también en Tarde y Noche del lunes.
+                slots = _mo_slots_with_shifts(
+                    dt_start, dt_end, shifts_sorted,
+                    granularity, period_key_index, tz
+                )
+            else:
+                # Sin turnos: span solo por período
+                pk_start = _period_key_for_dt(dt_start, granularity)
+                i_start  = period_key_index.get(pk_start)
+                if i_start is None:
+                    continue   # OF empieza fuera del rango visible
+                pk_end = _period_key_for_dt(dt_end, granularity)
                 i_end  = period_key_index.get(pk_end, len(period_keys) - 1)
                 if i_end < i_start:
                     i_end = i_start
-                span_keys = period_keys[i_start:i_end + 1]
-            else:
-                span_keys = [pk_start]
+                slots = [(pk, None) for pk in period_keys[i_start:i_end + 1]]
 
-            span_count = len(span_keys)
-            uom = mo.product_uom_id.name if mo.product_uom_id else ''
-            date_start_str = dt_local.strftime('%d/%m %H:%M')
-            date_end_str   = (
-                date_end_local.strftime('%d/%m %H:%M') if date_end_local else ''
-            )
-            total_minutes  = sum(
-                wo.duration_expected or 0 for wo in mo.workorder_ids
-            )
+            if not slots:
+                continue
+
+            span_count     = len(slots)
+            uom            = mo.product_uom_id.name if mo.product_uom_id else ''
+            date_start_str = dt_start.strftime('%d/%m %H:%M')
+            date_end_str   = dt_end.strftime('%d/%m %H:%M') if dt_end != dt_start else ''
+            total_minutes  = sum(wo.duration_expected or 0 for wo in mo.workorder_ids)
             duration_hours = round(total_minutes / 60.0, 2) if total_minutes else 0.0
 
             base_chip = {
@@ -320,7 +376,8 @@ class MrpProductionBoard(models.Model):
             }
 
             total_mos += 1
-            for idx, pk in enumerate(span_keys):
+            for idx, (pk, shift_id) in enumerate(slots):
+                pair = (wc.id, shift_id)
                 if pair not in cells_matrix:
                     cells_matrix[pair] = {}
                 if pk not in cells_matrix[pair]:

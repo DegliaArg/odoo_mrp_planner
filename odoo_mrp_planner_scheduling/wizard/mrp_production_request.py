@@ -30,6 +30,7 @@ from odoo.exceptions import UserError, AccessError
 
 from .mrp_demand_expansion_mixin import MrpDemandExpansionMixin
 from .mrp_demand_scheduling_mixin import MrpDemandSchedulingMixin
+from ..models.mrp_reschedule_cascade_mixin import _search_by_origin
 
 _logger = logging.getLogger(__name__)
 
@@ -445,13 +446,18 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             lambda m: m.production_id and m.production_id.id not in planned
         ).mapped('production_id')
 
-        # Estrategia 2: búsqueda por campo origin
-        via_origin = self.env['mrp.production'].search([
-            ('origin', 'ilike', mo.name),
-            ('id', '!=', mo.id),
-            ('id', 'not in', list(planned)),
-            ('state', 'not in', ('done', 'cancel')),
-        ])
+        # Estrategia 2: búsqueda por campo origin (matcheo por token exacto,
+        # mismo criterio que el cascade mixin: soporta origin compuesto y evita
+        # falsos positivos de substring como MO/001 dentro de MO/0011).
+        via_origin = self.env['mrp.production']
+        if mo.name:
+            matches = _search_by_origin(
+                self.env, 'mrp.production', [mo.name],
+                [('id', '!=', mo.id),
+                 ('id', 'not in', list(planned)),
+                 ('state', 'not in', ('done', 'cancel'))],
+            )
+            via_origin = matches.get(mo.name, self.env['mrp.production'])
 
         return (via_moves | via_origin).filtered(
             lambda m: m.state not in ('done', 'cancel')

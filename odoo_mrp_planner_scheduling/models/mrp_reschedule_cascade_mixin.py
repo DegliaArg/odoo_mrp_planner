@@ -48,6 +48,64 @@ def _get_old_code(mo):
     return ''
 
 
+def _origin_tokens(origin):
+    """Descompone el campo `origin` en sus tokens exactos.
+
+    Un `origin` puede ser compuesto ("MO/001, SO/002"): se separa por comas y
+    se normaliza el espaciado, para poder matchear un nombre como token
+    completo. Esto evita a la vez los dos errores clásicos:
+      - Matcheo exacto ('=' / 'in') ignora los origin compuestos.
+      - Matcheo por substring ('ilike') da falsos positivos: 'MO/001' cae
+        dentro de 'MO/0011'.
+    """
+    if not origin:
+        return frozenset()
+    return frozenset(tok.strip() for tok in origin.split(',') if tok.strip())
+
+
+def _search_by_origin(env, model_name, names, extra_domain=None):
+    """Estrategia ÚNICA de matcheo por `origin` en todo el módulo.
+
+    Busca registros de `model_name` cuyo `origin` cite alguno de `names` como
+    token exacto, soportando origin compuesto ("MO/001, SO/002").
+
+    El campo origin NO está indexado, así que cualquier búsqueda es un seq scan.
+    Para no evaluar N predicados por fila (un OR de N `ilike` escala con el
+    tamaño de la cascada), se hace UNA sola pasada con dos condiciones:
+      - `origin in names`: igualdad barata por fila, cubre los origin simples,
+        que son el caso común.
+      - `origin like ','`: una sola condición (independiente de N) que acota los
+        origin compuestos; luego se filtran por token exacto en Python, lo que
+        además evita el falso positivo por substring ('MO/001' en 'MO/0011').
+
+    :param env: entorno Odoo.
+    :param model_name: modelo a consultar ('mrp.production', 'purchase.order').
+    :param names: iterable de nombres a buscar (p.ej. mo.name).
+    :param extra_domain: dominio adicional (estado, x_parent_mo_id, etc.).
+    :returns: dict {name: recordset} con los registros que citan cada nombre.
+        Un registro con origin compuesto se mapea a todos los nombres que cita.
+    """
+    names = [n for n in names if n]
+    if not names:
+        return {}
+    Model = env[model_name]
+    name_set = set(names)
+    extra = list(extra_domain) if extra_domain else []
+    domain = ['|', ('origin', 'in', names), ('origin', 'like', ',')] + extra
+    result = {}
+    for rec in Model.search(domain):
+        if rec.origin in name_set:
+            # origin simple: coincide exactamente con un nombre.
+            result.setdefault(rec.origin, Model)
+            result[rec.origin] |= rec
+        else:
+            # origin compuesto: matcheo por token exacto.
+            for name in name_set.intersection(_origin_tokens(rec.origin)):
+                result.setdefault(name, Model)
+                result[name] |= rec
+    return result
+
+
 # Traducciones de estados técnicos de mrp.production para mostrar en la vista.
 MRP_STATES = {
     'draft': 'Borrador', 'confirmed': 'Confirmado', 'progress': 'En proceso',
@@ -166,10 +224,11 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             if line and line.order_id and line.order_id.state not in ('done', 'cancel'):
                 pos |= line.order_id
         if mo.name:
-            pos |= self.env['purchase.order'].search([
-                ('origin', 'ilike', mo.name),
-                ('state', 'not in', ('done', 'cancel')),
-            ])
+            matches = _search_by_origin(
+                self.env, 'purchase.order', [mo.name],
+                [('state', 'not in', ('done', 'cancel'))],
+            )
+            pos |= matches.get(mo.name, self.env['purchase.order'])
         return pos
 
     def _get_child_mos(self, mo):
@@ -187,11 +246,12 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             ('state', 'not in', ['done', 'cancel']),
         ])
         if mo.name:
-            children |= self.env['mrp.production'].search([
-                ('origin', '=', mo.name),
-                ('x_parent_mo_id', '=', False),
-                ('state', 'not in', ['done', 'cancel']),
-            ])
+            matches = _search_by_origin(
+                self.env, 'mrp.production', [mo.name],
+                [('x_parent_mo_id', '=', False),
+                 ('state', 'not in', ['done', 'cancel'])],
+            )
+            children |= matches.get(mo.name, self.env['mrp.production'])
         return children
 
     def _preload_child_mos_batch(self, parent_ids, visited_mo_ids=None):
@@ -223,23 +283,24 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                 result.setdefault(pid, self.env['mrp.production'])
                 result[pid] |= child
 
-        # Hijas por origin = mo.name (MOs generadas sin campo Studio)
-        # Necesitamos el mapa id->name de los padres
+        # Hijas por origin (MOs generadas sin campo Studio). Mismo criterio de
+        # matcheo por token que el resto del módulo (soporta origin compuesto).
         parent_recs = self.env['mrp.production'].browse(parent_ids)
         name_to_parent_id = {
             mo.name: mo.id for mo in parent_recs if mo.name
         }
         if name_to_parent_id:
-            by_origin = self.env['mrp.production'].search([
-                ('origin', 'in', list(name_to_parent_id.keys())),
-                ('x_parent_mo_id', '=', False),
-                ('state', 'not in', ['done', 'cancel']),
-            ])
-            for child in by_origin:
-                if child.id not in visited and child.origin in name_to_parent_id:
-                    pid = name_to_parent_id[child.origin]
-                    result.setdefault(pid, self.env['mrp.production'])
-                    result[pid] |= child
+            matches = _search_by_origin(
+                self.env, 'mrp.production', list(name_to_parent_id.keys()),
+                [('x_parent_mo_id', '=', False),
+                 ('state', 'not in', ['done', 'cancel'])],
+            )
+            for name, children in matches.items():
+                pid = name_to_parent_id[name]
+                for child in children:
+                    if child.id not in visited:
+                        result.setdefault(pid, self.env['mrp.production'])
+                        result[pid] |= child
 
         return result
 
@@ -276,22 +337,22 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                     result.setdefault(mo.id, self.env['purchase.order'])
                     result[mo.id] |= line.order_id
 
-        # Fuente 3: purchase.order cuyo origin contiene el nombre de la MO (batch)
-        mo_names = [mo.name for mo in mo_list if mo.name]
+        # Fuente 3: purchase.order cuyo origin cita el nombre de la MO (batch).
+        # Mismo criterio de matcheo por token que el resto del módulo.
         name_to_mo_ids = {}
         for mo in mo_list:
             if mo.name:
                 name_to_mo_ids.setdefault(mo.name, []).append(mo.id)
 
-        if mo_names:
-            pos_by_origin = self.env['purchase.order'].search([
-                ('origin', 'in', mo_names),
-                ('state', 'not in', ('done', 'cancel')),
-            ])
-            for po in pos_by_origin:
-                for mo_id in name_to_mo_ids.get(po.origin, []):
+        if name_to_mo_ids:
+            matches = _search_by_origin(
+                self.env, 'purchase.order', list(name_to_mo_ids.keys()),
+                [('state', 'not in', ('done', 'cancel'))],
+            )
+            for name, pos in matches.items():
+                for mo_id in name_to_mo_ids.get(name, []):
                     result.setdefault(mo_id, self.env['purchase.order'])
-                    result[mo_id] |= po
+                    result[mo_id] |= pos
 
         return result
 

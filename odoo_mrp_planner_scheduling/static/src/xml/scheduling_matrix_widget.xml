@@ -232,8 +232,7 @@
 
                             <!-- Pista temporal -->
                             <div t-att-class="'sm-row-track' + (row.bands_failed ? ' sm-track-nobands' : '')"
-                                 t-att-style="`width:${state.layout.contentWidthPx}px`"
-                                 t-on-mousemove="onTrackHover">
+                                 t-att-style="`width:${state.layout.contentWidthPx}px`">
 
                                 <!-- Bandas laborables (blanco sobre fondo gris no-laborable) -->
                                 <t t-foreach="row.workBlocks" t-as="wb" t-key="wb_index">
@@ -286,8 +285,9 @@
                                     </t>
                                 </t>
 
-                                <!-- Botón "+ Nueva OF" que sigue al cursor (aparece al hover) -->
-                                <button class="sm-add-btn" title="Nueva OF en esta posición"
+                                <!-- Botón "+ Nueva OF": a la derecha de la última barra, al hover de la fila -->
+                                <button class="sm-add-btn" title="Nueva OF en este centro"
+                                        t-att-style="addBtnStyle(row)"
                                         t-on-click="(ev) => this.onAddClick(ev, row)">
                                     <i class="fa fa-plus"/>
                                 </button>

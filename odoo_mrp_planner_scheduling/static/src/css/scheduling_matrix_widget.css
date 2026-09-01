@@ -128,10 +128,10 @@
     overflow: hidden;
 }
 
-/* Botón "+ Nueva OF" que sigue al cursor; solo visible al pasar el mouse. */
+/* Botón "+ Nueva OF": fijo a la derecha de la última barra, visible al hover de
+   la fila (no sigue al cursor). */
 .sm-add-btn {
-    position: absolute; top: 2px; z-index: 7;
-    left: var(--sm-hover-x, 0); transform: translateX(-50%);
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 7;
     display: none; align-items: center; justify-content: center;
     width: 20px; height: 20px; padding: 0;
     border: 1px solid #0d6efd; border-radius: 50%;

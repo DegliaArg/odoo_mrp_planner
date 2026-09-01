@@ -23,8 +23,6 @@ import {
     minutesToPct,
     barGeometry,
     layoutLanes,
-    offsetPctToDate,
-    localIsoToServerUTC,
     parseLocalMinutes,
 } from "./scheduling_geometry";
 
@@ -118,7 +116,6 @@ class SchedulingMatrixWidget extends Component {
             shifts:     [],
             rows:       [],        // filas crudas del backend
             totalBars:  0,
-            userTz:     'UTC',     // TZ del usuario (la manda el backend)
 
             // Layout derivado
             layout:     null,      // {startMin,endMin,contentWidthPx,ticks,groups,dayLines,gridlines,shiftDividers,nightBands}
@@ -208,7 +205,6 @@ class SchedulingMatrixWidget extends Component {
             this.state.shifts      = result.shifts     || [];
             this.state.rows        = result.rows       || [];
             this.state.totalBars   = result.total_bars || 0;
-            this.state.userTz      = result.user_tz    || 'UTC';
             this.state.emptyReason = result.empty_reason || null;
             this._recompute();
         } catch (e) {
@@ -312,35 +308,21 @@ class SchedulingMatrixWidget extends Component {
         return Object.keys(RESOLUTIONS).map(k => ({ key: k, label: RESOLUTIONS[k].label }));
     }
 
-    // ── Crear OF desde el eje (botón al hover; fecha = posición del cursor) ─────
+    // ── Crear OF desde la fila (botón "+" a la derecha de la última barra) ─────
 
-    /**
-     * Reposiciona el botón "+" siguiendo al cursor mediante una variable CSS.
-     * NO toca el estado reactivo (evita re-render en cada mousemove); guarda el
-     * porcentaje actual en el dataset de la pista para leerlo al hacer click.
-     */
-    onTrackHover(ev) {
-        const track = ev.currentTarget;
-        const rect  = track.getBoundingClientRect();
-        const x     = ev.clientX - rect.left;
-        track.style.setProperty('--sm-hover-x', `${x}px`);
-        track.dataset.hoverPct = String((x / rect.width) * 100);
+    /** Estilo del botón "+": justo a la derecha de la última barra de la fila. */
+    addBtnStyle(row) {
+        const left = Math.min(row.addLeftPct || 0, 98);
+        return `left:calc(${left}% + 8px);`;
     }
 
     onAddClick(ev, row) {
         ev.stopPropagation();
-        if (!this.state.layout) return;
-        const track = ev.currentTarget.closest('.sm-row-track');
-        const pct   = parseFloat((track && track.dataset.hoverPct) || '0');
-        const iso   = offsetPctToDate(pct, this.state.layout.startMin, this.state.layout.endMin, 15);
-        // iso es hora de pared en la TZ del usuario (el server manda todo en esa
-        // TZ). Se convierte a UTC con la TZ que mandó el backend, porque Odoo
-        // guarda default_date_start como UTC naive; sin convertir, la OF nacería
-        // corrida por el offset de la zona horaria.
-        const dateStr = localIsoToServerUTC(iso, this.state.userTz);
-        const ctx     = { default_date_start: dateStr };
+        // Sin fecha calculada: el usuario elige la fecha en el diálogo. Solo se
+        // sugiere el CT de la fila.
+        const ctx = {};
         if (row && row.wc_id) {
-            ctx.default_workcenter_id = row.wc_id;   // sugerencia de CT
+            ctx.default_workcenter_id = row.wc_id;
         }
         this.action.doAction(
             {
@@ -593,6 +575,7 @@ class SchedulingMatrixWidget extends Component {
                 laneCount,
                 heightPx: ROW_BASE_PX + (laneCount - 1) * LANE_PX,
                 laneSeps: Array.from({ length: laneCount - 1 }, (_, i) => (i + 1) * LANE_PX),
+                addLeftPct: barsOut.reduce((m, b) => Math.max(m, b.env.left + b.env.width), 0),
                 workBlocks,
             });
         }

@@ -286,10 +286,10 @@
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
                                             <span t-if="seg_first and bar.clipped_start" class="sm-clip-badge">‹</span>
                                             <t t-if="seg_first">
-                                                <span class="sm-bar-text text-truncate">
-                                                    <t t-esc="bar.mo_name"/>
-                                                    <span class="sm-bar-prod" t-esc="bar.product_name"/>
-                                                </span>
+                                                <span class="sm-bar-ref" t-esc="bar.mo_name"/>
+                                                <span class="sm-bar-state badge" t-att-class="moStateClass(bar.mo_state)"
+                                                      t-esc="moStateLabel(bar.mo_state)"/>
+                                                <span class="sm-bar-prod" t-att-title="bar.product_name" t-esc="bar.product_name"/>
                                                 <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
                                                         t-on-click="(ev) => this.openMo(ev, bar)">
                                                     <i class="fa fa-external-link"/>

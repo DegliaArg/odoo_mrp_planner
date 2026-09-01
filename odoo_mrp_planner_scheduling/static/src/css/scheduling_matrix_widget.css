@@ -160,31 +160,38 @@
 .sm-dayline  { position: absolute; top: 0; bottom: 0; border-left: 1px solid #c3c9d0; z-index: 3; }
 .sm-nowline  { position: absolute; top: 0; bottom: 0; border-left: 2px solid #dc3545; opacity: 0.7; z-index: 4; }
 
-/* ── Barras (work orders) ── */
+/* ── Barras (work orders) — estética de chip: blanco + borde + acento izq. ── */
 .sm-bar {
     position: absolute; z-index: 5; min-width: 4px;
-    border: 1px solid #e3e6ea; border-left-width: 2px; border-radius: 4px;
-    background: #fff; padding: 0 4px; overflow: hidden;
-    display: flex; align-items: center; gap: 3px;
+    border: 1px solid #dee2e6; border-left: 3px solid #adb5bd; border-radius: 4px;
+    background: #fff; padding: 2px 6px; overflow: hidden;
+    display: flex; align-items: center; gap: 5px;
     cursor: pointer; user-select: none;
-    transition: box-shadow 0.1s, border-color 0.1s;
+    transition: box-shadow 0.12s, border-color 0.12s;
 }
-.sm-bar:hover { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); border-color: #adb5bd; z-index: 6; }
+.sm-bar:hover { border-color: #adb5bd; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); z-index: 6; }
 
-.sm-bar-text { flex: 1 1 auto; font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
-.sm-bar-prod { color: #495057; margin-left: 4px; font-weight: 400; }
+.sm-bar-ref   { font-size: 12px; font-weight: 600; color: #212529; white-space: nowrap; flex-shrink: 0; }
+.sm-bar-state {
+    font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 1px 4px; flex-shrink: 0;
+}
+.sm-bar-prod {
+    flex: 1 1 auto; min-width: 0; font-size: 11px; color: #495057;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .sm-bar-open {
     border: none; background: transparent; color: #6c757d;
     font-size: 10px; padding: 0; opacity: 0; flex-shrink: 0; transition: opacity 0.1s;
 }
 .sm-bar:hover .sm-bar-open { opacity: 1; }
 
-/* Color de la barra = ESTADO de la OF (paleta sobria, poca saturación). El
-   estado también va en el tooltip. */
-.sm-bar.sm-state-confirmed { background: #eef4fc; border-left-color: #7aa5db; }
-.sm-bar.sm-state-progress  { background: #edf5ef; border-left-color: #74b592; }
-.sm-bar.sm-state-toclose   { background: #fbf4e3; border-left-color: #d9b25e; }
-.sm-bar.sm-state-done      { background: #f0f1f3; border-left-color: #adb5bd; opacity: 0.72; }
+/* Estado de la OF = acento en el borde izquierdo (fondo blanco); el badge lleva
+   el color de estado. */
+.sm-bar.sm-state-confirmed { background: #fff;    border-left-color: #0d6efd; }
+.sm-bar.sm-state-progress  { background: #fff;    border-left-color: #198754; }
+.sm-bar.sm-state-toclose   { background: #fff;    border-left-color: #f0ad4e; }
+.sm-bar.sm-state-done      { background: #fbfbfc; border-left-color: #6c757d; opacity: 0.72; }
 
 /* Sobrecarga (dos o más WOs solapadas en un CT real): ROJO reservado para esto,
    como acento en el borde izquierdo, no como recuadro dominante. */

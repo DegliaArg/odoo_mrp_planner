@@ -61,6 +61,90 @@ export function dateToOffsetPct(iso, startMin, endMin) {
     return minutesToPct(parseLocalMinutes(iso), startMin, endMin);
 }
 
+// ── Escala de tiempo con días ocultos (eje no lineal) ───────────────────────────
+//
+// Cuando se ocultan días (fines de semana), esos días no ocupan ancho: el eje
+// pasa a ser la concatenación de los días visibles. Todas las posiciones se
+// calculan sobre "minutos visibles" en vez de minutos reales.
+
+/** Construye la escala: días del rango marcados como ocultos/visibles. */
+export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = []) {
+    const hidden = new Set(hiddenWeekdays);
+    const [fy, fm, fd] = dateFrom.split("-").map(Number);
+    const [ty, tm, td] = dateTo.split("-").map(Number);
+    const firstEpochDay = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
+    const lastEpochDay = Math.round(Date.UTC(ty, tm - 1, td) / 86400000);
+    const days = [];
+    let visMin = 0;
+    for (let ed = firstEpochDay; ed <= lastEpochDay; ed++) {
+        const weekday = (new Date(ed * 86400000).getUTCDay() + 6) % 7; // Lun=0…Dom=6
+        const isHidden = hidden.has(weekday);
+        days.push({ epochDay: ed, weekday, hidden: isHidden, visStartMin: visMin, startRealMin: ed * 1440 });
+        if (!isHidden) visMin += 1440;
+    }
+    return { firstEpochDay, lastEpochDay, days, totalVisibleMin: visMin || 1 };
+}
+
+/** Minutos reales → minutos visibles (los días ocultos colapsan a su borde). */
+function realToVisibleMin(scale, realMin) {
+    const epochDay = Math.floor(realMin / 1440);
+    if (epochDay < scale.firstEpochDay) return 0;
+    if (epochDay > scale.lastEpochDay) return scale.totalVisibleMin;
+    const day = scale.days[epochDay - scale.firstEpochDay];
+    if (day.hidden) return day.visStartMin;
+    return day.visStartMin + (realMin - day.startRealMin);
+}
+
+/** Porcentaje [0,100] de un minuto real sobre el eje visible. */
+export function scaleMinuteToPct(scale, realMin) {
+    return Math.max(0, Math.min(100, (realToVisibleMin(scale, realMin) / scale.totalVisibleMin) * 100));
+}
+
+/** Porcentaje de un ISO local sobre el eje visible. */
+export function scalePct(scale, iso) {
+    return scaleMinuteToPct(scale, parseLocalMinutes(iso));
+}
+
+/** {left,width} en % de una ventana [startIso, endIso] sobre el eje visible. */
+export function scaleSpan(scale, startIso, endIso) {
+    const l = scalePct(scale, startIso);
+    const r = endIso ? Math.max(l, scalePct(scale, endIso)) : 100;
+    return { left: l, width: r - l };
+}
+
+/** Cortes del eje: donde se saltean días ocultos entre dos visibles. */
+export function scaleCuts(scale) {
+    const cuts = [];
+    const days = scale.days;
+    let i = 0;
+    while (i < days.length) {
+        if (!days[i].hidden) { i++; continue; }
+        const start = i;
+        const run = [];
+        while (i < days.length && days[i].hidden) { run.push(days[i]); i++; }
+        if (start > 0 && i < days.length) {   // hueco interior (visible antes y después)
+            cuts.push({
+                leftPct: (days[start].visStartMin / scale.totalVisibleMin) * 100,
+                epochDays: run.map(d => d.epochDay),
+            });
+        }
+    }
+    return cuts;
+}
+
+/** Inversa: porcentaje visible → ISO local (para Fase 2, snap opcional). */
+export function scalePctToDate(scale, pct, snapMin = 0) {
+    let vis = (Math.max(0, Math.min(100, pct)) / 100) * scale.totalVisibleMin;
+    let real = scale.days[0].startRealMin + vis;
+    for (const d of scale.days) {
+        if (d.hidden) continue;
+        if (vis < 1440) { real = d.startRealMin + vis; break; }
+        vis -= 1440;
+    }
+    if (snapMin > 0) real = Math.round(real / snapMin) * snapMin;
+    return minutesToLocalIso(Math.round(real));
+}
+
 /** Offset (ms) entre la hora de pared de `tz` y UTC para un instante dado. */
 function tzOffset(utcMs, tz) {
     const dtf = new Intl.DateTimeFormat("en-US", {

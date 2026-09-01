@@ -59,6 +59,10 @@
                     <group string="Tablero de programación">
                         <field name="default_scheduling_tag_id"
                                help="Sector que se preselecciona automáticamente al abrir el tablero de programación de producción."/>
+                        <field name="board_hidden_weekdays"
+                               string="Días ocultos (fin de semana)"
+                               placeholder="5,6"
+                               help="Días que colapsa el toggle 'Ocultar fines de semana', separados por comas (lunes=0 … domingo=6). Por defecto 5,6 (sábado y domingo). Ponelo acorde a los CTs que trabajan sábado."/>
                     </group>
 
                     <!-- ══ TURNOS (compartidos con los paneles) ════════════════════ -->

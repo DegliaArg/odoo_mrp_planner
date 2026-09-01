@@ -37,8 +37,16 @@
 }
 
 /* ── Tablero: un solo contenedor con scroll H y V ── */
-.sm-board { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.sm-board { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .sm-scroll { flex: 1; overflow: auto; position: relative; }
+
+/* Marca de corte donde el eje saltea días ocultos (fin de semana). */
+.sm-cutline {
+    position: absolute; top: 0; bottom: 0; width: 0; z-index: 4;
+    border-left: 2px dashed #7f8b99;
+}
+.sm-cutline-head { z-index: 22; border-left-color: #6c7887; }
+.sm-cut-foot { flex: 0 0 auto; border-top: 1px solid #e9ecef; background: #fbfcfd; }
 
 /* ── Header (sticky top) ── */
 .sm-head-row {

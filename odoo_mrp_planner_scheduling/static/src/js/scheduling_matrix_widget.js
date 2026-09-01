@@ -19,11 +19,12 @@ import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import {
-    rangeBounds,
-    minutesToPct,
-    barGeometry,
     layoutLanes,
     parseLocalMinutes,
+    makeTimeScale,
+    scaleMinuteToPct,
+    scaleSpan,
+    scaleCuts,
 } from "./scheduling_geometry";
 
 // ── Etiquetas de calendario (es) ────────────────────────────────────────────────
@@ -114,6 +115,8 @@ class SchedulingMatrixWidget extends Component {
             searchText:    '',
             hideEmptyRows: true,
             showDone:      false,
+            hideWeekends:  true,        // ocultar fines de semana (default ON)
+            hiddenWeekdays: [],         // días a ocultar (los manda el backend)
 
             // Datos del tablero (payload)
             shifts:     [],
@@ -208,8 +211,9 @@ class SchedulingMatrixWidget extends Component {
             );
             this.state.shifts      = result.shifts     || [];
             this.state.rows        = result.rows       || [];
-            this.state.totalBars   = result.total_bars || 0;
-            this.state.emptyReason = result.empty_reason || null;
+            this.state.totalBars      = result.total_bars || 0;
+            this.state.hiddenWeekdays = result.hidden_weekdays || [];
+            this.state.emptyReason    = result.empty_reason || null;
             this._recompute();
         } catch (e) {
             console.error("[SchedulingBoard]", e);
@@ -293,6 +297,11 @@ class SchedulingMatrixWidget extends Component {
     toggleShowDone() {
         this.state.showDone = !this.state.showDone;
         this._loadData();
+    }
+
+    toggleHideWeekends() {
+        this.state.hideWeekends = !this.state.hideWeekends;
+        this._recompute();   // solo cambia la escala del eje; no hace falta RPC
     }
 
     toggleUnassigned() {
@@ -465,42 +474,29 @@ class SchedulingMatrixWidget extends Component {
         this.state.viewRows = this._computeRows();
     }
 
-    /** Geometría global: ancho, ticks, grupos, líneas de día, divisorias de turno, tinte nocturno. */
+    /** Geometría global sobre el eje visible (con días ocultos colapsados). */
     _buildLayout() {
         const { dateFrom, dateTo, resolution } = this.state;
         if (!dateFrom || !dateTo) return null;
         const cfg = RESOLUTIONS[resolution] || RESOLUTIONS.day;
-        const { startMin, endMin } = rangeBounds(dateFrom, dateTo);
-        const spanMin = endMin - startMin;
-        if (spanMin <= 0) return null;
+        const hidden = this.state.hideWeekends ? (this.state.hiddenWeekdays || []) : [];
+        const scale = makeTimeScale(dateFrom, dateTo, hidden);
+        if (scale.totalVisibleMin <= 0) return null;
 
-        const contentWidthPx = Math.round((spanMin / 60) * cfg.pxPerHour);
-        const spanDays = Math.round(spanMin / 1440);
+        const contentWidthPx = Math.round((scale.totalVisibleMin / 60) * cfg.pxPerHour);
+        const pct = (realMin) => scaleMinuteToPct(scale, realMin);
 
-        const pct = (min) => minutesToPct(min, startMin, endMin);
-
-        const dayLines = [];       // sólidas, cambio de día
-        const gridlines = [];      // faint, cada gridHours
-        const shiftDividers = [];  // punteadas, límite de turno
-        const nightBands = [];     // tinte suave turno noche
-        const ticks = [];          // etiquetas del header inferior
-        const groups = [];         // header superior (día / semana / mes)
-
+        const dayLines = [], gridlines = [], shiftDividers = [], nightBands = [], ticks = [], groups = [];
         const nightShifts = (this.state.shifts || []).filter(s => s.is_night);
+        const visibleDays = scale.days.filter(d => !d.hidden);
 
-        for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
-            const dayStart = startMin + dayIdx * 1440;
-            const dayDate  = new Date(dayStart * 60000);   // UTC = wall clock
-
+        for (const day of visibleDays) {
+            const dayStart = day.startRealMin;             // minutos reales (día 00:00)
+            const dayDate  = new Date(dayStart * 60000);   // UTC = hora de pared
             dayLines.push({ leftPct: pct(dayStart) });
-
-            // Divisorias de turno (punteadas) en cada hour_from, salvo 00:00 (ya es día).
             for (const s of (this.state.shifts || [])) {
-                if (s.hour_from > 0) {
-                    shiftDividers.push({ leftPct: pct(dayStart + Math.round(s.hour_from * 60)) });
-                }
+                if (s.hour_from > 0) shiftDividers.push({ leftPct: pct(dayStart + Math.round(s.hour_from * 60)) });
             }
-            // Tinte nocturno: [hour_from, 24) y [0, hour_to) de cada turno noche.
             for (const s of nightShifts) {
                 nightBands.push({
                     leftPct:  pct(dayStart + Math.round(s.hour_from * 60)),
@@ -513,8 +509,6 @@ class SchedulingMatrixWidget extends Component {
                     });
                 }
             }
-
-            // Gridlines cada gridHours dentro del día (para hour mode).
             if (cfg.tickMode === 'hour') {
                 for (let h = 0; h < 24; h += cfg.gridHours) {
                     const m = dayStart + h * 60;
@@ -522,7 +516,6 @@ class SchedulingMatrixWidget extends Component {
                     ticks.push({ leftPct: pct(m), label: String(h).padStart(2, '0'), major: h === 0 });
                 }
             } else {
-                // tickMode 'day': una etiqueta por día
                 ticks.push({
                     leftPct: pct(dayStart),
                     label:   `${dayDate.getUTCDate()}`,
@@ -532,59 +525,63 @@ class SchedulingMatrixWidget extends Component {
             }
         }
 
-        // Grupos del header superior
+        // Grupos del header superior (solo días visibles)
         if (resolution === 'day' || resolution === '3days') {
-            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
-                const dayStart = startMin + dayIdx * 1440;
-                const d = new Date(dayStart * 60000);
+            for (const day of visibleDays) {
+                const d = new Date(day.startRealMin * 60000);
                 groups.push({
-                    leftPct:  pct(dayStart),
-                    widthPct: pct(dayStart + 1440) - pct(dayStart),
+                    leftPct:  pct(day.startRealMin),
+                    widthPct: pct(day.startRealMin + 1440) - pct(day.startRealMin),
                     label:    `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
                     sublabel: DAYS[(d.getUTCDay() + 6) % 7],
                 });
             }
-        } else if (resolution === 'week') {
+        } else {
+            const monthMode = resolution === 'month';
             let cur = null;
-            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
-                const dayStart = startMin + dayIdx * 1440;
-                const d = new Date(dayStart * 60000);
-                const [yr, wk] = isoWeek(d);
-                const gkey = `${yr}-W${wk}`;
+            for (const day of visibleDays) {
+                const d = new Date(day.startRealMin * 60000);
+                let gkey, label, sublabel;
+                if (monthMode) {
+                    gkey = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+                    label = MONTHS[d.getUTCMonth()]; sublabel = String(d.getUTCFullYear());
+                } else {
+                    const [yr, wk] = isoWeek(d);
+                    gkey = `${yr}-W${wk}`; label = `Sem ${String(wk).padStart(2, '0')}`; sublabel = String(yr);
+                }
                 if (!cur || cur.key !== gkey) {
-                    cur = { key: gkey, startMin: dayStart, endMin: dayStart + 1440, label: `Sem ${String(wk).padStart(2, '0')}`, sublabel: String(yr) };
+                    cur = { key: gkey, a: day.startRealMin, b: day.startRealMin + 1440, label, sublabel };
                     groups.push(cur);
                 } else {
-                    cur.endMin = dayStart + 1440;
+                    cur.b = day.startRealMin + 1440;
                 }
             }
-            for (const g of groups) { g.leftPct = pct(g.startMin); g.widthPct = pct(g.endMin) - pct(g.startMin); }
-        } else { // month
-            let cur = null;
-            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
-                const dayStart = startMin + dayIdx * 1440;
-                const d = new Date(dayStart * 60000);
-                const gkey = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
-                if (!cur || cur.key !== gkey) {
-                    cur = { key: gkey, startMin: dayStart, endMin: dayStart + 1440, label: MONTHS[d.getUTCMonth()], sublabel: String(d.getUTCFullYear()) };
-                    groups.push(cur);
-                } else {
-                    cur.endMin = dayStart + 1440;
-                }
-            }
-            for (const g of groups) { g.leftPct = pct(g.startMin); g.widthPct = pct(g.endMin) - pct(g.startMin); }
+            for (const g of groups) { g.leftPct = pct(g.a); g.widthPct = pct(g.b) - pct(g.a); }
         }
 
-        // Marca "ahora" si cae dentro del rango (hora de pared del navegador).
+        // Cortes por días ocultos + nota al pie
+        const cuts = scaleCuts(scale);
+        const WD = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        const cutFootnote = hidden.length
+            ? `Días ocultos: ${[...hidden].sort((a, b) => a - b).map(w => WD[w]).join(', ')} — el eje los saltea (marcas de corte).`
+            : null;
+
+        // Marca "ahora" (solo si su día es visible y está en rango).
         const now = new Date();
-        const nowLocal = parseLocalMinutes(
+        const nowReal = parseLocalMinutes(
             `${toDateStr(now)}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
         );
-        const nowPct = (nowLocal >= startMin && nowLocal <= endMin) ? pct(nowLocal) : null;
+        const nowEpochDay = Math.floor(nowReal / 1440);
+        let nowPct = null;
+        if (nowEpochDay >= scale.firstEpochDay && nowEpochDay <= scale.lastEpochDay) {
+            const nd = scale.days[nowEpochDay - scale.firstEpochDay];
+            if (nd && !nd.hidden) nowPct = pct(nowReal);
+        }
 
         return {
-            startMin, endMin, contentWidthPx,
+            scale, contentWidthPx,
             ticks, groups, dayLines, gridlines, shiftDividers, nightBands, nowPct,
+            cuts, cutFootnote,
         };
     }
 
@@ -592,7 +589,7 @@ class SchedulingMatrixWidget extends Component {
     _computeRows() {
         const layout = this.state.layout;
         if (!layout) return [];
-        const { startMin, endMin } = layout;
+        const scale = layout.scale;
         const search    = (this.state.searchText || '').trim().toLowerCase();
         const hideEmpty = this.state.hideEmptyRows;
         const wcFilter  = this.state.wcFilterIds;
@@ -617,16 +614,28 @@ class SchedulingMatrixWidget extends Component {
                 continue;
             }
 
-            // Geometría por SEGMENTO (cada tramo laborable) + envelope para el
-            // conector/etiqueta. Los minutos del span completo van a los lanes.
+            // Geometría por SEGMENTO sobre el eje visible + envelope. Los minutos
+            // reales del span completo van a los lanes (el solapamiento es en
+            // tiempo real, no en el eje colapsado).
             const geom = bars.map(b => {
                 const sMin = parseLocalMinutes(b.date_start);
-                let eMin = b.date_finished ? parseLocalMinutes(b.date_finished) : endMin;
+                let eMin = b.date_finished ? parseLocalMinutes(b.date_finished) : sMin + 15;
                 if (eMin <= sMin) eMin = sMin + 15;
-                const segs = (b.segments || [])
-                    .map(([s, e]) => barGeometry(s, e, startMin, endMin))
-                    .filter(g => g.width > 0);
-                const env = barGeometry(b.date_start, b.date_finished, startMin, endMin);
+                let segs = (b.segments || [])
+                    .map(([s, e]) => scaleSpan(scale, s, e))
+                    .filter(g => g.width > 0.0001);
+                // Fusionar tramos que quedan pegados en el eje visible (partidos
+                // en el backend por un día no laborable que además está oculto).
+                segs = segs.reduce((acc, g) => {
+                    const prev = acc[acc.length - 1];
+                    if (prev && g.left - (prev.left + prev.width) < 0.05) {
+                        prev.width = (g.left + g.width) - prev.left;
+                    } else {
+                        acc.push({ ...g });
+                    }
+                    return acc;
+                }, []);
+                const env = scaleSpan(scale, b.date_start, b.date_finished);
                 if (!segs.length) segs.push(env);   // nunca dejar una barra sin dibujar
                 return { ...b, segs, env, startMin: sMin, endMin: eMin };
             });
@@ -641,9 +650,8 @@ class SchedulingMatrixWidget extends Component {
 
             // Bandas laborables → bloques blancos sobre el fondo gris (no laborable)
             const workBlocks = (row.working_intervals || []).map(([s, e]) => {
-                const l = minutesToPct(parseLocalMinutes(s), startMin, endMin);
-                const r = minutesToPct(parseLocalMinutes(e), startMin, endMin);
-                return { leftPct: l, widthPct: Math.max(0, r - l) };
+                const g = scaleSpan(scale, s, e);
+                return { leftPct: g.left, widthPct: g.width };
             });
 
             out.push({

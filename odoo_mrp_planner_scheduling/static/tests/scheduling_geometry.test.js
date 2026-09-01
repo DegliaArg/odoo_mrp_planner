@@ -9,6 +9,10 @@ import {
     barGeometry,
     layoutLanes,
     localIsoToServerUTC,
+    makeTimeScale,
+    scalePct,
+    scaleSpan,
+    scaleCuts,
 } from "@odoo_mrp_planner_scheduling/js/scheduling_geometry";
 
 describe("scheduling_geometry", () => {
@@ -64,6 +68,24 @@ describe("scheduling_geometry", () => {
             .toBe("2026-01-15 15:00:00");
         expect(localIsoToServerUTC("2026-07-01T10:00:00", "America/New_York"))
             .toBe("2026-07-01 14:00:00");
+    });
+
+    test("makeTimeScale: días ocultos colapsan el eje", () => {
+        // Vie 04/09 a Lun 07/09 (2026), ocultar sáb(5) y dom(6)
+        const s = makeTimeScale("2026-09-04", "2026-09-07", [5, 6]);
+        expect(s.totalVisibleMin).toBe(2 * 1440);
+        expect(scalePct(s, "2026-09-04T12:00:00")).toBeCloseTo(25, 6);
+        expect(scalePct(s, "2026-09-07T00:00:00")).toBeCloseTo(50, 6);
+        // Sábado (oculto) colapsa al punto de corte (50%)
+        expect(scalePct(s, "2026-09-05T09:00:00")).toBeCloseTo(50, 6);
+        // Barra vie 12 → lun 12: continua a través del finde
+        const sp = scaleSpan(s, "2026-09-04T12:00:00", "2026-09-07T12:00:00");
+        expect(sp.left).toBeCloseTo(25, 6);
+        expect(sp.width).toBeCloseTo(50, 6);
+        // Un corte al 50%
+        const cuts = scaleCuts(s);
+        expect(cuts.length).toBe(1);
+        expect(cuts[0].leftPct).toBeCloseTo(50, 6);
     });
 
     test("layoutLanes: solapamiento → 2 lanes y sobrecarga", () => {

@@ -410,12 +410,13 @@ class MrpProductionBoard(models.Model):
             })
 
         return {
-            'range_from':  date_from,
-            'range_to':    date_to,
-            'user_tz':     self.env.user.tz or 'UTC',
-            'shifts':      shifts_payload,
-            'rows':        rows,
-            'total_bars':  total_bars,
+            'range_from':      date_from,
+            'range_to':        date_to,
+            'user_tz':         self.env.user.tz or 'UTC',
+            'hidden_weekdays': self.env['mrp.reschedule.config']._board_hidden_weekdays_list(),
+            'shifts':          shifts_payload,
+            'rows':            rows,
+            'total_bars':      total_bars,
         }
 
     def _board_working_intervals(self, calendar, start_aware, end_aware):

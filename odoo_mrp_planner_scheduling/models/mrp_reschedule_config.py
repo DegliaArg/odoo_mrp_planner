@@ -61,6 +61,27 @@ class MrpRescheduleConfig(models.Model):
         help='Sector que se preselecciona automáticamente al abrir el tablero de programación de producción.',
     )
 
+    board_hidden_weekdays = fields.Char(
+        string='Días ocultos del tablero',
+        default='5,6',
+        help='Días de la semana que el tablero colapsa cuando el toggle "Ocultar '
+             'fines de semana" está activo, como lista separada por comas con la '
+             'convención de Python (lunes=0 … domingo=6). Por defecto 5,6 '
+             '(sábado y domingo). No puede ser fijo: hay CTs que trabajan sábado.',
+    )
+
+    @api.model
+    def _board_hidden_weekdays_list(self):
+        """Días ocultos del tablero como lista de int (lunes=0 … domingo=6)."""
+        cfg = self.get_config()
+        raw = (cfg.board_hidden_weekdays or '') if cfg else ''
+        out = []
+        for tok in raw.split(','):
+            tok = tok.strip()
+            if tok.isdigit() and 0 <= int(tok) <= 6:
+                out.append(int(tok))
+        return out
+
     def _sync_scheduling_group(self, enabled):
         """Activa/desactiva los menús y el grupo de scheduling según el toggle.
 

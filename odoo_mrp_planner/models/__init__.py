@@ -1,4 +1,5 @@
 from . import mrp_planner_helpers
+from . import resource_calendar
 from . import mrp_product_type
 from . import mrp_product_company_category
 from . import product_template

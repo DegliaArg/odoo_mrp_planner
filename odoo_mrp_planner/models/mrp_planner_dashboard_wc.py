@@ -205,30 +205,11 @@ class MrpPlannerDashboardWc(models.TransientModel):
 
         # Caché de horas brutas de calendario: evita recalcular el mismo intervalo
         # cuando varios CTs comparten el mismo resource.calendar (y entre meses).
+        # La lógica vive en resource.calendar._planner_available_hours (compartida
+        # con el tablero de programación). La eficiencia del CT NO multiplica la
+        # capacidad (en Odoo ajusta la duración esperada de las operaciones, no las
+        # horas del calendario).
         _cal_hours_cache = cal_cache if cal_cache is not None else {}
-
-        def _avail_hours(calendar, dt_start, dt_end):
-            key = (calendar.id, dt_start, dt_end)
-            if key not in _cal_hours_cache:
-                try:
-                    h = calendar.get_work_hours_count(
-                        dt_start.replace(tzinfo=pytz.UTC),
-                        dt_end.replace(tzinfo=pytz.UTC),
-                        compute_leaves=True,   # descuenta feriados y licencias del calendario
-                    )
-                except Exception as e:
-                    _logger.debug("WC load: error calendario %s: %s", calendar.name, e)
-                    weekly = sum(
-                        a.hour_to - a.hour_from
-                        for a in calendar.attendance_ids
-                        if not a.date_from and not a.date_to
-                    )
-                    span = (dt_end - dt_start).days + 1
-                    h = weekly * (span / 7.0)
-                _cal_hours_cache[key] = h
-            # La eficiencia del CT NO multiplica la capacidad (en Odoo ajusta la
-            # duración esperada de las operaciones, no las horas del calendario).
-            return _cal_hours_cache[key]
 
         now_utc = fields.Datetime.now()
         _cfg    = self.env['mrp.reschedule.config'].get_config()
@@ -247,7 +228,9 @@ class MrpPlannerDashboardWc(models.TransientModel):
         for wc in workcenters:
             avail = 0.0
             if wc.resource_calendar_id:
-                avail = _avail_hours(wc.resource_calendar_id, first_day, last_day)
+                avail = wc.resource_calendar_id._planner_available_hours(
+                    first_day, last_day, _cal_hours_cache
+                )
 
             wos = wos_by_wc.get(wc.id, [])
             ejecutado = pendiente = planificado = no_planificado = 0.0

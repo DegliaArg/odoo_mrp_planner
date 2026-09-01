@@ -41,11 +41,11 @@ const RESOLUTIONS = {
     month:   { label: 'Mes',    pxPerHour: 2.6, gridHours: 24, spanDays: 70, tickMode: 'day'  },
 };
 
-// Geometría vertical (diseño aprobado): barra 34px, 9px arriba/abajo → fila 52px.
-const ROW_PAD     = 9;                       // margen vertical de la barra
-const BAR_H       = 34;                      // alto de barra
-const LANE_PITCH  = BAR_H + 9;               // alto de un lane (barra + 9px de gap) = 43
-const ROW_BASE_PX = 2 * ROW_PAD + BAR_H;     // 52 (un solo lane)
+// Geometría vertical: barra 42px, 10px arriba/abajo → fila 62px.
+const ROW_PAD     = 10;                      // margen vertical de la barra
+const BAR_H       = 42;                      // alto de barra
+const LANE_PITCH  = BAR_H + 9;               // alto de un lane (barra + 9px de gap) = 51
+const ROW_BASE_PX = 2 * ROW_PAD + BAR_H;     // 62 (un solo lane)
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

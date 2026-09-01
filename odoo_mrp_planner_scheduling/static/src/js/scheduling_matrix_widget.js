@@ -1,16 +1,15 @@
 /** @odoo-module **/
 
 /**
- * Tablero de Programación de Producción.
+ * Tablero de Programación de Producción — eje horario continuo.
  *
- * Muestra TODAS las OFs confirmadas/en-curso organizadas en una matriz:
- *   Filas    = Centro de trabajo × Turno
- *   Columnas = Períodos (días / semanas → días / meses → semanas)
+ *   Filas    = Centro de trabajo (una por CT).
+ *   Eje X    = tiempo continuo (scroll horizontal); el zoom cambia la densidad.
+ *   Barras   = mrp.workorder, ancho = ventana date_start → date_finished.
  *
- * Interacciones:
- *  - Click en chip → despliega componentes (movimientos de materia prima).
- *  - Selector de granularidad: Día / Semana / Mes.
- *  - Filtros: sector (tag de CT), CT específico, rango de fechas, búsqueda.
+ * El servidor manda barras, bandas laborables y ocupación; el cliente genera
+ * ticks, agrupamientos (Sem/Mes) y la geometría (ver scheduling_geometry.js).
+ * Convención TZ: ISO local naive; ver cabecera de mrp_scheduling_matrix.py.
  *
  * RPC: get_scheduling_board_filters, get_scheduling_board_wcs_for_tags,
  *      get_scheduling_board, get_mo_components
@@ -19,78 +18,73 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { DateTime } from "luxon";
+import {
+    rangeBounds,
+    minutesToPct,
+    barGeometry,
+    layoutLanes,
+    offsetPctToDate,
+    parseLocalMinutes,
+} from "./scheduling_geometry";
 
-// ── Helpers de fecha ──────────────────────────────────────────────────────────
+// ── Etiquetas de calendario (es) ────────────────────────────────────────────────
+const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const DAYS   = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+// ── Resoluciones de zoom ─────────────────────────────────────────────────────────
+// pxPerHour define el ancho total del contenido (spanHoras × pxPerHour); el
+// scroll horizontal recorre, el zoom ubica. spanDays acota el rango cargado.
+const RESOLUTIONS = {
+    day:     { label: 'Día',    pxPerHour: 56,  gridHours: 1,  spanDays: 3,  tickMode: 'hour' },
+    '3days': { label: '3 días', pxPerHour: 30,  gridHours: 2,  spanDays: 7,  tickMode: 'hour' },
+    week:    { label: 'Semana', pxPerHour: 13,  gridHours: 4,  spanDays: 21, tickMode: 'day'  },
+    month:   { label: 'Mes',    pxPerHour: 2.6, gridHours: 24, spanDays: 70, tickMode: 'day'  },
+};
+
+const ROW_BASE_PX = 40;   // alto de una fila con un solo lane
+const LANE_PX     = 30;   // alto extra por lane adicional (solapamiento)
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function todayStr() { return toDateStr(new Date()); }
-
-function daysFromToday(n) {
+/** date_from por defecto: hoy / lunes / primero de mes, según resolución. */
+function defaultDateFrom(res) {
     const d = new Date();
-    d.setDate(d.getDate() + n);
+    if (res === 'week') {
+        const day = d.getDay() || 7;
+        d.setDate(d.getDate() - day + 1);   // lunes de esta semana
+    } else if (res === 'month') {
+        d.setDate(1);
+    }
     return toDateStr(d);
 }
 
-/** Lunes de la semana actual. */
-function mondayOfCurrentWeek() {
-    const d = new Date();
-    const day = d.getDay() || 7;
-    d.setDate(d.getDate() - day + 1);
-    return d;
+/** date_to por defecto: date_from + spanDays - 1. */
+function defaultDateTo(res) {
+    const from = new Date(defaultDateFrom(res) + "T00:00:00");
+    from.setDate(from.getDate() + RESOLUTIONS[res].spanDays - 1);
+    return toDateStr(from);
 }
 
-/** date_from por defecto según granularidad. */
-function defaultDateFrom(gran) {
-    if (gran === 'week') return toDateStr(mondayOfCurrentWeek());
-    if (gran === 'month') {
-        const d = new Date();
-        d.setDate(1);
-        return toDateStr(d);
-    }
-    return todayStr();
-}
-
-/** date_to por defecto según granularidad. */
-function defaultDateTo(gran) {
-    if (gran === 'week') return daysFromToday(41);   // 6 semanas completas
-    if (gran === 'month') {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 3);
-        d.setDate(0);   // último día del 3er mes futuro
-        return toDateStr(d);
-    }
-    return daysFromToday(13);   // 2 semanas
-}
-
-/**
- * Tamaño de ventana visible en número de HOJAS.
- *  day   → 7  hojas = días   → 1 semana visible
- *  week  → 14 hojas = días   → 2 semanas visibles
- *  month → 8  hojas = semanas → ~2 meses visibles
- */
-function windowSize(gran) {
-    if (gran === 'day')   return 7;
-    if (gran === 'month') return 8;
-    return 14;   // week
+/** [añoISO, semanaISO] de una fecha JS. */
+function isoWeek(date) {
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    return [d.getUTCFullYear(), week];
 }
 
 // ── Estado de la OF ───────────────────────────────────────────────────────────
-
 const MO_STATE_LABEL = {
-    confirmed: 'Confirmada',
-    progress:  'En proceso',
-    to_close:  'Por cerrar',
-    done:      'Terminada',
+    confirmed: 'Confirmada', progress: 'En proceso', to_close: 'Por cerrar', done: 'Terminada',
 };
-
 const MO_STATE_CLASS = {
-    confirmed: 'sm-state-confirmed',
-    progress:  'sm-state-progress',
-    to_close:  'sm-state-toclose',
-    done:      'sm-state-done',
+    confirmed: 'sm-state-confirmed', progress: 'sm-state-progress',
+    to_close:  'sm-state-toclose',   done:     'sm-state-done',
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -104,41 +98,42 @@ class SchedulingMatrixWidget extends Component {
         this.action       = useService("action");
         this.notification = useService("notification");
 
-        const gran = 'day';
+        const res = 'day';
 
         this.state = useState({
             // Opciones de filtros
-            tags:   [],
-            wcs:    [],
+            tags: [], wcs: [],
 
             // Filtros activos
-            tagIds:       [],
-            wcFilterIds:  [],
-            dateFrom:     defaultDateFrom(gran),
-            dateTo:       defaultDateTo(gran),
-            granularity:  gran,
-            searchText:   '',
+            tagIds:        [],
+            wcFilterIds:   [],
+            dateFrom:      defaultDateFrom(res),
+            dateTo:        defaultDateTo(res),
+            resolution:    res,
+            searchText:    '',
             hideEmptyRows: true,
             showDone:      false,
 
-            // Datos del tablero
-            periodKeys:    [],
-            periodLabels:  {},
-            wcShiftRows:   [],
-            totalMos:      0,
-            hasShifts:     false,
+            // Datos del tablero (payload)
+            shifts:     [],
+            rows:       [],        // filas crudas del backend
+            totalBars:  0,
+
+            // Layout derivado
+            layout:     null,      // {startMin,endMin,contentWidthPx,ticks,groups,dayLines,gridlines,shiftDividers,nightBands}
+            viewRows:   [],        // filas filtradas con geometría de barras
 
             // Estado UI
-            loading:       true,
-            error:         null,
-            emptyReason:   null,
-            periodPage:    0,
-            filteredRows:  [],
+            loading:     true,
+            error:       null,
+            emptyReason: null,
 
-            // Chips expandidos
-            expandedMoIds:    {},   // mo_id → true
-            componentsCache:  {},   // mo_id → [components]
-            loadingComponents: {},  // mo_id → true
+            // Popover de componentes (anclado a la barra)
+            popoverKey:       null,   // wo_id / mo_id de la barra abierta
+            popoverMoId:      null,
+            popoverPos:       { top: 0, left: 0 },
+            componentsCache:  {},
+            loadingComponents:{},
 
             // Dropdowns
             tagDropdownOpen: false,
@@ -167,13 +162,8 @@ class SchedulingMatrixWidget extends Component {
     // ── Carga de datos ────────────────────────────────────────────────────────
 
     async _loadFilters() {
-        const result = await this.orm.call(
-            'mrp.production',
-            'get_scheduling_board_filters',
-            []
-        );
+        const result = await this.orm.call('mrp.production', 'get_scheduling_board_filters', []);
         this.state.tags = result.tags || [];
-
         const defaultTagId = result.default_scheduling_tag_id;
         if (defaultTagId && !this.state.tagIds.length) {
             const found = this.state.tags.find(t => t.id === defaultTagId);
@@ -188,46 +178,35 @@ class SchedulingMatrixWidget extends Component {
 
     async _loadWcs() {
         if (!this.state.tagIds.length) {
-            this.state.wcs        = [];
+            this.state.wcs = [];
             this.state.wcFilterIds = [];
             return;
         }
         const wcs = await this.orm.call(
-            'mrp.production',
-            'get_scheduling_board_wcs_for_tags',
-            [this.state.tagIds]
+            'mrp.production', 'get_scheduling_board_wcs_for_tags', [this.state.tagIds]
         );
-        this.state.wcs        = wcs || [];
+        this.state.wcs = wcs || [];
         this.state.wcFilterIds = [];
     }
 
     async _loadData() {
-        this.state.loading        = true;
-        this.state.error          = null;
-        this.state.expandedMoIds      = {};
-        this.state.componentsCache    = {};
-        this.state.loadingComponents  = {};
-
+        this.state.loading = true;
+        this.state.error   = null;
+        this._closePopover();
         try {
             const result = await this.orm.call(
-                'mrp.production',
-                'get_scheduling_board',
-                [],
+                'mrp.production', 'get_scheduling_board', [],
                 {
                     tag_ids:      this.state.tagIds.length ? this.state.tagIds : null,
                     date_from:    this.state.dateFrom,
                     date_to:      this.state.dateTo,
-                    granularity:  this.state.granularity,
                     include_done: this.state.showDone,
                 }
             );
-            this.state.periodKeys   = result.period_keys   || [];
-            this.state.periodLabels = result.period_labels || {};
-            this.state.wcShiftRows  = result.wc_shift_rows || [];
-            this.state.totalMos     = result.total_mos     || 0;
-            this.state.hasShifts    = result.has_shifts    || false;
-            this.state.emptyReason  = result.empty_reason  || null;
-            this.state.periodPage   = 0;
+            this.state.shifts      = result.shifts     || [];
+            this.state.rows        = result.rows       || [];
+            this.state.totalBars   = result.total_bars || 0;
+            this.state.emptyReason = result.empty_reason || null;
             this._recompute();
         } catch (e) {
             console.error("[SchedulingBoard]", e);
@@ -260,38 +239,31 @@ class SchedulingMatrixWidget extends Component {
     closeDropdowns() {
         this.state.tagDropdownOpen = false;
         this.state.wcDropdownOpen  = false;
+        this._closePopover();
     }
 
     async toggleTag(tagId) {
         const ids = this.state.tagIds;
-        this.state.tagIds = ids.includes(tagId)
-            ? ids.filter(id => id !== tagId)
-            : [...ids, tagId];
+        this.state.tagIds = ids.includes(tagId) ? ids.filter(id => id !== tagId) : [...ids, tagId];
         await this._loadWcs();
         await this._loadData();
     }
 
     toggleWc(wcId) {
         const ids = this.state.wcFilterIds;
-        this.state.wcFilterIds = ids.includes(wcId)
-            ? ids.filter(id => id !== wcId)
-            : [...ids, wcId];
+        this.state.wcFilterIds = ids.includes(wcId) ? ids.filter(id => id !== wcId) : [...ids, wcId];
         this._recompute();
     }
 
     get tagFilterLabel() {
         if (!this.state.tagIds.length) return "Seleccionar…";
-        const names = this.state.tags
-            .filter(t => this.state.tagIds.includes(t.id))
-            .map(t => t.name);
+        const names = this.state.tags.filter(t => this.state.tagIds.includes(t.id)).map(t => t.name);
         return names.length <= 2 ? names.join(", ") : `${names.length} sectores`;
     }
 
     get wcFilterLabel() {
         if (!this.state.wcFilterIds.length) return "Todos";
-        const names = this.state.wcs
-            .filter(w => this.state.wcFilterIds.includes(w.id))
-            .map(w => w.name);
+        const names = this.state.wcs.filter(w => this.state.wcFilterIds.includes(w.id)).map(w => w.name);
         return names.length <= 2 ? names.join(", ") : `${names.length} CTs`;
     }
 
@@ -301,12 +273,12 @@ class SchedulingMatrixWidget extends Component {
     }
 
     onDateFromChange(ev) {
-        this.state.dateFrom = ev.target.value || defaultDateFrom(this.state.granularity);
+        this.state.dateFrom = ev.target.value || defaultDateFrom(this.state.resolution);
         this._loadData();
     }
 
     onDateToChange(ev) {
-        this.state.dateTo = ev.target.value || defaultDateTo(this.state.granularity);
+        this.state.dateTo = ev.target.value || defaultDateTo(this.state.resolution);
         this._loadData();
     }
 
@@ -320,28 +292,49 @@ class SchedulingMatrixWidget extends Component {
         this._loadData();
     }
 
-    // ── Crear OF desde celda ─────────────────────────────────────────────────
-
-    /**
-     * Convierte una clave de período en una fecha ISO string (YYYY-MM-DD).
-     * - Día:    clave ya es YYYY-MM-DD
-     * - Semana: calcula el lunes de la semana ISO
-     */
-    _pkToDateStr(pk) {
-        if (!pk.includes('W')) return pk;
-        const year = parseInt(pk.slice(0, 4));
-        const week = parseInt(pk.slice(6));
-        // Lunes de la semana ISO usando Jan 4 (siempre en semana 1)
-        const jan4 = new Date(Date.UTC(year, 0, 4));
-        const dayOfWeek = jan4.getUTCDay() || 7;
-        jan4.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);  // lunes sem 1
-        jan4.setUTCDate(jan4.getUTCDate() + (week - 1) * 7); // lunes sem N
-        return jan4.toISOString().slice(0, 10);
+    async setResolution(res) {
+        if (res === this.state.resolution) return;
+        this.state.resolution = res;
+        // Ajustar el rango para que el ancho renderizado siga siendo manejable.
+        this.state.dateFrom = defaultDateFrom(res);
+        this.state.dateTo   = defaultDateTo(res);
+        await this._loadData();
     }
 
-    createMoInCell(ev, row, pk) {
+    get resolutions() {
+        return Object.keys(RESOLUTIONS).map(k => ({ key: k, label: RESOLUTIONS[k].label }));
+    }
+
+    // ── Crear OF desde el eje (botón al hover; fecha = posición del cursor) ─────
+
+    /**
+     * Reposiciona el botón "+" siguiendo al cursor mediante una variable CSS.
+     * NO toca el estado reactivo (evita re-render en cada mousemove); guarda el
+     * porcentaje actual en el dataset de la pista para leerlo al hacer click.
+     */
+    onTrackHover(ev) {
+        const track = ev.currentTarget;
+        const rect  = track.getBoundingClientRect();
+        const x     = ev.clientX - rect.left;
+        track.style.setProperty('--sm-hover-x', `${x}px`);
+        track.dataset.hoverPct = String((x / rect.width) * 100);
+    }
+
+    onAddClick(ev, row) {
         ev.stopPropagation();
-        const dateStr = this._pkToDateStr(pk);
+        if (!this.state.layout) return;
+        const track = ev.currentTarget.closest('.sm-row-track');
+        const pct   = parseFloat((track && track.dataset.hoverPct) || '0');
+        const iso   = offsetPctToDate(pct, this.state.layout.startMin, this.state.layout.endMin, 15);
+        // iso está en hora local del usuario (zona por defecto de luxon en Odoo).
+        // Odoo interpreta default_date_start como UTC naive → convertimos, si no
+        // la OF nace corrida por el offset de la TZ.
+        const utc     = DateTime.fromISO(iso).toUTC();
+        const dateStr = utc.toFormat("yyyy-MM-dd HH:mm:ss");
+        const ctx     = { default_date_start: dateStr };
+        if (row && row.wc_id) {
+            ctx.default_workcenter_id = row.wc_id;   // sugerencia de CT
+        }
         this.action.doAction(
             {
                 type:      'ir.actions.act_window',
@@ -349,65 +342,57 @@ class SchedulingMatrixWidget extends Component {
                 res_model: 'mrp.production',
                 views:     [[false, 'form']],
                 target:    'new',
-                context:   { default_date_start: `${dateStr} 00:00:00` },
+                context:   ctx,
             },
             { onClose: () => this._loadData() }
         );
     }
 
-    async setGranularity(gran) {
-        if (gran === this.state.granularity) return;
-        this.state.granularity = gran;
-        this.state.dateFrom    = defaultDateFrom(gran);
-        this.state.dateTo      = defaultDateTo(gran);
-        this.state.periodPage  = 0;
-        await this._loadData();
-    }
+    // ── Popover de componentes (anclado a la barra) ───────────────────────────
 
-    // ── Chips: expandir / componentes ────────────────────────────────────────
-
-    async toggleChip(moId) {
-        if (this.state.expandedMoIds[moId]) {
-            const next = { ...this.state.expandedMoIds };
-            delete next[moId];
-            this.state.expandedMoIds = next;
+    async toggleBarPopover(ev, bar) {
+        ev.stopPropagation();
+        const key = bar.wo_id ? `wo_${bar.wo_id}` : `mo_${bar.mo_id}`;
+        if (this.state.popoverKey === key) {
+            this._closePopover();
             return;
         }
+        const r = ev.currentTarget.getBoundingClientRect();
+        this.state.popoverPos  = { top: r.bottom + 4, left: r.left };
+        this.state.popoverKey  = key;
+        this.state.popoverMoId = bar.mo_id;
 
-        this.state.expandedMoIds = { ...this.state.expandedMoIds, [moId]: true };
-
-        if (this.state.componentsCache[moId]) return;
-
-        this.state.loadingComponents = { ...this.state.loadingComponents, [moId]: true };
+        if (this.state.componentsCache[bar.mo_id]) return;
+        this.state.loadingComponents = { ...this.state.loadingComponents, [bar.mo_id]: true };
         try {
-            const comps = await this.orm.call(
-                'mrp.production',
-                'get_mo_components',
-                [moId]
-            );
-            this.state.componentsCache = { ...this.state.componentsCache, [moId]: comps };
+            const comps = await this.orm.call('mrp.production', 'get_mo_components', [bar.mo_id]);
+            this.state.componentsCache = { ...this.state.componentsCache, [bar.mo_id]: comps };
         } catch (e) {
-            this.state.componentsCache = { ...this.state.componentsCache, [moId]: [] };
+            this.state.componentsCache = { ...this.state.componentsCache, [bar.mo_id]: [] };
         } finally {
             const next = { ...this.state.loadingComponents };
-            delete next[moId];
+            delete next[bar.mo_id];
             this.state.loadingComponents = next;
         }
     }
 
-    isExpanded(moId)    { return !!this.state.expandedMoIds[moId]; }
+    _closePopover() {
+        this.state.popoverKey  = null;
+        this.state.popoverMoId = null;
+    }
+
     isLoadingComp(moId) { return !!this.state.loadingComponents[moId]; }
     getComponents(moId) { return this.state.componentsCache[moId] || []; }
 
     // ── Abrir OF en Odoo ─────────────────────────────────────────────────────
 
-    openMo(ev, mo) {
+    openMo(ev, bar) {
         ev.stopPropagation();
         this.action.doAction({
             type:      'ir.actions.act_window',
-            name:      mo.mo_name,
+            name:      bar.mo_name,
             res_model: 'mrp.production',
-            res_id:    mo.mo_id,
+            res_id:    bar.mo_id,
             views:     [[false, 'form']],
             target:    'current',
         });
@@ -416,161 +401,212 @@ class SchedulingMatrixWidget extends Component {
     // ── Cómputo reactivo ─────────────────────────────────────────────────────
 
     _recompute() {
-        this.state.filteredRows = this._computeFilteredRows();
+        this.state.layout   = this._buildLayout();
+        this.state.viewRows = this._computeRows();
     }
 
-    _computeFilteredRows() {
-        const search    = (this.state.searchText || '').trim().toLowerCase();
-        const hideEmpty = this.state.hideEmptyRows;
+    /** Geometría global: ancho, ticks, grupos, líneas de día, divisorias de turno, tinte nocturno. */
+    _buildLayout() {
+        const { dateFrom, dateTo, resolution } = this.state;
+        if (!dateFrom || !dateTo) return null;
+        const cfg = RESOLUTIONS[resolution] || RESOLUTIONS.day;
+        const { startMin, endMin } = rangeBounds(dateFrom, dateTo);
+        const spanMin = endMin - startMin;
+        if (spanMin <= 0) return null;
 
-        // Paso 1: filtrar por CT seleccionados en dropdown
-        let rows = this.state.wcShiftRows;
-        if (this.state.wcFilterIds.length) {
-            rows = rows.filter(r => this.state.wcFilterIds.includes(r.wc_id));
-        }
+        const contentWidthPx = Math.round((spanMin / 60) * cfg.pxPerHour);
+        const spanDays = Math.round(spanMin / 1440);
 
-        // Paso 2: filtrar por búsqueda y/o filas vacías
-        let result;
-        if (!search && !hideEmpty) {
-            result = rows;
-        } else {
-            const filtered = [];
-            for (const row of rows) {
-                const cells = {};
-                let hasVisible = false;
-                for (const pk of this.state.periodKeys) {
-                    let lines = row.cells[pk] || [];
-                    if (search) {
-                        lines = lines.filter(l =>
-                            (l.mo_name      || '').toLowerCase().includes(search) ||
-                            (l.product_name || '').toLowerCase().includes(search)
-                        );
-                    }
-                    cells[pk] = lines;
-                    if (lines.length) hasVisible = true;
-                }
-                if (hasVisible || !hideEmpty) {
-                    filtered.push({ ...row, cells });
+        const pct = (min) => minutesToPct(min, startMin, endMin);
+
+        const dayLines = [];       // sólidas, cambio de día
+        const gridlines = [];      // faint, cada gridHours
+        const shiftDividers = [];  // punteadas, límite de turno
+        const nightBands = [];     // tinte suave turno noche
+        const ticks = [];          // etiquetas del header inferior
+        const groups = [];         // header superior (día / semana / mes)
+
+        const nightShifts = (this.state.shifts || []).filter(s => s.is_night);
+
+        for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
+            const dayStart = startMin + dayIdx * 1440;
+            const dayDate  = new Date(dayStart * 60000);   // UTC = wall clock
+
+            dayLines.push({ leftPct: pct(dayStart) });
+
+            // Divisorias de turno (punteadas) en cada hour_from, salvo 00:00 (ya es día).
+            for (const s of (this.state.shifts || [])) {
+                if (s.hour_from > 0) {
+                    shiftDividers.push({ leftPct: pct(dayStart + Math.round(s.hour_from * 60)) });
                 }
             }
-            result = filtered;
-        }
+            // Tinte nocturno: [hour_from, 24) y [0, hour_to) de cada turno noche.
+            for (const s of nightShifts) {
+                nightBands.push({
+                    leftPct:  pct(dayStart + Math.round(s.hour_from * 60)),
+                    widthPct: pct(dayStart + 1440) - pct(dayStart + Math.round(s.hour_from * 60)),
+                });
+                if (s.hour_to > 0) {
+                    nightBands.push({
+                        leftPct:  pct(dayStart),
+                        widthPct: pct(dayStart + Math.round(s.hour_to * 60)) - pct(dayStart),
+                    });
+                }
+            }
 
-        // Paso 3: recalcular is_first_shift y shift_count según las filas
-        // efectivamente visibles (crítico cuando hideEmptyRows elimina algunos
-        // turnos de un CT, el rowspan de la columna CT debe reflejar solo los
-        // turnos visibles).
-        const wcCounts = {};
-        for (const row of result) {
-            wcCounts[row.wc_id] = (wcCounts[row.wc_id] || 0) + 1;
-        }
-        const seenWcs = {};
-        return result.map(row => {
-            const isFirst = !seenWcs[row.wc_id];
-            seenWcs[row.wc_id] = true;
-            return {
-                ...row,
-                is_first_shift: isFirst,
-                shift_count:    wcCounts[row.wc_id],
-            };
-        });
-    }
-
-    // ── Ventana deslizante de períodos ────────────────────────────────────────
-
-    get visiblePeriodKeys() {
-        const wSize = windowSize(this.state.granularity);
-        return this.state.periodKeys.slice(
-            this.state.periodPage,
-            this.state.periodPage + wSize
-        );
-    }
-
-    get sliderMax() {
-        return Math.max(0, this.state.periodKeys.length - windowSize(this.state.granularity));
-    }
-
-    /**
-     * Grupos de cabecera para semanas y meses.
-     * Retorna null en modo día (sin agrupación).
-     *
-     * Estructura: [{ key, label, sublabel, span }]
-     */
-    get visiblePeriodGroups() {
-        const labels = this.state.periodLabels;
-        const groups = [];
-        for (const pk of this.visiblePeriodKeys) {
-            const lbl = labels[pk];
-            if (!lbl?.group_key) return null;   // modo día: sin grupos
-            const last = groups[groups.length - 1];
-            if (last && last.key === lbl.group_key) {
-                last.span++;
+            // Gridlines cada gridHours dentro del día (para hour mode).
+            if (cfg.tickMode === 'hour') {
+                for (let h = 0; h < 24; h += cfg.gridHours) {
+                    const m = dayStart + h * 60;
+                    if (h !== 0) gridlines.push({ leftPct: pct(m) });
+                    ticks.push({ leftPct: pct(m), label: String(h).padStart(2, '0'), major: h === 0 });
+                }
             } else {
-                groups.push({
-                    key:      lbl.group_key,
-                    label:    lbl.group_label,
-                    sublabel: lbl.group_sublabel,
-                    span:     1,
+                // tickMode 'day': una etiqueta por día
+                ticks.push({
+                    leftPct: pct(dayStart),
+                    label:   `${dayDate.getUTCDate()}`,
+                    sublabel: DAYS[(dayDate.getUTCDay() + 6) % 7],
+                    major:   dayDate.getUTCDay() === 1,
                 });
             }
         }
-        return groups.length ? groups : null;
-    }
 
-    get periodRangeLabel() {
-        const keys = this.visiblePeriodKeys;
-        if (!keys.length) return '';
-        const labels = this.state.periodLabels;
-        const first  = labels[keys[0]];
-        if (!first) return '';
-
-        const groups = this.visiblePeriodGroups;
-        if (groups && groups.length) {
-            const gf = groups[0];
-            const gl = groups[groups.length - 1];
-            const yr = first.group_sublabel || keys[0].slice(0, 4);
-            if (gf.key === gl.key) return `${gf.label} · ${yr}`;
-            return `${gf.label} – ${gl.label} · ${yr}`;
+        // Grupos del header superior
+        if (resolution === 'day' || resolution === '3days') {
+            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
+                const dayStart = startMin + dayIdx * 1440;
+                const d = new Date(dayStart * 60000);
+                groups.push({
+                    leftPct:  pct(dayStart),
+                    widthPct: pct(dayStart + 1440) - pct(dayStart),
+                    label:    `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
+                    sublabel: DAYS[(d.getUTCDay() + 6) % 7],
+                });
+            }
+        } else if (resolution === 'week') {
+            let cur = null;
+            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
+                const dayStart = startMin + dayIdx * 1440;
+                const d = new Date(dayStart * 60000);
+                const [yr, wk] = isoWeek(d);
+                const gkey = `${yr}-W${wk}`;
+                if (!cur || cur.key !== gkey) {
+                    cur = { key: gkey, startMin: dayStart, endMin: dayStart + 1440, label: `Sem ${String(wk).padStart(2, '0')}`, sublabel: String(yr) };
+                    groups.push(cur);
+                } else {
+                    cur.endMin = dayStart + 1440;
+                }
+            }
+            for (const g of groups) { g.leftPct = pct(g.startMin); g.widthPct = pct(g.endMin) - pct(g.startMin); }
+        } else { // month
+            let cur = null;
+            for (let dayIdx = 0; dayIdx < spanDays; dayIdx++) {
+                const dayStart = startMin + dayIdx * 1440;
+                const d = new Date(dayStart * 60000);
+                const gkey = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+                if (!cur || cur.key !== gkey) {
+                    cur = { key: gkey, startMin: dayStart, endMin: dayStart + 1440, label: MONTHS[d.getUTCMonth()], sublabel: String(d.getUTCFullYear()) };
+                    groups.push(cur);
+                } else {
+                    cur.endMin = dayStart + 1440;
+                }
+            }
+            for (const g of groups) { g.leftPct = pct(g.startMin); g.widthPct = pct(g.endMin) - pct(g.startMin); }
         }
 
-        // Modo día: mostrar rango de fechas
-        const last = labels[keys[keys.length - 1]];
-        const lf   = first.label;
-        const lt   = last?.label;
-        const yr   = keys[0].slice(0, 4);
-        if (keys[0] === keys[keys.length - 1]) return `${lf} · ${yr}`;
-        return `${lf} – ${lt} · ${yr}`;
+        // Marca "ahora" si cae dentro del rango (hora de pared del navegador).
+        const now = new Date();
+        const nowLocal = parseLocalMinutes(
+            `${toDateStr(now)}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        );
+        const nowPct = (nowLocal >= startMin && nowLocal <= endMin) ? pct(nowLocal) : null;
+
+        return {
+            startMin, endMin, contentWidthPx,
+            ticks, groups, dayLines, gridlines, shiftDividers, nightBands, nowPct,
+        };
     }
 
-    onSliderChange(ev) {
-        this.state.periodPage = parseInt(ev.target.value, 10);
+    /** Filas filtradas con geometría de barras, lanes y bandas laborables. */
+    _computeRows() {
+        const layout = this.state.layout;
+        if (!layout) return [];
+        const { startMin, endMin } = layout;
+        const search    = (this.state.searchText || '').trim().toLowerCase();
+        const hideEmpty = this.state.hideEmptyRows;
+        const wcFilter  = this.state.wcFilterIds;
+
+        const out = [];
+        for (const row of this.state.rows) {
+            if (wcFilter.length && !wcFilter.includes(row.wc_id)) continue;
+
+            // Filtrar barras por búsqueda
+            let bars = row.bars || [];
+            if (search) {
+                bars = bars.filter(b =>
+                    (b.mo_name || '').toLowerCase().includes(search) ||
+                    (b.product_name || '').toLowerCase().includes(search) ||
+                    (b.product_code || '').toLowerCase().includes(search)
+                );
+            }
+            if (hideEmpty && !bars.length) continue;
+
+            // Geometría + minutos para lanes
+            const geom = bars.map(b => {
+                const g = barGeometry(b.date_start, b.date_finished, startMin, endMin);
+                const sMin = parseLocalMinutes(b.date_start);
+                let eMin = b.date_finished ? parseLocalMinutes(b.date_finished) : endMin;
+                if (eMin <= sMin) eMin = sMin + 15;
+                return { ...b, left: g.left, width: g.width, startMin: sMin, endMin: eMin };
+            });
+            const { lane, laneCount, overload } = layoutLanes(geom);
+            const barsOut = geom.map((b, i) => ({ ...b, lane: lane[i], overload: overload[i] }));
+
+            // Bandas laborables → bloques blancos sobre el fondo gris (no laborable)
+            const workBlocks = (row.working_intervals || []).map(([s, e]) => {
+                const l = minutesToPct(parseLocalMinutes(s), startMin, endMin);
+                const r = minutesToPct(parseLocalMinutes(e), startMin, endMin);
+                return { leftPct: l, widthPct: Math.max(0, r - l) };
+            });
+
+            out.push({
+                ...row,
+                bars: barsOut,
+                laneCount,
+                heightPx: ROW_BASE_PX + (laneCount - 1) * LANE_PX,
+                workBlocks,
+            });
+        }
+        return out;
     }
 
-    prevPage() {
-        if (this.state.periodPage > 0) this.state.periodPage--;
-    }
-
-    nextPage() {
-        if (this.state.periodPage < this.sliderMax) this.state.periodPage++;
-    }
-
-    // ── Helpers de estado ────────────────────────────────────────────────────
+    // ── Helpers de presentación ──────────────────────────────────────────────
 
     moStateLabel(state) { return MO_STATE_LABEL[state] || state; }
     moStateClass(state) { return MO_STATE_CLASS[state] || ''; }
 
-    // ── Helpers de formato ───────────────────────────────────────────────────
+    /** Estilo inline de una barra (posición + alto por lane). */
+    barStyle(bar) {
+        return `left:${bar.left}%;width:${bar.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
+    }
+
+    occupancyClass(pct) {
+        if (pct >= 100) return 'sm-occ-over';
+        if (pct >= 80)  return 'sm-occ-high';
+        return 'sm-occ-normal';
+    }
 
     fmtQty(n) {
         if (n === null || n === undefined) return '—';
         return Number(n).toLocaleString('es', { maximumFractionDigits: 2 });
     }
 
-    fmtHours(h) {
-        if (!h) return '';
-        const hrs  = Math.floor(h);
-        const mins = Math.round((h - hrs) * 60);
-        return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+    fmtHours(mins) {
+        if (!mins) return '';
+        const h = Math.floor(mins / 60);
+        const m = Math.round(mins % 60);
+        return m ? `${h}h ${m}m` : `${h}h`;
     }
 }
 

@@ -151,7 +151,7 @@
 }
 .sm-bar:hover { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); border-color: #adb5bd; z-index: 6; }
 
-.sm-bar-text { font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
+.sm-bar-text { flex: 1 1 auto; font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
 .sm-bar-prod { color: #495057; margin-left: 4px; font-weight: 400; }
 .sm-bar-open {
     border: none; background: transparent; color: #6c757d;
@@ -172,10 +172,22 @@
     background: repeating-linear-gradient(45deg, #fdecec, #fdecec 4px, #fbd5d5 4px, #fbd5d5 8px);
     border-left-color: #dc3545;
 }
-/* Recorte por borde del rango (continuación) */
-.sm-bar-clip-l { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-style: dotted; }
-.sm-bar-clip-r { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-style: dotted; }
-.sm-clip-badge { font-size: 11px; color: #6c757d; flex-shrink: 0; }
+/* Recorte por borde del rango (continuación): franja "cortada" en diagonal
+   sobre el borde recortado + badge de flecha, para que se lea de un vistazo que
+   la barra sigue fuera del rango cargado. */
+.sm-bar-clip-l { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.sm-bar-clip-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.sm-bar-clip-l::before,
+.sm-bar-clip-r::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 7px; z-index: 1;
+    background-image: repeating-linear-gradient(-45deg, rgba(73, 80, 87, 0.55) 0 2px, transparent 2px 4px);
+}
+.sm-bar-clip-l::before { left: 0; }
+.sm-bar-clip-r::after  { right: 0; }
+.sm-clip-badge {
+    font-size: 10px; font-weight: 700; line-height: 1; color: #fff;
+    background: #495057; border-radius: 2px; padding: 1px 3px; flex-shrink: 0; z-index: 2;
+}
 .sm-clip-badge-r { margin-left: auto; }
 
 /* ── Popover de componentes ── */

@@ -1,7 +1,8 @@
-/* ── Tablero de Programación de Producción ────────────────────────────────── */
+/* ── Tablero de Programación de Producción (eje horario) ──────────────────── */
 
-/* ── Raíz: ocupa todo el espacio disponible y permite scroll vertical ── */
 .sm-root {
+    --sm-ct-w: 210px;
+    --sm-head-h: 46px;
     font-size: 13px;
     display: flex;
     flex-direction: column;
@@ -10,429 +11,169 @@
     overflow: hidden;
 }
 
-/* ── Filtros ── */
+/* ── Filtros (se conservan del diseño anterior) ── */
 .sm-filters {
     background: #f8f9fa;
     border-bottom: 1px solid #dee2e6;
     min-height: 48px;
     flex-shrink: 0;
 }
-
 .sm-filter-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #6c757d;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d;
 }
-
 .sm-filter-btn {
-    font-size: 12px;
-    padding: 2px 8px;
-    white-space: nowrap;
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 12px; padding: 2px 8px; white-space: nowrap;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis;
 }
+.sm-date-input { width: 130px; font-size: 12px; }
+.sm-dropdown { max-height: 260px; overflow-y: auto; border: 1px solid #dee2e6 !important; }
+.sm-dropdown-item { cursor: pointer; user-select: none; transition: background 0.1s; }
+.sm-dropdown-item:hover { background: #f8f9fa; }
+.sm-sector-badge { font-size: 10px; font-weight: 400; padding: 1px 5px; }
 
-.sm-date-input {
-    width: 130px;
-    font-size: 12px;
-}
-
-.sm-dropdown {
-    max-height: 260px;
-    overflow-y: auto;
-    border: 1px solid #dee2e6 !important;
-}
-
-.sm-dropdown-item {
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.1s;
-}
-.sm-dropdown-item:hover {
-    background: #f8f9fa;
-}
-
-/* ── Slider ── */
-.sm-slider-wrap {
-    background: #fafafa;
-    border-bottom: 1px solid #e9ecef;
-    padding: 6px 12px;
-    flex-shrink: 0;
-}
-
-/* ── Tabla: scroll tanto horizontal como vertical ── */
-.sm-table-wrap {
-    flex: 1;
-    overflow-x: auto;
-    overflow-y: auto;
-    min-height: 0;
-}
-
-.sm-table {
-    table-layout: fixed;
-    min-width: 600px;
-    border-collapse: collapse;
-}
-
-/* ── Encabezados (sticky top) ── */
-.sm-thead {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: #fff;
-}
-
-.sm-th-wc {
-    width: 130px;
-    min-width: 110px;
-    background: #f0f2f5;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #495057;
-    vertical-align: middle;
-    padding: 8px 10px;
-    position: sticky;
-    left: 0;
-    z-index: 12;
-}
-
-.sm-th-shift {
-    width: 110px;
-    min-width: 100px;
-    background: #f0f2f5;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #495057;
-    vertical-align: middle;
-    padding: 8px 8px;
-    position: sticky;
-    left: 130px;
-    z-index: 12;
-}
-
-/* Cabecera de grupo (semana ISO o mes) */
-.sm-th-group {
-    background: #e8eaed;
-    font-size: 11px;
-    font-weight: 600;
-    text-align: center;
-    padding: 5px 8px;
-    border-bottom: 1px solid #c6ccd2;
-    letter-spacing: 0.02em;
-    color: #343a40;
-}
-
-.sm-th-period {
-    width: 220px;
-    min-width: 200px;
-    text-align: center;
-    padding: 5px 8px;
-    font-size: 12px;
-    background: #fff;
-    vertical-align: top;
-}
-
-.sm-period-sub {
-    font-size: 10px;
-    margin-top: 1px;
-}
-
-/* ── Celda de CT (columna izquierda fija) ── */
-.sm-wc-cell {
-    background: #f8f9fa;
-    border-right: 1px solid #dee2e6 !important;
-    border-bottom: 2px solid #adb5bd !important;
-    vertical-align: middle !important;
-    padding: 8px 10px;
-    position: sticky;
-    left: 0;
-    z-index: 5;
-    min-width: 110px;
-    max-width: 130px;
-}
-
-.sm-wc-name {
-    font-size: 13px;
-    line-height: 1.3;
-    word-break: break-word;
-}
-
-.sm-sector-badge {
-    font-size: 10px;
-    font-weight: 400;
-    padding: 1px 5px;
-}
-
-/* ── Celda de turno (segunda columna fija) ── */
-.sm-shift-cell {
-    background: #fafbfc;
-    border-right: 1px solid #dee2e6 !important;
-    padding: 6px 8px;
-    position: sticky;
-    left: 130px;
-    z-index: 5;
-    min-width: 100px;
-    max-width: 110px;
-}
-
-.sm-shift-label {
-    font-size: 11px;
-    color: #495057;
-    white-space: normal;
-    line-height: 1.3;
-}
-
-/* ── Celda de datos ── */
-.sm-cell {
-    vertical-align: top;
-    padding: 5px 6px 4px;
-    background: #fff;
-    min-width: 200px;
-}
-
-.sm-cell-empty {
-    min-height: 32px;
-}
-
-/* ── Chips de OF ── */
-.sm-chip {
-    border: 1px solid #dee2e6;
-    border-left: 3px solid #0d6efd;
-    border-radius: 4px;
-    padding: 6px 8px 5px;
-    margin-bottom: 4px;
-    background: #fff;
-    cursor: pointer;
-    user-select: none;
-    transition: border-color 0.12s, box-shadow 0.12s;
-}
-
-.sm-chip:hover {
-    border-color: #adb5bd;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-.sm-chip:last-child {
-    margin-bottom: 0;
-}
-
-.sm-chip-expanded {
-    border-color: #0d6efd !important;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
-}
-
-/* ── Cabecera del chip ── */
-.sm-chip-header {
-    margin-bottom: 2px;
-}
-
-/* La referencia de la OF es lo más importante: se muestra completa, sin corte */
-.sm-chip-ref {
-    font-size: 13px;
-    color: #212529;
-    line-height: 1.25;
-    min-width: 0;           /* permite que el flex item se encoja */
-    word-break: break-all;  /* rompe códigos tipo WH/MO/00001 si no entran */
-    white-space: normal;    /* cancela cualquier nowrap heredado */
-}
-
-.sm-open-btn {
-    font-size: 10px;
-    color: #6c757d;
-    opacity: 0;
-    transition: opacity 0.12s;
-    flex-shrink: 0;
-}
-
-.sm-chip:hover .sm-open-btn {
-    opacity: 1;
-}
-
-/* ── Badge de estado ── */
-.sm-chip-state {
-    font-size: 9px;
-    padding: 1px 4px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    flex-shrink: 0;
-}
-
-.sm-state-confirmed {
-    background: #cfe2ff;
-    color: #084298;
-}
-
-.sm-state-progress {
-    background: #d1e7dd;
-    color: #0a3622;
-}
-
-.sm-state-toclose {
-    background: #fff3cd;
-    color: #664d03;
-}
-
-/* ── Datos del chip ── */
-.sm-chip-product {
-    font-size: 11px;
-    font-weight: 500;
-    color: #343a40;
-    margin-top: 2px;
-    /* Máximo 2 líneas con ellipsis al final */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    line-height: 1.3;
-}
-
-.sm-chip-meta {
-    font-size: 10px;
-    margin-top: 3px;
-    color: #6c757d;
-    flex-wrap: wrap;
-    line-height: 1.5;
-}
-
-/* ── Componentes expandibles ── */
-.sm-chip-components {
-    font-size: 11px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.sm-comp-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.sm-comp-row {
-    padding: 2px 0;
-    border-bottom: 1px solid #f0f0f0;
-    align-items: flex-start;
-}
-
-.sm-comp-row:last-child {
-    border-bottom: none;
-}
-
-/* Nombre del componente: sin truncar, permite wrap */
-.sm-comp-name {
-    flex: 1;
-    min-width: 0;
-    word-break: break-word;
-    line-height: 1.3;
-}
-
-.sm-comp-qty {
-    font-size: 11px;
-    flex-shrink: 0;
-}
-
-/* ── Loading ── */
 .sm-loading {
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    min-height: 200px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
 }
 
-/* ── Chip de continuación (OF que arranca en período anterior) ──
-   Misma caja que el chip normal, pero con fondo más tenue y ícono ↩ ── */
-.sm-chip-cont {
-    background: #f0f5ff;
-    border-left-color: #7aadfd;
-    opacity: 0.88;
+/* ── Tablero: un solo contenedor con scroll H y V ── */
+.sm-board { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.sm-scroll { flex: 1; overflow: auto; position: relative; }
+
+/* ── Header (sticky top) ── */
+.sm-head-row {
+    display: flex; width: max-content; position: sticky; top: 0; z-index: 20;
+    background: #fff; border-bottom: 2px solid #adb5bd;
+}
+.sm-corner {
+    flex: 0 0 var(--sm-ct-w); width: var(--sm-ct-w);
+    position: sticky; left: 0; z-index: 21;
+    background: #f0f2f5; border-right: 1px solid #dee2e6; height: var(--sm-head-h);
+}
+.sm-time-head { position: relative; height: var(--sm-head-h); flex: 0 0 auto; }
+
+.sm-groups { position: absolute; top: 0; left: 0; right: 0; height: 23px; }
+.sm-group {
+    position: absolute; top: 0; height: 23px; overflow: hidden;
+    border-left: 1px solid #c6ccd2; background: #e8eaed;
+    display: flex; align-items: center; gap: 4px; padding: 0 6px; white-space: nowrap;
+}
+.sm-group-label { font-size: 11px; font-weight: 600; color: #343a40; }
+.sm-group-sub   { font-size: 10px; color: #6c757d; }
+
+.sm-ticks { position: absolute; top: 23px; left: 0; right: 0; bottom: 0; }
+.sm-tick {
+    position: absolute; top: 0; bottom: 0; padding-left: 3px;
+    border-left: 1px solid #eef0f2; color: #6c757d;
+    display: flex; flex-direction: column; justify-content: center;
+}
+.sm-tick-major { border-left: 1px solid #ced4da; }
+.sm-tick-label { font-size: 10px; line-height: 1.1; }
+.sm-tick-sub   { font-size: 9px; color: #adb5bd; line-height: 1.1; }
+
+/* ── Filas ── */
+.sm-row { display: flex; width: max-content; border-bottom: 1px solid #e9ecef; }
+.sm-row-ct {
+    flex: 0 0 var(--sm-ct-w); width: var(--sm-ct-w);
+    position: sticky; left: 0; z-index: 10;
+    background: #f8f9fa; border-right: 1px solid #dee2e6;
+    padding: 5px 10px; overflow: hidden;
+}
+.sm-row-ct-unassigned { background: #fff4f4; }
+.sm-ct-name { font-size: 13px; line-height: 1.25; }
+.sm-ct-sub { flex-wrap: wrap; }
+
+/* Ocupación */
+.sm-occ { font-size: 10px; font-weight: 600; padding: 1px 5px; }
+.sm-occ-normal { background: #e2e3e5; color: #41464b; }
+.sm-occ-high   { background: #fff3cd; color: #664d03; }
+.sm-occ-over   { background: #f8d7da; color: #842029; }
+.sm-bands-warn { background: #fff3cd; color: #664d03; font-size: 10px; font-weight: 600; padding: 1px 5px; }
+
+/* Pista de un CT cuyas bandas no se pudieron calcular: hatch de "desconocido"
+   para no confundir con un centro 24x7. */
+.sm-track-nobands {
+    background: repeating-linear-gradient(45deg, #eceef0, #eceef0 6px, #e3e5e8 6px, #e3e5e8 12px) !important;
 }
 
-.sm-chip-cont:hover {
-    opacity: 1;
-    border-left-color: #0d6efd;
-    border-color: #adb5bd;
+/* ── Pista temporal ── */
+.sm-row-track {
+    position: relative; flex: 0 0 auto;
+    background: #eceef0;          /* base = no laborable (gris) */
+    overflow: hidden;
 }
 
-/* Último período del span: borde derecho para cerrar visualmente */
-.sm-chip-cont-last {
-    border-right-color: #7aadfd;
-    border-right-width: 2px;
+/* Botón "+ Nueva OF" que sigue al cursor; solo visible al pasar el mouse. */
+.sm-add-btn {
+    position: absolute; top: 2px; z-index: 7;
+    left: var(--sm-hover-x, 0); transform: translateX(-50%);
+    display: none; align-items: center; justify-content: center;
+    width: 20px; height: 20px; padding: 0;
+    border: 1px solid #0d6efd; border-radius: 50%;
+    background: #e8f0fe; color: #0d6efd; font-size: 11px; cursor: pointer;
 }
+.sm-row-track:hover .sm-add-btn { display: flex; }
+.sm-add-btn:hover { background: #0d6efd; color: #fff; }
+.sm-work     { position: absolute; top: 0; bottom: 0; background: #fff; z-index: 0; }
+.sm-night    { position: absolute; top: 0; bottom: 0; background: rgba(63, 81, 181, 0.06); z-index: 1; }
+.sm-gridline { position: absolute; top: 0; bottom: 0; border-left: 1px solid #f2f3f5; z-index: 2; }
+.sm-shiftline{ position: absolute; top: 0; bottom: 0; border-left: 1px dashed #c9cfd6; z-index: 2; }
+.sm-dayline  { position: absolute; top: 0; bottom: 0; border-left: 1px solid #adb5bd; z-index: 3; }
+.sm-nowline  { position: absolute; top: 0; bottom: 0; border-left: 2px solid #dc3545; z-index: 4; }
 
-/* Ícono de continuación (↩) */
-.sm-cont-badge {
-    font-size: 13px;
-    color: #7aadfd;
-    flex-shrink: 0;
-    line-height: 1;
+/* ── Barras (work orders) ── */
+.sm-bar {
+    position: absolute; z-index: 5; min-width: 4px;
+    border: 1px solid #dee2e6; border-left-width: 3px; border-radius: 4px;
+    background: #fff; padding: 0 4px; overflow: hidden;
+    display: flex; align-items: center; gap: 3px;
+    cursor: pointer; user-select: none;
+    transition: box-shadow 0.1s, border-color 0.1s;
 }
+.sm-bar:hover { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); border-color: #adb5bd; z-index: 6; }
 
-/* Producto en chip de continuación */
-.sm-cont-product {
-    font-size: 11px;
-    color: #495057;
-    margin-top: 2px;
+.sm-bar-text { font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
+.sm-bar-prod { color: #495057; margin-left: 4px; font-weight: 400; }
+.sm-bar-open {
+    border: none; background: transparent; color: #6c757d;
+    font-size: 10px; padding: 0; opacity: 0; flex-shrink: 0; transition: opacity 0.1s;
 }
+.sm-bar:hover .sm-bar-open { opacity: 1; }
 
-/* ── Chip de OF terminada (done) ── */
-.sm-chip-done {
-    border-left-color: #6c757d;
-    opacity: 0.72;
+/* Estado (reusa la paleta de badges como fondo de la barra) */
+.sm-bar.sm-state-confirmed { background: #e7f0ff; border-left-color: #0d6efd; }
+.sm-bar.sm-state-progress  { background: #e3f5ec; border-left-color: #198754; }
+.sm-bar.sm-state-toclose   { background: #fff8e6; border-left-color: #ffc107; }
+.sm-bar.sm-state-done      { background: #eef0f1; border-left-color: #6c757d; opacity: 0.72; }
+
+/* Sobrecarga (dos o más WOs solapadas en el CT) */
+.sm-bar-over { border-color: #dc3545; box-shadow: inset 0 0 0 1px #dc3545; }
+/* Fechas inconsistentes (date_finished <= date_start) */
+.sm-bar-bad {
+    background: repeating-linear-gradient(45deg, #fdecec, #fdecec 4px, #fbd5d5 4px, #fbd5d5 8px);
+    border-left-color: #dc3545;
 }
+/* Recorte por borde del rango (continuación) */
+.sm-bar-clip-l { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-style: dotted; }
+.sm-bar-clip-r { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-style: dotted; }
+.sm-clip-badge { font-size: 11px; color: #6c757d; flex-shrink: 0; }
+.sm-clip-badge-r { margin-left: auto; }
 
-.sm-chip-done .sm-chip-ref {
-    color: #6c757d;
-}
+/* ── Popover de componentes ── */
+.sm-popover { min-width: 220px; max-width: 320px; }
+.sm-popover-body { max-height: 240px; overflow-y: auto; font-size: 11px; }
+.sm-comp-row { padding: 2px 0; border-bottom: 1px solid #f0f0f0; align-items: flex-start; }
+.sm-comp-row:last-child { border-bottom: none; }
+.sm-comp-name { flex: 1; min-width: 0; word-break: break-word; line-height: 1.3; }
+.sm-comp-qty { font-size: 11px; flex-shrink: 0; }
 
+/* Paleta de estados (badges de ocupación / compat) — se conserva */
+.sm-state-confirmed { background: #cfe2ff; color: #084298; }
+.sm-state-progress  { background: #d1e7dd; color: #0a3622; }
+.sm-state-toclose   { background: #fff3cd; color: #664d03; }
+.sm-state-done      { background: #d1e7dd; color: #0a3622; }
 
-.sm-state-done {
-    background: #d1e7dd;
-    color: #0a3622;
-}
-
-/* ── OF que abarca múltiples períodos: borde derecho abierto ── */
-.sm-chip-spans {
-    border-right: 3px dashed #7aadfd;
-    border-radius: 4px 0 0 4px;
-}
-
-/* ── Botón "+" para crear OF en la celda ── */
-.sm-cell-add-btn {
-    display: none;
-    width: 100%;
-    padding: 2px 0;
-    font-size: 11px;
-    color: #0d6efd;
-    background: transparent;
-    border: 1px dashed #b8ccef;
-    border-radius: 3px;
-    cursor: pointer;
-    text-align: center;
-    line-height: 1.4;
-    margin-top: 2px;
-    transition: background 0.1s;
-}
-
-.sm-cell:hover .sm-cell-add-btn {
-    display: block;
-}
-
-.sm-cell-add-btn:hover {
-    background: #e8f0fe;
-    border-color: #0d6efd;
-}
-
-/* ── Responsive ── */
 @media (max-width: 768px) {
-    .sm-th-wc, .sm-wc-cell { width: 90px; min-width: 80px; }
-    .sm-th-shift, .sm-shift-cell { width: 80px; min-width: 70px; left: 90px; }
-    .sm-th-period, .sm-cell { min-width: 110px; }
+    .sm-root { --sm-ct-w: 140px; }
     .sm-filter-btn { max-width: 120px; }
 }

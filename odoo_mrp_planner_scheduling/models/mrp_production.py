@@ -25,6 +25,11 @@ class MrpProduction(models.Model):
              'ya sea como pivot principal o como línea afectada.',
     )
 
+    # Sin @api.depends: el count sale de un search sobre mrp.reschedule.plan /
+    # .line y la OF no tiene un campo relacional inverso a los planes del que
+    # depender. Campo no almacenado → se recalcula en cada lectura (por request),
+    # así que el valor está fresco en la vista. Para hacerlo dependiente habría
+    # que agregar un One2many inverso (cambio de esquema, fuera de este fix).
     def _compute_reschedule_plan_count(self):
         """
         Calcula reschedule_plan_count para cada registro.

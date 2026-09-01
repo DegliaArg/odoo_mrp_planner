@@ -30,6 +30,7 @@ class MrpRescheduleAlert(models.Model):
         help='Refleja el flag enable_scheduling de la configuración de la empresa de la alerta. '
              'Se usa para ocultar el botón de reprogramación cuando la función está desactivada.')
 
+    @api.depends('company_id')
     def _compute_scheduling_enabled(self):
         """Lee enable_scheduling de la config de cada empresa (con caché por empresa).
 

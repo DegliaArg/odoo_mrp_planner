@@ -17,6 +17,10 @@ class ResUsers(models.Model):
         string='Programación MRP habilitada',
     )
 
+    # El valor depende de la config de la empresa activa (get_config resuelve por
+    # self.env.company), no de un campo del usuario: se depende del contexto de
+    # empresa para cachear/recalcular por compañía.
+    @api.depends_context('company')
     def _compute_mrp_scheduling_enabled(self):
         cfg = self.env['mrp.reschedule.config'].get_config()
         enabled = bool(cfg.enable_scheduling) if cfg else False

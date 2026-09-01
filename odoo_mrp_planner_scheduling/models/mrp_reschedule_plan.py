@@ -306,8 +306,13 @@ class MrpReschedulePlan(MrpRescheduleCascadeMixin, models.Model):
                         pivot.button_plan()
                     except Exception as e:
                         _logger.warning('No se pudo replanificar pivot %s: %s', pivot.name, e)
+                    # button_plan() recalcula date_finished desde las WOs;
+                    # restauramos la fecha aprobada en el plan (igual que el wizard).
+                    pivot.write({'date_finished': self.new_finish_date})
 
         mos_to_replan = self.env['mrp.production']
+        # {mo.id: date_finished aprobado en el plan} para restaurar tras button_plan()
+        finish_targets = {}
         for line in active_lines:
             if line.record_type == 'mrp' and line.production_id:
                 vals = {}
@@ -319,6 +324,8 @@ class MrpReschedulePlan(MrpRescheduleCascadeMixin, models.Model):
                     line.production_id.write(vals)
                     if line.production_id.workorder_ids:
                         mos_to_replan |= line.production_id
+                        if line.new_date_finish:
+                            finish_targets[line.production_id.id] = line.new_date_finish
             elif line.record_type == 'purchase' and line.purchase_id:
                 if line.new_date_finish:
                     open_lines = line.purchase_id.order_line.filtered(
@@ -333,6 +340,11 @@ class MrpReschedulePlan(MrpRescheduleCascadeMixin, models.Model):
                     mo.button_plan()
                 except Exception as e:
                     _logger.warning('No se pudo replanificar %s: %s', mo.name, e)
+                # button_plan() recalcula date_finished desde las WOs;
+                # restauramos la fecha aprobada en el plan (igual que el wizard).
+                target_finish = finish_targets.get(mo.id)
+                if target_finish:
+                    mo.write({'date_finished': target_finish})
 
         self.write({
             'state': 'applied',

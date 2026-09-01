@@ -168,6 +168,7 @@ class MrpProductionBoard(models.Model):
         mos = self.env['mrp.production'].search(domain, order='date_start, id')
 
         # Prefetch para evitar N+1
+        mos.mapped('bom_id')
         mos.mapped('product_uom_id')
         mos.mapped('product_id.product_tmpl_id.x_centros_compatibles.workcenter_id')
         mos.mapped('workorder_ids.workcenter_id.resource_calendar_id')
@@ -229,6 +230,13 @@ class MrpProductionBoard(models.Model):
             total_bars += 1
 
         for mo in mos:
+            # Subcontratación fuera del tablero, por criterio EXPLÍCITO
+            # (bom_id.type == 'subcontract'), nunca por ausencia de centro:
+            # filtrar por "sin centro" ocultaría también OFs normales sin WO,
+            # que SÍ deben verse en "Sin operaciones definidas".
+            if mo.bom_id and mo.bom_id.type == 'subcontract':
+                continue
+
             prod      = mo.product_id
             prod_name = prod.display_name if prod else ''
             prod_code = _get_old_code(mo)
@@ -355,7 +363,7 @@ class MrpProductionBoard(models.Model):
                 bar.pop('_df', None)
             rows.append({
                 'wc_id':             None,
-                'wc_name':           'Sin centro asignado',
+                'wc_name':           'Sin operaciones definidas',
                 'is_unassigned':     True,
                 'tag_names':         [],
                 'bars':              unassigned_bars,

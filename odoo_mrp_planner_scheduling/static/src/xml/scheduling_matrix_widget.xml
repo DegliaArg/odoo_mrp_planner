@@ -181,10 +181,11 @@
                       <!-- Fila "Sin centro asignado": colapsable, lista simple -->
                       <t t-if="row.is_unassigned">
                         <div class="sm-row sm-row-unassigned">
-                            <div class="sm-unassigned-head" t-on-click="toggleUnassigned">
+                            <div class="sm-unassigned-head" t-on-click="toggleUnassigned"
+                                 title="OFs sin work orders: no tienen operaciones definidas y por eso no hay centro de trabajo al que asignarlas. (Las de subcontratación se excluyen del tablero.)">
                                 <i t-att-class="'fa me-2 ' + (state.unassignedExpanded ? 'fa-chevron-down' : 'fa-chevron-right')"/>
                                 <i class="fa fa-exclamation-triangle text-warning me-2"/>
-                                <span class="fw-semibold"><t t-esc="row.count"/> OFs sin centro asignado</span>
+                                <span class="fw-semibold"><t t-esc="row.count"/> OFs sin operaciones definidas</span>
                             </div>
                             <div t-if="state.unassignedExpanded" class="sm-unassigned-list">
                                 <t t-foreach="row.bars" t-as="bar" t-key="bar.mo_id">

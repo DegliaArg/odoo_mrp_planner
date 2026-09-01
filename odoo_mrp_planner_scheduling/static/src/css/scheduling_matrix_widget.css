@@ -240,6 +240,19 @@
 }
 .sm-clip-badge-r { margin-left: auto; }
 
+/* ── Modo ruta ── */
+.sm-route-title { font-size: 13px; font-weight: 500; color: #212529; white-space: nowrap; }
+.sm-route-seq {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; flex-shrink: 0;
+    border-radius: 50%; background: #378ADD; color: #fff;
+    font-size: 11px; font-weight: 700;
+}
+/* Barra atenuada: contexto de otras OFs en el CT (sin badges), pero clickeable. */
+.sm-bar-dim { opacity: 0.34; box-shadow: none !important; }
+.sm-bar-dim:hover { opacity: 0.6; }
+.sm-popover-foot { background: #f8f9fa; }
+
 /* ── Popover de componentes ── */
 .sm-popover { min-width: 220px; max-width: 320px; }
 .sm-popover-body { max-height: 240px; overflow-y: auto; font-size: 11px; }

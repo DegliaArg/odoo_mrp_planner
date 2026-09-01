@@ -92,20 +92,30 @@ class MrpProductionBoard(models.Model):
     @api.model
     def get_scheduling_board(self, tag_ids=None, date_from=None, date_to=None,
                              include_done=False):
+        """Tablero filtrado por sector (tags). Delega en _build_board_payload."""
+        if not date_from or not date_to:
+            return {
+                'range_from': date_from, 'range_to': date_to,
+                'shifts': [], 'rows': [], 'total_bars': 0, 'empty_reason': 'no_dates',
+            }
+        if tag_ids:
+            tagged = self.env['mrp.workcenter'].search(
+                [('tag_ids', 'in', tag_ids), ('active', '=', True)]
+            )
+            valid_wc_ids = set(tagged.ids)
+        else:
+            valid_wc_ids = None   # None = todos
+        return self._build_board_payload(valid_wc_ids, date_from, date_to, include_done)
+
+    def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done):
         """
-        Construye el tablero de programación con eje horario continuo.
+        Construye el tablero (eje horario continuo) para el conjunto de CTs
+        `valid_wc_ids` (None = todos) en [date_from, date_to].
 
-        El cliente genera los ticks y agrupamientos (semana/mes) a partir de
-        date_from/date_to y el zoom; el servidor solo manda barras, bandas y
-        ocupación. Ver convención de zona horaria en la cabecera del módulo.
-
-        Parámetros:
-        - tag_ids:      list[int] | None — filtrar CTs por sector.
-        - date_from:    str 'YYYY-MM-DD' — inicio del rango (inclusive).
-        - date_to:      str 'YYYY-MM-DD' — fin del rango (inclusive).
-        - include_done: incluir OFs terminadas.
-
-        :returns: dict con range_from, range_to, shifts, rows, total_bars.
+        El cliente genera ticks y agrupamientos; el servidor manda barras, bandas
+        y ocupación. Ver convención de zona horaria en la cabecera del módulo.
+        Reutilizado por get_scheduling_board (filtro por sector) y por
+        get_route_board (CTs de la ruta de una OF).
         """
         _empty = lambda reason: {
             'range_from': date_from, 'range_to': date_to,
@@ -145,15 +155,6 @@ class MrpProductionBoard(models.Model):
                     'hour_to':   s.hour_to,
                     'is_night':  s.hour_from > s.hour_to,   # cruza medianoche (22–06)
                 })
-
-        # ── CTs válidos según tags ─────────────────────────────────────────────
-        if tag_ids:
-            tagged = self.env['mrp.workcenter'].search(
-                [('tag_ids', 'in', tag_ids), ('active', '=', True)]
-            )
-            valid_wc_ids = set(tagged.ids)
-        else:
-            valid_wc_ids = None   # None = todos
 
         # ── OFs que solapan el rango (no solo las que arrancan dentro) ──────────
         states = ['confirmed', 'progress', 'to_close']
@@ -418,6 +419,74 @@ class MrpProductionBoard(models.Model):
             'rows':            rows,
             'total_bars':      total_bars,
         }
+
+    def _compute_route(self, mo):
+        """Ruta de una OF: sus work orders con CT activo, ordenadas por sequence,
+        como lista [(workcenter, posición)] sin repetir CT.
+
+        La "ruta" son las workorder_ids de UNA mrp.production (la OF pasa por
+        varios CTs); NO es un árbol de OFs distintas. Método reutilizable: la
+        Fase 2 responde "qué se mueve al arrastrar" con la misma estructura, y el
+        árbol de OFs relacionadas (hijas/consumidoras) se sumará después como una
+        segunda fuente sin reescribir esto.
+        """
+        route = []
+        seen = set()
+        wos = mo.workorder_ids.filtered(
+            lambda w: w.workcenter_id and w.workcenter_id.active
+        ).sorted('sequence')
+        for wo in wos:
+            wc = wo.workcenter_id
+            if wc.id not in seen:
+                seen.add(wc.id)
+                route.append((wc, len(route) + 1))
+        return route
+
+    @api.model
+    def get_route_board(self, mo_id, include_done=True):
+        """Modo ruta: el tablero enfocado en los CTs por los que pasa una OF.
+
+        Devuelve las filas SOLO de esos CTs, ordenadas por secuencia de operación
+        (no alfabéticamente), con TODAS las OFs de esos centros en un rango que
+        abarca la ruta completa + margen. El cliente pinta en color pleno las
+        barras de la OF (bar.mo_id == route_mo_id) y atenúa el resto.
+        """
+        mo = self.env['mrp.production'].browse(mo_id)
+        if not mo.exists():
+            return {'empty_reason': 'not_found'}
+        route = self._compute_route(mo)
+        if not route:
+            return {'empty_reason': 'no_route', 'route_mo_name': mo.name}
+
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        dts = [w.date_start for w in mo.workorder_ids if w.date_start]
+        dts += [w.date_finished for w in mo.workorder_ids if w.date_finished]
+        dts += [d for d in (mo.date_start, mo.date_finished) if d]
+        if not dts:
+            return {'empty_reason': 'no_dates', 'route_mo_name': mo.name}
+        lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
+        hi = pytz.utc.localize(max(dts)).astimezone(tz).date() + timedelta(days=1)
+
+        wc_ids = [wc.id for wc, _seq in route]
+        payload = self._build_board_payload(
+            set(wc_ids), lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done
+        )
+
+        # Filas solo de la ruta, ordenadas por secuencia (sin fila "sin centro").
+        seq_by_wc = {wc.id: seq for wc, seq in route}
+        rows = [r for r in payload['rows'] if not r.get('is_unassigned')]
+        rows.sort(key=lambda r: seq_by_wc.get(r['wc_id'], 9999))
+        for r in rows:
+            r['route_seq'] = seq_by_wc.get(r['wc_id'])
+        payload['rows'] = rows
+        payload.update({
+            'route_mo_id':    mo.id,
+            'route_mo_name':  mo.name,
+            'route_product':  mo.product_id.display_name if mo.product_id else '',
+            'route_qty':      mo.product_qty,
+            'route_uom':      mo.product_uom_id.name if mo.product_uom_id else '',
+        })
+        return payload
 
     def _board_working_intervals(self, calendar, start_aware, end_aware):
         """Intervalos laborables del calendario en [start_aware, end_aware],

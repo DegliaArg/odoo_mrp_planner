@@ -32,6 +32,7 @@
                     </t>
                 </div>
 
+                <t t-if="!state.routeMode">
                 <div class="vr mx-1"/>
 
                 <!-- Sector -->
@@ -136,11 +137,29 @@
                 <div t-if="state.totalBars" class="text-muted small">
                     <strong t-esc="state.totalBars"/> OT
                 </div>
+                </t><!-- /!routeMode -->
+
+                <!-- Encabezado de modo ruta -->
+                <t t-if="state.routeMode">
+                    <span class="sm-route-title">
+                        <i class="fa fa-random me-1"/>Ruta de <b t-esc="state.routeHeader.name"/>
+                        <span class="text-muted ms-2" t-esc="state.routeHeader.product"/>
+                        <span class="text-muted ms-1">· <t t-esc="fmtQty(state.routeHeader.qty)"/> <t t-esc="state.routeHeader.uom"/></span>
+                    </span>
+                    <div class="form-check form-switch mb-0 ms-auto">
+                        <input class="form-check-input" type="checkbox" id="sm-hide-weekends-r"
+                               t-att-checked="state.hideWeekends" t-on-change="toggleHideWeekends"/>
+                        <label class="form-check-label small text-muted" for="sm-hide-weekends-r">Ocultar fines de semana</label>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="exitRoute">
+                        <i class="fa fa-times me-1"/>Salir de ruta
+                    </button>
+                </t>
 
             </div><!-- /sm-filters -->
 
             <!-- ══ Mensaje inicial ══════════════════════════════════════════════ -->
-            <div t-if="!state.tagIds.length" class="text-center text-muted py-5">
+            <div t-if="!state.tagIds.length and !state.routeMode" class="text-center text-muted py-5">
                 <i class="fa fa-sitemap fa-3x mb-3 d-block"/>
                 <p>Seleccioná un <strong>sector</strong> para ver el tablero de programación.</p>
             </div>
@@ -239,7 +258,11 @@
 
                             <!-- Columna CT sticky -->
                             <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '')">
-                                <div class="sm-ct-name fw-semibold text-truncate" t-att-title="row.wc_name" t-esc="row.wc_name"/>
+                                <div class="sm-ct-name fw-semibold text-truncate d-flex align-items-center gap-1"
+                                     t-att-title="row.wc_name">
+                                    <span t-if="state.routeMode and row.route_seq" class="sm-route-seq" t-esc="row.route_seq"/>
+                                    <span class="text-truncate" t-esc="row.wc_name"/>
+                                </div>
                                 <div class="sm-ct-sub d-flex align-items-center gap-1 mt-1">
                                     <t t-if="row.occupancy">
                                         <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
@@ -298,7 +321,7 @@
                                     <!-- Conector punteado entre tramos de la misma OF -->
                                     <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isDimmed(bar) ? ' sm-bar-dim' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -307,10 +330,12 @@
                                                 <div class="sm-bar-body">
                                                     <div class="sm-bar-l1">
                                                         <span class="sm-bar-ref" t-esc="bar.mo_name"/>
-                                                        <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
-                                                        <span t-else="" class="sm-bar-state badge"
-                                                              t-att-class="moStateClass(bar.mo_state)"
-                                                              t-esc="moStateLabel(bar.mo_state)"/>
+                                                        <t t-if="!isDimmed(bar)">
+                                                            <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
+                                                            <span t-else="" class="sm-bar-state badge"
+                                                                  t-att-class="moStateClass(bar.mo_state)"
+                                                                  t-esc="moStateLabel(bar.mo_state)"/>
+                                                        </t>
                                                     </div>
                                                     <div class="sm-bar-l2">
                                                         <t t-esc="bar.product_name"/>
@@ -330,7 +355,7 @@
                                 </t>
 
                                 <!-- Botón "+ Nueva OF": a la derecha de la última barra, al hover de la fila -->
-                                <button class="sm-add-btn" title="Nueva OF en este centro"
+                                <button t-if="!state.routeMode" class="sm-add-btn" title="Nueva OF en este centro"
                                         t-att-style="addBtnStyle(row)"
                                         t-on-click="(ev) => this.onAddClick(ev, row)">
                                     <i class="fa fa-plus"/>
@@ -376,6 +401,12 @@
                     </t>
                 </t>
                 <div t-else="" class="text-muted small">Sin componentes.</div>
+            </div>
+            <div class="sm-popover-foot border-top p-2">
+                <button class="btn btn-sm btn-primary w-100"
+                        t-on-click.stop="() => this.enterRoute(state.popoverMoId)">
+                    <i class="fa fa-random me-1"/>Ver ruta de la OF
+                </button>
             </div>
         </div>
 

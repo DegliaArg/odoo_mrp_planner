@@ -17,7 +17,7 @@
 
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useService, useExternalListener } from "@web/core/utils/hooks";
 import {
     layoutLanes,
     parseLocalMinutes,
@@ -134,6 +134,12 @@ class SchedulingMatrixWidget extends Component {
             unassignedExpanded: false,   // fila "Sin operaciones definidas" (arranca cerrada)
             collapsedSectors: {},        // sector → true (colapsado); no persiste
 
+            // Modo ruta (vista enfocada en los CTs de una OF)
+            routeMode:   false,
+            routeMoId:   null,
+            routeHeader: {},
+            savedView:   null,           // estado a restaurar al salir de ruta
+
             // Popover de componentes (anclado a la barra)
             popoverKey:       null,   // wo_id / mo_id de la barra abierta
             popoverMoId:      null,
@@ -147,6 +153,8 @@ class SchedulingMatrixWidget extends Component {
             tagMenuPos: { top: 0, left: 0 },
             wcMenuPos:  { top: 0, left: 0 },
         });
+
+        useExternalListener(window, "keydown", (ev) => this.onKeydown(ev));
 
         onMounted(async () => {
             try {
@@ -323,6 +331,7 @@ class SchedulingMatrixWidget extends Component {
      * hay 0 o 1 sector seleccionado (layout plano, sin encabezados).
      */
     get sectorGroups() {
+        if (this.state.routeMode) return null;   // en ruta, filas por secuencia
         if (this.state.tagIds.length <= 1) return null;
         const selected = this.state.tags
             .filter(t => this.state.tagIds.includes(t.id))
@@ -378,6 +387,11 @@ class SchedulingMatrixWidget extends Component {
     async setResolution(res) {
         if (res === this.state.resolution) return;
         this.state.resolution = res;
+        if (this.state.routeMode) {
+            // En ruta el rango lo fija la OF: el zoom solo cambia densidad de ticks.
+            this._recompute();
+            return;
+        }
         // Ajustar el rango para que el ancho renderizado siga siendo manejable.
         this.state.dateFrom = defaultDateFrom(res);
         this.state.dateTo   = defaultDateTo(res);
@@ -421,6 +435,11 @@ class SchedulingMatrixWidget extends Component {
 
     async toggleBarPopover(ev, bar) {
         ev.stopPropagation();
+        // En modo ruta, click en otra OF = saltar a SU ruta (encadenar).
+        if (this.state.routeMode && bar.mo_id !== this.state.routeMoId) {
+            this.enterRoute(bar.mo_id);
+            return;
+        }
         const key = bar.wo_id ? `wo_${bar.wo_id}` : `mo_${bar.mo_id}`;
         if (this.state.popoverKey === key) {
             this._closePopover();
@@ -465,6 +484,90 @@ class SchedulingMatrixWidget extends Component {
             views:     [[false, 'form']],
             target:    'current',
         });
+    }
+
+    // ── Modo ruta (vista enfocada en los CTs de una OF) ───────────────────────
+
+    onKeydown(ev) {
+        if (ev.key === 'Escape' && this.state.routeMode) {
+            this.exitRoute();
+        }
+    }
+
+    /** Entra (o salta) al modo ruta de una OF: reemplaza el filtro por los CTs
+     *  por los que pasa, con el rango ajustado y todas las OFs de esos centros. */
+    async enterRoute(moId) {
+        if (!moId) return;
+        // Guardar el estado solo al ENTRAR (no al encadenar saltos entre OFs).
+        if (!this.state.routeMode) {
+            this.state.savedView = {
+                tagIds:      [...this.state.tagIds],
+                wcFilterIds: [...this.state.wcFilterIds],
+                dateFrom:    this.state.dateFrom,
+                dateTo:      this.state.dateTo,
+                resolution:  this.state.resolution,
+            };
+        }
+        this._closePopover();
+        this.state.loading = true;
+        this.state.error = null;
+        try {
+            const result = await this.orm.call(
+                'mrp.production', 'get_route_board', [moId], { include_done: true }
+            );
+            if (result.empty_reason) {
+                this.notification.add(
+                    result.empty_reason === 'no_route'
+                        ? `La OF ${result.route_mo_name || ''} no tiene operaciones con centro para trazar una ruta.`
+                        : 'No se pudo trazar la ruta de la OF.',
+                    { type: 'warning' }
+                );
+                if (!this.state.routeMode) this.state.savedView = null;
+                this.state.loading = false;
+                return;
+            }
+            this.state.rows           = result.rows || [];
+            this.state.shifts         = result.shifts || [];
+            this.state.hiddenWeekdays = result.hidden_weekdays || [];
+            this.state.totalBars      = result.total_bars || 0;
+            this.state.dateFrom       = result.range_from;
+            this.state.dateTo         = result.range_to;
+            this.state.routeMode      = true;
+            this.state.routeMoId      = result.route_mo_id;
+            this.state.routeHeader    = {
+                name:    result.route_mo_name,
+                product: result.route_product,
+                qty:     result.route_qty,
+                uom:     result.route_uom,
+            };
+            this._recompute();
+        } catch (e) {
+            this.state.error = (e?.data?.message) || e.message || String(e);
+        } finally {
+            this.state.loading = false;
+        }
+    }
+
+    /** Sale del modo ruta y restaura EXACTAMENTE el estado previo (filtro, CTs,
+     *  rango y zoom). */
+    exitRoute() {
+        const v = this.state.savedView;
+        this.state.routeMode = false;
+        this.state.routeMoId = null;
+        this.state.routeHeader = {};
+        this.state.savedView = null;
+        if (v) {
+            this.state.tagIds      = v.tagIds;
+            this.state.wcFilterIds = v.wcFilterIds;
+            this.state.dateFrom    = v.dateFrom;
+            this.state.dateTo      = v.dateTo;
+            this.state.resolution  = v.resolution;
+        }
+        this._loadData();
+    }
+
+    isDimmed(bar) {
+        return this.state.routeMode && bar.mo_id !== this.state.routeMoId;
     }
 
     // ── Cómputo reactivo ─────────────────────────────────────────────────────
@@ -601,11 +704,13 @@ class SchedulingMatrixWidget extends Component {
 
         const out = [];
         for (const row of this.state.rows) {
-            if (wcFilter.length && !wcFilter.includes(row.wc_id)) continue;
+            // En modo ruta las filas son fijas (los CTs de la ruta): no se aplica
+            // el filtro de CT ni se ocultan filas vacías.
+            if (!this.state.routeMode && wcFilter.length && !wcFilter.includes(row.wc_id)) continue;
 
             // Filtrar barras por búsqueda
             let bars = (row.bars || []).filter(matchBar);
-            if (hideEmpty && !bars.length) continue;
+            if (hideEmpty && !bars.length && !this.state.routeMode) continue;
 
             // "Sin centro asignado": lista simple, sin lanes ni sobrecarga.
             // Colapsable; el alto es el de una fila normal cuando está cerrada.

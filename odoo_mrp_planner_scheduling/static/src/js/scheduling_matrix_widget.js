@@ -564,13 +564,18 @@ class SchedulingMatrixWidget extends Component {
                 continue;
             }
 
-            // Geometría + minutos para lanes
+            // Geometría por SEGMENTO (cada tramo laborable) + envelope para el
+            // conector/etiqueta. Los minutos del span completo van a los lanes.
             const geom = bars.map(b => {
-                const g = barGeometry(b.date_start, b.date_finished, startMin, endMin);
                 const sMin = parseLocalMinutes(b.date_start);
                 let eMin = b.date_finished ? parseLocalMinutes(b.date_finished) : endMin;
                 if (eMin <= sMin) eMin = sMin + 15;
-                return { ...b, left: g.left, width: g.width, startMin: sMin, endMin: eMin };
+                const segs = (b.segments || [])
+                    .map(([s, e]) => barGeometry(s, e, startMin, endMin))
+                    .filter(g => g.width > 0);
+                const env = barGeometry(b.date_start, b.date_finished, startMin, endMin);
+                if (!segs.length) segs.push(env);   // nunca dejar una barra sin dibujar
+                return { ...b, segs, env, startMin: sMin, endMin: eMin };
             });
             const { lane, laneCount, overload } = layoutLanes(geom);
             const barsOut = geom.map((b, i) => ({ ...b, lane: lane[i], overload: overload[i] }));
@@ -590,21 +595,6 @@ class SchedulingMatrixWidget extends Component {
                 workBlocks,
             });
         }
-
-        // [SM-DIAG] Instrumentación TEMPORAL para diagnóstico de bandas.
-        // Quitar una vez identificado el corrimiento.
-        console.log("[SM-DIAG] userTz=", this.state.userTz,
-            "| startMin=", startMin, "endMin=", endMin,
-            "| contentWidthPx=", layout.contentWidthPx,
-            "| dateFrom=", this.state.dateFrom, "dateTo=", this.state.dateTo);
-        for (const r of out.filter(x => !x.is_unassigned).slice(0, 8)) {
-            console.log("[SM-DIAG] CT=", r.wc_name,
-                "| bands(raw)=", JSON.stringify(r.working_intervals),
-                "| blocks=", JSON.stringify(r.workBlocks),
-                "| bar0(raw)=", r.bars[0] && r.bars[0].date_start,
-                "| bar0(geom)=", r.bars[0] && { left: r.bars[0].left, width: r.bars[0].width });
-        }
-
         return out;
     }
 
@@ -613,9 +603,26 @@ class SchedulingMatrixWidget extends Component {
     moStateLabel(state) { return MO_STATE_LABEL[state] || state; }
     moStateClass(state) { return MO_STATE_CLASS[state] || ''; }
 
-    /** Estilo inline de una barra (posición + alto por lane). */
-    barStyle(bar) {
-        return `left:${bar.left}%;width:${bar.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
+    /** Estilo de un segmento (tramo laborable) de una barra. */
+    segStyle(bar, seg) {
+        return `left:${seg.left}%;width:${seg.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
+    }
+
+    /** Conector tenue entre segmentos de la misma OF (a media altura del lane). */
+    connStyle(bar) {
+        const top = 2 + bar.lane * LANE_PX + (LANE_PX - 4) / 2;
+        return `left:${bar.env.left}%;width:${bar.env.width}%;top:${top}px;`;
+    }
+
+    /** Tooltip completo de una barra. */
+    barTitle(bar) {
+        let t = `${bar.mo_name} · ${bar.product_name} · ${this.fmtQty(bar.qty)} ${bar.uom}`;
+        if (bar.duration_expected) t += ` · ${this.fmtHours(bar.duration_expected)}`;
+        t += ` · ${bar.date_start_str}`;
+        if (bar.date_finished_str) t += ` → ${bar.date_finished_str}`;
+        if (bar.inconsistent_dates) t += ' · ⚠ fechas inconsistentes';
+        else if (bar.outside_calendar) t += ' · ⚠ planificada fuera del calendario del centro';
+        return t;
     }
 
     occupancyClass(pct) {

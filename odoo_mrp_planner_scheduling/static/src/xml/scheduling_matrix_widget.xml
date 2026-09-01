@@ -257,23 +257,32 @@
                                 <div t-if="state.layout.nowPct !== null" class="sm-nowline"
                                      t-att-style="`left:${state.layout.nowPct}%`"/>
 
-                                <!-- Barras (WOs) -->
+                                <!-- Barras (WOs): un segmento por tramo laborable del CT -->
                                 <t t-foreach="row.bars" t-as="bar" t-key="bar.wo_id || ('mo'+bar.mo_id)">
-                                    <div t-att-class="'sm-bar ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + (bar.inconsistent_dates ? ' sm-bar-bad' : '') + (bar.clipped_start ? ' sm-bar-clip-l' : '') + (bar.clipped_end ? ' sm-bar-clip-r' : '')"
-                                         t-att-style="barStyle(bar)"
-                                         t-att-title="bar.mo_name + ' · ' + bar.product_name + ' · ' + fmtQty(bar.qty) + ' ' + bar.uom + (bar.duration_expected ? ' · ' + fmtHours(bar.duration_expected) : '') + ' · ' + bar.date_start_str + (bar.date_finished_str ? ' → ' + bar.date_finished_str : '') + (bar.inconsistent_dates ? ' · ⚠ fechas inconsistentes' : '')"
-                                         t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
-                                        <span t-if="bar.clipped_start" class="sm-clip-badge">‹</span>
-                                        <span class="sm-bar-text text-truncate">
-                                            <t t-esc="bar.mo_name"/>
-                                            <span class="sm-bar-prod" t-esc="bar.product_name"/>
-                                        </span>
-                                        <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
-                                                t-on-click="(ev) => this.openMo(ev, bar)">
-                                            <i class="fa fa-external-link"/>
-                                        </button>
-                                        <span t-if="bar.clipped_end" class="sm-clip-badge sm-clip-badge-r">›</span>
-                                    </div>
+
+                                    <!-- Conector tenue entre segmentos de la misma OF -->
+                                    <div t-if="bar.segs.length > 1" class="sm-bar-conn"
+                                         t-att-style="connStyle(bar)"/>
+
+                                    <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '')"
+                                             t-att-style="segStyle(bar, seg)"
+                                             t-att-title="barTitle(bar)"
+                                             t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
+                                            <span t-if="seg_first and bar.clipped_start" class="sm-clip-badge">‹</span>
+                                            <t t-if="seg_first">
+                                                <span class="sm-bar-text text-truncate">
+                                                    <t t-esc="bar.mo_name"/>
+                                                    <span class="sm-bar-prod" t-esc="bar.product_name"/>
+                                                </span>
+                                                <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
+                                                        t-on-click="(ev) => this.openMo(ev, bar)">
+                                                    <i class="fa fa-external-link"/>
+                                                </button>
+                                            </t>
+                                            <span t-if="seg_last and bar.clipped_end" class="sm-clip-badge sm-clip-badge-r">›</span>
+                                        </div>
+                                    </t>
                                 </t>
 
                                 <!-- Botón "+ Nueva OF" que sigue al cursor (aparece al hover) -->

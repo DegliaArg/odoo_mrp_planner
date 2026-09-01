@@ -216,6 +216,10 @@ class MrpProductionBoard(models.Model):
                 'clipped_start':      clipped_start,
                 'clipped_end':        clipped_end,
                 'inconsistent_dates': inconsistent,
+                # Fechas crudas (UTC naive) para segmentar contra el calendario;
+                # se quitan del payload antes de devolver (no son serializables).
+                '_ds':                ds,
+                '_df':                df,
             }
             if wc is _UNASSIGNED:
                 unassigned_bars.append(bar)
@@ -265,8 +269,29 @@ class MrpProductionBoard(models.Model):
             if not cal:
                 return None
             if cal.id not in iv_cache:
-                iv_cache[cal.id] = self._board_working_intervals(cal, local_from, local_to, tz)
+                iv_cache[cal.id] = self._board_working_intervals(cal, local_from, local_to)
             return iv_cache[cal.id]
+
+        def _segment_bar(ds, df, intervals_dt):
+            """Interseca la ventana [ds, df] de una barra con los intervalos
+            laborables del CT (todo UTC naive), recortada al rango cargado.
+
+            Devuelve (segmentos_iso, minutos_efectivos). Cada segmento es un
+            tramo laborable que la barra realmente ocupa, así una OF de 16 h en
+            un CT 6-14 se dibuja como dos tramos con un hueco, no un bloque plano.
+            """
+            span_end = df if (df and df > ds) else utc_to
+            s0 = max(ds, utc_from)
+            e0 = min(span_end, utc_to)
+            segs = []
+            eff = 0.0
+            for ws, we in (intervals_dt or []):
+                s = max(s0, ws)
+                e = min(e0, we)
+                if e > s:
+                    segs.append([_iso(s), _iso(e)])
+                    eff += (e - s).total_seconds() / 60.0
+            return segs, eff
 
         # ── Construir filas (una por CT, ordenadas por nombre) ─────────────────
         cal_cache = {}
@@ -274,22 +299,48 @@ class MrpProductionBoard(models.Model):
         for wc in sorted(wc_records.values(), key=lambda w: w.name):
             bars = bars_by_wc.get(wc.id, [])
             cal  = wc.resource_calendar_id
-            # Ocupación sobre el RANGO CARGADO (no el viewport): estable ante scroll.
-            planned_h = sum(b['duration_expected'] for b in bars) / 60.0
-            avail_h   = cal._planner_available_hours(utc_from, utc_to, cal_cache) if cal else 0.0
-            pct       = round(planned_h / avail_h * 100) if avail_h > 0 else 0
-            ivs = _intervals_for(cal)
+            ivs = _intervals_for(cal)   # [(ws,we) UTC naive] | None
             if ivs is None and not cal:
                 _logger.warning(
                     "Tablero: CT %s (id=%s) sin resource_calendar_id; "
                     "no se pueden calcular las bandas laborables.", wc.name, wc.id,
                 )
+
+            # Segmentar cada barra por el calendario del CT. La ocupación usa las
+            # HORAS EFECTIVAS dentro de los intervalos laborables (no la duración
+            # plana), sobre el rango cargado — estable ante scroll.
+            planned_min = 0.0
+            for bar in bars:
+                ds = bar.pop('_ds')
+                df = bar.pop('_df')
+                if ivs:
+                    segs, eff = _segment_bar(ds, df, ivs)
+                    if segs:
+                        bar['segments'] = segs
+                        bar['outside_calendar'] = False
+                        planned_min += eff
+                    else:
+                        # Planificada íntegramente fuera del calendario: no se
+                        # oculta, se dibuja plana y marcada como inconsistente.
+                        bar['segments'] = [[bar['date_start'],
+                                            bar['date_finished'] or _iso(utc_to)]]
+                        bar['outside_calendar'] = True
+                else:
+                    # Sin bandas calculables: barra plana, sin marca de calendario.
+                    bar['segments'] = [[bar['date_start'],
+                                        bar['date_finished'] or _iso(utc_to)]]
+                    bar['outside_calendar'] = False
+
+            avail_h   = cal._planner_available_hours(utc_from, utc_to, cal_cache) if cal else 0.0
+            planned_h = planned_min / 60.0
+            pct       = round(planned_h / avail_h * 100) if avail_h > 0 else 0
+            bands_iso = [[_iso(ws), _iso(we)] for ws, we in ivs] if ivs else []
             rows.append({
                 'wc_id':             wc.id,
                 'wc_name':           wc.name,
                 'tag_names':         [t.name for t in wc.tag_ids],
                 'bars':              bars,
-                'working_intervals': ivs or [],
+                'working_intervals': bands_iso,
                 'bands_failed':      ivs is None,
                 'occupancy': {
                     'planned_hours':   round(planned_h, 1),
@@ -299,6 +350,9 @@ class MrpProductionBoard(models.Model):
             })
 
         if unassigned_bars:
+            for bar in unassigned_bars:
+                bar.pop('_ds', None)
+                bar.pop('_df', None)
             rows.append({
                 'wc_id':             None,
                 'wc_name':           'Sin centro asignado',
@@ -318,13 +372,15 @@ class MrpProductionBoard(models.Model):
             'total_bars':  total_bars,
         }
 
-    def _board_working_intervals(self, calendar, start_aware, end_aware, tz):
+    def _board_working_intervals(self, calendar, start_aware, end_aware):
         """Intervalos laborables del calendario en [start_aware, end_aware],
-        descontando feriados/licencias, como pares ISO local naive.
+        descontando feriados/licencias, como pares (start, end) en UTC naive.
 
         Usa resource.calendar._work_intervals_batch (misma fuente que
         get_work_hours_count(compute_leaves=True), que ya usa el % de ocupación,
-        para que bandas y ocupación sean coherentes).
+        para que bandas, segmentos y ocupación sean coherentes). Las tuplas que
+        devuelve son (start, end, record) — se toman los dos primeros. Se
+        normaliza a UTC-aware (localize si viniera naive) antes de pasar a naive.
 
         Devuelve None si la API falla: NO se degrada en silencio a lista vacía,
         porque eso sería indistinguible de un CT 24x7. El llamador marca la fila
@@ -338,13 +394,18 @@ class MrpProductionBoard(models.Model):
                 "calendario %s (id=%s): %s", calendar.display_name, calendar.id, e,
             )
             return None
-        return [
-            [
-                iv[0].astimezone(tz).strftime('%Y-%m-%dT%H:%M:%S'),
-                iv[1].astimezone(tz).strftime('%Y-%m-%dT%H:%M:%S'),
-            ]
-            for iv in intervals
-        ]
+        out = []
+        for iv in intervals:
+            s, e = iv[0], iv[1]
+            if s.tzinfo is None:
+                s = pytz.utc.localize(s)
+            if e.tzinfo is None:
+                e = pytz.utc.localize(e)
+            out.append((
+                s.astimezone(pytz.utc).replace(tzinfo=None),
+                e.astimezone(pytz.utc).replace(tzinfo=None),
+            ))
+        return out
 
     @api.model
     def get_mo_components(self, mo_id):

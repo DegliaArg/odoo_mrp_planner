@@ -151,6 +151,12 @@
 }
 .sm-bar:hover { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); border-color: #adb5bd; z-index: 6; }
 
+/* Conector entre segmentos de la misma OF (misma OF partida por el calendario) */
+.sm-bar-conn {
+    position: absolute; z-index: 4; height: 0;
+    border-top: 1px dashed #b0b6bd; pointer-events: none;
+}
+
 .sm-bar-text { flex: 1 1 auto; font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
 .sm-bar-prod { color: #495057; margin-left: 4px; font-weight: 400; }
 .sm-bar-open {

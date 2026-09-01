@@ -402,14 +402,6 @@ class MrpProductionBoard(models.Model):
                 "calendario %s (id=%s): %s", calendar.display_name, calendar.id, e,
             )
             return None
-        intervals = list(intervals)
-        # [SM-DIAG] crudo del batch para un calendario acotado (nombre con "8").
-        if '8' in (calendar.name or ''):
-            _logger.info(
-                "[SM-DIAG] cal=%s(tz=%s) rango=%s..%s raw_batch=%s",
-                calendar.name, calendar.tz, start_aware, end_aware,
-                [(str(iv[0]), str(iv[1])) for iv in intervals[:5]],
-            )
         out = []
         for iv in intervals:
             s, e = iv[0], iv[1]

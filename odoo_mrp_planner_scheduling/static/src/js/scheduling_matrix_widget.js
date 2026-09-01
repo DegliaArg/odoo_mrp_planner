@@ -42,8 +42,8 @@ const RESOLUTIONS = {
     month:   { label: 'Mes',    pxPerHour: 2.6, gridHours: 24, spanDays: 70, tickMode: 'day'  },
 };
 
-const ROW_BASE_PX = 40;   // alto de una fila con un solo lane
-const LANE_PX     = 30;   // alto extra por lane adicional (solapamiento)
+const ROW_BASE_PX = 54;   // alto de una fila con un solo lane
+const LANE_PX     = 44;   // alto de cada lane (crece con el solapamiento)
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

@@ -128,11 +128,13 @@ class MrpRescheduleConfig(models.Model):
         if 'enable_scheduling' in vals:
             self._sync_scheduling_group(vals['enable_scheduling'])
         sp = self.env['ir.config_parameter'].sudo()
-        company_id = self.env.company.id
-        if 'wc_fallback' in vals:
-            sp.set_param(f'mrp_reschedule.wc_fallback.{company_id}', vals['wc_fallback'])
-        if 'priority' in vals:
-            sp.set_param(f'mrp_reschedule.priority.{company_id}', vals['priority'])
+        # Cada config pertenece a su propia empresa: se escribe el parámetro con el
+        # sufijo de rec.company_id (no de la empresa activa), igual que create().
+        for rec in self:
+            if 'wc_fallback' in vals:
+                sp.set_param(f'mrp_reschedule.wc_fallback.{rec.company_id.id}', vals['wc_fallback'])
+            if 'priority' in vals:
+                sp.set_param(f'mrp_reschedule.priority.{rec.company_id.id}', vals['priority'])
         return res
 
     @api.model_create_multi

@@ -43,8 +43,12 @@ qué usuarios ven los botones y KPIs asociados.
             'odoo_mrp_planner_scheduling/static/src/js/scheduling_toggle_widget.js',
             'odoo_mrp_planner_scheduling/static/src/xml/scheduling_toggle_widget.xml',
             'odoo_mrp_planner_scheduling/static/src/css/scheduling_matrix_widget.css',
+            'odoo_mrp_planner_scheduling/static/src/js/scheduling_geometry.js',
             'odoo_mrp_planner_scheduling/static/src/js/scheduling_matrix_widget.js',
             'odoo_mrp_planner_scheduling/static/src/xml/scheduling_matrix_widget.xml',
+        ],
+        'web.assets_unit_tests': [
+            'odoo_mrp_planner_scheduling/static/tests/scheduling_geometry.test.js',
         ],
     },
     'installable': True,

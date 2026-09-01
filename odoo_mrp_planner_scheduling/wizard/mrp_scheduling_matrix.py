@@ -441,6 +441,12 @@ class MrpProductionBoard(models.Model):
         Fase 2 responde "qué se mueve al arrastrar" con la misma estructura, y el
         árbol de OFs relacionadas (hijas/consumidoras) se sumará después como una
         segunda fuente sin reescribir esto.
+
+        NOTA FASE 2 (drag): se decidió arrastrar la OF completa, no la operación,
+        porque en esta instancia el ~93% de las WOs no tiene date_start (no se
+        corre button_plan). El diseño SÍ soporta drag por-operación: cuando las
+        WOs tengan date_start poblado (button_plan en el flujo), el drop puede
+        anclar la WO en vez de la OF usando esta misma ruta. No re-descubrir esto.
         """
         route = []
         seen = set()

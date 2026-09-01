@@ -102,6 +102,20 @@
     background: repeating-linear-gradient(45deg, #eceef0, #eceef0 6px, #e3e5e8 6px, #e3e5e8 12px) !important;
 }
 
+/* ── Encabezado de sector (agrupación con varios sectores) ── */
+/* Separador de sector: borde superior grueso, más fuerte que el de CT. */
+.sm-sector-head {
+    display: block; background: #e9ecef;
+    border-top: 3px solid #97a0aa; border-bottom: 1px solid #ced4da;
+    cursor: pointer; user-select: none;
+}
+.sm-sector-head:hover { background: #e2e6ea; }
+.sm-sector-head-inner {
+    position: sticky; left: 0; width: max-content;
+    display: flex; align-items: center; padding: 6px 12px; font-size: 13px;
+}
+.sm-sector-meta { white-space: nowrap; }
+
 /* ── Fila "Sin centro asignado" (colapsable, sin lanes) ── */
 .sm-row-unassigned { display: block; background: #fff4f4; border-bottom: 1px solid #e9ecef; }
 .sm-unassigned-head {

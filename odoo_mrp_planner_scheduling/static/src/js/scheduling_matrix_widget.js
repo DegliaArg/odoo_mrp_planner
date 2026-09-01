@@ -125,7 +125,8 @@ class SchedulingMatrixWidget extends Component {
             loading:     true,
             error:       null,
             emptyReason: null,
-            unassignedExpanded: false,   // fila "Sin centro asignado" (arranca cerrada)
+            unassignedExpanded: false,   // fila "Sin operaciones definidas" (arranca cerrada)
+            collapsedSectors: {},        // sector → true (colapsado); no persiste
 
             // Popover de componentes (anclado a la barra)
             popoverKey:       null,   // wo_id / mo_id de la barra abierta
@@ -293,6 +294,72 @@ class SchedulingMatrixWidget extends Component {
 
     toggleUnassigned() {
         this.state.unassignedExpanded = !this.state.unassignedExpanded;
+    }
+
+    toggleSector(name) {
+        this.state.collapsedSectors = {
+            ...this.state.collapsedSectors,
+            [name]: !this.state.collapsedSectors[name],
+        };
+    }
+
+    // ── Agrupación por sector (solo con más de un sector seleccionado) ─────────
+
+    /**
+     * Agrupa las filas de CT por sector. Un CT con varios tags va al primer
+     * sector alfabético entre los seleccionados, sin duplicar. Devuelve null si
+     * hay 0 o 1 sector seleccionado (layout plano, sin encabezados).
+     */
+    get sectorGroups() {
+        if (this.state.tagIds.length <= 1) return null;
+        const selected = this.state.tags
+            .filter(t => this.state.tagIds.includes(t.id))
+            .map(t => t.name)
+            .sort((a, b) => a.localeCompare(b));
+        const byName = new Map(selected.map(n => [n, []]));
+        for (const row of this.state.viewRows) {
+            if (row.is_unassigned) continue;
+            const g = selected.find(n => (row.tag_names || []).includes(n));
+            if (g) byName.get(g).push(row);
+        }
+        const groups = [];
+        for (const name of selected) {
+            const rows = byName.get(name);
+            if (!rows.length) continue;   // sector sin CTs visibles: sin encabezado vacío
+            const avg = Math.round(
+                rows.reduce((s, r) => s + (r.occupancy ? r.occupancy.pct : 0), 0) / rows.length
+            );
+            groups.push({
+                name, rows, ctCount: rows.length, avgOcc: avg,
+                collapsed: !!this.state.collapsedSectors[name],
+            });
+        }
+        return groups;
+    }
+
+    /** Lista plana de ítems a renderizar: encabezados + filas + "sin operaciones". */
+    get boardItems() {
+        const items = [];
+        const groups = this.sectorGroups;
+        if (groups) {
+            for (const g of groups) {
+                items.push({ type: 'header', group: g });
+                if (!g.collapsed) for (const row of g.rows) items.push({ type: 'row', row });
+            }
+        } else {
+            for (const row of this.state.viewRows) {
+                if (!row.is_unassigned) items.push({ type: 'row', row });
+            }
+        }
+        const un = this.state.viewRows.find(r => r.is_unassigned);
+        if (un) items.push({ type: 'unassigned', row: un });
+        return items;
+    }
+
+    itemKey(item) {
+        if (item.type === 'header') return 'h_' + item.group.name;
+        if (item.type === 'unassigned') return 'unassigned';
+        return 'r_' + item.row.wc_id;
     }
 
     async setResolution(res) {

@@ -175,11 +175,25 @@
                         </div>
                     </div>
 
-                    <!-- Filas -->
-                    <t t-foreach="state.viewRows" t-as="row" t-key="row.wc_id || 'unassigned'">
+                    <!-- Filas (con encabezados de sector cuando hay varios sectores) -->
+                    <t t-foreach="boardItems" t-as="item" t-key="itemKey(item)">
 
-                      <!-- Fila "Sin centro asignado": colapsable, lista simple -->
-                      <t t-if="row.is_unassigned">
+                      <!-- Encabezado de sector (sticky, colapsable) -->
+                      <t t-if="item.type === 'header'">
+                        <div class="sm-sector-head" t-on-click="() => this.toggleSector(item.group.name)">
+                            <div class="sm-sector-head-inner">
+                                <i t-att-class="'fa me-2 ' + (item.group.collapsed ? 'fa-chevron-right' : 'fa-chevron-down')"/>
+                                <span class="fw-bold" t-esc="item.group.name"/>
+                                <span class="sm-sector-meta text-muted ms-2 small">
+                                    <t t-esc="item.group.ctCount"/> CT · <t t-esc="item.group.avgOcc"/>% ocup. prom
+                                </span>
+                            </div>
+                        </div>
+                      </t>
+
+                      <!-- Fila "Sin operaciones definidas": colapsable, lista simple -->
+                      <t t-elif="item.type === 'unassigned'">
+                        <t t-set="row" t-value="item.row"/>
                         <div class="sm-row sm-row-unassigned">
                             <div class="sm-unassigned-head" t-on-click="toggleUnassigned"
                                  title="OFs sin work orders: no tienen operaciones definidas y por eso no hay centro de trabajo al que asignarlas. (Las de subcontratación se excluyen del tablero.)">
@@ -208,6 +222,7 @@
 
                       <!-- Fila normal de CT -->
                       <t t-else="">
+                        <t t-set="row" t-value="item.row"/>
                         <div class="sm-row" t-att-style="`height:${row.heightPx}px`">
 
                             <!-- Columna CT sticky -->

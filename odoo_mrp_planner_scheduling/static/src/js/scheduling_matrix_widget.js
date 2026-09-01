@@ -128,6 +128,7 @@ class SchedulingMatrixWidget extends Component {
             loading:     true,
             error:       null,
             emptyReason: null,
+            unassignedExpanded: false,   // fila "Sin centro asignado" (arranca cerrada)
 
             // Popover de componentes (anclado a la barra)
             popoverKey:       null,   // wo_id / mo_id de la barra abierta
@@ -292,6 +293,10 @@ class SchedulingMatrixWidget extends Component {
     toggleShowDone() {
         this.state.showDone = !this.state.showDone;
         this._loadData();
+    }
+
+    toggleUnassigned() {
+        this.state.unassignedExpanded = !this.state.unassignedExpanded;
     }
 
     async setResolution(res) {
@@ -539,20 +544,25 @@ class SchedulingMatrixWidget extends Component {
         const hideEmpty = this.state.hideEmptyRows;
         const wcFilter  = this.state.wcFilterIds;
 
+        const matchBar = (b) => !search ||
+            (b.mo_name || '').toLowerCase().includes(search) ||
+            (b.product_name || '').toLowerCase().includes(search) ||
+            (b.product_code || '').toLowerCase().includes(search);
+
         const out = [];
         for (const row of this.state.rows) {
             if (wcFilter.length && !wcFilter.includes(row.wc_id)) continue;
 
             // Filtrar barras por búsqueda
-            let bars = row.bars || [];
-            if (search) {
-                bars = bars.filter(b =>
-                    (b.mo_name || '').toLowerCase().includes(search) ||
-                    (b.product_name || '').toLowerCase().includes(search) ||
-                    (b.product_code || '').toLowerCase().includes(search)
-                );
-            }
+            let bars = (row.bars || []).filter(matchBar);
             if (hideEmpty && !bars.length) continue;
+
+            // "Sin centro asignado": lista simple, sin lanes ni sobrecarga.
+            // Colapsable; el alto es el de una fila normal cuando está cerrada.
+            if (row.is_unassigned) {
+                out.push({ ...row, bars, count: bars.length, heightPx: ROW_BASE_PX });
+                continue;
+            }
 
             // Geometría + minutos para lanes
             const geom = bars.map(b => {

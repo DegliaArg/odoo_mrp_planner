@@ -96,6 +96,25 @@
     background: repeating-linear-gradient(45deg, #eceef0, #eceef0 6px, #e3e5e8 6px, #e3e5e8 12px) !important;
 }
 
+/* ── Fila "Sin centro asignado" (colapsable, sin lanes) ── */
+.sm-row-unassigned { display: block; background: #fff4f4; border-bottom: 1px solid #e9ecef; }
+.sm-unassigned-head {
+    position: sticky; left: 0; width: max-content;
+    display: flex; align-items: center; padding: 8px 12px; cursor: pointer;
+    min-height: 40px; user-select: none;
+}
+.sm-unassigned-head:hover { background: #ffe9e9; }
+.sm-unassigned-list {
+    position: sticky; left: 0; width: max-content; max-width: 900px;
+    max-height: 320px; overflow-y: auto;
+    padding: 4px 12px 8px; border-top: 1px dashed #f1c6c6;
+}
+.sm-unassigned-item { padding: 3px 0; border-bottom: 1px solid #f6e6e6; font-size: 12px; }
+.sm-unassigned-item:last-child { border-bottom: none; }
+.sm-ua-ref  { min-width: 110px; }
+.sm-ua-prod { min-width: 0; color: #343a40; }
+.sm-ua-dates { font-size: 11px; }
+
 /* ── Pista temporal ── */
 .sm-row-track {
     position: relative; flex: 0 0 auto;

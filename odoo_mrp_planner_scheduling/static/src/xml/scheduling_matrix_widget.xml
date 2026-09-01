@@ -177,6 +177,36 @@
 
                     <!-- Filas -->
                     <t t-foreach="state.viewRows" t-as="row" t-key="row.wc_id || 'unassigned'">
+
+                      <!-- Fila "Sin centro asignado": colapsable, lista simple -->
+                      <t t-if="row.is_unassigned">
+                        <div class="sm-row sm-row-unassigned">
+                            <div class="sm-unassigned-head" t-on-click="toggleUnassigned">
+                                <i t-att-class="'fa me-2 ' + (state.unassignedExpanded ? 'fa-chevron-down' : 'fa-chevron-right')"/>
+                                <i class="fa fa-exclamation-triangle text-warning me-2"/>
+                                <span class="fw-semibold"><t t-esc="row.count"/> OFs sin centro asignado</span>
+                            </div>
+                            <div t-if="state.unassignedExpanded" class="sm-unassigned-list">
+                                <t t-foreach="row.bars" t-as="bar" t-key="bar.mo_id">
+                                    <div class="sm-unassigned-item d-flex align-items-center gap-2">
+                                        <span class="sm-ua-ref fw-semibold" t-esc="bar.mo_name"/>
+                                        <span class="sm-ua-prod text-truncate flex-grow-1" t-att-title="bar.product_name" t-esc="bar.product_name"/>
+                                        <span class="sm-ua-dates text-muted text-nowrap">
+                                            <t t-esc="bar.date_start_str"/>
+                                            <t t-if="bar.date_finished_str"> → <t t-esc="bar.date_finished_str"/></t>
+                                        </span>
+                                        <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
+                                                t-on-click="(ev) => this.openMo(ev, bar)">
+                                            <i class="fa fa-external-link"/>
+                                        </button>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                      </t>
+
+                      <!-- Fila normal de CT -->
+                      <t t-else="">
                         <div class="sm-row" t-att-style="`height:${row.heightPx}px`">
 
                             <!-- Columna CT sticky -->
@@ -254,7 +284,8 @@
 
                             </div><!-- /sm-row-track -->
                         </div><!-- /sm-row -->
-                    </t>
+                      </t><!-- /t-else fila normal -->
+                    </t><!-- /t-foreach filas -->
 
                 </div><!-- /sm-scroll -->
             </div><!-- /sm-board -->

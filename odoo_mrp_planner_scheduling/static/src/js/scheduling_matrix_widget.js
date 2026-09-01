@@ -590,6 +590,21 @@ class SchedulingMatrixWidget extends Component {
                 workBlocks,
             });
         }
+
+        // [SM-DIAG] Instrumentación TEMPORAL para diagnóstico de bandas.
+        // Quitar una vez identificado el corrimiento.
+        console.log("[SM-DIAG] userTz=", this.state.userTz,
+            "| startMin=", startMin, "endMin=", endMin,
+            "| contentWidthPx=", layout.contentWidthPx,
+            "| dateFrom=", this.state.dateFrom, "dateTo=", this.state.dateTo);
+        for (const r of out.filter(x => !x.is_unassigned).slice(0, 8)) {
+            console.log("[SM-DIAG] CT=", r.wc_name,
+                "| bands(raw)=", JSON.stringify(r.working_intervals),
+                "| blocks=", JSON.stringify(r.workBlocks),
+                "| bar0(raw)=", r.bars[0] && r.bars[0].date_start,
+                "| bar0(geom)=", r.bars[0] && { left: r.bars[0].left, width: r.bars[0].width });
+        }
+
         return out;
     }
 

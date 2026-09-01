@@ -48,28 +48,47 @@ def _get_old_code(mo):
     return ''
 
 
+def _origin_tokens(origin):
+    """Descompone el campo `origin` en sus tokens exactos.
+
+    Un `origin` puede ser compuesto (verificado en la base real, y frecuente),
+    con dos separadores que conviven:
+      - coma + espacio:  "MC/MO/02006, MC/MO/02003, MC/MO/02004"
+      - coma sin espacio: "OP/03709,DPD/MO/06089"
+    Se separa por comas y se aplica strip() a cada token, así ambos formatos
+    quedan normalizados. Matchear por token completo evita a la vez los dos
+    errores clásicos:
+      - Matcheo exacto ('=' / 'in') ignora los origin compuestos.
+      - Matcheo por substring ('ilike') da falsos positivos: 'MO/001' cae
+        dentro de 'MO/0011'.
+    """
+    if not origin:
+        return frozenset()
+    return frozenset(tok.strip() for tok in origin.split(',') if tok.strip())
+
+
 def _search_by_origin(env, model_name, names, extra_domain=None):
     """Estrategia ÚNICA de matcheo por `origin` en todo el módulo.
 
-    Busca registros de `model_name` cuyo `origin` sea exactamente alguno de
-    `names` (p.ej. mo.name). Se usa `origin in names`: matcheo exacto a nivel
-    SQL, por lo que no hay falso positivo por substring ('MO/001' no cae en
-    'MO/0011') — ese era el problema del antiguo `ilike`, no del `in`. La guarda
-    `rec.origin in name_set` al agrupar preserva esa exactitud en Python.
+    Busca registros de `model_name` cuyo `origin` cite alguno de `names` como
+    token exacto, soportando origin compuesto (p.ej. "OP/03709,DPD/MO/06089"
+    o "MC/MO/02006, MC/MO/02003, MC/MO/02004"). Ver _origin_tokens.
 
-    origin no está indexado, así que la búsqueda es un seq scan; el `in` evalúa
-    una sola condición de membresía por fila (independiente del tamaño de la
-    cascada).
-
-    Nota: no se manejan origin compuestos ("MO/001, SO/002"). Ese formato no
-    está confirmado en esta instancia; si aparece, se repone el matcheo por
-    token con el separador real a la vista.
+    El campo origin NO está indexado, así que cualquier búsqueda es un seq scan.
+    Para no evaluar N predicados por fila (un OR de N `ilike` escala con el
+    tamaño de la cascada), se hace UNA sola pasada con dos condiciones:
+      - `origin in names`: igualdad barata por fila, cubre los origin simples,
+        que son el caso común.
+      - `origin like ','`: una sola condición (independiente de N) que acota los
+        origin compuestos; luego se filtran por token exacto en Python, lo que
+        además evita el falso positivo por substring ('MO/001' en 'MO/0011').
 
     :param env: entorno Odoo.
     :param model_name: modelo a consultar ('mrp.production', 'purchase.order').
     :param names: iterable de nombres a buscar (p.ej. mo.name).
     :param extra_domain: dominio adicional (estado, x_parent_mo_id, etc.).
     :returns: dict {name: recordset} con los registros que citan cada nombre.
+        Un registro con origin compuesto se mapea a todos los nombres que cita.
     """
     names = [n for n in names if n]
     if not names:
@@ -77,12 +96,18 @@ def _search_by_origin(env, model_name, names, extra_domain=None):
     Model = env[model_name]
     name_set = set(names)
     extra = list(extra_domain) if extra_domain else []
-    domain = [('origin', 'in', names)] + extra
+    domain = ['|', ('origin', 'in', names), ('origin', 'like', ',')] + extra
     result = {}
     for rec in Model.search(domain):
         if rec.origin in name_set:
+            # origin simple: coincide exactamente con un nombre.
             result.setdefault(rec.origin, Model)
             result[rec.origin] |= rec
+        else:
+            # origin compuesto: matcheo por token exacto.
+            for name in name_set.intersection(_origin_tokens(rec.origin)):
+                result.setdefault(name, Model)
+                result[name] |= rec
     return result
 
 

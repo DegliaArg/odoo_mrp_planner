@@ -18,7 +18,8 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { DateTime } from "luxon";
+import { DateTime, serializeDateTime } from "@web/core/l10n/dates";
+import { user } from "@web/core/user";
 import {
     rangeBounds,
     minutesToPct,
@@ -326,11 +327,12 @@ class SchedulingMatrixWidget extends Component {
         const track = ev.currentTarget.closest('.sm-row-track');
         const pct   = parseFloat((track && track.dataset.hoverPct) || '0');
         const iso   = offsetPctToDate(pct, this.state.layout.startMin, this.state.layout.endMin, 15);
-        // iso está en hora local del usuario (zona por defecto de luxon en Odoo).
-        // Odoo interpreta default_date_start como UTC naive → convertimos, si no
-        // la OF nace corrida por el offset de la TZ.
-        const utc     = DateTime.fromISO(iso).toUTC();
-        const dateStr = utc.toFormat("yyyy-MM-dd HH:mm:ss");
+        // iso es hora de pared en la TZ del usuario (el server manda todo en esa
+        // TZ). Se interpreta en esa zona y serializeDateTime lo convierte a UTC en
+        // el formato que Odoo espera; si no, la OF nace corrida por el offset de la
+        // TZ (default_date_start se guarda como UTC naive).
+        const dt      = DateTime.fromISO(iso, { zone: user.tz || "local" });
+        const dateStr = serializeDateTime(dt);
         const ctx     = { default_date_start: dateStr };
         if (row && row.wc_id) {
             ctx.default_workcenter_id = row.wc_id;   // sugerencia de CT

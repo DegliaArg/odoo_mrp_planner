@@ -337,19 +337,20 @@ class SchedulingMatrixWidget extends Component {
         return groups;
     }
 
-    /** Lista plana de ítems a renderizar: encabezados + filas + "sin operaciones". */
+    /** Lista plana de ítems a renderizar: encabezados + filas + "sin operaciones".
+     *  Los ítems de fila llevan `alt` (paridad) para el fondo alternado. */
     get boardItems() {
         const items = [];
+        let n = 0;
+        const pushRow = (row) => items.push({ type: 'row', row, alt: (n++ % 2) === 1 });
         const groups = this.sectorGroups;
         if (groups) {
             for (const g of groups) {
                 items.push({ type: 'header', group: g });
-                if (!g.collapsed) for (const row of g.rows) items.push({ type: 'row', row });
+                if (!g.collapsed) g.rows.forEach(pushRow);
             }
         } else {
-            for (const row of this.state.viewRows) {
-                if (!row.is_unassigned) items.push({ type: 'row', row });
-            }
+            this.state.viewRows.filter(r => !r.is_unassigned).forEach(pushRow);
         }
         const un = this.state.viewRows.find(r => r.is_unassigned);
         if (un) items.push({ type: 'unassigned', row: un });

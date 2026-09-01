@@ -223,7 +223,8 @@
                       <!-- Fila normal de CT -->
                       <t t-else="">
                         <t t-set="row" t-value="item.row"/>
-                        <div class="sm-row" t-att-style="`height:${row.heightPx}px`">
+                        <div t-att-class="'sm-row' + (item.alt ? ' sm-row-alt' : '')"
+                             t-att-style="`height:${row.heightPx}px`">
 
                             <!-- Columna CT sticky -->
                             <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '')">

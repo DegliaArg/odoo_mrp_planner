@@ -627,8 +627,14 @@ class SchedulingMatrixWidget extends Component {
                 if (!segs.length) segs.push(env);   // nunca dejar una barra sin dibujar
                 return { ...b, segs, env, startMin: sMin, endMin: eMin };
             });
-            const { lane, laneCount, overload } = layoutLanes(geom);
-            const barsOut = geom.map((b, i) => ({ ...b, lane: lane[i], overload: overload[i] }));
+            // Las OFs terminadas no compiten por capacidad: se excluyen de los
+            // lanes y de la sobrecarga (van al lane 0, de fondo).
+            const active = geom.filter(b => b.mo_state !== 'done');
+            const doneBars = geom.filter(b => b.mo_state === 'done');
+            const { lane, laneCount, overload } = layoutLanes(active);
+            const barsOut = active
+                .map((b, i) => ({ ...b, lane: lane[i], overload: overload[i] }))
+                .concat(doneBars.map(b => ({ ...b, lane: 0, overload: false })));
 
             // Bandas laborables → bloques blancos sobre el fondo gris (no laborable)
             const workBlocks = (row.working_intervals || []).map(([s, e]) => {
@@ -655,9 +661,23 @@ class SchedulingMatrixWidget extends Component {
     moStateLabel(state) { return MO_STATE_LABEL[state] || state; }
     moStateClass(state) { return MO_STATE_CLASS[state] || ''; }
 
-    /** Estilo de un segmento (tramo laborable) de una barra. */
+    /** Estilo de un segmento (tramo continuo) de una barra. */
     segStyle(bar, seg) {
         return `left:${seg.left}%;width:${seg.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
+    }
+
+    /** Conector punteado entre tramos de la misma OF (partida por día no laborable). */
+    connStyle(bar) {
+        const top = 2 + bar.lane * LANE_PX + (LANE_PX - 4) / 2;
+        return `left:${bar.env.left}%;width:${bar.env.width}%;top:${top}px;`;
+    }
+
+    /** Clase de esquinas de un segmento (redondeo solo en los extremos exteriores). */
+    segCorner(bar, isFirst, isLast) {
+        if (bar.segs.length <= 1) return 'sm-seg-solo';
+        if (isFirst) return 'sm-seg-first';
+        if (isLast) return 'sm-seg-last';
+        return 'sm-seg-mid';
     }
 
     /** Tooltip completo de una barra (incluye el estado, que es lo que codifica el color). */

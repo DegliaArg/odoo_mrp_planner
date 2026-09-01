@@ -280,26 +280,75 @@ class MrpProductionBoard(models.Model):
                 iv_cache[cal.id] = self._board_working_intervals(cal, local_from, local_to)
             return iv_cache[cal.id]
 
-        def _segment_bar(ds, df, intervals_dt):
-            """Interseca la ventana [ds, df] de una barra con los intervalos
-            laborables del CT (todo UTC naive), recortada al rango cargado.
+        wd_cache = {}   # cal.id → set de fechas locales laborables del CT
 
-            Devuelve (segmentos_iso, minutos_efectivos). Cada segmento es un
-            tramo laborable que la barra realmente ocupa, así una OF de 16 h en
-            un CT 6-14 se dibuja como dos tramos con un hueco, no un bloque plano.
+        def _working_dates(cal, ivs):
+            """Fechas locales (del usuario) en que el CT tiene algún intervalo
+            laborable. Un día que no está acá es un día COMPLETO no laborable."""
+            if cal.id not in wd_cache:
+                dates = set()
+                for ws, we in (ivs or []):
+                    a = pytz.utc.localize(ws).astimezone(tz).date()
+                    b = pytz.utc.localize(we - timedelta(microseconds=1)).astimezone(tz).date()
+                    d = a
+                    while d <= b:
+                        dates.add(d)
+                        d += timedelta(days=1)
+                wd_cache[cal.id] = dates
+            return wd_cache[cal.id]
+
+        def _day_bounds_utc(d):
+            a = tz.localize(datetime(d.year, d.month, d.day))
+            b = tz.localize(datetime(d.year, d.month, d.day) + timedelta(days=1))
+            return (a.astimezone(pytz.utc).replace(tzinfo=None),
+                    b.astimezone(pytz.utc).replace(tzinfo=None))
+
+        def _segment_bar(ds, df, working_dates):
+            """La barra es CONTINUA de ds a df; SOLO se parte cuando atraviesa un
+            día COMPLETO no laborable del CT (domingo para la mayoría, o un
+            feriado). Las horas no laborables dentro de un día laborable (14→06 en
+            un CT 6-14) NO parten la barra.
+
+            :returns: (segmentos_iso, todo_fuera). todo_fuera=True si la barra no
+                toca ningún día laborable (se dibuja igual, continua y marcada).
             """
             span_end = df if (df and df > ds) else utc_to
             s0 = max(ds, utc_from)
             e0 = min(span_end, utc_to)
+            if e0 <= s0:
+                return [[_iso(s0), _iso(s0)]], False
+            first = pytz.utc.localize(s0).astimezone(tz).date()
+            last  = pytz.utc.localize(e0 - timedelta(microseconds=1)).astimezone(tz).date()
             segs = []
-            eff = 0.0
-            for ws, we in (intervals_dt or []):
-                s = max(s0, ws)
-                e = min(e0, we)
-                if e > s:
-                    segs.append([_iso(s), _iso(e)])
-                    eff += (e - s).total_seconds() / 60.0
-            return segs, eff
+            run_a = run_b = None
+            d = first
+            while d <= last:
+                da, db = _day_bounds_utc(d)
+                # Sin working_dates (bandas no calculables) → no se parte: continua.
+                if not working_dates or d in working_dates:
+                    seg_a, seg_b = max(s0, da), min(e0, db)
+                    if run_a is None:
+                        run_a, run_b = seg_a, seg_b
+                    else:
+                        run_b = seg_b
+                elif run_a is not None:
+                    segs.append((run_a, run_b))
+                    run_a = None
+                d += timedelta(days=1)
+            if run_a is not None:
+                segs.append((run_a, run_b))
+            if not segs:
+                return [[_iso(s0), _iso(e0)]], True
+            return [[_iso(a), _iso(b)] for a, b in segs if b > a], False
+
+        def _range_frac(ds, df):
+            """Fracción de la ventana [ds, df] que cae dentro del rango cargado."""
+            span_end = df if (df and df > ds) else utc_to
+            total = (span_end - ds).total_seconds()
+            if total <= 0:
+                return 0.0
+            ov = (min(span_end, utc_to) - max(ds, utc_from)).total_seconds()
+            return max(0.0, min(1.0, ov / total))
 
         # ── Construir filas (una por CT, ordenadas por nombre) ─────────────────
         cal_cache = {}
@@ -313,31 +362,20 @@ class MrpProductionBoard(models.Model):
                     "Tablero: CT %s (id=%s) sin resource_calendar_id; "
                     "no se pueden calcular las bandas laborables.", wc.name, wc.id,
                 )
+            wdates = _working_dates(cal, ivs) if cal else set()
 
-            # Segmentar cada barra por el calendario del CT. La ocupación usa las
-            # HORAS EFECTIVAS dentro de los intervalos laborables (no la duración
-            # plana), sobre el rango cargado — estable ante scroll.
+            # Barra continua, partida solo por día completo no laborable. La
+            # ocupación prorratea la duración de las WO al rango cargado y EXCLUYE
+            # las terminadas (son historial, no compiten por capacidad).
             planned_min = 0.0
             for bar in bars:
                 ds = bar.pop('_ds')
                 df = bar.pop('_df')
-                if ivs:
-                    segs, eff = _segment_bar(ds, df, ivs)
-                    if segs:
-                        bar['segments'] = segs
-                        bar['outside_calendar'] = False
-                        planned_min += eff
-                    else:
-                        # Planificada íntegramente fuera del calendario: no se
-                        # oculta, se dibuja plana y marcada como inconsistente.
-                        bar['segments'] = [[bar['date_start'],
-                                            bar['date_finished'] or _iso(utc_to)]]
-                        bar['outside_calendar'] = True
-                else:
-                    # Sin bandas calculables: barra plana, sin marca de calendario.
-                    bar['segments'] = [[bar['date_start'],
-                                        bar['date_finished'] or _iso(utc_to)]]
-                    bar['outside_calendar'] = False
+                segs, all_outside = _segment_bar(ds, df, wdates)
+                bar['segments'] = segs
+                bar['outside_calendar'] = all_outside
+                if bar['mo_state'] != 'done' and bar['duration_expected']:
+                    planned_min += bar['duration_expected'] * _range_frac(ds, df)
 
             avail_h   = cal._planner_available_hours(utc_from, utc_to, cal_cache) if cal else 0.0
             planned_h = planned_min / 60.0

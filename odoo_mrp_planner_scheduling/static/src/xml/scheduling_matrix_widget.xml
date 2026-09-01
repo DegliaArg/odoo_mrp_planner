@@ -278,10 +278,12 @@
                                     <div class="sm-lane-sep" t-att-style="`top:${ls}px`"/>
                                 </t>
 
-                                <!-- Barras (WOs): un segmento por tramo laborable del CT -->
+                                <!-- Barras (WOs): continua, partida solo por día completo no laborable -->
                                 <t t-foreach="row.bars" t-as="bar" t-key="bar.wo_id || ('mo'+bar.mo_id)">
+                                    <!-- Conector punteado entre tramos de la misma OF -->
+                                    <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -296,6 +298,7 @@
                                                     <i class="fa fa-external-link"/>
                                                 </button>
                                             </t>
+                                            <span t-else="" class="sm-seg-cont">…continúa</span>
                                             <span t-if="seg_last and bar.clipped_end" class="sm-clip-badge sm-clip-badge-r">›</span>
                                         </div>
                                     </t>

@@ -175,6 +175,19 @@
 }
 .sm-bar:hover { border-color: #adb5bd; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); z-index: 6; }
 
+/* Esquinas: redondeo solo en los extremos exteriores del conjunto de tramos. */
+.sm-bar.sm-seg-solo  { border-radius: 4px; }
+.sm-bar.sm-seg-first { border-radius: 4px 0 0 4px; }
+.sm-bar.sm-seg-mid   { border-radius: 0; }
+.sm-bar.sm-seg-last  { border-radius: 0 4px 4px 0; }
+/* Conector punteado entre tramos de la misma OF (partida por día no laborable). */
+.sm-bar-conn {
+    position: absolute; z-index: 4; height: 0;
+    border-top: 1px dashed #b0b6bd; pointer-events: none;
+}
+/* Texto "…continúa" en los tramos siguientes al primero. */
+.sm-seg-cont { font-size: 11px; font-style: italic; color: #98a0a8; white-space: nowrap; }
+
 .sm-bar-ref   { font-size: 12px; font-weight: 600; color: #212529; white-space: nowrap; flex-shrink: 0; }
 .sm-bar-state {
     font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;

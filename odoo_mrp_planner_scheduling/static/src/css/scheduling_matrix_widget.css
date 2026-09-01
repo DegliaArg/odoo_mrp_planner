@@ -72,12 +72,18 @@
 .sm-tick-sub   { font-size: 9px; color: #adb5bd; line-height: 1.1; }
 
 /* ── Filas ── */
-.sm-row { display: flex; width: max-content; border-bottom: 1px solid #e9ecef; }
+/* Separador claro entre CTs (nombre + pista se leen como una tabla). */
+.sm-row { display: flex; width: max-content; border-bottom: 2px solid #d3d8de; }
 .sm-row-ct {
     flex: 0 0 var(--sm-ct-w); width: var(--sm-ct-w);
     position: sticky; left: 0; z-index: 10;
     background: #f8f9fa; border-right: 1px solid #dee2e6;
     padding: 5px 10px; overflow: hidden;
+}
+/* Separador entre lanes del mismo CT: más tenue que el de CT. */
+.sm-lane-sep {
+    position: absolute; left: 0; right: 0; z-index: 1;
+    border-top: 1px solid #e7e9ec; pointer-events: none;
 }
 .sm-row-ct-unassigned { background: #fff4f4; }
 .sm-ct-name { font-size: 13px; line-height: 1.25; }

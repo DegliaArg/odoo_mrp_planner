@@ -258,6 +258,11 @@
                                 <div t-if="state.layout.nowPct !== null" class="sm-nowline"
                                      t-att-style="`left:${state.layout.nowPct}%`"/>
 
+                                <!-- Separadores entre lanes del mismo CT -->
+                                <t t-foreach="row.laneSeps" t-as="ls" t-key="'l'+ls_index">
+                                    <div class="sm-lane-sep" t-att-style="`top:${ls}px`"/>
+                                </t>
+
                                 <!-- Barras (WOs): un segmento por tramo laborable del CT -->
                                 <t t-foreach="row.bars" t-as="bar" t-key="bar.wo_id || ('mo'+bar.mo_id)">
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">

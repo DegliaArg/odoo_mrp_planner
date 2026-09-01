@@ -592,6 +592,7 @@ class SchedulingMatrixWidget extends Component {
                 bars: barsOut,
                 laneCount,
                 heightPx: ROW_BASE_PX + (laneCount - 1) * LANE_PX,
+                laneSeps: Array.from({ length: laneCount - 1 }, (_, i) => (i + 1) * LANE_PX),
                 workBlocks,
             });
         }

@@ -15,9 +15,9 @@
  *      get_scheduling_board, get_mo_components
  */
 
-import { Component, useState, onMounted } from "@odoo/owl";
+import { Component, useState, onMounted, useExternalListener } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService, useExternalListener } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import {
     layoutLanes,
     parseLocalMinutes,

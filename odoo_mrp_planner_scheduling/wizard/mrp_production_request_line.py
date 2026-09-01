@@ -94,8 +94,14 @@ class MrpProductionRequestLine(models.Model):
         Depende de: product_id → product_tmpl_id → x_centros_compatibles, active.
         """
         # sudo(): ir.config_parameter solo es legible con permisos de admin; usuarios de wizard no lo tienen
+        # El parámetro se escribe con sufijo de empresa; se lee con fallback encadenado
+        # (empresa → global → default), igual que 'priority' en mrp_reschedule_cascade_mixin.
         get_param = self.env['ir.config_parameter'].sudo().get_param
-        fallback = get_param('mrp_reschedule.wc_fallback', 'ldm')
+        company_id = self.env.company.id
+        fallback = (
+            get_param(f'mrp_reschedule.wc_fallback.{company_id}')
+            or get_param('mrp_reschedule.wc_fallback', 'ldm')
+        )
         # Se inicializa en None para diferir la consulta SELECT hasta que sea realmente necesaria
         # (lazy load), evitando una query si todas las líneas tienen centros propios definidos.
         all_wcs = None

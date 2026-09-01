@@ -228,8 +228,13 @@ class MrpDemandExpansionMixin(models.AbstractModel):
 
         preferred_wc = self._get_preferred_workcenter(product)
         # sudo(): ir.config_parameter solo es legible con permisos de admin; usuarios de wizard no lo tienen
-        wc_fallback = self.env['ir.config_parameter'].sudo().get_param(
-            'mrp_reschedule.wc_fallback', 'ldm'
+        # El parámetro se escribe con sufijo de empresa; se lee con fallback encadenado
+        # (empresa → global → default), igual que 'priority' en mrp_reschedule_cascade_mixin.
+        _icp = self.env['ir.config_parameter'].sudo()
+        company_id = self.env.company.id
+        wc_fallback = (
+            _icp.get_param(f'mrp_reschedule.wc_fallback.{company_id}')
+            or _icp.get_param('mrp_reschedule.wc_fallback', 'ldm')
         )
         operations = []
         dur_bom = (

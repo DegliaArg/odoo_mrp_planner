@@ -118,7 +118,7 @@
 /* ── Pista temporal ── */
 .sm-row-track {
     position: relative; flex: 0 0 auto;
-    background: #eceef0;          /* base = no laborable (gris) */
+    background: #f4f5f7;          /* base = no laborable: gris muy suave, lee como fondo */
     overflow: hidden;
 }
 
@@ -134,11 +134,11 @@
 .sm-row-track:hover .sm-add-btn { display: flex; }
 .sm-add-btn:hover { background: #0d6efd; color: #fff; }
 .sm-work     { position: absolute; top: 0; bottom: 0; background: #fff; z-index: 0; }
-.sm-night    { position: absolute; top: 0; bottom: 0; background: rgba(63, 81, 181, 0.06); z-index: 1; }
-.sm-gridline { position: absolute; top: 0; bottom: 0; border-left: 1px solid #f2f3f5; z-index: 2; }
-.sm-shiftline{ position: absolute; top: 0; bottom: 0; border-left: 1px dashed #c9cfd6; z-index: 2; }
-.sm-dayline  { position: absolute; top: 0; bottom: 0; border-left: 1px solid #adb5bd; z-index: 3; }
-.sm-nowline  { position: absolute; top: 0; bottom: 0; border-left: 2px solid #dc3545; z-index: 4; }
+.sm-night    { position: absolute; top: 0; bottom: 0; background: rgba(63, 81, 181, 0.04); z-index: 1; }
+.sm-gridline { position: absolute; top: 0; bottom: 0; border-left: 1px solid #f0f1f3; z-index: 2; }
+.sm-shiftline{ position: absolute; top: 0; bottom: 0; border-left: 1px dashed #e0e3e8; z-index: 2; }
+.sm-dayline  { position: absolute; top: 0; bottom: 0; border-left: 1px solid #c3c9d0; z-index: 3; }
+.sm-nowline  { position: absolute; top: 0; bottom: 0; border-left: 2px solid #dc3545; opacity: 0.7; z-index: 4; }
 
 /* ── Barras (work orders) ── */
 .sm-bar {
@@ -151,12 +151,6 @@
 }
 .sm-bar:hover { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); border-color: #adb5bd; z-index: 6; }
 
-/* Conector entre segmentos de la misma OF (misma OF partida por el calendario) */
-.sm-bar-conn {
-    position: absolute; z-index: 4; height: 0;
-    border-top: 1px dashed #b0b6bd; pointer-events: none;
-}
-
 .sm-bar-text { flex: 1 1 auto; font-size: 11px; line-height: 1.2; min-width: 0; white-space: nowrap; }
 .sm-bar-prod { color: #495057; margin-left: 4px; font-weight: 400; }
 .sm-bar-open {
@@ -165,34 +159,27 @@
 }
 .sm-bar:hover .sm-bar-open { opacity: 1; }
 
-/* Estado (reusa la paleta de badges como fondo de la barra) */
-.sm-bar.sm-state-confirmed { background: #e7f0ff; border-left-color: #0d6efd; }
-.sm-bar.sm-state-progress  { background: #e3f5ec; border-left-color: #198754; }
-.sm-bar.sm-state-toclose   { background: #fff8e6; border-left-color: #ffc107; }
-.sm-bar.sm-state-done      { background: #eef0f1; border-left-color: #6c757d; opacity: 0.72; }
+/* Color de la barra = ESTADO de la OF (paleta sobria, poca saturación). El
+   estado también va en el tooltip. */
+.sm-bar.sm-state-confirmed { background: #eef4fc; border-left-color: #7aa5db; }
+.sm-bar.sm-state-progress  { background: #edf5ef; border-left-color: #74b592; }
+.sm-bar.sm-state-toclose   { background: #fbf4e3; border-left-color: #d9b25e; }
+.sm-bar.sm-state-done      { background: #f0f1f3; border-left-color: #adb5bd; opacity: 0.72; }
 
-/* Sobrecarga (dos o más WOs solapadas en un CT real): ROJO reservado para esto. */
-.sm-bar-over { border-color: #dc3545; border-left-color: #dc3545; box-shadow: inset 0 0 0 1px #dc3545; }
-/* Fechas inconsistentes (date_finished <= date_start): ámbar, no rojo. */
-.sm-bar-bad {
-    background: repeating-linear-gradient(45deg, #fff8e6 0 4px, #ffe3a3 4px 8px);
-    border-left-color: #f0ad4e;
-}
-/* Recorte por borde del rango (continuación): franja "cortada" en diagonal
-   sobre el borde recortado + badge de flecha, para que se lea de un vistazo que
-   la barra sigue fuera del rango cargado. */
+/* Sobrecarga (dos o más WOs solapadas en un CT real): ROJO reservado para esto,
+   como acento en el borde izquierdo, no como recuadro dominante. */
+.sm-bar-over { border-left: 4px solid #dc3545; }
+/* Fechas inconsistentes / planificada fuera del calendario: ámbar suave (sin
+   rayado), para no confundir con el rojo de sobrecarga. */
+.sm-bar-bad { background: #fbf3e0; border-left-color: #d99b1c; }
+
+/* Recorte por borde del rango (continuación): solo el badge de flecha, sin
+   rayado diagonal (ese queda reservado para "sin bandas"). */
 .sm-bar-clip-l { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .sm-bar-clip-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.sm-bar-clip-l::before,
-.sm-bar-clip-r::after {
-    content: ""; position: absolute; top: 0; bottom: 0; width: 7px; z-index: 1;
-    background-image: repeating-linear-gradient(-45deg, rgba(73, 80, 87, 0.55) 0 2px, transparent 2px 4px);
-}
-.sm-bar-clip-l::before { left: 0; }
-.sm-bar-clip-r::after  { right: 0; }
 .sm-clip-badge {
     font-size: 10px; font-weight: 700; line-height: 1; color: #fff;
-    background: #495057; border-radius: 2px; padding: 1px 3px; flex-shrink: 0; z-index: 2;
+    background: #6c757d; border-radius: 2px; padding: 1px 3px; flex-shrink: 0; z-index: 2;
 }
 .sm-clip-badge-r { margin-left: auto; }
 

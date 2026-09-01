@@ -608,18 +608,14 @@ class SchedulingMatrixWidget extends Component {
         return `left:${seg.left}%;width:${seg.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
     }
 
-    /** Conector tenue entre segmentos de la misma OF (a media altura del lane). */
-    connStyle(bar) {
-        const top = 2 + bar.lane * LANE_PX + (LANE_PX - 4) / 2;
-        return `left:${bar.env.left}%;width:${bar.env.width}%;top:${top}px;`;
-    }
-
-    /** Tooltip completo de una barra. */
+    /** Tooltip completo de una barra (incluye el estado, que es lo que codifica el color). */
     barTitle(bar) {
         let t = `${bar.mo_name} · ${bar.product_name} · ${this.fmtQty(bar.qty)} ${bar.uom}`;
         if (bar.duration_expected) t += ` · ${this.fmtHours(bar.duration_expected)}`;
         t += ` · ${bar.date_start_str}`;
         if (bar.date_finished_str) t += ` → ${bar.date_finished_str}`;
+        t += ` · Estado: ${this.moStateLabel(bar.mo_state)}`;
+        if (bar.overload) t += ' · ⚠ sobrecarga (solapada en el centro)';
         if (bar.inconsistent_dates) t += ' · ⚠ fechas inconsistentes';
         else if (bar.outside_calendar) t += ' · ⚠ planificada fuera del calendario del centro';
         return t;

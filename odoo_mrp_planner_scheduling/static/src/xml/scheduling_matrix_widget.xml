@@ -260,11 +260,6 @@
 
                                 <!-- Barras (WOs): un segmento por tramo laborable del CT -->
                                 <t t-foreach="row.bars" t-as="bar" t-key="bar.wo_id || ('mo'+bar.mo_id)">
-
-                                    <!-- Conector tenue entre segmentos de la misma OF -->
-                                    <div t-if="bar.segs.length > 1" class="sm-bar-conn"
-                                         t-att-style="connStyle(bar)"/>
-
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
                                         <div t-att-class="'sm-bar sm-bar-seg ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '')"
                                              t-att-style="segStyle(bar, seg)"

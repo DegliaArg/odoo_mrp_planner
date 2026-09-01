@@ -107,10 +107,15 @@ class MrpProductionBoard(models.Model):
             valid_wc_ids = None   # None = todos
         return self._build_board_payload(valid_wc_ids, date_from, date_to, include_done)
 
-    def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done):
+    def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done,
+                             force_wc_ids=None):
         """
         Construye el tablero (eje horario continuo) para el conjunto de CTs
         `valid_wc_ids` (None = todos) en [date_from, date_to].
+
+        force_wc_ids: CTs que deben aparecer como fila SIEMPRE, aunque no tengan
+        barras en el rango (usado por el modo ruta, donde los CTs de la ruta se
+        muestran aunque sus operaciones no estén programadas).
 
         El cliente genera ticks y agrupamientos; el servidor manda barras, bandas
         y ocupación. Ver convención de zona horaria en la cabecera del módulo.
@@ -351,6 +356,13 @@ class MrpProductionBoard(models.Model):
             ov = (min(span_end, utc_to) - max(ds, utc_from)).total_seconds()
             return max(0.0, min(1.0, ov / total))
 
+        # CTs forzados (modo ruta): que aparezcan como fila aunque no tengan barras.
+        if force_wc_ids:
+            for wc in self.env['mrp.workcenter'].browse(sorted(force_wc_ids)):
+                if wc.exists() and wc.id not in wc_records:
+                    wc_records[wc.id] = wc
+                    bars_by_wc.setdefault(wc.id, [])
+
         # ── Construir filas (una por CT, ordenadas por nombre) ─────────────────
         cal_cache = {}
         rows = []
@@ -468,8 +480,11 @@ class MrpProductionBoard(models.Model):
         hi = pytz.utc.localize(max(dts)).astimezone(tz).date() + timedelta(days=1)
 
         wc_ids = [wc.id for wc, _seq in route]
+        # force_wc_ids: los CTs de la ruta aparecen como fila aunque sus WOs no
+        # estén programadas (date_start vacío) — en esta instancia es el 93%.
         payload = self._build_board_payload(
-            set(wc_ids), lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done
+            set(wc_ids), lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
+            force_wc_ids=set(wc_ids),
         )
 
         # Filas solo de la ruta, ordenadas por secuencia (sin fila "sin centro").

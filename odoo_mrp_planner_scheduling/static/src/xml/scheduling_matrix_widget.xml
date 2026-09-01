@@ -22,17 +22,14 @@
             <!-- ══ Barra de filtros ════════════════════════════════════════════ -->
             <div class="sm-filters d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
 
-                <!-- Granularidad -->
+                <!-- Resolución (zoom) -->
                 <div class="sm-filter-group btn-group btn-group-sm" role="group">
-                    <button type="button"
-                            t-att-class="'btn ' + (state.granularity === 'day'   ? 'btn-primary' : 'btn-outline-secondary')"
-                            t-on-click="() => this.setGranularity('day')">Días</button>
-                    <button type="button"
-                            t-att-class="'btn ' + (state.granularity === 'week'  ? 'btn-primary' : 'btn-outline-secondary')"
-                            t-on-click="() => this.setGranularity('week')">Semanas</button>
-                    <button type="button"
-                            t-att-class="'btn ' + (state.granularity === 'month' ? 'btn-primary' : 'btn-outline-secondary')"
-                            t-on-click="() => this.setGranularity('month')">Meses</button>
+                    <t t-foreach="resolutions" t-as="r" t-key="r.key">
+                        <button type="button"
+                                t-att-class="'btn ' + (state.resolution === r.key ? 'btn-primary' : 'btn-outline-secondary')"
+                                t-on-click="() => this.setResolution(r.key)"
+                                t-esc="r.label"/>
+                    </t>
                 </div>
 
                 <div class="vr mx-1"/>
@@ -92,12 +89,10 @@
                 <div class="sm-filter-group d-flex align-items-center gap-1">
                     <span class="text-muted small">Desde</span>
                     <input type="date" class="form-control form-control-sm sm-date-input"
-                           t-att-value="state.dateFrom"
-                           t-on-change="onDateFromChange"/>
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
                     <span class="text-muted small">hasta</span>
                     <input type="date" class="form-control form-control-sm sm-date-input"
-                           t-att-value="state.dateTo"
-                           t-on-change="onDateToChange"/>
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
                 <div class="vr mx-1"/>
@@ -108,8 +103,7 @@
                         <span class="input-group-text"><i class="fa fa-search"/></span>
                         <input type="text" class="form-control form-control-sm"
                                placeholder="Buscar OF o producto…"
-                               t-att-value="state.searchText"
-                               t-on-input="onSearchChange"/>
+                               t-att-value="state.searchText" t-on-input="onSearchChange"/>
                     </div>
                 </div>
 
@@ -117,16 +111,14 @@
                 <div class="sm-filter-group d-flex align-items-center gap-3 ms-auto">
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="sm-hide-empty"
-                               t-att-checked="state.hideEmptyRows"
-                               t-on-change="toggleHideEmptyRows"/>
+                               t-att-checked="state.hideEmptyRows" t-on-change="toggleHideEmptyRows"/>
                         <label class="form-check-label small text-muted" for="sm-hide-empty">
                             Ocultar CTs vacíos
                         </label>
                     </div>
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="sm-show-done"
-                               t-att-checked="state.showDone"
-                               t-on-change="toggleShowDone"/>
+                               t-att-checked="state.showDone" t-on-change="toggleShowDone"/>
                         <label class="form-check-label small text-muted" for="sm-show-done">
                             Mostrar terminadas
                         </label>
@@ -134,256 +126,170 @@
                 </div>
 
                 <!-- Contador -->
-                <div t-if="state.totalMos" class="text-muted small">
-                    <strong t-esc="state.totalMos"/> OFs
+                <div t-if="state.totalBars" class="text-muted small">
+                    <strong t-esc="state.totalBars"/> OT
                 </div>
 
             </div><!-- /sm-filters -->
 
             <!-- ══ Mensaje inicial ══════════════════════════════════════════════ -->
-            <div t-if="!state.tagIds.length"
-                 class="text-center text-muted py-5">
+            <div t-if="!state.tagIds.length" class="text-center text-muted py-5">
                 <i class="fa fa-sitemap fa-3x mb-3 d-block"/>
                 <p>Seleccioná un <strong>sector</strong> para ver el tablero de programación.</p>
             </div>
 
-            <!-- ══ Sin períodos ═════════════════════════════════════════════════ -->
-            <div t-elif="!state.loading and !state.periodKeys.length"
-                 class="text-center text-muted py-5">
+            <!-- ══ Sin filas ════════════════════════════════════════════════════ -->
+            <div t-elif="!state.viewRows.length" class="text-center text-muted py-5">
                 <i class="fa fa-calendar-o fa-3x mb-3 d-block"/>
-                <p class="fw-semibold">Sin datos en el período seleccionado.</p>
-                <p class="small" t-if="state.emptyReason === 'no_dates'">
-                    Ajustá el rango de fechas.
-                </p>
+                <p class="fw-semibold">Sin OFs para los filtros seleccionados.</p>
             </div>
 
             <!-- ══ Tablero ══════════════════════════════════════════════════════ -->
-            <t t-elif="state.periodKeys.length">
+            <div t-elif="state.layout" class="sm-board">
+                <div class="sm-scroll">
 
-                <!-- Slider de períodos -->
-                <div t-if="sliderMax > 0"
-                     class="sm-slider-wrap d-flex align-items-center gap-2 px-3 py-2 border-bottom">
-                    <button class="btn btn-sm btn-outline-secondary" t-on-click="prevPage">
-                        <i class="fa fa-chevron-left"/>
-                    </button>
-                    <input type="range" class="form-range flex-grow-1"
-                           min="0" t-att-max="sliderMax" t-att-value="state.periodPage"
-                           t-on-input="onSliderChange"/>
-                    <button class="btn btn-sm btn-outline-secondary" t-on-click="nextPage">
-                        <i class="fa fa-chevron-right"/>
-                    </button>
-                    <span class="text-muted small text-nowrap" t-esc="periodRangeLabel"/>
-                </div>
-
-                <!-- Tabla -->
-                <div class="sm-table-wrap table-responsive">
-                    <table class="sm-table table table-bordered mb-0">
-
-                        <!-- ── Cabecera ── -->
-                        <thead class="sm-thead">
-
-                            <!--
-                                Fila 1: grupos (semana ISO o mes).
-                                Solo visible en modo semana o mes.
-                                Las columnas CT y Turno tienen rowspan=2 para
-                                abarcar ambas filas de cabecera.
-                            -->
-                            <tr t-if="visiblePeriodGroups">
-                                <th class="sm-th-wc" rowspan="2">Centro de trabajo</th>
-                                <th t-if="state.hasShifts" class="sm-th-shift" rowspan="2">Turno</th>
-                                <t t-foreach="visiblePeriodGroups" t-as="grp" t-key="grp.key">
-                                    <th class="sm-th-group" t-att-colspan="grp.span">
-                                        <div class="fw-semibold" t-esc="grp.label"/>
-                                        <div class="text-muted sm-period-sub" t-esc="grp.sublabel"/>
-                                    </th>
+                    <!-- Header: esquina sticky + eje temporal -->
+                    <div class="sm-head-row">
+                        <div class="sm-corner"/>
+                        <div class="sm-time-head" t-att-style="`width:${state.layout.contentWidthPx}px`">
+                            <!-- Grupos (día / semana / mes) -->
+                            <div class="sm-groups">
+                                <t t-foreach="state.layout.groups" t-as="g" t-key="g_index">
+                                    <div class="sm-group"
+                                         t-att-style="`left:${g.leftPct}%;width:${g.widthPct}%`">
+                                        <span class="sm-group-label" t-esc="g.label"/>
+                                        <span class="sm-group-sub" t-esc="g.sublabel"/>
+                                    </div>
                                 </t>
-                            </tr>
-
-                            <!--
-                                Fila 2 (o única fila en modo día):
-                                CT y Turno aparecen solo cuando no hay grupos (modo día).
-                            -->
-                            <tr>
-                                <t t-if="!visiblePeriodGroups">
-                                    <th class="sm-th-wc">Centro de trabajo</th>
-                                    <th t-if="state.hasShifts" class="sm-th-shift">Turno</th>
+                            </div>
+                            <!-- Ticks -->
+                            <div class="sm-ticks">
+                                <t t-foreach="state.layout.ticks" t-as="tk" t-key="tk_index">
+                                    <div t-att-class="'sm-tick' + (tk.major ? ' sm-tick-major' : '')"
+                                         t-att-style="`left:${tk.leftPct}%`">
+                                        <span class="sm-tick-label" t-esc="tk.label"/>
+                                        <span t-if="tk.sublabel" class="sm-tick-sub" t-esc="tk.sublabel"/>
+                                    </div>
                                 </t>
-                                <t t-foreach="visiblePeriodKeys" t-as="pk" t-key="pk">
-                                    <th class="sm-th-period">
-                                        <div class="fw-semibold small"
-                                             t-esc="state.periodLabels[pk]?.label"/>
-                                        <div class="text-muted sm-period-sub"
-                                             t-esc="state.periodLabels[pk]?.sublabel"/>
-                                    </th>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filas -->
+                    <t t-foreach="state.viewRows" t-as="row" t-key="row.wc_id || 'unassigned'">
+                        <div class="sm-row" t-att-style="`height:${row.heightPx}px`">
+
+                            <!-- Columna CT sticky -->
+                            <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '')">
+                                <div class="sm-ct-name fw-semibold text-truncate" t-att-title="row.wc_name" t-esc="row.wc_name"/>
+                                <div class="sm-ct-sub d-flex align-items-center gap-1 mt-1">
+                                    <t t-if="row.occupancy">
+                                        <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
+                                              t-att-title="`Planificado ${row.occupancy.planned_hours}h / disponible ${row.occupancy.available_hours}h`">
+                                            <t t-esc="row.occupancy.pct"/>%
+                                        </span>
+                                    </t>
+                                    <span t-if="row.bands_failed" class="sm-bands-warn badge"
+                                          title="No se pudieron calcular las bandas laborables de este CT (revisar su calendario). El fondo no refleja horario real.">
+                                        <i class="fa fa-exclamation-triangle"/> sin bandas
+                                    </span>
+                                    <t t-foreach="row.tag_names" t-as="tagName" t-key="tagName">
+                                        <span class="badge bg-secondary bg-opacity-25 text-secondary sm-sector-badge" t-esc="tagName"/>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- Pista temporal -->
+                            <div t-att-class="'sm-row-track' + (row.bands_failed ? ' sm-track-nobands' : '')"
+                                 t-att-style="`width:${state.layout.contentWidthPx}px`"
+                                 t-on-mousemove="onTrackHover">
+
+                                <!-- Bandas laborables (blanco sobre fondo gris no-laborable) -->
+                                <t t-foreach="row.workBlocks" t-as="wb" t-key="wb_index">
+                                    <div class="sm-work" t-att-style="`left:${wb.leftPct}%;width:${wb.widthPct}%`"/>
                                 </t>
-                            </tr>
 
-                        </thead>
+                                <!-- Tinte nocturno -->
+                                <t t-foreach="state.layout.nightBands" t-as="nb" t-key="nb_index">
+                                    <div class="sm-night" t-att-style="`left:${nb.leftPct}%;width:${nb.widthPct}%`"/>
+                                </t>
 
-                        <!-- ── Filas CT × Turno ── -->
-                        <tbody>
-                            <t t-foreach="state.filteredRows" t-as="row" t-key="row.row_id">
-                                <tr class="sm-row">
+                                <!-- Gridlines, divisorias de turno, líneas de día -->
+                                <t t-foreach="state.layout.gridlines" t-as="gl" t-key="'g'+gl_index">
+                                    <div class="sm-gridline" t-att-style="`left:${gl.leftPct}%`"/>
+                                </t>
+                                <t t-foreach="state.layout.shiftDividers" t-as="sd" t-key="'s'+sd_index">
+                                    <div class="sm-shiftline" t-att-style="`left:${sd.leftPct}%`"/>
+                                </t>
+                                <t t-foreach="state.layout.dayLines" t-as="dl" t-key="'d'+dl_index">
+                                    <div class="sm-dayline" t-att-style="`left:${dl.leftPct}%`"/>
+                                </t>
+                                <div t-if="state.layout.nowPct !== null" class="sm-nowline"
+                                     t-att-style="`left:${state.layout.nowPct}%`"/>
 
-                                    <!-- Celda CT (rowspan abarca todos los turnos visibles del CT) -->
-                                    <td t-if="row.is_first_shift"
-                                        class="sm-wc-cell align-middle"
-                                        t-att-rowspan="row.shift_count > 1 ? row.shift_count : false">
-                                        <div class="sm-wc-name fw-semibold" t-esc="row.wc_name"/>
-                                        <div class="sm-wc-tags mt-1">
-                                            <t t-foreach="row.tag_names" t-as="tagName" t-key="tagName">
-                                                <span class="badge bg-secondary bg-opacity-25 text-secondary me-1 sm-sector-badge"
-                                                      t-esc="tagName"/>
-                                            </t>
-                                        </div>
-                                    </td>
+                                <!-- Barras (WOs) -->
+                                <t t-foreach="row.bars" t-as="bar" t-key="bar.wo_id || ('mo'+bar.mo_id)">
+                                    <div t-att-class="'sm-bar ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + (bar.inconsistent_dates ? ' sm-bar-bad' : '') + (bar.clipped_start ? ' sm-bar-clip-l' : '') + (bar.clipped_end ? ' sm-bar-clip-r' : '')"
+                                         t-att-style="barStyle(bar)"
+                                         t-att-title="bar.mo_name + ' · ' + bar.product_name + ' · ' + fmtQty(bar.qty) + ' ' + bar.uom + (bar.duration_expected ? ' · ' + fmtHours(bar.duration_expected) : '') + ' · ' + bar.date_start_str + (bar.date_finished_str ? ' → ' + bar.date_finished_str : '') + (bar.inconsistent_dates ? ' · ⚠ fechas inconsistentes' : '')"
+                                         t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
+                                        <span t-if="bar.clipped_start" class="sm-clip-badge">‹</span>
+                                        <span class="sm-bar-text text-truncate">
+                                            <t t-esc="bar.mo_name"/>
+                                            <span class="sm-bar-prod" t-esc="bar.product_name"/>
+                                        </span>
+                                        <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
+                                                t-on-click="(ev) => this.openMo(ev, bar)">
+                                            <i class="fa fa-external-link"/>
+                                        </button>
+                                        <span t-if="bar.clipped_end" class="sm-clip-badge sm-clip-badge-r">›</span>
+                                    </div>
+                                </t>
 
-                                    <!-- Celda turno -->
-                                    <td t-if="state.hasShifts" class="sm-shift-cell align-middle">
-                                        <span class="sm-shift-label small fw-semibold"
-                                              t-esc="row.shift_label"/>
-                                    </td>
+                                <!-- Botón "+ Nueva OF" que sigue al cursor (aparece al hover) -->
+                                <button class="sm-add-btn" title="Nueva OF en esta posición"
+                                        t-on-click="(ev) => this.onAddClick(ev, row)">
+                                    <i class="fa fa-plus"/>
+                                </button>
 
-                                    <!-- Celdas por período -->
-                                    <t t-foreach="visiblePeriodKeys" t-as="pk" t-key="pk">
-                                        <t t-set="cellMos" t-value="row.cells[pk] || []"/>
+                            </div><!-- /sm-row-track -->
+                        </div><!-- /sm-row -->
+                    </t>
 
-                                        <td class="sm-cell align-top">
-
-                                            <!-- Chips de OF -->
-                                            <t t-foreach="cellMos" t-as="mo" t-key="mo.mo_id">
-
-                                                <!-- ── Chip de continuación (OF que empezó antes) ── -->
-                                                <t t-if="mo.is_continuation">
-                                                    <div class="sm-chip sm-chip-cont"
-                                                         t-att-class="{ 'sm-chip-cont-last': mo.is_last_span, 'sm-chip-done': mo.state === 'done' }"
-                                                         t-on-click.stop="(ev) => this.openMo(ev, mo)"
-                                                         t-att-title="mo.mo_name + ' — continúa desde período anterior'">
-                                                        <div class="sm-chip-header d-flex align-items-start gap-1">
-                                                            <span class="sm-cont-badge" title="Continuación">&#8617;</span>
-                                                            <span class="sm-chip-ref fw-semibold flex-grow-1"
-                                                                  t-esc="mo.mo_name"/>
-                                                            <button class="btn btn-link btn-sm p-0 ms-1 sm-open-btn"
-                                                                    t-att-title="'Abrir ' + mo.mo_name"
-                                                                    t-on-click="(ev) => this.openMo(ev, mo)">
-                                                                <i class="fa fa-external-link small"/>
-                                                            </button>
-                                                        </div>
-                                                        <div class="sm-cont-product text-truncate"
-                                                             t-att-title="mo.product_name"
-                                                             t-esc="mo.product_name"/>
-                                                    </div>
-                                                </t>
-
-                                                <!-- ── Chip completo (OF que empieza en este período) ── -->
-                                                <t t-else="">
-                                                    <div class="sm-chip"
-                                                         t-att-class="{ 'sm-chip-expanded': isExpanded(mo.mo_id), 'sm-chip-spans': mo.span_count > 1, 'sm-chip-done': mo.state === 'done' }"
-                                                         t-on-click.stop="() => this.toggleChip(mo.mo_id)">
-
-                                                        <!-- Línea 1: referencia + estado + botón abrir -->
-                                                        <div class="sm-chip-header d-flex align-items-start gap-1">
-                                                            <span class="sm-chip-ref fw-semibold flex-grow-1"
-                                                                  t-esc="mo.mo_name"/>
-                                                            <span class="sm-chip-state badge small"
-                                                                  t-att-class="moStateClass(mo.state)"
-                                                                  t-esc="moStateLabel(mo.state)"/>
-                                                            <button class="btn btn-link btn-sm p-0 ms-1 sm-open-btn"
-                                                                    t-att-title="'Abrir ' + mo.mo_name"
-                                                                    t-on-click="(ev) => this.openMo(ev, mo)">
-                                                                <i class="fa fa-external-link small"/>
-                                                            </button>
-                                                        </div>
-
-                                                        <!-- Línea 2: producto -->
-                                                        <div class="sm-chip-product text-truncate"
-                                                             t-att-title="mo.product_name"
-                                                             t-esc="mo.product_name"/>
-
-                                                        <!-- Línea 3: cantidad · duración · fin planificado -->
-                                                        <div class="sm-chip-meta text-muted small">
-                                                            <span t-esc="fmtQty(mo.qty)"/>
-                                                            <t t-if="mo.uom">
-                                                                <span class="mx-1">·</span>
-                                                                <span t-esc="mo.uom"/>
-                                                            </t>
-                                                            <t t-if="mo.duration_hours">
-                                                                <span class="mx-1">·</span>
-                                                                <i class="fa fa-clock-o me-1"/>
-                                                                <span t-esc="fmtHours(mo.duration_hours)"/>
-                                                            </t>
-                                                            <!-- Indicador de que la OF abarca varios períodos -->
-                                                            <t t-if="mo.span_count > 1 &amp;&amp; mo.date_end">
-                                                                <span class="mx-1">·</span>
-                                                                <i class="fa fa-arrow-right me-1"/>
-                                                                <span t-esc="mo.date_end"/>
-                                                            </t>
-                                                        </div>
-
-                                                        <!-- Componentes expandibles -->
-                                                        <div t-if="isExpanded(mo.mo_id)"
-                                                             class="sm-chip-components mt-2 border-top pt-1">
-                                                            <div t-if="isLoadingComp(mo.mo_id)"
-                                                                 class="text-muted small text-center py-1">
-                                                                <i class="fa fa-spinner fa-spin"/>
-                                                            </div>
-                                                            <t t-elif="getComponents(mo.mo_id).length">
-                                                                <div class="sm-comp-label text-muted small fw-semibold mb-1">
-                                                                    Componentes:
-                                                                </div>
-                                                                <t t-foreach="getComponents(mo.mo_id)" t-as="comp" t-key="comp_index">
-                                                                    <div class="sm-comp-row d-flex justify-content-between gap-2">
-                                                                        <span class="sm-comp-name"
-                                                                              t-esc="comp.product_name"/>
-                                                                        <span class="sm-comp-qty text-muted text-nowrap">
-                                                                            <t t-esc="fmtQty(comp.qty)"/>
-                                                                            <t t-if="comp.uom">
-                                                                                <span class="ms-1" t-esc="comp.uom"/>
-                                                                            </t>
-                                                                        </span>
-                                                                    </div>
-                                                                </t>
-                                                            </t>
-                                                            <div t-else="" class="text-muted small">Sin componentes.</div>
-                                                        </div>
-
-                                                    </div><!-- /sm-chip -->
-                                                </t><!-- /t-else start chip -->
-
-                                            </t><!-- /t-foreach mos -->
-
-                                            <!-- Celda vacía -->
-                                            <div t-if="!cellMos.length" class="sm-cell-empty"/>
-
-                                            <!-- Botón + crear OF en este CT/período -->
-                                            <button class="sm-cell-add-btn"
-                                                    t-on-click="(ev) => this.createMoInCell(ev, row, pk)"
-                                                    title="Crear nueva OF en este período">
-                                                + Nueva OF
-                                            </button>
-
-                                        </td><!-- /sm-cell -->
-                                    </t><!-- /t-foreach periods -->
-
-                                </tr><!-- /sm-row -->
-                            </t><!-- /t-foreach rows -->
-
-                            <!-- Sin filas visibles -->
-                            <tr t-if="!state.filteredRows.length">
-                                <td t-att-colspan="visiblePeriodKeys.length + (state.hasShifts ? 2 : 1)"
-                                    class="text-center text-muted py-4">
-                                    <i class="fa fa-inbox fa-2x d-block mb-2"/>
-                                    Sin OFs para los filtros seleccionados.
-                                </td>
-                            </tr>
-
-                        </tbody>
-                    </table>
-                </div><!-- /sm-table-wrap -->
-
-            </t><!-- /t-elif periodKeys -->
+                </div><!-- /sm-scroll -->
+            </div><!-- /sm-board -->
 
         </t><!-- /t-else contenido principal -->
+
+        <!-- ══ Popover de componentes (anclado a la barra) ══════════════════════ -->
+        <div t-if="state.popoverKey"
+             class="sm-popover shadow border rounded bg-white"
+             t-att-style="`position:fixed;top:${state.popoverPos.top}px;left:${state.popoverPos.left}px;z-index:1060`"
+             t-on-click.stop="() => {}">
+            <div class="sm-popover-head d-flex justify-content-between align-items-center px-2 py-1 border-bottom">
+                <span class="fw-semibold small">Componentes</span>
+                <button class="btn btn-sm btn-link p-0" t-on-click.stop="_closePopover">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <div class="sm-popover-body p-2">
+                <div t-if="isLoadingComp(state.popoverMoId)" class="text-muted small text-center py-1">
+                    <i class="fa fa-spinner fa-spin"/>
+                </div>
+                <t t-elif="getComponents(state.popoverMoId).length">
+                    <t t-foreach="getComponents(state.popoverMoId)" t-as="comp" t-key="comp_index">
+                        <div class="sm-comp-row d-flex justify-content-between gap-2">
+                            <span class="sm-comp-name" t-esc="comp.product_name"/>
+                            <span class="sm-comp-qty text-muted text-nowrap">
+                                <t t-esc="fmtQty(comp.qty)"/>
+                                <t t-if="comp.uom"><span class="ms-1" t-esc="comp.uom"/></t>
+                            </span>
+                        </div>
+                    </t>
+                </t>
+                <div t-else="" class="text-muted small">Sin componentes.</div>
+            </div>
+        </div>
 
     </div><!-- /sm-root -->
 </t>

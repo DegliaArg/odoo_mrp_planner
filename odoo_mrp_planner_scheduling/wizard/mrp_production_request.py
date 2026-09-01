@@ -254,8 +254,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         if hasattr(start, 'tzinfo') and start.tzinfo:
             start = start.astimezone(pytz.utc).replace(tzinfo=None)
 
-        # Piso temporal: nada puede programarse antes de hoy (UTC midnight)
-        today_utc = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        # Piso temporal: nada puede programarse antes de hoy (UTC midnight).
+        # fields.Datetime.now() devuelve UTC naive (idéntico a la ex utcnow(),
+        # sin la deprecación de datetime.utcnow() en Python 3.12+).
+        today_utc = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         min_dt = max(start, today_utc)
 
         # Construir árbol de demanda para cada artículo (en orden de secuencia)

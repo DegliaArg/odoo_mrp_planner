@@ -646,6 +646,10 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
 
             if level > MAX_DEPTH:
                 truncated_mo_ids.append(mo.id)
+                # Marcar visitado también al truncar: si la MO fue encolada por
+                # otro padre, evita procesarla de nuevo y crear una línea de
+                # truncado duplicada en el plan.
+                visited_mo_ids.add(mo.id)
                 lines_vals.append({
                     'plan_id':             self.id,
                     'sequence':            seq,

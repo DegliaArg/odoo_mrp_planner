@@ -18,14 +18,13 @@
 import { Component, useState, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { DateTime, serializeDateTime } from "@web/core/l10n/dates";
-import { user } from "@web/core/user";
 import {
     rangeBounds,
     minutesToPct,
     barGeometry,
     layoutLanes,
     offsetPctToDate,
+    localIsoToServerUTC,
     parseLocalMinutes,
 } from "./scheduling_geometry";
 
@@ -119,6 +118,7 @@ class SchedulingMatrixWidget extends Component {
             shifts:     [],
             rows:       [],        // filas crudas del backend
             totalBars:  0,
+            userTz:     'UTC',     // TZ del usuario (la manda el backend)
 
             // Layout derivado
             layout:     null,      // {startMin,endMin,contentWidthPx,ticks,groups,dayLines,gridlines,shiftDividers,nightBands}
@@ -207,6 +207,7 @@ class SchedulingMatrixWidget extends Component {
             this.state.shifts      = result.shifts     || [];
             this.state.rows        = result.rows       || [];
             this.state.totalBars   = result.total_bars || 0;
+            this.state.userTz      = result.user_tz    || 'UTC';
             this.state.emptyReason = result.empty_reason || null;
             this._recompute();
         } catch (e) {
@@ -328,11 +329,10 @@ class SchedulingMatrixWidget extends Component {
         const pct   = parseFloat((track && track.dataset.hoverPct) || '0');
         const iso   = offsetPctToDate(pct, this.state.layout.startMin, this.state.layout.endMin, 15);
         // iso es hora de pared en la TZ del usuario (el server manda todo en esa
-        // TZ). Se interpreta en esa zona y serializeDateTime lo convierte a UTC en
-        // el formato que Odoo espera; si no, la OF nace corrida por el offset de la
-        // TZ (default_date_start se guarda como UTC naive).
-        const dt      = DateTime.fromISO(iso, { zone: user.tz || "local" });
-        const dateStr = serializeDateTime(dt);
+        // TZ). Se convierte a UTC con la TZ que mandó el backend, porque Odoo
+        // guarda default_date_start como UTC naive; sin convertir, la OF nacería
+        // corrida por el offset de la zona horaria.
+        const dateStr = localIsoToServerUTC(iso, this.state.userTz);
         const ctx     = { default_date_start: dateStr };
         if (row && row.wc_id) {
             ctx.default_workcenter_id = row.wc_id;   // sugerencia de CT

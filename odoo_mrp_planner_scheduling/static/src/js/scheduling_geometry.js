@@ -61,6 +61,43 @@ export function dateToOffsetPct(iso, startMin, endMin) {
     return minutesToPct(parseLocalMinutes(iso), startMin, endMin);
 }
 
+/** Offset (ms) entre la hora de pared de `tz` y UTC para un instante dado. */
+function tzOffset(utcMs, tz) {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz, hourCycle: "h23",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    const m = {};
+    for (const p of dtf.formatToParts(new Date(utcMs))) m[p.type] = p.value;
+    const asUTC = Date.UTC(+m.year, m.month - 1, +m.day, +m.hour, +m.minute, +m.second);
+    return asUTC - utcMs;
+}
+
+/**
+ * Convierte un ISO local de pared ('YYYY-MM-DDTHH:MM:SS') en la zona `tz` al
+ * string UTC que espera Odoo ('YYYY-MM-DD HH:MM:SS').
+ *
+ * Usa Intl (nativo del navegador, sin dependencias del framework de fechas de
+ * Odoo) para resolver el offset — inmune a DST vía punto fijo de 2 pasadas. Se
+ * usa para default_date_start del "+ Nueva OF": Odoo lo guarda como UTC naive, y
+ * sin convertir la OF nacería corrida por el offset de la zona horaria.
+ */
+export function localIsoToServerUTC(iso, tz) {
+    const [datePart, timePart = "00:00:00"] = iso.split("T");
+    const [y, mo, d] = datePart.split("-").map(Number);
+    const tp = timePart.split(":").map(Number);
+    const desiredAsUTC = Date.UTC(y, mo - 1, d, tp[0] || 0, tp[1] || 0, tp[2] || 0);
+    let guess = desiredAsUTC;
+    for (let i = 0; i < 2; i++) guess = desiredAsUTC - tzOffset(guess, tz);
+    const dt = new Date(guess);
+    const p = (n) => String(n).padStart(2, "0");
+    return (
+        `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())} ` +
+        `${p(dt.getUTCHours())}:${p(dt.getUTCMinutes())}:${p(dt.getUTCSeconds())}`
+    );
+}
+
 /** Inversa: porcentaje de offset → ISO local, con snap opcional a `snapMin`. */
 export function offsetPctToDate(pct, startMin, endMin, snapMin = 0) {
     const span = endMin - startMin;

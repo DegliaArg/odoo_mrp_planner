@@ -8,6 +8,7 @@ import {
     offsetPctToDate,
     barGeometry,
     layoutLanes,
+    localIsoToServerUTC,
 } from "@odoo_mrp_planner_scheduling/js/scheduling_geometry";
 
 describe("scheduling_geometry", () => {
@@ -49,6 +50,20 @@ describe("scheduling_geometry", () => {
     test("barGeometry: fechas inconsistentes → ancho mínimo", () => {
         const g = barGeometry("2026-09-01T10:00:00", "2026-09-01T09:00:00", startMin, endMin);
         expect(g.width).toBeCloseTo((15 / 4320) * 100, 9);
+    });
+
+    test("localIsoToServerUTC: hora de pared local → UTC server", () => {
+        // Argentina (UTC-3, sin DST): 10:00 local → 13:00 UTC
+        expect(localIsoToServerUTC("2026-09-01T10:00:00", "America/Argentina/Buenos_Aires"))
+            .toBe("2026-09-01 13:00:00");
+        // Cruce de día
+        expect(localIsoToServerUTC("2026-09-01T22:30:00", "America/Argentina/Buenos_Aires"))
+            .toBe("2026-09-02 01:30:00");
+        // DST: New York en invierno (UTC-5) vs verano (UTC-4)
+        expect(localIsoToServerUTC("2026-01-15T10:00:00", "America/New_York"))
+            .toBe("2026-01-15 15:00:00");
+        expect(localIsoToServerUTC("2026-07-01T10:00:00", "America/New_York"))
+            .toBe("2026-07-01 14:00:00");
     });
 
     test("layoutLanes: solapamiento → 2 lanes y sobrecarga", () => {

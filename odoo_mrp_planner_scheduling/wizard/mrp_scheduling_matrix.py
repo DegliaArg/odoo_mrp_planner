@@ -312,6 +312,7 @@ class MrpProductionBoard(models.Model):
         return {
             'range_from':  date_from,
             'range_to':    date_to,
+            'user_tz':     self.env.user.tz or 'UTC',
             'shifts':      shifts_payload,
             'rows':        rows,
             'total_bars':  total_bars,

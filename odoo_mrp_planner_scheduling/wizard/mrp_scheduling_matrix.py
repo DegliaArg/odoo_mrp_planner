@@ -343,20 +343,6 @@ class MrpProductionBoard(models.Model):
             planned_h = planned_min / 60.0
             pct       = round(planned_h / avail_h * 100) if avail_h > 0 else 0
             bands_iso = [[_iso(ws), _iso(we)] for ws, we in ivs] if ivs else []
-
-            # [SM-DIAG] Log temporal para verificar bandas/segmentos de un CT
-            # con jornada acotada (p.ej. "Jornada de 8hs"). Quitar tras el diag.
-            if cal and '8' in (cal.name or ''):
-                _logger.info(
-                    "[SM-DIAG] CT=%s cal=%s(tz=%s) user.tz=%s\n"
-                    "  ivs_utc_naive(2)=%s\n  bands_iso(2)=%s\n  bar0 ds/df=%s/%s segments=%s",
-                    wc.name, cal.name, cal.tz, self.env.user.tz,
-                    (ivs or [])[:2], bands_iso[:2],
-                    bars[0]['date_start'] if bars else None,
-                    bars[0]['date_finished'] if bars else None,
-                    bars[0].get('segments') if bars else None,
-                )
-
             rows.append({
                 'wc_id':             wc.id,
                 'wc_name':           wc.name,

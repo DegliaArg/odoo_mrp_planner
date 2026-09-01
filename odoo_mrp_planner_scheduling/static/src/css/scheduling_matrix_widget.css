@@ -1,7 +1,7 @@
 /* ── Tablero de Programación de Producción (eje horario) ──────────────────── */
 
 .sm-root {
-    --sm-ct-w: 210px;
+    --sm-ct-w: 150px;
     --sm-head-h: 46px;
     font-size: 13px;
     display: flex;
@@ -77,27 +77,27 @@
 .sm-row-ct {
     flex: 0 0 var(--sm-ct-w); width: var(--sm-ct-w);
     position: sticky; left: 0; z-index: 10;
-    background: #f8f9fa; border-right: 1px solid #dee2e6;
-    padding: 5px 10px; overflow: hidden;
+    background: #fff; border-right: 1px solid #ced4da;
+    padding: 6px 10px; overflow: hidden;
 }
-/* Fondo alternado entre filas de CT consecutivas (ayuda a seguir una fila en una
-   tabla ancha). La zona laborable (bloques blancos) queda igual en ambas. */
-.sm-row-alt .sm-row-ct    { background: #edf0f3; }
-.sm-row-alt .sm-row-track { background: #ebedf0; }
-/* Separador entre lanes del mismo CT: más tenue que el de CT. */
+/* Fondo alternado entre filas de CT consecutivas: una blanca, la siguiente gris
+   muy suave — columna y pista comparten el mismo tono. */
+.sm-row-alt .sm-row-ct    { background: #f3f5f7; }
+.sm-row-alt .sm-row-track { background: #eef0f3; }
+/* Separador entre lanes del mismo CT: línea PUNTEADA fina (mismo centro). */
 .sm-lane-sep {
     position: absolute; left: 0; right: 0; z-index: 1;
-    border-top: 1px solid #e0e3e7; pointer-events: none;
+    border-top: 1px dashed #cfd4da; pointer-events: none;
 }
 .sm-row-ct-unassigned { background: #fff4f4; }
-.sm-ct-name { font-size: 13px; line-height: 1.25; }
+.sm-ct-name { font-size: 13px; font-weight: 500; line-height: 1.25; }
 .sm-ct-sub { flex-wrap: wrap; }
 
-/* Ocupación */
-.sm-occ { font-size: 10px; font-weight: 600; padding: 1px 5px; }
-.sm-occ-normal { background: #e2e3e5; color: #41464b; }
-.sm-occ-high   { background: #fff3cd; color: #664d03; }
-.sm-occ-over   { background: #f8d7da; color: #842029; }
+/* Ocupación (badge con color por valor: <100 verde, 100-120 ámbar, >120 rojo) */
+.sm-occ { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; }
+.sm-occ-normal { background: #e3f1e0; color: #3d6b1f; }
+.sm-occ-high   { background: #fdf1d8; color: #8a6414; }
+.sm-occ-over   { background: #f7dcdc; color: #8a2626; }
 .sm-bands-warn { background: #fff3cd; color: #664d03; font-size: 10px; font-weight: 600; padding: 1px 5px; }
 
 /* Pista de un CT cuyas bandas no se pudieron calcular: hatch de "desconocido"
@@ -109,16 +109,16 @@
 /* ── Encabezado de sector (agrupación con varios sectores) ── */
 /* Separador de sector: borde superior grueso, más fuerte que el de CT. */
 .sm-sector-head {
-    display: block; background: #e9ecef;
-    border-top: 3px solid #97a0aa; border-bottom: 1px solid #ced4da;
+    display: block; background: #eceef1;
+    border-top: 1px solid #9aa2ab; border-bottom: 1px solid #9aa2ab;
     cursor: pointer; user-select: none;
 }
-.sm-sector-head:hover { background: #e2e6ea; }
+.sm-sector-head:hover { background: #e4e7ea; }
 .sm-sector-head-inner {
     position: sticky; left: 0; width: max-content;
-    display: flex; align-items: center; padding: 6px 12px; font-size: 13px;
+    display: flex; align-items: center; padding: 6px 12px; font-size: 13px; font-weight: 500;
 }
-.sm-sector-meta { white-space: nowrap; }
+.sm-sector-meta { white-space: nowrap; font-weight: 400; }
 
 /* ── Fila "Sin centro asignado" (colapsable, sin lanes) ── */
 .sm-row-unassigned { display: block; background: #fff4f4; border-bottom: 1px solid #e9ecef; }
@@ -164,11 +164,11 @@
 .sm-dayline  { position: absolute; top: 0; bottom: 0; border-left: 1px solid #c3c9d0; z-index: 3; }
 .sm-nowline  { position: absolute; top: 0; bottom: 0; border-left: 2px solid #dc3545; opacity: 0.7; z-index: 4; }
 
-/* ── Barras (work orders) — estética de chip: blanco + borde + acento izq. ── */
+/* ── Barras (work orders) — blanco + borde fino + acento de estado a la izq. ── */
 .sm-bar {
     position: absolute; z-index: 5; min-width: 4px;
-    border: 1px solid #dee2e6; border-left: 3px solid #adb5bd; border-radius: 4px;
-    background: #fff; padding: 2px 6px; overflow: hidden;
+    border: 0.5px solid #d5dae0; border-left: 4px solid #adb5bd; border-radius: 4px;
+    background: #fff; padding: 3px 6px; overflow: hidden;
     display: flex; align-items: center; gap: 5px;
     cursor: pointer; user-select: none;
     transition: box-shadow 0.12s, border-color 0.12s;
@@ -188,14 +188,22 @@
 /* Texto "…continúa" en los tramos siguientes al primero. */
 .sm-seg-cont { font-size: 11px; font-style: italic; color: #98a0a8; white-space: nowrap; }
 
-.sm-bar-ref   { font-size: 12px; font-weight: 600; color: #212529; white-space: nowrap; flex-shrink: 0; }
-.sm-bar-state {
-    font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
-    padding: 1px 4px; flex-shrink: 0;
+/* Contenido en dos líneas. Al achicarse: cae primero la línea 2, después el
+   badge, y por último se trunca el código (nunca una barra sin etiqueta). */
+.sm-bar-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.sm-bar-l1 { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.sm-bar-l2 { font-size: 11px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-bar-ref {
+    font-size: 12px; font-weight: 500; color: #212529;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-.sm-bar-prod {
-    flex: 1 1 auto; min-width: 0; font-size: 11px; color: #495057;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.sm-bar-state {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;
+    padding: 0 4px; flex-shrink: 0;
+}
+.sm-bar-warn {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+    padding: 0 4px; flex-shrink: 0; color: #fff; background: #A32D2D; border-radius: 3px;
 }
 .sm-bar-open {
     border: none; background: transparent; color: #6c757d;
@@ -203,18 +211,15 @@
 }
 .sm-bar:hover .sm-bar-open { opacity: 1; }
 
-/* Estado de la OF = acento en el borde izquierdo (fondo blanco); el badge lleva
-   el color de estado. */
-.sm-bar.sm-state-confirmed { background: #fff;    border-left-color: #0d6efd; }
-.sm-bar.sm-state-progress  { background: #fff;    border-left-color: #198754; }
-.sm-bar.sm-state-toclose   { background: #fff;    border-left-color: #f0ad4e; }
-.sm-bar.sm-state-done      { background: #fbfbfc; border-left-color: #6c757d; opacity: 0.72; }
+/* Acento de estado en el borde izquierdo (fondo blanco). Terminada = VERDE. */
+.sm-bar.sm-state-confirmed { border-left-color: #378ADD; }
+.sm-bar.sm-state-progress  { border-left-color: #1D9E75; }
+.sm-bar.sm-state-toclose   { border-left-color: #EF9F27; }
+.sm-bar.sm-state-done      { border-left-color: #639922; opacity: 0.75; }
 
-/* Sobrecarga (dos o más WOs solapadas en un CT real): ROJO reservado para esto,
-   como acento en el borde izquierdo, no como recuadro dominante. */
-.sm-bar-over { border-left: 4px solid #dc3545; }
-/* Fechas inconsistentes / planificada fuera del calendario: ámbar suave (sin
-   rayado), para no confundir con el rojo de sobrecarga. */
+/* Sobrecarga: borde COMPLETO rojo (no solo el acento) + badge SOLAPADA adentro. */
+.sm-bar-over { border-color: #A32D2D; border-left-color: #A32D2D; }
+/* Fechas inconsistentes / planificada fuera del calendario: ámbar suave. */
 .sm-bar-bad { background: #fbf3e0; border-left-color: #d99b1c; }
 
 /* Recorte por borde del rango (continuación): solo el badge de flecha, sin
@@ -236,10 +241,10 @@
 .sm-comp-qty { font-size: 11px; flex-shrink: 0; }
 
 /* Paleta de estados (badges de ocupación / compat) — se conserva */
-.sm-state-confirmed { background: #cfe2ff; color: #084298; }
-.sm-state-progress  { background: #d1e7dd; color: #0a3622; }
-.sm-state-toclose   { background: #fff3cd; color: #664d03; }
-.sm-state-done      { background: #d1e7dd; color: #0a3622; }
+.sm-state-confirmed { background: #e0edfb; color: #235f9e; }
+.sm-state-progress  { background: #d9f2e9; color: #12775a; }
+.sm-state-toclose   { background: #fdeecf; color: #8a5e12; }
+.sm-state-done      { background: #e6f0d6; color: #46660f; }
 
 @media (max-width: 768px) {
     .sm-root { --sm-ct-w: 140px; }

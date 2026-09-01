@@ -40,8 +40,11 @@ const RESOLUTIONS = {
     month:   { label: 'Mes',    pxPerHour: 2.6, gridHours: 24, spanDays: 70, tickMode: 'day'  },
 };
 
-const ROW_BASE_PX = 54;   // alto de una fila con un solo lane
-const LANE_PX     = 44;   // alto de cada lane (crece con el solapamiento)
+// Geometría vertical (diseño aprobado): barra 34px, 9px arriba/abajo → fila 52px.
+const ROW_PAD     = 9;                       // margen vertical de la barra
+const BAR_H       = 34;                      // alto de barra
+const LANE_PITCH  = BAR_H + 9;               // alto de un lane (barra + 9px de gap) = 43
+const ROW_BASE_PX = 2 * ROW_PAD + BAR_H;     // 52 (un solo lane)
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -647,8 +650,8 @@ class SchedulingMatrixWidget extends Component {
                 ...row,
                 bars: barsOut,
                 laneCount,
-                heightPx: ROW_BASE_PX + (laneCount - 1) * LANE_PX,
-                laneSeps: Array.from({ length: laneCount - 1 }, (_, i) => (i + 1) * LANE_PX),
+                heightPx: ROW_BASE_PX + (laneCount - 1) * LANE_PITCH,
+                laneSeps: Array.from({ length: laneCount - 1 }, (_, i) => ROW_PAD + (i + 1) * LANE_PITCH - 4.5),
                 addLeftPct: barsOut.reduce((m, b) => Math.max(m, b.env.left + b.env.width), 0),
                 workBlocks,
             });
@@ -663,12 +666,12 @@ class SchedulingMatrixWidget extends Component {
 
     /** Estilo de un segmento (tramo continuo) de una barra. */
     segStyle(bar, seg) {
-        return `left:${seg.left}%;width:${seg.width}%;top:${2 + bar.lane * LANE_PX}px;height:${LANE_PX - 4}px;`;
+        return `left:${seg.left}%;width:${seg.width}%;top:${ROW_PAD + bar.lane * LANE_PITCH}px;height:${BAR_H}px;`;
     }
 
     /** Conector punteado entre tramos de la misma OF (partida por día no laborable). */
     connStyle(bar) {
-        const top = 2 + bar.lane * LANE_PX + (LANE_PX - 4) / 2;
+        const top = ROW_PAD + bar.lane * LANE_PITCH + BAR_H / 2;
         return `left:${bar.env.left}%;width:${bar.env.width}%;top:${top}px;`;
     }
 
@@ -694,9 +697,9 @@ class SchedulingMatrixWidget extends Component {
     }
 
     occupancyClass(pct) {
-        if (pct >= 100) return 'sm-occ-over';
-        if (pct >= 80)  return 'sm-occ-high';
-        return 'sm-occ-normal';
+        if (pct > 120)  return 'sm-occ-over';    // rojo
+        if (pct >= 100) return 'sm-occ-high';    // ámbar
+        return 'sm-occ-normal';                  // verde
     }
 
     fmtQty(n) {

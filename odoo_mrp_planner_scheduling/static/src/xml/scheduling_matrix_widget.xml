@@ -289,10 +289,20 @@
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
                                             <span t-if="seg_first and bar.clipped_start" class="sm-clip-badge">‹</span>
                                             <t t-if="seg_first">
-                                                <span class="sm-bar-ref" t-esc="bar.mo_name"/>
-                                                <span class="sm-bar-state badge" t-att-class="moStateClass(bar.mo_state)"
-                                                      t-esc="moStateLabel(bar.mo_state)"/>
-                                                <span class="sm-bar-prod" t-att-title="bar.product_name" t-esc="bar.product_name"/>
+                                                <div class="sm-bar-body">
+                                                    <div class="sm-bar-l1">
+                                                        <span class="sm-bar-ref" t-esc="bar.mo_name"/>
+                                                        <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
+                                                        <span t-else="" class="sm-bar-state badge"
+                                                              t-att-class="moStateClass(bar.mo_state)"
+                                                              t-esc="moStateLabel(bar.mo_state)"/>
+                                                    </div>
+                                                    <div class="sm-bar-l2">
+                                                        <t t-esc="bar.product_name"/>
+                                                        <t t-if="bar.qty"> · <t t-esc="fmtQty(bar.qty)"/> <t t-esc="bar.uom"/></t>
+                                                        <t t-if="bar.date_start_str"> · <t t-esc="bar.date_start_str"/></t>
+                                                    </div>
+                                                </div>
                                                 <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
                                                         t-on-click="(ev) => this.openMo(ev, bar)">
                                                     <i class="fa fa-external-link"/>

@@ -15,6 +15,7 @@ Responsabilidades:
 """
 
 import logging
+import re
 import pytz
 from collections import deque
 from datetime import datetime, timedelta
@@ -23,6 +24,20 @@ from odoo import models, fields, _
 
 
 _logger = logging.getLogger(__name__)
+
+# Sufijo de parcial en el nombre de una OF: '-NNN' al final ('VL/MO/03365-013').
+_PARTIAL_SUFFIX = re.compile(r'-\d+$')
+
+
+def _base_name(name):
+    """Nombre BASE de una OF, sin el sufijo de parcial '-NNN'.
+
+    Los parciales (MO partida) se nombran 'XX/MO/NNNNN-PPP', pero el campo
+    `origin` cita el nombre base 'XX/MO/NNNNN'. Para encontrar hijas/dependientes
+    hay que matchear también por base: 'VL/MO/03365-013' → 'VL/MO/03365';
+    'CP/MO/04069' se deja igual.
+    """
+    return _PARTIAL_SUFFIX.sub('', name or '')
 
 # Límite de profundidad del árbol de cascada para evitar bucles infinitos en
 # estructuras de producto con referencias circulares o jerarquías muy profundas.
@@ -251,12 +266,20 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             ('state', 'not in', ['done', 'cancel']),
         ])
         if mo.name:
+            # Nombre completo Y base: los parciales citan la base en su origin
+            # ('CP/MO/04069'), pero el padre puede estar partido ('...-001'). Se
+            # buscan ambos para no perder las hijas de los parciales.
+            names = [mo.name]
+            base = _base_name(mo.name)
+            if base != mo.name:
+                names.append(base)
             matches = _search_by_origin(
-                self.env, 'mrp.production', [mo.name],
+                self.env, 'mrp.production', names,
                 [('x_parent_mo_id', '=', False),
                  ('state', 'not in', ['done', 'cancel'])],
             )
-            children |= matches.get(mo.name, self.env['mrp.production'])
+            for nm in names:
+                children |= matches.get(nm, self.env['mrp.production'])
         return children
 
     def _preload_child_mos_batch(self, parent_ids, visited_mo_ids=None):
@@ -290,10 +313,20 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
 
         # Hijas por origin (MOs generadas sin campo Studio). Mismo criterio de
         # matcheo por token que el resto del módulo (soporta origin compuesto).
+        # Se busca por nombre completo Y base: los parciales citan la base en su
+        # origin, y el padre puede estar partido — sin la base se perdían las
+        # hijas de los parciales (x_parent_mo_id está al 0% en esta instancia).
         parent_recs = self.env['mrp.production'].browse(parent_ids)
-        name_to_parent_id = {
-            mo.name: mo.id for mo in parent_recs if mo.name
-        }
+        name_to_parent_id = {}
+        for mo in parent_recs:
+            if not mo.name:
+                continue
+            name_to_parent_id[mo.name] = mo.id
+            base = _base_name(mo.name)
+            if base != mo.name:
+                # La base mapea al primer parcial del grupo (las hijas de la base
+                # se atribuyen a uno; el visited del BFS evita duplicar).
+                name_to_parent_id.setdefault(base, mo.id)
         if name_to_parent_id:
             matches = _search_by_origin(
                 self.env, 'mrp.production', list(name_to_parent_id.keys()),
@@ -301,7 +334,9 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                  ('state', 'not in', ['done', 'cancel'])],
             )
             for name, children in matches.items():
-                pid = name_to_parent_id[name]
+                pid = name_to_parent_id.get(name)
+                if pid is None:
+                    continue
                 for child in children:
                     if child.id not in visited:
                         result.setdefault(pid, self.env['mrp.production'])

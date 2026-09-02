@@ -21,7 +21,6 @@ CONVENCIÓN DE ZONA HORARIA (única, no mezclar):
   y los intervalos del calendario también viajan ya en hora local.
 """
 import logging
-import re
 from datetime import datetime, timedelta
 
 import pytz
@@ -29,25 +28,10 @@ import pytz
 from odoo import models, api
 
 from ..models.mrp_reschedule_cascade_mixin import (
-    _get_old_code, _origin_tokens, _search_by_origin,
+    _get_old_code, _origin_tokens, _search_by_origin, _base_name,
 )
 
 _logger = logging.getLogger(__name__)
-
-# Sufijo de parcial en el nombre de una OF: '-NNN' al final ('VL/MO/03365-013').
-_PARTIAL_SUFFIX = re.compile(r'-\d+$')
-
-
-def _base_name(name):
-    """Nombre BASE de una OF, sin el sufijo de parcial '-NNN'.
-
-    Los parciales (MO partida) se nombran 'XX/MO/NNNNN-PPP', pero el campo
-    `origin` cita el nombre base 'XX/MO/NNNNN'. Para reconstruir la cadena hay
-    que matchear por base: 'VL/MO/03365-013' → 'VL/MO/03365'; 'CP/MO/04069' se
-    deja igual.
-    """
-    return _PARTIAL_SUFFIX.sub('', name or '')
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

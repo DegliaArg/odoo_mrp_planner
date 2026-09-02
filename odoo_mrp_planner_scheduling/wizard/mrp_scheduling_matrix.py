@@ -588,11 +588,17 @@ class MrpProductionBoard(models.Model):
             force_wc_ids=all_wc_ids, only_mo_ids=tree_ids,
         )
 
-        # Orden: CTs de la OF enfocada primero (por secuencia), el resto del árbol
-        # después por nombre. Solo la OF enfocada lleva número de secuencia.
+        # Orden de filas = orden del escalonado (cronológico por la barra más
+        # temprana de cada CT), para que coincida con el orden del panel lateral
+        # (hijas antes → padres después). Empate/CT sin barras: por nombre.
         seq_by_wc = {wc.id: seq for wc, seq in route}
         rows = [r for r in payload['rows'] if not r.get('is_unassigned')]
-        rows.sort(key=lambda r: (seq_by_wc.get(r['wc_id'], 9999), r['wc_name']))
+
+        def _row_min_start(r):
+            starts = [b['date_start'] for b in r.get('bars', []) if b.get('date_start')]
+            return (min(starts) if starts else '9999', r['wc_name'])
+
+        rows.sort(key=_row_min_start)
         for r in rows:
             r['route_seq'] = seq_by_wc.get(r['wc_id'])
         payload['rows'] = rows

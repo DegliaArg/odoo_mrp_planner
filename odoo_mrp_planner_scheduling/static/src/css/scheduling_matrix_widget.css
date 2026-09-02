@@ -279,9 +279,14 @@
 .sm-bar-dim { opacity: 0.34; box-shadow: none !important; }
 .sm-bar-dim:hover { opacity: 0.6; }
 
-/* Modo ruta: barras un poco más grandes (mínimo legible) para leer la cadena. */
-.sm-route-mode .sm-bar { min-width: 30px; }
-.sm-route-mode .sm-bar-ref { font-size: 13px; }
+/* Modo ruta: barras angostas (barras de respaldo por fechas de MO). El nombre
+   de la OF se desborda a la derecha para poder leerlo (no se recorta). */
+.sm-route-mode .sm-bar { min-width: 30px; overflow: visible; }
+.sm-route-mode .sm-bar-body { overflow: visible; }
+.sm-route-mode .sm-bar-ref { font-size: 13px; overflow: visible; }
+.sm-route-mode .sm-bar-l2 { overflow: visible; }
+/* La etiqueta desbordada no debe tapar el click de otras barras. */
+.sm-route-mode .sm-bar-body { pointer-events: none; }
 /* OF marcada (la seleccionada en el panel/Gantt): anillo verde + glow, por
    encima del resto. La del árbol conserva el anillo azul fino (sm-bar-tree). */
 .sm-bar-focus {

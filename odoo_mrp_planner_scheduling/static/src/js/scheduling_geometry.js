@@ -67,39 +67,77 @@ export function dateToOffsetPct(iso, startMin, endMin) {
 // pasa a ser la concatenación de los días visibles. Todas las posiciones se
 // calculan sobre "minutos visibles" en vez de minutos reales.
 
-/** Construye la escala: días del rango marcados como ocultos/visibles.
+/** Intersección de [a,b] con una lista de intervalos [ [s,e], ... ] ordenados. */
+function _intersect(a, b, intervals) {
+    const out = [];
+    for (const [s, e] of intervals) {
+        const lo = Math.max(a, s), hi = Math.min(b, e);
+        if (hi > lo) out.push([lo, hi]);
+    }
+    return out;
+}
+
+/** Construye la escala del eje visible (posiciones en "minutos visibles").
  *
- * Un día se oculta (colapsa a 0 de ancho) si su día de semana está en
- * `hiddenWeekdays` (findes) O si su epochDay está en `hiddenEpochDays` (días
- * vacíos colapsados en modo ruta). Ambos usan el mismo flag `hidden`, así que
- * cortes, posiciones y marcas de corte funcionan igual para los dos. */
-export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], hiddenEpochDays = null) {
+ * Un DÍA se oculta si su día de semana está en `hiddenWeekdays` (findes).
+ * Además, si se pasa `keptIntervals` (lista de [inicioMin, finMin] reales,
+ * ordenada y fusionada), SOLO esos tramos quedan visibles: todo lo demás —
+ * incluidas las horas muertas dentro de un día— se colapsa. Sirve al modo ruta
+ * para pegar las OFs de la cadena cortando el tiempo sin actividad.
+ *
+ * El eje visible es la concatenación de "segmentos" (subtramos de día visibles,
+ * intersecados con keptIntervals si viene). Todas las posiciones se calculan
+ * sobre esos segmentos, así cortes y anchos funcionan con cualquier colapso. */
+export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], keptIntervals = null) {
     const hidden = new Set(hiddenWeekdays);
-    const hiddenED = hiddenEpochDays instanceof Set ? hiddenEpochDays
-        : new Set(hiddenEpochDays || []);
     const [fy, fm, fd] = dateFrom.split("-").map(Number);
     const [ty, tm, td] = dateTo.split("-").map(Number);
     const firstEpochDay = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
     const lastEpochDay = Math.round(Date.UTC(ty, tm - 1, td) / 86400000);
     const days = [];
+    const segments = [];   // {rs, re, vs} tramos visibles en minutos reales
     let visMin = 0;
     for (let ed = firstEpochDay; ed <= lastEpochDay; ed++) {
         const weekday = (new Date(ed * 86400000).getUTCDay() + 6) % 7; // Lun=0…Dom=6
-        const isHidden = hidden.has(weekday) || hiddenED.has(ed);
-        days.push({ epochDay: ed, weekday, hidden: isHidden, visStartMin: visMin, startRealMin: ed * 1440 });
-        if (!isHidden) visMin += 1440;
+        const dayStart = ed * 1440, dayEnd = dayStart + 1440;
+        const weekdayHidden = hidden.has(weekday);
+        // Subtramos visibles del día: día completo, recortado por keptIntervals.
+        const ranges = weekdayHidden ? []
+            : (keptIntervals ? _intersect(dayStart, dayEnd, keptIntervals) : [[dayStart, dayEnd]]);
+        const dayVisStart = visMin;
+        for (const [a, b] of ranges) {
+            segments.push({ rs: a, re: b, vs: visMin });
+            visMin += b - a;
+        }
+        days.push({
+            epochDay: ed, weekday, startRealMin: dayStart,
+            hidden: ranges.length === 0,          // día sin ningún tramo visible
+            visStartMin: dayVisStart,
+        });
     }
-    return { firstEpochDay, lastEpochDay, days, totalVisibleMin: visMin || 1 };
+    return { firstEpochDay, lastEpochDay, days, segments, totalVisibleMin: visMin || 1 };
 }
 
-/** Minutos reales → minutos visibles (los días ocultos colapsan a su borde). */
+/** Minutos reales → minutos visibles. Los tramos colapsados (fuera de todo
+ *  segmento) mapean al borde del segmento siguiente (el eje "salta"). */
 function realToVisibleMin(scale, realMin) {
-    const epochDay = Math.floor(realMin / 1440);
-    if (epochDay < scale.firstEpochDay) return 0;
-    if (epochDay > scale.lastEpochDay) return scale.totalVisibleMin;
-    const day = scale.days[epochDay - scale.firstEpochDay];
-    if (day.hidden) return day.visStartMin;
-    return day.visStartMin + (realMin - day.startRealMin);
+    const segs = scale.segments;
+    if (!segs.length) return 0;
+    if (realMin <= segs[0].rs) return 0;
+    if (realMin >= segs[segs.length - 1].re) return scale.totalVisibleMin;
+    for (const s of segs) {
+        if (realMin < s.rs) return s.vs;          // cae en un hueco → borde del próximo
+        if (realMin <= s.re) return s.vs + (realMin - s.rs);
+    }
+    return scale.totalVisibleMin;
+}
+
+/** ¿El minuto real cae dentro de un tramo visible (no colapsado)? */
+export function isRealMinVisible(scale, realMin) {
+    for (const s of scale.segments) {
+        if (realMin >= s.rs && realMin < s.re) return true;
+    }
+    return false;
 }
 
 /** Porcentaje [0,100] de un minuto real sobre el eje visible. */
@@ -119,34 +157,29 @@ export function scaleSpan(scale, startIso, endIso) {
     return { left: l, width: r - l };
 }
 
-/** Cortes del eje: donde se saltean días ocultos entre dos visibles. */
+/** Cortes del eje: donde el eje salta un hueco colapsado (entre dos segmentos
+ *  visibles consecutivos hay un tramo de tiempo real sin dibujar). */
 export function scaleCuts(scale) {
     const cuts = [];
-    const days = scale.days;
-    let i = 0;
-    while (i < days.length) {
-        if (!days[i].hidden) { i++; continue; }
-        const start = i;
-        const run = [];
-        while (i < days.length && days[i].hidden) { run.push(days[i]); i++; }
-        if (start > 0 && i < days.length) {   // hueco interior (visible antes y después)
-            cuts.push({
-                leftPct: (days[start].visStartMin / scale.totalVisibleMin) * 100,
-                epochDays: run.map(d => d.epochDay),
-            });
-        }
+    const segs = scale.segments;
+    for (let i = 1; i < segs.length; i++) {
+        const gapMin = segs[i].rs - segs[i - 1].re;
+        if (gapMin <= 0) continue;   // segmentos pegados (mismo día partido) → sin corte
+        cuts.push({
+            leftPct: (segs[i].vs / scale.totalVisibleMin) * 100,
+            gapDays: Math.round(gapMin / 1440),
+        });
     }
     return cuts;
 }
 
 /** Inversa: porcentaje visible → ISO local (para Fase 2, snap opcional). */
 export function scalePctToDate(scale, pct, snapMin = 0) {
-    let vis = (Math.max(0, Math.min(100, pct)) / 100) * scale.totalVisibleMin;
-    let real = scale.days[0].startRealMin + vis;
-    for (const d of scale.days) {
-        if (d.hidden) continue;
-        if (vis < 1440) { real = d.startRealMin + vis; break; }
-        vis -= 1440;
+    const vis = (Math.max(0, Math.min(100, pct)) / 100) * scale.totalVisibleMin;
+    const segs = scale.segments;
+    let real = segs.length ? segs[0].rs : 0;
+    for (const s of segs) {
+        if (vis <= s.vs + (s.re - s.rs)) { real = s.rs + (vis - s.vs); break; }
     }
     if (snapMin > 0) real = Math.round(real / snapMin) * snapMin;
     return minutesToLocalIso(Math.round(real));

@@ -25,6 +25,7 @@ import {
     scaleMinuteToPct,
     scaleSpan,
     scaleCuts,
+    isRealMinVisible,
 } from "./scheduling_geometry";
 
 // ── Etiquetas de calendario (es) ────────────────────────────────────────────────
@@ -341,12 +342,15 @@ class SchedulingMatrixWidget extends Component {
     }
 
     /** Ajusta la resolución (zoom) al span VISIBLE del modo ruta: con colapso,
-     *  solo los días con OFs de la cadena; sin colapso, el rango de calendario. */
+     *  la suma de los tramos con OFs de la cadena; sin colapso, el calendario. */
     _fitRouteZoom() {
-        const totalDays = rangeDays(this.state.dateFrom, this.state.dateTo);
-        const emptyN = this.state.collapseEmpty
-            ? this._emptyEpochDays(this.state.dateFrom, this.state.dateTo).size : 0;
-        this.state.resolution = fitResolution(Math.max(1, totalDays - emptyN));
+        let visibleMin;
+        if (this.state.collapseEmpty) {
+            visibleMin = this._occupiedIntervals().reduce((a, [s, e]) => a + (e - s), 0);
+        } else {
+            visibleMin = rangeDays(this.state.dateFrom, this.state.dateTo) * 1440;
+        }
+        this.state.resolution = fitResolution(Math.max(1, Math.ceil(visibleMin / 1440)));
     }
 
     toggleUnassigned() {
@@ -617,10 +621,28 @@ class SchedulingMatrixWidget extends Component {
     }
 
     isTreeBar(bar) {
-        // OF del árbol (no la enfocada): resaltado intermedio en el Gantt.
+        // OF del árbol (no la marcada): resaltado intermedio en el Gantt.
         return this.state.routeMode
             && bar.mo_id !== this.state.routeMoId
             && this.state.routeTreeIds.includes(bar.mo_id);
+    }
+
+    isFocusedBar(bar) {
+        // OF marcada (la seleccionada): resaltado pleno en el Gantt.
+        return this.state.routeMode && bar.mo_id === this.state.routeMoId;
+    }
+
+    /** Click en el panel lateral: marca esa OF de la cadena en el Gantt (mueve
+     *  el resaltado sin reconstruir el tablero ni re-armar la cadena). */
+    selectRouteMo(moId) {
+        if (!moId || moId === this.state.routeMoId) return;
+        this.state.routeMoId = moId;
+        const node = (this.state.relatedTree || []).find(n => n.mo_id === moId);
+        if (node) {
+            this.state.routeHeader = {
+                name: node.name, product: node.product, qty: node.qty, uom: node.uom,
+            };
+        }
     }
 
     relLabel(rel) {
@@ -634,29 +656,28 @@ class SchedulingMatrixWidget extends Component {
         this.state.viewRows = this._computeRows();
     }
 
-    /** Días (epochDay) del rango [dateFrom, dateTo] que NO tienen ninguna barra
-     *  de la cadena → candidatos a colapsar en modo ruta. Usa el mismo espacio
-     *  epochDay que makeTimeScale (minutosReales / 1440). */
-    _emptyEpochDays(dateFrom, dateTo) {
-        const occ = new Set();
-        const dayOf = (iso) => Math.floor(parseLocalMinutes(iso) / 1440);
+    /** Intervalos [inicioMin, finMin] reales con OFs de la cadena, con un margen
+     *  de aire y fusionados. Todo lo que quede FUERA de estos tramos se colapsa
+     *  en modo ruta (incluidas las horas muertas dentro de un día), así las OFs
+     *  quedan pegadas sin bandas blancas. */
+    _occupiedIntervals(padMin = 90) {
+        const raw = [];
         for (const row of this.state.rows) {
             for (const b of (row.bars || [])) {
                 if (!b.date_start) continue;
-                const a = dayOf(b.date_start);
-                const z = b.date_finished ? dayOf(b.date_finished) : a;
-                for (let d = a; d <= z; d++) occ.add(d);
+                const s = parseLocalMinutes(b.date_start);
+                const e = b.date_finished ? parseLocalMinutes(b.date_finished) : s + 15;
+                raw.push([s - padMin, Math.max(e, s + 15) + padMin]);
             }
         }
-        const [fy, fm, fd] = dateFrom.split('-').map(Number);
-        const [ty, tm, td] = dateTo.split('-').map(Number);
-        const first = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
-        const last  = Math.round(Date.UTC(ty, tm - 1, td) / 86400000);
-        const empty = new Set();
-        for (let d = first; d <= last; d++) {
-            if (!occ.has(d)) empty.add(d);
+        raw.sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        for (const iv of raw) {
+            const last = merged[merged.length - 1];
+            if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+            else merged.push([iv[0], iv[1]]);
         }
-        return empty;
+        return merged;
     }
 
     /** Geometría global sobre el eje visible (con días ocultos colapsados). */
@@ -665,11 +686,12 @@ class SchedulingMatrixWidget extends Component {
         if (!dateFrom || !dateTo) return null;
         const cfg = RESOLUTIONS[resolution] || RESOLUTIONS.day;
         const hidden = this.state.hideWeekends ? (this.state.hiddenWeekdays || []) : [];
-        // Modo ruta: colapsar los días sin OFs de la cadena, para que las
-        // relacionadas queden pegadas (el eje "corta" el tiempo vacío).
+        // Modo ruta: colapsar el tiempo sin OFs de la cadena (huecos entre
+        // clusters y horas muertas dentro de un día), para que las relacionadas
+        // queden pegadas y sin bandas blancas.
         const collapse = this.state.routeMode && this.state.collapseEmpty;
-        const emptyDays = collapse ? this._emptyEpochDays(dateFrom, dateTo) : null;
-        const scale = makeTimeScale(dateFrom, dateTo, hidden, emptyDays);
+        const kept = collapse ? this._occupiedIntervals() : null;
+        const scale = makeTimeScale(dateFrom, dateTo, hidden, kept);
         if (scale.totalVisibleMin <= 0) return null;
 
         const contentWidthPx = Math.round((scale.totalVisibleMin / 60) * cfg.pxPerHour);
@@ -701,6 +723,8 @@ class SchedulingMatrixWidget extends Component {
             if (cfg.tickMode === 'hour') {
                 for (let h = 0; h < 24; h += cfg.gridHours) {
                     const m = dayStart + h * 60;
+                    // En modo colapso, no dibujar marcas de horas colapsadas.
+                    if (collapse && !isRealMinVisible(scale, m)) continue;
                     if (h !== 0) gridlines.push({ leftPct: pct(m) });
                     ticks.push({ leftPct: pct(m), label: String(h).padStart(2, '0'), major: h === 0 });
                 }
@@ -755,8 +779,8 @@ class SchedulingMatrixWidget extends Component {
         if (hidden.length) {
             notes.push(`Días ocultos: ${[...hidden].sort((a, b) => a - b).map(w => WD[w]).join(', ')}`);
         }
-        if (collapse && emptyDays && emptyDays.size) {
-            notes.push(`${emptyDays.size} día(s) vacío(s) colapsado(s)`);
+        if (collapse && cuts.length) {
+            notes.push(`${cuts.length} hueco(s) sin actividad colapsado(s)`);
         }
         const cutFootnote = notes.length
             ? `${notes.join(' · ')} — el eje los saltea (marcas de corte ✂).`

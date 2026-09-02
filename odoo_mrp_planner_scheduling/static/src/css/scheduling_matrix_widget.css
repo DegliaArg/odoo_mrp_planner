@@ -278,6 +278,17 @@
 /* Barra atenuada: contexto de otras OFs en el CT (sin badges), pero clickeable. */
 .sm-bar-dim { opacity: 0.34; box-shadow: none !important; }
 .sm-bar-dim:hover { opacity: 0.6; }
+
+/* Modo ruta: barras un poco más grandes (mínimo legible) para leer la cadena. */
+.sm-route-mode .sm-bar { min-width: 30px; }
+.sm-route-mode .sm-bar-ref { font-size: 13px; }
+/* OF marcada (la seleccionada en el panel/Gantt): anillo verde + glow, por
+   encima del resto. La del árbol conserva el anillo azul fino (sm-bar-tree). */
+.sm-bar-focus {
+    outline: 2.5px solid #1D9E75; outline-offset: 0; z-index: 7 !important;
+    box-shadow: 0 2px 8px rgba(29, 158, 117, 0.35) !important;
+}
+.sm-bar-focus:hover { outline-color: #178a65; }
 .sm-popover-foot { background: #f8f9fa; }
 
 /* ── Popover de componentes ── */

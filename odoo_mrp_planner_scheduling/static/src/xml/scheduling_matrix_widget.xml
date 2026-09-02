@@ -20,7 +20,7 @@
         <t t-else="">
 
             <!-- ══ Barra de filtros ════════════════════════════════════════════ -->
-            <div class="sm-filters d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
+            <div class="sm-filters d-flex flex-nowrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
 
                 <!-- Resolución (zoom) -->
                 <div class="sm-filter-group btn-group btn-group-sm" role="group">

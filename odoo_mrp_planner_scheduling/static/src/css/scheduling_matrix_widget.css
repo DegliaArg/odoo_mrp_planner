@@ -17,7 +17,11 @@
     border-bottom: 1px solid #dee2e6;
     min-height: 48px;
     flex-shrink: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;   /* una sola línea; si no entra, scrollea en vez de romper */
 }
+.sm-filters .form-check-label { white-space: nowrap; }
+.sm-filters .form-check-input { flex-shrink: 0; }
 .sm-filter-label {
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d;
 }

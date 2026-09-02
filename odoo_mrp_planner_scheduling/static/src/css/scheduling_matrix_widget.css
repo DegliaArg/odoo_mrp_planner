@@ -279,21 +279,27 @@
 .sm-bar-dim { opacity: 0.34; box-shadow: none !important; }
 .sm-bar-dim:hover { opacity: 0.6; }
 
-/* Modo ruta: barras angostas (barras de respaldo por fechas de MO). El nombre
-   de la OF se desborda a la derecha para poder leerlo (no se recorta). */
-.sm-route-mode .sm-bar { min-width: 30px; overflow: visible; }
-.sm-route-mode .sm-bar-body { overflow: visible; }
-.sm-route-mode .sm-bar-ref { font-size: 13px; overflow: visible; }
-.sm-route-mode .sm-bar-l2 { overflow: visible; }
-/* La etiqueta desbordada no debe tapar el click de otras barras. */
-.sm-route-mode .sm-bar-body { pointer-events: none; }
-/* OF marcada (la seleccionada en el panel/Gantt): anillo verde + glow, por
-   encima del resto. La del árbol conserva el anillo azul fino (sm-bar-tree). */
-.sm-bar-focus {
-    outline: 2.5px solid #1D9E75; outline-offset: 0; z-index: 7 !important;
-    box-shadow: 0 2px 8px rgba(29, 158, 117, 0.35) !important;
+/* Modo ruta: barras angostas (respaldo por fechas de MO). El texto queda
+   CONTENIDO (overflow hidden + ellipsis, heredado de .sm-bar); el detalle
+   completo va al tooltip. min-width mínimo para que el chip sea clickeable.
+   La barra es un "container" para degradar el contenido según su ancho. */
+.sm-route-mode .sm-bar { min-width: 30px; container-type: inline-size; }
+.sm-route-mode .sm-bar-ref { font-size: 13px; }
+/* Degradación al angostarse (solo las barras de ruta son container): primero cae
+   la línea 2 (producto), después el badge de estado, y por último el código se
+   trunca con ellipsis (nunca una barra sin etiqueta). */
+@container (max-width: 95px) { .sm-bar-l2 { display: none; } }
+@container (max-width: 62px) {
+    .sm-bar-state, .sm-bar-unsched-badge, .sm-bar-warn { display: none; }
 }
-.sm-bar-focus:hover { outline-color: #178a65; }
+/* OF marcada (seleccionada en el panel/Gantt): anillo VIOLETA + glow, por encima
+   del resto. Violeta (no es color de estado) para no confundir con "terminada"
+   (verde) al ver una barra angosta. La del árbol conserva el anillo azul fino. */
+.sm-bar-focus {
+    outline: 2.5px solid #7A3FF2; outline-offset: 0; z-index: 7 !important;
+    box-shadow: 0 2px 8px rgba(122, 63, 242, 0.35) !important;
+}
+.sm-bar-focus:hover { outline-color: #6326d8; }
 
 /* Hilo conector de la cadena (modo ruta). El SVG se superpone a la pista,
    desplazado por la columna de CT; no intercepta clicks. */
@@ -303,7 +309,7 @@
     z-index: 6; pointer-events: none; overflow: visible;
 }
 .sm-thread-line {
-    fill: none; stroke: #1D9E75; stroke-width: 2; opacity: 0.9;
+    fill: none; stroke: #7A3FF2; stroke-width: 2; opacity: 0.9;
 }
 
 /* Barra de operación SIN programar (modo ruta): ubicada por las fechas de la OF,

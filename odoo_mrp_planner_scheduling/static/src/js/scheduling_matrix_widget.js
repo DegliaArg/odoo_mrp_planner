@@ -655,10 +655,48 @@ class SchedulingMatrixWidget extends Component {
             this.state.routeTruncated = result.route_truncated || false;
             this.state.routeSelectedIds = [result.route_mo_id];   // arranca marcada la enfocada
             this._recompute();
+            this._debugRouteBars();   // [TEMPORAL] rastreo de pérdida de barras
         } catch (e) {
             this.state.error = (e?.data?.message) || e.message || String(e);
         } finally {
             this.state.loading = false;
+        }
+    }
+
+    /** [TEMPORAL] Instrumentación: cuántas barras llegan por fila en el payload
+     *  vs cuántas sobreviven al render (viewRows), con anchos de segmento y datos
+     *  de la escala, para ubicar dónde se pierden las barras de la cadena. */
+    _debugRouteBars() {
+        try {
+            const payload = (this.state.rows || []).map(r => ({
+                CT: r.wc_name,
+                payloadBars: (r.bars || []).length,
+                mos: (r.bars || []).map(b => `${b.mo_name}(wo=${b.wo_id})`).join(', '),
+            }));
+            const view = (this.state.viewRows || []).map(r => ({
+                CT: r.wc_name,
+                viewBars: (r.bars || []).length,
+                segs: (r.bars || []).map(
+                    b => `${b.mo_name}:[${(b.segs || []).map(s => s.width.toFixed(1)).join('|')}]`
+                ).join('  '),
+            }));
+            const sc = this.state.layout && this.state.layout.scale;
+            const kept = this._occupiedIntervals().map(
+                ([a, b]) => `${Math.floor(a / 1440)}..${Math.floor(b / 1440)}`
+            );
+            console.log('%c[RUTA DEBUG] payload por fila', 'color:#7A3FF2;font-weight:bold');
+            console.table(payload);
+            console.log('%c[RUTA DEBUG] viewRows (render) por fila', 'color:#7A3FF2;font-weight:bold');
+            console.table(view);
+            console.log('[RUTA DEBUG] rango', this.state.dateFrom, '→', this.state.dateTo,
+                '| resolución', this.state.resolution,
+                '| collapseEmpty', this.state.collapseEmpty,
+                '| hideWeekends', this.state.hideWeekends,
+                '| totalVisibleMin', sc && sc.totalVisibleMin,
+                '| segments', sc && sc.segments.length,
+                '| keptDays', kept);
+        } catch (e) {
+            console.warn('[RUTA DEBUG] error', e);
         }
     }
 

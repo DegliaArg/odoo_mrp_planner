@@ -22,9 +22,9 @@
             <!-- ══ Barra de filtros ════════════════════════════════════════════ -->
             <div class="sm-filters d-flex flex-nowrap align-items-center gap-2 px-3 py-2 border-bottom bg-light">
 
-                <!-- Resolución (zoom): en modo ruta el zoom es automático (fit del
-                     escalonado), así que los botones no aplican y se ocultan. -->
-                <div t-if="!state.routeMode" class="sm-filter-group btn-group btn-group-sm" role="group">
+                <!-- Resolución (zoom). En modo ruta el zoom arranca en auto-fit del
+                     escalonado, pero el usuario puede cambiarlo con estos botones. -->
+                <div class="sm-filter-group btn-group btn-group-sm" role="group">
                     <t t-foreach="resolutions" t-as="r" t-key="r.key">
                         <button type="button"
                                 t-att-class="'btn ' + (state.resolution === r.key ? 'btn-primary' : 'btn-outline-secondary')"

@@ -104,12 +104,23 @@ function isoWeek(date) {
 
 // ── Estado de la OF ───────────────────────────────────────────────────────────
 const MO_STATE_LABEL = {
-    confirmed: 'Confirmada', progress: 'En proceso', to_close: 'Por cerrar', done: 'Terminada',
+    draft: 'Borrador', confirmed: 'Confirmada', progress: 'En proceso',
+    to_close: 'Por cerrar', done: 'Terminada', cancel: 'Cancelada',
 };
 const MO_STATE_CLASS = {
     confirmed: 'sm-state-confirmed', progress: 'sm-state-progress',
     to_close:  'sm-state-toclose',   done:     'sm-state-done',
 };
+// Opciones del filtro de estado (multi-selección). Por defecto: confirmadas + en curso.
+const STATE_OPTIONS = [
+    { key: 'draft',     label: 'Borrador' },
+    { key: 'confirmed', label: 'Confirmada' },
+    { key: 'progress',  label: 'En proceso' },
+    { key: 'to_close',  label: 'Por cerrar' },
+    { key: 'done',      label: 'Terminada' },
+    { key: 'cancel',    label: 'Cancelada' },
+];
+const DEFAULT_STATE_FILTER = ['confirmed', 'progress'];
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
@@ -136,7 +147,7 @@ class SchedulingMatrixWidget extends Component {
             resolution:    res,
             searchText:    '',
             hideEmptyRows: true,
-            showDone:      false,
+            stateFilter:   [...DEFAULT_STATE_FILTER],   // estados a mostrar (multi)
             hideWeekends:  true,        // ocultar fines de semana (default ON)
             hiddenWeekdays: [],         // días a ocultar (los manda el backend)
             collapseEmpty: true,        // modo ruta: colapsar días sin OFs de la cadena (default ON)
@@ -174,10 +185,12 @@ class SchedulingMatrixWidget extends Component {
             loadingComponents:{},
 
             // Dropdowns
-            tagDropdownOpen: false,
-            wcDropdownOpen:  false,
-            tagMenuPos: { top: 0, left: 0 },
-            wcMenuPos:  { top: 0, left: 0 },
+            tagDropdownOpen:   false,
+            wcDropdownOpen:    false,
+            stateDropdownOpen: false,
+            tagMenuPos:   { top: 0, left: 0 },
+            wcMenuPos:    { top: 0, left: 0 },
+            stateMenuPos: { top: 0, left: 0 },
         });
 
         useExternalListener(window, "keydown", (ev) => this.onKeydown(ev));
@@ -240,7 +253,7 @@ class SchedulingMatrixWidget extends Component {
                     tag_ids:      this.state.tagIds.length ? this.state.tagIds : null,
                     date_from:    this.state.dateFrom,
                     date_to:      this.state.dateTo,
-                    include_done: this.state.showDone,
+                    states:       this.state.stateFilter,
                 }
             );
             this.state.shifts      = result.shifts     || [];
@@ -264,8 +277,9 @@ class SchedulingMatrixWidget extends Component {
             const r = ev.currentTarget.getBoundingClientRect();
             this.state.tagMenuPos = { top: r.bottom + 3, left: r.left };
         }
-        this.state.tagDropdownOpen = !this.state.tagDropdownOpen;
-        this.state.wcDropdownOpen  = false;
+        this.state.tagDropdownOpen   = !this.state.tagDropdownOpen;
+        this.state.wcDropdownOpen    = false;
+        this.state.stateDropdownOpen = false;
     }
 
     toggleWcDropdown(ev) {
@@ -273,13 +287,25 @@ class SchedulingMatrixWidget extends Component {
             const r = ev.currentTarget.getBoundingClientRect();
             this.state.wcMenuPos = { top: r.bottom + 3, left: r.left };
         }
-        this.state.wcDropdownOpen  = !this.state.wcDropdownOpen;
-        this.state.tagDropdownOpen = false;
+        this.state.wcDropdownOpen    = !this.state.wcDropdownOpen;
+        this.state.tagDropdownOpen   = false;
+        this.state.stateDropdownOpen = false;
+    }
+
+    toggleStateDropdown(ev) {
+        if (!this.state.stateDropdownOpen) {
+            const r = ev.currentTarget.getBoundingClientRect();
+            this.state.stateMenuPos = { top: r.bottom + 3, left: r.left };
+        }
+        this.state.stateDropdownOpen = !this.state.stateDropdownOpen;
+        this.state.tagDropdownOpen   = false;
+        this.state.wcDropdownOpen    = false;
     }
 
     closeDropdowns() {
-        this.state.tagDropdownOpen = false;
-        this.state.wcDropdownOpen  = false;
+        this.state.tagDropdownOpen   = false;
+        this.state.wcDropdownOpen    = false;
+        this.state.stateDropdownOpen = false;
         this._closePopover();
     }
 
@@ -328,9 +354,27 @@ class SchedulingMatrixWidget extends Component {
         this._recompute();
     }
 
-    toggleShowDone() {
-        this.state.showDone = !this.state.showDone;
-        this._loadData();
+    get stateOptions() { return STATE_OPTIONS; }
+
+    /** Alterna un estado en el filtro (multi-selección) y recarga. */
+    toggleState(key) {
+        const sel = this.state.stateFilter;
+        this.state.stateFilter = sel.includes(key)
+            ? sel.filter(s => s !== key)
+            : [...sel, key];
+        if (this.state.routeMode) {
+            this.enterRoute(this.state.routeMoId);   // re-arma la cadena con el filtro
+        } else {
+            this._loadData();
+        }
+    }
+
+    get stateFilterLabel() {
+        const sel = this.state.stateFilter;
+        if (!sel.length) return "Ninguno";
+        if (sel.length === STATE_OPTIONS.length) return "Todos";
+        const labels = STATE_OPTIONS.filter(o => sel.includes(o.key)).map(o => o.label);
+        return labels.length <= 2 ? labels.join(", ") : `${labels.length} estados`;
     }
 
     toggleHideWeekends() {
@@ -571,7 +615,7 @@ class SchedulingMatrixWidget extends Component {
         this.state.error = null;
         try {
             const result = await this.orm.call(
-                'mrp.production', 'get_route_board', [moId], { include_done: true }
+                'mrp.production', 'get_route_board', [moId], { states: this.state.stateFilter }
             );
             if (result.empty_reason) {
                 this.notification.add(

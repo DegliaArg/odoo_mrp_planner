@@ -33,6 +33,30 @@
                     </t>
                 </div>
 
+                <!-- Estado (multi-selección): aplica en el tablero y en la ruta.
+                     Por defecto Confirmada + En proceso. -->
+                <div class="sm-filter-group position-relative">
+                    <span class="sm-filter-label text-muted small me-1">Estado:</span>
+                    <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            t-on-click.stop="toggleStateDropdown">
+                        <t t-esc="stateFilterLabel"/>
+                        <i class="fa fa-chevron-down ms-1 small"/>
+                    </button>
+                    <div t-if="state.stateDropdownOpen"
+                         class="sm-dropdown shadow-sm border rounded bg-white"
+                         t-att-style="`position:fixed;top:${state.stateMenuPos.top}px;left:${state.stateMenuPos.left}px;z-index:1050;min-width:170px`">
+                        <t t-foreach="stateOptions" t-as="opt" t-key="opt.key">
+                            <label class="sm-dropdown-item d-flex align-items-center gap-2 px-3 py-1 small"
+                                   t-on-click.stop="() => this.toggleState(opt.key)">
+                                <input type="checkbox"
+                                       t-att-checked="state.stateFilter.includes(opt.key)"
+                                       t-on-click.stop="() => this.toggleState(opt.key)"/>
+                                <span t-esc="opt.label"/>
+                            </label>
+                        </t>
+                    </div>
+                </div>
+
                 <t t-if="!state.routeMode">
                 <div class="vr mx-1"/>
 
@@ -116,13 +140,6 @@
                                t-att-checked="state.hideEmptyRows" t-on-change="toggleHideEmptyRows"/>
                         <label class="form-check-label small text-muted" for="sm-hide-empty">
                             Ocultar CTs vacíos
-                        </label>
-                    </div>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" id="sm-show-done"
-                               t-att-checked="state.showDone" t-on-change="toggleShowDone"/>
-                        <label class="form-check-label small text-muted" for="sm-show-done">
-                            Mostrar terminadas
                         </label>
                     </div>
                     <div class="form-check form-switch mb-0">

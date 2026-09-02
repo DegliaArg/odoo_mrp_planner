@@ -109,7 +109,7 @@ class MrpProductionBoard(models.Model):
 
     @api.model
     def get_scheduling_board(self, tag_ids=None, date_from=None, date_to=None,
-                             include_done=False):
+                             include_done=False, states=None):
         """Tablero filtrado por sector (tags). Delega en _build_board_payload."""
         if not date_from or not date_to:
             return {
@@ -123,10 +123,11 @@ class MrpProductionBoard(models.Model):
             valid_wc_ids = set(tagged.ids)
         else:
             valid_wc_ids = None   # None = todos
-        return self._build_board_payload(valid_wc_ids, date_from, date_to, include_done)
+        return self._build_board_payload(valid_wc_ids, date_from, date_to,
+                                         include_done, states=states)
 
     def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done,
-                             force_wc_ids=None, only_mo_ids=None):
+                             force_wc_ids=None, only_mo_ids=None, states=None):
         """
         Construye el tablero (eje horario continuo) para el conjunto de CTs
         `valid_wc_ids` (None = todos) en [date_from, date_to].
@@ -180,11 +181,16 @@ class MrpProductionBoard(models.Model):
                 })
 
         # ── OFs que solapan el rango (no solo las que arrancan dentro) ──────────
-        states = ['confirmed', 'progress', 'to_close']
-        if include_done:
-            states.append('done')
+        # `states` (multi-selección del cliente) manda; si no viene, el default
+        # histórico (confirmadas/en curso/por cerrar, + terminadas si include_done).
+        if states is not None:
+            board_states = list(states)
+        else:
+            board_states = ['confirmed', 'progress', 'to_close']
+            if include_done:
+                board_states.append('done')
         domain = [
-            ('state', 'in', states),
+            ('state', 'in', board_states),
             ('date_start', '!=', False),
             ('date_start', '<', utc_to),
             '|', ('date_finished', '>', utc_from), ('date_finished', '=', False),
@@ -495,7 +501,7 @@ class MrpProductionBoard(models.Model):
                 route.append((wc, len(route) + 1))
         return route
 
-    def _compute_related_tree(self, mo, max_depth=12, include_done=True):
+    def _compute_related_tree(self, mo, max_depth=12, include_done=True, states=None):
         """Árbol de OFs relacionadas por `origin`.
 
         En esta instancia `origin` es el único vínculo poblado (86%);
@@ -516,10 +522,16 @@ class MrpProductionBoard(models.Model):
         """
         Prod = self.env['mrp.production']
         tz = pytz.timezone(self.env.user.tz or 'UTC')
-        active_states = ['confirmed', 'progress', 'to_close']
-        if include_done:
-            active_states = active_states + ['done']
-        act = [('state', 'in', active_states)]
+        # `states` (multi-selección del cliente) manda; si no viene, el default.
+        # Se aplica a padres Y a hijas (antes los padres no se filtraban, por eso
+        # se colaban las canceladas).
+        if states is not None:
+            tree_states = list(states)
+        else:
+            tree_states = ['confirmed', 'progress', 'to_close']
+            if include_done:
+                tree_states = tree_states + ['done']
+        act = [('state', 'in', tree_states)]
 
         def _fmt(dt):
             return pytz.utc.localize(dt).astimezone(tz).strftime('%d/%m %H:%M') if dt else ''
@@ -551,7 +563,7 @@ class MrpProductionBoard(models.Model):
                     parents = Prod.search([
                         '|', '|', ('name', '=', tok),
                         ('name', '=', btok), ('name', '=like', btok + '-%'),
-                    ])
+                    ] + act)
                     for p in parents:
                         if p.id not in seen:
                             seen.add(p.id)
@@ -579,7 +591,7 @@ class MrpProductionBoard(models.Model):
         return items, {i['mo_id'] for i in items}
 
     @api.model
-    def get_route_board(self, mo_id, include_done=True):
+    def get_route_board(self, mo_id, include_done=True, states=None):
         """Modo ruta: el tablero enfocado en los CTs por los que pasa una OF.
 
         Devuelve las filas SOLO de esos CTs, ordenadas por secuencia de operación
@@ -597,7 +609,8 @@ class MrpProductionBoard(models.Model):
         tz = pytz.timezone(self.env.user.tz or 'UTC')
 
         # Árbol de OFs relacionadas (por origin) — panel lateral y alcance del Gantt.
-        tree, tree_ids = self._compute_related_tree(mo)
+        # `states` (filtro de estado del cliente) acota qué padres/hijas entran.
+        tree, tree_ids = self._compute_related_tree(mo, states=states)
         tree_mos = self.env['mrp.production'].browse(sorted(tree_ids))
 
         # El Gantt abarca los CTs y el rango de TODO el árbol (no solo la OF
@@ -618,7 +631,7 @@ class MrpProductionBoard(models.Model):
         # estén programadas (date_start vacío).
         payload = self._build_board_payload(
             all_wc_ids, lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
-            force_wc_ids=all_wc_ids, only_mo_ids=tree_ids,
+            force_wc_ids=all_wc_ids, only_mo_ids=tree_ids, states=states,
         )
 
         # Orden de filas = orden del escalonado (cronológico por la barra más

@@ -21,6 +21,7 @@ CONVENCIÓN DE ZONA HORARIA (única, no mezclar):
   y los intervalos del calendario también viajan ya en hora local.
 """
 import logging
+import re
 from datetime import datetime, timedelta
 
 import pytz
@@ -32,6 +33,21 @@ from ..models.mrp_reschedule_cascade_mixin import (
 )
 
 _logger = logging.getLogger(__name__)
+
+# Sufijo de parcial en el nombre de una OF: '-NNN' al final ('VL/MO/03365-013').
+_PARTIAL_SUFFIX = re.compile(r'-\d+$')
+
+
+def _base_name(name):
+    """Nombre BASE de una OF, sin el sufijo de parcial '-NNN'.
+
+    Los parciales (MO partida) se nombran 'XX/MO/NNNNN-PPP', pero el campo
+    `origin` cita el nombre base 'XX/MO/NNNNN'. Para reconstruir la cadena hay
+    que matchear por base: 'VL/MO/03365-013' → 'VL/MO/03365'; 'CP/MO/04069' se
+    deja igual.
+    """
+    return _PARTIAL_SUFFIX.sub('', name or '')
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -512,24 +528,34 @@ class MrpProductionBoard(models.Model):
                 'relation': relation, 'level': level,
             }
 
+        MAX_NODES = 80   # cota de seguridad ante cadenas patológicamente anchas
         seen = {mo.id}
 
-        # Ancestros: seguir origin hacia arriba (puede ser compuesto → varios padres).
+        # Ancestros: seguir origin hacia arriba (puede ser compuesto → varios
+        # padres). Los parciales citan el nombre BASE en origin ('CP/MO/04069')
+        # pero el padre real está partido ('CP/MO/04069-001/-002'): se matchea por
+        # base (name = tok, o name = base, o name like base-%).
         ancestors, frontier, depth = [], [mo], 0
-        while frontier and depth < max_depth:
+        while frontier and depth < max_depth and len(seen) < MAX_NODES:
             nxt = []
             for cur in frontier:
                 for tok in _origin_tokens(cur.origin):
-                    p = Prod.search([('name', '=', tok)], limit=1)
-                    if p and p.id not in seen:
-                        seen.add(p.id)
-                        ancestors.append((depth + 1, p))
-                        nxt.append(p)
+                    btok = _base_name(tok)
+                    parents = Prod.search([
+                        '|', '|', ('name', '=', tok),
+                        ('name', '=', btok), ('name', '=like', btok + '-%'),
+                    ])
+                    for p in parents:
+                        if p.id not in seen:
+                            seen.add(p.id)
+                            ancestors.append((depth + 1, p))
+                            nxt.append(p)
             frontier, depth = nxt, depth + 1
 
-        # Descendientes: OFs cuyo origin cita el nombre (recursivo, por nivel).
-        descendants, seen_d, names, depth = [], set(seen), [mo.name], 0
-        while names and depth < max_depth:
+        # Descendientes: OFs cuyo origin cita el nombre BASE (recursivo por nivel).
+        # Se busca por base para captar OFs enteras y parciales por igual.
+        descendants, seen_d, names, depth = [], set(seen), [_base_name(mo.name)], 0
+        while names and depth < max_depth and len(seen_d) < MAX_NODES:
             matches = _search_by_origin(self.env, 'mrp.production', names, act)
             nxt = []
             for name in names:
@@ -537,7 +563,7 @@ class MrpProductionBoard(models.Model):
                     if child.id not in seen_d:
                         seen_d.add(child.id)
                         descendants.append((depth, child))
-                        nxt.append(child.name)
+                        nxt.append(_base_name(child.name))
             names, depth = nxt, depth + 1
 
         items = [_info(m, 'descendant', lvl) for lvl, m in sorted(descendants, key=lambda x: -x[0])]

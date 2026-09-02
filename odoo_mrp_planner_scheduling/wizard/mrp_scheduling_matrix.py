@@ -472,8 +472,11 @@ class MrpProductionBoard(models.Model):
         }
 
     def _compute_route(self, mo):
-        """Ruta de una OF: sus work orders con CT activo, ordenadas por sequence,
-        como lista [(workcenter, posición)] sin repetir CT.
+        """Ruta de una OF: sus work orders con CT activo, en ORDEN TOPOLÓGICO por
+        `blocked_by_workorder_ids`, como lista [(workcenter, posición)] sin repetir
+        CT. `sequence` se usa solo de respaldo (desempate y cuando la OF no tiene
+        dependencias): en esta instancia el sequence del workorder contradice las
+        dependencias en el ~89% de las OFs, así que NO es fuente de orden fiable.
 
         La "ruta" son las workorder_ids de UNA mrp.production (la OF pasa por
         varios CTs); NO es un árbol de OFs distintas. Método reutilizable: la
@@ -487,13 +490,39 @@ class MrpProductionBoard(models.Model):
         WOs tengan date_start poblado (button_plan en el flujo), el drop puede
         anclar la WO en vez de la OF usando esta misma ruta. No re-descubrir esto.
         """
-        route = []
-        seen = set()
         wos = mo.workorder_ids.filtered(
             lambda w: w.workcenter_id and w.workcenter_id.active
-        ).sorted('sequence')
-        for wo in wos:
-            wc = wo.workcenter_id
+        )
+        by_id = {w.id: w for w in wos}
+        wo_ids = set(by_id)
+        # Predecesores dentro de la OF (blocked_by acotado a esta OF) y sucesores.
+        preds = {wid: [b for b in by_id[wid].blocked_by_workorder_ids.ids if b in wo_ids]
+                 for wid in wo_ids}
+        succ = {}
+        for wid, ps in preds.items():
+            for p in ps:
+                succ.setdefault(p, []).append(wid)
+        indeg = {wid: len(preds[wid]) for wid in wo_ids}
+        seq_key = lambda i: (by_id[i].sequence, i)   # desempate/respaldo por sequence
+
+        # Kahn: orden topológico; los "listos" se ordenan por sequence.
+        ready = sorted([wid for wid in wo_ids if indeg[wid] == 0], key=seq_key)
+        order = []
+        while ready:
+            wid = ready.pop(0)
+            order.append(wid)
+            for s in succ.get(wid, []):
+                indeg[s] -= 1
+                if indeg[s] == 0:
+                    ready.append(s)
+            ready.sort(key=seq_key)
+        # Ciclo (no debería): los que queden, por sequence.
+        if len(order) < len(wo_ids):
+            order += sorted(wo_ids - set(order), key=seq_key)
+
+        route, seen = [], set()
+        for wid in order:
+            wc = by_id[wid].workcenter_id
             if wc.id not in seen:
                 seen.add(wc.id)
                 route.append((wc, len(route) + 1))
@@ -645,11 +674,15 @@ class MrpProductionBoard(models.Model):
         lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
         hi = pytz.utc.localize(max(dts)).astimezone(tz).date() + timedelta(days=1)
 
-        # force_wc_ids: los CTs del árbol aparecen como fila aunque sus WOs no
-        # estén programadas (date_start vacío).
+        # force_wc_ids: SOLO los CTs de la OF ENFOCADA aparecen siempre (aunque
+        # estén vacíos). Los CTs de las OFs del árbol (padres/hijas) aparecen solo
+        # si tienen alguna barra en el rango — si no, ocupaban media pantalla vacíos
+        # (venían de OFs sin operaciones programadas). valid_wc_ids sigue siendo
+        # todo el árbol (para que las barras de las relacionadas se dibujen).
+        focus_wc_ids = {wc.id for wc, _seq in route}
         payload = self._build_board_payload(
             all_wc_ids, lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
-            force_wc_ids=all_wc_ids, only_mo_ids=tree_ids, states=states,
+            force_wc_ids=focus_wc_ids, only_mo_ids=tree_ids, states=states,
         )
 
         # Orden de filas = orden del escalonado (cronológico por la barra más

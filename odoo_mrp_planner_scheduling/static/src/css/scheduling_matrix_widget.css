@@ -318,6 +318,12 @@
     background: #eef1f4; color: #6c757d; font-style: italic;
     border: 1px dashed #b0b6bd; padding: 0 5px; font-size: 10px;
 }
+
+/* Encabezado de un finde que se muestra por tener trabajo programado (modo ruta):
+   ámbar suave, para distinguirlo de un día laborable normal. */
+.sm-group.sm-weekend-work, .sm-tick.sm-weekend-work { background: #fff6e6; }
+.sm-group.sm-weekend-work .sm-group-label,
+.sm-tick.sm-weekend-work  .sm-tick-label { color: #b06a00; }
 .sm-popover-foot { background: #f8f9fa; }
 
 /* ── Popover de componentes ── */

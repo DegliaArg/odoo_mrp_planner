@@ -746,6 +746,21 @@ class SchedulingMatrixWidget extends Component {
         return merged;
     }
 
+    /** Días (epochDay) que tienen alguna barra — sin padding. Un finde en este set
+     *  no se oculta aunque "Ocultar fines de semana" esté activo (día con trabajo). */
+    _occupiedDays() {
+        const days = new Set();
+        for (const row of this.state.rows) {
+            for (const b of (row.bars || [])) {
+                if (!b.date_start) continue;
+                const a = Math.floor(parseLocalMinutes(b.date_start) / 1440);
+                const z = b.date_finished ? Math.floor(parseLocalMinutes(b.date_finished) / 1440) : a;
+                for (let d = a; d <= z; d++) days.add(d);
+            }
+        }
+        return days;
+    }
+
     /** Geometría global sobre el eje visible (con días ocultos colapsados). */
     _buildLayout() {
         const { dateFrom, dateTo, resolution } = this.state;
@@ -757,7 +772,10 @@ class SchedulingMatrixWidget extends Component {
         // queden pegadas y sin bandas blancas.
         const collapse = this.state.routeMode && this.state.collapseEmpty;
         const kept = collapse ? this._occupiedIntervals() : null;
-        const scale = makeTimeScale(dateFrom, dateTo, hidden, kept);
+        // Días con barras (modo ruta): un finde con trabajo programado NO se oculta
+        // aunque "Ocultar fines de semana" esté activo.
+        const workDays = this.state.routeMode ? this._occupiedDays() : null;
+        const scale = makeTimeScale(dateFrom, dateTo, hidden, kept, workDays);
         if (scale.totalVisibleMin <= 0) return null;
 
         const contentWidthPx = Math.round((scale.totalVisibleMin / 60) * cfg.pxPerHour);
@@ -800,6 +818,7 @@ class SchedulingMatrixWidget extends Component {
                     label:   `${dayDate.getUTCDate()}`,
                     sublabel: DAYS[(dayDate.getUTCDay() + 6) % 7],
                     major:   dayDate.getUTCDay() === 1,
+                    weekendWork: day.weekendWork,   // finde con trabajo programado
                 });
             }
         }
@@ -813,6 +832,7 @@ class SchedulingMatrixWidget extends Component {
                     widthPct: pct(day.startRealMin + 1440) - pct(day.startRealMin),
                     label:    `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
                     sublabel: DAYS[(d.getUTCDay() + 6) % 7],
+                    weekendWork: day.weekendWork,   // finde con trabajo programado
                 });
             }
         } else {

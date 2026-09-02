@@ -210,18 +210,21 @@
                             <!-- Grupos (día / semana / mes) -->
                             <div class="sm-groups">
                                 <t t-foreach="state.layout.groups" t-as="g" t-key="g_index">
-                                    <div class="sm-group"
-                                         t-att-style="`left:${g.leftPct}%;width:${g.widthPct}%`">
+                                    <div t-att-class="'sm-group' + (g.weekendWork ? ' sm-weekend-work' : '')"
+                                         t-att-style="`left:${g.leftPct}%;width:${g.widthPct}%`"
+                                         t-att-title="g.weekendWork ? 'Fin de semana con trabajo programado' : ''">
                                         <span class="sm-group-label" t-esc="g.label"/>
                                         <span class="sm-group-sub" t-esc="g.sublabel"/>
+                                        <i t-if="g.weekendWork" class="fa fa-calendar-o ms-1"/>
                                     </div>
                                 </t>
                             </div>
                             <!-- Ticks -->
                             <div class="sm-ticks">
                                 <t t-foreach="state.layout.ticks" t-as="tk" t-key="tk_index">
-                                    <div t-att-class="'sm-tick' + (tk.major ? ' sm-tick-major' : '')"
-                                         t-att-style="`left:${tk.leftPct}%`">
+                                    <div t-att-class="'sm-tick' + (tk.major ? ' sm-tick-major' : '') + (tk.weekendWork ? ' sm-weekend-work' : '')"
+                                         t-att-style="`left:${tk.leftPct}%`"
+                                         t-att-title="tk.weekendWork ? 'Fin de semana con trabajo programado' : ''">
                                         <span class="sm-tick-label" t-esc="tk.label"/>
                                         <span t-if="tk.sublabel" class="sm-tick-sub" t-esc="tk.sublabel"/>
                                     </div>

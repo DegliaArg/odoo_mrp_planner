@@ -67,6 +67,10 @@ export function dateToOffsetPct(iso, startMin, endMin) {
 // pasa a ser la concatenación de los días visibles. Todas las posiciones se
 // calculan sobre "minutos visibles" en vez de minutos reales.
 
+// Espacio visible (en minutos reales equivalentes) que se reserva a cada lado de
+// un corte del eje, para que el contenido no quede pegado a la marca de corte.
+const GUTTER_MIN = 90;
+
 /** Intersección de [a,b] con una lista de intervalos [ [s,e], ... ] ordenados. */
 function _intersect(a, b, intervals) {
     const out = [];
@@ -88,8 +92,11 @@ function _intersect(a, b, intervals) {
  * El eje visible es la concatenación de "segmentos" (subtramos de día visibles,
  * intersecados con keptIntervals si viene). Todas las posiciones se calculan
  * sobre esos segmentos, así cortes y anchos funcionan con cualquier colapso. */
-export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], keptIntervals = null) {
+export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], keptIntervals = null,
+                              forceVisibleDays = null) {
     const hidden = new Set(hiddenWeekdays);
+    const forced = forceVisibleDays instanceof Set ? forceVisibleDays
+        : new Set(forceVisibleDays || []);
     const [fy, fm, fd] = dateFrom.split("-").map(Number);
     const [ty, tm, td] = dateTo.split("-").map(Number);
     const firstEpochDay = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
@@ -97,25 +104,36 @@ export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], keptInterva
     const days = [];
     const segments = [];   // {rs, re, vs} tramos visibles en minutos reales
     let visMin = 0;
+    let prevRe = null;     // fin (real) del último segmento, para detectar huecos
     for (let ed = firstEpochDay; ed <= lastEpochDay; ed++) {
         const weekday = (new Date(ed * 86400000).getUTCDay() + 6) % 7; // Lun=0…Dom=6
         const dayStart = ed * 1440, dayEnd = dayStart + 1440;
-        const weekdayHidden = hidden.has(weekday);
+        // Finde: se oculta SALVO que tenga trabajo (forceVisibleDays) — no colapsar
+        // un día con barras programadas (ocultar días vacíos sí, con trabajo no).
+        const isWeekend = hidden.has(weekday);
+        const weekendWork = isWeekend && forced.has(ed);
+        const weekdayHidden = isWeekend && !weekendWork;
         // Subtramos visibles del día: día completo, recortado por keptIntervals.
         const ranges = weekdayHidden ? []
             : (keptIntervals ? _intersect(dayStart, dayEnd, keptIntervals) : [[dayStart, dayEnd]]);
         const dayVisStart = visMin;
         for (const [a, b] of ranges) {
+            // Hueco real antes de este segmento (día/hora colapsados o finde) →
+            // se reserva un "gutter" de espacio visible para separar del corte.
+            if (prevRe !== null && a > prevRe) visMin += GUTTER_MIN;
             segments.push({ rs: a, re: b, vs: visMin });
             visMin += b - a;
+            prevRe = b;
         }
         days.push({
             epochDay: ed, weekday, startRealMin: dayStart,
             hidden: ranges.length === 0,          // día sin ningún tramo visible
+            weekendWork,                          // finde que se muestra por tener trabajo
             visStartMin: dayVisStart,
         });
     }
-    return { firstEpochDay, lastEpochDay, days, segments, totalVisibleMin: visMin || 1 };
+    return { firstEpochDay, lastEpochDay, days, segments,
+             gutterMin: GUTTER_MIN, totalVisibleMin: visMin || 1 };
 }
 
 /** Minutos reales → minutos visibles. Los tramos colapsados (fuera de todo
@@ -162,11 +180,15 @@ export function scaleSpan(scale, startIso, endIso) {
 export function scaleCuts(scale) {
     const cuts = [];
     const segs = scale.segments;
+    const g = scale.gutterMin || 0;
     for (let i = 1; i < segs.length; i++) {
         const gapMin = segs[i].rs - segs[i - 1].re;
         if (gapMin <= 0) continue;   // segmentos pegados (mismo día partido) → sin corte
+        // El corte va en el MEDIO del gutter (segs[i].vs ya incluye el gutter), así
+        // hay separación visible entre el contenido anterior y la marca.
+        const prevVisEnd = segs[i - 1].vs + (segs[i - 1].re - segs[i - 1].rs);
         cuts.push({
-            leftPct: (segs[i].vs / scale.totalVisibleMin) * 100,
+            leftPct: ((prevVisEnd + g / 2) / scale.totalVisibleMin) * 100,
             gapDays: Math.round(gapMin / 1440),
         });
     }

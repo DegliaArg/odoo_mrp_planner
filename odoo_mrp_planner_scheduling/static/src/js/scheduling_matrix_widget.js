@@ -175,6 +175,7 @@ class SchedulingMatrixWidget extends Component {
             relatedTree:  [],            // árbol de OFs relacionadas (panel lateral)
             routeTreeIds: [],            // ids del árbol (resaltado en el Gantt)
             routeEdges:   [],            // aristas cadena {from,to} (hilo conector, Fase 2)
+            routeSelectedIds: [],        // OFs marcadas (hilo + resaltado); Shift = varias
             savedView:    null,          // estado a restaurar al salir de ruta
 
             // Popover de componentes (anclado a la barra)
@@ -648,6 +649,7 @@ class SchedulingMatrixWidget extends Component {
             this.state.relatedTree    = result.related_tree || [];
             this.state.routeTreeIds   = result.route_tree_ids || [];
             this.state.routeEdges     = result.route_edges || [];
+            this.state.routeSelectedIds = [result.route_mo_id];   // arranca marcada la enfocada
             this._recompute();
         } catch (e) {
             this.state.error = (e?.data?.message) || e.message || String(e);
@@ -665,6 +667,7 @@ class SchedulingMatrixWidget extends Component {
         this.state.routeHeader = {};
         this.state.relatedTree = [];
         this.state.routeTreeIds = [];
+        this.state.routeSelectedIds = [];
         this.state.savedView = null;
         if (v) {
             this.state.tagIds      = v.tagIds;
@@ -682,27 +685,29 @@ class SchedulingMatrixWidget extends Component {
     }
 
     isTreeBar(bar) {
-        // OF del árbol (no la marcada): resaltado intermedio en el Gantt.
+        // OF del árbol (no marcada): resaltado intermedio en el Gantt.
         return this.state.routeMode
-            && bar.mo_id !== this.state.routeMoId
+            && !this.state.routeSelectedIds.includes(bar.mo_id)
             && this.state.routeTreeIds.includes(bar.mo_id);
     }
 
     isFocusedBar(bar) {
-        // OF marcada (la seleccionada): resaltado pleno en el Gantt.
-        return this.state.routeMode && bar.mo_id === this.state.routeMoId;
+        // OF marcada (seleccionada): resaltado pleno en el Gantt. Multi-selección.
+        return this.state.routeMode && this.state.routeSelectedIds.includes(bar.mo_id);
     }
 
-    /** Click en el panel lateral: marca esa OF de la cadena en el Gantt (mueve
-     *  el resaltado sin reconstruir el tablero ni re-armar la cadena). */
-    selectRouteMo(moId) {
-        if (!moId || moId === this.state.routeMoId) return;
-        this.state.routeMoId = moId;
-        const node = (this.state.relatedTree || []).find(n => n.mo_id === moId);
-        if (node) {
-            this.state.routeHeader = {
-                name: node.name, product: node.product, qty: node.qty, uom: node.uom,
-            };
+    /** Click en el panel/barra: marca esa OF de la cadena (resaltado + hilo), sin
+     *  reconstruir el tablero. Shift+click agrega/quita a la selección (varias
+     *  flechas); click normal selecciona solo esa. */
+    selectRouteMo(moId, ev) {
+        if (!moId) return;
+        const sel = this.state.routeSelectedIds;
+        if (ev && ev.shiftKey) {
+            this.state.routeSelectedIds = sel.includes(moId)
+                ? sel.filter(x => x !== moId)
+                : [...sel, moId];
+        } else {
+            this.state.routeSelectedIds = [moId];
         }
     }
 
@@ -889,13 +894,12 @@ class SchedulingMatrixWidget extends Component {
             }
             top += row.heightPx;
         }
-        // Solo las aristas que tocan la OF MARCADA (sus conexiones directas), para
-        // no dibujar toda la maraña de la cadena de una. Clickeando en el panel se
-        // cambia la marcada y el hilo la sigue.
-        const focus = this.state.routeMoId;
+        // Solo las aristas que tocan alguna OF MARCADA (conexiones directas de las
+        // seleccionadas), para no dibujar toda la maraña. Shift+click marca varias.
+        const sel = this.state.routeSelectedIds;
         const lines = [];
         for (const ed of edges) {
-            if (ed.from !== focus && ed.to !== focus) continue;
+            if (!sel.includes(ed.from) && !sel.includes(ed.to)) continue;
             const child = byMo[ed.from], parent = byMo[ed.to];
             if (!child || !parent) continue;   // alguna punta filtrada por estado
             lines.push({ x1: child.rightX, y1: child.rightY, x2: parent.leftX, y2: parent.leftY });

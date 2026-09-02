@@ -421,12 +421,15 @@
 
               <!-- Panel lateral: árbol de OFs relacionadas (modo ruta) -->
               <div t-if="state.routeMode" class="sm-route-panel">
-                  <div class="sm-route-panel-head">Cadena de OFs relacionadas</div>
+                  <div class="sm-route-panel-head">
+                      Cadena de OFs relacionadas
+                      <span class="text-muted fw-normal small ms-1">· clic para marcar, Shift para varias</span>
+                  </div>
                   <div class="sm-route-panel-body">
                       <t t-foreach="state.relatedTree" t-as="node" t-key="node.mo_id">
-                          <div t-att-class="'sm-tree-node sm-tree-' + node.relation + (node.mo_id === state.routeMoId ? ' sm-tree-current' : '')"
+                          <div t-att-class="'sm-tree-node sm-tree-' + node.relation + (state.routeSelectedIds.includes(node.mo_id) ? ' sm-tree-current' : '')"
                                t-att-style="`padding-left:${8 + node.level * 12}px`"
-                               t-on-click="() => this.selectRouteMo(node.mo_id)"
+                               t-on-click="(ev) => this.selectRouteMo(node.mo_id, ev)"
                                t-att-title="node.name + ' — ' + node.product">
                               <div class="d-flex align-items-center gap-1">
                                   <span class="sm-tree-rel" t-esc="relLabel(node.relation)"/>

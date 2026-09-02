@@ -171,7 +171,8 @@
             </div>
 
             <!-- ══ Tablero ══════════════════════════════════════════════════════ -->
-            <div t-elif="state.layout" class="sm-board">
+            <div t-elif="state.layout" class="sm-board-wrap">
+              <div class="sm-board">
                 <div class="sm-scroll">
 
                     <!-- Header: esquina sticky + eje temporal -->
@@ -321,7 +322,7 @@
                                     <!-- Conector punteado entre tramos de la misma OF -->
                                     <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isDimmed(bar) ? ' sm-bar-dim' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isDimmed(bar) ? ' sm-bar-dim' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -370,7 +371,33 @@
                 <div t-if="state.layout.cutFootnote" class="sm-cut-foot text-muted small px-3 py-1">
                     <i class="fa fa-scissors me-1"/><t t-esc="state.layout.cutFootnote"/>
                 </div>
-            </div><!-- /sm-board -->
+              </div><!-- /sm-board -->
+
+              <!-- Panel lateral: árbol de OFs relacionadas (modo ruta) -->
+              <div t-if="state.routeMode" class="sm-route-panel">
+                  <div class="sm-route-panel-head">Cadena de OFs relacionadas</div>
+                  <div class="sm-route-panel-body">
+                      <t t-foreach="state.relatedTree" t-as="node" t-key="node.mo_id">
+                          <div t-att-class="'sm-tree-node sm-tree-' + node.relation + (node.mo_id === state.routeMoId ? ' sm-tree-current' : '')"
+                               t-att-style="`padding-left:${8 + node.level * 12}px`"
+                               t-on-click="() => this.enterRoute(node.mo_id)"
+                               t-att-title="node.name + ' — ' + node.product">
+                              <div class="d-flex align-items-center gap-1">
+                                  <span class="sm-tree-rel" t-esc="relLabel(node.relation)"/>
+                                  <span class="fw-semibold" t-esc="node.name"/>
+                                  <span class="sm-bar-state badge ms-auto" t-att-class="moStateClass(node.state)"
+                                        t-esc="moStateLabel(node.state)"/>
+                              </div>
+                              <div class="sm-tree-prod text-truncate" t-esc="node.product"/>
+                              <div class="sm-tree-meta text-muted">
+                                  <t t-esc="fmtQty(node.qty)"/> <t t-esc="node.uom"/>
+                                  <t t-if="node.date_start"> · <t t-esc="node.date_start"/></t>
+                              </div>
+                          </div>
+                      </t>
+                  </div>
+              </div>
+            </div><!-- /sm-board-wrap -->
 
         </t><!-- /t-else contenido principal -->
 

@@ -135,10 +135,12 @@ class SchedulingMatrixWidget extends Component {
             collapsedSectors: {},        // sector → true (colapsado); no persiste
 
             // Modo ruta (vista enfocada en los CTs de una OF)
-            routeMode:   false,
-            routeMoId:   null,
-            routeHeader: {},
-            savedView:   null,           // estado a restaurar al salir de ruta
+            routeMode:    false,
+            routeMoId:    null,
+            routeHeader:  {},
+            relatedTree:  [],            // árbol de OFs relacionadas (panel lateral)
+            routeTreeIds: [],            // ids del árbol (resaltado en el Gantt)
+            savedView:    null,          // estado a restaurar al salir de ruta
 
             // Popover de componentes (anclado a la barra)
             popoverKey:       null,   // wo_id / mo_id de la barra abierta
@@ -540,6 +542,8 @@ class SchedulingMatrixWidget extends Component {
                 qty:     result.route_qty,
                 uom:     result.route_uom,
             };
+            this.state.relatedTree    = result.related_tree || [];
+            this.state.routeTreeIds   = result.route_tree_ids || [];
             this._recompute();
         } catch (e) {
             this.state.error = (e?.data?.message) || e.message || String(e);
@@ -555,6 +559,8 @@ class SchedulingMatrixWidget extends Component {
         this.state.routeMode = false;
         this.state.routeMoId = null;
         this.state.routeHeader = {};
+        this.state.relatedTree = [];
+        this.state.routeTreeIds = [];
         this.state.savedView = null;
         if (v) {
             this.state.tagIds      = v.tagIds;
@@ -567,7 +573,19 @@ class SchedulingMatrixWidget extends Component {
     }
 
     isDimmed(bar) {
-        return this.state.routeMode && bar.mo_id !== this.state.routeMoId;
+        // Atenuada si estamos en ruta y la OF no pertenece al árbol relacionado.
+        return this.state.routeMode && !this.state.routeTreeIds.includes(bar.mo_id);
+    }
+
+    isTreeBar(bar) {
+        // OF del árbol (no la enfocada): resaltado intermedio en el Gantt.
+        return this.state.routeMode
+            && bar.mo_id !== this.state.routeMoId
+            && this.state.routeTreeIds.includes(bar.mo_id);
+    }
+
+    relLabel(rel) {
+        return rel === 'descendant' ? 'Hija' : rel === 'ancestor' ? 'Padre' : 'Esta OF';
     }
 
     // ── Cómputo reactivo ─────────────────────────────────────────────────────

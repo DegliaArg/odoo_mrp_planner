@@ -27,7 +27,9 @@ import pytz
 
 from odoo import models, api
 
-from ..models.mrp_reschedule_cascade_mixin import _get_old_code
+from ..models.mrp_reschedule_cascade_mixin import (
+    _get_old_code, _origin_tokens, _search_by_origin,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -460,6 +462,72 @@ class MrpProductionBoard(models.Model):
                 route.append((wc, len(route) + 1))
         return route
 
+    def _compute_related_tree(self, mo, max_depth=12):
+        """Árbol de OFs relacionadas por `origin`.
+
+        En esta instancia `origin` es el único vínculo poblado (86%);
+        x_parent_mo_id está al 0% y los stock-moves (move_orig/move_dest) vacíos.
+        - Ancestros ("padres", que consumen esta OF): se sigue mo.origin hacia
+          arriba (cada token del origin es el nombre de una OF).
+        - Descendientes ("hijas", que fabrican sus componentes): OFs cuyo origin
+          cita a esta OF — matcheo por token con _search_by_origin (soporta origin
+          compuesto y evita el falso positivo MO/001↔MO/0011).
+
+        :returns: (items, tree_ids). items = lista ordenada
+            hijas (más profundas primero) → self → padres, cada uno con
+            {mo_id,name,product,qty,uom,state,date_start,date_finished,relation,level}.
+        """
+        Prod = self.env['mrp.production']
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        act = [('state', 'in', ['confirmed', 'progress', 'to_close'])]
+
+        def _fmt(dt):
+            return pytz.utc.localize(dt).astimezone(tz).strftime('%d/%m %H:%M') if dt else ''
+
+        def _info(m, relation, level):
+            return {
+                'mo_id': m.id, 'name': m.name,
+                'product': m.product_id.display_name if m.product_id else '',
+                'qty': m.product_qty,
+                'uom': m.product_uom_id.name if m.product_uom_id else '',
+                'state': m.state,
+                'date_start': _fmt(m.date_start), 'date_finished': _fmt(m.date_finished),
+                'relation': relation, 'level': level,
+            }
+
+        seen = {mo.id}
+
+        # Ancestros: seguir origin hacia arriba (puede ser compuesto → varios padres).
+        ancestors, frontier, depth = [], [mo], 0
+        while frontier and depth < max_depth:
+            nxt = []
+            for cur in frontier:
+                for tok in _origin_tokens(cur.origin):
+                    p = Prod.search([('name', '=', tok)], limit=1)
+                    if p and p.id not in seen:
+                        seen.add(p.id)
+                        ancestors.append((depth + 1, p))
+                        nxt.append(p)
+            frontier, depth = nxt, depth + 1
+
+        # Descendientes: OFs cuyo origin cita el nombre (recursivo, por nivel).
+        descendants, seen_d, names, depth = [], set(seen), [mo.name], 0
+        while names and depth < max_depth:
+            matches = _search_by_origin(self.env, 'mrp.production', names, act)
+            nxt = []
+            for name in names:
+                for child in matches.get(name, Prod):
+                    if child.id not in seen_d:
+                        seen_d.add(child.id)
+                        descendants.append((depth, child))
+                        nxt.append(child.name)
+            names, depth = nxt, depth + 1
+
+        items = [_info(m, 'descendant', lvl) for lvl, m in sorted(descendants, key=lambda x: -x[0])]
+        items.append(_info(mo, 'self', 0))
+        items += [_info(m, 'ancestor', lvl) for lvl, m in sorted(ancestors, key=lambda x: x[0])]
+        return items, {i['mo_id'] for i in items}
+
     @api.model
     def get_route_board(self, mo_id, include_done=True):
         """Modo ruta: el tablero enfocado en los CTs por los que pasa una OF.
@@ -500,12 +568,17 @@ class MrpProductionBoard(models.Model):
         for r in rows:
             r['route_seq'] = seq_by_wc.get(r['wc_id'])
         payload['rows'] = rows
+
+        # Árbol de OFs relacionadas (por origin): panel lateral + resaltado Gantt.
+        tree, tree_ids = self._compute_related_tree(mo)
         payload.update({
-            'route_mo_id':    mo.id,
-            'route_mo_name':  mo.name,
-            'route_product':  mo.product_id.display_name if mo.product_id else '',
-            'route_qty':      mo.product_qty,
-            'route_uom':      mo.product_uom_id.name if mo.product_uom_id else '',
+            'route_mo_id':     mo.id,
+            'route_mo_name':   mo.name,
+            'route_product':   mo.product_id.display_name if mo.product_id else '',
+            'route_qty':       mo.product_qty,
+            'route_uom':       mo.product_uom_id.name if mo.product_uom_id else '',
+            'related_tree':    tree,
+            'route_tree_ids':  sorted(tree_ids),
         })
         return payload
 

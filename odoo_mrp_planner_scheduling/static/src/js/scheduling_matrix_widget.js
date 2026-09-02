@@ -70,6 +70,21 @@ function defaultDateTo(res) {
     return toDateStr(from);
 }
 
+/** Resolución cuyo spanDays alcanza para mostrar [dateFrom, dateTo] completo
+ *  sin depender del scroll (o 'month' como máximo zoom-out). En modo ruta el
+ *  rango lo fija el árbol de OFs relacionadas, que puede abarcar semanas; al
+ *  entrar se ajusta el zoom para que la enfocada y sus padres/hijas entren en
+ *  el viewport, no queden a un mes de scroll. */
+function fitResolution(dateFrom, dateTo) {
+    const from = new Date(dateFrom + "T00:00:00");
+    const to   = new Date(dateTo   + "T00:00:00");
+    const spanDays = Math.round((to - from) / 86400000) + 1;
+    for (const key of ['day', '3days', 'week', 'month']) {
+        if (spanDays <= RESOLUTIONS[key].spanDays) return key;
+    }
+    return 'month';
+}
+
 /** [añoISO, semanaISO] de una fecha JS. */
 function isoWeek(date) {
     const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -534,6 +549,10 @@ class SchedulingMatrixWidget extends Component {
             this.state.totalBars      = result.total_bars || 0;
             this.state.dateFrom       = result.range_from;
             this.state.dateTo         = result.range_to;
+            // Zoom auto: que todo el árbol (enfocada + padres/hijas) entre en el
+            // viewport. El rango puede abarcar semanas si las relacionadas están
+            // lejos en el tiempo. exitRoute restaura la resolución previa.
+            this.state.resolution     = fitResolution(result.range_from, result.range_to);
             this.state.routeMode      = true;
             this.state.routeMoId      = result.route_mo_id;
             this.state.routeHeader    = {

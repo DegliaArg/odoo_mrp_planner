@@ -71,17 +71,6 @@ function defaultDateTo(res) {
     return toDateStr(from);
 }
 
-/** Resolución cuyo spanDays alcanza para mostrar `spanDays` días en el viewport
- *  (o 'month' como máximo zoom-out). En modo ruta el span relevante es el
- *  VISIBLE (con los días vacíos colapsados), no el rango de calendario: una
- *  relacionada lejana estira el calendario pero, colapsada, ocupa pocos días. */
-function fitResolution(spanDays) {
-    for (const key of ['day', '3days', 'week', 'month']) {
-        if (spanDays <= RESOLUTIONS[key].spanDays) return key;
-    }
-    return 'month';
-}
-
 /** Cantidad de días del rango [dateFrom, dateTo] inclusive. */
 function rangeDays(dateFrom, dateTo) {
     const from = new Date(dateFrom + "T00:00:00");
@@ -341,8 +330,11 @@ class SchedulingMatrixWidget extends Component {
         this._recompute();      // colapsa/expande los días vacíos; sin RPC
     }
 
-    /** Ajusta la resolución (zoom) al span VISIBLE del modo ruta: con colapso,
-     *  la suma de los tramos con OFs de la cadena; sin colapso, el calendario. */
+    /** Ajusta la resolución (zoom) del modo ruta para que TODO el contenido
+     *  (colapsado: solo los tramos con OFs de la cadena) entre en el viewport.
+     *  Elige el zoom más fino —barras más grandes— cuyo ancho total no exceda
+     *  el ancho disponible de la pista, así se ven todas las OFs de la cadena
+     *  sin tener que scrollear. */
     _fitRouteZoom() {
         let visibleMin;
         if (this.state.collapseEmpty) {
@@ -350,7 +342,14 @@ class SchedulingMatrixWidget extends Component {
         } else {
             visibleMin = rangeDays(this.state.dateFrom, this.state.dateTo) * 1440;
         }
-        this.state.resolution = fitResolution(Math.max(1, Math.ceil(visibleMin / 1440)));
+        const visibleHours = Math.max(1, visibleMin / 60);
+        // Ancho de la pista ≈ ventana − columna de CT (150) − panel lateral (300) − aire.
+        const availW = Math.max(360, (window.innerWidth || 1280) - 150 - 300 - 48);
+        let chosen = 'month';
+        for (const key of ['day', '3days', 'week', 'month']) {
+            if (visibleHours * RESOLUTIONS[key].pxPerHour <= availW) { chosen = key; break; }
+        }
+        this.state.resolution = chosen;
     }
 
     toggleUnassigned() {

@@ -889,8 +889,13 @@ class SchedulingMatrixWidget extends Component {
             }
             top += row.heightPx;
         }
+        // Solo las aristas que tocan la OF MARCADA (sus conexiones directas), para
+        // no dibujar toda la maraña de la cadena de una. Clickeando en el panel se
+        // cambia la marcada y el hilo la sigue.
+        const focus = this.state.routeMoId;
         const lines = [];
         for (const ed of edges) {
+            if (ed.from !== focus && ed.to !== focus) continue;
             const child = byMo[ed.from], parent = byMo[ed.to];
             if (!child || !parent) continue;   // alguna punta filtrada por estado
             lines.push({ x1: child.rightX, y1: child.rightY, x2: parent.leftX, y2: parent.leftY });

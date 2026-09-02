@@ -403,7 +403,7 @@
                         <defs>
                             <marker id="sm-thread-arrow" markerWidth="7" markerHeight="7"
                                     refX="6" refY="3" orient="auto" markerUnits="userSpaceOnUse">
-                                <path d="M0,0 L7,3 L0,6 Z" fill="#378ADD"/>
+                                <path d="M0,0 L7,3 L0,6 Z" fill="#1D9E75"/>
                             </marker>
                         </defs>
                         <t t-foreach="routeThread.lines" t-as="ln" t-key="ln_index">

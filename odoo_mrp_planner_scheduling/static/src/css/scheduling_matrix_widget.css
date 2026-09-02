@@ -303,8 +303,7 @@
     z-index: 6; pointer-events: none; overflow: visible;
 }
 .sm-thread-line {
-    fill: none; stroke: #378ADD; stroke-width: 1.5;
-    stroke-dasharray: 5 3; opacity: 0.75;
+    fill: none; stroke: #1D9E75; stroke-width: 2; opacity: 0.9;
 }
 .sm-popover-foot { background: #f8f9fa; }
 

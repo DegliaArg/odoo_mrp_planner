@@ -866,6 +866,44 @@ class SchedulingMatrixWidget extends Component {
         };
     }
 
+    /** Hilo conector de la cadena (Fase 2): para cada arista componente→consumidora
+     *  (route_edges), une la barra de salida de la hija con la de entrada del padre.
+     *  Coordenadas en px sobre la pista (Y = suma de alturas de fila; solo modo
+     *  ruta, donde las filas son planas sin headers de sector). */
+    get routeThread() {
+        if (!this.state.routeMode || !this.state.layout) return null;
+        const edges = this.state.routeEdges || [];
+        if (!edges.length) return null;
+        const contentW = this.state.layout.contentWidthPx;
+        const rows = this.state.viewRows.filter(r => !r.is_unassigned);
+        const byMo = {};   // moId → {leftX,leftY,rightX,rightY} (bordes extremos de sus barras)
+        let top = 0;
+        for (const row of rows) {
+            for (const bar of (row.bars || [])) {
+                const yc = top + ROW_PAD + (bar.lane || 0) * LANE_PITCH + BAR_H / 2;
+                const lx = (bar.env.left / 100) * contentW;
+                const rx = ((bar.env.left + bar.env.width) / 100) * contentW;
+                const e = byMo[bar.mo_id] || (byMo[bar.mo_id] = {});
+                if (e.leftX === undefined || lx < e.leftX) { e.leftX = lx; e.leftY = yc; }
+                if (e.rightX === undefined || rx > e.rightX) { e.rightX = rx; e.rightY = yc; }
+            }
+            top += row.heightPx;
+        }
+        const lines = [];
+        for (const ed of edges) {
+            const child = byMo[ed.from], parent = byMo[ed.to];
+            if (!child || !parent) continue;   // alguna punta filtrada por estado
+            lines.push({ x1: child.rightX, y1: child.rightY, x2: parent.leftX, y2: parent.leftY });
+        }
+        return lines.length ? { lines, width: contentW, height: top } : null;
+    }
+
+    /** Path (curva suave) de una línea del hilo entre dos anclas. */
+    threadPath(ln) {
+        const dx = Math.max(24, Math.abs(ln.x2 - ln.x1) * 0.4);
+        return `M${ln.x1},${ln.y1} C${ln.x1 + dx},${ln.y1} ${ln.x2 - dx},${ln.y2} ${ln.x2},${ln.y2}`;
+    }
+
     /** Filas filtradas con geometría de barras, lanes y bandas laborables. */
     _computeRows() {
         const layout = this.state.layout;

@@ -294,6 +294,18 @@
     box-shadow: 0 2px 8px rgba(29, 158, 117, 0.35) !important;
 }
 .sm-bar-focus:hover { outline-color: #178a65; }
+
+/* Hilo conector de la cadena (modo ruta). El SVG se superpone a la pista,
+   desplazado por la columna de CT; no intercepta clicks. */
+.sm-rows { position: relative; }
+.sm-thread {
+    position: absolute; top: 0; left: var(--sm-ct-w);
+    z-index: 6; pointer-events: none; overflow: visible;
+}
+.sm-thread-line {
+    fill: none; stroke: #378ADD; stroke-width: 1.5;
+    stroke-dasharray: 5 3; opacity: 0.75;
+}
 .sm-popover-foot { background: #f8f9fa; }
 
 /* ── Popover de componentes ── */

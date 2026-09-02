@@ -230,7 +230,9 @@
                         </div>
                     </div>
 
-                    <!-- Filas (con encabezados de sector cuando hay varios sectores) -->
+                    <!-- Filas (con encabezados de sector cuando hay varios sectores).
+                         Contenedor posicionado para poder superponer el hilo (modo ruta). -->
+                    <div class="sm-rows">
                     <t t-foreach="boardItems" t-as="item" t-key="itemKey(item)">
 
                       <!-- Encabezado de sector (sticky, colapsable) -->
@@ -393,6 +395,23 @@
                         </div><!-- /sm-row -->
                       </t><!-- /t-else fila normal -->
                     </t><!-- /t-foreach filas -->
+
+                    <!-- Hilo conector de la cadena (modo ruta): componente → consumidora -->
+                    <svg t-if="routeThread" class="sm-thread"
+                         t-att-style="`width:${routeThread.width}px;height:${routeThread.height}px`"
+                         t-att-width="routeThread.width" t-att-height="routeThread.height">
+                        <defs>
+                            <marker id="sm-thread-arrow" markerWidth="7" markerHeight="7"
+                                    refX="6" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+                                <path d="M0,0 L7,3 L0,6 Z" fill="#378ADD"/>
+                            </marker>
+                        </defs>
+                        <t t-foreach="routeThread.lines" t-as="ln" t-key="ln_index">
+                            <path t-att-d="threadPath(ln)" class="sm-thread-line"
+                                  marker-end="url(#sm-thread-arrow)"/>
+                        </t>
+                    </svg>
+                    </div><!-- /sm-rows -->
 
                 </div><!-- /sm-scroll -->
                 <div t-if="state.layout.cutFootnote" class="sm-cut-foot text-muted small px-3 py-1">

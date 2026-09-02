@@ -111,8 +111,7 @@ class MrpProductionBoard(models.Model):
                                          include_done, states=states)
 
     def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done,
-                             force_wc_ids=None, only_mo_ids=None, states=None,
-                             fallback_mo_ids=None):
+                             force_wc_ids=None, only_mo_ids=None, states=None):
         """
         Construye el tablero (eje horario continuo) para el conjunto de CTs
         `valid_wc_ids` (None = todos) en [date_from, date_to].
@@ -285,11 +284,13 @@ class MrpProductionBoard(models.Model):
                     added += 1
                 # Modo ruta: si la OF tiene operaciones pero NINGUNA está programada
                 # (WOs sin date_start — button_plan no corrido, el 93% en esta base),
-                # igual debe aparecer, ubicada por las fechas de la MO en cada centro
-                # de su ruta. SOLO para la OF ENFOCADA (fallback_mo_ids): las OFs del
-                # árbol sin programar no deben meter CTs placeholder a fechas lejanas.
-                if (not added and fallback_mo_ids and mo.id in fallback_mo_ids
-                        and mo.date_start):
+                # igual se dibuja, ubicada por las fechas de la MO en cada centro de
+                # su ruta, con estilo "sin programar" (wo_id nulo → sm-bar-unsched en
+                # el cliente). Aplica a TODA la cadena, no solo a la enfocada: así los
+                # relacionados sin programar se ven ubicados en el tiempo y el hilo
+                # tiene sus dos puntas. Los CTs que NO reciben ninguna barra no se
+                # fuerzan como fila (force_wc_ids = solo la OF enfocada).
+                if not added and only_mo_ids is not None and mo.date_start:
                     for wc in route_wcs:
                         _add_bar(wc, mo, None, mo.state, mo.date_start, mo.date_finished,
                                  0.0, prod_name, prod_code, uom)
@@ -686,7 +687,6 @@ class MrpProductionBoard(models.Model):
         payload = self._build_board_payload(
             all_wc_ids, lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
             force_wc_ids=focus_wc_ids, only_mo_ids=tree_ids, states=states,
-            fallback_mo_ids={mo.id},
         )
 
         # Orden de filas = orden del escalonado (cronológico por la barra más

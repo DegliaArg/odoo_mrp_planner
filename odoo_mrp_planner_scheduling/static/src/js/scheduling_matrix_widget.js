@@ -64,6 +64,20 @@ function defaultDateFrom(res) {
     return toDateStr(d);
 }
 
+/** Ajusta una fecha al inicio de su período según la resolución (lunes de la
+ *  semana / primero del mes / la fecha misma), SIN saltar a hoy. Sirve para
+ *  cambiar de zoom preservando la posición del usuario. */
+function snapFrom(dateStr, res) {
+    const d = new Date(dateStr + "T00:00:00");
+    if (res === 'week') {
+        const day = d.getDay() || 7;
+        d.setDate(d.getDate() - day + 1);   // lunes de esa semana
+    } else if (res === 'month') {
+        d.setDate(1);
+    }
+    return toDateStr(d);
+}
+
 /** date_to por defecto: date_from + spanDays - 1. */
 function defaultDateTo(res) {
     const from = new Date(defaultDateFrom(res) + "T00:00:00");
@@ -432,9 +446,13 @@ class SchedulingMatrixWidget extends Component {
             this._recompute();
             return;
         }
-        // Ajustar el rango para que el ancho renderizado siga siendo manejable.
-        this.state.dateFrom = defaultDateFrom(res);
-        this.state.dateTo   = defaultDateTo(res);
+        // Preservar la fecha que el usuario está viendo (ajustada al período de la
+        // nueva resolución), en vez de saltar a hoy. Solo se recalcula el fin.
+        const from = snapFrom(this.state.dateFrom || defaultDateFrom(res), res);
+        const to = new Date(from + "T00:00:00");
+        to.setDate(to.getDate() + RESOLUTIONS[res].spanDays - 1);
+        this.state.dateFrom = from;
+        this.state.dateTo   = toDateStr(to);
         await this._loadData();
     }
 

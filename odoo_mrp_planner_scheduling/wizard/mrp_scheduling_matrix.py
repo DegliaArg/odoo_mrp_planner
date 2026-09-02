@@ -495,7 +495,7 @@ class MrpProductionBoard(models.Model):
                 route.append((wc, len(route) + 1))
         return route
 
-    def _compute_related_tree(self, mo, max_depth=12):
+    def _compute_related_tree(self, mo, max_depth=12, include_done=True):
         """Árbol de OFs relacionadas por `origin`.
 
         En esta instancia `origin` es el único vínculo poblado (86%);
@@ -506,13 +506,20 @@ class MrpProductionBoard(models.Model):
           cita a esta OF — matcheo por token con _search_by_origin (soporta origin
           compuesto y evita el falso positivo MO/001↔MO/0011).
 
+        Las hijas se fabrican ANTES, así que suelen estar `done`. Con
+        `include_done=True` (la ruta muestra el historial) NO se filtran por
+        estado, para que aparezcan igual que los padres (que nunca se filtran).
+
         :returns: (items, tree_ids). items = lista ordenada
             hijas (más profundas primero) → self → padres, cada uno con
             {mo_id,name,product,qty,uom,state,date_start,date_finished,relation,level}.
         """
         Prod = self.env['mrp.production']
         tz = pytz.timezone(self.env.user.tz or 'UTC')
-        act = [('state', 'in', ['confirmed', 'progress', 'to_close'])]
+        active_states = ['confirmed', 'progress', 'to_close']
+        if include_done:
+            active_states = active_states + ['done']
+        act = [('state', 'in', active_states)]
 
         def _fmt(dt):
             return pytz.utc.localize(dt).astimezone(tz).strftime('%d/%m %H:%M') if dt else ''

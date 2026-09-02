@@ -860,10 +860,18 @@ class SchedulingMatrixWidget extends Component {
                 if (!segs.length) segs.push(env);   // nunca dejar una barra sin dibujar
                 return { ...b, segs, env, startMin: sMin, endMin: eMin };
             });
-            // Las OFs terminadas no compiten por capacidad: se excluyen de los
-            // lanes y de la sobrecarga (van al lane 0, de fondo).
-            const active = geom.filter(b => b.mo_state !== 'done');
-            const doneBars = geom.filter(b => b.mo_state === 'done');
+            // En modo ruta TODAS las barras participan del laneado: los parciales
+            // de una misma OF (done + confirmado) caen en la misma fecha/centro y
+            // deben apilarse, no pisarse. En el tablero normal, las terminadas no
+            // compiten por capacidad y van al lane 0 (de fondo).
+            let active, doneBars;
+            if (this.state.routeMode) {
+                active = geom;
+                doneBars = [];
+            } else {
+                active = geom.filter(b => b.mo_state !== 'done');
+                doneBars = geom.filter(b => b.mo_state === 'done');
+            }
             const { lane, laneCount, overload } = layoutLanes(active);
             const barsOut = active
                 .map((b, i) => ({ ...b, lane: lane[i], overload: overload[i] }))

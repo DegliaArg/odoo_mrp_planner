@@ -283,23 +283,33 @@
    CONTENIDO (overflow hidden + ellipsis, heredado de .sm-bar); el detalle
    completo va al tooltip. min-width mínimo para que el chip sea clickeable.
    La barra es un "container" para degradar el contenido según su ancho. */
-.sm-route-mode .sm-bar { min-width: 30px; container-type: inline-size; }
+.sm-route-mode .sm-bar { min-width: 30px; container-type: inline-size; padding: 3px 5px; }
 .sm-route-mode .sm-bar-ref { font-size: 13px; }
-/* Degradación al angostarse (solo las barras de ruta son container): primero cae
-   la línea 2 (producto), después el badge de estado, y por último el código se
-   trunca con ellipsis (nunca una barra sin etiqueta). */
+/* Referencia corta (número de OF) — solo se usa cuando la barra es angosta. */
+.sm-bar-ref-short {
+    display: none; font-size: 12px; font-weight: 500; color: #212529;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Degradación por ancho (solo las barras de ruta son container): cae la línea 2
+   (producto), después el badge; en muy angosta el código pasa a solo el NÚMERO de
+   OF (identificatorio) con ellipsis — nunca queda en blanco. Detalle en tooltip. */
+@container (max-width: 130px) {
+    .sm-bar-ref { display: none; }
+    .sm-bar-ref-short { display: inline; }
+}
 @container (max-width: 95px) { .sm-bar-l2 { display: none; } }
 @container (max-width: 62px) {
     .sm-bar-state, .sm-bar-unsched-badge, .sm-bar-warn { display: none; }
 }
-/* OF marcada (seleccionada en el panel/Gantt): anillo VIOLETA + glow, por encima
-   del resto. Violeta (no es color de estado) para no confundir con "terminada"
-   (verde) al ver una barra angosta. La del árbol conserva el anillo azul fino. */
-.sm-bar-focus {
-    outline: 2.5px solid #7A3FF2; outline-offset: 0; z-index: 7 !important;
-    box-shadow: 0 2px 8px rgba(122, 63, 242, 0.35) !important;
+/* OF marcada (seleccionada): PUNTO violeta en la esquina — NO tiñe el relleno (no
+   compite con el color de estado) y no se come las barras angostas, a diferencia
+   del anillo anterior. Violeta = selección, no es color de estado. */
+.sm-bar-focus { z-index: 7 !important; }
+.sm-bar-focus::after {
+    content: ''; position: absolute; top: 3px; right: 3px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #7A3FF2; box-shadow: 0 0 0 1.5px #fff; pointer-events: none;
 }
-.sm-bar-focus:hover { outline-color: #6326d8; }
 
 /* Hilo conector de la cadena (modo ruta). El SVG se superpone a la pista,
    desplazado por la columna de CT; no intercepta clicks. */

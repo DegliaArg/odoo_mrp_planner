@@ -693,7 +693,11 @@ class MrpProductionBoard(models.Model):
         # temprana de cada CT), para que coincida con el orden del panel lateral
         # (hijas antes → padres después). Empate/CT sin barras: por nombre.
         seq_by_wc = {wc.id: seq for wc, seq in route}
-        rows = [r for r in payload['rows'] if not r.get('is_unassigned')]
+        # Solo filas con barras, MÁS los CTs de la OF enfocada (que se conservan
+        # aunque estén vacíos). Nunca una fila de CT de una OF del árbol sin barra.
+        rows = [r for r in payload['rows']
+                if not r.get('is_unassigned')
+                and (r.get('bars') or r['wc_id'] in focus_wc_ids)]
 
         def _row_min_start(r):
             starts = [b['date_start'] for b in r.get('bars', []) if b.get('date_start')]

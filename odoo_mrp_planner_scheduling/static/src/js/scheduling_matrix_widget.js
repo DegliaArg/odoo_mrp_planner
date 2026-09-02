@@ -1056,6 +1056,14 @@ class SchedulingMatrixWidget extends Component {
         return this.state.routeMode && !bar.wo_id;
     }
 
+    /** Referencia corta e identificatoria de la OF (para barras angostas): el
+     *  último tramo del nombre ('CP/MO/04015' → '04015'; 'VL/MO/03365-013' →
+     *  '03365-013'). El prefijo (CP/MO) no distingue; el número sí. */
+    shortRef(moName) {
+        const parts = (moName || '').split('/');
+        return parts[parts.length - 1] || moName || '';
+    }
+
     barTitle(bar) {
         let t = `${bar.mo_name} · ${bar.product_name} · ${this.fmtQty(bar.qty)} ${bar.uom}`;
         if (bar.duration_expected) t += ` · ${this.fmtHours(bar.duration_expected)}`;

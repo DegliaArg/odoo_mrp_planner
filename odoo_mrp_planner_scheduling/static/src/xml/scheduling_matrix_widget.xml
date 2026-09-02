@@ -367,6 +367,7 @@
                                                 <div class="sm-bar-body">
                                                     <div class="sm-bar-l1">
                                                         <span class="sm-bar-ref" t-esc="bar.mo_name"/>
+                                                        <span class="sm-bar-ref-short" t-esc="shortRef(bar.mo_name)"/>
                                                         <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
                                                         <span t-elif="isUnscheduledBar(bar)" class="sm-bar-unsched-badge badge"
                                                               title="Operación sin programar: ubicada por las fechas de la OF (su WO no tiene inicio).">sin programar</span>

@@ -538,9 +538,11 @@ class SchedulingMatrixWidget extends Component {
 
     async toggleBarPopover(ev, bar) {
         ev.stopPropagation();
-        // En modo ruta, click en otra OF = saltar a SU ruta (encadenar).
-        if (this.state.routeMode && bar.mo_id !== this.state.routeMoId) {
-            this.enterRoute(bar.mo_id);
+        // En modo ruta, click en una barra marca esa OF (Shift agrega/quita), igual
+        // que en el panel lateral — así se ve su hilo. El detalle de componentes se
+        // abre desde el botón de la barra (link externo).
+        if (this.state.routeMode) {
+            this.selectRouteMo(bar.mo_id, ev);
             return;
         }
         const key = bar.wo_id ? `wo_${bar.wo_id}` : `mo_${bar.mo_id}`;

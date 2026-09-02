@@ -305,6 +305,19 @@
 .sm-thread-line {
     fill: none; stroke: #1D9E75; stroke-width: 2; opacity: 0.9;
 }
+
+/* Barra de operación SIN programar (modo ruta): ubicada por las fechas de la OF,
+   no por la operación (su WO no tiene inicio). Rayado + borde punteado para no
+   confundirla con una operación programada. */
+.sm-bar-unsched {
+    border-style: dashed;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px,
+        rgba(120, 130, 140, 0.10) 5px, rgba(120, 130, 140, 0.10) 10px);
+}
+.sm-bar-unsched-badge {
+    background: #eef1f4; color: #6c757d; font-style: italic;
+    border: 1px dashed #b0b6bd; padding: 0 5px; font-size: 10px;
+}
 .sm-popover-foot { background: #f8f9fa; }
 
 /* ── Popover de componentes ── */

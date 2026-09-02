@@ -175,6 +175,7 @@ class SchedulingMatrixWidget extends Component {
             relatedTree:  [],            // árbol de OFs relacionadas (panel lateral)
             routeTreeIds: [],            // ids del árbol (resaltado en el Gantt)
             routeEdges:   [],            // aristas cadena {from,to} (hilo conector, Fase 2)
+            routeTruncated: false,       // el árbol se cortó por MAX_NODES (hay más cadena)
             routeSelectedIds: [],        // OFs marcadas (hilo + resaltado); Shift = varias
             savedView:    null,          // estado a restaurar al salir de ruta
 
@@ -651,6 +652,7 @@ class SchedulingMatrixWidget extends Component {
             this.state.relatedTree    = result.related_tree || [];
             this.state.routeTreeIds   = result.route_tree_ids || [];
             this.state.routeEdges     = result.route_edges || [];
+            this.state.routeTruncated = result.route_truncated || false;
             this.state.routeSelectedIds = [result.route_mo_id];   // arranca marcada la enfocada
             this._recompute();
         } catch (e) {
@@ -670,6 +672,7 @@ class SchedulingMatrixWidget extends Component {
         this.state.relatedTree = [];
         this.state.routeTreeIds = [];
         this.state.routeSelectedIds = [];
+        this.state.routeTruncated = false;
         this.state.savedView = null;
         if (v) {
             this.state.tagIds      = v.tagIds;
@@ -679,11 +682,6 @@ class SchedulingMatrixWidget extends Component {
             this.state.resolution  = v.resolution;
         }
         this._loadData();
-    }
-
-    isDimmed(bar) {
-        // Atenuada si estamos en ruta y la OF no pertenece al árbol relacionado.
-        return this.state.routeMode && !this.state.routeTreeIds.includes(bar.mo_id);
     }
 
     isTreeBar(bar) {
@@ -1032,12 +1030,21 @@ class SchedulingMatrixWidget extends Component {
     }
 
     /** Tooltip completo de una barra (incluye el estado, que es lo que codifica el color). */
+    /** Barra de operación sin programar (modo ruta): ubicada por las fechas de la
+     *  OF porque su WO no tiene date_start (no se corrió button_plan). wo_id nulo. */
+    isUnscheduledBar(bar) {
+        return this.state.routeMode && !bar.wo_id;
+    }
+
     barTitle(bar) {
         let t = `${bar.mo_name} · ${bar.product_name} · ${this.fmtQty(bar.qty)} ${bar.uom}`;
         if (bar.duration_expected) t += ` · ${this.fmtHours(bar.duration_expected)}`;
         t += ` · ${bar.date_start_str}`;
         if (bar.date_finished_str) t += ` → ${bar.date_finished_str}`;
         t += ` · Estado: ${this.moStateLabel(bar.mo_state)}`;
+        if (this.isUnscheduledBar(bar)) {
+            t += ' · ⚠ operación sin programar (ubicada por las fechas de la OF, no por la operación)';
+        }
         if (bar.overload) t += ' · ⚠ sobrecarga (solapada en el centro)';
         if (bar.inconsistent_dates) t += ' · ⚠ fechas inconsistentes';
         else if (bar.outside_calendar) t += ' · ⚠ planificada fuera del calendario del centro';

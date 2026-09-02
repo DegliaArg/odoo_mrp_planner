@@ -163,6 +163,10 @@
                         <i class="fa fa-random me-1"/>Ruta de <b t-esc="state.routeHeader.name"/>
                         <span class="text-muted ms-2" t-esc="state.routeHeader.product"/>
                         <span class="text-muted ms-1">· <t t-esc="fmtQty(state.routeHeader.qty)"/> <t t-esc="state.routeHeader.uom"/></span>
+                        <span t-if="state.routeTruncated" class="badge bg-warning text-dark ms-2"
+                              title="La cadena es muy larga y se mostró parcialmente (límite de nodos). Hay más OFs relacionadas de las que se ven.">
+                            <i class="fa fa-exclamation-triangle me-1"/>cadena recortada
+                        </span>
                     </span>
                     <div class="form-check form-switch mb-0 ms-auto">
                         <input class="form-check-input" type="checkbox" id="sm-collapse-empty-r"
@@ -351,7 +355,7 @@
                                     <!-- Conector punteado entre tramos de la misma OF -->
                                     <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isDimmed(bar) ? ' sm-bar-dim' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isUnscheduledBar(bar) ? ' sm-bar-unsched' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -360,12 +364,12 @@
                                                 <div class="sm-bar-body">
                                                     <div class="sm-bar-l1">
                                                         <span class="sm-bar-ref" t-esc="bar.mo_name"/>
-                                                        <t t-if="!isDimmed(bar)">
-                                                            <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
-                                                            <span t-else="" class="sm-bar-state badge"
-                                                                  t-att-class="moStateClass(bar.mo_state)"
-                                                                  t-esc="moStateLabel(bar.mo_state)"/>
-                                                        </t>
+                                                        <span t-if="bar.overload" class="sm-bar-warn">SOLAPADA</span>
+                                                        <span t-elif="isUnscheduledBar(bar)" class="sm-bar-unsched-badge badge"
+                                                              title="Operación sin programar: ubicada por las fechas de la OF (su WO no tiene inicio).">sin programar</span>
+                                                        <span t-else="" class="sm-bar-state badge"
+                                                              t-att-class="moStateClass(bar.mo_state)"
+                                                              t-esc="moStateLabel(bar.mo_state)"/>
                                                     </div>
                                                     <div class="sm-bar-l2">
                                                         <t t-esc="bar.product_name"/>

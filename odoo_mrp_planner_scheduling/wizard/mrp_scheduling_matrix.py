@@ -315,10 +315,16 @@ class MrpProductionBoard(models.Model):
 
         def _working_dates(cal, ivs):
             """Fechas locales (del usuario) en que el CT tiene algún intervalo
-            laborable. Un día que no está acá es un día COMPLETO no laborable."""
+            laborable. Un día que no está acá es un día COMPLETO no laborable.
+
+            Devuelve None si las bandas NO se pudieron calcular (ivs is None): es
+            "desconocido", distinto de un set VACÍO (calculado: el CT no trabaja
+            ningún día del rango). El llamador propaga esa diferencia."""
+            if ivs is None:
+                return None
             if cal.id not in wd_cache:
                 dates = set()
-                for ws, we in (ivs or []):
+                for ws, we in ivs:
                     a = pytz.utc.localize(ws).astimezone(tz).date()
                     b = pytz.utc.localize(we - timedelta(microseconds=1)).astimezone(tz).date()
                     d = a
@@ -340,6 +346,11 @@ class MrpProductionBoard(models.Model):
             feriado). Las horas no laborables dentro de un día laborable (14→06 en
             un CT 6-14) NO parten la barra.
 
+            working_dates: None = bandas desconocidas (no calculables) → NO se
+            parte, barra continua (la fila ya se marca con bands_failed). Un set
+            (aunque VACÍO) = calculado: un día que no está en el set es no
+            laborable; set vacío ⇒ el CT no trabaja ningún día ⇒ todo_fuera=True.
+
             :returns: (segmentos_iso, todo_fuera). todo_fuera=True si la barra no
                 toca ningún día laborable (se dibuja igual, continua y marcada).
             """
@@ -355,8 +366,9 @@ class MrpProductionBoard(models.Model):
             d = first
             while d <= last:
                 da, db = _day_bounds_utc(d)
-                # Sin working_dates (bandas no calculables) → no se parte: continua.
-                if not working_dates or d in working_dates:
+                # None (bandas no calculables) → no se parte: continua. Un set
+                # (aun vacío) → se respeta la membresía (vacío ⇒ ningún día).
+                if working_dates is None or d in working_dates:
                     seg_a, seg_b = max(s0, da), min(e0, db)
                     if run_a is None:
                         run_a, run_b = seg_a, seg_b
@@ -400,7 +412,9 @@ class MrpProductionBoard(models.Model):
                     "Tablero: CT %s (id=%s) sin resource_calendar_id; "
                     "no se pueden calcular las bandas laborables.", wc.name, wc.id,
                 )
-            wdates = _working_dates(cal, ivs) if cal else set()
+            # Sin calendario → None (desconocido, no set vacío): la barra queda
+            # continua y la fila se marca con bands_failed (no un CT que "no trabaja").
+            wdates = _working_dates(cal, ivs) if cal else None
 
             # Barra continua, partida solo por día completo no laborable. La
             # ocupación prorratea la duración de las WO al rango cargado y EXCLUYE
@@ -534,54 +548,74 @@ class MrpProductionBoard(models.Model):
         MAX_NODES = 80   # cota de seguridad ante cadenas patológicamente anchas
         seen = {mo.id}
 
-        # Ancestros: seguir origin hacia arriba (puede ser compuesto → varios
-        # padres). Los parciales citan el nombre BASE en origin ('CP/MO/04069')
-        # pero el padre real está partido ('CP/MO/04069-001/-002'): se matchea por
-        # base (name = tok, o name = base, o name like base-%).
+        truncated = False   # True si se cortó por MAX_NODES (hay más cadena)
+
+        # Ancestros: seguir origin hacia arriba (compuesto → varios padres). Los
+        # parciales citan la BASE en origin y el padre puede estar partido, así que
+        # se matchea por name = tok | base | base-%. Batch: UNA query por nivel con
+        # todos los tokens de la frontera (no un search por token → evita N+1).
         ancestors, frontier, depth = [], [mo], 0
-        while frontier and depth < max_depth and len(seen) < MAX_NODES:
-            nxt = []
+        while frontier and depth < max_depth and not truncated:
+            toks = set()
             for cur in frontier:
-                for tok in _origin_tokens(cur.origin):
-                    btok = _base_name(tok)
-                    parents = Prod.search([
-                        '|', '|', ('name', '=', tok),
-                        ('name', '=', btok), ('name', '=like', btok + '-%'),
-                    ] + act)
-                    for p in parents:
-                        if p.id not in seen:
-                            seen.add(p.id)
-                            ancestors.append((depth + 1, p))
-                            nxt.append(p)
+                toks |= _origin_tokens(cur.origin)
+            if not toks:
+                break
+            exact_names, bases = set(), set()
+            for tok in toks:
+                b = _base_name(tok)
+                exact_names.update((tok, b))
+                bases.add(b)
+            leaves = [('name', 'in', list(exact_names))]
+            leaves += [('name', '=like', b + '-%') for b in bases]
+            domain = ['|'] * (len(leaves) - 1) + leaves + act
+            nxt = []
+            for p in Prod.search(domain):
+                if p.id in seen:
+                    continue
+                if len(seen) >= MAX_NODES:
+                    truncated = True
+                    break
+                seen.add(p.id)
+                ancestors.append((depth + 1, p))
+                nxt.append(p)
             frontier, depth = nxt, depth + 1
 
         # Descendientes: OFs cuyo origin cita el nombre BASE (recursivo por nivel).
         # Se busca por base para captar OFs enteras y parciales por igual.
         descendants, seen_d, names, depth = [], set(seen), [_base_name(mo.name)], 0
-        while names and depth < max_depth and len(seen_d) < MAX_NODES:
+        while names and depth < max_depth and not truncated:
             matches = _search_by_origin(self.env, 'mrp.production', names, act)
-            nxt = []
+            nxt, stop = [], False
             for name in names:
                 for child in matches.get(name, Prod):
-                    if child.id not in seen_d:
-                        seen_d.add(child.id)
-                        descendants.append((depth, child))
-                        nxt.append(_base_name(child.name))
+                    if child.id in seen_d:
+                        continue
+                    if len(seen_d) >= MAX_NODES:
+                        truncated = stop = True
+                        break
+                    seen_d.add(child.id)
+                    descendants.append((depth, child))
+                    nxt.append(_base_name(child.name))
+                if stop:
+                    break
             names, depth = nxt, depth + 1
 
         items = [_info(m, 'descendant', lvl) for lvl, m in sorted(descendants, key=lambda x: -x[0])]
         items.append(_info(mo, 'self', 0))
         items += [_info(m, 'ancestor', lvl) for lvl, m in sorted(ancestors, key=lambda x: x[0])]
-        return items, {i['mo_id'] for i in items}
+        return items, {i['mo_id'] for i in items}, truncated
 
     @api.model
     def get_route_board(self, mo_id, include_done=True, states=None):
-        """Modo ruta: el tablero enfocado en los CTs por los que pasa una OF.
+        """Modo ruta: el "camino" de una OF (su cadena de padres/hijas).
 
-        Devuelve las filas SOLO de esos CTs, ordenadas por secuencia de operación
-        (no alfabéticamente), con TODAS las OFs de esos centros en un rango que
-        abarca la ruta completa + margen. El cliente pinta en color pleno las
-        barras de la OF (bar.mo_id == route_mo_id) y atenúa el resto.
+        Devuelve las filas de los CTs por los que pasan las OFs de la cadena, con
+        SOLO las barras de esa cadena (only_mo_ids = tree_ids), no todas las OFs
+        de esos centros. El rango abarca la cadena completa + margen; el cliente
+        colapsa los huecos vacíos y ajusta el zoom. Las filas se ordenan
+        cronológicamente (escalonado) para coincidir con el panel lateral.
+        `route_edges` lleva las aristas componente→consumidora para el hilo.
         """
         mo = self.env['mrp.production'].browse(mo_id)
         if not mo.exists():
@@ -594,18 +628,18 @@ class MrpProductionBoard(models.Model):
 
         # Árbol de OFs relacionadas (por origin) — panel lateral y alcance del Gantt.
         # `states` (filtro de estado del cliente) acota qué padres/hijas entran.
-        tree, tree_ids = self._compute_related_tree(mo, states=states)
+        tree, tree_ids, tree_truncated = self._compute_related_tree(mo, states=states)
         tree_mos = self.env['mrp.production'].browse(sorted(tree_ids))
 
         # El Gantt abarca los CTs y el rango de TODO el árbol (no solo la OF
-        # enfocada), para ver las OFs relacionadas ubicadas en el tiempo.
-        all_wc_ids = set()
-        dts = []
-        for tm in tree_mos:
-            all_wc_ids.update(wc.id for wc, _seq in self._compute_route(tm))
-            dts += [w.date_start for w in tm.workorder_ids if w.date_start]
-            dts += [w.date_finished for w in tm.workorder_ids if w.date_finished]
-            dts += [d for d in (tm.date_start, tm.date_finished) if d]
+        # enfocada). Se lee en batch (una sola pasada de workorders del árbol),
+        # en vez de _compute_route por cada OF (N+1 con MAX_NODES=80).
+        wos = tree_mos.mapped('workorder_ids')
+        all_wc_ids = set(wos.mapped('workcenter_id').filtered('active').ids)
+        dts = [d for d in wos.mapped('date_start') if d]
+        dts += [d for d in wos.mapped('date_finished') if d]
+        dts += [d for d in tree_mos.mapped('date_start') if d]
+        dts += [d for d in tree_mos.mapped('date_finished') if d]
         if not dts:
             return {'empty_reason': 'no_dates', 'route_mo_name': mo.name}
         lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
@@ -634,14 +668,35 @@ class MrpProductionBoard(models.Model):
         payload['rows'] = rows
 
         # Aristas de la cadena (para el hilo conector): cada OF apunta, por su
-        # origin, a la OF que consume su producto. Solo aristas entre nodos del
-        # árbol. from = componente (hija) → to = consumidora (padre).
-        name_to_id = {tm.name: tm.id for tm in tree_mos}
-        edges = []
+        # origin, a la OF que consume su producto (from = componente/hija →
+        # to = consumidora/padre). Se resuelve con el MISMO criterio que el árbol:
+        # match exacto o, si no, por nombre BASE (los parciales citan la base en su
+        # origin y el padre puede estar partido). POLÍTICA cuando una base matchea
+        # varias parciales: se conecta a la MÁS CERCANA EN EL TIEMPO al hijo (una
+        # sola arista limpia por relación), en vez de una a cada parcial.
+        exact_to_id = {tm.name: tm.id for tm in tree_mos}
+        base_to_mos = {}
+        for tm in tree_mos:
+            base_to_mos.setdefault(_base_name(tm.name), []).append(tm)
+
+        def _edge_target(tok, child):
+            if tok in exact_to_id:
+                return exact_to_id[tok]
+            cands = [c for c in base_to_mos.get(_base_name(tok), []) if c.id != child.id]
+            if not cands:
+                return None
+            if child.date_start:
+                cands = sorted(cands, key=lambda c: (
+                    abs((c.date_start - child.date_start).total_seconds())
+                    if c.date_start else float('inf')))
+            return cands[0].id
+
+        edges, seen_edges = [], set()
         for tm in tree_mos:
             for tok in _origin_tokens(tm.origin):
-                pid = name_to_id.get(tok)
-                if pid and pid != tm.id:
+                pid = _edge_target(tok, tm)
+                if pid and pid != tm.id and (tm.id, pid) not in seen_edges:
+                    seen_edges.add((tm.id, pid))
                     edges.append({'from': tm.id, 'to': pid})
 
         payload.update({
@@ -653,6 +708,7 @@ class MrpProductionBoard(models.Model):
             'related_tree':    tree,
             'route_tree_ids':  sorted(tree_ids),
             'route_edges':     edges,
+            'route_truncated': tree_truncated,
         })
         return payload
 

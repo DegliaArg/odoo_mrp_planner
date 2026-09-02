@@ -258,12 +258,16 @@ class MrpProductionBoard(models.Model):
                 # Una barra por WO con CT activo que pase el filtro y solape el rango.
                 # Medido en la base real: 51% de las OFs activas tienen ≥2 WOs, así
                 # que expandir por WO evita ocultar la carga de los demás centros.
+                added = 0
+                route_wcs = []   # CTs de la ruta (para el respaldo del modo ruta)
                 for wo in mo.workorder_ids.sorted('sequence'):
                     wc = wo.workcenter_id
                     if not (wc and wc.active):
                         continue
                     if valid_wc_ids is not None and wc.id not in valid_wc_ids:
                         continue
+                    if wc.id not in [w.id for w in route_wcs]:
+                        route_wcs.append(wc)
                     wds, wdf = wo.date_start, wo.date_finished
                     if not wds:
                         continue   # sin inicio: no se puede posicionar
@@ -271,6 +275,15 @@ class MrpProductionBoard(models.Model):
                         continue   # la WO no solapa el rango visible
                     _add_bar(wc, mo, wo.id, wo.state, wds, wdf,
                              wo.duration_expected, prod_name, prod_code, uom)
+                    added += 1
+                # Modo ruta: si la OF tiene operaciones pero NINGUNA está programada
+                # (WOs sin date_start — button_plan no corrido, el 93% en esta base),
+                # igual debe aparecer en el escalonado. Se ubica por las fechas de la
+                # MO en cada centro de su ruta.
+                if not added and only_mo_ids is not None and mo.date_start:
+                    for wc in route_wcs:
+                        _add_bar(wc, mo, None, mo.state, mo.date_start, mo.date_finished,
+                                 0.0, prod_name, prod_code, uom)
             else:
                 # OFs sin work orders (15% en la base real): respaldo al centro
                 # preferido; si no hay ninguno determinable, van a "Sin centro

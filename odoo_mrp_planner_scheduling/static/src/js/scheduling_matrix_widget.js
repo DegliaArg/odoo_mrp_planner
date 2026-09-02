@@ -70,19 +70,22 @@ function defaultDateTo(res) {
     return toDateStr(from);
 }
 
-/** Resolución cuyo spanDays alcanza para mostrar [dateFrom, dateTo] completo
- *  sin depender del scroll (o 'month' como máximo zoom-out). En modo ruta el
- *  rango lo fija el árbol de OFs relacionadas, que puede abarcar semanas; al
- *  entrar se ajusta el zoom para que la enfocada y sus padres/hijas entren en
- *  el viewport, no queden a un mes de scroll. */
-function fitResolution(dateFrom, dateTo) {
-    const from = new Date(dateFrom + "T00:00:00");
-    const to   = new Date(dateTo   + "T00:00:00");
-    const spanDays = Math.round((to - from) / 86400000) + 1;
+/** Resolución cuyo spanDays alcanza para mostrar `spanDays` días en el viewport
+ *  (o 'month' como máximo zoom-out). En modo ruta el span relevante es el
+ *  VISIBLE (con los días vacíos colapsados), no el rango de calendario: una
+ *  relacionada lejana estira el calendario pero, colapsada, ocupa pocos días. */
+function fitResolution(spanDays) {
     for (const key of ['day', '3days', 'week', 'month']) {
         if (spanDays <= RESOLUTIONS[key].spanDays) return key;
     }
     return 'month';
+}
+
+/** Cantidad de días del rango [dateFrom, dateTo] inclusive. */
+function rangeDays(dateFrom, dateTo) {
+    const from = new Date(dateFrom + "T00:00:00");
+    const to   = new Date(dateTo   + "T00:00:00");
+    return Math.round((to - from) / 86400000) + 1;
 }
 
 /** [añoISO, semanaISO] de una fecha JS. */
@@ -132,6 +135,7 @@ class SchedulingMatrixWidget extends Component {
             showDone:      false,
             hideWeekends:  true,        // ocultar fines de semana (default ON)
             hiddenWeekdays: [],         // días a ocultar (los manda el backend)
+            collapseEmpty: true,        // modo ruta: colapsar días sin OFs de la cadena (default ON)
 
             // Datos del tablero (payload)
             shifts:     [],
@@ -155,6 +159,7 @@ class SchedulingMatrixWidget extends Component {
             routeHeader:  {},
             relatedTree:  [],            // árbol de OFs relacionadas (panel lateral)
             routeTreeIds: [],            // ids del árbol (resaltado en el Gantt)
+            routeEdges:   [],            // aristas cadena {from,to} (hilo conector, Fase 2)
             savedView:    null,          // estado a restaurar al salir de ruta
 
             // Popover de componentes (anclado a la barra)
@@ -327,6 +332,21 @@ class SchedulingMatrixWidget extends Component {
     toggleHideWeekends() {
         this.state.hideWeekends = !this.state.hideWeekends;
         this._recompute();   // solo cambia la escala del eje; no hace falta RPC
+    }
+
+    toggleCollapseEmpty() {
+        this.state.collapseEmpty = !this.state.collapseEmpty;
+        this._fitRouteZoom();   // re-ajusta el zoom al nuevo span visible
+        this._recompute();      // colapsa/expande los días vacíos; sin RPC
+    }
+
+    /** Ajusta la resolución (zoom) al span VISIBLE del modo ruta: con colapso,
+     *  solo los días con OFs de la cadena; sin colapso, el rango de calendario. */
+    _fitRouteZoom() {
+        const totalDays = rangeDays(this.state.dateFrom, this.state.dateTo);
+        const emptyN = this.state.collapseEmpty
+            ? this._emptyEpochDays(this.state.dateFrom, this.state.dateTo).size : 0;
+        this.state.resolution = fitResolution(Math.max(1, totalDays - emptyN));
     }
 
     toggleUnassigned() {
@@ -549,10 +569,9 @@ class SchedulingMatrixWidget extends Component {
             this.state.totalBars      = result.total_bars || 0;
             this.state.dateFrom       = result.range_from;
             this.state.dateTo         = result.range_to;
-            // Zoom auto: que todo el árbol (enfocada + padres/hijas) entre en el
-            // viewport. El rango puede abarcar semanas si las relacionadas están
-            // lejos en el tiempo. exitRoute restaura la resolución previa.
-            this.state.resolution     = fitResolution(result.range_from, result.range_to);
+            // Zoom auto según el span VISIBLE (con vacíos colapsados solo cuentan
+            // los días de la cadena). exitRoute restaura la resolución previa.
+            this._fitRouteZoom();     // usa rows/dateFrom/dateTo ya seteados
             this.state.routeMode      = true;
             this.state.routeMoId      = result.route_mo_id;
             this.state.routeHeader    = {
@@ -563,6 +582,7 @@ class SchedulingMatrixWidget extends Component {
             };
             this.state.relatedTree    = result.related_tree || [];
             this.state.routeTreeIds   = result.route_tree_ids || [];
+            this.state.routeEdges     = result.route_edges || [];
             this._recompute();
         } catch (e) {
             this.state.error = (e?.data?.message) || e.message || String(e);
@@ -614,13 +634,42 @@ class SchedulingMatrixWidget extends Component {
         this.state.viewRows = this._computeRows();
     }
 
+    /** Días (epochDay) del rango [dateFrom, dateTo] que NO tienen ninguna barra
+     *  de la cadena → candidatos a colapsar en modo ruta. Usa el mismo espacio
+     *  epochDay que makeTimeScale (minutosReales / 1440). */
+    _emptyEpochDays(dateFrom, dateTo) {
+        const occ = new Set();
+        const dayOf = (iso) => Math.floor(parseLocalMinutes(iso) / 1440);
+        for (const row of this.state.rows) {
+            for (const b of (row.bars || [])) {
+                if (!b.date_start) continue;
+                const a = dayOf(b.date_start);
+                const z = b.date_finished ? dayOf(b.date_finished) : a;
+                for (let d = a; d <= z; d++) occ.add(d);
+            }
+        }
+        const [fy, fm, fd] = dateFrom.split('-').map(Number);
+        const [ty, tm, td] = dateTo.split('-').map(Number);
+        const first = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
+        const last  = Math.round(Date.UTC(ty, tm - 1, td) / 86400000);
+        const empty = new Set();
+        for (let d = first; d <= last; d++) {
+            if (!occ.has(d)) empty.add(d);
+        }
+        return empty;
+    }
+
     /** Geometría global sobre el eje visible (con días ocultos colapsados). */
     _buildLayout() {
         const { dateFrom, dateTo, resolution } = this.state;
         if (!dateFrom || !dateTo) return null;
         const cfg = RESOLUTIONS[resolution] || RESOLUTIONS.day;
         const hidden = this.state.hideWeekends ? (this.state.hiddenWeekdays || []) : [];
-        const scale = makeTimeScale(dateFrom, dateTo, hidden);
+        // Modo ruta: colapsar los días sin OFs de la cadena, para que las
+        // relacionadas queden pegadas (el eje "corta" el tiempo vacío).
+        const collapse = this.state.routeMode && this.state.collapseEmpty;
+        const emptyDays = collapse ? this._emptyEpochDays(dateFrom, dateTo) : null;
+        const scale = makeTimeScale(dateFrom, dateTo, hidden, emptyDays);
         if (scale.totalVisibleMin <= 0) return null;
 
         const contentWidthPx = Math.round((scale.totalVisibleMin / 60) * cfg.pxPerHour);
@@ -702,8 +751,15 @@ class SchedulingMatrixWidget extends Component {
         // Cortes por días ocultos + nota al pie
         const cuts = scaleCuts(scale);
         const WD = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-        const cutFootnote = hidden.length
-            ? `Días ocultos: ${[...hidden].sort((a, b) => a - b).map(w => WD[w]).join(', ')} — el eje los saltea (marcas de corte).`
+        const notes = [];
+        if (hidden.length) {
+            notes.push(`Días ocultos: ${[...hidden].sort((a, b) => a - b).map(w => WD[w]).join(', ')}`);
+        }
+        if (collapse && emptyDays && emptyDays.size) {
+            notes.push(`${emptyDays.size} día(s) vacío(s) colapsado(s)`);
+        }
+        const cutFootnote = notes.length
+            ? `${notes.join(' · ')} — el eje los saltea (marcas de corte ✂).`
             : null;
 
         // Marca "ahora" (solo si su día es visible y está en rango).

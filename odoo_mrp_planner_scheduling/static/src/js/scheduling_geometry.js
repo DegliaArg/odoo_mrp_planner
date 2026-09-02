@@ -67,9 +67,16 @@ export function dateToOffsetPct(iso, startMin, endMin) {
 // pasa a ser la concatenación de los días visibles. Todas las posiciones se
 // calculan sobre "minutos visibles" en vez de minutos reales.
 
-/** Construye la escala: días del rango marcados como ocultos/visibles. */
-export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = []) {
+/** Construye la escala: días del rango marcados como ocultos/visibles.
+ *
+ * Un día se oculta (colapsa a 0 de ancho) si su día de semana está en
+ * `hiddenWeekdays` (findes) O si su epochDay está en `hiddenEpochDays` (días
+ * vacíos colapsados en modo ruta). Ambos usan el mismo flag `hidden`, así que
+ * cortes, posiciones y marcas de corte funcionan igual para los dos. */
+export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = [], hiddenEpochDays = null) {
     const hidden = new Set(hiddenWeekdays);
+    const hiddenED = hiddenEpochDays instanceof Set ? hiddenEpochDays
+        : new Set(hiddenEpochDays || []);
     const [fy, fm, fd] = dateFrom.split("-").map(Number);
     const [ty, tm, td] = dateTo.split("-").map(Number);
     const firstEpochDay = Math.round(Date.UTC(fy, fm - 1, fd) / 86400000);
@@ -78,7 +85,7 @@ export function makeTimeScale(dateFrom, dateTo, hiddenWeekdays = []) {
     let visMin = 0;
     for (let ed = firstEpochDay; ed <= lastEpochDay; ed++) {
         const weekday = (new Date(ed * 86400000).getUTCDay() + 6) % 7; // Lun=0…Dom=6
-        const isHidden = hidden.has(weekday);
+        const isHidden = hidden.has(weekday) || hiddenED.has(ed);
         days.push({ epochDay: ed, weekday, hidden: isHidden, visStartMin: visMin, startRealMin: ed * 1440 });
         if (!isHidden) visMin += 1440;
     }

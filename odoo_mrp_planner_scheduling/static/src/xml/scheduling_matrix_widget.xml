@@ -147,11 +147,17 @@
                         <span class="text-muted ms-1">· <t t-esc="fmtQty(state.routeHeader.qty)"/> <t t-esc="state.routeHeader.uom"/></span>
                     </span>
                     <div class="form-check form-switch mb-0 ms-auto">
+                        <input class="form-check-input" type="checkbox" id="sm-collapse-empty-r"
+                               t-att-checked="state.collapseEmpty" t-on-change="toggleCollapseEmpty"/>
+                        <label class="form-check-label small text-muted" for="sm-collapse-empty-r"
+                               title="Corta del eje los días sin OFs de la cadena, para que las relacionadas queden pegadas. Apagalo para ver el tiempo real entre ellas.">Colapsar vacíos</label>
+                    </div>
+                    <div class="form-check form-switch mb-0 ms-2">
                         <input class="form-check-input" type="checkbox" id="sm-hide-weekends-r"
                                t-att-checked="state.hideWeekends" t-on-change="toggleHideWeekends"/>
                         <label class="form-check-label small text-muted" for="sm-hide-weekends-r">Ocultar fines de semana</label>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary" t-on-click="exitRoute">
+                    <button class="btn btn-sm btn-outline-secondary ms-2" t-on-click="exitRoute">
                         <i class="fa fa-times me-1"/>Salir de ruta
                     </button>
                 </t>
@@ -265,7 +271,9 @@
                                     <span class="text-truncate" t-esc="row.wc_name"/>
                                 </div>
                                 <div class="sm-ct-sub d-flex align-items-center gap-1 mt-1">
-                                    <t t-if="row.occupancy">
+                                    <!-- En modo ruta las barras son solo la cadena: el % de ocupación
+                                         no reflejaría la carga real del CT, así que se oculta. -->
+                                    <t t-if="row.occupancy and !state.routeMode">
                                         <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
                                               t-att-title="`Planificado ${row.occupancy.planned_hours}h / disponible ${row.occupancy.available_hours}h`">
                                             <t t-esc="row.occupancy.pct"/>%

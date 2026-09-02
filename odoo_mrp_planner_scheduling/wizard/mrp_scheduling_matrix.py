@@ -110,7 +110,7 @@ class MrpProductionBoard(models.Model):
         return self._build_board_payload(valid_wc_ids, date_from, date_to, include_done)
 
     def _build_board_payload(self, valid_wc_ids, date_from, date_to, include_done,
-                             force_wc_ids=None):
+                             force_wc_ids=None, only_mo_ids=None):
         """
         Construye el tablero (eje horario continuo) para el conjunto de CTs
         `valid_wc_ids` (None = todos) en [date_from, date_to].
@@ -173,6 +173,10 @@ class MrpProductionBoard(models.Model):
             ('date_start', '<', utc_to),
             '|', ('date_finished', '>', utc_from), ('date_finished', '=', False),
         ]
+        # Modo ruta: solo las OFs de la cadena (enfocada + padres/hijas), no todas
+        # las que pasan por esos centros. Así el Gantt muestra el camino de la OF.
+        if only_mo_ids is not None:
+            domain.append(('id', 'in', list(only_mo_ids)))
         mos = self.env['mrp.production'].search(domain, order='date_start, id')
 
         # Prefetch para evitar N+1
@@ -568,7 +572,7 @@ class MrpProductionBoard(models.Model):
         # estén programadas (date_start vacío).
         payload = self._build_board_payload(
             all_wc_ids, lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
-            force_wc_ids=all_wc_ids,
+            force_wc_ids=all_wc_ids, only_mo_ids=tree_ids,
         )
 
         # Orden: CTs de la OF enfocada primero (por secuencia), el resto del árbol
@@ -580,6 +584,17 @@ class MrpProductionBoard(models.Model):
             r['route_seq'] = seq_by_wc.get(r['wc_id'])
         payload['rows'] = rows
 
+        # Aristas de la cadena (para el hilo conector): cada OF apunta, por su
+        # origin, a la OF que consume su producto. Solo aristas entre nodos del
+        # árbol. from = componente (hija) → to = consumidora (padre).
+        name_to_id = {tm.name: tm.id for tm in tree_mos}
+        edges = []
+        for tm in tree_mos:
+            for tok in _origin_tokens(tm.origin):
+                pid = name_to_id.get(tok)
+                if pid and pid != tm.id:
+                    edges.append({'from': tm.id, 'to': pid})
+
         payload.update({
             'route_mo_id':     mo.id,
             'route_mo_name':   mo.name,
@@ -588,6 +603,7 @@ class MrpProductionBoard(models.Model):
             'route_uom':       mo.product_uom_id.name if mo.product_uom_id else '',
             'related_tree':    tree,
             'route_tree_ids':  sorted(tree_ids),
+            'route_edges':     edges,
         })
         return payload
 

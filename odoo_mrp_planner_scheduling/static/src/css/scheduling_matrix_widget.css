@@ -20,8 +20,10 @@
     flex-wrap: nowrap;
     overflow-x: auto;   /* una sola línea; si no entra, scrollea en vez de romper */
 }
-.sm-filters .form-check-label { white-space: nowrap; }
+.sm-filters .form-check { font-size: 11px; }
+.sm-filters .form-check-label { white-space: nowrap; font-size: 11px; }
 .sm-filters .form-check-input { flex-shrink: 0; }
+.sm-filters .form-switch { gap: 3px; }
 .sm-filter-label {
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d;
 }

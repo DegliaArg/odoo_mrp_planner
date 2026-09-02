@@ -545,32 +545,41 @@ class MrpProductionBoard(models.Model):
             return {'empty_reason': 'no_route', 'route_mo_name': mo.name}
 
         tz = pytz.timezone(self.env.user.tz or 'UTC')
-        dts = [w.date_start for w in mo.workorder_ids if w.date_start]
-        dts += [w.date_finished for w in mo.workorder_ids if w.date_finished]
-        dts += [d for d in (mo.date_start, mo.date_finished) if d]
+
+        # Árbol de OFs relacionadas (por origin) — panel lateral y alcance del Gantt.
+        tree, tree_ids = self._compute_related_tree(mo)
+        tree_mos = self.env['mrp.production'].browse(sorted(tree_ids))
+
+        # El Gantt abarca los CTs y el rango de TODO el árbol (no solo la OF
+        # enfocada), para ver las OFs relacionadas ubicadas en el tiempo.
+        all_wc_ids = set()
+        dts = []
+        for tm in tree_mos:
+            all_wc_ids.update(wc.id for wc, _seq in self._compute_route(tm))
+            dts += [w.date_start for w in tm.workorder_ids if w.date_start]
+            dts += [w.date_finished for w in tm.workorder_ids if w.date_finished]
+            dts += [d for d in (tm.date_start, tm.date_finished) if d]
         if not dts:
             return {'empty_reason': 'no_dates', 'route_mo_name': mo.name}
         lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
         hi = pytz.utc.localize(max(dts)).astimezone(tz).date() + timedelta(days=1)
 
-        wc_ids = [wc.id for wc, _seq in route]
-        # force_wc_ids: los CTs de la ruta aparecen como fila aunque sus WOs no
-        # estén programadas (date_start vacío) — en esta instancia es el 93%.
+        # force_wc_ids: los CTs del árbol aparecen como fila aunque sus WOs no
+        # estén programadas (date_start vacío).
         payload = self._build_board_payload(
-            set(wc_ids), lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
-            force_wc_ids=set(wc_ids),
+            all_wc_ids, lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d'), include_done,
+            force_wc_ids=all_wc_ids,
         )
 
-        # Filas solo de la ruta, ordenadas por secuencia (sin fila "sin centro").
+        # Orden: CTs de la OF enfocada primero (por secuencia), el resto del árbol
+        # después por nombre. Solo la OF enfocada lleva número de secuencia.
         seq_by_wc = {wc.id: seq for wc, seq in route}
         rows = [r for r in payload['rows'] if not r.get('is_unassigned')]
-        rows.sort(key=lambda r: seq_by_wc.get(r['wc_id'], 9999))
+        rows.sort(key=lambda r: (seq_by_wc.get(r['wc_id'], 9999), r['wc_name']))
         for r in rows:
             r['route_seq'] = seq_by_wc.get(r['wc_id'])
         payload['rows'] = rows
 
-        # Árbol de OFs relacionadas (por origin): panel lateral + resaltado Gantt.
-        tree, tree_ids = self._compute_related_tree(mo)
         payload.update({
             'route_mo_id':     mo.id,
             'route_mo_name':   mo.name,

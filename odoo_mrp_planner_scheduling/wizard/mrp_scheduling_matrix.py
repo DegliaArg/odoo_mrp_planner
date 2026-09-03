@@ -836,7 +836,10 @@ class MrpProductionBoard(models.Model):
                     'wo_id':              op.id,
                     'mo_id':              line.id,    # id de la línea-OF (para hilos)
                     'line_id':            line.id,
-                    'mo_name':            prod.default_code or prod.name or '',
+                    # Etiqueta = NOMBRE del producto (identifica de un vistazo). El
+                    # código va al tooltip (product_name/display_name): los códigos
+                    # comparten el sufijo de orden, así que no distinguen en la barra.
+                    'mo_name':            prod.name or prod.default_code or '',
                     'product_name':       prod.display_name if prod else '',
                     'product_code':       prod.default_code or '',
                     'qty':                line.product_qty,
@@ -862,6 +865,21 @@ class MrpProductionBoard(models.Model):
                 })
                 proposal_by_wc[wc.id] = proposal_by_wc.get(wc.id, 0.0) + (op.duration_hours or 0.0)
 
+        # ── Backlog INVISIBLE por CT: WOs de OFs activas SIN fecha ─────────────
+        # El ancla solo cuenta las WOs con date_start; las sin planificar (el grueso,
+        # button_plan no corrido) no reservan capacidad → la ocupación es un PISO.
+        # Se cuentan para avisar la subestimación (no se reprograma nada).
+        unplanned_by_wc = {}   # wc_id → (count, minutos)
+        grp = self.env['mrp.workorder'].read_group(
+            [('workcenter_id', 'in', list(wc_ids)),
+             ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
+             ('date_start', '=', False)],
+            ['duration_expected:sum'], ['workcenter_id'],
+        )
+        for g in grp:
+            wc_id = g['workcenter_id'][0]
+            unplanned_by_wc[wc_id] = (g.get('__count', 0), g.get('duration_expected') or 0.0)
+
         # ── Filas: ocupación = existente (real) + propuesta ────────────────────
         rows = []
         for wc in self.env['mrp.workcenter'].browse(sorted(wc_ids)):
@@ -872,6 +890,7 @@ class MrpProductionBoard(models.Model):
             proposal_h = proposal_by_wc.get(wc.id, 0.0)
             total_h    = existing_h + proposal_h
             pct        = round(total_h / avail_h * 100) if avail_h > 0 else 0
+            unp_count, unp_min = unplanned_by_wc.get(wc.id, (0, 0.0))
             bars = sorted(bars_by_wc.get(wc.id, []), key=lambda b: b['date_start'] or '')
             rows.append({
                 'wc_id':             wc.id,
@@ -886,6 +905,9 @@ class MrpProductionBoard(models.Model):
                     'planned_hours':   round(total_h, 1),
                     'available_hours': round(avail_h, 1),
                     'pct':             pct,
+                    # Subestimación: WOs sin fecha en este CT (no cuentan en la carga).
+                    'unplanned_count': unp_count,
+                    'unplanned_hours': round(unp_min / 60.0, 1),
                 },
             })
 
@@ -894,7 +916,9 @@ class MrpProductionBoard(models.Model):
             min([b['date_start'] for b in r['bars'] if b['date_start']], default='9999'),
             r['wc_name'],
         ))
-        for i, r in enumerate(rows):
+        # Desde 1: el template oculta route_seq con t-if (0 sería falsy → la fila
+        # más temprana quedaba sin número).
+        for i, r in enumerate(rows, 1):
             r['route_seq'] = i
 
         # Aristas de la cadena: componente(hija) → consumidora(padre), por parent_line_id.

@@ -364,6 +364,8 @@
 .sm-state-toclose   { background: #fdeecf; color: #8a5e12; }
 .sm-state-done      { background: #e6f0d6; color: #46660f; }
 .sm-state-proposal  { background: #ece9fb; color: #4b3fa6; }
+/* Badge de subestimación de carga (modo propuesta): WOs sin fecha en el CT. */
+.sm-occ-unplanned { background: #fdeecf; color: #8a5e12; font-weight: 500; }
 
 @media (max-width: 768px) {
     .sm-root { --sm-ct-w: 140px; }

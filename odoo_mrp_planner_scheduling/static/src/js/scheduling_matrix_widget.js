@@ -212,23 +212,13 @@ class SchedulingMatrixWidget extends Component {
         const rec = this.props.record;
         this.requestId = (rec && rec.resModel === 'mrp.production.request' && rec.resId)
             ? rec.resId : null;
-        // Instrumentación temporal: confirmar qué record recibe el widget embebido
-        // y si entra en modo propuesta. Quitar una vez verificado en el entorno.
-        console.info('[SM] mount', {
-            hasRecord: !!rec,
-            resModel:  rec && rec.resModel,
-            resId:     rec && rec.resId,
-            requestId: this.requestId,
-        });
 
         onMounted(async () => {
             try {
                 if (this.requestId) {
-                    console.info('[SM] → modo PROPUESTA: get_request_board', this.requestId);
                     await this._loadProposal();
                     return;
                 }
-                console.info('[SM] → modo TABLERO GENERAL: get_scheduling_board');
                 const defaultTagSelected = await this._loadFilters();
                 if (defaultTagSelected || this.state.tagIds.length) {
                     await this._loadData();
@@ -1166,10 +1156,27 @@ class SchedulingMatrixWidget extends Component {
      *  existente + propuesta = total, para que se vea cuánto agrega el plan. */
     occTitle(occ) {
         if (this.state.proposalMode) {
-            return `Existente ${occ.existing_hours}h + propuesta ${occ.proposal_hours}h`
-                 + ` = ${occ.planned_hours}h / disponible ${occ.available_hours}h`;
+            let t = `Existente ${occ.existing_hours}h + propuesta ${occ.proposal_hours}h`
+                  + ` = ${occ.planned_hours}h / disponible ${occ.available_hours}h`;
+            if (occ.unplanned_count) {
+                t += ` · ⚠ es un PISO: ${occ.unplanned_count} OFs sin planificar no cuentan`;
+            }
+            return t;
         }
         return `Planificado ${occ.planned_hours}h / disponible ${occ.available_hours}h`;
+    }
+
+    /** Tooltip del badge de subestimación de un CT. */
+    occUnplannedTitle(occ) {
+        return `${occ.unplanned_count} órdenes de trabajo en este centro no tienen fecha `
+             + `(button_plan sin correr) — ≈${occ.unplanned_hours}h de carga que NO entra `
+             + `en el %. La ocupación mostrada es un piso: la real es mayor.`;
+    }
+
+    /** Filas de la propuesta cuya carga está subestimada (WOs sin fecha). */
+    get underestimatedRows() {
+        if (!this.state.proposalMode) return [];
+        return (this.state.viewRows || []).filter(r => r.occupancy && r.occupancy.unplanned_count);
     }
 
     fmtQty(n) {

@@ -190,6 +190,18 @@
 
             </div><!-- /sm-filters -->
 
+            <!-- ══ Aviso de subestimación (modo propuesta) ══════════════════════ -->
+            <div t-if="state.proposalMode and underestimatedRows.length"
+                 class="alert alert-warning py-1 px-3 mb-0 small d-flex align-items-center gap-2"
+                 role="status">
+                <i class="fa fa-exclamation-triangle"/>
+                <span>
+                    La carga de <b t-esc="underestimatedRows.length"/> centro(s) está
+                    <b>subestimada</b>: hay OFs sin planificar (button_plan sin correr) que no
+                    reservan capacidad. Los % son un <b>piso</b> y las fechas propuestas, optimistas.
+                </span>
+            </div>
+
             <!-- ══ Mensaje inicial ══════════════════════════════════════════════ -->
             <div t-if="!state.tagIds.length and !state.routeMode" class="text-center text-muted py-5">
                 <i class="fa fa-sitemap fa-3x mb-3 d-block"/>
@@ -309,7 +321,12 @@
                                     <t t-if="row.occupancy and (!state.routeMode or state.proposalMode)">
                                         <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
                                               t-att-title="occTitle(row.occupancy)">
-                                            <t t-esc="row.occupancy.pct"/>%
+                                            <t t-if="state.proposalMode and row.occupancy.unplanned_count">≥</t><t t-esc="row.occupancy.pct"/>%
+                                        </span>
+                                        <span t-if="state.proposalMode and row.occupancy.unplanned_count"
+                                              class="sm-occ-unplanned badge"
+                                              t-att-title="occUnplannedTitle(row.occupancy)">
+                                            <i class="fa fa-exclamation-triangle"/> +<t t-esc="row.occupancy.unplanned_count"/> s/plan
                                         </span>
                                     </t>
                                     <span t-if="row.bands_failed" class="sm-bands-warn badge"

@@ -282,11 +282,15 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         all_roots  = [r for _, r in item_trees]
         wc_anchors = self._get_wc_anchors_multi(min_dt, all_roots)
 
-        # Programar todos los artículos compartiendo los mismos anclas
+        # Programar todos los artículos compartiendo los mismos anclas. El
+        # wc_collector acumula la carga por CT ELEGIDO y por operación (no por OF),
+        # para que el resumen de carga sea correcto con centros alternativos.
         lines_vals = []
         seq = [10]
+        wc_collector = {}
         for item, root in item_trees:
-            self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt)
+            self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt,
+                                wc_collector=wc_collector)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             earliest = root.get('scheduled_end')
             proj_start = self._get_tree_earliest_start(root)
@@ -304,21 +308,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         if lines_vals:
             self.env['mrp.production.request.line'].create(lines_vals)
 
-        # Resumen de carga por WC
-        wc_data = {}
-        for vals in lines_vals:
-            wc_id = vals.get('workcenter_id')
-            if not wc_id or vals.get('record_type') != 'mrp':
-                continue
-            if wc_id not in wc_data:
-                wc_data[wc_id] = {'hours': 0.0, 'start': None, 'end': None}
-            wc_data[wc_id]['hours'] += vals.get('duration_hours', 0.0)
-            s = vals.get('new_date_start')
-            e = vals.get('new_date_finish')
-            if s:
-                wc_data[wc_id]['start'] = min(wc_data[wc_id]['start'], s) if wc_data[wc_id]['start'] else s
-            if e:
-                wc_data[wc_id]['end'] = max(wc_data[wc_id]['end'], e) if wc_data[wc_id]['end'] else e
+        # Resumen de carga por WC — desde el wc_collector (carga real por operación
+        # en el CT elegido). Antes se sumaba desde las líneas por su único
+        # workcenter_id, atribuyendo TODAS las horas del OF al primer centro.
+        wc_data = wc_collector
         if wc_data:
             self.env['mrp.production.request.wc'].create([
                 {

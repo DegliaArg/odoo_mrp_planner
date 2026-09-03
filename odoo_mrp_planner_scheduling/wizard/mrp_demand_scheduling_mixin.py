@@ -168,8 +168,10 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         wc_ids = set()
 
         def _collect(node):
-            for wc, _ in node['operations']:
-                if wc:
+            # Todos los candidatos (primario + alternativos): sin su ancla real, un
+            # alternativo sin carga parecería siempre libre y ganaría mal el reparto.
+            for _primary, candidates, _dur in node['operations']:
+                for wc in candidates:
                     wc_ids.add(wc.id)
             for child in node['children']:
                 _collect(child)
@@ -201,7 +203,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
     # ── Programación del árbol ────────────────────────────────────────────────
 
-    def _schedule_tree(self, node, start, wc_anchors, min_dt=None):
+    def _schedule_tree(self, node, start, wc_anchors, min_dt=None, wc_collector=None):
         """Programa los nodos OF del árbol en orden bottom-up (primero las hojas).
 
         Los nodos OC/Subcont./compra se resuelven en un post-paso: su fecha de
@@ -227,7 +229,8 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         children_end = start
         for child in node['children']:
             if child.get('type') not in leaf_types:
-                self._schedule_tree(child, start, wc_anchors, min_dt=min_dt)
+                self._schedule_tree(child, start, wc_anchors, min_dt=min_dt,
+                                    wc_collector=wc_collector)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
 
@@ -249,13 +252,39 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
         node_start = None
         current    = after_dt
+        node['scheduled_ops'] = []
 
-        for wc, dur_h in node['operations']:
-            wc_id    = wc.id if wc else 0
-            calendar = wc.resource_calendar_id if (wc and wc.resource_calendar_id) else company_calendar
-            earliest       = max(current, wc_anchors.get(wc_id, after_dt))
-            wo_start, wo_end = self._schedule_duration(calendar, earliest, dur_h)
-            wc_anchors[wc_id] = wo_end
+        for primary, candidates, dur_h in node['operations']:
+            if not candidates:
+                # Operación sin centro: calendario de empresa, ancla wc_id=0.
+                earliest = max(current, wc_anchors.get(0, after_dt))
+                wo_start, wo_end = self._schedule_duration(company_calendar, earliest, dur_h)
+                wc_anchors[0] = wo_end
+                chosen, is_primary = None, True
+            else:
+                # Elegir el candidato que TERMINA más temprano (el que quede libre
+                # antes). El primario va primero → gana los empates (no reasigna sin
+                # motivo). Cada candidato usa su propio calendario y su ancla real.
+                best = None
+                for cand in candidates:
+                    cal = cand.resource_calendar_id or company_calendar
+                    earliest = max(current, wc_anchors.get(cand.id, after_dt))
+                    cs, ce = self._schedule_duration(cal, earliest, dur_h)
+                    if best is None or ce < best[1]:
+                        best = (cs, ce, cand)
+                wo_start, wo_end, chosen = best
+                is_primary = bool(primary) and chosen.id == primary.id
+                wc_anchors[chosen.id] = wo_end
+
+            node['scheduled_ops'].append({
+                'wc': chosen, 'is_primary': is_primary,
+                'dur': dur_h, 'start': wo_start, 'end': wo_end,
+            })
+            if wc_collector is not None and chosen:
+                c = wc_collector.setdefault(chosen.id, {'hours': 0.0, 'start': None, 'end': None})
+                c['hours'] += dur_h
+                c['start'] = min(c['start'], wo_start) if c['start'] else wo_start
+                c['end']   = max(c['end'], wo_end) if c['end'] else wo_end
             if node_start is None:
                 node_start = wo_start
             current = wo_end
@@ -336,11 +365,16 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             seq[0] += 10
             return  # Nodo hoja
 
-        # Nodo OF
-        ops      = node['operations']
-        wcs      = [wc for wc, _ in ops if wc]
-        wc_label = ' › '.join(wc.name for wc in wcs) if wcs else ''
-        dur_h    = sum(d for _, d in ops)
+        # Nodo OF: usa los CTs ELEGIDOS al programar (scheduled_ops), no los de la
+        # ruta — el motor puede haber mandado a un alternativo por carga. La cadena
+        # marca cuáles fueron alternativos y used_alternative habilita el aviso.
+        sops     = node.get('scheduled_ops') or []
+        chosen   = [(o['wc'], o['is_primary']) for o in sops if o['wc']]
+        dur_h    = sum(o['dur'] for o in sops)
+        used_alt = any(not ip for _wc, ip in chosen)
+        wc_label = ' › '.join(
+            (wc.name if ip else f'{wc.name} (alt)') for wc, ip in chosen
+        )
 
         lines_vals.append({
             'sequence':          seq[0],
@@ -353,8 +387,9 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             'duration_hours':    round(dur_h, 2),
             'new_date_start':    node['scheduled_start'],
             'new_date_finish':   node['scheduled_end'],
-            'workcenter_id':     wcs[0].id if wcs else False,
-            'workcenter_chain':  wc_label if len(wcs) > 1 else '',
+            'workcenter_id':     chosen[0][0].id if chosen else False,
+            'workcenter_chain':  wc_label if (len(chosen) > 1 or used_alt) else '',
+            'used_alternative':  used_alt,
             'workcenter_label':  '',
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',

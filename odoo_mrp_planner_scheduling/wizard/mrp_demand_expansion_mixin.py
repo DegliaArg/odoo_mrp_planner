@@ -181,6 +181,19 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         preferred = centros.filtered('is_preferred')
         return (preferred[:1] if preferred else centros[:1]).workcenter_id or None
 
+    def _wc_candidates(self, wc):
+        """CTs candidatos para una operación: el primario + sus alternativos
+        activos. El scheduling elige entre ellos el que quede libre más temprano
+        (balanceo, como button_plan). El primario va PRIMERO (desempata a su favor).
+
+        :param wc: mrp.workcenter | None — centro primario de la operación.
+        :returns: list[mrp.workcenter] — candidatos ([] si no hay centro).
+        """
+        if not wc:
+            return []
+        alts = wc.alternative_workcenter_ids.filtered('active')
+        return [wc] + [a for a in alts if a.id != wc.id]
+
     def _build_demand_tree(self, product, qty, level, visited=None, _orderpoint_cache=None):
         """
         Construye recursivamente el árbol de demanda multinivel para un producto.
@@ -236,18 +249,23 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             _icp.get_param(f'mrp_reschedule.wc_fallback.{company_id}')
             or _icp.get_param('mrp_reschedule.wc_fallback', 'ldm')
         )
+        # Cada operación guarda (primario, candidatos, duración). candidatos =
+        # primario + sus alternativos activos; la ELECCIÓN del CT se hace al
+        # programar (según carga), no acá — mismo criterio que button_plan.
         operations = []
         dur_bom = (
             sum(self._get_op_duration_hours(op, bom_factor) for op in bom.operation_ids)
             if bom.operation_ids else 8.0
         )
         if preferred_wc:
-            operations = [(preferred_wc, dur_bom)]
+            operations = [(preferred_wc, self._wc_candidates(preferred_wc), dur_bom)]
         elif bom.operation_ids and wc_fallback == 'ldm':
             for op in bom.operation_ids.sorted('sequence'):
-                operations.append((op.workcenter_id, self._get_op_duration_hours(op, bom_factor)))
+                wc = op.workcenter_id
+                operations.append((wc, self._wc_candidates(wc),
+                                   self._get_op_duration_hours(op, bom_factor)))
         else:
-            operations = [(None, dur_bom)]
+            operations = [(None, [], dur_bom)]
 
         node = {
             'type':     'manufacture',

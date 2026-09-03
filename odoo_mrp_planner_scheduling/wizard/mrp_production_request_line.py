@@ -76,6 +76,12 @@ class MrpProductionRequestLine(models.Model):
         'mrp.workcenter', string='Centro de trabajo',
         help='Centro de trabajo asignado para ejecutar esta operación.',
     )
+    used_alternative = fields.Boolean(
+        string='Usa centro alternativo', default=False,
+        help='El motor asignó al menos una operación a un centro ALTERNATIVO (no '
+             'el primario de la ruta) porque el primario estaba más cargado. La '
+             'cadena de centros marca cuáles con "(alt)".',
+    )
     compatible_workcenter_ids = fields.Many2many(
         'mrp.workcenter', compute='_compute_compatible_wc_ids',
         help='Centros de trabajo habilitados para este producto según su configuración de compatibilidad.',

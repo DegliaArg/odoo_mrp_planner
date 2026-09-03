@@ -299,8 +299,13 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                 })
                 continue
 
-            # Verificar stock disponible antes de decidir el método de abastecimiento
-            stock_avail = comp.qty_available or 0.0
+            # Stock realmente LIBRE (on-hand menos lo reservado), no el on-hand
+            # bruto: con qty_available el motor contaba material ya comprometido y
+            # planificaba de menos (ej. compuestos totalmente reservados o en
+            # negativo se daban por "en stock"). free_qty NO descuenta lo saliente
+            # aún sin reservar (limitación conocida); virtual_available sí, pero
+            # suma entradas planificadas especulativas.
+            stock_avail = max(0.0, comp.free_qty or 0.0)   # negativo (sobre-reservado) → 0
 
             if stock_avail >= comp_qty:
                 # Completamente cubierto por stock existente

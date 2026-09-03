@@ -151,11 +151,23 @@ fabricación (CP→VL→Ext/Int AD→TS→MC subcontrato + COMP MEZCLA), operaci
 
 ### CÓMO CALCULA LA CARGA EXISTENTE (ancla) — respuesta clave
 `_get_wc_anchors_multi`: OFs `confirmed`/`progress`; por cada WO
-`ancla = max(wo.date_finished OR mo.date_finished OR mo.date_start+dur)`.
-**No usa `wo.date_start`.** Como el 93% de WOs no está planificado, casi todas
-caen a `mo.date_finished` (poblado) → las anclas están **infladas** (el MO.fin se
-aplica a TODOS sus CTs), no vacías. Con `button_plan` poblando `wo.date_finished`
-se afinan (por WO, por CT).
+`ancla[wc] = max(wo.date_finished OR mo.date_finished OR mo.date_start+dur)`.
+**No usa `wo.date_start`.** Para WOs sin planificar (93%) toma **`mo.date_finished`**
+(fin de la OF COMPLETA, no de la operación en ese CT) — el estimado por-operación
+es el 3er fallback y casi nunca se alcanza.
+
+**MEDIDO (no solo teoría):** el ancla es un **MAX** (fin más tardío, no una
+acumulación de ventanas), y en los 5 CTs probados (Rebabado, CAL01, CE01, RUTIL
+202, Automática) ese máximo lo fija una **WO planificada**, con diferencia **0** vs
+un estimado por-operación. Osea NO está inflada hoy: las OFs sin planificar son más
+viejas (sus ventanas terminan antes) → no empujan el máximo. La espera de 8 días de
+CP en Rebabado es **real** (reservado por trabajo planificado).
+
+**Riesgo latente / PENDIENTE (bajo riesgo):** si una OF sin planificar tuviera
+`date_finished` más tardío que todo lo planificado del CT, ahí SÍ inflaría (una OF
+de 3 CTs × 3 días bloquearía los 3). Recomendado: cambiar el 2º fallback de
+`mo.date_finished` a un estimado por-operación (`mo.date_start + dur acumulada hasta
+esa WO`). Además el ancla es un solo punto (busy-until), no rellena huecos.
 
 ### CAMBIO EN CURSO — centros alternativos (commit 8621a52, PENDIENTE VERIFICAR)
 Implementado, **falta redeployar y correr el "después"**:

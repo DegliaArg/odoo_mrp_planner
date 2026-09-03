@@ -27,6 +27,24 @@ Desde ahí también se controla qué usuarios ven los botones y KPIs asociados.
 
 Requiere: `odoo_mrp_planner`.
 
+## Despliegue (IMPORTANTE)
+
+Cuando un deploy incluye **campos, modelos o vistas nuevos**, hay que
+**UPGRADEAR el módulo** (`-u odoo_mrp_planner_scheduling`), no solo reiniciar el
+servidor. Un simple reinicio deja el **código nuevo con el schema viejo** →
+errores tipo `column "..." does not exist` al calcular/guardar.
+
+- En Odoo.sh, verificar que el build de la rama corra el upgrade del módulo (no
+  un mero restart). Si ya reinició sin upgradear, forzarlo desde
+  **Aplicaciones → Actualizar**, o vía RPC
+  `ir.module.module.button_immediate_upgrade`.
+- Cambios solo de Python/JS/QWeb (sin campos/vistas nuevos) sí andan con
+  reinicio.
+
+Ya nos pasó (sesión 2026-09-02: el campo `used_alternative` no existía tras el
+redeploy). Verificar SIEMPRE que el módulo quedó upgradeado cuando el commit
+agrega `fields.*` o vistas.
+
 ## Autor
 
 [Deglia](https://deglia.xyz) · Licencia OPL-1

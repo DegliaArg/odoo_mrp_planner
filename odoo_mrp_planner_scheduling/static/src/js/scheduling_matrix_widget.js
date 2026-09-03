@@ -914,12 +914,11 @@ class SchedulingMatrixWidget extends Component {
             }
             top += row.heightPx;
         }
-        // Solo las aristas que tocan alguna OF MARCADA (conexiones directas de las
-        // seleccionadas), para no dibujar toda la maraña. Shift+click marca varias.
-        const sel = this.state.routeSelectedIds;
+        // Se dibujan TODAS las aristas de la cadena (el hilo sigue el camino
+        // completo componente→consumidora, p.ej. CP→TN→DPD), no solo las de la OF
+        // enfocada. El marcado (punto violeta) es independiente del hilo.
         const lines = [];
         for (const ed of edges) {
-            if (!sel.includes(ed.from) && !sel.includes(ed.to)) continue;
             const child = byMo[ed.from], parent = byMo[ed.to];
             if (!child || !parent) continue;   // alguna punta filtrada por estado
             lines.push({ x1: child.rightX, y1: child.rightY, x2: parent.leftX, y2: parent.leftY });

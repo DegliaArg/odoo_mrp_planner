@@ -427,7 +427,17 @@ class MrpProductionBoard(models.Model):
             for bar in bars:
                 ds = bar.pop('_ds')
                 df = bar.pop('_df')
-                segs, all_outside = _segment_bar(ds, df, wdates)
+                if only_mo_ids is not None and bar.get('wo_id') is None:
+                    # Modo ruta: barra "sin programar" (respaldo por fechas de MO) =
+                    # ventana ESTIMADA, no operaciones discretas: se dibuja CONTINUA
+                    # (un solo segmento), sin partir por días no laborables — el
+                    # conector punteado largo la hacía parecer dos OFs distintas.
+                    s0 = max(ds, utc_from)
+                    e0 = min(df if (df and df > ds) else utc_to, utc_to)
+                    segs = [[_iso(s0), _iso(max(e0, s0))]]
+                    all_outside = False
+                else:
+                    segs, all_outside = _segment_bar(ds, df, wdates)
                 bar['segments'] = segs
                 bar['outside_calendar'] = all_outside
                 if bar['mo_state'] != 'done' and bar['duration_expected']:

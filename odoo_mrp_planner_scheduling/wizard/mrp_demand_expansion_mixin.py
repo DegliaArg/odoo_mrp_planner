@@ -147,22 +147,40 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                 result = min(result, child_start) if result else child_start
         return result
 
+    def _node_key(self, item_id, node):
+        """Identidad estable de un nodo: item + path completo de productos desde la raíz.
+
+        El path completo (no solo el padre inmediato) elimina la colisión de un
+        mismo producto que aparece en dos ramas distintas al mismo nivel: cada
+        aparición tiene un path único desde la raíz. Keyea anclas (forced_start)
+        y overrides de CT sin que se apliquen a la rama equivocada.
+
+        :param item_id: int — ID del mrp.production.request.item raíz del árbol.
+        :param node: dict — nodo con clave 'path' (lista de product_ids raíz→nodo).
+        :returns: str — clave estable, ej. "12|100/205/330".
+        """
+        path = node.get('path') or [node['product'].id]
+        return f"{item_id}|" + "/".join(str(p) for p in path)
+
     def _apply_wc_overrides(self, node, item_id, overrides):
         """Aplica los centros de trabajo editados manualmente al árbol de demanda.
 
-        Reemplaza las operaciones del nodo con el WC guardado en overrides para la
-        combinación (item_id, product.id, level). La duración total se preserva.
+        Reemplaza las operaciones del nodo con el WC guardado en overrides para el
+        node_key (item + path completo). La duración total se preserva.
 
         :param node: dict — nodo del árbol a procesar (se modifica en-place).
         :param item_id: int — ID del mrp.production.request.item al que pertenece el árbol.
-        :param overrides: dict — {(item_id, product_id, level): workcenter} con los overrides.
+        :param overrides: dict — {node_key: workcenter} con los overrides.
         """
         if node.get('type') == 'manufacture' and node.get('operations'):
-            key = (item_id, node['product'].id, node['level'])
+            key = self._node_key(item_id, node)
             if key in overrides:
                 wc = overrides[key]
-                dur_h = sum(d for _, d in node['operations'])
-                node['operations'] = [(wc, dur_h)]
+                # operations son 3-tuplas (primario, candidatos, duración). El
+                # override es una elección manual: se fija a ese CT (candidatos=[wc],
+                # sin rebalanceo) preservando la duración total de la ruta.
+                dur_h = sum(op[2] for op in node['operations'])
+                node['operations'] = [(wc, [wc], dur_h)]
         for child in node.get('children', []):
             self._apply_wc_overrides(child, item_id, overrides)
 
@@ -194,7 +212,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         alts = wc.alternative_workcenter_ids.filtered('active')
         return [wc] + [a for a in alts if a.id != wc.id]
 
-    def _build_demand_tree(self, product, qty, level, visited=None, _orderpoint_cache=None):
+    def _build_demand_tree(self, product, qty, level, visited=None, _orderpoint_cache=None, path=None):
         """
         Construye recursivamente el árbol de demanda multinivel para un producto.
 
@@ -224,6 +242,10 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         if product.id in visited:
             return None
         visited = visited | {product.id}
+
+        # Path de productos desde la raíz hasta este nodo (identidad estable del
+        # nodo, ver _node_key). Root: [product.id]; cada nivel agrega su producto.
+        node_path = (path or []) + [product.id]
 
         # Inicializar caché compartido en la primera llamada (nivel raíz).
         # El dict se pasa por referencia en todas las llamadas recursivas,
@@ -273,6 +295,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             'qty':      qty,
             'bom':      bom,
             'level':    level,
+            'path':     node_path,
             'operations': operations,
             'children': [],
             'scheduled_start': None,
@@ -308,6 +331,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                     'product':         comp,
                     'qty':             comp_qty,
                     'level':           level + 1,
+                    'path':            node_path + [comp.id],
                     'warning_type':    'stock_ok',
                     'warning_message': 'Reposición automática (mín/máx)',
                     'operations':      [],
@@ -332,6 +356,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                     'product':         comp,
                     'qty':             comp_qty,
                     'level':           level + 1,
+                    'path':            node_path + [comp.id],
                     'warning_type':    'stock_ok',
                     'warning_message': f'En stock ({stock_avail:g} disponibles)',
                     'operations':      [],
@@ -349,6 +374,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                     'product':         comp,
                     'qty':             stock_avail,
                     'level':           level + 1,
+                    'path':            node_path + [comp.id],
                     'warning_type':    'stock_partial',
                     'warning_message': f'Stock parcial: {stock_avail:g} de {comp_qty:g}',
                     'operations':      [],
@@ -361,7 +387,8 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             method = self._get_supply_method(comp)
 
             if method == 'manufacture':
-                child = self._build_demand_tree(comp, remaining_qty, level + 1, visited, _orderpoint_cache)
+                child = self._build_demand_tree(comp, remaining_qty, level + 1, visited,
+                                                _orderpoint_cache, path=node_path)
                 if child:
                     node['children'].append(child)
 
@@ -377,6 +404,7 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                     'qty':               remaining_qty,
                     'bom':               None,
                     'level':             level + 1,
+                    'path':              node_path + [comp.id],
                     'lead_days':         lead_days,
                     'supplier_name':     seller_rec.partner_id.display_name if seller_rec else '',
                     'supplier_calendar': supplier_cal,

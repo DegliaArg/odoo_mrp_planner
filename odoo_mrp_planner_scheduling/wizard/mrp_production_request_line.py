@@ -159,6 +159,79 @@ class MrpProductionRequestLine(models.Model):
         help='Verdadero si la reposición de este ítem fue disparada automáticamente por una regla de reabastecimiento.',
     )
 
+    # --- Fase 1: soporte del Gantt de propuesta -----------------------------
+    parent_line_id = fields.Many2one(
+        'mrp.production.request.line', string='OF consumidora', ondelete='cascade',
+        help='Línea-OF padre que consume el producto de esta línea. Define los hilos '
+             'de la cadena en el Gantt de propuesta.',
+    )
+    node_key = fields.Char(
+        string='Clave de nodo', index=True,
+        help='Identidad estable del nodo en el árbol de demanda: '
+             'item|path-de-productos-desde-la-raíz. Keyea anclas y overrides sin '
+             'colisión entre ramas (mismo producto bajo padres distintos).',
+    )
+    min_start = fields.Datetime(
+        string='Inicio mínimo',
+        help='Fecha más temprana en que esta OF puede empezar (sus hijas deben '
+             'terminar antes). Límite izquierdo de la máscara de arrastre.',
+    )
+    op_ids = fields.One2many(
+        'mrp.production.request.line.op', 'line_id', string='Operaciones',
+        help='Operaciones programadas de esta OF (una barra por operación en el Gantt).',
+    )
+
+
+class MrpProductionRequestLineOp(models.Model):
+    """
+    Operación programada de una línea-OF dentro de una solicitud de programación.
+
+    Persiste el resultado de `scheduled_ops` del motor de demanda: una fila por
+    operación de la ruta, con el centro de trabajo ELEGIDO (que puede ser un
+    alternativo), la bandera de alternativo y la ventana de tiempo calculada.
+
+    Se usa para dibujar el Gantt de propuesta con una barra por operación por
+    centro de trabajo, igual que el modo ruta del tablero.
+    """
+
+    _name = 'mrp.production.request.line.op'
+    _description = 'Operación programada de una línea de solicitud'
+    _order = 'line_id, sequence, id'
+
+    line_id       = fields.Many2one(
+        'mrp.production.request.line', required=True, ondelete='cascade',
+        help='Línea-OF a la que pertenece esta operación.',
+    )
+    request_id    = fields.Many2one(
+        'mrp.production.request', related='line_id.request_id', store=True, index=True,
+        help='Solicitud de programación (denormalizado para consultas por solicitud).',
+    )
+    sequence      = fields.Integer(
+        default=10,
+        help='Orden de la operación dentro de la ruta de la OF.',
+    )
+    workcenter_id = fields.Many2one(
+        'mrp.workcenter', string='Centro de trabajo', required=True,
+        help='Centro de trabajo elegido para esta operación (puede ser un alternativo).',
+    )
+    is_alternative = fields.Boolean(
+        string='Es alternativo', default=False,
+        help='Verdadero si el centro elegido NO es el primario de la operación, '
+             'sino un alternativo por balanceo de carga.',
+    )
+    duration_hours = fields.Float(
+        string='Duración (hs)', digits=(10, 2),
+        help='Duración estimada de la operación en horas.',
+    )
+    date_start    = fields.Datetime(
+        string='Inicio',
+        help='Inicio programado de la operación (respetando el calendario del centro).',
+    )
+    date_finish   = fields.Datetime(
+        string='Fin',
+        help='Fin programado de la operación.',
+    )
+
 
 class MrpProductionRequestWc(models.Model):
     """

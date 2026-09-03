@@ -240,11 +240,13 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
 
-        # Preservar WC editados manualmente antes de limpiar las líneas
+        # Preservar WC editados manualmente antes de limpiar las líneas.
+        # Se keyea por node_key (item + path completo) para no aplicar el override
+        # a la rama equivocada cuando un producto aparece en dos ramas del árbol.
         wc_overrides = {
-            (l.item_id.id, l.product_id.id, l.level): l.workcenter_id
+            l.node_key: l.workcenter_id
             for l in self.line_ids
-            if l.workcenter_id and l.record_type == 'mrp'
+            if l.workcenter_id and l.record_type == 'mrp' and l.node_key
         }
         self.line_ids.unlink()
         self.wc_load_ids.unlink()
@@ -303,10 +305,32 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 'projected_end':   proj_end,
             })
 
+        # Crear las líneas. Se extraen las claves transitorias (_parent_key, _ops)
+        # que NO son campos del modelo, y se post-procesan tras el create para
+        # setear parent_line_id (necesita los IDs ya creados) y las operaciones.
+        parent_keys = []
+        ops_lists   = []
         for vals in lines_vals:
             vals['request_id'] = self.id
+            parent_keys.append(vals.pop('_parent_key', None))
+            ops_lists.append(vals.pop('_ops', None))
+
         if lines_vals:
-            self.env['mrp.production.request.line'].create(lines_vals)
+            lines = self.env['mrp.production.request.line'].create(lines_vals)
+
+            # Mapa node_key → línea creada. node_key es único por solicitud (item +
+            # path completo), así que no colisiona entre artículos ni ramas.
+            key_to_line = {l.node_key: l for l in lines if l.node_key}
+
+            # Vincular padres e insertar operaciones (una line.op por barra del Gantt).
+            op_vals = []
+            for line, parent_key, ops in zip(lines, parent_keys, ops_lists):
+                if parent_key and parent_key in key_to_line:
+                    line.parent_line_id = key_to_line[parent_key].id
+                for op in (ops or []):
+                    op_vals.append(dict(op, line_id=line.id))
+            if op_vals:
+                self.env['mrp.production.request.line.op'].create(op_vals)
 
         # Resumen de carga por WC — desde el wc_collector (carga real por operación
         # en el CT elegido). Antes se sumaba desde las líneas por su único

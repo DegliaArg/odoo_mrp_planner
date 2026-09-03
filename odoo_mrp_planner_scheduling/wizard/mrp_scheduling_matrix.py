@@ -763,6 +763,182 @@ class MrpProductionBoard(models.Model):
         })
         return payload
 
+    @api.model
+    def get_request_board(self, request_id, states=None):
+        """Modo propuesta: dibuja el plan calculado de una solicitud como Gantt.
+
+        Igual que el modo ruta (filas = CT, una barra por OPERACIÓN, hilos por la
+        cadena), pero alimentado por las líneas-OF de la solicitud y sus
+        operaciones (mrp.production.request.line[.op]) en vez de OFs reales.
+
+        La OCUPACIÓN de cada CT suma la carga de la PROPUESTA a la carga real ya
+        existente en ese centro (OFs confirmadas planificadas en el rango), para
+        que el planificador vea si la propuesta lo deja sobrecargado ANTES de
+        confirmar. La carga existente se obtiene reutilizando _build_board_payload.
+
+        :param request_id: int — ID de la mrp.production.request calculada.
+        :param states: list | None — estados de las OFs reales a considerar para la
+            carga existente (None = default: confirmadas/en curso/por cerrar).
+        :returns: dict — payload con la MISMA forma que get_route_board (rows/bars/
+            route_edges/related_tree), más los datos de ocupación existente+propuesta.
+        """
+        req = self.env['mrp.production.request'].browse(request_id)
+        if not req.exists():
+            return {'empty_reason': 'not_found'}
+
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        lines = req.line_ids.filtered(lambda l: l.record_type == 'mrp')
+        ops   = lines.mapped('op_ids')
+        if not ops:
+            return {'empty_reason': 'no_ops', 'request_name': req.name or ''}
+
+        dts = [o.date_start for o in ops if o.date_start]
+        dts += [o.date_finish for o in ops if o.date_finish]
+        if not dts:
+            return {'empty_reason': 'no_dates', 'request_name': req.name or ''}
+        lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
+        hi = pytz.utc.localize(max(dts)).astimezone(tz).date() + timedelta(days=1)
+        date_from, date_to = lo.strftime('%Y-%m-%d'), hi.strftime('%Y-%m-%d')
+
+        wc_ids = set(ops.mapped('workcenter_id').filtered('active').ids)
+
+        def _iso(dt):
+            if not dt:
+                return None
+            return pytz.utc.localize(dt).astimezone(tz).strftime('%Y-%m-%dT%H:%M:%S')
+
+        def _fmt(dt):
+            if not dt:
+                return ''
+            return pytz.utc.localize(dt).astimezone(tz).strftime('%d/%m %H:%M')
+
+        # Carga real EXISTENTE + bandas + turnos, reutilizando el builder del tablero.
+        # include_done=False: las terminadas son historial, no compiten por capacidad.
+        # force_wc_ids: todos los CTs de la propuesta aparecen aunque no tengan carga
+        # real. only_mo_ids=None: se cuenta TODA la carga real de esos centros.
+        base = self._build_board_payload(
+            wc_ids, date_from, date_to, include_done=False,
+            force_wc_ids=wc_ids, only_mo_ids=None, states=states,
+        )
+        base_rows = {r['wc_id']: r for r in base.get('rows', []) if r.get('wc_id')}
+
+        # ── Barras de propuesta (una por operación) agrupadas por CT ───────────
+        bars_by_wc  = {}
+        proposal_by_wc = {}   # wc_id → horas de propuesta
+        for line in lines:
+            prod = line.product_id
+            for op in line.op_ids:
+                wc = op.workcenter_id
+                if not (wc and wc.active and wc.id in wc_ids):
+                    continue
+                ds, df = op.date_start, op.date_finish
+                bars_by_wc.setdefault(wc.id, []).append({
+                    'wo_id':              op.id,
+                    'mo_id':              line.id,    # id de la línea-OF (para hilos)
+                    'line_id':            line.id,
+                    'mo_name':            prod.default_code or prod.name or '',
+                    'product_name':       prod.display_name if prod else '',
+                    'product_code':       prod.default_code or '',
+                    'qty':                line.product_qty,
+                    'uom':                prod.uom_id.name if prod.uom_id else '',
+                    'wc_id':              wc.id,
+                    'date_start':         _iso(ds),
+                    'date_finished':      _iso(df),
+                    'date_start_str':     _fmt(ds),
+                    'date_finished_str':  _fmt(df),
+                    'duration_expected':  round((op.duration_hours or 0.0) * 60),
+                    'wo_state':           'proposal',
+                    'mo_state':           'proposal',
+                    'clipped_start':      False,
+                    'clipped_end':        False,
+                    'inconsistent_dates': bool(ds) and bool(df) and df <= ds,
+                    # Ventana estimada: barra CONTINUA (un segmento), como las
+                    # "sin programar" del modo ruta — no se parte por días no laborables.
+                    'segments':           [[_iso(ds), _iso(df or ds)]],
+                    'outside_calendar':   False,
+                    'is_alternative':     op.is_alternative,
+                    'is_proposal':        True,
+                    'level':              line.level,
+                })
+                proposal_by_wc[wc.id] = proposal_by_wc.get(wc.id, 0.0) + (op.duration_hours or 0.0)
+
+        # ── Filas: ocupación = existente (real) + propuesta ────────────────────
+        rows = []
+        for wc in self.env['mrp.workcenter'].browse(sorted(wc_ids)):
+            base_row = base_rows.get(wc.id, {})
+            occ      = base_row.get('occupancy') or {}
+            avail_h    = occ.get('available_hours', 0.0)
+            existing_h = occ.get('planned_hours', 0.0)
+            proposal_h = proposal_by_wc.get(wc.id, 0.0)
+            total_h    = existing_h + proposal_h
+            pct        = round(total_h / avail_h * 100) if avail_h > 0 else 0
+            bars = sorted(bars_by_wc.get(wc.id, []), key=lambda b: b['date_start'] or '')
+            rows.append({
+                'wc_id':             wc.id,
+                'wc_name':           wc.name,
+                'tag_names':         base_row.get('tag_names', []),
+                'bars':              bars,
+                'working_intervals': base_row.get('working_intervals', []),
+                'bands_failed':      base_row.get('bands_failed', False),
+                'occupancy': {
+                    'existing_hours':  round(existing_h, 1),
+                    'proposal_hours':  round(proposal_h, 1),
+                    'planned_hours':   round(total_h, 1),
+                    'available_hours': round(avail_h, 1),
+                    'pct':             pct,
+                },
+            })
+
+        # Orden cronológico (escalonado), igual que el modo ruta.
+        rows.sort(key=lambda r: (
+            min([b['date_start'] for b in r['bars'] if b['date_start']], default='9999'),
+            r['wc_name'],
+        ))
+        for i, r in enumerate(rows):
+            r['route_seq'] = i
+
+        # Aristas de la cadena: componente(hija) → consumidora(padre), por parent_line_id.
+        line_ids_set = set(lines.ids)
+        edges = [
+            {'from': line.id, 'to': line.parent_line_id.id}
+            for line in lines
+            if line.parent_line_id and line.parent_line_id.id in line_ids_set
+        ]
+
+        # Árbol lateral (misma forma que _compute_related_tree): raíces = 'self',
+        # el resto = 'descendant' (se fabrican antes que su consumidora).
+        tree = []
+        for line in lines.sorted(lambda l: (l.sequence, l.id)):
+            prod = line.product_id
+            tree.append({
+                'mo_id':         line.id,
+                'name':          prod.default_code or prod.name or '',
+                'product':       prod.display_name if prod else '',
+                'qty':           line.product_qty,
+                'uom':           prod.uom_id.name if prod.uom_id else '',
+                'state':         'proposal',
+                'date_start':    _fmt(line.new_date_start),
+                'date_finished': _fmt(line.new_date_finish),
+                'relation':      'self' if not line.parent_line_id else 'descendant',
+                'level':         line.level,
+            })
+
+        return {
+            'range_from':      date_from,
+            'range_to':        date_to,
+            'user_tz':         self.env.user.tz or 'UTC',
+            'hidden_weekdays': base.get('hidden_weekdays', []),
+            'shifts':          base.get('shifts', []),
+            'rows':            rows,
+            'total_bars':      sum(len(r['bars']) for r in rows),
+            'route_edges':     edges,
+            'related_tree':    tree,
+            'route_tree_ids':  sorted(line_ids_set),
+            'request_id':      req.id,
+            'request_name':    req.name or '',
+            'is_proposal':     True,
+        }
+
     def _board_working_intervals(self, calendar, start_aware, end_aware):
         """Intervalos laborables del calendario en [start_aware, end_aware],
         descontando feriados/licencias, como pares (start, end) en UTC naive.

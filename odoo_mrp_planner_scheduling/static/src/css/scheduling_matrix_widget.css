@@ -251,6 +251,14 @@
 .sm-bar.sm-state-progress  { border-left-color: #1D9E75; }
 .sm-bar.sm-state-toclose   { border-left-color: #EF9F27; }
 .sm-bar.sm-state-done      { border-left-color: #639922; opacity: 0.75; }
+/* Modo propuesta: operación propuesta (aún no existe la OF). Acento índigo. */
+.sm-bar.sm-state-proposal  { border-left-color: #6D5BD0; background: #f7f6fe; }
+/* Operación asignada a un centro ALTERNATIVO (no el primario, por balanceo):
+   rayado ámbar suave para distinguirla de un vistazo. */
+.sm-bar-alt {
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 6px,
+        rgba(217, 155, 28, 0.16) 6px, rgba(217, 155, 28, 0.16) 12px);
+}
 
 /* Sobrecarga: borde COMPLETO rojo (no solo el acento) + badge SOLAPADA adentro. */
 .sm-bar-over { border-color: #A32D2D; border-left-color: #A32D2D; }
@@ -355,6 +363,7 @@
 .sm-state-progress  { background: #d9f2e9; color: #12775a; }
 .sm-state-toclose   { background: #fdeecf; color: #8a5e12; }
 .sm-state-done      { background: #e6f0d6; color: #46660f; }
+.sm-state-proposal  { background: #ece9fb; color: #4b3fa6; }
 
 @media (max-width: 768px) {
     .sm-root { --sm-ct-w: 140px; }

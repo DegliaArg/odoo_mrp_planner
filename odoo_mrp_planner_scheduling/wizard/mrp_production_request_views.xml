@@ -162,8 +162,12 @@
                         </list>
                     </field>
 
-                    <!-- Plan calculado: desglose en pestaña separada -->
+                    <!-- Plan calculado: Gantt de la propuesta (default) + tabla -->
                     <notebook invisible="state == 'draft'">
+                        <page string="Gantt de la propuesta" name="proposal_gantt">
+                            <widget name="scheduling_matrix_widget"/>
+                        </page>
+
                         <page string="Plan de fabricación" name="plan_detail">
                             <div class="d-flex align-items-center gap-2 mb-2">
                                 <field name="hide_auto_reorder" widget="boolean_toggle"/>
@@ -291,11 +295,6 @@
                                     <field name="date_end"      string="Fin"/>
                                 </list>
                             </field>
-                        </page>
-
-                        <page string="Tablero de programación" name="scheduling_matrix"
-                              invisible="state == 'draft'">
-                            <widget name="scheduling_matrix_widget"/>
                         </page>
 
                     </notebook>

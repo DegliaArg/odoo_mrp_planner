@@ -250,6 +250,11 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                     earliest_mo_start = self._forward_schedule_days(cal, min_dt, lead)
                     after_dt = max(after_dt, earliest_mo_start)
 
+        # Inicio mínimo legal de esta OF: reúne los límites DUROS (fin de hijas,
+        # min_dt global y leads de proveedor), pero NO el ancla de CT (que es
+        # blanda: reprogramable). Es el límite izquierdo de la máscara de arrastre.
+        node['min_start'] = after_dt
+
         node_start = None
         current    = after_dt
         node['scheduled_ops'] = []
@@ -304,28 +309,37 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
     # ── Colección de líneas ───────────────────────────────────────────────────
 
-    def _collect_lines(self, node, lines_vals, seq, item_id=None):
+    def _collect_lines(self, node, lines_vals, seq, item_id=None, parent_key=None):
         """Convierte el árbol de demanda programado en una lista de dicts para crear líneas.
 
         Recorre el árbol en pre-orden (padre antes que hijos) y agrega un dict por
         nodo a lines_vals. Los nodos OC/stock son hojas (no tienen hijos que procesar).
         Los nodos OF continúan la recursión para agregar sus componentes.
 
+        Cada dict lleva 'node_key' (identidad estable) y dos claves TRANSITORIAS
+        con prefijo '_' que action_calculate post-procesa (y quita antes del create):
+          - '_parent_key': node_key del padre, para setear parent_line_id.
+          - '_ops': lista de operaciones (scheduled_ops) para crear las line.op.
+
         :param node: dict — nodo del árbol de demanda ya programado.
         :param lines_vals: list[dict] — lista acumuladora de valores para crear líneas.
         :param seq: list[int] — lista de un elemento usado como contador de secuencia
                     mutable (trick para pasar por referencia en recursión).
         :param item_id: int | None — ID del mrp.production.request.item al que pertenece.
+        :param parent_key: str | None — node_key de la línea-OF padre (None en la raíz).
         """
         indent    = INDENT_MAP.get(node['level'], ' ' * 9 + '└─ ')
         product   = node['product']
         node_type = node.get('type', 'manufacture')
+        node_key  = self._node_key(item_id, node) if item_id else ''
 
         if node_type in ('purchase', 'subcontract', 'buy'):
             lines_vals.append({
                 'sequence':          seq[0],
                 'level':             node['level'],
                 'item_id':           item_id,
+                'node_key':          node_key,
+                '_parent_key':       parent_key,
                 'record_type':       'purchase',
                 'product_id':        product.id,
                 'bom_id':            False,
@@ -348,6 +362,8 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 'sequence':          seq[0],
                 'level':             node['level'],
                 'item_id':           item_id,
+                'node_key':          node_key,
+                '_parent_key':       parent_key,
                 'record_type':       'stock',
                 'product_id':        product.id,
                 'bom_id':            False,
@@ -376,10 +392,31 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             (wc.name if ip else f'{wc.name} (alt)') for wc, ip in chosen
         )
 
+        # Operaciones para dibujar barras por-CT en el Gantt (una por operación con
+        # CT elegido). Se omiten las sin CT: no tienen fila donde dibujarse.
+        op_seq  = 0
+        ops_data = []
+        for o in sops:
+            if not o.get('wc'):
+                continue
+            op_seq += 10
+            ops_data.append({
+                'sequence':       op_seq,
+                'workcenter_id':  o['wc'].id,
+                'is_alternative': not o['is_primary'],
+                'duration_hours': round(o['dur'], 2),
+                'date_start':     o['start'],
+                'date_finish':    o['end'],
+            })
+
         lines_vals.append({
             'sequence':          seq[0],
             'level':             node['level'],
             'item_id':           item_id,
+            'node_key':          node_key,
+            '_parent_key':       parent_key,
+            '_ops':              ops_data,
+            'min_start':         node.get('min_start'),
             'record_type':       'mrp',
             'product_id':        product.id,
             'bom_id':            node['bom'].id if node.get('bom') else False,
@@ -399,4 +436,4 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         seq[0] += 10
 
         for child in node['children']:
-            self._collect_lines(child, lines_vals, seq, item_id=item_id)
+            self._collect_lines(child, lines_vals, seq, item_id=item_id, parent_key=node_key)

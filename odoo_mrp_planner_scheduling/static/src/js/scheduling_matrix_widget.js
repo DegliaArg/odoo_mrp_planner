@@ -106,10 +106,12 @@ function isoWeek(date) {
 const MO_STATE_LABEL = {
     draft: 'Borrador', confirmed: 'Confirmada', progress: 'En proceso',
     to_close: 'Por cerrar', done: 'Terminada', cancel: 'Cancelada',
+    proposal: 'Propuesta',
 };
 const MO_STATE_CLASS = {
     confirmed: 'sm-state-confirmed', progress: 'sm-state-progress',
     to_close:  'sm-state-toclose',   done:     'sm-state-done',
+    proposal:  'sm-state-proposal',
 };
 // Opciones del filtro de estado (multi-selección). Por defecto: confirmadas + en curso.
 const STATE_OPTIONS = [
@@ -168,6 +170,13 @@ class SchedulingMatrixWidget extends Component {
             unassignedExpanded: false,   // fila "Sin operaciones definidas" (arranca cerrada)
             collapsedSectors: {},        // sector → true (colapsado); no persiste
 
+            // Modo propuesta (Gantt del plan de una solicitud). Se apoya en el
+            // render del modo ruta (routeMode también queda en true), pero los
+            // datos vienen de get_request_board y la ocupación suma la carga
+            // existente + la propuesta. No hay "salir de ruta": ES la vista.
+            proposalMode: false,
+            requestName:  '',
+
             // Modo ruta (vista enfocada en los CTs de una OF)
             routeMode:    false,
             routeMoId:    null,
@@ -197,8 +206,29 @@ class SchedulingMatrixWidget extends Component {
 
         useExternalListener(window, "keydown", (ev) => this.onKeydown(ev));
 
+        // Embebido en el formulario de una solicitud (mrp.production.request):
+        // el widget dibuja el PLAN de esa solicitud (modo propuesta), no el
+        // tablero global. Detectado por el record que recibe como view_widget.
+        const rec = this.props.record;
+        this.requestId = (rec && rec.resModel === 'mrp.production.request' && rec.resId)
+            ? rec.resId : null;
+        // Instrumentación temporal: confirmar qué record recibe el widget embebido
+        // y si entra en modo propuesta. Quitar una vez verificado en el entorno.
+        console.info('[SM] mount', {
+            hasRecord: !!rec,
+            resModel:  rec && rec.resModel,
+            resId:     rec && rec.resId,
+            requestId: this.requestId,
+        });
+
         onMounted(async () => {
             try {
+                if (this.requestId) {
+                    console.info('[SM] → modo PROPUESTA: get_request_board', this.requestId);
+                    await this._loadProposal();
+                    return;
+                }
+                console.info('[SM] → modo TABLERO GENERAL: get_scheduling_board');
                 const defaultTagSelected = await this._loadFilters();
                 if (defaultTagSelected || this.state.tagIds.length) {
                     await this._loadData();
@@ -595,13 +625,58 @@ class SchedulingMatrixWidget extends Component {
     // ── Modo ruta (vista enfocada en los CTs de una OF) ───────────────────────
 
     onKeydown(ev) {
-        if (ev.key === 'Escape' && this.state.routeMode) {
+        // En propuesta no hay "salir de ruta": la vista ES el plan de la solicitud.
+        if (ev.key === 'Escape' && this.state.routeMode && !this.state.proposalMode) {
             this.exitRoute();
         }
     }
 
     /** Entra (o salta) al modo ruta de una OF: reemplaza el filtro por los CTs
      *  por los que pasa, con el rango ajustado y todas las OFs de esos centros. */
+    /** Carga el Gantt de la PROPUESTA de una solicitud (modo propuesta). Se
+     *  apoya en el render del modo ruta (routeMode=true): mismas filas por CT,
+     *  hilos de cadena, escalonado y colapso. La ocupación suma existente+propuesta. */
+    async _loadProposal() {
+        this.state.loading = true;
+        this.state.error = null;
+        try {
+            const result = await this.orm.call(
+                'mrp.production', 'get_request_board', [this.requestId],
+                { states: this.state.stateFilter },
+            );
+            if (result.empty_reason) {
+                this.state.emptyReason = result.empty_reason;
+                this.state.requestName = result.request_name || '';
+                this.state.proposalMode = true;
+                this.state.routeMode = true;
+                this.state.loading = false;
+                return;
+            }
+            this.state.rows           = result.rows || [];
+            this.state.shifts         = result.shifts || [];
+            this.state.hiddenWeekdays = result.hidden_weekdays || [];
+            this.state.totalBars      = result.total_bars || 0;
+            this.state.dateFrom       = result.range_from;
+            this.state.dateTo         = result.range_to;
+            this.state.relatedTree    = result.related_tree || [];
+            // routeTreeIds vacío en propuesta: si se llenara con todas las líneas,
+            // isTreeBar marcaría TODAS las barras con anillo. El resaltado por click
+            // (panel lateral → routeSelectedIds → isFocusedBar) sigue disponible.
+            this.state.routeTreeIds   = [];
+            this.state.routeEdges     = result.route_edges || [];
+            this.state.routeSelectedIds = [];
+            this.state.requestName    = result.request_name || '';
+            this.state.proposalMode   = true;
+            this.state.routeMode      = true;   // reutiliza el render de ruta
+            this._fitRouteZoom();               // usa rows/dateFrom/dateTo ya seteados
+            this._recompute();
+        } catch (e) {
+            this.state.error = (e?.data?.message) || e.message || String(e);
+        } finally {
+            this.state.loading = false;
+        }
+    }
+
     async enterRoute(moId) {
         if (!moId) return;
         // Guardar el estado solo al ENTRAR (no al encadenar saltos entre OFs).
@@ -1085,6 +1160,16 @@ class SchedulingMatrixWidget extends Component {
         if (pct > 120)  return 'sm-occ-over';    // rojo
         if (pct >= 100) return 'sm-occ-high';    // ámbar
         return 'sm-occ-normal';                  // verde
+    }
+
+    /** Tooltip de la insignia de ocupación. En modo propuesta desglosa
+     *  existente + propuesta = total, para que se vea cuánto agrega el plan. */
+    occTitle(occ) {
+        if (this.state.proposalMode) {
+            return `Existente ${occ.existing_hours}h + propuesta ${occ.proposal_hours}h`
+                 + ` = ${occ.planned_hours}h / disponible ${occ.available_hours}h`;
+        }
+        return `Planificado ${occ.planned_hours}h / disponible ${occ.available_hours}h`;
     }
 
     fmtQty(n) {

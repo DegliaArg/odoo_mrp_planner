@@ -157,9 +157,9 @@
                 </div>
                 </t><!-- /!routeMode -->
 
-                <!-- Encabezado de modo ruta -->
+                <!-- Encabezado de modo ruta / propuesta -->
                 <t t-if="state.routeMode">
-                    <span class="sm-route-title">
+                    <span t-if="!state.proposalMode" class="sm-route-title">
                         <i class="fa fa-random me-1"/>Ruta de <b t-esc="state.routeHeader.name"/>
                         <span class="text-muted ms-2" t-esc="state.routeHeader.product"/>
                         <span class="text-muted ms-1">· <t t-esc="fmtQty(state.routeHeader.qty)"/> <t t-esc="state.routeHeader.uom"/></span>
@@ -167,6 +167,10 @@
                               title="La cadena es muy larga y se mostró parcialmente (límite de nodos). Hay más OFs relacionadas de las que se ven.">
                             <i class="fa fa-exclamation-triangle me-1"/>cadena recortada
                         </span>
+                    </span>
+                    <span t-if="state.proposalMode" class="sm-route-title">
+                        <i class="fa fa-industry me-1"/>Propuesta de fabricación
+                        <span class="text-muted ms-2">— la ocupación de cada centro suma la carga existente + la propuesta</span>
                     </span>
                     <div class="form-check form-switch mb-0 ms-auto">
                         <input class="form-check-input" type="checkbox" id="sm-collapse-empty-r"
@@ -179,7 +183,7 @@
                                t-att-checked="state.hideWeekends" t-on-change="toggleHideWeekends"/>
                         <label class="form-check-label small text-muted" for="sm-hide-weekends-r">Ocultar fines de semana</label>
                     </div>
-                    <button class="btn btn-sm btn-outline-secondary ms-2" t-on-click="exitRoute">
+                    <button t-if="!state.proposalMode" class="btn btn-sm btn-outline-secondary ms-2" t-on-click="exitRoute">
                         <i class="fa fa-times me-1"/>Salir de ruta
                     </button>
                 </t>
@@ -195,7 +199,8 @@
             <!-- ══ Sin filas ════════════════════════════════════════════════════ -->
             <div t-elif="!state.viewRows.length" class="text-center text-muted py-5">
                 <i class="fa fa-calendar-o fa-3x mb-3 d-block"/>
-                <p class="fw-semibold">Sin OFs para los filtros seleccionados.</p>
+                <p t-if="state.proposalMode" class="fw-semibold">La propuesta no tiene operaciones para dibujar. Calculá el plan primero.</p>
+                <p t-else="" class="fw-semibold">Sin OFs para los filtros seleccionados.</p>
             </div>
 
             <!-- ══ Tablero ══════════════════════════════════════════════════════ -->
@@ -299,10 +304,11 @@
                                 </div>
                                 <div class="sm-ct-sub d-flex align-items-center gap-1 mt-1">
                                     <!-- En modo ruta las barras son solo la cadena: el % de ocupación
-                                         no reflejaría la carga real del CT, así que se oculta. -->
-                                    <t t-if="row.occupancy and !state.routeMode">
+                                         no reflejaría la carga real del CT, así que se oculta. En modo
+                                         PROPUESTA sí se muestra: es el dato clave (existente + propuesta). -->
+                                    <t t-if="row.occupancy and (!state.routeMode or state.proposalMode)">
                                         <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
-                                              t-att-title="`Planificado ${row.occupancy.planned_hours}h / disponible ${row.occupancy.available_hours}h`">
+                                              t-att-title="occTitle(row.occupancy)">
                                             <t t-esc="row.occupancy.pct"/>%
                                         </span>
                                     </t>
@@ -358,7 +364,7 @@
                                     <!-- Conector punteado entre tramos de la misma OF -->
                                     <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isUnscheduledBar(bar) ? ' sm-bar-unsched' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isUnscheduledBar(bar) ? ' sm-bar-unsched' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '') + (bar.is_alternative ? ' sm-bar-alt' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -381,7 +387,7 @@
                                                         <t t-if="bar.date_start_str"> · <t t-esc="bar.date_start_str"/></t>
                                                     </div>
                                                 </div>
-                                                <button class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
+                                                <button t-if="!state.proposalMode" class="sm-bar-open" t-att-title="'Abrir ' + bar.mo_name"
                                                         t-on-click="(ev) => this.openMo(ev, bar)">
                                                     <i class="fa fa-external-link"/>
                                                 </button>

@@ -93,6 +93,7 @@ class PoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
+        this.notification = useService("notification");
         this._loadSeq = 0;
         this._root        = useRef("poRoot");
         this.colsOc       = useColManager('po_ocs',       PO_OC_COLS);
@@ -443,6 +444,38 @@ class PoDashboardWidget extends Component {
      * @returns {boolean}
      */
     get hasPrevPage() { return this.state.page > 1; }
+
+    // ── Exportar Excel ─────────────────────────────────────────────────────────
+
+    /**
+     * Exporta la lista activa (OCs, recepciones, entregas o servicios) a Excel
+     * (.xlsx), con TODAS las páginas y respetando los filtros vigentes (tab,
+     * estado OC, subpestaña, fecha, búsqueda y orden). El armado es server-side.
+     */
+    async exportExcel() {
+        try {
+            const res = await this.orm.call("mrp.planner.dashboard", "get_po_export", [
+                this.state.tab,
+                this.state.ocFilter,
+                this.state.listTab || null,
+                this.state.dateFrom,
+                this.state.dateTo,
+                this.state.sortField || null,
+                this.state.sortDir,
+                this.state.search || null,
+            ]);
+            if (res && res.url) {
+                this.action.doAction({ type: "ir.actions.act_url", url: res.url, target: "self" });
+            } else if (res && res.error) {
+                this.notification.add(
+                    `${res.error}. Instalá la librería openpyxl en el servidor para exportar a Excel.`,
+                    { type: "danger" });
+            }
+        } catch (e) {
+            console.error("[PoDashboardWidget] export", e);
+            this.notification.add("No se pudo generar el archivo de exportación.", { type: "danger" });
+        }
+    }
 
     /** Avanza a la página siguiente y recarga datos si hay una disponible. */
     nextPage() { if (this.hasNextPage) { this.state.page++; this._load(); } }

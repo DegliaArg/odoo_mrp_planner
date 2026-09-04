@@ -26,6 +26,7 @@ from . import mrp_planner_dashboard_prod_analysis
 from . import mrp_forecast_calc_mixin
 from . import mrp_planner_dashboard_forecast
 from . import mrp_planner_dashboard_forecast_export
+from . import mrp_planner_dashboard_export
 from . import mrp_planner_dashboard_stock
 from . import mrp_planner_dashboard_sales
 from . import mrp_planner_dashboard_supplier

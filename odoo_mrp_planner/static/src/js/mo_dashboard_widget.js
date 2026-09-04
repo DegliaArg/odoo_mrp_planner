@@ -76,6 +76,7 @@ class MoDashboardWidget extends Component {
     setup() {
         this.orm    = useService("orm");
         this.action = useService("action");
+        this.notification = useService("notification");
         this._root   = useRef("moRoot");
         this.colsOf  = useColManager('mo_ofs',        MO_OF_COLS);
         this.colsReq = useColManager('mo_requests',   MO_SCHED_COLS);
@@ -286,6 +287,59 @@ class MoDashboardWidget extends Component {
         this.state.page = 1;
         clearTimeout(this._searchTimer);
         this._searchTimer = setTimeout(() => this._loadData(), 300);
+    }
+
+    // ── Exportar Excel ─────────────────────────────────────────────────────────
+
+    /**
+     * Exporta la tabla de la pestaña activa a Excel (.xlsx), con TODAS las páginas
+     * y respetando los filtros vigentes. El armado es server-side (openpyxl);
+     * acá solo se dispara la descarga de la URL que devuelve el backend.
+     */
+    async exportExcel() {
+        try {
+            let res;
+            if (this.state.tab === "ofs") {
+                res = await this.orm.call("mrp.planner.dashboard", "get_mo_ofs_export", [
+                    this.state.dateFrom,
+                    this.state.dateTo,
+                    this.state.selectedWarehouseId || null,
+                    this.state.sortField || null,
+                    this.state.sortDir,
+                    this.state.ofsSearch || null,
+                ]);
+            } else if (this.state.tab === "requests") {
+                res = await this.orm.call("mrp.planner.dashboard", "get_mo_requests_export", [
+                    this.state.sortField || null,
+                    this.state.sortDir,
+                    this.state.reqSearch || null,
+                ]);
+            } else {
+                res = await this.orm.call("mrp.planner.dashboard", "get_mo_comparison_export", [
+                    this.state.dateFrom,
+                    this.state.dateTo,
+                    this.state.selectedWarehouseId || null,
+                    this.state.sortField || null,
+                    this.state.sortDir,
+                    this.state.cmpSearch || null,
+                ]);
+            }
+            this._handleExportResult(res);
+        } catch (e) {
+            console.error("[MoDashboardWidget] export", e);
+            this.notification.add("No se pudo generar el archivo de exportación.", { type: "danger" });
+        }
+    }
+
+    /** Dispara la descarga de la URL del export o muestra el error del backend. */
+    _handleExportResult(res) {
+        if (res && res.url) {
+            this.action.doAction({ type: "ir.actions.act_url", url: res.url, target: "self" });
+        } else if (res && res.error) {
+            this.notification.add(
+                `${res.error}. Instalá la librería openpyxl en el servidor para exportar a Excel.`,
+                { type: "danger" });
+        }
     }
 
     // ── Navegación OFs ───────────────────────────────────────────────────────

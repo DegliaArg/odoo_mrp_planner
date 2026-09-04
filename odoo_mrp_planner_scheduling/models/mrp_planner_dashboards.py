@@ -309,3 +309,35 @@ class MrpPlannerDashboard(models.TransientModel):
             },
             'requests': [_req_dict(r) for r in all_active_page],
         }
+
+    _REQ_STATE_LABEL = {
+        'draft': 'Borrador', 'calculated': 'Calculada', 'confirmed': 'OFs creadas',
+        'done': 'Hecho', 'cancel': 'Cancelada',
+    }
+
+    @api.model
+    def get_mo_requests_export(self, sort_field=None, sort_dir='asc', search=None):
+        """Exporta la tabla de Programaciones completa (todas las páginas) a Excel.
+
+        Reutiliza get_request_widget_data sin paginar (page_size infinito) y el
+        builder genérico _planner_build_xlsx del módulo base.
+        """
+        data = self.get_request_widget_data(sort_field, sort_dir, 1, 10 ** 9, search)
+        rows = [{
+            'name':        r['name'],
+            'start_from':  r['start_from'],
+            'state':       self._REQ_STATE_LABEL.get(r['state'], r['state']),
+            'mos_total':   r['mos_total'],
+            'mos_done':    r['mos_done'],
+            'mos_delayed': r['mos_delayed'],
+        } for r in data['requests']]
+        columns = [
+            {'header': 'Referencia',       'key': 'name'},
+            {'header': 'Disponible desde', 'key': 'start_from'},
+            {'header': 'Estado',           'key': 'state'},
+            {'header': 'OFs total',        'key': 'mos_total',   'number': True},
+            {'header': 'OFs finalizadas',  'key': 'mos_done',    'number': True},
+            {'header': 'OFs atrasadas',    'key': 'mos_delayed', 'number': True},
+        ]
+        return self._planner_build_xlsx(
+            'Programaciones', 'programaciones_export.xlsx', columns, rows)

@@ -17,6 +17,7 @@
                        widget="many2many_tags"
                        optional="show"
                        string="Centros alternativos"
+                       domain="[('id', '!=', workcenter_id), ('active', '=', True)]"
                        options="{'no_create': True, 'no_create_edit': True}"/>
             </field>
         </field>

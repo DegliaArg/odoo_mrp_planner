@@ -9,6 +9,9 @@
         <field name="model">mrp.routing.workcenter</field>
         <field name="inherit_id" ref="mrp.mrp_routing_workcenter_bom_tree_view"/>
         <field name="arch" type="xml">
+            <list position="attributes">
+                <attribute name="editable">bottom</attribute>
+            </list>
             <field name="workcenter_id" position="after">
                 <field name="alternative_workcenter_ids"
                        widget="many2many_tags"

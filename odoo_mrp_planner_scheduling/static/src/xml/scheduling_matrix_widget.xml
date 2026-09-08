@@ -33,8 +33,9 @@
                     </t>
                 </div>
 
-                <!-- Estado (multi-selección): aplica en el tablero y en la ruta.
-                     Por defecto Confirmada + En proceso. -->
+                <!-- Estado (multi-selección): solo en tablero y modo ruta normales.
+                     En modo propuesta no hay estados: todas las barras son 'propuesta'. -->
+                <t t-if="!state.proposalMode">
                 <div class="sm-filter-group position-relative">
                     <span class="sm-filter-label text-muted small me-1">Estado:</span>
                     <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
@@ -56,7 +57,9 @@
                         </t>
                     </div>
                 </div>
+                </t>
 
+                <!-- Sector, CT y búsqueda: solo en el tablero normal (no ruta ni propuesta) -->
                 <t t-if="!state.routeMode">
                 <div class="vr mx-1"/>
 
@@ -111,18 +114,6 @@
 
                 <div class="vr mx-1"/>
 
-                <!-- Rango de fechas -->
-                <div class="sm-filter-group d-flex align-items-center gap-1">
-                    <span class="text-muted small">Desde</span>
-                    <input type="date" class="form-control form-control-sm sm-date-input"
-                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
-                    <span class="text-muted small">hasta</span>
-                    <input type="date" class="form-control form-control-sm sm-date-input"
-                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
-                </div>
-
-                <div class="vr mx-1"/>
-
                 <!-- Búsqueda -->
                 <div class="sm-filter-group">
                     <div class="input-group input-group-sm">
@@ -131,6 +122,18 @@
                                placeholder="Buscar OF o producto…"
                                t-att-value="state.searchText" t-on-input="onSearchChange"/>
                     </div>
+                </div>
+                </t>
+
+                <!-- Rango de fechas: visible siempre (tablero, ruta y propuesta) -->
+                <div class="vr mx-1"/>
+                <div class="sm-filter-group d-flex align-items-center gap-1">
+                    <span class="text-muted small">Desde</span>
+                    <input type="date" class="form-control form-control-sm sm-date-input"
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    <span class="text-muted small">hasta</span>
+                    <input type="date" class="form-control form-control-sm sm-date-input"
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
                 <!-- Toggles -->

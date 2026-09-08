@@ -436,18 +436,78 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                 )
                 if shared:
                     return shared[0].resource_calendar_id
-            for wo in mo.workorder_ids.sorted('sequence'):
+            for wo in self._topological_sort_wos(mo.workorder_ids):
                 if wo.workcenter_id.resource_calendar_id:
                     return wo.workcenter_id.resource_calendar_id
         return self.env.company.resource_calendar_id
+
+    def _topological_sort_wos(self, wos):
+        """
+        Ordena las OTs respetando las dependencias definidas en blocked_by_workorder_ids.
+
+        Usa el algoritmo de Kahn (BFS topológico) para garantizar que cada OT aparece
+        después de todas sus predecesoras. Así la programación secuencial respeta el
+        campo "Bloqueado por" en lugar del campo sequence (que no es confiable).
+
+        Si blocked_by_workorder_ids no está definido en el modelo o ninguna OT tiene
+        dependencias dentro de esta MO, cae al orden por sequence como fallback.
+
+        :param wos: mrp.workorder recordset — OTs de la MO a ordenar.
+        :returns: list de mrp.workorder en orden topológico.
+        """
+        if not wos:
+            return list(wos)
+
+        if 'blocked_by_workorder_ids' not in wos._fields:
+            return list(wos.sorted('sequence'))
+
+        wos_by_id = {wo.id: wo for wo in wos}
+
+        has_deps = any(
+            any(b.id in wos_by_id for b in wo.blocked_by_workorder_ids)
+            for wo in wos
+        )
+        if not has_deps:
+            return list(wos.sorted('sequence'))
+
+        in_degree = {wo.id: 0 for wo in wos}
+        adjacency = {wo.id: [] for wo in wos}
+        for wo in wos:
+            for blocker in wo.blocked_by_workorder_ids:
+                if blocker.id in wos_by_id:
+                    in_degree[wo.id] += 1
+                    adjacency[blocker.id].append(wo.id)
+
+        queue = deque(wo_id for wo_id, deg in in_degree.items() if deg == 0)
+        sorted_ids = []
+        while queue:
+            wo_id = queue.popleft()
+            sorted_ids.append(wo_id)
+            for next_id in adjacency.get(wo_id, []):
+                in_degree[next_id] -= 1
+                if in_degree[next_id] == 0:
+                    queue.append(next_id)
+
+        # Ciclos en el grafo (no debería ocurrir con BOMs válidas): agregar al final en orden sequence
+        seen = set(sorted_ids)
+        for wo in wos.sorted('sequence'):
+            if wo.id not in seen:
+                sorted_ids.append(wo.id)
+
+        return [wos_by_id[wo_id] for wo_id in sorted_ids if wo_id in wos_by_id]
 
     def _schedule_mo_block(self, mo, wc_anchors, base_dt, duration_override=None, wc_collector=None):
         """
         Programa un bloque de MO respetando la disponibilidad de cada centro de trabajo.
 
         Si la MO no tiene WOs, la trata como un bloque único usando el calendario de
-        la compañía. Si tiene WOs, las programa en secuencia escalando las duraciones
+        la compañía. Si tiene WOs, las programa respetando las dependencias definidas
+        en blocked_by_workorder_ids (sort topológico) y escalando duraciones
         proporcionalmente si se especifica duration_override.
+
+        Cada OT empieza después de que todas sus predecesoras hayan terminado Y
+        después de que el CT correspondiente esté libre. Esto permite ejecución
+        paralela de OTs sin dependencias entre sí (limitada solo por CT).
 
         Actualiza wc_anchors in-place para que el próximo bloque en ese WC empiece
         después de que este termine.
@@ -461,7 +521,7 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             de cada WO para crear MrpReschedulePlanWcLine.
         :returns: tuple (new_date_start, new_date_finish) como datetimes UTC naive.
         """
-        wos = mo.workorder_ids.sorted('sequence')
+        wos = self._topological_sort_wos(mo.workorder_ids)
         total_wo_dur = sum(wo.duration_expected or 0.0 for wo in wos)
 
         if not wos or total_wo_dur <= 0:
@@ -476,9 +536,11 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             return (wo_start, wo_end)
 
         mo_start = None
-        wo_prev_end = base_dt
+        wo_end_times = {}  # {wo_id: end_datetime} — fin de cada OT para resolver dependencias
         scale = (duration_override / (total_wo_dur / 60.0)
                  if duration_override and total_wo_dur > 0 else None)
+
+        has_blocked_by = 'blocked_by_workorder_ids' in mo.workorder_ids._fields
 
         for wo in wos:
             wc = wo.workcenter_id
@@ -490,9 +552,18 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
             wo_dur_h = (wo.duration_expected or 60.0) / 60.0
             if scale is not None:
                 wo_dur_h *= scale
-            earliest = max(wo_prev_end, wc_anchors.get(wc_id, base_dt), base_dt)
+
+            # Inicio mínimo: después de todos los predecesores (blocked_by) y del CT libre
+            predecessor_ends = (
+                [wo_end_times[b.id] for b in wo.blocked_by_workorder_ids if b.id in wo_end_times]
+                if has_blocked_by else []
+            )
+            earliest = max([base_dt, wc_anchors.get(wc_id, base_dt)] + predecessor_ends)
+
             wo_start, wo_end = self._schedule_duration(calendar, earliest, wo_dur_h)
             wc_anchors[wc_id] = wo_end
+            wo_end_times[wo.id] = wo_end
+
             if wc_collector is not None and wc_id and wo_start and wo_end:
                 wc_collector.append({
                     'production_id': mo.id,
@@ -501,11 +572,11 @@ class MrpRescheduleCascadeMixin(models.AbstractModel):
                     'new_date_start':  wo_start,
                     'new_date_finish': wo_end,
                 })
-            if mo_start is None:
+            if mo_start is None or wo_start < mo_start:
                 mo_start = wo_start
-            wo_prev_end = wo_end
 
-        return (mo_start, wo_prev_end)
+        mo_end = max(wo_end_times.values()) if wo_end_times else base_dt
+        return (mo_start or base_dt, mo_end)
 
     def _sort_mos_by_priority(self, mos, sequence_overrides=None):
         """

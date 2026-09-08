@@ -199,18 +199,28 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         preferred = centros.filtered('is_preferred')
         return (preferred[:1] if preferred else centros[:1]).workcenter_id or None
 
-    def _wc_candidates(self, wc):
-        """CTs candidatos para una operación: el primario + sus alternativos
-        activos. El scheduling elige entre ellos el que quede libre más temprano
-        (balanceo, como button_plan). El primario va PRIMERO (desempata a su favor).
+    def _wc_candidates(self, wc, op=None):
+        """CTs candidatos para una operación: el primario + los alternativos
+        definidos en la operación de la LdM (alternative_workcenter_ids).
+
+        Si la operación tiene alternativos configurados, se usan SOLO esos
+        (ignorando los alternativos nativos del CT). Si no hay alternativos
+        en la operación, se devuelve solo el primario.
+
+        El primario va PRIMERO en la lista → desempata a su favor cuando dos
+        candidatos terminan al mismo tiempo.
 
         :param wc: mrp.workcenter | None — centro primario de la operación.
+        :param op: mrp.routing.workcenter | None — operación de la LdM.
         :returns: list[mrp.workcenter] — candidatos ([] si no hay centro).
         """
         if not wc:
             return []
-        alts = wc.alternative_workcenter_ids.filtered('active')
-        return [wc] + [a for a in alts if a.id != wc.id]
+        if op and hasattr(op, 'alternative_workcenter_ids'):
+            alts = op.alternative_workcenter_ids.filtered('active')
+            if alts:
+                return [wc] + [a for a in alts if a.id != wc.id]
+        return [wc]
 
     def _build_demand_tree(self, product, qty, level, visited=None, _orderpoint_cache=None, path=None):
         """
@@ -280,11 +290,11 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             if bom.operation_ids else 8.0
         )
         if preferred_wc:
-            operations = [(preferred_wc, self._wc_candidates(preferred_wc), dur_bom)]
+            operations = [(preferred_wc, [preferred_wc], dur_bom)]
         elif bom.operation_ids and wc_fallback == 'ldm':
             for op in bom.operation_ids.sorted('sequence'):
                 wc = op.workcenter_id
-                operations.append((wc, self._wc_candidates(wc),
+                operations.append((wc, self._wc_candidates(wc, op=op),
                                    self._get_op_duration_hours(op, bom_factor)))
         else:
             operations = [(None, [], dur_bom)]

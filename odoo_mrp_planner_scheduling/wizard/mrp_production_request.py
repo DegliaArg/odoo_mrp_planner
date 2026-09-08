@@ -292,7 +292,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         wc_collector = {}
         for item, root in item_trees:
             self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt,
-                                wc_collector=wc_collector)
+                                target_end=item.date_deadline, wc_collector=wc_collector)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             earliest = root.get('scheduled_end')
             proj_start = self._get_tree_earliest_start(root)

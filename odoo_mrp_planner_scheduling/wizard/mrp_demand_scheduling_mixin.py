@@ -203,7 +203,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
     # ── Programación del árbol ────────────────────────────────────────────────
 
-    def _schedule_tree(self, node, start, wc_anchors, min_dt=None, wc_collector=None):
+    def _schedule_tree(self, node, start, wc_anchors, min_dt=None, target_end=None, wc_collector=None):
         """Programa los nodos OF del árbol en orden bottom-up (primero las hojas).
 
         Los nodos OC/Subcont./compra se resuelven en un post-paso: su fecha de
@@ -216,11 +216,16 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         - min_dt: piso global (no se puede programar antes de hoy).
         - Para hijos OC/Subcont.: se pushea after_dt para que la fecha de pedido
           no caiga antes de min_dt (no se puede pedir en el pasado).
+        - target_end (JIT/ALAP): si se provee, el nodo se retrasa para terminar lo
+          más cerca posible de target_end en lugar de iniciar lo antes posible.
+          Si el resultado de retroceder desde target_end es anterior al ASAP, se usa
+          el ASAP (la fecha no es alcanzable y se usa el inicio mínimo posible).
 
         :param node: dict — nodo del árbol de demanda (se modifica en-place).
         :param start: datetime — fecha mínima de inicio para este nodo.
         :param wc_anchors: dict — {wc_id: datetime} anclas compartidas entre artículos.
         :param min_dt: datetime | None — piso temporal global (normalmente hoy UTC midnight).
+        :param target_end: datetime | None — fecha objetivo de fin para scheduling JIT/ALAP.
         """
         leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
         if node.get('type') in leaf_types:
@@ -249,6 +254,22 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                     cal  = child.get('supplier_calendar') or company_calendar
                     earliest_mo_start = self._forward_schedule_days(cal, min_dt, lead)
                     after_dt = max(after_dt, earliest_mo_start)
+
+        # JIT/ALAP: si hay fecha objetivo, retrasar el inicio para terminar lo más
+        # cerca posible de target_end. Solo se aplica si el resultado es posterior
+        # al inicio ASAP (nunca adelantamos; solo retrasamos hacia la fecha deseada).
+        if target_end:
+            total_dur = sum(dur_h for _, dur_h in node['operations'])
+            if total_dur > 0:
+                first_wc = next((wc for wc, _ in node['operations'] if wc), None)
+                cal_bwd = (
+                    first_wc.resource_calendar_id
+                    if (first_wc and first_wc.resource_calendar_id)
+                    else company_calendar
+                )
+                jit_start, _ = self._schedule_duration_backward(cal_bwd, target_end, total_dur)
+                if jit_start > after_dt:
+                    after_dt = jit_start
 
         # Inicio mínimo legal de esta OF: reúne los límites DUROS (fin de hijas,
         # min_dt global y leads de proveedor), pero NO el ancla de CT (que es

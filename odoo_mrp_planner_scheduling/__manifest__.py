@@ -33,6 +33,7 @@ qué usuarios ven los botones y KPIs asociados.
         'views/mrp_reschedule_alert_views.xml',
         'views/res_config_settings_views.xml',
         'views/product_template_views.xml',
+        'views/mrp_routing_workcenter_views.xml',
         'views/mrp_planner_detail_dashboard_views.xml',
         'wizard/mrp_production_request_views.xml',
         'views/mrp_reschedule_plan_views.xml',

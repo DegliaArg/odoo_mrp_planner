@@ -91,12 +91,18 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         string='Tipo de operación',
         domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
         required=True,
-        # el ID 518 era específico de la instancia de desarrollo; buscar por código
-        default=lambda self: self.env['stock.picking.type'].search(
-            [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
-        ),
+        default=lambda self: self._default_picking_type(),
         help='Tipo de operación de fabricación con el que se crearán las OFs.',
     )
+
+    @api.model
+    def _default_picking_type(self):
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        if cfg and cfg.default_picking_type_id:
+            return cfg.default_picking_type_id
+        return self.env['stock.picking.type'].search(
+            [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
+        )
     workorder_count = fields.Integer(
         compute='_compute_workorder_count', string='OTs',
         help='Cantidad total de órdenes de trabajo (work orders) de las OFs vinculadas.',

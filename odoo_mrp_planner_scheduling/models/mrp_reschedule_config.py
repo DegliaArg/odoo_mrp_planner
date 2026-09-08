@@ -61,6 +61,13 @@ class MrpRescheduleConfig(models.Model):
         help='Sector que se preselecciona automáticamente al abrir el tablero de programación de producción.',
     )
 
+    default_picking_type_id = fields.Many2one(
+        'stock.picking.type',
+        string='Tipo de operación predeterminado',
+        domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
+        help='Tipo de operación de fabricación que se preselecciona al crear una nueva Programación de fabricación.',
+    )
+
     board_hidden_weekdays = fields.Char(
         string='Días ocultos del tablero',
         default='5,6',

@@ -65,6 +65,12 @@
                                help="Días que colapsa el toggle 'Ocultar fines de semana', separados por comas (lunes=0 … domingo=6). Por defecto 5,6 (sábado y domingo). Ponelo acorde a los CTs que trabajan sábado."/>
                     </group>
 
+                    <!-- ══ PROGRAMACIÓN DE FABRICACIÓN ══════════════════════════════ -->
+                    <group string="Programación de fabricación">
+                        <field name="default_picking_type_id"
+                               help="Tipo de operación que se preselecciona al crear una nueva Programación de fabricación."/>
+                    </group>
+
                     <!-- ══ TURNOS (compartidos con los paneles) ════════════════════ -->
                     <group string="Turnos de producción">
                         <div class="text-muted small mb-2">

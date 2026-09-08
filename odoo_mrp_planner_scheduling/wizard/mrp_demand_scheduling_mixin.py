@@ -259,9 +259,9 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         # cerca posible de target_end. Solo se aplica si el resultado es posterior
         # al inicio ASAP (nunca adelantamos; solo retrasamos hacia la fecha deseada).
         if target_end:
-            total_dur = sum(dur_h for _, dur_h in node['operations'])
+            total_dur = sum(dur_h for _, _, dur_h in node['operations'])
             if total_dur > 0:
-                first_wc = next((wc for wc, _ in node['operations'] if wc), None)
+                first_wc = next((p for p, _, _ in node['operations'] if p), None)
                 cal_bwd = (
                     first_wc.resource_calendar_id
                     if (first_wc and first_wc.resource_calendar_id)

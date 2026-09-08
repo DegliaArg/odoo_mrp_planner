@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Operación de LdM: centros alternativos en el popup de operación ── -->
-    <!-- Se hereda el form view de mrp.routing.workcenter (popup al clickear
-         una fila de operación en la LdM) para agregar el campo de CTs
-         alternativos justo debajo del CT primario. -->
+    <!-- ── Tabla de operaciones en la LdM: columna de CTs alternativos ── -->
+    <!-- La tabla usa mrp_routing_workcenter_bom_tree_view via list_view_ref.
+         Se agrega la columna después de "Centro de trabajo". -->
+    <record id="mrp_routing_workcenter_bom_tree_scheduling_alt_wc" model="ir.ui.view">
+        <field name="name">mrp.routing.workcenter.bom.tree.scheduling.alt.wc</field>
+        <field name="model">mrp.routing.workcenter</field>
+        <field name="inherit_id" ref="mrp.mrp_routing_workcenter_bom_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="workcenter_id" position="after">
+                <field name="alternative_workcenter_ids"
+                       widget="many2many_tags"
+                       optional="show"
+                       string="Centros alternativos"
+                       options="{'no_create': True, 'no_create_edit': True}"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── Popup de operación: CTs alternativos debajo del CT primario ── -->
     <record id="mrp_routing_workcenter_form_scheduling_alt_wc" model="ir.ui.view">
         <field name="name">mrp.routing.workcenter.form.scheduling.alt.wc</field>
         <field name="model">mrp.routing.workcenter</field>

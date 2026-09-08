@@ -1,23 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Operaciones de LdM: columna de centros alternativos ── -->
-    <record id="mrp_bom_form_scheduling_alt_wc" model="ir.ui.view">
-        <field name="name">mrp.bom.form.scheduling.alt.wc</field>
-        <field name="model">mrp.bom</field>
-        <field name="inherit_id" ref="mrp.mrp_bom_form_view"/>
+    <!-- ── Operación de LdM: centros alternativos en el popup de operación ── -->
+    <!-- Se hereda el form view de mrp.routing.workcenter (popup al clickear
+         una fila de operación en la LdM) para agregar el campo de CTs
+         alternativos justo debajo del CT primario. -->
+    <record id="mrp_routing_workcenter_form_scheduling_alt_wc" model="ir.ui.view">
+        <field name="name">mrp.routing.workcenter.form.scheduling.alt.wc</field>
+        <field name="model">mrp.routing.workcenter</field>
+        <field name="inherit_id" ref="mrp.mrp_routing_workcenter_view_form"/>
         <field name="arch" type="xml">
-            <!-- Agregar columna de alternativos después del CT primario en la
-                 lista de operaciones. optional="show" la muestra por defecto;
-                 el usuario puede ocultarla desde el selector de columnas. -->
-            <xpath expr="//field[@name='operation_ids']//field[@name='workcenter_id']"
-                   position="after">
+            <field name="workcenter_id" position="after">
                 <field name="alternative_workcenter_ids"
                        widget="many2many_tags"
-                       optional="show"
                        string="Centros alternativos"
                        options="{'no_create': True, 'no_create_edit': True}"/>
-            </xpath>
+            </field>
         </field>
     </record>
 

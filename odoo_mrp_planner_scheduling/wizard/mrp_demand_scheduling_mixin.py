@@ -304,6 +304,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
             node['scheduled_ops'].append({
                 'wc': chosen, 'is_primary': is_primary,
+                'primary_wc': primary,  # CT primario de la operación según la ruta
                 'dur': dur_h, 'start': wo_start, 'end': wo_end,
             })
             if wc_collector is not None and chosen:
@@ -421,13 +422,15 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             if not o.get('wc'):
                 continue
             op_seq += 10
+            primary_wc = o.get('primary_wc')
             ops_data.append({
-                'sequence':       op_seq,
-                'workcenter_id':  o['wc'].id,
-                'is_alternative': not o['is_primary'],
-                'duration_hours': round(o['dur'], 2),
-                'date_start':     o['start'],
-                'date_finish':    o['end'],
+                'sequence':              op_seq,
+                'workcenter_id':         o['wc'].id,
+                'primary_workcenter_id': primary_wc.id if primary_wc else False,
+                'is_alternative':        not o['is_primary'],
+                'duration_hours':        round(o['dur'], 2),
+                'date_start':            o['start'],
+                'date_finish':           o['end'],
             })
 
         lines_vals.append({
@@ -448,6 +451,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             'workcenter_id':     chosen[0][0].id if chosen else False,
             'workcenter_chain':  wc_label if (len(chosen) > 1 or used_alt) else '',
             'used_alternative':  used_alt,
+            'suggestion_state':  'pending' if used_alt else 'none',
             'workcenter_label':  '',
             'description_label': f'{indent}{product.display_name}',
             'type_label':        'OF' if node['level'] == 0 else 'OF hija',

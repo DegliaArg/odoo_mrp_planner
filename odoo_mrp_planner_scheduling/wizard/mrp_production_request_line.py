@@ -82,6 +82,15 @@ class MrpProductionRequestLine(models.Model):
              'el primario de la ruta) porque el primario estaba más cargado. La '
              'cadena de centros marca cuáles con "(alt)".',
     )
+    suggestion_state = fields.Selection([
+        ('none',     'Sin sugerencia'),
+        ('pending',  'Pendiente'),
+        ('accepted', 'Aceptado'),
+        ('rejected', 'Revertido'),
+    ], string='Sugerencia CT', default='none',
+        help='Estado de la sugerencia de CT alternativo. '
+             'pending: el planificador eligió un alternativo y el usuario no revisó todavía.',
+    )
     compatible_workcenter_ids = fields.Many2many(
         'mrp.workcenter', compute='_compute_compatible_wc_ids',
         help='Centros de trabajo habilitados para este producto según su configuración de compatibilidad.',
@@ -181,6 +190,30 @@ class MrpProductionRequestLine(models.Model):
         help='Operaciones programadas de esta OF (una barra por operación en el Gantt).',
     )
 
+    def action_accept_ct_suggestion(self):
+        """Acepta la asignación de CT alternativo elegida por el planificador."""
+        for line in self:
+            if line.suggestion_state == 'pending':
+                line.suggestion_state = 'accepted'
+
+    def action_reject_ct_suggestion(self):
+        """Revierte cada operación alternativa a su CT primario de ruta."""
+        for line in self:
+            if line.suggestion_state != 'pending':
+                continue
+            chain_parts = []
+            for op in line.op_ids.sorted('sequence'):
+                if op.is_alternative and op.primary_workcenter_id:
+                    op.workcenter_id  = op.primary_workcenter_id
+                    op.is_alternative = False
+                if op.workcenter_id:
+                    chain_parts.append(op.workcenter_id.name)
+            first_wc = line.op_ids.sorted('sequence')[:1].workcenter_id
+            line.workcenter_id    = first_wc
+            line.workcenter_chain = ' › '.join(chain_parts) if len(chain_parts) > 1 else ''
+            line.used_alternative = False
+            line.suggestion_state = 'rejected'
+
 
 class MrpProductionRequestLineOp(models.Model):
     """
@@ -213,6 +246,11 @@ class MrpProductionRequestLineOp(models.Model):
     workcenter_id = fields.Many2one(
         'mrp.workcenter', string='Centro de trabajo', required=True,
         help='Centro de trabajo elegido para esta operación (puede ser un alternativo).',
+    )
+    primary_workcenter_id = fields.Many2one(
+        'mrp.workcenter', string='CT primario',
+        help='CT primario de la operación según la ruta. Cuando is_alternative=True, '
+             'éste es el CT desplazado por balanceo de carga.',
     )
     is_alternative = fields.Boolean(
         string='Es alternativo', default=False,
@@ -255,8 +293,16 @@ class MrpProductionRequestWc(models.Model):
         help='Centro de trabajo que absorbe las horas planificadas de esta entrada.',
     )
     total_hours   = fields.Float(
-        string='Horas totales', digits=(10, 2),
-        help='Cantidad total de horas asignadas a este centro en el bloque de tiempo definido.',
+        string='Horas planificadas', digits=(10, 2),
+        help='Horas del plan asignadas a este CT en el horizonte del plan.',
+    )
+    available_hours = fields.Float(
+        string='Horas disponibles', digits=(10, 2), readonly=True,
+        help='Horas hábiles del CT en el rango de fechas del plan según su calendario.',
+    )
+    occupancy_pct = fields.Integer(
+        string='Ocupación %', readonly=True,
+        help='Porcentaje de ocupación: horas planificadas / horas disponibles × 100.',
     )
     date_start    = fields.Datetime(
         string='Inicio',

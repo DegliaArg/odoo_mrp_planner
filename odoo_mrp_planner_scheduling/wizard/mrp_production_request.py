@@ -65,6 +65,11 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         domain=[('is_auto_reorder', '=', False)],
         string='Plan calculado (sin automáticos)',
     )
+    line_ids_suggestions = fields.One2many(
+        'mrp.production.request.line', 'request_id',
+        domain=[('suggestion_state', '=', 'pending')],
+        string='Sugerencias de CT pendientes',
+    )
     state    = fields.Selection([
         ('draft',      'Borrador'),
         ('calculated', 'Calculado'),
@@ -96,7 +101,32 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         compute='_compute_workorder_count', string='OTs',
         help='Cantidad total de órdenes de trabajo (work orders) de las OFs vinculadas.',
     )
-    wc_load_ids     = fields.One2many('mrp.production.request.wc', 'request_id', string='Carga WC')
+    wc_load_ids        = fields.One2many('mrp.production.request.wc', 'request_id', string='Carga WC')
+    has_ct_suggestions = fields.Boolean(
+        compute='_compute_has_ct_suggestions',
+        help='True si hay líneas con sugerencias de CT alternativo pendientes de revisar.',
+    )
+
+    @api.depends('line_ids.suggestion_state')
+    def _compute_has_ct_suggestions(self):
+        for rec in self:
+            rec.has_ct_suggestions = any(
+                l.suggestion_state == 'pending' for l in rec.line_ids
+            )
+
+    def action_accept_all_suggestions(self):
+        """Acepta todas las sugerencias de CT alternativo pendientes."""
+        self.ensure_one()
+        self.line_ids.filtered(
+            lambda l: l.suggestion_state == 'pending'
+        ).action_accept_ct_suggestion()
+
+    def action_reject_all_suggestions(self):
+        """Revierte todas las sugerencias pendientes al CT primario de cada operación."""
+        self.ensure_one()
+        self.line_ids.filtered(
+            lambda l: l.suggestion_state == 'pending'
+        ).action_reject_ct_suggestion()
 
     @api.depends('item_ids.feasible', 'item_ids.earliest_end')
     def _compute_summary(self):
@@ -337,19 +367,25 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         # workcenter_id, atribuyendo TODAS las horas del OF al primer centro.
         wc_data = wc_collector
         if wc_data:
-            self.env['mrp.production.request.wc'].create([
-                {
-                    'request_id':    self.id,
-                    'workcenter_id': wc_id,
-                    'total_hours':   round(data['hours'], 2),
-                    'date_start':    data['start'],
-                    'date_end':      data['end'],
-                }
-                for wc_id, data in sorted(
-                    wc_data.items(),
-                    key=lambda x: x[1]['start'] or datetime.min,
-                )
-            ])
+            wc_vals = []
+            for wc_id, data in sorted(wc_data.items(), key=lambda x: x[1]['start'] or datetime.min):
+                avail_h = 0.0
+                if data['start'] and data['end']:
+                    wc  = self.env['mrp.workcenter'].browse(wc_id)
+                    cal = wc.resource_calendar_id
+                    if cal:
+                        avail_h = cal._planner_available_hours(data['start'], data['end']) or 0.0
+                planned_h = round(data['hours'], 2)
+                wc_vals.append({
+                    'request_id':      self.id,
+                    'workcenter_id':   wc_id,
+                    'total_hours':     planned_h,
+                    'available_hours': round(avail_h, 2),
+                    'occupancy_pct':   round(planned_h / avail_h * 100) if avail_h > 0 else 0,
+                    'date_start':      data['start'],
+                    'date_end':        data['end'],
+                })
+            self.env['mrp.production.request.wc'].create(wc_vals)
 
         self.state = 'calculated'
         return {

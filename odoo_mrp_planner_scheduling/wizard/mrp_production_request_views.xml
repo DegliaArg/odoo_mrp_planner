@@ -104,19 +104,21 @@
                                readonly="state == 'confirmed'"/>
                     </group>
 
-                    <!-- Banner de factibilidad global -->
+                    <!-- ── Banner de factibilidad global ── -->
                     <div invisible="state == 'draft'">
-                        <div class="alert alert-success mb-2 mt-2" role="status" invisible="not all_feasible">
-                            <i class="fa fa-check-circle me-2" title="Programación factible"/>
+                        <div class="alert alert-success mb-2 mt-2" role="status"
+                             invisible="not all_feasible">
+                            <i class="fa fa-check-circle me-2"/>
                             <field name="feasibility_summary" readonly="1" nolabel="1"/>
                         </div>
-                        <div class="alert alert-warning mb-2 mt-2" role="status" invisible="all_feasible">
-                            <i class="fa fa-exclamation-triangle me-2" title="Atención"/>
+                        <div class="alert alert-warning mb-2 mt-2" role="status"
+                             invisible="all_feasible">
+                            <i class="fa fa-exclamation-triangle me-2"/>
                             <field name="feasibility_summary" readonly="1" nolabel="1"/>
                         </div>
                     </div>
 
-                    <!-- Artículos a programar -->
+                    <!-- ── Artículos a programar ── -->
                     <field name="item_ids" nolabel="1"
                            readonly="state == 'confirmed'">
                         <list string="Artículos" editable="bottom"
@@ -137,69 +139,131 @@
                             <field name="earliest_end"    string="Mínimo alcanzable" readonly="1"
                                    optional="show"
                                    column_invisible="parent.state == 'draft'"/>
-                            <field name="feasibility_msg" string="Info"            readonly="1"
+                            <field name="feasibility_msg" string="Info" readonly="1"
                                    column_invisible="parent.state == 'draft'"/>
                             <button name="action_adelantar"
                                     type="object"
                                     string="Adelantar"
                                     class="btn-link btn-sm"
                                     invisible="not earliest_end or projected_end == earliest_end or parent.state == 'confirmed'"/>
-                            <field name="production_id"   string="OF madre"        readonly="1"
+                            <field name="production_id"   string="OF madre" readonly="1"
                                    column_invisible="parent.state != 'confirmed'"/>
-                            <field name="mo_state"        string="Estado OF"       readonly="1"
+                            <field name="mo_state"        string="Estado OF" readonly="1"
                                    widget="badge"
                                    decoration-success="mo_state == 'done'"
                                    decoration-warning="mo_state in ('progress', 'to_close')"
                                    decoration-info="mo_state == 'confirmed'"
                                    column_invisible="parent.state != 'confirmed'"/>
-                            <field name="qty_produced"    string="Producido"       readonly="1"
+                            <field name="qty_produced"    string="Producido" readonly="1"
                                    column_invisible="parent.state != 'confirmed'"/>
-                            <field name="qty_delta"       string="Δ Cant."         readonly="1"
+                            <field name="qty_delta"       string="Δ Cant." readonly="1"
                                    decoration-danger="qty_delta &lt; 0 and mo_state == 'done'"
                                    decoration-success="qty_delta >= 0 and mo_state == 'done'"
                                    column_invisible="parent.state != 'confirmed'"/>
-                            <field name="feasible"    column_invisible="True"/>
+                            <field name="feasible" column_invisible="True"/>
                         </list>
                     </field>
 
-                    <!-- Plan calculado: Gantt de la propuesta (default) + tabla -->
+                    <!-- ── Sugerencias de optimización de CTs ── -->
+                    <div invisible="not has_ct_suggestions or state == 'draft'">
+                        <div class="alert alert-info mt-3 mb-0" role="status">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="fa fa-magic me-2"/>
+                                    <strong>Sugerencias de optimización</strong>
+                                    — el planificador reasignó operaciones a centros
+                                    alternativos para reducir tiempos. Revisá y decidí
+                                    caso por caso, o actuá sobre todo el plan:
+                                </span>
+                                <div class="d-flex gap-2 ms-3 flex-shrink-0">
+                                    <button name="action_accept_all_suggestions"
+                                            type="object"
+                                            string="Aceptar todo"
+                                            class="btn btn-sm btn-success"/>
+                                    <button name="action_reject_all_suggestions"
+                                            type="object"
+                                            string="Revertir todo"
+                                            class="btn btn-sm btn-outline-secondary"/>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Tabla de sugerencias pendientes -->
+                        <field name="line_ids_suggestions" nolabel="1" readonly="0">
+                            <list string="Sugerencias CT" create="0" delete="0"
+                                  decoration-info="suggestion_state == 'pending'">
+                                <field name="description_label" string="Producto" readonly="1"/>
+                                <field name="workcenter_chain"  string="Ruta de CTs" readonly="1"/>
+                                <field name="new_date_start"    string="Inicio" readonly="1"/>
+                                <field name="new_date_finish"   string="Fin" readonly="1"/>
+                                <field name="suggestion_state"  string="Estado" readonly="1"
+                                       widget="badge"
+                                       decoration-info="suggestion_state == 'pending'"
+                                       decoration-success="suggestion_state == 'accepted'"
+                                       decoration-warning="suggestion_state == 'rejected'"/>
+                                <button name="action_accept_ct_suggestion"
+                                        type="object"
+                                        string="Aceptar"
+                                        class="btn-sm btn-success"
+                                        invisible="suggestion_state != 'pending'"/>
+                                <button name="action_reject_ct_suggestion"
+                                        type="object"
+                                        string="Revertir"
+                                        class="btn-sm btn-outline-secondary"
+                                        invisible="suggestion_state != 'pending'"/>
+                                <field name="record_type"       column_invisible="True"/>
+                                <field name="level"             column_invisible="True"/>
+                            </list>
+                        </field>
+                    </div>
+                    <field name="has_ct_suggestions" invisible="1"/>
+
+                    <!-- ── Plan calculado: Gantt + tabla ── -->
                     <notebook invisible="state == 'draft'">
                         <page string="Gantt de la propuesta" name="proposal_gantt">
                             <widget name="scheduling_matrix_widget"/>
                         </page>
 
                         <page string="Plan de fabricación" name="plan_detail">
-                            <div class="d-flex align-items-center gap-2 mb-2">
+                            <!-- Toggle para mostrar/ocultar líneas de reabastecimiento automático -->
+                            <div class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded">
                                 <field name="hide_auto_reorder" widget="boolean_toggle"/>
                                 <label for="hide_auto_reorder"
                                        string="Ocultar reabastecimiento automático (mín/máx)"/>
+                                <span class="text-muted small ms-2">
+                                    — los ítems con reposición automática no requieren acción manual
+                                </span>
                             </div>
 
-                            <!-- Vista filtrada: oculta líneas con reabastecimiento automático -->
                             <field name="line_ids_plan" nolabel="1"
                                    invisible="not hide_auto_reorder"
                                    readonly="state == 'confirmed'">
-                                <list string="Plan de fabricación propuesto"
+                                <list string="Plan de fabricación"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
                                       decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
                                       decoration-muted="level > 0 and record_type == 'mrp'">
-                                    <field name="type_label"        string="Tipo"           readonly="1"/>
-                                    <field name="description_label" string="Producto"       readonly="1"/>
-                                    <field name="product_qty"       string="Cantidad"       readonly="1"/>
-                                    <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="type_label"        string="Tipo"          readonly="1"/>
+                                    <field name="description_label" string="Producto"      readonly="1"/>
+                                    <field name="product_qty"       string="Cant."         readonly="1"/>
+                                    <field name="new_date_start"    string="Inicio"        readonly="1"/>
+                                    <field name="new_date_finish"   string="Fin"           readonly="1"/>
                                     <field name="workcenter_id"     string="Centro de trabajo"
                                            domain="[('id', 'in', compatible_workcenter_ids)]"
-                                           readonly="record_type != 'mrp'"
+                                           readonly="record_type != 'mrp'"/>
+                                    <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
-                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
-                                           optional="show"
-                                           column_invisible="True"/>
-                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
-                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
-                                    <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
+                                    <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
+                                           optional="hide"
+                                           widget="badge"
+                                           decoration-info="suggestion_state == 'pending'"
+                                           decoration-success="suggestion_state == 'accepted'"
+                                           decoration-warning="suggestion_state == 'rejected'"/>
+                                    <field name="duration_hours"    string="Duración (hs)" readonly="1"
+                                           optional="show"/>
+                                    <field name="warning_message"   string="Advertencia"   readonly="1"
+                                           optional="show"/>
                                     <field name="item_id"                   column_invisible="True"/>
                                     <field name="record_type"               column_invisible="True"/>
                                     <field name="level"                     column_invisible="True"/>
@@ -208,20 +272,22 @@
                                 </list>
                                 <form>
                                     <group>
-                                        <field name="type_label"        string="Tipo"           readonly="1"/>
-                                        <field name="description_label" string="Producto"       readonly="1"/>
-                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
-                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="type_label"        string="Tipo"          readonly="1"/>
+                                        <field name="description_label" string="Producto"      readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"      readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)" readonly="1"/>
                                         <field name="workcenter_id"     string="Centro de trabajo"
                                                domain="[('id', 'in', compatible_workcenter_ids)]"
                                                invisible="record_type != 'mrp'"/>
-                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                        <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                                invisible="not workcenter_chain"/>
-                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                        <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
+                                               invisible="suggestion_state == 'none'"/>
+                                        <field name="workcenter_label"  string="Proveedor"     readonly="1"
                                                invisible="record_type != 'purchase'"/>
-                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
-                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
-                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                        <field name="new_date_start"    string="Fecha inicio"  readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"     readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"   readonly="1"
                                                invisible="not warning_message"/>
                                     </group>
                                     <field name="compatible_workcenter_ids" invisible="1"/>
@@ -229,31 +295,36 @@
                                 </form>
                             </field>
 
-                            <!-- Vista completa: incluye todas las líneas -->
                             <field name="line_ids" nolabel="1"
                                    invisible="hide_auto_reorder"
                                    readonly="state == 'confirmed'">
-                                <list string="Plan de fabricación propuesto"
+                                <list string="Plan de fabricación (completo)"
                                       create="0" delete="0" editable="bottom"
                                       decoration-bf="level == 0 and record_type == 'mrp'"
                                       decoration-warning="record_type == 'purchase'"
                                       decoration-success="record_type == 'stock' and warning_type == 'stock_ok'"
                                       decoration-info="record_type == 'stock' and warning_type == 'stock_partial'"
                                       decoration-muted="level > 0 and record_type == 'mrp'">
-                                    <field name="type_label"        string="Tipo"           readonly="1"/>
-                                    <field name="description_label" string="Producto"       readonly="1"/>
-                                    <field name="product_qty"       string="Cantidad"       readonly="1"/>
-                                    <field name="duration_hours"    string="Duración (hs)"  readonly="1" optional="show"/>
+                                    <field name="type_label"        string="Tipo"          readonly="1"/>
+                                    <field name="description_label" string="Producto"      readonly="1"/>
+                                    <field name="product_qty"       string="Cant."         readonly="1"/>
+                                    <field name="new_date_start"    string="Inicio"        readonly="1"/>
+                                    <field name="new_date_finish"   string="Fin"           readonly="1"/>
                                     <field name="workcenter_id"     string="Centro de trabajo"
                                            domain="[('id', 'in', compatible_workcenter_ids)]"
-                                           readonly="record_type != 'mrp'"
+                                           readonly="record_type != 'mrp'"/>
+                                    <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
-                                    <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
-                                           optional="show"
-                                           column_invisible="True"/>
-                                    <field name="new_date_start"    string="Fecha inicio"    readonly="1"/>
-                                    <field name="new_date_finish"   string="Fecha fin"       readonly="1"/>
-                                    <field name="warning_message"   string="Advertencia"     readonly="1" optional="show"/>
+                                    <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
+                                           optional="hide"
+                                           widget="badge"
+                                           decoration-info="suggestion_state == 'pending'"
+                                           decoration-success="suggestion_state == 'accepted'"
+                                           decoration-warning="suggestion_state == 'rejected'"/>
+                                    <field name="duration_hours"    string="Duración (hs)" readonly="1"
+                                           optional="show"/>
+                                    <field name="warning_message"   string="Advertencia"   readonly="1"
+                                           optional="show"/>
                                     <field name="item_id"                   column_invisible="True"/>
                                     <field name="record_type"               column_invisible="True"/>
                                     <field name="level"                     column_invisible="True"/>
@@ -262,20 +333,22 @@
                                 </list>
                                 <form>
                                     <group>
-                                        <field name="type_label"        string="Tipo"           readonly="1"/>
-                                        <field name="description_label" string="Producto"       readonly="1"/>
-                                        <field name="product_qty"       string="Cantidad"       readonly="1"/>
-                                        <field name="duration_hours"    string="Duración (hs)"  readonly="1"/>
+                                        <field name="type_label"        string="Tipo"          readonly="1"/>
+                                        <field name="description_label" string="Producto"      readonly="1"/>
+                                        <field name="product_qty"       string="Cantidad"      readonly="1"/>
+                                        <field name="duration_hours"    string="Duración (hs)" readonly="1"/>
                                         <field name="workcenter_id"     string="Centro de trabajo"
                                                domain="[('id', 'in', compatible_workcenter_ids)]"
                                                invisible="record_type != 'mrp'"/>
-                                        <field name="workcenter_chain"  string="Cadena WC"      readonly="1"
+                                        <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                                invisible="not workcenter_chain"/>
-                                        <field name="workcenter_label"  string="Proveedor"      readonly="1"
+                                        <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
+                                               invisible="suggestion_state == 'none'"/>
+                                        <field name="workcenter_label"  string="Proveedor"     readonly="1"
                                                invisible="record_type != 'purchase'"/>
-                                        <field name="new_date_start"    string="Fecha inicio"   readonly="1"/>
-                                        <field name="new_date_finish"   string="Fecha fin"      readonly="1"/>
-                                        <field name="warning_message"   string="Advertencia"    readonly="1"
+                                        <field name="new_date_start"    string="Fecha inicio"  readonly="1"/>
+                                        <field name="new_date_finish"   string="Fecha fin"     readonly="1"/>
+                                        <field name="warning_message"   string="Advertencia"   readonly="1"
                                                invisible="not warning_message"/>
                                     </group>
                                     <field name="compatible_workcenter_ids" invisible="1"/>
@@ -284,15 +357,24 @@
                             </field>
                         </page>
 
-                        <page string="Carga por WC" name="wc_load"
+                        <!-- ── Carga por CT ── -->
+                        <page string="Carga por CT" name="wc_load"
                               invisible="not wc_load_ids">
                             <field name="wc_load_ids" nolabel="1" readonly="1">
                                 <list string="Carga por centro de trabajo"
-                                      create="0" delete="0">
-                                    <field name="workcenter_id" string="Centro de trabajo"/>
-                                    <field name="total_hours"   string="Horas totales"/>
-                                    <field name="date_start"    string="Inicio"/>
-                                    <field name="date_end"      string="Fin"/>
+                                      create="0" delete="0"
+                                      decoration-danger="occupancy_pct > 100"
+                                      decoration-warning="occupancy_pct > 80 and occupancy_pct &lt;= 100">
+                                    <field name="workcenter_id"   string="Centro de trabajo"/>
+                                    <field name="total_hours"     string="Hs planificadas"/>
+                                    <field name="available_hours" string="Hs disponibles"/>
+                                    <field name="occupancy_pct"   string="Ocupación %"
+                                           widget="badge"
+                                           decoration-danger="occupancy_pct > 100"
+                                           decoration-warning="occupancy_pct > 80 and occupancy_pct &lt;= 100"
+                                           decoration-success="occupancy_pct &lt;= 80"/>
+                                    <field name="date_start"      string="Inicio"/>
+                                    <field name="date_end"        string="Fin"/>
                                 </list>
                             </field>
                         </page>
@@ -311,6 +393,5 @@
         <field name="view_mode">list,form</field>
         <field name="target">current</field>
     </record>
-
 
 </odoo>

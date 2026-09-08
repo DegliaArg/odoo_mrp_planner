@@ -304,20 +304,22 @@
                       <!-- Fila normal de CT -->
                       <t t-else="">
                         <t t-set="row" t-value="item.row"/>
-                        <div t-att-class="'sm-row' + (item.alt ? ' sm-row-alt' : '')"
+                        <div t-att-class="'sm-row' + (item.alt ? ' sm-row-alt' : '') + (row.is_purchase_row ? ' sm-row-purchase' : '')"
                              t-att-style="`height:${row.heightPx}px`">
 
                             <!-- Columna CT sticky -->
-                            <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '')">
+                            <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '') + (row.is_purchase_row ? ' sm-row-ct-purchase' : '')">
                                 <div class="sm-ct-name fw-semibold text-truncate d-flex align-items-center gap-1"
                                      t-att-title="row.wc_name">
                                     <span t-if="state.routeMode and row.route_seq" class="sm-route-seq" t-esc="row.route_seq"/>
+                                    <i t-if="row.is_purchase_row" class="fa fa-shopping-cart me-1 text-muted" style="font-size:0.75em"/>
                                     <span class="text-truncate" t-esc="row.wc_name"/>
                                 </div>
                                 <div class="sm-ct-sub d-flex align-items-center gap-1 mt-1">
                                     <!-- En modo ruta las barras son solo la cadena: el % de ocupación
                                          no reflejaría la carga real del CT, así que se oculta. En modo
-                                         PROPUESTA sí se muestra: es el dato clave (existente + propuesta). -->
+                                         PROPUESTA sí se muestra: es el dato clave (existente + propuesta).
+                                         Las filas de proveedor no tienen ocupación. -->
                                     <t t-if="row.occupancy and (!state.routeMode or state.proposalMode)">
                                         <span t-att-class="'sm-occ badge ' + occupancyClass(row.occupancy.pct)"
                                               t-att-title="occTitle(row.occupancy)">

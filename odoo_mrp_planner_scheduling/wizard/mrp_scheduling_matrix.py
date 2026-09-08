@@ -787,13 +787,17 @@ class MrpProductionBoard(models.Model):
             return {'empty_reason': 'not_found'}
 
         tz = pytz.timezone(self.env.user.tz or 'UTC')
-        lines = req.line_ids.filtered(lambda l: l.record_type == 'mrp')
-        ops   = lines.mapped('op_ids')
-        if not ops:
+        mrp_lines      = req.line_ids.filtered(lambda l: l.record_type == 'mrp')
+        purchase_lines = req.line_ids.filtered(lambda l: l.record_type == 'purchase')
+        ops = mrp_lines.mapped('op_ids')
+
+        if not ops and not purchase_lines:
             return {'empty_reason': 'no_ops', 'request_name': req.name or ''}
 
-        dts = [o.date_start for o in ops if o.date_start]
-        dts += [o.date_finish for o in ops if o.date_finish]
+        dts  = [o.date_start    for o in ops            if o.date_start]
+        dts += [o.date_finish   for o in ops            if o.date_finish]
+        dts += [l.new_date_start  for l in purchase_lines if l.new_date_start]
+        dts += [l.new_date_finish for l in purchase_lines if l.new_date_finish]
         if not dts:
             return {'empty_reason': 'no_dates', 'request_name': req.name or ''}
         lo = pytz.utc.localize(min(dts)).astimezone(tz).date() - timedelta(days=1)
@@ -812,20 +816,17 @@ class MrpProductionBoard(models.Model):
                 return ''
             return pytz.utc.localize(dt).astimezone(tz).strftime('%d/%m %H:%M')
 
-        # Carga real EXISTENTE + bandas + turnos, reutilizando el builder del tablero.
-        # include_done=False: las terminadas son historial, no compiten por capacidad.
-        # force_wc_ids: todos los CTs de la propuesta aparecen aunque no tengan carga
-        # real. only_mo_ids=None: se cuenta TODA la carga real de esos centros.
+        # Carga real EXISTENTE + bandas + turnos (solo para CTs de OF).
         base = self._build_board_payload(
             wc_ids, date_from, date_to, include_done=False,
             force_wc_ids=wc_ids, only_mo_ids=None, states=states,
-        )
+        ) if wc_ids else {}
         base_rows = {r['wc_id']: r for r in base.get('rows', []) if r.get('wc_id')}
 
-        # ── Barras de propuesta (una por operación) agrupadas por CT ───────────
-        bars_by_wc  = {}
-        proposal_by_wc = {}   # wc_id → horas de propuesta
-        for line in lines:
+        # ── Barras de propuesta MRP (una por operación) ────────────────────────
+        bars_by_wc     = {}
+        proposal_by_wc = {}
+        for line in mrp_lines:
             prod = line.product_id
             for op in line.op_ids:
                 wc = op.workcenter_id
@@ -834,11 +835,8 @@ class MrpProductionBoard(models.Model):
                 ds, df = op.date_start, op.date_finish
                 bars_by_wc.setdefault(wc.id, []).append({
                     'wo_id':              op.id,
-                    'mo_id':              line.id,    # id de la línea-OF (para hilos)
+                    'mo_id':              line.id,
                     'line_id':            line.id,
-                    # Etiqueta = NOMBRE del producto (identifica de un vistazo). El
-                    # código va al tooltip (product_name/display_name): los códigos
-                    # comparten el sufijo de orden, así que no distinguen en la barra.
                     'mo_name':            prod.name or prod.default_code or '',
                     'product_name':       prod.display_name if prod else '',
                     'product_code':       prod.default_code or '',
@@ -855,8 +853,6 @@ class MrpProductionBoard(models.Model):
                     'clipped_start':      False,
                     'clipped_end':        False,
                     'inconsistent_dates': bool(ds) and bool(df) and df <= ds,
-                    # Ventana estimada: barra CONTINUA (un segmento), como las
-                    # "sin programar" del modo ruta — no se parte por días no laborables.
                     'segments':           [[_iso(ds), _iso(df or ds)]],
                     'outside_calendar':   False,
                     'is_alternative':     op.is_alternative,
@@ -865,26 +861,81 @@ class MrpProductionBoard(models.Model):
                 })
                 proposal_by_wc[wc.id] = proposal_by_wc.get(wc.id, 0.0) + (op.duration_hours or 0.0)
 
-        # ── Backlog INVISIBLE por CT: WOs de OFs activas SIN fecha ─────────────
-        # El ancla solo cuenta las WOs con date_start; las sin planificar (el grueso,
-        # button_plan no corrido) no reservan capacidad → la ocupación es un PISO.
-        # Se cuentan para avisar la subestimación (no se reprograma nada).
-        unplanned_by_wc = {}   # wc_id → (count, minutos)
-        grp = self.env['mrp.workorder'].read_group(
-            [('workcenter_id', 'in', list(wc_ids)),
-             ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
-             ('date_start', '=', False)],
-            ['duration_expected:sum'], ['workcenter_id'],
-        )
-        for g in grp:
-            wc_id = g['workcenter_id'][0]
-            unplanned_by_wc[wc_id] = (g.get('__count', 0), g.get('duration_expected') or 0.0)
+        # ── Barras de compra/subcontratación (una por línea de OC) ─────────────
+        # Se agrupan por proveedor (workcenter_label). Se usan IDs virtuales
+        # negativos que no colisionan con ningún wc_id real de la BD.
+        supplier_rows  = {}   # virtual_id → row dict
+        supplier_id_map = {}  # label → virtual_id
+        virt_seq = [-1]
 
-        # ── Filas: ocupación = existente (real) + propuesta ────────────────────
+        def _supplier_row(label):
+            key = label or 'Sin proveedor'
+            if key not in supplier_id_map:
+                vid = virt_seq[0]
+                virt_seq[0] -= 1
+                supplier_id_map[key] = vid
+                supplier_rows[vid] = {
+                    'wc_id':             vid,
+                    'wc_name':           f'OC — {key}',
+                    'tag_names':         [],
+                    'bars':              [],
+                    'working_intervals': [],
+                    'bands_failed':      False,
+                    'is_purchase_row':   True,
+                    'occupancy':         None,
+                }
+            return supplier_id_map[key]
+
+        for line in purchase_lines:
+            prod = line.product_id
+            vid  = _supplier_row(line.workcenter_label or '')
+            ds, df = line.new_date_start, line.new_date_finish
+            supplier_rows[vid]['bars'].append({
+                'wo_id':              None,
+                'mo_id':              line.id,
+                'line_id':            line.id,
+                'mo_name':            prod.name or prod.default_code or '',
+                'product_name':       prod.display_name if prod else '',
+                'product_code':       prod.default_code or '',
+                'qty':                line.product_qty,
+                'uom':                prod.uom_id.name if prod.uom_id else '',
+                'wc_id':              vid,
+                'date_start':         _iso(ds),
+                'date_finished':      _iso(df),
+                'date_start_str':     _fmt(ds),
+                'date_finished_str':  _fmt(df),
+                'duration_expected':  0,
+                'wo_state':           'proposal',
+                'mo_state':           'proposal',
+                'clipped_start':      False,
+                'clipped_end':        False,
+                'inconsistent_dates': bool(ds) and bool(df) and df <= ds,
+                'segments':           [[_iso(ds), _iso(df or ds)]],
+                'outside_calendar':   False,
+                'is_alternative':     False,
+                'is_proposal':        True,
+                'is_purchase':        True,
+                'level':              line.level,
+            })
+
+        # ── Backlog invisible por CT ────────────────────────────────────────────
+        unplanned_by_wc = {}
+        if wc_ids:
+            grp = self.env['mrp.workorder'].read_group(
+                [('workcenter_id', 'in', list(wc_ids)),
+                 ('production_id.state', 'in', ['confirmed', 'progress', 'to_close']),
+                 ('date_start', '=', False)],
+                ['duration_expected:sum'], ['workcenter_id'],
+            )
+            for g in grp:
+                wc_id = g['workcenter_id'][0]
+                unplanned_by_wc[wc_id] = (g.get('__count', 0), g.get('duration_expected') or 0.0)
+
+        # ── Filas MRP: ocupación = existente + propuesta ───────────────────────
         rows = []
         for wc in self.env['mrp.workcenter'].browse(sorted(wc_ids)):
-            base_row = base_rows.get(wc.id, {})
-            occ      = base_row.get('occupancy') or {}
+            base_row   = base_rows.get(wc.id, {})
+            occ        = base_row.get('occupancy') or {}
             avail_h    = occ.get('available_hours', 0.0)
             existing_h = occ.get('planned_hours', 0.0)
             proposal_h = proposal_by_wc.get(wc.id, 0.0)
@@ -905,34 +956,40 @@ class MrpProductionBoard(models.Model):
                     'planned_hours':   round(total_h, 1),
                     'available_hours': round(avail_h, 1),
                     'pct':             pct,
-                    # Subestimación: WOs sin fecha en este CT (no cuentan en la carga).
                     'unplanned_count': unp_count,
                     'unplanned_hours': round(unp_min / 60.0, 1),
                 },
             })
 
-        # Orden cronológico (escalonado), igual que el modo ruta.
+        # Orden cronológico (escalonado)
         rows.sort(key=lambda r: (
             min([b['date_start'] for b in r['bars'] if b['date_start']], default='9999'),
             r['wc_name'],
         ))
-        # Desde 1: el template oculta route_seq con t-if (0 sería falsy → la fila
-        # más temprana quedaba sin número).
         for i, r in enumerate(rows, 1):
             r['route_seq'] = i
 
-        # Aristas de la cadena: componente(hija) → consumidora(padre), por parent_line_id.
-        line_ids_set = set(lines.ids)
+        # Filas de proveedores al final, ordenadas cronológicamente
+        purch_rows = sorted(
+            supplier_rows.values(),
+            key=lambda r: min([b['date_start'] for b in r['bars'] if b['date_start']], default='9999'),
+        )
+        for i, r in enumerate(purch_rows, len(rows) + 1):
+            r['route_seq'] = i
+        rows += purch_rows
+
+        # ── Aristas: componente → consumidora (MRP y compra) ──────────────────
+        all_lines     = mrp_lines | purchase_lines
+        all_line_ids  = set(all_lines.ids)
         edges = [
             {'from': line.id, 'to': line.parent_line_id.id}
-            for line in lines
-            if line.parent_line_id and line.parent_line_id.id in line_ids_set
+            for line in all_lines
+            if line.parent_line_id and line.parent_line_id.id in all_line_ids
         ]
 
-        # Árbol lateral (misma forma que _compute_related_tree): raíces = 'self',
-        # el resto = 'descendant' (se fabrican antes que su consumidora).
+        # ── Árbol lateral ──────────────────────────────────────────────────────
         tree = []
-        for line in lines.sorted(lambda l: (l.sequence, l.id)):
+        for line in all_lines.sorted(lambda l: (l.sequence, l.id)):
             prod = line.product_id
             tree.append({
                 'mo_id':         line.id,
@@ -945,6 +1002,7 @@ class MrpProductionBoard(models.Model):
                 'date_finished': _fmt(line.new_date_finish),
                 'relation':      'self' if not line.parent_line_id else 'descendant',
                 'level':         line.level,
+                'is_purchase':   line.record_type == 'purchase',
             })
 
         return {
@@ -957,7 +1015,7 @@ class MrpProductionBoard(models.Model):
             'total_bars':      sum(len(r['bars']) for r in rows),
             'route_edges':     edges,
             'related_tree':    tree,
-            'route_tree_ids':  sorted(line_ids_set),
+            'route_tree_ids':  sorted(all_line_ids),
             'request_id':      req.id,
             'request_name':    req.name or '',
             'is_proposal':     True,

@@ -367,6 +367,11 @@
 /* Badge de subestimación de carga (modo propuesta): WOs sin fecha en el CT. */
 .sm-occ-unplanned { background: #fdeecf; color: #8a5e12; font-weight: 500; }
 
+/* ── Filas de OC / proveedor (modo propuesta) ── */
+.sm-row-purchase          { background: #f5f3ff; }
+.sm-row-purchase.sm-row-alt { background: #ede9fe; }
+.sm-row-ct-purchase       { border-left: 3px solid #7c6fcd; }
+
 @media (max-width: 768px) {
     .sm-root { --sm-ct-w: 140px; }
     .sm-filter-btn { max-width: 120px; }

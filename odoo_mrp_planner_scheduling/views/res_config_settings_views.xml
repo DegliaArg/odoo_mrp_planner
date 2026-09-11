@@ -72,7 +72,7 @@
                         <field name="scheduling_direction"
                                help="ALAP calza cada operación en el hueco más tardío que cumpla la fecha deseada (no adelanta producción). ASAP la calza en el primer hueco disponible (empaqueta temprano). Es solo el valor por defecto de cada solicitud."/>
                         <field name="infeasible_policy"
-                               help="Qué prioriza el motor cuando un artículo no puede cumplir su fecha deseada. Minimizar atraso: termina lo antes posible (más WIP). Minimizar WIP: componentes pegados a su consumo, misma fecha tardía. (El modo JIT está en implementación.)"/>
+                               help="Qué prioriza el motor cuando un artículo no puede cumplir su fecha deseada. Minimizar atraso: termina lo antes posible (más WIP). Minimizar WIP: componentes pegados a su consumo, misma fecha final (menos inventario en proceso)."/>
                         <field name="default_of_hours"
                                help="Horas que asume el motor para una OF cuya LdM no define operaciones/ruta."/>
                         <field name="default_op_minutes"

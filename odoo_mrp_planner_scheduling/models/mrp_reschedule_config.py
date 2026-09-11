@@ -136,9 +136,7 @@ class MrpRescheduleConfig(models.Model):
         help='Qué prioriza el motor cuando un artículo no puede cumplir su fecha '
              'deseada. "Minimizar atraso" termina lo antes posible (más inventario '
              'en proceso). "Minimizar WIP" mantiene los componentes pegados a su '
-             'consumo (menos inventario en proceso), con la misma fecha tardía. '
-             'NOTA: el modo JIT está en implementación; hoy ambos se comportan como '
-             '"Minimizar atraso".')
+             'consumo (menos inventario en proceso), con la misma fecha final.')
 
     @api.model
     def infeasible_policy_value(self):

@@ -376,6 +376,16 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             self._schedule_tree(root, min_dt, wc_busy, min_dt=min_dt,
                                 target_end=item.date_deadline, wc_collector=wc_collector,
                                 direction=direction)
+
+        # 2ª pasada JIT (config 'Minimizar WIP'): compacta los componentes hacia su
+        # consumo para bajar el inventario en proceso, SIN mover el producto final
+        # (misma fecha de fin). Solo reubica en huecos válidos; nunca genera solapes.
+        if self.env['mrp.reschedule.config'].infeasible_policy_value() == 'jit':
+            company_calendar = self.env.company.resource_calendar_id
+            for _item, root in item_trees:
+                self._compact_node_jit(root, None, wc_busy, min_dt, company_calendar)
+
+        for item, root in item_trees:
             earliest   = root.get('scheduled_end')
             proj_start = self._get_tree_earliest_start(root)
             proj_end   = item.date_deadline

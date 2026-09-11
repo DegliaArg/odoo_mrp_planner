@@ -441,6 +441,88 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             node_end = max(node_end, o['end'])
         return scheduled, node_start, node_end
 
+    # ── Compactación JIT (modo 'Minimizar WIP' cuando es infeasible) ───────────
+
+    def _compact_node_jit(self, node, deadline, wc_busy, min_dt, company_calendar):
+        """Pasada JIT: mueve las OTs del nodo lo más TARDE posible sin pasar
+        `deadline` (el inicio real de su consumidora), manteniendo los CTs ya
+        elegidos, y propaga a las hijas con el nuevo inicio del nodo. Baja el
+        inventario en proceso (componentes pegados a su consumo) SIN cambiar la
+        fecha final del plan (el nodo raíz no se mueve).
+
+        Corre como 2ª pasada DESPUÉS de `_schedule_tree`, solo cuando la config es
+        'jit'. Es VALID-BY-CONSTRUCTION: reubica únicamente en huecos válidos de la
+        agenda (vía `_schedule_backward_in_gaps`) y solo confirma si el nuevo lugar
+        es MÁS TARDÍO (o igual) y respeta el piso; si no, restaura la posición
+        original. Nunca genera solapes ni pisa carga firme.
+
+        :param node: dict — nodo del árbol ya programado (se modifica en-place).
+        :param deadline: datetime | None — techo (inicio del consumidor). None = no
+            mover este nodo (p. ej. el producto final), solo propagar a las hijas.
+        :param wc_busy: dict — {wc_id: [(start, end)]} agenda compartida (se muta).
+        :param min_dt: datetime — piso temporal global.
+        :param company_calendar: resource.calendar — fallback de calendario.
+        """
+        leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
+        sops     = node.get('scheduled_ops') or []
+        after_dt = node.get('min_start') or min_dt
+
+        if deadline and sops:
+            # Clave de agenda de una OT: su CT, o 0 (bucket virtual) si no tiene —
+            # igual que _place_ops.
+            def _key(o):
+                return o['wc'].id if o.get('wc') else 0
+            # 1) Sacar los intervalos actuales del nodo de la agenda (para re-ubicar).
+            for o in sops:
+                lst = wc_busy.get(_key(o))
+                if lst:
+                    try:
+                        lst.remove((o['start'], o['end']))
+                    except ValueError:
+                        pass
+            # 2) Re-ubicar backward desde deadline, op por op (última primero).
+            placed, t = [], deadline
+            for o in reversed(sops):
+                wc  = o.get('wc')
+                cal = (wc.resource_calendar_id or company_calendar) if wc else company_calendar
+                cs, ce = self._schedule_backward_in_gaps(cal, t, o['dur'], wc_busy.get(_key(o), []))
+                placed.append((o, cs, ce))
+                t = cs
+            placed.reverse()
+            new_start = placed[0][1] if placed else None
+            old_start = node.get('scheduled_start')
+            # 3) Confirmar solo si mejora (más tardío o igual) y respeta el piso.
+            if (new_start is not None and new_start >= after_dt
+                    and (old_start is None or new_start >= old_start)):
+                for o, cs, ce in placed:
+                    o['start'], o['end'] = cs, ce
+                    lst = wc_busy.setdefault(_key(o), [])
+                    lst.append((cs, ce))
+                    lst.sort(key=lambda iv: iv[0])
+                node['scheduled_start'] = new_start
+                node['scheduled_end']   = max(ce for _o, _cs, ce in placed)
+            else:
+                # Restaurar posiciones originales (no se pudo mejorar).
+                for o in sops:
+                    lst = wc_busy.setdefault(_key(o), [])
+                    lst.append((o['start'], o['end']))
+                    lst.sort(key=lambda iv: iv[0])
+
+        node_start = node.get('scheduled_start')
+        # 4) Propagar a las hijas OF (su deadline = inicio de este nodo).
+        for child in node.get('children', []):
+            if child.get('type') not in leaf_types:
+                self._compact_node_jit(child, node_start, wc_busy, min_dt, company_calendar)
+        # 5) Re-derivar OC/Subcont./compra desde el nuevo inicio del nodo.
+        if node_start:
+            for child in node.get('children', []):
+                if child.get('type') in ('purchase', 'subcontract', 'buy'):
+                    lead = child.get('lead_days', 7)
+                    cal  = child.get('supplier_calendar') or company_calendar
+                    child['scheduled_end']   = node_start
+                    raw = self._backward_schedule_days(cal, node_start, lead)
+                    child['scheduled_start'] = max(raw, min_dt) if min_dt else raw
+
     # ── Colección de líneas ───────────────────────────────────────────────────
 
     def _collect_lines(self, node, lines_vals, seq, item_id=None, parent_key=None):

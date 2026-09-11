@@ -272,23 +272,29 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             key = self._node_key(item_id, node)
             if key in overrides:
                 wc = overrides[key]
-                # operations son 3-tuplas (primario, candidatos, duración). El
-                # override es una elección manual del usuario sobre un único CT. Para
-                # NO colapsar rutas multi-operación en una sola barra (fix #10), se
-                # pinnea al CT elegido SOLO las operaciones que lo tienen como
-                # candidato, preservando duración y secuencia por operación. Si el CT
-                # no es candidato de ninguna (viene del dominio amplio de compatibles),
-                # se pinnea toda la ruta a ese CT como respaldo.
+                # operations son 4-tuplas (primario, candidatos, duración, pin). El
+                # override es una elección manual del usuario sobre un único CT. Se
+                # marca el PIN de las operaciones que tienen ese CT como candidato,
+                # SIN colapsar la lista de candidatos: así la operación sigue sabiendo
+                # a qué otros centros puede ir, y se la puede volver a reasignar desde
+                # el tablero. Si el CT no es candidato de ninguna (viene del dominio
+                # amplio de compatibles), se pinnea toda la ruta a ese CT como
+                # respaldo, agregándolo a los candidatos para que la elección sea válida.
                 matched = False
                 new_ops = []
-                for primary, candidates, dur in node['operations']:
+                for primary, candidates, dur, _pin in node['operations']:
                     if any(c.id == wc.id for c in candidates):
-                        new_ops.append((wc, [wc], dur))
+                        new_ops.append((primary, candidates, dur, wc))
                         matched = True
                     else:
-                        new_ops.append((primary, candidates, dur))
+                        new_ops.append((primary, candidates, dur, _pin))
                 if not matched:
-                    new_ops = [(wc, [wc], dur) for _p, _c, dur in node['operations']]
+                    new_ops = [
+                        (primary,
+                         candidates if any(c.id == wc.id for c in candidates) else list(candidates) + [wc],
+                         dur, wc)
+                        for primary, candidates, dur, _pin in node['operations']
+                    ]
                 node['operations'] = new_ops
         for child in node.get('children', []):
             self._apply_wc_overrides(child, item_id, overrides)
@@ -496,9 +502,11 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             _icp.get_param(f'mrp_reschedule.wc_fallback.{company_id}')
             or _icp.get_param('mrp_reschedule.wc_fallback', 'ldm')
         )
-        # Cada operación guarda (primario, candidatos, duración). candidatos =
-        # primario + sus alternativos activos; la ELECCIÓN del CT se hace al
-        # programar (según carga), no acá — mismo criterio que button_plan.
+        # Cada operación guarda (primario, candidatos, duración, pin). candidatos =
+        # primario + sus alternativos activos (universo estable para elegir y para
+        # reasignar desde el tablero — NUNCA se colapsa). La ELECCIÓN del CT se hace
+        # al programar (según carga), salvo que haya un pin (override manual). pin =
+        # None por defecto; _apply_wc_overrides lo setea al reasignar.
         op_minutes = caches.get('op_minutes', 60.0)
         of_hours   = caches.get('of_hours', 8.0)
         operations = []
@@ -508,15 +516,16 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             if bom.operation_ids else of_hours
         )
         if preferred_wc:
-            operations = [(preferred_wc, [preferred_wc], dur_bom)]
+            operations = [(preferred_wc, [preferred_wc], dur_bom, None)]
         elif bom.operation_ids and wc_fallback == 'ldm':
             for op in bom.operation_ids.sorted('sequence'):
                 wc = op.workcenter_id
                 operations.append((wc, self._wc_candidates(wc, op=op),
                                    self._get_op_duration_hours(op, bom_factor,
-                                                               default_min=op_minutes)))
+                                                               default_min=op_minutes),
+                                   None))
         else:
-            operations = [(None, [], dur_bom)]
+            operations = [(None, [], dur_bom, None)]
 
         node = {
             'type':     'manufacture',

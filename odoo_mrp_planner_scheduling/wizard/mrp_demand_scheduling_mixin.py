@@ -176,7 +176,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         def _collect(node):
             # Todos los candidatos (primario + alternativos): sin su agenda real, un
             # alternativo sin carga parecería siempre libre y ganaría mal el reparto.
-            for _primary, candidates, _dur in node['operations']:
+            for _primary, candidates, _dur, _pin in node['operations']:
                 for wc in candidates:
                     wc_ids.add(wc.id)
             for child in node['children']:
@@ -269,9 +269,9 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         # _place_ops op por op. En 'asap' las hijas la ignoran y empaquetan temprano.
         jit_start = None
         if target_end:
-            total_dur = sum(dur_h for _, _, dur_h in node['operations'])
+            total_dur = sum(dur_h for _, _, dur_h, _ in node['operations'])
             if total_dur > 0:
-                first_wc = next((p for p, _, _ in node['operations'] if p), None)
+                first_wc = next((p for p, _, _, _ in node['operations'] if p), None)
                 cal_bwd = (
                     first_wc.resource_calendar_id
                     if (first_wc and first_wc.resource_calendar_id)
@@ -342,7 +342,8 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
           agenda se hace RECIÉN al confirmar la dirección, para que un intento ALAP
           fallido no ensucie `wc_busy` antes del fallback.
 
-        :param operations: list[(primary_wc, [candidatos], dur_h)] — ops de la ruta.
+        :param operations: list[(primary_wc, [candidatos], dur_h, pin_wc)] — ops de la
+            ruta. pin_wc (o None) fuerza ese CT; los candidatos NO se colapsan.
         :param after_dt: datetime — piso duro de inicio.
         :param target_end: datetime | None — deadline objetivo (solo ALAP).
         :param direction: str — 'alap' | 'asap'.
@@ -358,14 +359,18 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         def _forward():
             placed = []
             t = after_dt
-            for primary, candidates, dur_h in operations:
-                if not candidates:
+            for primary, candidates, dur_h, pinned in operations:
+                # Con pin (reasignación manual) se elige SOLO ese CT; sin pin, el
+                # mejor entre todos los candidatos. La lista completa se persiste
+                # igual (para poder reasignar de nuevo desde el tablero).
+                cands = [pinned] if pinned else candidates
+                if not cands:
                     cs, ce = self._schedule_in_gaps(
                         company_calendar, max(t, after_dt), dur_h, wc_busy.get(0, []))
                     chosen, is_primary = None, True
                 else:
                     best = None
-                    for cand in candidates:
+                    for cand in cands:
                         cs, ce = self._schedule_in_gaps(
                             _cal(cand), max(t, after_dt), dur_h, wc_busy.get(cand.id, []))
                         if best is None or ce < best[1]:
@@ -381,14 +386,15 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         def _backward():
             placed = []
             t = target_end
-            for primary, candidates, dur_h in reversed(operations):
-                if not candidates:
+            for primary, candidates, dur_h, pinned in reversed(operations):
+                cands = [pinned] if pinned else candidates
+                if not cands:
                     cs, ce = self._schedule_backward_in_gaps(
                         company_calendar, t, dur_h, wc_busy.get(0, []))
                     chosen, is_primary = None, True
                 else:
                     best = None
-                    for cand in candidates:
+                    for cand in cands:
                         cs, ce = self._schedule_backward_in_gaps(
                             _cal(cand), t, dur_h, wc_busy.get(cand.id, []))
                         if best is None or cs > best[0]:   # inicio más tardío

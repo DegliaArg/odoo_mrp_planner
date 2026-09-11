@@ -35,7 +35,7 @@
         <field name="name">mrp.production.request.form</field>
         <field name="model">mrp.production.request</field>
         <field name="arch" type="xml">
-            <form string="Programación de fabricación">
+            <form string="Programación de fabricación" class="o_mrp_planner_request_form">
 
                 <header>
                     <button name="action_calculate"
@@ -172,10 +172,10 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <span>
                                     <i class="fa fa-magic me-2"/>
-                                    <strong>Sugerencias de optimización</strong>
-                                    — el planificador reasignó operaciones a centros
-                                    alternativos para reducir tiempos. Revisá y decidí
-                                    caso por caso, o actuá sobre todo el plan:
+                                    <strong>El motor movió estas operaciones a un centro alternativo</strong>
+                                    (había otro más libre y así se reducen tiempos).
+                                    <b>Aceptá</b> para dejar el cambio o <b>Revertí</b> para
+                                    volver al centro original — una por una o todo junto:
                                 </span>
                                 <div class="d-flex gap-2 ms-3 flex-shrink-0">
                                     <button name="action_accept_all_suggestions"
@@ -189,14 +189,14 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- Tabla de sugerencias pendientes -->
+                        <!-- Tabla de sugerencias pendientes: lo esencial (qué producto,
+                             a qué centro se movió, estado, aceptar/revertir). La ruta de
+                             CTs completa y las fechas se ven en el Gantt de la propuesta. -->
                         <field name="line_ids_suggestions" nolabel="1" readonly="0">
                             <list string="Sugerencias CT" create="0" delete="0"
                                   decoration-info="suggestion_state == 'pending'">
                                 <field name="description_label" string="Producto" readonly="1"/>
-                                <field name="workcenter_chain"  string="Ruta de CTs" readonly="1"/>
-                                <field name="new_date_start"    string="Inicio" readonly="1"/>
-                                <field name="new_date_finish"   string="Fin" readonly="1"/>
+                                <field name="workcenter_id"     string="Centro sugerido" readonly="1"/>
                                 <field name="suggestion_state"  string="Estado" readonly="1"
                                        widget="badge"
                                        decoration-info="suggestion_state == 'pending'"
@@ -256,9 +256,6 @@
                                            readonly="record_type != 'mrp'"/>
                                     <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
-                                    <field name="bom_id"            string="LdM"           readonly="1"
-                                           optional="show"
-                                           column_invisible="parent.state == 'draft'"/>
                                     <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
                                            optional="hide"
                                            widget="badge"
@@ -320,9 +317,6 @@
                                            readonly="record_type != 'mrp'"/>
                                     <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
-                                    <field name="bom_id"            string="LdM"           readonly="1"
-                                           optional="show"
-                                           column_invisible="parent.state == 'draft'"/>
                                     <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
                                            optional="hide"
                                            widget="badge"

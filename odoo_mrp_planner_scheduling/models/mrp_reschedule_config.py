@@ -78,6 +78,51 @@ class MrpRescheduleConfig(models.Model):
              'defecto de cada nueva solicitud; se puede cambiar en la solicitud misma.',
     )
 
+    # ── Criterios de optimización (cascada lexicográfica configurable) ──────────
+    # El proposer y el preview de impacto rankean las alternativas comparando el
+    # plan por estos criterios EN ORDEN (1º manda; a igualdad decide el 2º; etc.).
+    # Cada selector elige un criterio o 'No usar' para desactivarlo. El orden de
+    # los tres campos ES la jerarquía. Default = comportamiento histórico.
+    _OPT_CRITERION_SELECTION = [
+        ('lateness', 'Cumplir plazos (menos atraso)'),
+        ('makespan', 'Terminar antes (tiempo total)'),
+        ('peak',     'Equilibrar carga de centros'),
+        ('none',     'No usar'),
+    ]
+
+    opt_criterion_1 = fields.Selection(
+        _OPT_CRITERION_SELECTION, string='1er criterio de optimización',
+        default='lateness', required=True,
+        help='Criterio de mayor prioridad al comparar alternativas del plan.')
+    opt_criterion_2 = fields.Selection(
+        _OPT_CRITERION_SELECTION, string='2do criterio de optimización',
+        default='makespan', required=True,
+        help='Desempata cuando el 1er criterio da igual. "No usar" para ignorarlo.')
+    opt_criterion_3 = fields.Selection(
+        _OPT_CRITERION_SELECTION, string='3er criterio de optimización',
+        default='peak', required=True,
+        help='Desempata cuando los dos primeros dan igual. "No usar" para ignorarlo.')
+
+    @api.model
+    def optimization_criteria(self):
+        """Orden de criterios ACTIVOS para la cascada de optimización.
+
+        Lee los 3 selectores de config, saltea 'No usar' y duplicados, y
+        preserva el orden (= jerarquía). Si quedara vacío (todo 'No usar'),
+        cae al default histórico atraso→makespan→carga para no dejar sin
+        criterio a la comparación.
+
+        :returns: list[str] — subconjunto ordenado de ['lateness','makespan','peak'].
+        """
+        cfg = self.get_config()
+        order = []
+        if cfg:
+            for fname in ('opt_criterion_1', 'opt_criterion_2', 'opt_criterion_3'):
+                val = cfg[fname]
+                if val and val != 'none' and val not in order:
+                    order.append(val)
+        return order or ['lateness', 'makespan', 'peak']
+
     default_of_hours = fields.Float(
         string='Horas por OF sin ruta', default=8.0,
         help='Duración estimada (horas) que asume el motor para una OF cuya LdM no '

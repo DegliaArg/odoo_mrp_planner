@@ -468,6 +468,15 @@
     border-radius: 3px;
 }
 
+/* ── Capacidad ocupada por otras OTs firmes (modo propuesta): banda roja ── */
+/* Detrás de las barras (z-index 1, igual que los huecos): "acá ya hay carga". */
+.sm-busy {
+    position: absolute; top: 5px; bottom: 5px; z-index: 1;
+    background: rgba(214, 69, 69, 0.13);
+    border: 1px solid rgba(214, 69, 69, 0.35);
+    border-radius: 3px;
+}
+
 /* ── Leyenda de colores (Work 4): firme vs propuesta vs alternativo vs hueco ── */
 .sm-legend { white-space: nowrap; }
 .sm-legend-swatch {
@@ -481,6 +490,7 @@
         rgba(217, 155, 28, 0.4) 3px, rgba(217, 155, 28, 0.4) 6px);
 }
 .sm-legend-gapsw { background: rgba(29, 158, 117, 0.10); border: 1px dashed rgba(29, 158, 117, 0.6); }
+.sm-legend-busysw { background: rgba(214, 69, 69, 0.14); border: 1px solid rgba(214, 69, 69, 0.5); }
 
 /* ── Filas de OC / proveedor (modo propuesta) ── */
 .sm-row-purchase          { background: #f5f3ff; }
@@ -490,4 +500,19 @@
 @media (max-width: 768px) {
     .sm-root { --sm-ct-w: 140px; }
     .sm-filter-btn { max-width: 120px; }
+}
+
+/* ── Chatter SIEMPRE abajo en el form de programación (ganar ancho) ──
+   El form de mrp.production.request lleva el Gantt embebido, que necesita todo
+   el ancho. En pantallas anchas Odoo pone el chatter en columna lateral
+   (o_xxl_form_view); acá lo forzamos abajo a todo el ancho. Scoped por la clase
+   del form. NOTA: las clases internas del chatter pueden variar por versión de
+   Odoo — verificar en staging y ajustar el selector si hiciera falta. */
+.o_mrp_planner_request_form.o_xxl_form_view { flex-direction: column !important; }
+.o_mrp_planner_request_form.o_xxl_form_view .o-mail-Form-chatter {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    border-left: 0 !important;
+    border-top: 1px solid #dee2e6 !important;
 }

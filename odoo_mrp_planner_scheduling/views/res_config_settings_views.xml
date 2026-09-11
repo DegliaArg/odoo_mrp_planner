@@ -77,6 +77,20 @@
                                help="Minutos mínimos que asume el motor para una operación de LdM sin tiempo de ciclo ni setup."/>
                     </group>
 
+                    <!-- ══ CRITERIOS DE OPTIMIZACIÓN ════════════════════════════════ -->
+                    <group string="Criterios de optimización">
+                        <div class="text-muted small mb-2">
+                            Cuando el planificador propone reasignar centros (botón
+                            <b>Optimizar</b>) o muestra el impacto de un cambio, compara los
+                            planes por estos criterios <b>en orden</b>: el 1º manda; a igualdad
+                            decide el 2º; y así. Elegí <b>cuáles</b> usar y en <b>qué jerarquía</b>
+                            (poné "No usar" para desactivar uno).
+                        </div>
+                        <field name="opt_criterion_1"/>
+                        <field name="opt_criterion_2"/>
+                        <field name="opt_criterion_3"/>
+                    </group>
+
                     <!-- ══ TURNOS (compartidos con los paneles) ════════════════════ -->
                     <group string="Turnos de producción">
                         <div class="text-muted small mb-2">

@@ -526,12 +526,34 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             return f'{h}h {m}m' if m else f'{h}h'
         return f'{m}m'
 
-    def _plan_metrics(self, item_results, wc_collector, min_dt):
-        """Métricas del plan para comparar alternativas, en el orden de prioridad
-        acordado (cascada lexicográfica): 1º atraso, 2º makespan, 3º carga pico.
+    def _opt_criterion_meta(self):
+        """Metadatos de cada criterio de optimización: etiqueta, umbral de cambio
+        significativo, formateo de un valor y frase de delta para la línea
+        compacta. Menor es mejor en todos."""
+        return {
+            'lateness': {
+                'label': 'Atraso total', 'thr': 60,
+                'fmt':   lambda v: self._fmt_secs(v) if v >= 60 else 'a tiempo',
+                'delta': lambda d: ('atraso −%s' if d < 0 else 'atraso +%s') % self._fmt_secs(d),
+            },
+            'makespan': {
+                'label': 'Duración del plan', 'thr': 60,
+                'fmt':   lambda v: self._fmt_secs(v),
+                'delta': lambda d: (self._fmt_secs(d) + ' antes') if d < 0
+                                   else (self._fmt_secs(d) + ' después'),
+            },
+            'peak': {
+                'label': 'Pico de carga', 'thr': 0.5,
+                'fmt':   lambda v: '%.0f h' % v,
+                'delta': lambda d: 'pico %s%.0fh' % ('−' if d < 0 else '+', abs(d)),
+            },
+        }
 
-        :returns: tuple(float, float, float) — (atraso_seg, makespan_seg, pico_hs).
-            Menor es mejor en cada componente, evaluado en ese orden.
+    def _plan_metrics(self, item_results, wc_collector, min_dt):
+        """Métricas CRUDAS del plan (menor es mejor en cada una). El orden y cuáles
+        pesan en la comparación lo define la config (ver _metric_key).
+
+        :returns: dict — {'lateness': seg, 'makespan': seg, 'peak': hs}.
         """
         lateness = 0.0
         makespan_end = None
@@ -543,41 +565,43 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 makespan_end = ee
         makespan = (makespan_end - min_dt).total_seconds() if makespan_end else 0.0
         max_hours = max((d['hours'] for d in wc_collector.values()), default=0.0)
-        return (round(lateness, 1), round(makespan, 1), round(max_hours, 3))
+        return {'lateness': round(lateness, 1),
+                'makespan': round(makespan, 1),
+                'peak':     round(max_hours, 3)}
+
+    def _metric_key(self, metrics):
+        """Clave de comparación lexicográfica según los criterios ACTIVOS y su
+        orden de prioridad (configurable). `metrics` es un dict de _plan_metrics.
+        Menor es mejor."""
+        order = self.env['mrp.reschedule.config'].optimization_criteria()
+        return tuple(metrics[k] for k in order)
 
     def _delta_label(self, base, trial):
-        """Describe la mejora/empeoramiento de `trial` respecto de `base` (tuplas de
-        _plan_metrics), en lenguaje humano y por prioridad (una línea compacta)."""
+        """Describe `trial` vs `base` (dicts de _plan_metrics) en una línea
+        compacta, solo con los criterios activos y en su orden de prioridad."""
+        meta = self._opt_criterion_meta()
         parts = []
-        lat_d, mk_d, ld_d = trial[0] - base[0], trial[1] - base[1], trial[2] - base[2]
-        if abs(lat_d) >= 60:
-            parts.append(('atraso −%s' if lat_d < 0 else 'atraso +%s') % self._fmt_secs(lat_d))
-        if abs(mk_d) >= 60:
-            parts.append((self._fmt_secs(mk_d) + ' antes') if mk_d < 0
-                         else (self._fmt_secs(mk_d) + ' después'))
-        if abs(ld_d) >= 0.5:
-            parts.append('pico %s%.0fh' % ('−' if ld_d < 0 else '+', abs(ld_d)))
+        for k in self.env['mrp.reschedule.config'].optimization_criteria():
+            d = trial[k] - base[k]
+            if abs(d) >= meta[k]['thr']:
+                parts.append(meta[k]['delta'](d))
         return ' · '.join(parts) or 'sin cambios netos'
 
     def _impact_effects(self, base, trial):
-        """Detalle ANTES→DESPUÉS del cambio, por dimensión afectada (en el orden de
-        la cascada). Solo incluye las que cambian de verdad.
+        """Detalle ANTES→DESPUÉS por criterio ACTIVO que cambia de verdad, en el
+        orden de prioridad configurado.
 
-        :returns: list[dict] — [{k, before, after, better}] por dimensión.
+        :returns: list[dict] — [{k, before, after, better}] por criterio.
         """
-        dims = [
-            ('Atraso total',     60,  lambda v: self._fmt_secs(v) if v >= 60 else 'a tiempo'),
-            ('Duración del plan', 60, lambda v: self._fmt_secs(v)),
-            ('Pico de carga',    0.5, lambda v: '%.0f h' % v),
-        ]
+        meta = self._opt_criterion_meta()
         effects = []
-        for i, (name, thr, fmt) in enumerate(dims):
-            if abs(trial[i] - base[i]) >= thr:
+        for k in self.env['mrp.reschedule.config'].optimization_criteria():
+            if abs(trial[k] - base[k]) >= meta[k]['thr']:
                 effects.append({
-                    'k':      name,
-                    'before': fmt(base[i]),
-                    'after':  fmt(trial[i]),
-                    'better': trial[i] < base[i],
+                    'k':      meta[k]['label'],
+                    'before': meta[k]['fmt'](base[k]),
+                    'after':  meta[k]['fmt'](trial[k]),
+                    'better': trial[k] < base[k],
                 })
         return effects
 
@@ -604,6 +628,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         base_overrides = self._current_wc_overrides()
         _, base_coll, base_res, base_min = self._build_and_schedule(base_overrides)
         base_metric = self._plan_metrics(base_res, base_coll, base_min)
+        base_key = self._metric_key(base_metric)
 
         out = []
         for wc in self._line_alt_workcenters(line)[:6]:
@@ -614,13 +639,14 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             except Exception:
                 continue
             metric = self._plan_metrics(res, coll, mn)
+            trial_key = self._metric_key(metric)
             out.append({
                 'wc_id':   wc.id,
                 'wc_name': wc.display_name,
                 'label':   self._delta_label(base_metric, metric),
                 'effects': self._impact_effects(base_metric, metric),
-                'better':  metric < base_metric,
-                'worse':   metric > base_metric,
+                'better':  trial_key < base_key,
+                'worse':   trial_key > base_key,
             })
         return out
 
@@ -643,6 +669,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         base_overrides = self._current_wc_overrides()
         _, base_coll, base_res, base_min = self._build_and_schedule(base_overrides)
         base_metric = self._plan_metrics(base_res, base_coll, base_min)
+        base_key = self._metric_key(base_metric)
 
         late_item_ids = {iid for iid, r in base_res.items() if not r['feasible']}
         bottleneck_wc = max(base_coll, key=lambda w: base_coll[w]['hours'], default=None)
@@ -664,7 +691,8 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 except Exception:
                     continue
                 metric = self._plan_metrics(res, coll, mn)
-                if metric < base_metric:
+                trial_key = self._metric_key(metric)
+                if trial_key < base_key:
                     suggestions.append({
                         'line_id':  line.id,
                         'product':  line.product_id.display_name,
@@ -673,14 +701,14 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                         'to_wc':    wc.display_name,
                         'label':    self._delta_label(base_metric, metric),
                         'effects':  self._impact_effects(base_metric, metric),
-                        '_metric':  metric,
+                        '_key':     trial_key,
                     })
             if capped:
                 break
 
-        suggestions.sort(key=lambda s: s['_metric'])
+        suggestions.sort(key=lambda s: s['_key'])
         for s in suggestions:
-            s.pop('_metric', None)
+            s.pop('_key', None)
         return {'suggestions': suggestions[:8], 'capped': capped}
 
     def action_confirm(self):

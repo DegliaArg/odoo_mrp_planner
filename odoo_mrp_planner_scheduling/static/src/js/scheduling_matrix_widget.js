@@ -719,6 +719,7 @@ class SchedulingMatrixWidget extends Component {
             );
             this._closeProposals();
             await this._loadProposal();
+            await this._reloadFormRecord();
         } catch (e) {
             this.notification.add(
                 (e?.data?.message) || e.message || 'No se pudo aplicar el cambio.',
@@ -742,6 +743,7 @@ class SchedulingMatrixWidget extends Component {
             );
             this._closeReassign();
             await this._loadProposal();   // recarga el plan recalculado
+            await this._reloadFormRecord();
         } catch (e) {
             this.notification.add(
                 (e?.data?.message) || e.message || 'No se pudo reasignar el centro.',
@@ -749,6 +751,26 @@ class SchedulingMatrixWidget extends Component {
             );
         } finally {
             this.state.reassigning = false;
+        }
+    }
+
+    /** Recarga el record del formulario de la solicitud para que los campos de
+     *  Odoo que viven FUERA del widget (resumen de factibilidad, tablas del plan,
+     *  atraso/fechas por artículo, sugerencias) reflejen el recálculo. El Gantt ya
+     *  se refresca por su propia RPC; esto sincroniza el resto del formulario.
+     *  Best-effort: si la API del record cambia, el widget igual quedó al día. */
+    async _reloadFormRecord() {
+        const rec = this.props.record;
+        if (!rec) return;
+        try {
+            if (typeof rec.load === 'function') {
+                await rec.load();
+                rec.model?.notify?.();
+            } else if (rec.model?.root?.load) {
+                await rec.model.root.load();
+            }
+        } catch (e) {
+            // silencioso: el Gantt refleja el nuevo plan aunque el form no recargue.
         }
     }
 
@@ -1151,9 +1173,8 @@ class SchedulingMatrixWidget extends Component {
      *  Coordenadas en px sobre la pista (Y = suma de alturas de fila; solo modo
      *  ruta, donde las filas son planas sin headers de sector). */
     get routeThread() {
-        // En modo propuesta el hilo de dependencias se lee como un garabato (muchas
-        // barras apretadas a la izquierda) y no aporta: se desactiva.
-        if (this.state.proposalMode) return null;
+        // El hilo une cada componente con su consumidora (flechas de dependencia).
+        // Se muestra también en propuesta (el usuario lo pidió de vuelta).
         if (!this.state.routeMode || !this.state.layout) return null;
         const edges = this.state.routeEdges || [];
         if (!edges.length) return null;
@@ -1284,6 +1305,17 @@ class SchedulingMatrixWidget extends Component {
                 ? this._computeGaps(scale, row.working_intervals || [], active, row.busy_intervals || [])
                 : [];
 
+            // Carga firme de OTRAS OTs ya planificadas en este CT (no son de la
+            // propuesta, no se dibujan como barra): se pintan en rojo detrás de las
+            // barras para ver qué tramos de la máquina están ya ocupados. Solo en
+            // modo propuesta (en el tablero general esa carga YA se dibuja como barra).
+            const busyBlocks = (this.state.proposalMode && !row.is_purchase_row)
+                ? (row.busy_intervals || []).map(([s, e]) => {
+                    const g = scaleSpan(scale, s, e);
+                    return { leftPct: g.left, widthPct: g.width };
+                  }).filter(b => b.widthPct > 0.03)
+                : [];
+
             out.push({
                 ...row,
                 bars: barsOut,
@@ -1293,6 +1325,7 @@ class SchedulingMatrixWidget extends Component {
                 addLeftPct: barsOut.reduce((m, b) => Math.max(m, b.env.left + b.env.width), 0),
                 workBlocks,
                 gapBlocks,
+                busyBlocks,
             });
         }
         return out;

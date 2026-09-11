@@ -133,7 +133,10 @@
                 </div>
                 </t>
 
-                <!-- Rango de fechas: visible siempre (tablero, ruta y propuesta) -->
+                <!-- Rango de fechas: en tablero y ruta. En PROPUESTA se oculta: el eje
+                     muestra directo todo lo programado (el backend fija el rango que
+                     cubre el plan completo); el zoom día/semana/mes sigue disponible. -->
+                <t t-if="!state.proposalMode">
                 <div class="vr mx-1"/>
                 <div class="sm-filter-group d-flex align-items-center gap-1"
                      title="Rango de fechas cargado en el tablero. Ampliá el rango para ver más OFs; achicalo para cargar más rápido.">
@@ -146,6 +149,7 @@
                            title="Último día visible del eje."
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
+                </t>
 
                 <!-- Toggles y contador: solo fuera de modo ruta (ruta/propuesta tienen su propia cabecera) -->
                 <t t-if="!state.routeMode">
@@ -200,35 +204,15 @@
                         </span>
                     </span>
                     <span t-if="state.proposalMode" class="sm-route-title">
-                        <i class="fa fa-industry me-1"/>Propuesta de fabricación
-                        <span class="text-muted ms-2">— la ocupación de cada centro suma la carga existente + la propuesta</span>
-                        <i class="fa fa-question-circle ms-2 text-primary sm-help-ico"
-                           title="Cómo leer esta vista:&#10;• Cada FILA es un centro de trabajo (una máquina/puesto).&#10;• Cada BARRA es una operación ubicada en el tiempo (eje horizontal).&#10;• El hilo une las OFs relacionadas (componente → producto).&#10;• El % junto al centro es su ocupación (carga firme + esta propuesta).&#10;• El panel de abajo dice, por artículo, si entra en la fecha deseada.&#10;• Clic en una barra con alternativas para moverla a otro centro y ver el impacto.&#10;• 'Optimizar' propone cambios que mejoran el plan."/>
+                        <i class="fa fa-question-circle text-primary sm-help-ico"
+                           title="Cómo leer esta vista:&#10;• Cada FILA es un centro de trabajo (una máquina/puesto).&#10;• Cada BARRA es una operación ubicada en el tiempo (eje horizontal).&#10;• Las flechas unen las OFs relacionadas (componente → producto).&#10;• Bandas ROJAS = capacidad ya ocupada por otras OTs firmes.&#10;• Bandas VERDES punteadas = huecos libres del centro.&#10;• El % junto al centro es su ocupación (carga firme + esta propuesta).&#10;• El panel de abajo dice, por artículo, si entra en la fecha deseada.&#10;• Clic en una barra con alternativas para moverla a otro centro y ver el impacto.&#10;• 'Optimizar' propone cambios que mejoran el plan."/>
                     </span>
                     <button t-if="state.proposalMode" class="btn btn-sm btn-primary ms-3 flex-shrink-0"
                             t-on-click.stop="runProposer"
                             title="El programador busca reasignaciones de centro que mejoren el plan (primero los plazos, luego el tiempo total, luego la carga).">
                         <i class="fa fa-magic me-1"/>Optimizar
                     </button>
-                    <!-- Leyenda de colores (Work 4): distingue lo firme de la propuesta -->
-                    <t t-if="state.proposalMode">
-                        <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted"
-                              title="Referencia de colores de las barras y bandas del Gantt.">
-                            <span class="d-inline-flex align-items-center gap-1"
-                                  title="OFs ya planificadas en firme en el sistema (no son parte de esta propuesta).">
-                                <span class="sm-legend-swatch sm-legend-firm"/>existente (firme)</span>
-                            <span class="d-inline-flex align-items-center gap-1"
-                                  title="OFs que este cálculo propone crear para cubrir la demanda.">
-                                <span class="sm-legend-swatch sm-legend-prop"/>propuesta</span>
-                            <span class="d-inline-flex align-items-center gap-1"
-                                  title="Operación ubicada en un centro alternativo (no el primario de la ruta), elegido por carga.">
-                                <span class="sm-legend-swatch sm-legend-altsw"/>centro alternativo</span>
-                            <span class="d-inline-flex align-items-center gap-1"
-                                  title="Tramo libre del centro: capacidad disponible donde podría entrar otra operación.">
-                                <span class="sm-legend-swatch sm-legend-gapsw"/>hueco libre</span>
-                        </span>
-                    </t>
-                    <div t-attf-class="form-check form-switch mb-0 {{ state.proposalMode ? 'ms-2' : 'ms-auto' }}">
+                    <div t-attf-class="form-check form-switch mb-0 {{ state.proposalMode ? 'ms-auto' : 'ms-auto' }}">
                         <input class="form-check-input" type="checkbox" id="sm-collapse-empty-r"
                                t-att-checked="state.collapseEmpty" t-on-change="toggleCollapseEmpty"/>
                         <label class="form-check-label small text-muted" for="sm-collapse-empty-r"
@@ -416,6 +400,13 @@
                                     <div class="sm-work" t-att-style="`left:${wb.leftPct}%;width:${wb.widthPct}%`"/>
                                 </t>
 
+                                <!-- Capacidad ya ocupada por otras OTs firmes (modo propuesta):
+                                     bandas rojas detrás de las barras — "acá la máquina ya está tomada". -->
+                                <t t-foreach="row.busyBlocks or []" t-as="busy" t-key="'busy'+busy_index">
+                                    <div class="sm-busy" t-att-style="`left:${busy.leftPct}%;width:${busy.widthPct}%`"
+                                         title="Tramo ya ocupado por otra OT firme en este centro: capacidad no disponible."/>
+                                </t>
+
                                 <!-- Huecos libres (Fase 1): capacidad disponible del CT.
                                      gapBlocks solo se llena donde corresponde (propuesta o
                                      tablero general), así que basta el toggle showGaps. -->
@@ -530,11 +521,29 @@
 
               <!-- Panel lateral: RESUMEN POR ARTÍCULO (modo propuesta) -->
               <div t-if="state.proposalMode" class="sm-route-panel sm-summary-panel">
-                  <div class="sm-route-panel-head">
-                      Resumen del pedido
-                      <span class="text-muted fw-normal small ms-1">· ¿entra en fecha?</span>
-                      <i class="fa fa-question-circle ms-1 text-primary sm-help-ico"
-                         title="Una tarjeta por artículo del pedido. Verde = la propuesta lo termina a tiempo; rojo = llega tarde respecto de la fecha deseada. Muestra la fecha deseada vs. la fecha en que quedaría listo, y cuántas OFs/compras genera."/>
+                  <div class="sm-route-panel-head d-flex align-items-center flex-wrap gap-2">
+                      <span>
+                          Resumen del pedido
+                          <span class="text-muted fw-normal small ms-1">· ¿entra en fecha?</span>
+                          <i class="fa fa-question-circle ms-1 text-primary sm-help-ico"
+                             title="Una tarjeta por artículo del pedido. Verde = la propuesta lo termina a tiempo; rojo = llega tarde respecto de la fecha deseada. Muestra la fecha deseada vs. la fecha en que quedaría listo, y cuántas OFs/compras genera."/>
+                      </span>
+                      <!-- Leyenda de colores del Gantt (reubicada acá para no cargar la barra superior) -->
+                      <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted fw-normal"
+                            title="Referencia de colores de las barras y bandas del Gantt de arriba.">
+                          <span class="d-inline-flex align-items-center gap-1"
+                                title="OFs que este cálculo propone crear para cubrir la demanda.">
+                              <span class="sm-legend-swatch sm-legend-prop"/>propuesta</span>
+                          <span class="d-inline-flex align-items-center gap-1"
+                                title="Operación ubicada en un centro alternativo (no el primario de la ruta), elegido por carga.">
+                              <span class="sm-legend-swatch sm-legend-altsw"/>centro alternativo</span>
+                          <span class="d-inline-flex align-items-center gap-1"
+                                title="Tramo ya ocupado por otras OTs firmes: capacidad no disponible.">
+                              <span class="sm-legend-swatch sm-legend-busysw"/>ocupado</span>
+                          <span class="d-inline-flex align-items-center gap-1"
+                                title="Tramo libre del centro: capacidad disponible donde podría entrar una operación.">
+                              <span class="sm-legend-swatch sm-legend-gapsw"/>hueco libre</span>
+                      </span>
                   </div>
                   <div class="sm-route-panel-body">
                       <t t-foreach="state.itemSummary" t-as="it" t-key="it.item_id">

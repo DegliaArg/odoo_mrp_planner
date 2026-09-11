@@ -447,6 +447,17 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         # Preservar los pines de CT ANTES de borrar las líneas (se keyean por
         # node_key para no aplicarse a la rama equivocada).
         overrides = self._current_wc_overrides()
+        # Preservar las DECISIONES de sugerencias de CT: un alternativo que el
+        # usuario ya aceptó (o eligió manualmente) NO debe reaparecer como
+        # 'pendiente' tras recalcular. Se keyea por node_key (estable entre
+        # recálculos). Los 'rejected' volvieron al primario → dejan de ser
+        # alternativos solos, no hace falta preservarlos.
+        prior_sugg = {
+            l.node_key: l.suggestion_state
+            for l in self.line_ids
+            if l.node_key and l.record_type == 'mrp'
+            and l.suggestion_state == 'accepted'
+        }
         self.line_ids.unlink()
         self.wc_load_ids.unlink()
         self.item_ids.write({'projected_end': False, 'projected_start': False})
@@ -491,6 +502,15 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                     op_vals.append(dict(op, line_id=line.id))
             if op_vals:
                 self.env['mrp.production.request.line.op'].create(op_vals)
+
+            # Restaurar las decisiones previas: los alternativos ya aceptados
+            # vuelven a 'accepted' (el motor los recreó como 'pending'), así no
+            # reaparecen en la tabla de sugerencias pendientes tras recalcular.
+            if prior_sugg:
+                for line in lines:
+                    if (line.record_type == 'mrp' and line.used_alternative
+                            and prior_sugg.get(line.node_key) == 'accepted'):
+                        line.suggestion_state = 'accepted'
 
         # Resumen de carga por WC — desde la ocupación calculada sobre el collector.
         occ = self._wc_occupancy(wc_collector, min_dt)

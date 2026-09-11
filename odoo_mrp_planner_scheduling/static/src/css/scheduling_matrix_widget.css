@@ -67,6 +67,22 @@
 /* Barra del árbol en el Gantt (resaltado intermedio: ni enfocada ni atenuada) */
 .sm-bar-tree { box-shadow: 0 0 0 1.5px #378ADD; }
 
+/* ── Panel lateral: resumen por artículo (modo propuesta) ── */
+.sm-summary-panel .sm-route-panel-body { padding: 8px; }
+.sm-item-card {
+    border: 1px solid #e5e8ec; border-left: 4px solid #adb5bd;
+    border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #fff;
+}
+.sm-item-ok   { border-left-color: #1D9E75; }
+.sm-item-late { border-left-color: #d64545; background: #fdf6f6; }
+.sm-item-ico-ok   { color: #1D9E75; }
+.sm-item-ico-late { color: #d64545; }
+.sm-item-name { font-size: 13px; min-width: 0; }
+.sm-item-qty  { font-size: 12px; flex-shrink: 0; }
+.sm-item-dates { font-size: 11.5px; margin-top: 5px; color: #495057; }
+.sm-item-msg  { font-size: 11px; margin-top: 2px; }
+.sm-item-meta { font-size: 11px; margin-top: 5px; }
+
 /* Marca de corte donde el eje saltea días ocultos (fin de semana). */
 .sm-cutline {
     position: absolute; top: 0; bottom: 0; width: 0; z-index: 4;

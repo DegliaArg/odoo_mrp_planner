@@ -1050,6 +1050,29 @@ class MrpProductionBoard(models.Model):
                 'is_purchase':   line.record_type == 'purchase',
             })
 
+        # ── Resumen por artículo pedido (panel lateral de la propuesta) ─────────
+        # Responde de un vistazo "¿mi pedido entra?": por cada artículo, si cumple
+        # el plazo, la fecha deseada vs la proyectada y cuántas OTs/compras genera.
+        item_summary = []
+        for item in req.item_ids.sorted(lambda i: (i.sequence, i.id)):
+            item_mrp   = mrp_lines.filtered(lambda l: l.item_id.id == item.id)
+            item_purch = purchase_lines.filtered(lambda l: l.item_id.id == item.id)
+            ot_count   = sum(len(l.op_ids) for l in item_mrp)
+            prod       = item.product_id
+            item_summary.append({
+                'item_id':        item.id,
+                'name':           prod.default_code or prod.name or '',
+                'product':        prod.display_name if prod else '',
+                'qty':            item.product_qty,
+                'uom':            prod.uom_id.name if prod.uom_id else '',
+                'deadline':       _fmt(item.date_deadline),
+                'projected':      _fmt(item.projected_end or item.earliest_end),
+                'feasible':       item.feasible,
+                'msg':            item.feasibility_msg or '',
+                'ot_count':       ot_count,
+                'purchase_count': len(item_purch),
+            })
+
         return {
             'range_from':      date_from,
             'range_to':        date_to,
@@ -1061,6 +1084,7 @@ class MrpProductionBoard(models.Model):
             'route_edges':     edges,
             'related_tree':    tree,
             'route_tree_ids':  sorted(all_line_ids),
+            'item_summary':    item_summary,
             'request_id':      req.id,
             'request_name':    req.name or '',
             'is_proposal':     True,

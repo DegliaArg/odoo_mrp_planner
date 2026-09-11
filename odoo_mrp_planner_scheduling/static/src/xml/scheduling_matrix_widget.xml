@@ -331,7 +331,7 @@
                             <div t-att-class="'sm-row-ct' + (row.is_unassigned ? ' sm-row-ct-unassigned' : '') + (row.is_purchase_row ? ' sm-row-ct-purchase' : '')">
                                 <div class="sm-ct-name fw-semibold text-truncate d-flex align-items-center gap-1"
                                      t-att-title="row.wc_name">
-                                    <span t-if="state.routeMode and row.route_seq" class="sm-route-seq" t-esc="row.route_seq"/>
+                                    <span t-if="state.routeMode and !state.proposalMode and row.route_seq" class="sm-route-seq" t-esc="row.route_seq"/>
                                     <i t-if="row.is_purchase_row" class="fa fa-shopping-cart me-1 text-muted" style="font-size:0.75em"/>
                                     <span class="text-truncate" t-esc="row.wc_name"/>
                                 </div>
@@ -480,8 +480,37 @@
                 </div>
               </div><!-- /sm-board -->
 
+              <!-- Panel lateral: RESUMEN POR ARTÍCULO (modo propuesta) -->
+              <div t-if="state.proposalMode" class="sm-route-panel sm-summary-panel">
+                  <div class="sm-route-panel-head">
+                      Resumen del pedido
+                      <span class="text-muted fw-normal small ms-1">· ¿entra en fecha?</span>
+                  </div>
+                  <div class="sm-route-panel-body">
+                      <t t-foreach="state.itemSummary" t-as="it" t-key="it.item_id">
+                          <div t-att-class="'sm-item-card ' + (it.feasible ? 'sm-item-ok' : 'sm-item-late')">
+                              <div class="sm-item-top d-flex align-items-center gap-2">
+                                  <i t-att-class="'fa ' + (it.feasible ? 'fa-check-circle sm-item-ico-ok' : 'fa-exclamation-circle sm-item-ico-late')"/>
+                                  <span class="sm-item-name fw-semibold text-truncate flex-grow-1" t-att-title="it.product" t-esc="it.product"/>
+                                  <span class="sm-item-qty text-muted text-nowrap"><t t-esc="fmtQty(it.qty)"/> <t t-esc="it.uom"/></span>
+                              </div>
+                              <div class="sm-item-dates">
+                                  <span class="text-muted">deseada</span> <b t-esc="it.deadline || '—'"/>
+                                  <span class="text-muted ms-2">lista</span> <b t-esc="it.projected || '—'"/>
+                              </div>
+                              <div t-att-class="'sm-item-msg ' + (it.feasible ? 'text-success' : 'text-danger')" t-esc="it.msg"/>
+                              <div class="sm-item-meta text-muted">
+                                  <span t-if="it.ot_count"><i class="fa fa-cogs me-1"/><t t-esc="it.ot_count"/> OT</span>
+                                  <span t-if="it.purchase_count" class="ms-2"><i class="fa fa-shopping-cart me-1"/><t t-esc="it.purchase_count"/> compra</span>
+                              </div>
+                          </div>
+                      </t>
+                      <div t-if="!state.itemSummary.length" class="text-muted small p-3">Sin artículos en el plan.</div>
+                  </div>
+              </div>
+
               <!-- Panel lateral: árbol de OFs relacionadas (modo ruta) -->
-              <div t-if="state.routeMode" class="sm-route-panel">
+              <div t-elif="state.routeMode" class="sm-route-panel">
                   <div class="sm-route-panel-head">
                       Cadena de OFs relacionadas
                       <span class="text-muted fw-normal small ms-1">· clic para marcar, Shift para varias</span>

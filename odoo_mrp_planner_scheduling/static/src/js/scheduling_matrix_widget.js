@@ -177,6 +177,7 @@ class SchedulingMatrixWidget extends Component {
             // existente + la propuesta. No hay "salir de ruta": ES la vista.
             proposalMode: false,
             requestName:  '',
+            itemSummary:  [],            // resumen por artículo (panel lateral de propuesta)
 
             // Modo ruta (vista enfocada en los CTs de una OF)
             routeMode:    false,
@@ -716,6 +717,7 @@ class SchedulingMatrixWidget extends Component {
             this.state.routeEdges     = result.route_edges || [];
             this.state.routeSelectedIds = [];
             this.state.requestName    = result.request_name || '';
+            this.state.itemSummary    = result.item_summary || [];
             this.state.proposalMode   = true;
             this.state.routeMode      = true;   // reutiliza el render de ruta
             this._fitRouteZoom();               // usa rows/dateFrom/dateTo ya seteados
@@ -1021,6 +1023,9 @@ class SchedulingMatrixWidget extends Component {
      *  Coordenadas en px sobre la pista (Y = suma de alturas de fila; solo modo
      *  ruta, donde las filas son planas sin headers de sector). */
     get routeThread() {
+        // En modo propuesta el hilo de dependencias se lee como un garabato (muchas
+        // barras apretadas a la izquierda) y no aporta: se desactiva.
+        if (this.state.proposalMode) return null;
         if (!this.state.routeMode || !this.state.layout) return null;
         const edges = this.state.routeEdges || [];
         if (!edges.length) return null;

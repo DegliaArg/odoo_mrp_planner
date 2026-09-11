@@ -153,15 +153,23 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
     # ── Anclas de WC ─────────────────────────────────────────────────────────
 
     def _get_wc_anchors_multi(self, start, roots):
-        """Construye el diccionario de anclas de WC a partir de la carga existente en Odoo.
+        """Construye el diccionario de anclas de WC a partir de la carga REALMENTE
+        planificada en Odoo.
 
-        Para cada WC referenciado en los árboles, busca las OFs confirmadas/en progreso
-        con work orders en ese WC y calcula cuándo termina el último trabajo planificado.
-        Esto permite que la programación nueva se apile correctamente detrás de la carga
-        ya existente sin generar solapamientos.
+        Para cada WC referenciado en los árboles, toma la fecha fin más tardía de
+        las órdenes de trabajo ya planificadas (con date_start y date_finished
+        seteados) que terminan en/después de `start`. Esto permite que la nueva
+        programación se apile detrás de la carga existente sin solaparse.
 
-        :param start: datetime — fecha mínima de referencia (no se usa directamente,
-                      pero orienta el contexto temporal del cálculo).
+        IMPORTANTE (fix backlog): las OTs sin planificar (date_start/date_finished
+        en NULL) NO cuentan como ancla. Antes se estimaba su fin con
+        `mo.date_start + duración`, de modo que cientos de OTs abiertas sin planificar
+        empujaban el ancla meses hacia adelante y todo pedido daba "atraso". Un
+        backlog no planificado no ocupa una franja concreta del CT, así que no
+        genera ancla.
+
+        :param start: datetime — piso temporal (UTC naive). Solo se consideran OTs
+                      que terminan en/después de esta fecha.
         :param roots: list[dict] — lista de nodos raíz de los árboles de demanda.
         :returns: dict — {workcenter_id: datetime} con la fecha fin más tardía por WC.
         """
@@ -181,24 +189,24 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         if not wc_ids:
             return {}
 
+        # Un único _read_group con max(date_finished) por CT en lugar de recorrer
+        # cada MO/WO (evita el N+1 del punto #9 en las anclas). Solo OTs planificadas
+        # (fechas seteadas), aún vivas (no done/cancel) y que terminan >= start.
         anchors = {}
-        for mo in self.env['mrp.production'].search([
-            ('state', 'in', ('confirmed', 'progress')),
-            ('workorder_ids.workcenter_id', 'in', list(wc_ids)),
-        ]):
-            for wo in mo.workorder_ids:
-                wc_id = wo.workcenter_id.id
-                if wc_id not in wc_ids:
-                    continue
-                # Preferir la fecha real del WO; si no, la del MO; si no, estimarla
-                wo_end = (
-                    wo.date_finished
-                    or mo.date_finished
-                    or (mo.date_start + timedelta(hours=(wo.duration_expected or 60) / 60)
-                        if mo.date_start else None)
-                )
-                if wo_end:
-                    anchors[wc_id] = max(anchors.get(wc_id, wo_end), wo_end)
+        groups = self.env['mrp.workorder']._read_group(
+            [
+                ('workcenter_id', 'in', list(wc_ids)),
+                ('state', 'not in', ('done', 'cancel')),
+                ('date_start', '!=', False),
+                ('date_finished', '!=', False),
+                ('date_finished', '>=', start),
+            ],
+            groupby=['workcenter_id'],
+            aggregates=['date_finished:max'],
+        )
+        for wc, max_finish in groups:
+            if wc and max_finish:
+                anchors[wc.id] = max_finish
         return anchors
 
     # ── Programación del árbol ────────────────────────────────────────────────
@@ -231,19 +239,42 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         if node.get('type') in leaf_types:
             return  # Se resuelve desde el padre
 
+        company_calendar = self.env.company.resource_calendar_id
+
+        # JIT/ALAP: si hay deadline, calcular el inicio deseado de este nodo
+        # retrocediendo su duración total desde target_end. Ese inicio cumple doble
+        # función:
+        #   1. es la fecha objetivo de FIN de las hijas (back-chaining real: la hija
+        #      debe estar lista justo cuando la madre empieza a consumirla), y
+        #   2. es el inicio deseado de esta OF (ALAP).
+        # Solo se calcula acá una vez y se reutiliza en ambos usos.
+        jit_start = None
+        if target_end:
+            total_dur = sum(dur_h for _, _, dur_h in node['operations'])
+            if total_dur > 0:
+                first_wc = next((p for p, _, _ in node['operations'] if p), None)
+                cal_bwd = (
+                    first_wc.resource_calendar_id
+                    if (first_wc and first_wc.resource_calendar_id)
+                    else company_calendar
+                )
+                jit_start, _ = self._schedule_duration_backward(cal_bwd, target_end, total_dur)
+
+        # Programar hijas manufacture. Se les propaga jit_start como target_end para
+        # que se retrasen (ALAP) hasta terminar cuando esta OF las necesita, en vez
+        # de fabricarse lo antes posible y quedar como WIP parado ocupando anclas de
+        # CT antes de tiempo (fix #6: antes el JIT solo aplicaba en la raíz).
         children_end = start
         for child in node['children']:
             if child.get('type') not in leaf_types:
                 self._schedule_tree(child, start, wc_anchors, min_dt=min_dt,
-                                    wc_collector=wc_collector)
+                                    target_end=jit_start, wc_collector=wc_collector)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
 
         after_dt = max(start, children_end)
         if min_dt:
             after_dt = max(after_dt, min_dt)
-
-        company_calendar = self.env.company.resource_calendar_id
 
         # Si algún hijo es compra/subcont., la OF no puede empezar antes de
         # min_dt + lead_days hábiles (no podemos pedir antes de hoy).
@@ -255,21 +286,11 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                     earliest_mo_start = self._forward_schedule_days(cal, min_dt, lead)
                     after_dt = max(after_dt, earliest_mo_start)
 
-        # JIT/ALAP: si hay fecha objetivo, retrasar el inicio para terminar lo más
-        # cerca posible de target_end. Solo se aplica si el resultado es posterior
-        # al inicio ASAP (nunca adelantamos; solo retrasamos hacia la fecha deseada).
-        if target_end:
-            total_dur = sum(dur_h for _, _, dur_h in node['operations'])
-            if total_dur > 0:
-                first_wc = next((p for p, _, _ in node['operations'] if p), None)
-                cal_bwd = (
-                    first_wc.resource_calendar_id
-                    if (first_wc and first_wc.resource_calendar_id)
-                    else company_calendar
-                )
-                jit_start, _ = self._schedule_duration_backward(cal_bwd, target_end, total_dur)
-                if jit_start > after_dt:
-                    after_dt = jit_start
+        # JIT/ALAP de ESTE nodo: retrasar el inicio hacia jit_start si es posible.
+        # Solo se aplica si es posterior al ASAP (nunca adelantamos; si la fecha no
+        # es alcanzable, jit_start < after_dt y se usa el inicio mínimo posible).
+        if jit_start and jit_start > after_dt:
+            after_dt = jit_start
 
         # Inicio mínimo legal de esta OF: reúne los límites DUROS (fin de hijas,
         # min_dt global y leads de proveedor), pero NO el ancla de CT (que es

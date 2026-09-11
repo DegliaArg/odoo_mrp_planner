@@ -25,7 +25,8 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from odoo import models, api
+from odoo import models, api, _
+from odoo.exceptions import AccessError
 
 from ..models.mrp_reschedule_cascade_mixin import (
     _get_old_code, _origin_tokens, _search_by_origin, _base_name,
@@ -49,11 +50,28 @@ def _shift_label(s):
 class MrpProductionBoard(models.Model):
     _inherit = 'mrp.production'
 
+    # ── Guard de acceso ───────────────────────────────────────────────────────
+
+    @api.model
+    def _ensure_board_access(self):
+        """Guard de grupo para los métodos RPC del tablero.
+
+        Los métodos get_scheduling_board* son @api.model e invocables por RPC:
+        sin este guard, cualquier usuario con acceso de lectura a mrp.production
+        podía consultarlos aunque el menú esté restringido al grupo Programación.
+        """
+        if not self.env['mrp.reschedule.config']._user_in_scheduling_group():
+            raise AccessError(_(
+                'Solo los usuarios del grupo Programación pueden acceder al '
+                'tablero de programación.'
+            ))
+
     # ── Filtros ───────────────────────────────────────────────────────────────
 
     @api.model
     def get_scheduling_board_filters(self):
         """Devuelve sectores (tags de CT) y turnos disponibles."""
+        self._ensure_board_access()
         tags = self.env['mrp.workcenter.tag'].search([], order='name')
         cfg  = self.env['mrp.reschedule.config'].get_config()
         default_tag_id = (
@@ -81,6 +99,7 @@ class MrpProductionBoard(models.Model):
     @api.model
     def get_scheduling_board_wcs_for_tags(self, tag_ids):
         """CTs activos que tienen al menos uno de los tags dados."""
+        self._ensure_board_access()
         if not tag_ids:
             return []
         wcs = self.env['mrp.workcenter'].search(
@@ -95,6 +114,7 @@ class MrpProductionBoard(models.Model):
     def get_scheduling_board(self, tag_ids=None, date_from=None, date_to=None,
                              include_done=False, states=None):
         """Tablero filtrado por sector (tags). Delega en _build_board_payload."""
+        self._ensure_board_access()
         if not date_from or not date_to:
             return {
                 'range_from': date_from, 'range_to': date_to,
@@ -660,6 +680,7 @@ class MrpProductionBoard(models.Model):
         cronológicamente (escalonado) para coincidir con el panel lateral.
         `route_edges` lleva las aristas componente→consumidora para el hilo.
         """
+        self._ensure_board_access()
         mo = self.env['mrp.production'].browse(mo_id)
         if not mo.exists():
             return {'empty_reason': 'not_found'}
@@ -782,6 +803,7 @@ class MrpProductionBoard(models.Model):
         :returns: dict — payload con la MISMA forma que get_route_board (rows/bars/
             route_edges/related_tree), más los datos de ocupación existente+propuesta.
         """
+        self._ensure_board_access()
         req = self.env['mrp.production.request'].browse(request_id)
         if not req.exists():
             return {'empty_reason': 'not_found'}
@@ -1059,6 +1081,7 @@ class MrpProductionBoard(models.Model):
     @api.model
     def get_mo_components(self, mo_id):
         """Devuelve los componentes (movimientos de materia prima) de la OF."""
+        self._ensure_board_access()
         mo = self.env['mrp.production'].browse(mo_id)
         if not mo.exists():
             return []

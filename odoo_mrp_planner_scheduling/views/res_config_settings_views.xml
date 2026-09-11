@@ -69,6 +69,10 @@
                     <group string="Programación de fabricación">
                         <field name="default_picking_type_id"
                                help="Tipo de operación que se preselecciona al crear una nueva Programación de fabricación."/>
+                        <field name="default_of_hours"
+                               help="Horas que asume el motor para una OF cuya LdM no define operaciones/ruta."/>
+                        <field name="default_op_minutes"
+                               help="Minutos mínimos que asume el motor para una operación de LdM sin tiempo de ciclo ni setup."/>
                     </group>
 
                     <!-- ══ TURNOS (compartidos con los paneles) ════════════════════ -->

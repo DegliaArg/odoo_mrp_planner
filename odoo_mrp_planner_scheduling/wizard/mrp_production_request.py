@@ -144,19 +144,26 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         Depende de: item_ids.feasible, item_ids.earliest_end.
         """
         for rec in self:
-            done = rec.item_ids.filtered('earliest_end')
-            if not done:
+            items     = rec.item_ids
+            scheduled = items.filtered('earliest_end')
+            if not scheduled:
                 rec.all_feasible = False
                 rec.feasibility_summary = _('Sin datos calculados')
                 continue
-            ok    = sum(1 for i in done if i.feasible)
-            total = len(done)
+            # Contar sobre TODOS los artículos, no solo los que dieron fecha (fix M4):
+            # un item sin earliest_end (no se pudo calcular) cuenta como "no cumple",
+            # así el banner no dice "todos cumplen" escondiendo a los sin fecha.
+            total   = len(items)
+            ok      = sum(1 for i in scheduled if i.feasible)
+            no_date = total - len(scheduled)
             rec.all_feasible = ok == total
-            rec.feasibility_summary = (
-                _('Todos los artículos cumplen el plazo (%d/%d)') % (ok, total)
-                if ok == total
-                else _('%d de %d artículos no cumplen el plazo') % (total - ok, total)
-            )
+            if ok == total:
+                rec.feasibility_summary = _('Todos los artículos cumplen el plazo (%d/%d)') % (ok, total)
+            else:
+                msg = _('%d de %d artículos no cumplen el plazo') % (total - ok, total)
+                if no_date:
+                    msg += _(' (%d sin fecha calculable)') % no_date
+                rec.feasibility_summary = msg
 
     @api.depends('item_ids.production_id')
     def _compute_workorder_count(self):
@@ -298,11 +305,15 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         today_utc = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         min_dt = max(start, today_utc)
 
-        # Construir árbol de demanda para cada artículo (en orden de secuencia)
+        # Construir árbol de demanda para cada artículo (en orden de secuencia).
+        # Los cachés se comparten entre todos los artículos: componentes comunes se
+        # resuelven una sola vez (LdM, método, orderpoints) — evita el N+1 (fix #9).
         missing = []
         item_trees = []
+        caches = self._new_caches()
         for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
-            root = self._build_demand_tree(item.product_id, item.product_qty, level=0)
+            root = self._build_demand_tree(item.product_id, item.product_qty,
+                                           level=0, caches=caches)
             if not root:
                 missing.append(item.product_id.display_name)
             else:
@@ -373,21 +384,42 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         # workcenter_id, atribuyendo TODAS las horas del OF al primer centro.
         wc_data = wc_collector
         if wc_data:
+            # Horizonte global del plan: del primer inicio al último fin de cualquier
+            # CT. La ocupación se mide contra la disponibilidad del CT en ESTE
+            # horizonte común, no contra el span exacto de sus operaciones (fix #5):
+            # así un CT usado una sola vez ya no da siempre ~100% y las cargas son
+            # comparables entre centros para detectar el cuello de botella real.
+            starts = [d['start'] for d in wc_data.values() if d['start']]
+            ends   = [d['end']   for d in wc_data.values() if d['end']]
+            horizon_start = min(starts) if starts else min_dt
+            horizon_end   = max(ends)   if ends   else min_dt
+            avail_cache = {}
+            company_cal = self.env.company.resource_calendar_id
             wc_vals = []
             for wc_id, data in sorted(wc_data.items(), key=lambda x: x[1]['start'] or datetime.min):
                 avail_h = 0.0
-                if data['start'] and data['end']:
-                    wc  = self.env['mrp.workcenter'].browse(wc_id)
-                    cal = wc.resource_calendar_id
+                if horizon_end > horizon_start:
+                    # Fallback al calendario de empresa si el CT no tiene uno propio
+                    # (fix M5): sin esto un CT sin calendario daba disponible=0 →
+                    # ocupación 0% en verde, ocultando su carga real.
+                    cal = (self.env['mrp.workcenter'].browse(wc_id).resource_calendar_id
+                           or company_cal)
                     if cal:
-                        avail_h = cal._planner_available_hours(data['start'], data['end']) or 0.0
+                        avail_h = cal._planner_available_hours(
+                            horizon_start, horizon_end, cache=avail_cache) or 0.0
                 planned_h = round(data['hours'], 2)
+                if avail_h > 0:
+                    occ = round(planned_h / avail_h * 100)
+                else:
+                    # Sin disponibilidad calculable: si igual hay carga, marcar alerta
+                    # (999%) en vez de 0% verde para no ocultar la sobrecarga.
+                    occ = 999 if planned_h > 0 else 0
                 wc_vals.append({
                     'request_id':      self.id,
                     'workcenter_id':   wc_id,
                     'total_hours':     planned_h,
                     'available_hours': round(avail_h, 2),
-                    'occupancy_pct':   round(planned_h / avail_h * 100) if avail_h > 0 else 0,
+                    'occupancy_pct':   occ,
                     'date_start':      data['start'],
                     'date_end':        data['end'],
                 })
@@ -423,6 +455,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
 
         created_ids = []
         mother_mos = self.env['mrp.production']
+        plan_failures = []  # nombres de OFs que no se pudieron planificar (fix #8)
 
         for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
             root_lines = self.line_ids.filtered(
@@ -443,17 +476,25 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                     date_start = line.new_date_start + delta
 
                 mo_vals = {
+                    # Propagar la empresa de la solicitud (fix #4): sin esto la OF
+                    # nace en la empresa activa del usuario y, en multicompañía, las
+                    # hijas y movimientos salen en ubicaciones equivocadas.
+                    'company_id':    self.company_id.id,
+                    'origin':        self.name,  # trazabilidad y detección de hijas
                     'product_id':    line.product_id.id,
                     'product_qty':   line.product_qty,
                     'date_start':    date_start,
-                    'date_finished': target_finish,
+                    # date_deadline = compromiso comercial (fin deseado). date_finished
+                    # lo deriva Odoo desde las OTs tras button_plan; no lo pisamos a
+                    # mano para no descolgar la OF de sus OTs (fix #7).
+                    'date_deadline': target_finish,
                 }
                 if line.bom_id:
                     mo_vals['bom_id'] = line.bom_id.id
                 if self.picking_type_id:
                     mo_vals['picking_type_id'] = self.picking_type_id.id
 
-                mo = self.env['mrp.production'].create(mo_vals)
+                mo = self.env['mrp.production'].with_company(self.company_id).create(mo_vals)
                 mo.action_confirm()
                 if mo.workorder_ids:
                     try:
@@ -463,8 +504,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                             'MRP Reschedule: no se pudo planificar WOs de %s: %s',
                             mo.name, e,
                         )
-                # button_plan() puede sobreescribir date_finished; restauramos.
-                if target_finish:
+                        plan_failures.append(mo.name or line.product_id.display_name)
+                elif target_finish:
+                    # Sin ruta/OTs no hay plan de OT que respetar: fijamos el fin
+                    # deseado directamente (no hay incoherencia posible).
                     mo.write({'date_finished': target_finish})
                 item.write({'production_id': mo.id})
                 created_ids.append(mo.id)
@@ -476,7 +519,15 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         # Planificar recursivamente todas las OFs hijas generadas por Odoo
         planned = set(created_ids)
         for mo in mother_mos:
-            self._plan_child_mos(mo, planned)
+            self._plan_child_mos(mo, planned, failures=plan_failures)
+
+        # Avisar en el chatter si alguna OF quedó confirmada pero sin planificar,
+        # en vez de solo loguear un warning que el usuario no ve (fix #8).
+        if plan_failures:
+            self.message_post(body=_(
+                'Se crearon las OFs, pero las siguientes quedaron confirmadas SIN '
+                'planificar (revisar carga/calendarios de sus centros de trabajo):'
+            ) + '<br/>' + '<br/>'.join('• %s' % n for n in plan_failures))
 
         self.state = 'confirmed'
 
@@ -516,6 +567,10 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 self.env, 'mrp.production', [mo.name],
                 [('id', '!=', mo.id),
                  ('id', 'not in', list(planned)),
+                 # Acotar a la empresa de la madre (fix #4): sin este filtro el
+                 # match por origin podía cruzar OFs de otras solicitudes/empresas
+                 # con el mismo nombre y pisarles fechas o confirmarlas.
+                 ('company_id', '=', mo.company_id.id),
                  ('state', 'not in', ('done', 'cancel'))],
             )
             via_origin = matches.get(mo.name, self.env['mrp.production'])
@@ -524,7 +579,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             lambda m: m.state not in ('done', 'cancel')
         )
 
-    def _plan_child_mos(self, mo, planned, depth=0):
+    def _plan_child_mos(self, mo, planned, depth=0, failures=None):
         """Navega recursivamente el árbol de OFs hijas y planifica cada una.
 
         Llama button_plan() en cada OF hija y propaga las fechas hacia atrás:
@@ -535,8 +590,19 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         :param mo: mrp.production — OF padre desde la que se navega hacia abajo.
         :param planned: set[int] — IDs ya procesados; se modifica en-place.
         :param depth: int — profundidad actual de recursión (protección ante ciclos).
+        :param failures: list | None — acumulador de nombres de OFs que no se
+                         pudieron confirmar/planificar, para reportarlas (fix #8).
         """
-        if depth > 15:  # Límite de seguridad ante árboles de LdM extraordinariamente profundos
+        # Límite de seguridad ante árboles de LdM extraordinariamente profundos. Se
+        # avisa en vez de cortar en silencio: el plan sí muestra esos niveles y una
+        # hija sin planificar es un dato relevante para el usuario (fix M7).
+        if depth > 30:
+            _logger.warning(
+                'MRP Reschedule: profundidad %s excedida en %s; hijas más profundas sin planificar',
+                depth, mo.name,
+            )
+            if failures is not None:
+                failures.append(_('%s (árbol demasiado profundo)') % (mo.name or ''))
             return
 
         child_mos = self._find_child_mos(mo, planned)
@@ -555,34 +621,41 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                         'MRP Reschedule: no se pudo confirmar OF hija %s: %s',
                         child.name, e,
                     )
+                    if failures is not None:
+                        failures.append(child.name or child.product_id.display_name)
                     continue
 
             if child.workorder_ids:
                 try:
-                    # Primera pasada: obtener duración real del scheduling
+                    # ALAP en tiempo hábil: ubicar el inicio para que la hija termine
+                    # ~cuando la madre la consume (parent_deadline), a partir de la
+                    # duración esperada de las OTs y el calendario del CT. Antes se
+                    # hacían DOS button_plan (uno solo para medir la duración real);
+                    # ahora la duración se estima sin planificar y se hace un único
+                    # button_plan (fix M3). date_finished lo deriva Odoo de las OTs,
+                    # sin pisarlo a mano (fix #7).
+                    if parent_deadline:
+                        dur_min = sum(child.workorder_ids.mapped('duration_expected')) or 0.0
+                        if dur_min:
+                            wc  = child.workorder_ids[:1].workcenter_id
+                            cal = wc.resource_calendar_id or self.env.company.resource_calendar_id
+                            target_start, _dummy = self._schedule_duration_backward(
+                                cal, parent_deadline, dur_min / 60.0)
+                            # No programar en el pasado si el deadline no es alcanzable.
+                            target_start = max(target_start, fields.Datetime.now())
+                            child.write({'date_start':    target_start,
+                                         'date_deadline': parent_deadline})
                     child.button_plan()
-
-                    if (parent_deadline and child.date_start and child.date_finished
-                            and child.date_finished < parent_deadline):
-                        # Hay margen: desplazar para que la hija termine justo
-                        # cuando la madre la necesita
-                        duration = child.date_finished - child.date_start
-                        target_finish = parent_deadline
-                        target_start  = target_finish - duration
-                        child.write({'date_start': target_start,
-                                     'date_finished': target_finish})
-                        # Segunda pasada: replanificar OTs desde el nuevo inicio
-                        child.button_plan()
-                        # button_plan puede volver a pisar date_finished; restaurar
-                        child.write({'date_finished': target_finish})
 
                 except Exception as e:
                     _logger.warning(
                         'MRP Reschedule: no se pudo planificar WOs de OF hija %s: %s',
                         child.name, e,
                     )
+                    if failures is not None:
+                        failures.append(child.name or child.product_id.display_name)
 
-            self._plan_child_mos(child, planned, depth + 1)
+            self._plan_child_mos(child, planned, depth + 1, failures=failures)
 
     def action_plan_all_mos(self):
         """Botón 'Planificar OFs': llama button_plan() en todas las OFs del árbol
@@ -590,6 +663,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         o reforzar la planificación luego de cambios.
         """
         self.ensure_one()
+        self._ensure_scheduling_group()
         mother_mos = self.item_ids.mapped('production_id').filtered(
             lambda m: m and m.state not in ('done', 'cancel')
         )
@@ -597,6 +671,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             return
 
         planned = set()
+        plan_failures = []
         for mo in mother_mos:
             planned.add(mo.id)
             if mo.workorder_ids:
@@ -606,4 +681,11 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                     _logger.warning(
                         'MRP Reschedule: no se pudo planificar %s: %s', mo.name, e,
                     )
-            self._plan_child_mos(mo, planned)
+                    plan_failures.append(mo.name or mo.product_id.display_name)
+            self._plan_child_mos(mo, planned, failures=plan_failures)
+
+        if plan_failures:
+            self.message_post(body=_(
+                'Replanificación: las siguientes OFs no se pudieron planificar '
+                '(revisar carga/calendarios de sus centros de trabajo):'
+            ) + '<br/>' + '<br/>'.join('• %s' % n for n in plan_failures))

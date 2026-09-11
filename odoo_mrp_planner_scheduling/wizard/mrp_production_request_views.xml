@@ -52,14 +52,14 @@
                             type="object"
                             string="Crear órdenes de fabricación"
                             class="btn-primary"
-                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
+                            groups="odoo_mrp_planner_scheduling.group_scheduling,odoo_mrp_planner.group_admin,base.group_system"
                             invisible="state != 'calculated'"
                             confirm="Se crearán las OFs madre. Odoo generará automáticamente las órdenes hijas y de compra según las rutas de cada producto. ¿Continuar?"/>
                     <button name="action_plan_all_mos"
                             type="object"
                             string="Planificar OFs"
                             class="btn-secondary"
-                            groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_admin,base.group_system"
+                            groups="odoo_mrp_planner_scheduling.group_scheduling,odoo_mrp_planner.group_admin,base.group_system"
                             invisible="state != 'confirmed'"
                             confirm="Se recalcularán las fechas de todos los centros de trabajo para las OFs de este plan (madres e hijas). ¿Continuar?"/>
                     <field name="state" widget="statusbar"
@@ -254,6 +254,9 @@
                                            readonly="record_type != 'mrp'"/>
                                     <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
+                                    <field name="bom_id"            string="LdM"           readonly="1"
+                                           optional="show"
+                                           column_invisible="parent.state == 'draft'"/>
                                     <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
                                            optional="hide"
                                            widget="badge"
@@ -315,6 +318,9 @@
                                            readonly="record_type != 'mrp'"/>
                                     <field name="workcenter_chain"  string="Ruta de CTs"   readonly="1"
                                            optional="show"/>
+                                    <field name="bom_id"            string="LdM"           readonly="1"
+                                           optional="show"
+                                           column_invisible="parent.state == 'draft'"/>
                                     <field name="suggestion_state"  string="Sugerencia CT" readonly="1"
                                            optional="hide"
                                            widget="badge"

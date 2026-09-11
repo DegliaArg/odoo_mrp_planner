@@ -68,6 +68,17 @@ class MrpRescheduleConfig(models.Model):
         help='Tipo de operación de fabricación que se preselecciona al crear una nueva Programación de fabricación.',
     )
 
+    default_of_hours = fields.Float(
+        string='Horas por OF sin ruta', default=8.0,
+        help='Duración estimada (horas) que asume el motor para una OF cuya LdM no '
+             'define operaciones/ruta. 0 usa el valor por defecto (8 h).',
+    )
+    default_op_minutes = fields.Float(
+        string='Minutos por operación sin tiempo', default=60.0,
+        help='Duración mínima (minutos) que asume el motor para una operación de LdM '
+             'sin tiempo de ciclo ni setup configurados. 0 usa el valor por defecto (60 min).',
+    )
+
     board_hidden_weekdays = fields.Char(
         string='Días ocultos del tablero',
         default='5,6',

@@ -129,18 +129,13 @@ class MrpProductionRequestItem(models.Model):
                 item.qty_delta    = 0.0
                 continue
             if mo.state == 'done':
-                try:
-                    done = mo.move_finished_ids.filtered(
-                        lambda m: m.state == 'done' and m.product_id == mo.product_id
-                    )
-                    qty = sum(
-                        # 'quantity' existe en Odoo 17+; 'quantity_done' en versiones anteriores
-                        getattr(m, 'quantity', None) or getattr(m, 'quantity_done', 0.0)
-                        for m in done
-                    ) if done else mo.product_qty
-                except Exception:
-                    qty = mo.product_qty
-                item.qty_produced = qty
+                # stock.move.quantity es el campo estándar en Odoo 18 (reemplazó a
+                # quantity_done). Se usa directamente, sin except que enmascare
+                # errores reales de acceso/API (fix M6).
+                done = mo.move_finished_ids.filtered(
+                    lambda m: m.state == 'done' and m.product_id == mo.product_id
+                )
+                item.qty_produced = sum(done.mapped('quantity')) if done else mo.product_qty
             else:
                 item.qty_produced = mo.qty_producing or 0.0
             item.qty_delta = item.qty_produced - item.product_qty

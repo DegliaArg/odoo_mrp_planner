@@ -468,6 +468,16 @@
     border-radius: 3px;
 }
 
+/* Hueco NO confiable: el CT tiene carga sin planificar (no reserva franja), así
+   que ese "libre" puede ser falso. Ámbar rayado en vez de verde confiado, para
+   que "libre verificado" ≠ "libre porque falta planificar". */
+.sm-gap-unreliable {
+    background: repeating-linear-gradient(45deg,
+        rgba(217, 155, 28, 0.10), rgba(217, 155, 28, 0.10) 5px,
+        rgba(217, 155, 28, 0.24) 5px, rgba(217, 155, 28, 0.24) 10px) !important;
+    border: 1px dashed rgba(217, 155, 28, 0.65) !important;
+}
+
 /* ── Capacidad ocupada por otras OTs firmes (modo propuesta): banda roja ── */
 /* Detrás de las barras (z-index 1, igual que los huecos): "acá ya hay carga". */
 .sm-busy {
@@ -491,6 +501,11 @@
 }
 .sm-legend-gapsw { background: rgba(29, 158, 117, 0.10); border: 1px dashed rgba(29, 158, 117, 0.6); }
 .sm-legend-busysw { background: rgba(214, 69, 69, 0.14); border: 1px solid rgba(214, 69, 69, 0.5); }
+.sm-legend-gapunsw {
+    border: 1px dashed rgba(217, 155, 28, 0.65);
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 3px,
+        rgba(217, 155, 28, 0.35) 3px, rgba(217, 155, 28, 0.35) 6px);
+}
 
 /* ── Filas de OC / proveedor (modo propuesta) ── */
 .sm-row-purchase          { background: #f5f3ff; }

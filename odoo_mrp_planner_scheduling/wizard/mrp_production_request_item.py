@@ -183,7 +183,12 @@ class MrpProductionRequestItem(models.Model):
                 d, h = int(secs // 86400), int((secs % 86400) // 3600)  # 86400 = segundos en un día
                 item.feasible = False
                 delta = f'{d}d {h}h' if d else f'{h}h'
-                item.feasibility_msg = _('Atraso estimado: %s') % delta
+                # Cuando no llega al plazo, el motor no puede pegar al deadline
+                # (ALAP) y programa lo antes posible. Se explicita para que no se
+                # lea como "quedó tarde a propósito".
+                item.feasibility_msg = _(
+                    'Atraso %s — no llega al plazo; se programó lo antes posible'
+                ) % delta
 
     def action_adelantar(self):
         """

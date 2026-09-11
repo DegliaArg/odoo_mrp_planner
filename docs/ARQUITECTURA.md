@@ -73,7 +73,7 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 | Modelo | Archivo | Responsabilidad | Se relaciona con |
 |--------|---------|-----------------|-----------------|
 | `mrp.demand.expansion.mixin` | `wizard/mrp_demand_expansion_mixin.py` | AbstractModel: expansión de BOM multinivel (_find_bom, _build_demand_tree, evaluación de ruta/WC por componente) | `mrp.bom`, `product.template` |
-| `mrp.demand.scheduling.mixin` | `wizard/mrp_demand_scheduling_mixin.py` | AbstractModel: scheduling de fechas contra calendario (_schedule_tree, _get_wc_anchors_multi, _forward/_backward_schedule_days) | `resource.calendar`, `mrp.workcenter` |
+| `mrp.demand.scheduling.mixin` | `wizard/mrp_demand_scheduling_mixin.py` | AbstractModel: scheduling de **capacidad finita** contra calendario. Agenda por CT (`_get_wc_busy_multi`: intervalos ocupados por centro — NO un ancla único); colocación de cada operación en el **primer/último hueco real** (`_place_ops` + `_schedule_in_gaps` / `_schedule_backward_in_gaps`); dirección **ALAP/ASAP**. (`_schedule_tree`, `_collect_lines`) | `resource.calendar`, `mrp.workcenter` |
 | `mrp.production.request` | `wizard/mrp_production_request.py` | Solicitud de programación: CRUD, actions, creación de OFs. Hereda ambos mixins. | Ambos mixins, `mrp.production.request.item`, `mrp.production` |
 | `mrp.production.request.item` | `wizard/mrp_production_request_item.py` | Artículo dentro de una solicitud (producto + cantidad + fecha límite) | `mrp.production.request` |
 | `mrp.production.request.line` / `.wc` | `wizard/mrp_production_request_line.py` | Líneas del plan calculado (OF/OC/Stock) y carga por WC | `mrp.production.request` |
@@ -182,25 +182,37 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 
 ### 1. Programación desde demanda
 
+Modelo: **capacidad finita**. Cada CT tiene una AGENDA (fila de intervalos que no
+se solapan, capacidad 1); el motor busca el primer/último HUECO real, no apila
+detrás de la cola. La carga firme existente ocupa la agenda pero no se dibuja como
+barra (las OTs sin fecha —button_plan sin correr— NO reservan franja: la ocupación
+es un piso, señalado con "≥").
+
 ```
 Usuario abre wizard → mrp.production.request (request.py)
   │
-  ├── action_calculate()
-  │     ├── MrpDemandExpansionMixin._build_demand_tree()   [expansion_mixin.py]
-  │     │     ├── _find_bom()  →  mrp.bom
-  │     │     ├── _get_supply_method()  →  decide OF / OC / subcontrato / stock
-  │     │     └── recursión por cada componente hasta MAX_DEPTH
-  │     │
-  │     └── MrpDemandSchedulingMixin._schedule_tree()      [scheduling_mixin.py]
-  │           ├── _get_wc_anchors_multi()  →  resource.calendar
-  │           ├── _forward_schedule_days() / _backward_schedule_days()
-  │           └── produce árbol de nodos con fechas calculadas
+  ├── action_calculate()                       [PERSISTE el plan]
+  │     └── _build_and_schedule(overrides)      [núcleo PURO, no escribe DB]
+  │           ├── MrpDemandExpansionMixin._build_demand_tree()   [expansion_mixin.py]
+  │           │     ├── _find_bom()  →  mrp.bom
+  │           │     ├── _get_supply_method()  →  OF / OC / subcontrato / stock
+  │           │     └── recursión por componente hasta MAX_DEPTH
+  │           ├── _apply_wc_overrides()  →  aplica los pines de CT (pin & re-solve)
+  │           ├── _get_wc_busy_multi()   →  AGENDA por CT (intervalos ocupados)
+  │           └── _place_ops() por OF          [scheduling_mixin.py]
+  │                 ├── elige CT (primario/alternativo) por HUECO real en su agenda
+  │                 ├── _schedule_in_gaps (ASAP) / _schedule_backward_in_gaps (ALAP)
+  │                 └── inserta el intervalo elegido → lo bloquea para las siguientes
+  │     └── _collect_lines()  →  escribe mrp.production.request.line[.op] / .wc
   │
-  ├── _collect_lines()  →  escribe mrp.production.request.line / .wc
+  ├── scheduling_direction (config global + override por solicitud): ALAP | ASAP
+  ├── simulate_reassign_options() / propose_optimizations()  →  preview de impacto
+  │     antes→después + sugerencias, rankeadas por criterios CONFIGURABLES
+  │     (cascada lexicográfica: atraso → makespan → carga pico, editable)
   │
   └── action_confirm()
-        ├── Crea mrp.production (OFs madre)
-        └── _plan_child_mos()  →  planifica OFs hijas recursivamente
+        ├── Crea mrp.production (OFs madre) + button_plan()  →  nacen planificadas
+        └── _plan_child_mos()  →  crea/planifica OFs hijas recursivamente
 ```
 
 ### 2. Reprogramación en cascada

@@ -516,3 +516,28 @@
     .sm-root { --sm-ct-w: 140px; }
     .sm-filter-btn { max-width: 120px; }
 }
+
+/* ── Chatter SIEMPRE abajo (a todo el ancho) en el form de programación ──
+   El .o_form_renderer alterna flex-column (angosto → chatter abajo) / flex-row
+   (ancho → chatter al costado). Acá lo forzamos a columna siempre, con el chatter
+   a todo el ancho, para que el Gantt use todo el ancho. Se apunta al PROPIO
+   renderer (la clase del <form> puede caer en él o en un ancestro — se cubren
+   ambos), NO a un ancestro cualquiera: eso fue lo que colapsó el form antes.
+   El sheet se protege (width 100% + min-height 0) para que no se colapse al
+   pasar a columna. */
+.o_mrp_planner_request_form.o_form_renderer,
+.o_mrp_planner_request_form .o_form_renderer {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+}
+.o_mrp_planner_request_form .o_form_sheet_bg {
+    width: 100% !important;
+    min-height: 0 !important;
+}
+.o_mrp_planner_request_form .o-mail-Form-chatter {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    border-inline-start: 0 !important;
+}

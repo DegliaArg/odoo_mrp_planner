@@ -205,3 +205,55 @@ class MrpScheduleMixin(models.AbstractModel):
 
         _logger.warning('MRP Reschedule: sin slot backward en 365 días (%s)', calendar.name)
         return (before_dt - timedelta(hours=duration_hours), before_dt)
+
+    # ── Búsqueda de hueco en una agenda de CT (capacidad finita = 1) ──────────
+
+    def _schedule_in_gaps(self, calendar, not_before, duration_hours, busy):
+        """Coloca duration_hours hábiles en el PRIMER hueco del CT en/después de not_before.
+
+        Compone `_schedule_duration` (que respeta el calendario laboral) con la
+        lista de intervalos ocupados `busy` del centro (capacidad 1). Si el bloque
+        colocado solapa un intervalo ocupado, reintenta a partir del fin de ese
+        intervalo — así la OT cae en el primer hueco real, en vez de apilarse
+        siempre detrás de lo último (que era la ceguera del modelo de un solo
+        ancla). El solape usa desigualdad estricta: dos intervalos que se TOCAN
+        (fin == inicio) no compiten por la máquina.
+
+        :param calendar: resource.calendar — calendario del CT (o de empresa).
+        :param not_before: datetime — piso duro; nada arranca antes (UTC naive).
+        :param duration_hours: float — horas hábiles a colocar.
+        :param busy: list[(start, end)] — intervalos ocupados del CT, ordenados por inicio.
+        :returns: tuple(datetime, datetime) — (start, end) del hueco elegido (UTC naive).
+        """
+        lb = not_before
+        # A lo sumo tantas vueltas como intervalos: cada reintento salta uno.
+        for _ in range(len(busy) + 2):
+            cs, ce = self._schedule_duration(calendar, lb, duration_hours)
+            conflict = next(((bs, be) for bs, be in busy if bs < ce and be > cs), None)
+            if conflict is None:
+                return cs, ce
+            lb = conflict[1]   # arrancar después de lo que estorba
+        return self._schedule_duration(calendar, lb, duration_hours)
+
+    def _schedule_backward_in_gaps(self, calendar, not_after, duration_hours, busy):
+        """Coloca duration_hours hábiles en el hueco MÁS TARDÍO que termine en/antes
+        de not_after. Versión hacia atrás de `_schedule_in_gaps` (política ALAP).
+
+        Ante un solape, retrocede el techo al INICIO del intervalo que estorba
+        (recorre `busy` de más tardío a más temprano para hallar el conflicto de
+        mayor inicio). Pega la OT al deadline sin pisar carga existente.
+
+        :param calendar: resource.calendar — calendario del CT (o de empresa).
+        :param not_after: datetime — techo; nada termina después (UTC naive).
+        :param duration_hours: float — horas hábiles a colocar.
+        :param busy: list[(start, end)] — intervalos ocupados del CT, ordenados por inicio.
+        :returns: tuple(datetime, datetime) — (start, end) del hueco elegido (UTC naive).
+        """
+        ub = not_after
+        for _ in range(len(busy) + 2):
+            cs, ce = self._schedule_duration_backward(calendar, ub, duration_hours)
+            conflict = next(((bs, be) for bs, be in reversed(busy) if bs < ce and be > cs), None)
+            if conflict is None:
+                return cs, ce
+            ub = conflict[0]   # terminar antes del inicio de lo que estorba
+        return self._schedule_duration_backward(calendar, ub, duration_hours)

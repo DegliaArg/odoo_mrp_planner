@@ -152,31 +152,29 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
     # ── Anclas de WC ─────────────────────────────────────────────────────────
 
-    def _get_wc_anchors_multi(self, start, roots):
-        """Construye el diccionario de anclas de WC a partir de la carga REALMENTE
-        planificada en Odoo.
+    def _get_wc_busy_multi(self, start, roots):
+        """Construye la AGENDA de cada CT: la lista de intervalos (inicio, fin)
+        ocupados por la carga REALMENTE planificada en Odoo, ordenados y fusionados.
 
-        Para cada WC referenciado en los árboles, toma la fecha fin más tardía de
-        las órdenes de trabajo ya planificadas (con date_start y date_finished
-        seteados) que terminan en/después de `start`. Esto permite que la nueva
-        programación se apile detrás de la carga existente sin solaparse.
+        Reemplaza al modelo de "un solo ancla por CT" (el fin de lo último). Con la
+        agenda completa el motor ve los HUECOS entre trabajos y puede calzar una OT
+        nueva en un hueco temprano en vez de apilarla siempre al final (capacidad
+        finita = 1 máquina por CT).
 
         IMPORTANTE (fix backlog): las OTs sin planificar (date_start/date_finished
-        en NULL) NO cuentan como ancla. Antes se estimaba su fin con
-        `mo.date_start + duración`, de modo que cientos de OTs abiertas sin planificar
-        empujaban el ancla meses hacia adelante y todo pedido daba "atraso". Un
-        backlog no planificado no ocupa una franja concreta del CT, así que no
-        genera ancla.
+        en NULL) NO ocupan agenda. Un backlog no planificado no toma una franja
+        concreta del CT, así que no genera intervalo (si contara, empujaría todo a
+        "atraso").
 
         :param start: datetime — piso temporal (UTC naive). Solo se consideran OTs
                       que terminan en/después de esta fecha.
         :param roots: list[dict] — lista de nodos raíz de los árboles de demanda.
-        :returns: dict — {workcenter_id: datetime} con la fecha fin más tardía por WC.
+        :returns: dict — {workcenter_id: [(start, end), ...]} ordenado y sin solapes.
         """
         wc_ids = set()
 
         def _collect(node):
-            # Todos los candidatos (primario + alternativos): sin su ancla real, un
+            # Todos los candidatos (primario + alternativos): sin su agenda real, un
             # alternativo sin carga parecería siempre libre y ganaría mal el reparto.
             for _primary, candidates, _dur in node['operations']:
                 for wc in candidates:
@@ -189,11 +187,10 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         if not wc_ids:
             return {}
 
-        # Un único _read_group con max(date_finished) por CT en lugar de recorrer
-        # cada MO/WO (evita el N+1 del punto #9 en las anclas). Solo OTs planificadas
-        # (fechas seteadas), aún vivas (no done/cancel) y que terminan >= start.
-        anchors = {}
-        groups = self.env['mrp.workorder']._read_group(
+        # Un único search_read de los intervalos (no un max agregado): necesitamos
+        # DÓNDE está cada trabajo, no solo el fin de la cola. Solo OTs planificadas
+        # (fechas seteadas), vivas (no done/cancel) y que terminan >= start.
+        wos = self.env['mrp.workorder'].search_read(
             [
                 ('workcenter_id', 'in', list(wc_ids)),
                 ('state', 'not in', ('done', 'cancel')),
@@ -201,39 +198,63 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 ('date_finished', '!=', False),
                 ('date_finished', '>=', start),
             ],
-            groupby=['workcenter_id'],
-            aggregates=['date_finished:max'],
+            ['workcenter_id', 'date_start', 'date_finished'],
         )
-        for wc, max_finish in groups:
-            if wc and max_finish:
-                anchors[wc.id] = max_finish
-        return anchors
+        busy = {}
+        for wo in wos:
+            wc = wo['workcenter_id']
+            wc_id = wc[0] if wc else None
+            ds, df = wo['date_start'], wo['date_finished']
+            if not wc_id or not ds or not df or df <= ds:
+                continue
+            busy.setdefault(wc_id, []).append((ds, df))
+
+        # Ordenar por inicio y fusionar solapes. Con capacidad 1 no deberían
+        # solaparse, pero se fusiona por robustez (datos históricos inconsistentes).
+        for wc_id, ivs in busy.items():
+            ivs.sort(key=lambda iv: iv[0])
+            merged = []
+            for s, e in ivs:
+                if merged and s <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+                else:
+                    merged.append((s, e))
+            busy[wc_id] = merged
+        return busy
 
     # ── Programación del árbol ────────────────────────────────────────────────
 
-    def _schedule_tree(self, node, start, wc_anchors, min_dt=None, target_end=None, wc_collector=None):
+    def _schedule_tree(self, node, start, wc_busy, min_dt=None, target_end=None,
+                       wc_collector=None, direction='alap'):
         """Programa los nodos OF del árbol en orden bottom-up (primero las hojas).
+
+        Cada operación (OT) se calza en un HUECO real de la agenda de su centro
+        (capacidad finita = 1), no apilada detrás de lo último. La OF hereda sus
+        fechas de las OTs: scheduled_start = inicio de la 1ª OT, scheduled_end =
+        fin de la última.
 
         Los nodos OC/Subcont./compra se resuelven en un post-paso: su fecha de
         inicio se calcula retrocediendo lead_days desde el inicio de la OF padre.
         Los nodos stock son hojas sin fechas propias.
 
-        La fecha de inicio de cada nodo OF respeta:
+        La fecha de inicio de cada nodo OF respeta como PISO DURO (after_dt):
         - El fin del último hijo OF ya programado (dependencia de materiales).
-        - El ancla actual del WC (carga existente más trabajos anteriores en este plan).
         - min_dt: piso global (no se puede programar antes de hoy).
-        - Para hijos OC/Subcont.: se pushea after_dt para que la fecha de pedido
-          no caiga antes de min_dt (no se puede pedir en el pasado).
-        - target_end (JIT/ALAP): si se provee, el nodo se retrasa para terminar lo
-          más cerca posible de target_end en lugar de iniciar lo antes posible.
-          Si el resultado de retroceder desde target_end es anterior al ASAP, se usa
-          el ASAP (la fecha no es alcanzable y se usa el inicio mínimo posible).
+        - Para hijos OC/Subcont.: min_dt + lead_days (no se puede pedir en el pasado).
+
+        La DIRECCIÓN define cómo se calza dentro de la agenda del CT:
+        - 'alap': cada OT en el hueco más tardío que cumpla target_end (no adelanta
+          producción). Si el deadline no es alcanzable, cae a 'asap' desde el piso.
+        - 'asap': cada OT en el primer hueco disponible (empaqueta temprano).
 
         :param node: dict — nodo del árbol de demanda (se modifica en-place).
         :param start: datetime — fecha mínima de inicio para este nodo.
-        :param wc_anchors: dict — {wc_id: datetime} anclas compartidas entre artículos.
+        :param wc_busy: dict — {wc_id: [(start, end), ...]} agenda compartida entre
+                        artículos; cada OT calzada inserta su intervalo aquí.
         :param min_dt: datetime | None — piso temporal global (normalmente hoy UTC midnight).
-        :param target_end: datetime | None — fecha objetivo de fin para scheduling JIT/ALAP.
+        :param target_end: datetime | None — fecha objetivo de fin (deadline) del nodo.
+        :param wc_collector: dict | None — acumulador de carga por CT para el resumen.
+        :param direction: str — 'alap' | 'asap' (política de colocación).
         """
         leaf_types = ('purchase', 'subcontract', 'buy', 'stock')
         if node.get('type') in leaf_types:
@@ -241,13 +262,11 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
 
         company_calendar = self.env.company.resource_calendar_id
 
-        # JIT/ALAP: si hay deadline, calcular el inicio deseado de este nodo
-        # retrocediendo su duración total desde target_end. Ese inicio cumple doble
-        # función:
-        #   1. es la fecha objetivo de FIN de las hijas (back-chaining real: la hija
-        #      debe estar lista justo cuando la madre empieza a consumirla), y
-        #   2. es el inicio deseado de esta OF (ALAP).
-        # Solo se calcula acá una vez y se reutiliza en ambos usos.
+        # Estimación del inicio de este nodo (retrocediendo su duración total desde
+        # target_end): es la fecha objetivo de FIN de las hijas (back-chaining real,
+        # la hija debe estar lista cuando la madre la consume). Se usa SOLO para
+        # propagar a las hijas; la colocación ALAP real de este nodo la hace
+        # _place_ops op por op. En 'asap' las hijas la ignoran y empaquetan temprano.
         jit_start = None
         if target_end:
             total_dur = sum(dur_h for _, _, dur_h in node['operations'])
@@ -260,15 +279,12 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 )
                 jit_start, _ = self._schedule_duration_backward(cal_bwd, target_end, total_dur)
 
-        # Programar hijas manufacture. Se les propaga jit_start como target_end para
-        # que se retrasen (ALAP) hasta terminar cuando esta OF las necesita, en vez
-        # de fabricarse lo antes posible y quedar como WIP parado ocupando anclas de
-        # CT antes de tiempo (fix #6: antes el JIT solo aplicaba en la raíz).
         children_end = start
         for child in node['children']:
             if child.get('type') not in leaf_types:
-                self._schedule_tree(child, start, wc_anchors, min_dt=min_dt,
-                                    target_end=jit_start, wc_collector=wc_collector)
+                self._schedule_tree(child, start, wc_busy, min_dt=min_dt,
+                                    target_end=jit_start, wc_collector=wc_collector,
+                                    direction=direction)
                 if child['scheduled_end']:
                     children_end = max(children_end, child['scheduled_end'])
 
@@ -286,62 +302,21 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                     earliest_mo_start = self._forward_schedule_days(cal, min_dt, lead)
                     after_dt = max(after_dt, earliest_mo_start)
 
-        # JIT/ALAP de ESTE nodo: retrasar el inicio hacia jit_start si es posible.
-        # Solo se aplica si es posterior al ASAP (nunca adelantamos; si la fecha no
-        # es alcanzable, jit_start < after_dt y se usa el inicio mínimo posible).
-        if jit_start and jit_start > after_dt:
-            after_dt = jit_start
-
-        # Inicio mínimo legal de esta OF: reúne los límites DUROS (fin de hijas,
-        # min_dt global y leads de proveedor), pero NO el ancla de CT (que es
-        # blanda: reprogramable). Es el límite izquierdo de la máscara de arrastre.
+        # Piso duro de esta OF (fin de hijas, min_dt global y leads de proveedor).
+        # NO incluye la carga de CT (que es blanda: la resuelven los huecos).
         node['min_start'] = after_dt
 
-        node_start = None
-        current    = after_dt
-        node['scheduled_ops'] = []
-
-        for primary, candidates, dur_h in node['operations']:
-            if not candidates:
-                # Operación sin centro: calendario de empresa, ancla wc_id=0.
-                earliest = max(current, wc_anchors.get(0, after_dt))
-                wo_start, wo_end = self._schedule_duration(company_calendar, earliest, dur_h)
-                wc_anchors[0] = wo_end
-                chosen, is_primary = None, True
-            else:
-                # Elegir el candidato que TERMINA más temprano (el que quede libre
-                # antes). El primario va primero → gana los empates (no reasigna sin
-                # motivo). Cada candidato usa su propio calendario y su ancla real.
-                best = None
-                for cand in candidates:
-                    cal = cand.resource_calendar_id or company_calendar
-                    earliest = max(current, wc_anchors.get(cand.id, after_dt))
-                    cs, ce = self._schedule_duration(cal, earliest, dur_h)
-                    if best is None or ce < best[1]:
-                        best = (cs, ce, cand)
-                wo_start, wo_end, chosen = best
-                is_primary = bool(primary) and chosen.id == primary.id
-                wc_anchors[chosen.id] = wo_end
-
-            node['scheduled_ops'].append({
-                'wc': chosen, 'is_primary': is_primary,
-                'primary_wc': primary,  # CT primario de la operación según la ruta
-                'dur': dur_h, 'start': wo_start, 'end': wo_end,
-            })
-            if wc_collector is not None and chosen:
-                c = wc_collector.setdefault(chosen.id, {'hours': 0.0, 'start': None, 'end': None})
-                c['hours'] += dur_h
-                c['start'] = min(c['start'], wo_start) if c['start'] else wo_start
-                c['end']   = max(c['end'], wo_end) if c['end'] else wo_end
-            if node_start is None:
-                node_start = wo_start
-            current = wo_end
-
+        # Colocación de las operaciones en la agenda de cada CT: elige centro
+        # (primario o alternativo) buscando el mejor hueco, según la dirección.
+        scheduled_ops, node_start, node_end = self._place_ops(
+            node['operations'], after_dt, target_end, direction,
+            wc_busy, wc_collector, company_calendar,
+        )
+        node['scheduled_ops']   = scheduled_ops
         node['scheduled_start'] = node_start
-        node['scheduled_end']   = current
+        node['scheduled_end']   = node_end
 
         # Backward schedule OC/Subcont./compra desde el inicio de la OF.
-        # Gracias al push forward de after_dt, la fecha de pedido siempre cae >= min_dt.
         for child in node['children']:
             if child.get('type') in ('purchase', 'subcontract', 'buy') and node_start:
                 lead = child.get('lead_days', 7)
@@ -349,6 +324,116 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 child['scheduled_end']   = node_start
                 raw_start = self._backward_schedule_days(cal, node_start, lead)
                 child['scheduled_start'] = max(raw_start, min_dt) if min_dt else raw_start
+
+    def _place_ops(self, operations, after_dt, target_end, direction,
+                   wc_busy, wc_collector, company_calendar):
+        """Coloca las operaciones (OTs) de una OF en la agenda de sus centros.
+
+        Para cada operación elige el CT (primario o alternativo) que mejor calza
+        según la dirección, buscando un HUECO real en su agenda (`wc_busy`), e
+        inserta el intervalo elegido para que las OTs siguientes lo vean ocupado.
+
+        - 'asap': pasada hacia adelante desde after_dt; por operación, el candidato
+          que TERMINA más temprano (primario desempata).
+        - 'alap': pasada hacia atrás desde target_end; por operación (en orden
+          inverso), el candidato de INICIO más tardío (pega al deadline). Si el
+          inicio de la 1ª operación cae antes de after_dt (deadline inalcanzable),
+          se descarta y se cae a la pasada 'asap' desde after_dt. La inserción en la
+          agenda se hace RECIÉN al confirmar la dirección, para que un intento ALAP
+          fallido no ensucie `wc_busy` antes del fallback.
+
+        :param operations: list[(primary_wc, [candidatos], dur_h)] — ops de la ruta.
+        :param after_dt: datetime — piso duro de inicio.
+        :param target_end: datetime | None — deadline objetivo (solo ALAP).
+        :param direction: str — 'alap' | 'asap'.
+        :param wc_busy: dict — {wc_id: [(start, end)]} agenda por CT (se muta).
+        :param wc_collector: dict | None — acumulador de carga por CT (se muta).
+        :param company_calendar: resource.calendar — fallback de calendario.
+        :returns: tuple(list[dict], datetime | None, datetime) —
+                  (scheduled_ops, node_start, node_end).
+        """
+        def _cal(wc):
+            return (wc.resource_calendar_id or company_calendar) if wc else company_calendar
+
+        def _forward():
+            placed = []
+            t = after_dt
+            for primary, candidates, dur_h in operations:
+                if not candidates:
+                    cs, ce = self._schedule_in_gaps(
+                        company_calendar, max(t, after_dt), dur_h, wc_busy.get(0, []))
+                    chosen, is_primary = None, True
+                else:
+                    best = None
+                    for cand in candidates:
+                        cs, ce = self._schedule_in_gaps(
+                            _cal(cand), max(t, after_dt), dur_h, wc_busy.get(cand.id, []))
+                        if best is None or ce < best[1]:
+                            best = (cs, ce, cand)
+                    cs, ce, chosen = best
+                    is_primary = bool(primary) and chosen.id == primary.id
+                placed.append({'primary': primary, 'chosen': chosen,
+                               'candidates': candidates, 'is_primary': is_primary,
+                               'dur': dur_h, 'start': cs, 'end': ce})
+                t = ce
+            return placed
+
+        def _backward():
+            placed = []
+            t = target_end
+            for primary, candidates, dur_h in reversed(operations):
+                if not candidates:
+                    cs, ce = self._schedule_backward_in_gaps(
+                        company_calendar, t, dur_h, wc_busy.get(0, []))
+                    chosen, is_primary = None, True
+                else:
+                    best = None
+                    for cand in candidates:
+                        cs, ce = self._schedule_backward_in_gaps(
+                            _cal(cand), t, dur_h, wc_busy.get(cand.id, []))
+                        if best is None or cs > best[0]:   # inicio más tardío
+                            best = (cs, ce, cand)
+                    cs, ce, chosen = best
+                    is_primary = bool(primary) and chosen.id == primary.id
+                placed.append({'primary': primary, 'chosen': chosen,
+                               'candidates': candidates, 'is_primary': is_primary,
+                               'dur': dur_h, 'start': cs, 'end': ce})
+                t = cs
+            placed.reverse()   # volver al orden de la ruta
+            return placed
+
+        placed = None
+        if direction == 'alap' and target_end and operations:
+            cand = _backward()
+            if cand and cand[0]['start'] >= after_dt:
+                placed = cand   # deadline alcanzable respetando el piso
+        if placed is None:
+            placed = _forward()
+
+        # Confirmar: insertar los intervalos en la agenda y acumular carga.
+        scheduled = []
+        node_start = None
+        node_end = after_dt
+        for o in placed:
+            chosen = o['chosen']
+            wc_id = chosen.id if chosen else 0
+            lst = wc_busy.setdefault(wc_id, [])
+            lst.append((o['start'], o['end']))
+            lst.sort(key=lambda iv: iv[0])
+            if wc_collector is not None and chosen:
+                c = wc_collector.setdefault(chosen.id, {'hours': 0.0, 'start': None, 'end': None})
+                c['hours'] += o['dur']
+                c['start'] = min(c['start'], o['start']) if c['start'] else o['start']
+                c['end']   = max(c['end'], o['end']) if c['end'] else o['end']
+            scheduled.append({
+                'wc': chosen, 'is_primary': o['is_primary'],
+                'primary_wc': o['primary'], 'candidates': o.get('candidates') or [],
+                'dur': o['dur'], 'start': o['start'], 'end': o['end'],
+            })
+            if node_start is None:
+                node_start = o['start']
+            node_end = max(node_end, o['end'])
+        return scheduled, node_start, node_end
 
     # ── Colección de líneas ───────────────────────────────────────────────────
 
@@ -444,6 +529,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 continue
             op_seq += 10
             primary_wc = o.get('primary_wc')
+            cand_ids = [c.id for c in (o.get('candidates') or [])]
             ops_data.append({
                 'sequence':              op_seq,
                 'workcenter_id':         o['wc'].id,
@@ -452,6 +538,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 'duration_hours':        round(o['dur'], 2),
                 'date_start':            o['start'],
                 'date_finish':           o['end'],
+                'candidate_workcenter_ids': [(6, 0, cand_ids)],
             })
 
         lines_vals.append({

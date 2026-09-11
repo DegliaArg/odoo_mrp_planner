@@ -257,6 +257,13 @@ class MrpProductionRequestLineOp(models.Model):
         help='Verdadero si el centro elegido NO es el primario de la operación, '
              'sino un alternativo por balanceo de carga.',
     )
+    candidate_workcenter_ids = fields.Many2many(
+        'mrp.workcenter', 'mrp_req_line_op_candidate_wc_rel', 'op_id', 'wc_id',
+        string='Centros candidatos',
+        help='Centros de trabajo entre los que el motor pudo elegir para esta '
+             'operación (primario + alternativos de la ruta). Habilita reasignar '
+             'la operación a otro centro desde el tablero y recalcular.',
+    )
     duration_hours = fields.Float(
         string='Duración (hs)', digits=(10, 2),
         help='Duración estimada de la operación en horas.',

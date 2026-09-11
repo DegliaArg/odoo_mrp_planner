@@ -103,6 +103,22 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         return self.env['stock.picking.type'].search(
             [('code', '=', 'mrp_operation'), ('company_id', '=', self.env.company.id)], limit=1
         )
+
+    scheduling_direction = fields.Selection([
+        ('alap', 'Ajustada al plazo (ALAP)'),
+        ('asap', 'Lo antes posible (ASAP)'),
+    ], string='Dirección de programación', required=True,
+        default=lambda self: self._default_scheduling_direction(),
+        help='ALAP: cada operación se calza en el hueco más tardío que cumpla la fecha '
+             'deseada, sin adelantar producción (menos WIP parado). ASAP: se calza en el '
+             'primer hueco disponible, empaquetando temprano y liberando capacidad futura. '
+             'Cambiá la dirección y recalculá para comparar cómo queda el calce.',
+    )
+
+    @api.model
+    def _default_scheduling_direction(self):
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        return (cfg.scheduling_direction if cfg and cfg.scheduling_direction else 'alap')
     workorder_count = fields.Integer(
         compute='_compute_workorder_count', string='OTs',
         help='Cantidad total de órdenes de trabajo (work orders) de las OFs vinculadas.',
@@ -133,6 +149,39 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         self.line_ids.filtered(
             lambda l: l.suggestion_state == 'pending'
         ).action_reject_ct_suggestion()
+
+    def reassign_line_workcenter(self, line_id, wc_id):
+        """Fase 2 (jugar con alternativos): fija la línea-OF `line_id` al centro
+        `wc_id` y recalcula el plan (pin & re-solve).
+
+        Reutiliza el mecanismo de overrides de action_calculate: al fijar el
+        workcenter_id de la línea, el recálculo preserva esa elección (se pinnean
+        las operaciones que tengan ese CT como candidato) y reprograma el resto
+        alrededor. Se invoca desde el tablero de propuesta al reasignar una barra.
+
+        :param line_id: int — ID de la mrp.production.request.line a reasignar.
+        :param wc_id: int — ID del centro de trabajo elegido.
+        :returns: bool — True al terminar (el tablero recarga la propuesta).
+        :raises UserError: si la línea no pertenece a la solicitud o el CT no existe.
+        :raises AccessError: si el usuario no tiene el grupo de Programación.
+        """
+        self.ensure_one()
+        self._ensure_scheduling_group()
+        line = self.env['mrp.production.request.line'].browse(int(line_id))
+        if not line.exists() or line.request_id.id != self.id:
+            raise UserError(_('La línea no pertenece a esta solicitud.'))
+        wc = self.env['mrp.workcenter'].browse(int(wc_id))
+        if not wc.exists():
+            raise UserError(_('El centro de trabajo elegido no existe.'))
+        # Fijar el CT como override y recalcular. action_calculate preserva el
+        # workcenter_id de las líneas 'mrp' con node_key como wc_overrides.
+        line.write({
+            'workcenter_id':    wc.id,
+            'used_alternative': False,
+            'suggestion_state': 'accepted',
+        })
+        self.action_calculate()
+        return True
 
     @api.depends('item_ids.feasible', 'item_ids.earliest_end')
     def _compute_summary(self):
@@ -327,19 +376,22 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             for item, root in item_trees:
                 self._apply_wc_overrides(root, item.id, wc_overrides)
 
-        # Anclas de WC: carga existente en la instancia
-        all_roots  = [r for _, r in item_trees]
-        wc_anchors = self._get_wc_anchors_multi(min_dt, all_roots)
+        # Agenda de cada WC: carga existente en la instancia (intervalos ocupados).
+        all_roots = [r for _, r in item_trees]
+        wc_busy   = self._get_wc_busy_multi(min_dt, all_roots)
 
-        # Programar todos los artículos compartiendo los mismos anclas. El
-        # wc_collector acumula la carga por CT ELEGIDO y por operación (no por OF),
-        # para que el resumen de carga sea correcto con centros alternativos.
+        # Programar todos los artículos compartiendo la misma agenda. Cada OT
+        # calzada se inserta en wc_busy, así el resto del cálculo la ve ocupada.
+        # El wc_collector acumula la carga por CT ELEGIDO y por operación (no por
+        # OF), para que el resumen de carga sea correcto con centros alternativos.
         lines_vals = []
         seq = [10]
         wc_collector = {}
+        direction = self.scheduling_direction or 'alap'
         for item, root in item_trees:
-            self._schedule_tree(root, min_dt, wc_anchors, min_dt=min_dt,
-                                target_end=item.date_deadline, wc_collector=wc_collector)
+            self._schedule_tree(root, min_dt, wc_busy, min_dt=min_dt,
+                                target_end=item.date_deadline, wc_collector=wc_collector,
+                                direction=direction)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
             earliest = root.get('scheduled_end')
             proj_start = self._get_tree_earliest_start(root)

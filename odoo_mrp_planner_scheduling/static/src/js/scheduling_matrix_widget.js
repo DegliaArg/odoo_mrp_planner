@@ -153,6 +153,7 @@ class SchedulingMatrixWidget extends Component {
             hideWeekends:  true,        // ocultar fines de semana (default ON)
             hiddenWeekdays: [],         // días a ocultar (los manda el backend)
             collapseEmpty: true,        // modo ruta: colapsar días sin OFs de la cadena (default ON)
+            showGaps:      true,        // modo propuesta: resaltar huecos libres de cada CT (default ON)
 
             // Datos del tablero (payload)
             shifts:     [],
@@ -194,6 +195,11 @@ class SchedulingMatrixWidget extends Component {
             popoverPos:       { top: 0, left: 0 },
             componentsCache:  {},
             loadingComponents:{},
+
+            // Reasignación de centro (Fase 2, modo propuesta): menú anclado a la barra
+            reassignBar:      null,   // barra en reasignación (o null)
+            reassignPos:      { top: 0, left: 0 },
+            reassigning:      false,  // RPC de reasignar+recalcular en curso
 
             // Dropdowns
             tagDropdownOpen:   false,
@@ -329,6 +335,7 @@ class SchedulingMatrixWidget extends Component {
         this.state.wcDropdownOpen    = false;
         this.state.stateDropdownOpen = false;
         this._closePopover();
+        this._closeReassign();
     }
 
     async toggleTag(tagId) {
@@ -408,6 +415,12 @@ class SchedulingMatrixWidget extends Component {
         this.state.collapseEmpty = !this.state.collapseEmpty;
         this._fitRouteZoom();   // re-ajusta el zoom al nuevo span visible
         this._recompute();      // colapsa/expande los días vacíos; sin RPC
+    }
+
+    toggleShowGaps() {
+        // Los gapBlocks se calculan siempre en modo propuesta; este toggle solo
+        // controla su render (reactivo desde el template), sin recomputar.
+        this.state.showGaps = !this.state.showGaps;
     }
 
     /** Ajusta la resolución (zoom) del modo ruta para que TODO el contenido
@@ -559,6 +572,17 @@ class SchedulingMatrixWidget extends Component {
 
     async toggleBarPopover(ev, bar) {
         ev.stopPropagation();
+        // Modo propuesta: click en una barra con centros alternativos abre el menú
+        // de reasignación (Fase 2: jugar con alternativos). Sin alternativas, marca
+        // la OF como en modo ruta (resaltado del hilo).
+        if (this.state.proposalMode) {
+            if (bar.alt_wcs && bar.alt_wcs.length && bar.line_id) {
+                this._openReassign(ev, bar);
+            } else {
+                this.selectRouteMo(bar.mo_id, ev);
+            }
+            return;
+        }
         // En modo ruta, click en una barra marca esa OF (Shift agrega/quita), igual
         // que en el panel lateral — así se ve su hilo. El detalle de componentes se
         // abre desde el botón de la barra (link externo).
@@ -597,6 +621,42 @@ class SchedulingMatrixWidget extends Component {
 
     isLoadingComp(moId) { return !!this.state.loadingComponents[moId]; }
     getComponents(moId) { return this.state.componentsCache[moId] || []; }
+
+    // ── Reasignación de centro (Fase 2, modo propuesta) ───────────────────────
+
+    _openReassign(ev, bar) {
+        this._closePopover();
+        const r = ev.currentTarget.getBoundingClientRect();
+        this.state.reassignPos = { top: r.bottom + 4, left: r.left };
+        this.state.reassignBar = bar;
+    }
+
+    _closeReassign() {
+        this.state.reassignBar = null;
+    }
+
+    /** Reasigna la operación de la barra a otro centro y recalcula la propuesta
+     *  (pin & re-solve). Al volver, recarga el tablero con el nuevo plan. */
+    async doReassign(wcId) {
+        const bar = this.state.reassignBar;
+        if (!bar || !bar.line_id || !this.requestId) return;
+        this.state.reassigning = true;
+        try {
+            await this.orm.call(
+                'mrp.production.request', 'reassign_line_workcenter',
+                [this.requestId, bar.line_id, wcId],
+            );
+            this._closeReassign();
+            await this._loadProposal();   // recarga el plan recalculado
+        } catch (e) {
+            this.notification.add(
+                (e?.data?.message) || e.message || 'No se pudo reasignar el centro.',
+                { type: 'danger' },
+            );
+        } finally {
+            this.state.reassigning = false;
+        }
+    }
 
     // ── Abrir OF en Odoo ─────────────────────────────────────────────────────
 
@@ -1079,6 +1139,14 @@ class SchedulingMatrixWidget extends Component {
                 return { leftPct: g.left, widthPct: g.width };
             });
 
+            // Huecos libres (Fase 1): banda laborable MENOS lo ocupado por las
+            // barras de la propuesta Y por la carga firme existente del CT (que no
+            // se dibuja pero ocupa la máquina). Es la capacidad libre donde podría
+            // entrar una OT — el dato que hace visible el trabajo del motor.
+            const gapBlocks = (this.state.proposalMode && !row.is_purchase_row)
+                ? this._computeGaps(scale, row.working_intervals || [], active, row.busy_intervals || [])
+                : [];
+
             out.push({
                 ...row,
                 bars: barsOut,
@@ -1087,7 +1155,56 @@ class SchedulingMatrixWidget extends Component {
                 laneSeps: Array.from({ length: laneCount - 1 }, (_, i) => ROW_PAD + (i + 1) * LANE_PITCH - 4.5),
                 addLeftPct: barsOut.reduce((m, b) => Math.max(m, b.env.left + b.env.width), 0),
                 workBlocks,
+                gapBlocks,
             });
+        }
+        return out;
+    }
+
+    /** Huecos libres de un CT: los tramos de banda laborable NO cubiertos por
+     *  ninguna barra. Todo en minutos reales; se mapea a % con la escala visible.
+     *  Filtra huecos menores a MIN_GAP min (ruido no aprovechable). */
+    _computeGaps(scale, workingIntervals, bars, busyIntervals) {
+        const MIN_GAP = 30;   // minutos: hueco mínimo que vale la pena resaltar
+        const work = (workingIntervals || [])
+            .map(([s, e]) => [parseLocalMinutes(s), parseLocalMinutes(e)])
+            .filter(([s, e]) => e > s)
+            .sort((a, b) => a[0] - b[0]);
+        if (!work.length) return [];
+
+        // Ocupado = barras de la propuesta + carga firme existente (no dibujada).
+        const busy = bars
+            .map(b => [b.startMin, b.endMin])
+            .concat((busyIntervals || []).map(([s, e]) => [parseLocalMinutes(s), parseLocalMinutes(e)]))
+            .filter(([s, e]) => e > s)
+            .sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        for (const iv of busy) {
+            const last = merged[merged.length - 1];
+            if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+            else merged.push([iv[0], iv[1]]);
+        }
+
+        // Restar lo ocupado de cada banda laborable → huecos libres.
+        const free = [];
+        for (const [ws, we] of work) {
+            let cursor = ws;
+            for (const [bs, be] of merged) {
+                if (be <= cursor) continue;     // ocupado ya pasó
+                if (bs >= we) break;            // ocupado empieza después de la banda
+                if (bs > cursor) free.push([cursor, bs]);
+                cursor = Math.max(cursor, be);
+                if (cursor >= we) break;
+            }
+            if (cursor < we) free.push([cursor, we]);
+        }
+
+        const out = [];
+        for (const [s, e] of free) {
+            if (e - s < MIN_GAP) continue;
+            const l = scaleMinuteToPct(scale, s);
+            const r = scaleMinuteToPct(scale, e);
+            if (r - l > 0.05) out.push({ leftPct: l, widthPct: r - l, mins: Math.round(e - s) });
         }
         return out;
     }
@@ -1143,6 +1260,13 @@ class SchedulingMatrixWidget extends Component {
         if (bar.overload) t += ' · ⚠ sobrecarga (solapada en el centro)';
         if (bar.inconsistent_dates) t += ' · ⚠ fechas inconsistentes';
         else if (bar.outside_calendar) t += ' · ⚠ planificada fuera del calendario del centro';
+        // Explicabilidad (Work 3): por qué esta OT quedó así.
+        if (bar.is_alternative) {
+            t += ' · ⇄ centro alternativo (elegido por carga: el primario estaba más ocupado)';
+        }
+        if (bar.late) {
+            t += ` · ⚠ NO cumple el plazo${bar.deadline_str ? ' (fecha deseada: ' + bar.deadline_str + ')' : ''}`;
+        }
         return t;
     }
 

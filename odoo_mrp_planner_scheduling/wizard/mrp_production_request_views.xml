@@ -102,6 +102,8 @@
                         <field name="picking_type_id"
                                required="1"
                                readonly="state == 'confirmed'"/>
+                        <field name="scheduling_direction" widget="radio"
+                               readonly="state == 'confirmed'"/>
                     </group>
 
                     <!-- ── Banner de factibilidad global ── -->

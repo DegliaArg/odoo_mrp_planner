@@ -68,6 +68,16 @@ class MrpRescheduleConfig(models.Model):
         help='Tipo de operación de fabricación que se preselecciona al crear una nueva Programación de fabricación.',
     )
 
+    scheduling_direction = fields.Selection([
+        ('alap', 'Ajustada al plazo (ALAP)'),
+        ('asap', 'Lo antes posible (ASAP)'),
+    ], string='Dirección de programación por defecto', default='alap', required=True,
+        help='Política con que el motor calza cada operación en la agenda del centro. '
+             'ALAP: hueco más tardío que cumpla la fecha deseada (no adelanta producción). '
+             'ASAP: primer hueco disponible (empaqueta temprano). Es solo el valor por '
+             'defecto de cada nueva solicitud; se puede cambiar en la solicitud misma.',
+    )
+
     default_of_hours = fields.Float(
         string='Horas por OF sin ruta', default=8.0,
         help='Duración estimada (horas) que asume el motor para una OF cuya LdM no '

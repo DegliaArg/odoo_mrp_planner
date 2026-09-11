@@ -850,6 +850,7 @@ class MrpProductionBoard(models.Model):
         proposal_by_wc = {}
         for line in mrp_lines:
             prod = line.product_id
+            deadline = line.item_id.date_deadline if line.item_id else False
             for op in line.op_ids:
                 wc = op.workcenter_id
                 if not (wc and wc.active and wc.id in wc_ids):
@@ -865,6 +866,7 @@ class MrpProductionBoard(models.Model):
                     'qty':                line.product_qty,
                     'uom':                prod.uom_id.name if prod.uom_id else '',
                     'wc_id':              wc.id,
+                    'wc_name':            wc.display_name,
                     'date_start':         _iso(ds),
                     'date_finished':      _iso(df),
                     'date_start_str':     _fmt(ds),
@@ -880,6 +882,18 @@ class MrpProductionBoard(models.Model):
                     'is_alternative':     op.is_alternative,
                     'is_proposal':        True,
                     'level':              line.level,
+                    # Explicabilidad (Work 3): la operación termina después de la
+                    # fecha deseada del artículo → la propuesta no cumple el plazo.
+                    'late':               bool(df and deadline and df > deadline),
+                    'deadline_str':       _fmt(deadline) if deadline else '',
+                    # Fase 2: centros alternativos a los que se puede reasignar esta
+                    # operación (candidatos activos distintos del elegido).
+                    'op_id':              op.id,
+                    'alt_wcs':            [
+                        {'id': c.id, 'name': c.name}
+                        for c in op.candidate_workcenter_ids
+                        if c.active and c.id != wc.id
+                    ],
                 })
                 proposal_by_wc[wc.id] = proposal_by_wc.get(wc.id, 0.0) + (op.duration_hours or 0.0)
 
@@ -971,6 +985,15 @@ class MrpProductionBoard(models.Model):
                 'tag_names':         base_row.get('tag_names', []),
                 'bars':              bars,
                 'working_intervals': base_row.get('working_intervals', []),
+                # Carga firme existente del CT (no se dibuja como barra en la
+                # propuesta, solo cuenta en el %): sus intervalos se pasan para que
+                # el cálculo de huecos (Fase 1) los descuente y no marque libre un
+                # tramo realmente ocupado.
+                'busy_intervals':    [
+                    [b['date_start'], b['date_finished']]
+                    for b in base_row.get('bars', [])
+                    if b.get('date_start') and b.get('date_finished')
+                ],
                 'bands_failed':      base_row.get('bands_failed', False),
                 'occupancy': {
                     'existing_hours':  round(existing_h, 1),

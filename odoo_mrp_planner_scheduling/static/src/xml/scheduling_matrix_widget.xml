@@ -177,11 +177,26 @@
                         <i class="fa fa-industry me-1"/>Propuesta de fabricación
                         <span class="text-muted ms-2">— la ocupación de cada centro suma la carga existente + la propuesta</span>
                     </span>
-                    <div class="form-check form-switch mb-0 ms-auto">
+                    <!-- Leyenda de colores (Work 4): distingue lo firme de la propuesta -->
+                    <t t-if="state.proposalMode">
+                        <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted">
+                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-firm"/>existente (firme)</span>
+                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-prop"/>propuesta</span>
+                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-altsw"/>centro alternativo</span>
+                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-gapsw"/>hueco libre</span>
+                        </span>
+                    </t>
+                    <div t-attf-class="form-check form-switch mb-0 {{ state.proposalMode ? 'ms-2' : 'ms-auto' }}">
                         <input class="form-check-input" type="checkbox" id="sm-collapse-empty-r"
                                t-att-checked="state.collapseEmpty" t-on-change="toggleCollapseEmpty"/>
                         <label class="form-check-label small text-muted" for="sm-collapse-empty-r"
                                title="Corta del eje los días sin OFs de la cadena, para que las relacionadas queden pegadas. Apagalo para ver el tiempo real entre ellas.">Colapsar vacíos</label>
+                    </div>
+                    <div t-if="state.proposalMode" class="form-check form-switch mb-0 ms-2">
+                        <input class="form-check-input" type="checkbox" id="sm-show-gaps-r"
+                               t-att-checked="state.showGaps" t-on-change="toggleShowGaps"/>
+                        <label class="form-check-label small text-muted" for="sm-show-gaps-r"
+                               title="Resalta los huecos libres de cada centro: capacidad disponible donde el motor podría calzar una OT.">Ver huecos</label>
                     </div>
                     <div class="form-check form-switch mb-0 ms-2">
                         <input class="form-check-input" type="checkbox" id="sm-hide-weekends-r"
@@ -355,6 +370,12 @@
                                     <div class="sm-work" t-att-style="`left:${wb.leftPct}%;width:${wb.widthPct}%`"/>
                                 </t>
 
+                                <!-- Huecos libres (Fase 1): capacidad disponible del CT -->
+                                <t t-if="state.proposalMode and state.showGaps" t-foreach="row.gapBlocks or []" t-as="gap" t-key="'gap'+gap_index">
+                                    <div class="sm-gap" t-att-style="`left:${gap.leftPct}%;width:${gap.widthPct}%`"
+                                         t-att-title="'Hueco libre · ' + fmtHours(gap.mins)"/>
+                                </t>
+
                                 <!-- Tinte nocturno -->
                                 <t t-foreach="state.layout.nightBands" t-as="nb" t-key="nb_index">
                                     <div class="sm-night" t-att-style="`left:${nb.leftPct}%;width:${nb.widthPct}%`"/>
@@ -388,7 +409,7 @@
                                     <!-- Conector punteado entre tramos de la misma OF -->
                                     <div t-if="bar.segs.length > 1" class="sm-bar-conn" t-att-style="connStyle(bar)"/>
                                     <t t-foreach="bar.segs" t-as="seg" t-key="seg_index">
-                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isUnscheduledBar(bar) ? ' sm-bar-unsched' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '') + (bar.is_alternative ? ' sm-bar-alt' : '')"
+                                        <div t-att-class="'sm-bar sm-bar-seg ' + segCorner(bar, seg_first, seg_last) + ' ' + moStateClass(bar.mo_state) + (bar.overload ? ' sm-bar-over' : '') + ((bar.inconsistent_dates || bar.outside_calendar) ? ' sm-bar-bad' : '') + (seg_first and bar.clipped_start ? ' sm-bar-clip-l' : '') + (seg_last and bar.clipped_end ? ' sm-bar-clip-r' : '') + (isUnscheduledBar(bar) ? ' sm-bar-unsched' : '') + (isTreeBar(bar) ? ' sm-bar-tree' : '') + (isFocusedBar(bar) ? ' sm-bar-focus' : '') + (bar.is_alternative ? ' sm-bar-alt' : '') + (bar.late ? ' sm-bar-late' : '')"
                                              t-att-style="segStyle(bar, seg)"
                                              t-att-title="barTitle(bar)"
                                              t-on-click="(ev) => this.toggleBarPopover(ev, bar)">
@@ -404,6 +425,8 @@
                                                         <span t-else="" class="sm-bar-state badge"
                                                               t-att-class="moStateClass(bar.mo_state)"
                                                               t-esc="moStateLabel(bar.mo_state)"/>
+                                                        <span t-if="bar.late" class="sm-bar-late-badge badge"
+                                                              title="La operación termina después de la fecha deseada del artículo: la propuesta no cumple el plazo.">fuera de plazo</span>
                                                     </div>
                                                     <div class="sm-bar-l2">
                                                         <t t-esc="bar.product_name"/>
@@ -521,6 +544,39 @@
                         t-on-click.stop="() => this.enterRoute(state.popoverMoId)">
                     <i class="fa fa-random me-1"/>Ver ruta de la OF
                 </button>
+            </div>
+        </div>
+
+        <!-- ══ Menú de reasignación de centro (Fase 2, modo propuesta) ══════════ -->
+        <div t-if="state.reassignBar"
+             class="sm-reassign shadow border rounded bg-white"
+             t-att-style="`position:fixed;top:${state.reassignPos.top}px;left:${state.reassignPos.left}px;z-index:1060`"
+             t-on-click.stop="() => {}">
+            <div class="sm-reassign-head d-flex justify-content-between align-items-center px-2 py-1 border-bottom">
+                <span class="fw-semibold small"><i class="fa fa-random me-1"/>Mover a otro centro</span>
+                <button class="btn btn-sm btn-link p-0" t-on-click.stop="_closeReassign">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <div class="sm-reassign-body p-2">
+                <div class="text-muted small mb-2">
+                    <b t-esc="state.reassignBar.product_name"/><br/>
+                    Centro actual: <b t-esc="state.reassignBar.wc_name"/>
+                </div>
+                <div t-if="state.reassigning" class="text-center text-muted small py-2">
+                    <i class="fa fa-spinner fa-spin me-1"/>Recalculando el plan…
+                </div>
+                <t t-else="">
+                    <t t-foreach="state.reassignBar.alt_wcs" t-as="alt" t-key="alt.id">
+                        <button class="sm-reassign-opt btn btn-sm btn-outline-primary w-100 text-start mb-1"
+                                t-on-click.stop="() => this.doReassign(alt.id)">
+                            <i class="fa fa-arrow-right me-2"/><t t-esc="alt.name"/>
+                        </button>
+                    </t>
+                </t>
+            </div>
+            <div class="sm-reassign-foot border-top px-2 py-1 text-muted">
+                Se recalcula el plan fijando este centro para la operación.
             </div>
         </div>
 

@@ -35,7 +35,7 @@
         <field name="name">mrp.production.request.form</field>
         <field name="model">mrp.production.request</field>
         <field name="arch" type="xml">
-            <form string="Programación de fabricación" class="o_mrp_planner_request_form">
+            <form string="Programación de fabricación">
 
                 <header>
                     <button name="action_calculate"

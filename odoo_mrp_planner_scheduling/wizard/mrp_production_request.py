@@ -547,7 +547,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
 
     def _delta_label(self, base, trial):
         """Describe la mejora/empeoramiento de `trial` respecto de `base` (tuplas de
-        _plan_metrics), en lenguaje humano y por prioridad."""
+        _plan_metrics), en lenguaje humano y por prioridad (una línea compacta)."""
         parts = []
         lat_d, mk_d, ld_d = trial[0] - base[0], trial[1] - base[1], trial[2] - base[2]
         if abs(lat_d) >= 60:
@@ -558,6 +558,28 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         if abs(ld_d) >= 0.5:
             parts.append('pico %s%.0fh' % ('−' if ld_d < 0 else '+', abs(ld_d)))
         return ' · '.join(parts) or 'sin cambios netos'
+
+    def _impact_effects(self, base, trial):
+        """Detalle ANTES→DESPUÉS del cambio, por dimensión afectada (en el orden de
+        la cascada). Solo incluye las que cambian de verdad.
+
+        :returns: list[dict] — [{k, before, after, better}] por dimensión.
+        """
+        dims = [
+            ('Atraso total',     60,  lambda v: self._fmt_secs(v) if v >= 60 else 'a tiempo'),
+            ('Duración del plan', 60, lambda v: self._fmt_secs(v)),
+            ('Pico de carga',    0.5, lambda v: '%.0f h' % v),
+        ]
+        effects = []
+        for i, (name, thr, fmt) in enumerate(dims):
+            if abs(trial[i] - base[i]) >= thr:
+                effects.append({
+                    'k':      name,
+                    'before': fmt(base[i]),
+                    'after':  fmt(trial[i]),
+                    'better': trial[i] < base[i],
+                })
+        return effects
 
     def _line_alt_workcenters(self, line):
         """CTs alternativos válidos para reasignar una línea-OF: la unión de los
@@ -596,6 +618,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 'wc_id':   wc.id,
                 'wc_name': wc.display_name,
                 'label':   self._delta_label(base_metric, metric),
+                'effects': self._impact_effects(base_metric, metric),
                 'better':  metric < base_metric,
                 'worse':   metric > base_metric,
             })
@@ -649,6 +672,7 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                         'to_wc_id': wc.id,
                         'to_wc':    wc.display_name,
                         'label':    self._delta_label(base_metric, metric),
+                        'effects':  self._impact_effects(base_metric, metric),
                         '_metric':  metric,
                     })
             if capped:

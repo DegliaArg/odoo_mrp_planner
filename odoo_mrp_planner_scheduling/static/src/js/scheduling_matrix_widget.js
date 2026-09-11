@@ -15,7 +15,7 @@
  *      get_scheduling_board, get_mo_components
  */
 
-import { Component, useState, onMounted, useExternalListener } from "@odoo/owl";
+import { Component, useState, onMounted, onPatched, useRef, useExternalListener } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import {
@@ -221,6 +221,13 @@ class SchedulingMatrixWidget extends Component {
 
         useExternalListener(window, "keydown", (ev) => this.onKeydown(ev));
 
+        // Ref al contenedor de scroll: en modo propuesta, tras el primer render el
+        // eje se posiciona automáticamente en el inicio de la 1ª OF (las compras,
+        // anteriores en el tiempo, quedan hacia la izquierda). Ver _maybeScrollToFirstOf.
+        this.scrollRef = useRef("scroll");
+        this._firstOfScrollPending = false;
+        onPatched(() => this._maybeScrollToFirstOf());
+
         // Embebido en el formulario de una solicitud (mrp.production.request):
         // el widget dibuja el PLAN de esa solicitud (modo propuesta), no el
         // tablero global. Detectado por el record que recibe como view_widget.
@@ -231,7 +238,7 @@ class SchedulingMatrixWidget extends Component {
         onMounted(async () => {
             try {
                 if (this.requestId) {
-                    await this._loadProposal();
+                    await this._loadProposal(true);   // primera carga: posiciona en la 1ª OF
                     return;
                 }
                 const defaultTagSelected = await this._loadFilters();
@@ -427,8 +434,8 @@ class SchedulingMatrixWidget extends Component {
     }
 
     toggleShowGaps() {
-        // Los gapBlocks se calculan siempre en modo propuesta; este toggle solo
-        // controla su render (reactivo desde el template), sin recomputar.
+        // Los gapBlocks ya vienen calculados en viewRows (propuesta y tablero
+        // general); este toggle solo controla su render, sin recomputar.
         this.state.showGaps = !this.state.showGaps;
     }
 
@@ -773,7 +780,7 @@ class SchedulingMatrixWidget extends Component {
     /** Carga el Gantt de la PROPUESTA de una solicitud (modo propuesta). Se
      *  apoya en el render del modo ruta (routeMode=true): mismas filas por CT,
      *  hilos de cadena, escalonado y colapso. La ocupación suma existente+propuesta. */
-    async _loadProposal() {
+    async _loadProposal(isInitial = false) {
         this.state.loading = true;
         this.state.error = null;
         try {
@@ -808,6 +815,10 @@ class SchedulingMatrixWidget extends Component {
             this.state.routeMode      = true;   // reutiliza el render de ruta
             this._fitRouteZoom();               // usa rows/dateFrom/dateTo ya seteados
             this._recompute();
+            // Solo en la primera carga: al terminar el render, correr el eje hasta
+            // el inicio de la 1ª OF. En recálculos (reasignar/optimizar) se respeta
+            // dónde estaba mirando el usuario.
+            if (isInitial) this._firstOfScrollPending = true;
         } catch (e) {
             this.state.error = (e?.data?.message) || e.message || String(e);
         } finally {
@@ -933,6 +944,37 @@ class SchedulingMatrixWidget extends Component {
     _recompute() {
         this.state.layout   = this._buildLayout();
         this.state.viewRows = this._computeRows();
+    }
+
+    /** Minuto real de inicio de la 1ª OF (barra en fila que NO es de compra). Las
+     *  compras (OC), anteriores en el tiempo, se excluyen: el eje arranca donde
+     *  empieza la fabricación, no donde empieza el aprovisionamiento. */
+    _firstOfStartMin() {
+        let min = null;
+        for (const row of this.state.rows) {
+            if (row.is_purchase_row) continue;
+            for (const b of (row.bars || [])) {
+                if (!b.date_start) continue;
+                const s = parseLocalMinutes(b.date_start);
+                if (s !== null && (min === null || s < min)) min = s;
+            }
+        }
+        return min;
+    }
+
+    /** Tras el render inicial de la propuesta, corre el scroll horizontal hasta el
+     *  inicio de la 1ª OF, dejando un pequeño margen a la izquierda para insinuar
+     *  que hay compras (OC) más atrás. Se ejecuta una sola vez por flag. */
+    _maybeScrollToFirstOf() {
+        if (!this._firstOfScrollPending) return;
+        const el = this.scrollRef.el;
+        if (!el || !this.state.proposalMode || !this.state.layout) return;
+        this._firstOfScrollPending = false;
+        const startMin = this._firstOfStartMin();
+        if (startMin === null) return;
+        const pct = scaleMinuteToPct(this.state.layout.scale, startMin);
+        const x = (pct / 100) * this.state.layout.contentWidthPx;
+        el.scrollLeft = Math.max(0, x - 28);   // 28px de aire → se ve el borde de la OC
     }
 
     /** Intervalos [inicioMin, finMin] reales con OFs de la cadena, con un margen
@@ -1231,10 +1273,14 @@ class SchedulingMatrixWidget extends Component {
             });
 
             // Huecos libres (Fase 1): banda laborable MENOS lo ocupado por las
-            // barras de la propuesta Y por la carga firme existente del CT (que no
-            // se dibuja pero ocupa la máquina). Es la capacidad libre donde podría
-            // entrar una OT — el dato que hace visible el trabajo del motor.
-            const gapBlocks = (this.state.proposalMode && !row.is_purchase_row)
+            // barras (en propuesta: propuesta + carga firme no dibujada; en el
+            // tablero general: las WO firmes no terminadas). Es la capacidad libre
+            // del CT donde podría entrar una OF — útil para meter una urgente.
+            // Se calcula en modo propuesta y en el tablero general, NO en la vista
+            // de ruta-cadena (ahí las barras son solo el hilo, no la carga del CT).
+            const canGaps = !row.is_purchase_row
+                && (this.state.proposalMode || !this.state.routeMode);
+            const gapBlocks = canGaps
                 ? this._computeGaps(scale, row.working_intervals || [], active, row.busy_intervals || [])
                 : [];
 

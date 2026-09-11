@@ -24,10 +24,12 @@
 
                 <!-- Resolución (zoom). En modo ruta el zoom arranca en auto-fit del
                      escalonado, pero el usuario puede cambiarlo con estos botones. -->
-                <div class="sm-filter-group btn-group btn-group-sm" role="group">
+                <div class="sm-filter-group btn-group btn-group-sm" role="group"
+                     title="Nivel de zoom del eje temporal: cuánto tiempo entra en pantalla. 'Día' muestra las horas; 'Mes' comprime para ver el panorama.">
                     <t t-foreach="resolutions" t-as="r" t-key="r.key">
                         <button type="button"
                                 t-att-class="'btn ' + (state.resolution === r.key ? 'btn-primary' : 'btn-outline-secondary')"
+                                t-att-title="'Ver el eje con resolución de ' + r.label"
                                 t-on-click="() => this.setResolution(r.key)"
                                 t-esc="r.label"/>
                     </t>
@@ -37,8 +39,10 @@
                      En modo propuesta no hay estados: todas las barras son 'propuesta'. -->
                 <t t-if="!state.proposalMode">
                 <div class="sm-filter-group position-relative">
-                    <span class="sm-filter-label text-muted small me-1">Estado:</span>
+                    <span class="sm-filter-label text-muted small me-1"
+                          title="Filtra qué OFs se muestran según su estado (borrador, confirmada, en proceso…).">Estado:</span>
                     <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            title="Elegí qué estados de OF mostrar en el tablero."
                             t-on-click.stop="toggleStateDropdown">
                         <t t-esc="stateFilterLabel"/>
                         <i class="fa fa-chevron-down ms-1 small"/>
@@ -65,8 +69,10 @@
 
                 <!-- Sector -->
                 <div class="sm-filter-group position-relative">
-                    <span class="sm-filter-label text-muted small me-1">Sector:</span>
+                    <span class="sm-filter-label text-muted small me-1"
+                          title="Sector productivo: agrupa los centros de trabajo. Elegí uno para ver sus CTs.">Sector:</span>
                     <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            title="Elegí el/los sectores cuyos centros de trabajo querés ver."
                             t-on-click.stop="toggleTagDropdown">
                         <t t-esc="tagFilterLabel"/>
                         <i class="fa fa-chevron-down ms-1 small"/>
@@ -91,8 +97,10 @@
 
                 <!-- CT -->
                 <div class="sm-filter-group position-relative" t-if="state.wcs.length">
-                    <span class="sm-filter-label text-muted small me-1">CT:</span>
+                    <span class="sm-filter-label text-muted small me-1"
+                          title="Centro de Trabajo: la máquina o puesto donde se ejecuta cada operación. Es una fila del tablero.">CT:</span>
                     <button class="sm-filter-btn btn btn-sm btn-outline-secondary"
+                            title="Mostrar solo estos centros de trabajo (filas). Vacío = todos."
                             t-on-click.stop="toggleWcDropdown">
                         <t t-esc="wcFilterLabel"/>
                         <i class="fa fa-chevron-down ms-1 small"/>
@@ -127,12 +135,15 @@
 
                 <!-- Rango de fechas: visible siempre (tablero, ruta y propuesta) -->
                 <div class="vr mx-1"/>
-                <div class="sm-filter-group d-flex align-items-center gap-1">
+                <div class="sm-filter-group d-flex align-items-center gap-1"
+                     title="Rango de fechas cargado en el tablero. Ampliá el rango para ver más OFs; achicalo para cargar más rápido.">
                     <span class="text-muted small">Desde</span>
                     <input type="date" class="form-control form-control-sm sm-date-input"
+                           title="Primer día visible del eje."
                            t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
                     <span class="text-muted small">hasta</span>
                     <input type="date" class="form-control form-control-sm sm-date-input"
+                           title="Último día visible del eje."
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
@@ -140,24 +151,39 @@
                 <t t-if="!state.routeMode">
                 <!-- Toggles -->
                 <div class="sm-filter-group d-flex align-items-center gap-3 ms-auto">
-                    <div class="form-check form-switch mb-0">
+                    <div class="form-check form-switch mb-0"
+                         title="Esconde las filas de centros que no tienen ninguna OF en el rango, para achicar la lista.">
                         <input class="form-check-input" type="checkbox" id="sm-hide-empty"
                                t-att-checked="state.hideEmptyRows" t-on-change="toggleHideEmptyRows"/>
                         <label class="form-check-label small text-muted" for="sm-hide-empty">
                             Ocultar CTs vacíos
                         </label>
                     </div>
-                    <div class="form-check form-switch mb-0">
+                    <div class="form-check form-switch mb-0"
+                         title="Saca del eje los sábados y domingos (salvo que tengan trabajo programado), para aprovechar el ancho.">
                         <input class="form-check-input" type="checkbox" id="sm-hide-weekends"
                                t-att-checked="state.hideWeekends" t-on-change="toggleHideWeekends"/>
                         <label class="form-check-label small text-muted" for="sm-hide-weekends">
                             Ocultar fines de semana
                         </label>
                     </div>
+                    <div class="form-check form-switch mb-0"
+                         title="Resalta los tramos libres de cada centro (verde punteado): capacidad disponible donde podrías meter una OF, p. ej. una urgente.">
+                        <input class="form-check-input" type="checkbox" id="sm-show-gaps"
+                               t-att-checked="state.showGaps" t-on-change="toggleShowGaps"/>
+                        <label class="form-check-label small text-muted" for="sm-show-gaps">
+                            Ver huecos
+                        </label>
+                    </div>
                 </div>
 
+                <!-- Ayuda: cómo leer el tablero -->
+                <i class="fa fa-question-circle text-primary sm-help-ico"
+                   title="Cómo leer el tablero:&#10;• Cada FILA es un centro de trabajo (máquina/puesto).&#10;• Cada BARRA es una operación (WO), ubicada por sus fechas de inicio y fin.&#10;• El color de la barra indica el estado de la OF (confirmada, en proceso…).&#10;• El % junto al centro es su ocupación en el rango visible.&#10;• Verde punteado = hueco libre: capacidad disponible para meter una OF.&#10;• Clic en una barra: ver componentes o entrar a la ruta de la OF.&#10;• El botón '+' al final de una fila crea una OF nueva en ese centro."/>
+
                 <!-- Contador -->
-                <div t-if="state.totalBars" class="text-muted small">
+                <div t-if="state.totalBars" class="text-muted small"
+                     title="Cantidad de operaciones (OT) dibujadas como barras en el tablero.">
                     <strong t-esc="state.totalBars"/> OT
                 </div>
                 </t><!-- /!routeMode -->
@@ -176,6 +202,8 @@
                     <span t-if="state.proposalMode" class="sm-route-title">
                         <i class="fa fa-industry me-1"/>Propuesta de fabricación
                         <span class="text-muted ms-2">— la ocupación de cada centro suma la carga existente + la propuesta</span>
+                        <i class="fa fa-question-circle ms-2 text-primary sm-help-ico"
+                           title="Cómo leer esta vista:&#10;• Cada FILA es un centro de trabajo (una máquina/puesto).&#10;• Cada BARRA es una operación ubicada en el tiempo (eje horizontal).&#10;• El hilo une las OFs relacionadas (componente → producto).&#10;• El % junto al centro es su ocupación (carga firme + esta propuesta).&#10;• El panel de abajo dice, por artículo, si entra en la fecha deseada.&#10;• Clic en una barra con alternativas para moverla a otro centro y ver el impacto.&#10;• 'Optimizar' propone cambios que mejoran el plan."/>
                     </span>
                     <button t-if="state.proposalMode" class="btn btn-sm btn-primary ms-3 flex-shrink-0"
                             t-on-click.stop="runProposer"
@@ -184,11 +212,20 @@
                     </button>
                     <!-- Leyenda de colores (Work 4): distingue lo firme de la propuesta -->
                     <t t-if="state.proposalMode">
-                        <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted">
-                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-firm"/>existente (firme)</span>
-                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-prop"/>propuesta</span>
-                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-altsw"/>centro alternativo</span>
-                            <span class="d-inline-flex align-items-center gap-1"><span class="sm-legend-swatch sm-legend-gapsw"/>hueco libre</span>
+                        <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted"
+                              title="Referencia de colores de las barras y bandas del Gantt.">
+                            <span class="d-inline-flex align-items-center gap-1"
+                                  title="OFs ya planificadas en firme en el sistema (no son parte de esta propuesta).">
+                                <span class="sm-legend-swatch sm-legend-firm"/>existente (firme)</span>
+                            <span class="d-inline-flex align-items-center gap-1"
+                                  title="OFs que este cálculo propone crear para cubrir la demanda.">
+                                <span class="sm-legend-swatch sm-legend-prop"/>propuesta</span>
+                            <span class="d-inline-flex align-items-center gap-1"
+                                  title="Operación ubicada en un centro alternativo (no el primario de la ruta), elegido por carga.">
+                                <span class="sm-legend-swatch sm-legend-altsw"/>centro alternativo</span>
+                            <span class="d-inline-flex align-items-center gap-1"
+                                  title="Tramo libre del centro: capacidad disponible donde podría entrar otra operación.">
+                                <span class="sm-legend-swatch sm-legend-gapsw"/>hueco libre</span>
                         </span>
                     </t>
                     <div t-attf-class="form-check form-switch mb-0 {{ state.proposalMode ? 'ms-2' : 'ms-auto' }}">
@@ -203,12 +240,14 @@
                         <label class="form-check-label small text-muted" for="sm-show-gaps-r"
                                title="Resalta los huecos libres de cada centro: capacidad disponible donde el motor podría calzar una OT.">Ver huecos</label>
                     </div>
-                    <div class="form-check form-switch mb-0 ms-2">
+                    <div class="form-check form-switch mb-0 ms-2"
+                         title="Saca del eje los sábados y domingos (salvo que tengan trabajo programado).">
                         <input class="form-check-input" type="checkbox" id="sm-hide-weekends-r"
                                t-att-checked="state.hideWeekends" t-on-change="toggleHideWeekends"/>
                         <label class="form-check-label small text-muted" for="sm-hide-weekends-r">Ocultar fines de semana</label>
                     </div>
-                    <button t-if="!state.proposalMode" class="btn btn-sm btn-outline-secondary ms-2" t-on-click="exitRoute">
+                    <button t-if="!state.proposalMode" class="btn btn-sm btn-outline-secondary ms-2" t-on-click="exitRoute"
+                            title="Vuelve al tablero general y restaura los filtros que tenías antes de entrar a la ruta.">
                         <i class="fa fa-times me-1"/>Salir de ruta
                     </button>
                 </t>
@@ -241,9 +280,9 @@
             </div>
 
             <!-- ══ Tablero ══════════════════════════════════════════════════════ -->
-            <div t-elif="state.layout" class="sm-board-wrap">
+            <div t-elif="state.layout" t-att-class="'sm-board-wrap' + (state.proposalMode ? ' sm-wrap-proposal' : '')">
               <div class="sm-board">
-                <div class="sm-scroll">
+                <div class="sm-scroll" t-ref="scroll">
 
                     <!-- Header: esquina sticky + eje temporal -->
                     <div class="sm-head-row">
@@ -286,11 +325,13 @@
 
                       <!-- Encabezado de sector (sticky, colapsable) -->
                       <t t-if="item.type === 'header'">
-                        <div class="sm-sector-head" t-on-click="() => this.toggleSector(item.group.name)">
+                        <div class="sm-sector-head" t-on-click="() => this.toggleSector(item.group.name)"
+                             title="Sector productivo: agrupa varios centros de trabajo. Clic para colapsar o expandir sus filas.">
                             <div class="sm-sector-head-inner">
                                 <i t-att-class="'fa me-2 ' + (item.group.collapsed ? 'fa-chevron-right' : 'fa-chevron-down')"/>
                                 <span class="fw-bold" t-esc="item.group.name"/>
-                                <span class="sm-sector-meta text-muted ms-2 small">
+                                <span class="sm-sector-meta text-muted ms-2 small"
+                                      title="Cantidad de centros del sector y su ocupación promedio en el rango visible.">
                                     <t t-esc="item.group.ctCount"/> CT · <t t-esc="item.group.avgOcc"/>% ocup. prom
                                 </span>
                             </div>
@@ -375,8 +416,10 @@
                                     <div class="sm-work" t-att-style="`left:${wb.leftPct}%;width:${wb.widthPct}%`"/>
                                 </t>
 
-                                <!-- Huecos libres (Fase 1): capacidad disponible del CT -->
-                                <t t-if="state.proposalMode and state.showGaps" t-foreach="row.gapBlocks or []" t-as="gap" t-key="'gap'+gap_index">
+                                <!-- Huecos libres (Fase 1): capacidad disponible del CT.
+                                     gapBlocks solo se llena donde corresponde (propuesta o
+                                     tablero general), así que basta el toggle showGaps. -->
+                                <t t-if="state.showGaps" t-foreach="row.gapBlocks or []" t-as="gap" t-key="'gap'+gap_index">
                                     <div class="sm-gap" t-att-style="`left:${gap.leftPct}%;width:${gap.widthPct}%`"
                                          t-att-title="'Hueco libre · ' + fmtHours(gap.mins)"/>
                                 </t>
@@ -490,6 +533,8 @@
                   <div class="sm-route-panel-head">
                       Resumen del pedido
                       <span class="text-muted fw-normal small ms-1">· ¿entra en fecha?</span>
+                      <i class="fa fa-question-circle ms-1 text-primary sm-help-ico"
+                         title="Una tarjeta por artículo del pedido. Verde = la propuesta lo termina a tiempo; rojo = llega tarde respecto de la fecha deseada. Muestra la fecha deseada vs. la fecha en que quedaría listo, y cuántas OFs/compras genera."/>
                   </div>
                   <div class="sm-route-panel-body">
                       <t t-foreach="state.itemSummary" t-as="it" t-key="it.item_id">
@@ -500,13 +545,13 @@
                                   <span class="sm-item-qty text-muted text-nowrap"><t t-esc="fmtQty(it.qty)"/> <t t-esc="it.uom"/></span>
                               </div>
                               <div class="sm-item-dates">
-                                  <span class="text-muted">deseada</span> <b t-esc="it.deadline || '—'"/>
-                                  <span class="text-muted ms-2">lista</span> <b t-esc="it.projected || '—'"/>
+                                  <span class="text-muted" title="Fecha en la que se necesita el artículo (deseada/plazo).">deseada</span> <b t-esc="it.deadline || '—'"/>
+                                  <span class="text-muted ms-2" title="Fecha en que la propuesta termina de fabricarlo.">lista</span> <b t-esc="it.projected || '—'"/>
                               </div>
                               <div t-att-class="'sm-item-msg ' + (it.feasible ? 'text-success' : 'text-danger')" t-esc="it.msg"/>
                               <div class="sm-item-meta text-muted">
-                                  <span t-if="it.ot_count"><i class="fa fa-cogs me-1"/><t t-esc="it.ot_count"/> OT</span>
-                                  <span t-if="it.purchase_count" class="ms-2"><i class="fa fa-shopping-cart me-1"/><t t-esc="it.purchase_count"/> compra</span>
+                                  <span t-if="it.ot_count" title="Cantidad de órdenes de fabricación (OFs) que genera este artículo en la propuesta."><i class="fa fa-cogs me-1"/><t t-esc="it.ot_count"/> OT</span>
+                                  <span t-if="it.purchase_count" class="ms-2" title="Cantidad de compras (OCs) de materiales que dispara este artículo."><i class="fa fa-shopping-cart me-1"/><t t-esc="it.purchase_count"/> compra</span>
                               </div>
                           </div>
                       </t>
@@ -575,6 +620,7 @@
             </div>
             <div class="sm-popover-foot border-top p-2">
                 <button class="btn btn-sm btn-primary w-100"
+                        title="Abre la vista de ruta: muestra esta OF junto a sus OFs relacionadas (componentes y producto final) encadenadas."
                         t-on-click.stop="() => this.enterRoute(state.popoverMoId)">
                     <i class="fa fa-random me-1"/>Ver ruta de la OF
                 </button>
@@ -605,10 +651,16 @@
                         <i class="fa fa-spinner fa-spin me-1"/>calculando impacto…
                     </div>
                     <t t-foreach="state.reassignBar.alt_wcs" t-as="alt" t-key="alt.id">
+                        <t t-set="sim" t-value="simFor(alt.id)"/>
                         <button t-att-class="'sm-reassign-opt btn btn-sm w-100 text-start mb-1 ' + simClass(alt.id)"
+                                t-att-title="'Fijar la operación en ' + alt.name + ' y recalcular el plan alrededor.'"
                                 t-on-click.stop="() => this.doReassign(alt.id)">
                             <div><i class="fa fa-arrow-right me-2"/><t t-esc="alt.name"/></div>
-                            <div t-if="simFor(alt.id)" class="sm-reassign-delta" t-esc="simFor(alt.id).label"/>
+                            <div t-if="sim" class="sm-reassign-delta" t-esc="sim.label"/>
+                            <t t-if="sim and sim.effects and sim.effects.length"
+                               t-call="odoo_mrp_planner_scheduling.ImpactBreakdown">
+                                <t t-set="effects" t-value="sim.effects"/>
+                            </t>
                         </button>
                     </t>
                 </t>
@@ -643,12 +695,18 @@
                                 <div class="sm-proposal d-flex align-items-center gap-2 p-2 border rounded mb-2">
                                     <div class="flex-grow-1" style="min-width:0">
                                         <div class="fw-semibold text-truncate" t-att-title="sug.product" t-esc="sug.product"/>
-                                        <div class="small text-muted text-truncate">
+                                        <div class="small text-muted text-truncate"
+                                             title="Centro actual → centro propuesto para esta OF.">
                                             <t t-esc="sug.from_wc"/> <i class="fa fa-arrow-right mx-1"/> <b t-esc="sug.to_wc"/>
                                         </div>
-                                        <div class="small text-success" t-esc="sug.label"/>
+                                        <div class="small text-success fw-semibold" t-esc="sug.label"/>
+                                        <t t-if="sug.effects and sug.effects.length"
+                                           t-call="odoo_mrp_planner_scheduling.ImpactBreakdown">
+                                            <t t-set="effects" t-value="sug.effects"/>
+                                        </t>
                                     </div>
-                                    <button class="btn btn-sm btn-success flex-shrink-0" t-on-click.stop="() => this.applyProposal(sug)">
+                                    <button class="btn btn-sm btn-success flex-shrink-0" t-on-click.stop="() => this.applyProposal(sug)"
+                                            title="Aplica este cambio de centro y recalcula el plan. Después podés volver a Optimizar para la siguiente mejora.">
                                         <i class="fa fa-check me-1"/>Aplicar
                                     </button>
                                 </div>
@@ -663,6 +721,31 @@
         </div>
 
     </div><!-- /sm-root -->
+</t>
+
+<!-- ══ Desglose de impacto ANTES → DESPUÉS (reusable) ═══════════════════════════
+     Recibe `effects` = [{k, before, after, better}] de _impact_effects. Muestra,
+     por cada dimensión que cambia, el valor actual y el proyectado con el cambio,
+     coloreado según mejore (verde) o empeore (rojo). -->
+<t t-name="odoo_mrp_planner_scheduling.ImpactBreakdown">
+    <div class="sm-impact">
+        <div class="sm-impact-head">
+            <span>Qué cambia</span>
+            <span class="sm-impact-cols"><span>ahora</span><i class="fa fa-long-arrow-right"/><span>con el cambio</span></span>
+        </div>
+        <t t-foreach="effects" t-as="ef" t-key="ef_index">
+            <div t-att-class="'sm-impact-row ' + (ef.better ? 'sm-impact-better' : 'sm-impact-worse')"
+                 t-att-title="ef.k + ': pasa de ' + ef.before + ' a ' + ef.after + (ef.better ? ' (mejora)' : ' (empeora)')">
+                <span class="sm-impact-k" t-esc="ef.k"/>
+                <span class="sm-impact-v">
+                    <span class="sm-impact-before" t-esc="ef.before"/>
+                    <i class="fa fa-long-arrow-right sm-impact-arrow"/>
+                    <b class="sm-impact-after" t-esc="ef.after"/>
+                    <i t-att-class="'fa ' + (ef.better ? 'fa-arrow-down text-success' : 'fa-arrow-up text-danger')"/>
+                </span>
+            </div>
+        </t>
+    </div>
 </t>
 
 </templates>

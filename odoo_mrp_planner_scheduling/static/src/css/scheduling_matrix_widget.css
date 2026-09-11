@@ -69,6 +69,21 @@
 
 /* ── Panel lateral: resumen por artículo (modo propuesta) ── */
 .sm-summary-panel .sm-route-panel-body { padding: 8px; }
+
+/* Modo propuesta: el resumen va DEBAJO del Gantt (tira horizontal) para que el
+   gráfico ocupe todo el ancho y se lea bien. Las tarjetas se apilan en fila con
+   scroll horizontal propio. */
+.sm-wrap-proposal { flex-direction: column; }
+.sm-wrap-proposal .sm-summary-panel {
+    flex: 0 0 auto; border-left: none; border-top: 2px solid #adb5bd;
+}
+.sm-wrap-proposal .sm-summary-panel .sm-route-panel-body {
+    display: flex; flex-direction: row; align-items: stretch; gap: 8px;
+    overflow-x: auto; overflow-y: hidden;
+}
+.sm-wrap-proposal .sm-summary-panel .sm-item-card {
+    flex: 0 0 250px; margin-bottom: 0; display: flex; flex-direction: column;
+}
 .sm-item-card {
     border: 1px solid #e5e8ec; border-left: 4px solid #adb5bd;
     border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #fff;
@@ -391,6 +406,34 @@
 .sm-reassign-delta { font-size: 10.5px; opacity: 0.85; margin-top: 1px; margin-left: 20px; }
 /* La barra propuesta con alternativas invita al click (cursor + realce al hover). */
 .sm-route-mode .sm-bar-alt { cursor: pointer; }
+
+/* Ícono de ayuda contextual (?) — invita a pasar el mouse por la explicación. */
+.sm-help-ico { cursor: help; font-size: 13px; }
+
+/* ── Desglose de impacto ANTES → DESPUÉS (reusable: reasignación + propuestas) ── */
+.sm-impact {
+    margin-top: 5px; border-top: 1px dashed #dde1e6; padding-top: 4px;
+    font-size: 10.5px; line-height: 1.35;
+}
+.sm-impact-head {
+    display: flex; justify-content: space-between; align-items: center;
+    color: #8a929b; font-size: 9.5px; text-transform: uppercase;
+    letter-spacing: 0.02em; margin-bottom: 2px;
+}
+.sm-impact-cols { display: inline-flex; align-items: center; gap: 3px; }
+.sm-impact-cols .fa { font-size: 9px; }
+.sm-impact-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    padding: 1px 0;
+}
+.sm-impact-k { color: #495057; flex-shrink: 0; }
+.sm-impact-v { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.sm-impact-before { color: #adb5bd; text-decoration: line-through; }
+.sm-impact-arrow  { font-size: 9px; color: #adb5bd; align-self: center; }
+.sm-impact-after  { font-weight: 700; }
+.sm-impact-better .sm-impact-after { color: #1D9E75; }
+.sm-impact-worse  .sm-impact-after { color: #d64545; }
+.sm-impact-row .fa-arrow-down, .sm-impact-row .fa-arrow-up { font-size: 9px; align-self: center; }
 
 /* ── Panel de propuestas de optimización (modo propuesta) ── */
 .sm-proposals-backdrop {

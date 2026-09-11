@@ -201,6 +201,14 @@ class SchedulingMatrixWidget extends Component {
             reassignBar:      null,   // barra en reasignación (o null)
             reassignPos:      { top: 0, left: 0 },
             reassigning:      false,  // RPC de reasignar+recalcular en curso
+            reassignSim:      null,   // {wc_id: {label, better, worse}} preview de impacto
+            reassignSimLoading: false,
+
+            // Proposer de optimizaciones (modo propuesta)
+            proposalsOpen:    false,
+            proposalsLoading: false,
+            proposals:        [],     // [{line_id, product, from_wc, to_wc_id, to_wc, label}]
+            proposalsCapped:  false,
 
             // Dropdowns
             tagDropdownOpen:   false,
@@ -625,15 +633,93 @@ class SchedulingMatrixWidget extends Component {
 
     // ── Reasignación de centro (Fase 2, modo propuesta) ───────────────────────
 
-    _openReassign(ev, bar) {
+    async _openReassign(ev, bar) {
         this._closePopover();
         const r = ev.currentTarget.getBoundingClientRect();
         this.state.reassignPos = { top: r.bottom + 4, left: r.left };
         this.state.reassignBar = bar;
+        // Preview del impacto de cada alternativa (sin persistir): una sola RPC que
+        // simula en memoria cada CT candidato y devuelve el delta vs el plan actual.
+        this.state.reassignSim = null;
+        this.state.reassignSimLoading = true;
+        try {
+            const opts = await this.orm.call(
+                'mrp.production.request', 'simulate_reassign_options',
+                [this.requestId, bar.line_id],
+            );
+            const map = {};
+            for (const o of (opts || [])) map[o.wc_id] = o;
+            if (this.state.reassignBar === bar) this.state.reassignSim = map;
+        } catch (e) {
+            // El preview es best-effort: si falla, el menú sigue usable sin deltas.
+        } finally {
+            this.state.reassignSimLoading = false;
+        }
     }
 
     _closeReassign() {
         this.state.reassignBar = null;
+        this.state.reassignSim = null;
+    }
+
+    /** Preview simulado para un CT candidato (o null si aún no llegó). */
+    simFor(wcId) {
+        return this.state.reassignSim ? this.state.reassignSim[wcId] : null;
+    }
+
+    /** Clase del botón de una alternativa según su impacto (verde mejora, rojo empeora). */
+    simClass(wcId) {
+        const s = this.simFor(wcId);
+        if (!s) return 'btn-outline-primary';
+        return s.better ? 'btn-outline-success' : (s.worse ? 'btn-outline-danger' : 'btn-outline-primary');
+    }
+
+    // ── Proposer de optimizaciones (modo propuesta) ───────────────────────────
+
+    async runProposer() {
+        this.state.proposalsOpen = true;
+        this.state.proposalsLoading = true;
+        this.state.proposals = [];
+        try {
+            const res = await this.orm.call(
+                'mrp.production.request', 'propose_optimizations', [this.requestId],
+            );
+            this.state.proposals = res.suggestions || [];
+            this.state.proposalsCapped = !!res.capped;
+        } catch (e) {
+            this.notification.add(
+                (e?.data?.message) || e.message || 'No se pudieron calcular las propuestas.',
+                { type: 'danger' },
+            );
+            this.state.proposalsOpen = false;
+        } finally {
+            this.state.proposalsLoading = false;
+        }
+    }
+
+    _closeProposals() {
+        this.state.proposalsOpen = false;
+        this.state.proposals = [];
+    }
+
+    /** Aplica una propuesta: reasigna el CT (pin & re-solve) y recarga el plan. */
+    async applyProposal(sug) {
+        this.state.proposalsLoading = true;
+        try {
+            await this.orm.call(
+                'mrp.production.request', 'reassign_line_workcenter',
+                [this.requestId, sug.line_id, sug.to_wc_id],
+            );
+            this._closeProposals();
+            await this._loadProposal();
+        } catch (e) {
+            this.notification.add(
+                (e?.data?.message) || e.message || 'No se pudo aplicar el cambio.',
+                { type: 'danger' },
+            );
+        } finally {
+            this.state.proposalsLoading = false;
+        }
     }
 
     /** Reasigna la operación de la barra a otro centro y recalcula la propuesta

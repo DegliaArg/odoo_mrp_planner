@@ -177,6 +177,11 @@
                         <i class="fa fa-industry me-1"/>Propuesta de fabricación
                         <span class="text-muted ms-2">— la ocupación de cada centro suma la carga existente + la propuesta</span>
                     </span>
+                    <button t-if="state.proposalMode" class="btn btn-sm btn-primary ms-3 flex-shrink-0"
+                            t-on-click.stop="runProposer"
+                            title="El programador busca reasignaciones de centro que mejoren el plan (primero los plazos, luego el tiempo total, luego la carga).">
+                        <i class="fa fa-magic me-1"/>Optimizar
+                    </button>
                     <!-- Leyenda de colores (Work 4): distingue lo firme de la propuesta -->
                     <t t-if="state.proposalMode">
                         <span class="sm-legend ms-auto d-inline-flex align-items-center gap-3 small text-muted">
@@ -596,16 +601,64 @@
                     <i class="fa fa-spinner fa-spin me-1"/>Recalculando el plan…
                 </div>
                 <t t-else="">
+                    <div t-if="state.reassignSimLoading" class="text-muted small mb-1">
+                        <i class="fa fa-spinner fa-spin me-1"/>calculando impacto…
+                    </div>
                     <t t-foreach="state.reassignBar.alt_wcs" t-as="alt" t-key="alt.id">
-                        <button class="sm-reassign-opt btn btn-sm btn-outline-primary w-100 text-start mb-1"
+                        <button t-att-class="'sm-reassign-opt btn btn-sm w-100 text-start mb-1 ' + simClass(alt.id)"
                                 t-on-click.stop="() => this.doReassign(alt.id)">
-                            <i class="fa fa-arrow-right me-2"/><t t-esc="alt.name"/>
+                            <div><i class="fa fa-arrow-right me-2"/><t t-esc="alt.name"/></div>
+                            <div t-if="simFor(alt.id)" class="sm-reassign-delta" t-esc="simFor(alt.id).label"/>
                         </button>
                     </t>
                 </t>
             </div>
             <div class="sm-reassign-foot border-top px-2 py-1 text-muted">
                 Se recalcula el plan fijando este centro para la operación.
+            </div>
+        </div>
+
+        <!-- ══ Propuestas de optimización (modo propuesta) ═════════════════════ -->
+        <div t-if="state.proposalsOpen" class="sm-proposals-backdrop" t-on-click.stop="_closeProposals">
+            <div class="sm-proposals shadow-lg border rounded bg-white" t-on-click.stop="() => {}">
+                <div class="sm-proposals-head d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                    <span class="fw-semibold"><i class="fa fa-magic me-2"/>Propuestas de optimización</span>
+                    <button class="btn btn-sm btn-link p-0" t-on-click.stop="_closeProposals"><i class="fa fa-times"/></button>
+                </div>
+                <div class="sm-proposals-body p-2">
+                    <div t-if="state.proposalsLoading" class="text-center text-muted py-4">
+                        <i class="fa fa-spinner fa-spin fa-2x"/>
+                        <div class="mt-2 small">Evaluando alternativas…</div>
+                    </div>
+                    <t t-else="">
+                        <div t-if="!state.proposals.length" class="text-center text-muted py-4">
+                            <i class="fa fa-check-circle fa-2x text-success mb-2 d-block"/>
+                            No se encontraron mejoras: el plan ya está bien equilibrado.
+                        </div>
+                        <t t-else="">
+                            <div class="text-muted small px-1 mb-2">
+                                Ordenadas por prioridad (plazos → tiempo total → carga). Aplicá una y volvé a proponer para la siguiente.
+                            </div>
+                            <t t-foreach="state.proposals" t-as="sug" t-key="sug_index">
+                                <div class="sm-proposal d-flex align-items-center gap-2 p-2 border rounded mb-2">
+                                    <div class="flex-grow-1" style="min-width:0">
+                                        <div class="fw-semibold text-truncate" t-att-title="sug.product" t-esc="sug.product"/>
+                                        <div class="small text-muted text-truncate">
+                                            <t t-esc="sug.from_wc"/> <i class="fa fa-arrow-right mx-1"/> <b t-esc="sug.to_wc"/>
+                                        </div>
+                                        <div class="small text-success" t-esc="sug.label"/>
+                                    </div>
+                                    <button class="btn btn-sm btn-success flex-shrink-0" t-on-click.stop="() => this.applyProposal(sug)">
+                                        <i class="fa fa-check me-1"/>Aplicar
+                                    </button>
+                                </div>
+                            </t>
+                            <div t-if="state.proposalsCapped" class="small text-muted px-1">
+                                Se evaluó una muestra de alternativas; puede haber más. Aplicá una y volvé a proponer.
+                            </div>
+                        </t>
+                    </t>
+                </div>
             </div>
         </div>
 

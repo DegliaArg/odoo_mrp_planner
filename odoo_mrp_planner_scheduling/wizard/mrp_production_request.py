@@ -310,18 +310,130 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
                 or u.has_group('base.group_system')):
             raise AccessError(_('Solo los usuarios del grupo Programación pueden ejecutar esta acción.'))
 
+    # ── Núcleo de cálculo (compartido por cálculo real y simulación) ─────────
+
+    def _current_wc_overrides(self):
+        """Overrides de CT vigentes: {node_key: workcenter} de las líneas-OF con
+        centro fijado. Es el "pin" que preserva las elecciones manuales entre
+        recálculos, y la base sobre la que la simulación aplica cambios hipotéticos.
+        """
+        return {
+            l.node_key: l.workcenter_id
+            for l in self.line_ids
+            if l.workcenter_id and l.record_type == 'mrp' and l.node_key
+        }
+
+    def _plan_min_dt(self):
+        """Piso temporal del plan: max(start_from, hoy UTC midnight). Nada se
+        programa antes de hoy."""
+        start = self.start_from or fields.Datetime.now()
+        if hasattr(start, 'tzinfo') and start.tzinfo:
+            start = start.astimezone(pytz.utc).replace(tzinfo=None)
+        today_utc = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return max(start, today_utc)
+
+    def _build_and_schedule(self, overrides=None):
+        """Núcleo de cálculo PURO (sin escribir en la base): construye el árbol de
+        demanda de cada artículo, aplica los overrides de CT, obtiene la agenda de
+        cada centro y programa todo compartiendo esa agenda.
+
+        Lo usan tanto action_calculate (que además persiste) como la simulación y el
+        proposer (que solo miran los resultados). NO toca líneas, ítems ni estado.
+
+        :param overrides: dict | None — {node_key: workcenter} pines de CT a aplicar.
+        :returns: tuple — (item_trees, wc_collector, item_results, min_dt) donde
+            item_trees = [(item, root)], wc_collector = {wc_id: {hours,start,end}},
+            item_results = {item.id: {earliest_end, projected_start, projected_end,
+            feasible, deadline}}.
+        :raises UserError: si algún artículo no tiene LdM fabricable.
+        """
+        min_dt = self._plan_min_dt()
+
+        # Construir árbol de demanda por artículo (cachés compartidos, evita N+1).
+        missing, item_trees = [], []
+        caches = self._new_caches()
+        for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
+            root = self._build_demand_tree(item.product_id, item.product_qty,
+                                           level=0, caches=caches)
+            if not root:
+                missing.append(item.product_id.display_name)
+            else:
+                item_trees.append((item, root))
+        if missing:
+            raise UserError(_('Sin lista de materiales para: %s') % ', '.join(missing))
+
+        if overrides:
+            for item, root in item_trees:
+                self._apply_wc_overrides(root, item.id, overrides)
+
+        all_roots = [r for _, r in item_trees]
+        wc_busy   = self._get_wc_busy_multi(min_dt, all_roots)
+
+        wc_collector = {}
+        item_results = {}
+        direction = self.scheduling_direction or 'alap'
+        for item, root in item_trees:
+            self._schedule_tree(root, min_dt, wc_busy, min_dt=min_dt,
+                                target_end=item.date_deadline, wc_collector=wc_collector,
+                                direction=direction)
+            earliest   = root.get('scheduled_end')
+            proj_start = self._get_tree_earliest_start(root)
+            proj_end   = item.date_deadline
+            if earliest and proj_end and earliest > proj_end:
+                proj_end = earliest
+            item_results[item.id] = {
+                'earliest_end':    earliest,
+                'projected_start': proj_start,
+                'projected_end':   proj_end,
+                'deadline':        item.date_deadline,
+                'feasible':        bool(earliest and item.date_deadline
+                                        and earliest <= item.date_deadline),
+            }
+        return item_trees, wc_collector, item_results, min_dt
+
+    def _wc_occupancy(self, wc_collector, min_dt):
+        """Ocupación por CT a partir del wc_collector: horas planificadas vs horas
+        disponibles del centro en el horizonte global del plan. Compartido por el
+        resumen persistido (wc_load_ids) y por la simulación.
+
+        :returns: dict — {wc_id: {total_hours, available_hours, occupancy_pct,
+            date_start, date_end}}.
+        """
+        out = {}
+        if not wc_collector:
+            return out
+        starts = [d['start'] for d in wc_collector.values() if d['start']]
+        ends   = [d['end']   for d in wc_collector.values() if d['end']]
+        horizon_start = min(starts) if starts else min_dt
+        horizon_end   = max(ends)   if ends   else min_dt
+        avail_cache = {}
+        company_cal = self.env.company.resource_calendar_id
+        for wc_id, data in wc_collector.items():
+            avail_h = 0.0
+            if horizon_end > horizon_start:
+                cal = (self.env['mrp.workcenter'].browse(wc_id).resource_calendar_id
+                       or company_cal)
+                if cal:
+                    avail_h = cal._planner_available_hours(
+                        horizon_start, horizon_end, cache=avail_cache) or 0.0
+            planned_h = round(data['hours'], 2)
+            occ = round(planned_h / avail_h * 100) if avail_h > 0 else (999 if planned_h > 0 else 0)
+            out[wc_id] = {
+                'total_hours':     planned_h,
+                'available_hours': round(avail_h, 2),
+                'occupancy_pct':   occ,
+                'date_start':      data['start'],
+                'date_end':        data['end'],
+            }
+        return out
+
     def action_calculate(self):
         """
         Calcula el plan de fabricación para todos los artículos de la solicitud.
 
-        Pasos:
-        1. Preserva overrides de WC editados manualmente y limpia líneas anteriores.
-        2. Determina el piso temporal (max entre start_from y hoy UTC).
-        3. Construye el árbol de demanda multinivel para cada artículo.
-        4. Obtiene los anclas de WC (carga existente en OFs confirmadas).
-        5. Programa el árbol bottom-up compartiendo anclas entre artículos.
-        6. Crea las líneas del plan y el resumen de carga por WC.
-        7. Transiciona el estado a 'calculated'.
+        Preserva los overrides de CT, corre el núcleo `_build_and_schedule` y
+        persiste el resultado: líneas del plan, operaciones, fechas por artículo y
+        resumen de carga por CT. Transiciona el estado a 'calculated'.
 
         :returns: dict — acción de ventana que recarga el formulario actual.
         :raises UserError: si no hay artículos o si algún artículo no tiene LdM.
@@ -332,76 +444,25 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
         if not self.item_ids:
             raise UserError(_('Agregue al menos un artículo.'))
 
-        # Preservar WC editados manualmente antes de limpiar las líneas.
-        # Se keyea por node_key (item + path completo) para no aplicar el override
-        # a la rama equivocada cuando un producto aparece en dos ramas del árbol.
-        wc_overrides = {
-            l.node_key: l.workcenter_id
-            for l in self.line_ids
-            if l.workcenter_id and l.record_type == 'mrp' and l.node_key
-        }
+        # Preservar los pines de CT ANTES de borrar las líneas (se keyean por
+        # node_key para no aplicarse a la rama equivocada).
+        overrides = self._current_wc_overrides()
         self.line_ids.unlink()
         self.wc_load_ids.unlink()
         self.item_ids.write({'projected_end': False, 'projected_start': False})
 
-        start = self.start_from or fields.Datetime.now()
-        if hasattr(start, 'tzinfo') and start.tzinfo:
-            start = start.astimezone(pytz.utc).replace(tzinfo=None)
+        item_trees, wc_collector, item_results, min_dt = self._build_and_schedule(overrides)
 
-        # Piso temporal: nada puede programarse antes de hoy (UTC midnight).
-        # fields.Datetime.now() devuelve UTC naive (idéntico a la ex utcnow(),
-        # sin la deprecación de datetime.utcnow() en Python 3.12+).
-        today_utc = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        min_dt = max(start, today_utc)
-
-        # Construir árbol de demanda para cada artículo (en orden de secuencia).
-        # Los cachés se comparten entre todos los artículos: componentes comunes se
-        # resuelven una sola vez (LdM, método, orderpoints) — evita el N+1 (fix #9).
-        missing = []
-        item_trees = []
-        caches = self._new_caches()
-        for item in self.item_ids.sorted(lambda i: (i.sequence, i.id)):
-            root = self._build_demand_tree(item.product_id, item.product_qty,
-                                           level=0, caches=caches)
-            if not root:
-                missing.append(item.product_id.display_name)
-            else:
-                item_trees.append((item, root))
-
-        if missing:
-            raise UserError(_('Sin lista de materiales para: %s') % ', '.join(missing))
-
-        # Aplicar WC editados manualmente en el cálculo anterior
-        if wc_overrides:
-            for item, root in item_trees:
-                self._apply_wc_overrides(root, item.id, wc_overrides)
-
-        # Agenda de cada WC: carga existente en la instancia (intervalos ocupados).
-        all_roots = [r for _, r in item_trees]
-        wc_busy   = self._get_wc_busy_multi(min_dt, all_roots)
-
-        # Programar todos los artículos compartiendo la misma agenda. Cada OT
-        # calzada se inserta en wc_busy, así el resto del cálculo la ve ocupada.
-        # El wc_collector acumula la carga por CT ELEGIDO y por operación (no por
-        # OF), para que el resumen de carga sea correcto con centros alternativos.
+        # Escribir fechas por artículo y recolectar las líneas del plan.
         lines_vals = []
         seq = [10]
-        wc_collector = {}
-        direction = self.scheduling_direction or 'alap'
         for item, root in item_trees:
-            self._schedule_tree(root, min_dt, wc_busy, min_dt=min_dt,
-                                target_end=item.date_deadline, wc_collector=wc_collector,
-                                direction=direction)
             self._collect_lines(root, lines_vals, seq, item_id=item.id)
-            earliest = root.get('scheduled_end')
-            proj_start = self._get_tree_earliest_start(root)
-            proj_end = item.date_deadline
-            if earliest and proj_end and earliest > proj_end:
-                proj_end = earliest
+            r = item_results[item.id]
             item.write({
-                'earliest_end':    earliest,
-                'projected_start': proj_start,
-                'projected_end':   proj_end,
+                'earliest_end':    r['earliest_end'],
+                'projected_start': r['projected_start'],
+                'projected_end':   r['projected_end'],
             })
 
         # Crear las líneas. Se extraen las claves transitorias (_parent_key, _ops)
@@ -431,50 +492,16 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             if op_vals:
                 self.env['mrp.production.request.line.op'].create(op_vals)
 
-        # Resumen de carga por WC — desde el wc_collector (carga real por operación
-        # en el CT elegido). Antes se sumaba desde las líneas por su único
-        # workcenter_id, atribuyendo TODAS las horas del OF al primer centro.
-        wc_data = wc_collector
-        if wc_data:
-            # Horizonte global del plan: del primer inicio al último fin de cualquier
-            # CT. La ocupación se mide contra la disponibilidad del CT en ESTE
-            # horizonte común, no contra el span exacto de sus operaciones (fix #5):
-            # así un CT usado una sola vez ya no da siempre ~100% y las cargas son
-            # comparables entre centros para detectar el cuello de botella real.
-            starts = [d['start'] for d in wc_data.values() if d['start']]
-            ends   = [d['end']   for d in wc_data.values() if d['end']]
-            horizon_start = min(starts) if starts else min_dt
-            horizon_end   = max(ends)   if ends   else min_dt
-            avail_cache = {}
-            company_cal = self.env.company.resource_calendar_id
-            wc_vals = []
-            for wc_id, data in sorted(wc_data.items(), key=lambda x: x[1]['start'] or datetime.min):
-                avail_h = 0.0
-                if horizon_end > horizon_start:
-                    # Fallback al calendario de empresa si el CT no tiene uno propio
-                    # (fix M5): sin esto un CT sin calendario daba disponible=0 →
-                    # ocupación 0% en verde, ocultando su carga real.
-                    cal = (self.env['mrp.workcenter'].browse(wc_id).resource_calendar_id
-                           or company_cal)
-                    if cal:
-                        avail_h = cal._planner_available_hours(
-                            horizon_start, horizon_end, cache=avail_cache) or 0.0
-                planned_h = round(data['hours'], 2)
-                if avail_h > 0:
-                    occ = round(planned_h / avail_h * 100)
-                else:
-                    # Sin disponibilidad calculable: si igual hay carga, marcar alerta
-                    # (999%) en vez de 0% verde para no ocultar la sobrecarga.
-                    occ = 999 if planned_h > 0 else 0
-                wc_vals.append({
-                    'request_id':      self.id,
-                    'workcenter_id':   wc_id,
-                    'total_hours':     planned_h,
-                    'available_hours': round(avail_h, 2),
-                    'occupancy_pct':   occ,
-                    'date_start':      data['start'],
-                    'date_end':        data['end'],
-                })
+        # Resumen de carga por WC — desde la ocupación calculada sobre el collector.
+        occ = self._wc_occupancy(wc_collector, min_dt)
+        if occ:
+            wc_vals = [
+                dict(data, request_id=self.id, workcenter_id=wc_id)
+                for wc_id, data in sorted(
+                    occ.items(),
+                    key=lambda x: x[1]['date_start'] or datetime.min,
+                )
+            ]
             self.env['mrp.production.request.wc'].create(wc_vals)
 
         self.state = 'calculated'
@@ -485,6 +512,152 @@ class MrpProductionRequest(MrpDemandExpansionMixin, MrpDemandSchedulingMixin, mo
             'view_mode': 'form',
             'target': 'current',
         }
+
+    # ── Simulación y propuestas de optimización ──────────────────────────────
+
+    @staticmethod
+    def _fmt_secs(secs):
+        """Formatea una duración en segundos como 'Xd Yh' / 'Yh Zm' / 'Zm'."""
+        secs = abs(int(secs))
+        d, h, m = secs // 86400, (secs % 86400) // 3600, (secs % 3600) // 60
+        if d:
+            return f'{d}d {h}h' if h else f'{d}d'
+        if h:
+            return f'{h}h {m}m' if m else f'{h}h'
+        return f'{m}m'
+
+    def _plan_metrics(self, item_results, wc_collector, min_dt):
+        """Métricas del plan para comparar alternativas, en el orden de prioridad
+        acordado (cascada lexicográfica): 1º atraso, 2º makespan, 3º carga pico.
+
+        :returns: tuple(float, float, float) — (atraso_seg, makespan_seg, pico_hs).
+            Menor es mejor en cada componente, evaluado en ese orden.
+        """
+        lateness = 0.0
+        makespan_end = None
+        for r in item_results.values():
+            ee, dl = r['earliest_end'], r['deadline']
+            if ee and dl and ee > dl:
+                lateness += (ee - dl).total_seconds()
+            if ee and (makespan_end is None or ee > makespan_end):
+                makespan_end = ee
+        makespan = (makespan_end - min_dt).total_seconds() if makespan_end else 0.0
+        max_hours = max((d['hours'] for d in wc_collector.values()), default=0.0)
+        return (round(lateness, 1), round(makespan, 1), round(max_hours, 3))
+
+    def _delta_label(self, base, trial):
+        """Describe la mejora/empeoramiento de `trial` respecto de `base` (tuplas de
+        _plan_metrics), en lenguaje humano y por prioridad."""
+        parts = []
+        lat_d, mk_d, ld_d = trial[0] - base[0], trial[1] - base[1], trial[2] - base[2]
+        if abs(lat_d) >= 60:
+            parts.append(('atraso −%s' if lat_d < 0 else 'atraso +%s') % self._fmt_secs(lat_d))
+        if abs(mk_d) >= 60:
+            parts.append((self._fmt_secs(mk_d) + ' antes') if mk_d < 0
+                         else (self._fmt_secs(mk_d) + ' después'))
+        if abs(ld_d) >= 0.5:
+            parts.append('pico %s%.0fh' % ('−' if ld_d < 0 else '+', abs(ld_d)))
+        return ' · '.join(parts) or 'sin cambios netos'
+
+    def _line_alt_workcenters(self, line):
+        """CTs alternativos válidos para reasignar una línea-OF: la unión de los
+        candidatos de sus operaciones, activos, distintos del centro actual."""
+        return line.op_ids.mapped('candidate_workcenter_ids').filtered(
+            lambda w: w.active and w.id != line.workcenter_id.id
+        )
+
+    def simulate_reassign_options(self, line_id):
+        """Preview del impacto de reasignar una línea-OF a cada CT alternativo, SIN
+        persistir. Para cada alternativa corre el núcleo de cálculo en memoria y
+        compara las métricas con el plan actual.
+
+        :param line_id: int — línea-OF a evaluar.
+        :returns: list[dict] — [{wc_id, wc_name, label, better}] por alternativa.
+        """
+        self.ensure_one()
+        self._ensure_scheduling_group()
+        line = self.env['mrp.production.request.line'].browse(int(line_id))
+        if not line.exists() or line.request_id.id != self.id or not line.node_key:
+            return []
+        base_overrides = self._current_wc_overrides()
+        _, base_coll, base_res, base_min = self._build_and_schedule(base_overrides)
+        base_metric = self._plan_metrics(base_res, base_coll, base_min)
+
+        out = []
+        for wc in self._line_alt_workcenters(line)[:6]:
+            trial = dict(base_overrides)
+            trial[line.node_key] = wc
+            try:
+                _, coll, res, mn = self._build_and_schedule(trial)
+            except Exception:
+                continue
+            metric = self._plan_metrics(res, coll, mn)
+            out.append({
+                'wc_id':   wc.id,
+                'wc_name': wc.display_name,
+                'label':   self._delta_label(base_metric, metric),
+                'better':  metric < base_metric,
+                'worse':   metric > base_metric,
+            })
+        return out
+
+    def propose_optimizations(self):
+        """El programador propone reasignaciones que mejoran el plan, según la
+        cascada de prioridad (atraso → makespan → carga). Enfoca la búsqueda en lo
+        que importa —artículos que no cumplen y el CT cuello de botella— y evalúa
+        cada alternativa con el simulador, quedándose con las que mejoran
+        estrictamente (comparación lexicográfica de las métricas).
+
+        Es un proposer greedy de un solo movimiento: cada sugerencia se mide contra
+        el plan actual. Tras aplicar una, se puede volver a proponer para la siguiente.
+
+        :returns: dict — {suggestions: [...], capped: bool}.
+        """
+        self.ensure_one()
+        self._ensure_scheduling_group()
+        MAX_TRIALS = 20
+
+        base_overrides = self._current_wc_overrides()
+        _, base_coll, base_res, base_min = self._build_and_schedule(base_overrides)
+        base_metric = self._plan_metrics(base_res, base_coll, base_min)
+
+        late_item_ids = {iid for iid, r in base_res.items() if not r['feasible']}
+        bottleneck_wc = max(base_coll, key=lambda w: base_coll[w]['hours'], default=None)
+
+        suggestions, trials, capped = [], 0, False
+        for line in self.line_ids.filtered(lambda l: l.record_type == 'mrp' and l.node_key):
+            touches_bottleneck = bool(bottleneck_wc) and bottleneck_wc in line.op_ids.mapped('workcenter_id').ids
+            if line.item_id.id not in late_item_ids and not touches_bottleneck:
+                continue
+            for wc in self._line_alt_workcenters(line):
+                if trials >= MAX_TRIALS:
+                    capped = True
+                    break
+                trials += 1
+                trial = dict(base_overrides)
+                trial[line.node_key] = wc
+                try:
+                    _, coll, res, mn = self._build_and_schedule(trial)
+                except Exception:
+                    continue
+                metric = self._plan_metrics(res, coll, mn)
+                if metric < base_metric:
+                    suggestions.append({
+                        'line_id':  line.id,
+                        'product':  line.product_id.display_name,
+                        'from_wc':  line.workcenter_id.display_name,
+                        'to_wc_id': wc.id,
+                        'to_wc':    wc.display_name,
+                        'label':    self._delta_label(base_metric, metric),
+                        '_metric':  metric,
+                    })
+            if capped:
+                break
+
+        suggestions.sort(key=lambda s: s['_metric'])
+        for s in suggestions:
+            s.pop('_metric', None)
+        return {'suggestions': suggestions[:8], 'capped': capped}
 
     def action_confirm(self):
         """

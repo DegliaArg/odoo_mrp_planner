@@ -386,8 +386,25 @@
 .sm-reassign-body { max-height: 260px; overflow-y: auto; }
 .sm-reassign-opt { font-size: 12px; }
 .sm-reassign-foot { font-size: 10px; background: #f8f9fa; }
+.sm-reassign-opt { line-height: 1.2; }
+/* Preview del impacto simulado, bajo el nombre del CT en cada opción. */
+.sm-reassign-delta { font-size: 10.5px; opacity: 0.85; margin-top: 1px; margin-left: 20px; }
 /* La barra propuesta con alternativas invita al click (cursor + realce al hover). */
 .sm-route-mode .sm-bar-alt { cursor: pointer; }
+
+/* ── Panel de propuestas de optimización (modo propuesta) ── */
+.sm-proposals-backdrop {
+    position: fixed; inset: 0; z-index: 1070;
+    background: rgba(0, 0, 0, 0.25);
+    display: flex; align-items: center; justify-content: center;
+}
+.sm-proposals {
+    width: 470px; max-width: 92vw; max-height: 80vh;
+    display: flex; flex-direction: column;
+}
+.sm-proposals-body { overflow-y: auto; }
+.sm-proposal { background: #fff; }
+.sm-proposal:hover { background: #f8f9fa; }
 
 /* Paleta de estados (badges de ocupación / compat) — se conserva */
 .sm-state-confirmed { background: #e0edfb; color: #235f9e; }

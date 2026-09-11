@@ -529,9 +529,16 @@
 .o_mrp_planner_request_form .o_form_renderer {
     flex-direction: column !important;
     flex-wrap: nowrap !important;
+    /* El renderer es el ÚNICO scroll: sheet + chatter bajan juntos como un solo
+       documento; el chatter aparece al final, no pineado. */
+    overflow-y: auto !important;
 }
 .o_mrp_planner_request_form .o_form_sheet_bg {
     width: 100% !important;
+    /* El sheet NO scrollea por su cuenta (si no, el chatter queda "fijo" abajo):
+       altura natural y que el scroll lo maneje el renderer. */
+    overflow: visible !important;
+    flex: 0 0 auto !important;
     min-height: 0 !important;
 }
 .o_mrp_planner_request_form .o-mail-Form-chatter {

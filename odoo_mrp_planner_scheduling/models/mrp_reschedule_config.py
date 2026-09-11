@@ -123,6 +123,29 @@ class MrpRescheduleConfig(models.Model):
                     order.append(val)
         return order or ['lateness', 'makespan', 'peak']
 
+    # ── Comportamiento cuando un artículo NO llega al plazo (infeasible) ────────
+    # Cuando el deadline es inalcanzable, el motor no puede pegar al plazo (ALAP)
+    # y debe elegir entre dos filosofías. 'asap' (actual): empaqueta lo antes
+    # posible → termina cuanto antes, minimiza el atraso, pero más WIP (componentes
+    # fabricados mucho antes de consumirse). 'jit': mantiene cada componente lo más
+    # cerca posible de su consumo → menos WIP, aceptando la misma fecha tardía.
+    infeasible_policy = fields.Selection([
+        ('asap', 'Minimizar atraso (empaquetar temprano)'),
+        ('jit',  'Minimizar WIP (JIT, aunque llegue tarde)'),
+    ], string='Cuando no llega al plazo', default='asap', required=True,
+        help='Qué prioriza el motor cuando un artículo no puede cumplir su fecha '
+             'deseada. "Minimizar atraso" termina lo antes posible (más inventario '
+             'en proceso). "Minimizar WIP" mantiene los componentes pegados a su '
+             'consumo (menos inventario en proceso), con la misma fecha tardía. '
+             'NOTA: el modo JIT está en implementación; hoy ambos se comportan como '
+             '"Minimizar atraso".')
+
+    @api.model
+    def infeasible_policy_value(self):
+        """Política de infeasibilidad vigente ('asap' | 'jit'). Default 'asap'."""
+        cfg = self.get_config()
+        return (cfg.infeasible_policy or 'asap') if cfg else 'asap'
+
     default_of_hours = fields.Float(
         string='Horas por OF sin ruta', default=8.0,
         help='Duración estimada (horas) que asume el motor para una OF cuya LdM no '

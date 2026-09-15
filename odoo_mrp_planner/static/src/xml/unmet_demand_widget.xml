@@ -2,109 +2,143 @@
 <templates xml:space="preserve">
 
     <t t-name="odoo_mrp_planner.UnmetDemandWidget">
-        <div t-att-class="'o_unmet_demand_widget' + (state.loading ? ' opacity-50 pe-none' : '')"
-             style="font-size:13px; min-height:400px;">
+        <div class="o_unmet_demand_widget" style="font-size:13px; min-height:400px;">
 
-            <!-- ══ FILTROS (superiores: definen el análisis) ═══════════════════ -->
-            <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
-
-                <!-- Período -->
-                <div class="d-flex align-items-center gap-1" aria-label="Período">
-                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Período:</span>
+            <!-- ══ FILTROS DEL GRÁFICO (afectan SOLO al gráfico) ═══════════════ -->
+            <div class="d-flex align-items-center gap-1 mb-2 flex-wrap">
+                <span style="font-size:10px; white-space:nowrap;" class="text-primary fw-bold">GRÁFICO:</span>
+                <div class="d-flex align-items-center gap-1">
                     <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
-                           title="Fecha inicial del período (pedidos confirmados)."
-                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                           title="Fecha inicial del período del gráfico."
+                           t-att-value="state.chartDateFrom" t-on-change="onChartDateFromChange"/>
                     <span class="text-muted" style="font-size:10px;">→</span>
                     <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
-                           title="Fecha final del período (pedidos confirmados)."
-                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                           title="Fecha final del período del gráfico."
+                           t-att-value="state.chartDateTo" t-on-change="onChartDateToChange"/>
                 </div>
-
                 <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión del gráfico">
+                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.chartDimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                t-att-title="'Agrupar el gráfico por ' + d[1]"
+                                t-on-click="() => this.setChartDimension(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+                <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización del gráfico">
+                    <button t-att-class="'btn ' + (effChartAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="PxQ: precio de lista × cantidad pendiente."
+                            t-on-click="() => this.setChartAmountMethod('pxq')">PxQ</button>
+                    <button t-att-class="'btn ' + (effChartAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
+                            t-on-click="() => this.setChartAmountMethod('real')">Real</button>
+                </div>
+                <i t-if="state.chartLoading" class="fa fa-spinner fa-spin text-muted ms-1" title="Cargando gráfico…"/>
+            </div>
 
-                <!-- Dimensión -->
-                <div class="d-flex align-items-center gap-1">
-                    <span style="font-size:10px;" class="text-muted fw-semibold">Ver por:</span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión">
-                        <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
-                            <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+            <!-- Cabecera del gráfico: título + métrica + Top-N -->
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="small text-muted fw-semibold"
+                      t-esc="'Top ' + state.chartTopN + ' por ' + chartDimensionLabel.toLowerCase()"/>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
+                        <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                title="Ordenar el gráfico por monto pendiente."
+                                t-on-click="() => this.setChartMetric('amount')">Monto</button>
+                        <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                title="Ordenar el gráfico por unidades pendientes."
+                                t-on-click="() => this.setChartMetric('qty')">Unidades</button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad a mostrar">
+                        <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                            <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
                                     style="font-size:10px; padding:1px 6px;"
-                                    t-att-title="'Agregar la demanda insatisfecha por ' + d[1]"
-                                    t-on-click="() => this.setDimension(d[0])">
-                                <t t-esc="d[1]"/>
+                                    t-att-title="'Mostrar el top ' + n + ' en el gráfico'"
+                                    t-on-click="() => this.setChartTopN(n)">
+                                <t t-esc="'Top ' + n"/>
                             </button>
                         </t>
                     </div>
                 </div>
-
-                <div class="vr" style="height:20px;"/>
-
-                <!-- Valorización PxQ / Real -->
-                <div class="d-flex align-items-center gap-1">
-                    <span style="font-size:10px;" class="text-muted fw-semibold">Monto:</span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Valorización">
-                        <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
-                                style="font-size:10px; padding:1px 6px;"
-                                title="PxQ: precio de lista del artículo × cantidad pendiente."
-                                t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
-                        <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
-                                style="font-size:10px; padding:1px 6px;"
-                                title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
-                                t-on-click="() => this.setAmountMethod('real')">Real</button>
-                    </div>
-                </div>
             </div>
 
-            <!-- Spinner (primera carga) -->
+            <!-- Gráfico -->
+            <div t-if="state.chartLoading and !state.chartData" class="text-center text-muted py-4">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+            <div t-elif="state.chartError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el gráfico: <strong><t t-esc="state.chartError"/></strong>
+            </div>
+            <div t-elif="!chartRowsAll.length" class="text-center text-muted py-4">
+                <i class="fa fa-bar-chart fa-2x mb-2 d-block opacity-50"/>
+                <span>No hay demanda insatisfecha para el filtro del gráfico.</span>
+            </div>
+            <div t-else="" style="position:relative; height:280px;" class="mb-3">
+                <canvas t-ref="chartCanvas"/>
+            </div>
+
+            <hr class="mt-0 mb-3"/>
+
+            <!-- ══ FILTROS DE CARDS + TABLA (afectan cards y tabla) ════════════ -->
+            <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
+                <span style="font-size:10px; white-space:nowrap;" class="text-secondary fw-bold">CARDS + TABLA:</span>
+                <div class="d-flex align-items-center gap-1">
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha inicial del período de las cards y la tabla."
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha final del período de las cards y la tabla."
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                </div>
+                <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión de la tabla">
+                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                t-att-title="'Agregar cards y tabla por ' + d[1]"
+                                t-on-click="() => this.setDimension(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+                <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización de la tabla">
+                    <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="PxQ: precio de lista × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
+                    <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('real')">Real</button>
+                </div>
+                <i t-if="state.loading" class="fa fa-spinner fa-spin text-muted ms-1" title="Cargando cards y tabla…"/>
+            </div>
+
+            <!-- Estados de cards + tabla -->
             <div t-if="state.loading and !state.data" class="text-center text-muted py-5">
                 <i class="fa fa-spinner fa-spin fa-2x"/>
             </div>
-
-            <!-- Error -->
             <div t-elif="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
                 <i class="fa fa-exclamation-triangle me-2"/>
                 Error al cargar la demanda insatisfecha: <strong><t t-esc="state.loadError"/></strong>
             </div>
-
-            <!-- Sin datos -->
             <div t-elif="!baseRows.length" class="text-center text-muted py-5">
                 <i class="fa fa-check-circle fa-3x mb-3 d-block opacity-50"/>
-                <span>No hay demanda insatisfecha para los filtros seleccionados.</span>
+                <span>No hay demanda insatisfecha para los filtros de cards y tabla.</span>
             </div>
 
             <t t-else="">
-                <!-- ══ GRÁFICOS (gráfico + KPI cards) ══════════════════════════ -->
-                <!-- Cabecera del gráfico: métrica + Top-N -->
-                <div class="d-flex align-items-center justify-content-between mb-1">
-                    <span class="small text-muted fw-semibold"
-                          t-esc="'Top ' + state.chartTopN + ' por ' + dimensionLabel.toLowerCase()"/>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
-                            <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
-                                    style="font-size:10px; padding:1px 6px;"
-                                    title="Ordenar el gráfico por monto pendiente."
-                                    t-on-click="() => this.setChartMetric('amount')">Monto</button>
-                            <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
-                                    style="font-size:10px; padding:1px 6px;"
-                                    title="Ordenar el gráfico por unidades pendientes."
-                                    t-on-click="() => this.setChartMetric('qty')">Unidades</button>
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad a mostrar">
-                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
-                                <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
-                                        style="font-size:10px; padding:1px 6px;"
-                                        t-att-title="'Mostrar el top ' + n + ' en el gráfico'"
-                                        t-on-click="() => this.setChartTopN(n)">
-                                    <t t-esc="'Top ' + n"/>
-                                </button>
-                            </t>
-                        </div>
-                    </div>
-                </div>
-                <div style="position:relative; height:280px;" class="mb-3">
-                    <canvas t-ref="chartCanvas"/>
-                </div>
-
+                <!-- Cards globales -->
                 <div class="d-flex gap-2 mb-3 flex-wrap">
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
@@ -124,7 +158,7 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_qty')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(kpis.total_unmet_qty)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_unmet_qty))" t-esc="fmt(kpis.total_unmet_qty)"/>
                                 <div class="o_planner_label">Pendiente (u.)</div>
                             </div>
                             <div class="card-footer p-0">
@@ -137,7 +171,7 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('fulfillment_pct')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + fulfillClass(kpis.fulfillment_pct)"/>
-                                <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct)" t-esc="fmtPct(kpis.fulfillment_pct)"/>
+                                <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct) + ' ' + kpiNumClass(fmtPct(kpis.fulfillment_pct))" t-esc="fmtPct(kpis.fulfillment_pct)"/>
                                 <div class="o_planner_label">% Cumplimiento</div>
                             </div>
                             <div class="card-footer p-0">
@@ -150,7 +184,7 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_ordered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(kpis.total_ordered)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_ordered))" t-esc="fmt(kpis.total_ordered)"/>
                                 <div class="o_planner_label">Pedido total</div>
                             </div>
                             <div class="card-footer p-0">
@@ -163,7 +197,7 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_delivered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(kpis.total_delivered)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_delivered))" t-esc="fmt(kpis.total_delivered)"/>
                                 <div class="o_planner_label">Entregado total</div>
                             </div>
                             <div class="card-footer p-0">
@@ -176,7 +210,7 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_rows')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-list fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(kpis.total_rows)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_rows))" t-esc="fmt(kpis.total_rows)"/>
                                 <div class="o_planner_label"><t t-esc="dimensionPlural"/> afectados</div>
                             </div>
                             <div class="card-footer p-0">
@@ -187,9 +221,7 @@
                     </div>
                 </div>
 
-                <hr class="mt-0 mb-3"/>
-
-                <!-- ══ FILTROS (inferiores: refinan la tabla) ══════════════════ -->
+                <!-- Búsqueda + selector de columnas + export -->
                 <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                     <PlannerSearchBar
                         widgetKey="'unmet_demand'"
@@ -203,6 +235,31 @@
                             onNumFilterAdd:    (c) => this.addNumFilter(c),
                             onNumFilterRemove: (i) => this.removeNumFilter(i)
                         }"/>
+                    <div class="position-relative" t-on-click.stop="">
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                                title="Elegir qué columnas mostrar en la tabla"
+                                t-on-click="toggleColsDropdown">
+                            <i class="fa fa-columns"/>
+                            <span>Columnas</span>
+                            <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                        </button>
+                        <div t-if="state.colsDropdownOpen"
+                             class="dropdown-menu show shadow p-2"
+                             style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
+                            <p class="small text-muted mb-1 px-1">Columnas de la tabla</p>
+                            <t t-foreach="optionalColumns" t-as="col" t-key="col.key">
+                                <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'ud_col_' + col.key"
+                                           t-att-checked="state.colsVisible[col.key] !== false"
+                                           t-on-change="() => this.toggleCol(col.key)"/>
+                                    <label class="form-check-label small" t-att-for="'ud_col_' + col.key">
+                                        <t t-esc="col.label"/>
+                                    </label>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
                     <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 ms-auto"
                             title="Exportar la tabla visible a Excel (.xls)"
                             t-on-click="exportToExcel">
@@ -211,7 +268,7 @@
                     </button>
                 </div>
 
-                <!-- ══ TABLA DE DETALLE ════════════════════════════════════════ -->
+                <!-- Tabla de detalle -->
                 <div class="border rounded bg-white" style="overflow:auto;">
                     <table class="table table-sm table-hover mb-0" style="font-size:12px;">
                         <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">

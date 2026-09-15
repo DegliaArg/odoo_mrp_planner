@@ -5,7 +5,11 @@
  * @description Análisis de demanda insatisfecha: de los pedidos confirmados en el
  * período, el backlog pendiente (pedido − entregado a la fecha) valuado a precio
  * unitario, agregado por una dimensión conmutable (cliente / producto / familia).
- * Muestra KPIs, un gráfico top-N y una tabla ordenable con filtros.
+ *
+ * Tiene DOS conjuntos de filtros independientes (período · dimensión · PxQ/Real):
+ *   - los de arriba afectan SOLO al gráfico (dataset chartData);
+ *   - los de la segunda línea afectan las cards globales + la tabla (dataset data).
+ * La tabla incluye un selector de columnas para armarla a gusto.
  *
  * RPC:
  *   - get_unmet_demand_data(periodFrom, periodTo, dimension, warehouseIds, amountMethod)
@@ -42,35 +46,50 @@ class UnmetDemandWidget extends Component {
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
 
-        const now = new Date();
+        const now   = new Date();
+        const first = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        const last  = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
         this.state = useState({
+            // ── Gráfico (filtros de arriba, independientes) ──
+            chartLoading:      true,
+            chartError:        null,
+            chartDateFrom:     first,
+            chartDateTo:       last,
+            chartDimension:    "customer",
+            chartAmountMethod: "",
+            chartData:         null,
+            chartMetric:       "amount",   // "amount" | "qty"
+            chartTopN:         20,
+
+            // ── Cards globales + tabla (segunda línea de filtros) ──
             loading:      true,
             loadError:    null,
-            dateFrom:     toDateStr(new Date(now.getFullYear(), now.getMonth(), 1)),
-            dateTo:       toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+            dateFrom:     first,
+            dateTo:       last,
             dimension:    "customer",
-            amountMethod: "",          // "" = hereda de config; "pxq" | "real" override
+            amountMethod: "",
+            data:         null,
             productSearch: "",
             numFilters:   [],
             sortCol:      "unmet_amount",
             sortDir:      "desc",
             page:         1,
             pageSize:     50,
-            chartMetric:  "amount",    // "amount" | "qty"
-            chartTopN:    20,
-            data:         null,
+            colsVisible:      {},          // {key: false} = oculta; ausente/true = visible
+            colsDropdownOpen: false,
         });
 
         onMounted(async () => {
             try {
                 await loadBundle("web.chartjs_lib");
-                await this._load();
+                await Promise.all([this._load(), this._loadChart()]);
             } catch (e) {
                 if (e.message !== "Component is destroyed") throw e;
             }
         });
         onPatched(() => {
-            if (!this.state.loading && this.chartRef.el && this.pagedRowsAll.length) {
+            if (!this.state.chartLoading && this.chartRef.el && this.chartRowsAll.length) {
                 this._drawChart();
             }
         });
@@ -79,22 +98,18 @@ class UnmetDemandWidget extends Component {
         });
     }
 
-    // ── Carga ─────────────────────────────────────────────────────────────────
+    // ── Carga: tabla + cards ────────────────────────────────────────────────────
     async _load() {
         this.state.loading   = true;
         this.state.loadError = null;
         this.state.page      = 1;
-        if (this._chart) { this._chart.destroy(); this._chart = null; }
         try {
-            const d = await this.orm.call(
-                "mrp.planner.dashboard",
-                "get_unmet_demand_data",
+            this.state.data = await this.orm.call(
+                "mrp.planner.dashboard", "get_unmet_demand_data",
                 [this.state.dateFrom, this.state.dateTo, this.state.dimension,
-                 [], this.state.amountMethod || null],
-            );
-            this.state.data = d;
+                 [], this.state.amountMethod || null]);
         } catch (e) {
-            console.error("[UnmetDemandWidget]", e);
+            console.error("[UnmetDemandWidget] table", e);
             this.state.data      = null;
             this.state.loadError = e?.data?.message || e?.message || String(e);
         } finally {
@@ -102,7 +117,42 @@ class UnmetDemandWidget extends Component {
         }
     }
 
-    // ── Controles ───────────────────────────────────────────────────────────────
+    // ── Carga: gráfico (dataset propio) ─────────────────────────────────────────
+    async _loadChart() {
+        this.state.chartLoading = true;
+        this.state.chartError   = null;
+        if (this._chart) { this._chart.destroy(); this._chart = null; }
+        try {
+            this.state.chartData = await this.orm.call(
+                "mrp.planner.dashboard", "get_unmet_demand_data",
+                [this.state.chartDateFrom, this.state.chartDateTo, this.state.chartDimension,
+                 [], this.state.chartAmountMethod || null]);
+        } catch (e) {
+            console.error("[UnmetDemandWidget] chart", e);
+            this.state.chartData  = null;
+            this.state.chartError = e?.data?.message || e?.message || String(e);
+        } finally {
+            this.state.chartLoading = false;
+        }
+    }
+
+    // ── Controles del gráfico ───────────────────────────────────────────────────
+    onChartDateFromChange(ev) {
+        this.state.chartDateFrom = ev.target.value;
+        if (this.state.chartDateFrom > this.state.chartDateTo) this.state.chartDateTo = this.state.chartDateFrom;
+        this._loadChart();
+    }
+    onChartDateToChange(ev) {
+        this.state.chartDateTo = ev.target.value;
+        if (this.state.chartDateTo < this.state.chartDateFrom) this.state.chartDateFrom = this.state.chartDateTo;
+        this._loadChart();
+    }
+    setChartDimension(d)    { if (this.state.chartDimension !== d)    { this.state.chartDimension = d; this._loadChart(); } }
+    setChartAmountMethod(m) { if (this.state.chartAmountMethod !== m) { this.state.chartAmountMethod = m; this._loadChart(); } }
+    setChartMetric(m)       { if (this.state.chartMetric !== m)       { this.state.chartMetric = m; } }
+    setChartTopN(n)         { if (this.state.chartTopN !== n)         { this.state.chartTopN = n; } }
+
+    // ── Controles de cards + tabla ──────────────────────────────────────────────
     onDateFromChange(ev) {
         this.state.dateFrom = ev.target.value;
         if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
@@ -113,25 +163,21 @@ class UnmetDemandWidget extends Component {
         if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         this._load();
     }
-    setDimension(d)   {
+    setDimension(d) {
         if (this.state.dimension === d) return;
         this.state.dimension = d;
-        // Reiniciar el orden por si estaba en una columna exclusiva de producto.
         this.state.sortCol = "unmet_amount";
         this.state.sortDir = "desc";
         this._load();
     }
-    setAmountMethod(m){ if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
-    setChartMetric(m) { if (this.state.chartMetric !== m)  { this.state.chartMetric = m; } }
-    setChartTopN(n)   { if (this.state.chartTopN !== n)    { this.state.chartTopN = n; } }
+    setAmountMethod(m) { if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
 
     /** Drill de las cards: abre la lista de líneas del período (pendientes o todas). */
     async openCardLines(onlyPending) {
         try {
             const action = await this.orm.call(
                 "mrp.planner.dashboard", "action_open_unmet_lines",
-                [this.state.dateFrom, this.state.dateTo, [], onlyPending],
-            );
+                [this.state.dateFrom, this.state.dateTo, [], onlyPending]);
             this.action.doAction(action);
         } catch (e) {
             console.error("[UnmetDemandWidget] drill", e);
@@ -150,24 +196,34 @@ class UnmetDemandWidget extends Component {
         this.state.page = 1;
     }
 
-    // ── Config activa ───────────────────────────────────────────────────────────
-    get effAmountMethod() {
-        return this.state.amountMethod
-            || (this.state.data && this.state.data.config && this.state.data.config.amount_method)
-            || "pxq";
+    // ── Selector de columnas ────────────────────────────────────────────────────
+    toggleColsDropdown(ev) {
+        if (ev) ev.stopPropagation();
+        this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
     }
-    get dimensionLabel() { return DIM_LABELS[this.state.dimension] || "Entidad"; }
-    get dimensionPlural(){ return DIM_PLURALS[this.state.dimension] || "Filas"; }
-    get crossLabel()     { return this.state.dimension === "product" ? "# Clientes" : "# Productos"; }
+    toggleCol(key) {
+        const cur = this.state.colsVisible[key];
+        this.state.colsVisible = { ...this.state.colsVisible, [key]: cur === false ? true : false };
+    }
 
-    /** Etiqueta de la columna categoría según la dimensión activa. */
-    get categoryLabel() { return this.state.dimension === "product" ? "Cat. venta" : "Categoría"; }
+    // ── Config activa ───────────────────────────────────────────────────────────
+    _effMethod(stateMethod, dataset) {
+        return stateMethod || (dataset && dataset.config && dataset.config.amount_method) || "pxq";
+    }
+    get effAmountMethod()      { return this._effMethod(this.state.amountMethod, this.state.data); }
+    get effChartAmountMethod() { return this._effMethod(this.state.chartAmountMethod, this.state.chartData); }
 
-    get columns() {
+    get dimensionLabel()      { return DIM_LABELS[this.state.dimension] || "Entidad"; }
+    get dimensionPlural()     { return DIM_PLURALS[this.state.dimension] || "Filas"; }
+    get chartDimensionLabel() { return DIM_LABELS[this.state.chartDimension] || "Entidad"; }
+    get crossLabel()          { return this.state.dimension === "product" ? "# Clientes" : "# Productos"; }
+    get categoryLabel()       { return this.state.dimension === "product" ? "Cat. venta" : "Categoría"; }
+
+    /** Todas las columnas aplicables a la dimensión activa de la TABLA. */
+    get allColumns() {
         const cols = [
-            { key: "name",            label: this.dimensionLabel, align: "start" },
+            { key: "name", label: this.dimensionLabel, align: "start", fixed: true },
         ];
-        // Categoría: del cliente (customer) o de venta del producto (product).
         if (this.state.dimension !== "family") {
             cols.push({ key: "category", label: this.categoryLabel, align: "center", kind: "cat" });
         }
@@ -180,7 +236,6 @@ class UnmetDemandWidget extends Component {
             { key: "unmet_pct",       label: "% Insatisf.",      align: "end", kind: "pct"   },
             { key: "pending_age",     label: "Antig. pendiente", align: "end", kind: "days"  },
         );
-        // Cruce con quiebre de stock: solo tiene sentido por producto.
         if (this.state.dimension === "product") {
             cols.push(
                 { key: "break_days", label: "Días quiebre", align: "end",    kind: "days" },
@@ -193,13 +248,20 @@ class UnmetDemandWidget extends Component {
         );
         return cols;
     }
+    /** Columnas visibles (fijas + las no ocultadas por el selector). */
+    get columns() {
+        return this.allColumns.filter(c => c.fixed || this.state.colsVisible[c.key] !== false);
+    }
+    /** Columnas opcionales (para el dropdown del selector). */
+    get optionalColumns() { return this.allColumns.filter(c => !c.fixed); }
+
     get numColOptions() {
         return this.columns
             .filter(c => c.kind && c.kind !== "chip" && c.kind !== "cat")
             .map(c => ({ key: c.key, label: c.label }));
     }
 
-    // ── Filas / KPIs ─────────────────────────────────────────────────────────────
+    // ── Filas / KPIs (dataset de la tabla) ──────────────────────────────────────
     get baseRows() { return (this.state.data && this.state.data.rows) || []; }
 
     /** Filas tras búsqueda + filtros numéricos (sin ordenar ni paginar). */
@@ -213,7 +275,7 @@ class UnmetDemandWidget extends Component {
         });
     }
 
-    /** Filas filtradas y ordenadas (todas, sin paginar) — usadas por chart y export. */
+    /** Filas filtradas y ordenadas (todas, sin paginar). */
     get pagedRowsAll() {
         const rows = [...this.filteredRows];
         const col  = this.state.sortCol;
@@ -256,7 +318,9 @@ class UnmetDemandWidget extends Component {
         };
     }
 
-    // ── Gráfico ───────────────────────────────────────────────────────────────
+    // ── Gráfico (dataset propio) ────────────────────────────────────────────────
+    get chartRowsAll() { return (this.state.chartData && this.state.chartData.rows) || []; }
+
     _drawChart() {
         const canvas = this.chartRef.el;
         if (!canvas) return;
@@ -266,12 +330,11 @@ class UnmetDemandWidget extends Component {
 
         const isAmt  = this.state.chartMetric === "amount";
         const field  = isAmt ? "unmet_amount" : "unmet_qty";
-        const rows   = [...this.pagedRowsAll]
+        const rows   = [...this.chartRowsAll]
             .sort((a, b) => (b[field] || 0) - (a[field] || 0))
             .slice(0, this.state.chartTopN);
         const labels = rows.map(r => r.name.length > 22 ? r.name.slice(0, 20) + "…" : r.name);
         const data   = rows.map(r => r[field]);
-        // Color por severidad de insatisfacción (más rojo = mayor % insatisfecho).
         const colors = rows.map(r => {
             const p = r.unmet_pct || 0;
             if (p >= 50) return "rgba(220, 53, 69, 0.85)";
@@ -361,14 +424,12 @@ class UnmetDemandWidget extends Component {
     }
 
     // ── Semáforos ─────────────────────────────────────────────────────────────
-    /** Verde/amarillo/rojo según el % de cumplimiento (más alto = mejor). */
     fulfillClass(pct) {
         if (pct === null || pct === undefined) return "";
         if (pct >= 90) return "text-success";
         if (pct >= 70) return "text-warning";
         return "text-danger";
     }
-    /** Severidad de la insatisfacción (más alto = peor). */
     unmetSeverityClass(pct) {
         if (pct === null || pct === undefined) return "";
         if (pct >= 50) return "text-danger fw-semibold";
@@ -377,7 +438,6 @@ class UnmetDemandWidget extends Component {
     }
 
     // ── Tooltips (mismo formato que los demás paneles) ──────────────────────────
-    /** Nota de valorización, se anexa a los tooltips de monto. */
     amountNote() {
         const m = this.effAmountMethod === "real"
             ? "Real (precio efectivo con descuentos)"

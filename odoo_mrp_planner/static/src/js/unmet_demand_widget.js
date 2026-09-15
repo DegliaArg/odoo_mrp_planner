@@ -160,16 +160,25 @@ class UnmetDemandWidget extends Component {
     get dimensionPlural(){ return DIM_PLURALS[this.state.dimension] || "Filas"; }
     get crossLabel()     { return this.state.dimension === "product" ? "# Clientes" : "# Productos"; }
 
+    /** Etiqueta de la columna categoría según la dimensión activa. */
+    get categoryLabel() { return this.state.dimension === "product" ? "Cat. venta" : "Categoría"; }
+
     get columns() {
         const cols = [
             { key: "name",            label: this.dimensionLabel, align: "start" },
+        ];
+        // Categoría: del cliente (customer) o de venta del producto (product).
+        if (this.state.dimension !== "family") {
+            cols.push({ key: "category", label: this.categoryLabel, align: "center", kind: "cat" });
+        }
+        cols.push(
             { key: "qty_ordered",     label: "Pedido",           align: "end", kind: "num"   },
             { key: "qty_delivered",   label: "Entregado",        align: "end", kind: "num"   },
             { key: "unmet_qty",       label: "Pendiente",        align: "end", kind: "num"   },
             { key: "unmet_amount",    label: "Monto pendiente",  align: "end", kind: "money" },
             { key: "fulfillment_pct", label: "% Cumplim.",       align: "end", kind: "pct"   },
             { key: "unmet_pct",       label: "% Insatisf.",      align: "end", kind: "pct"   },
-            { key: "backlog_age",     label: "Días backlog",     align: "end", kind: "days"  },
+            { key: "pending_age",     label: "Antig. pendiente", align: "end", kind: "days"  },
         ];
         // Cruce con quiebre de stock: solo tiene sentido por producto.
         if (this.state.dimension === "product") {
@@ -185,7 +194,9 @@ class UnmetDemandWidget extends Component {
         return cols;
     }
     get numColOptions() {
-        return this.columns.filter(c => c.kind && c.kind !== "chip").map(c => ({ key: c.key, label: c.label }));
+        return this.columns
+            .filter(c => c.kind && c.kind !== "chip" && c.kind !== "cat")
+            .map(c => ({ key: c.key, label: c.label }));
     }
 
     // ── Filas / KPIs ─────────────────────────────────────────────────────────────
@@ -320,6 +331,12 @@ class UnmetDemandWidget extends Component {
         return row[col.key];
     }
 
+    /** Color del badge de categoría A–E (misma paleta que el análisis de clientes). */
+    catColor(name) {
+        const map = { A: "#198754", B: "#0d6efd", C: "#ffc107", D: "#6c757d", E: "#c8d2dc" };
+        return map[name] || "#6c757d";
+    }
+
     /** Etiqueta + clase del chip de diagnóstico (solo productos). */
     diagnosisChip(row) {
         const map = {
@@ -398,15 +415,18 @@ class UnmetDemandWidget extends Component {
             : "Productos distintos con faltante.";
         const base = {
             name:            `${this.dimensionLabel}. Clic para ordenar.`,
+            category:        this.state.dimension === "product"
+                ? "Categoría de venta A–E del producto (x_sale_category)."
+                : "Categoría del cliente A–E. Con clientes unificados por casa matriz, la de la matriz.",
             qty_ordered:     "Unidades pedidas en el período (suma de las líneas).",
             qty_delivered:   "Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega).",
             unmet_qty:       "Backlog pendiente: pedido − entregado (suma por línea, solo faltantes).",
             unmet_amount:    "Monto del backlog pendiente: cantidad pendiente × precio unitario.",
             fulfillment_pct: "Tasa de cumplimiento: entregado ÷ pedido × 100.",
             unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
-            backlog_age:     "Antigüedad del backlog: días desde el pedido, ponderada por la cantidad pendiente. El tooltip muestra el promedio y el más viejo.",
+            pending_age:     "Antigüedad del pendiente: días que lleva esperando lo que no se entregó. El método (ponderado por cantidad o pedido más antiguo) se elige en Ajustes. El tooltip muestra ambos.",
             break_days:      "Días en quiebre: hace cuántos días el stock está bajo el mínimo (solo productos en quiebre con mínimo configurado). '—' = sin quiebre.",
-            diagnosis:       "Diagnóstico del cruce quiebre × backlog: Crónico (sin stock + viejo) · Sin stock (quiebre reciente) · Fulfillment (hay stock pero no entregás) · OK.",
+            diagnosis:       "Diagnóstico del cruce quiebre × antigüedad del pendiente: Crónico (sin stock + viejo) · Sin stock (quiebre reciente) · Fulfillment (hay stock pero no entregás) · OK.",
             affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
             cross_count:     crossTip,
         }[col.key] || "";
@@ -433,8 +453,8 @@ class UnmetDemandWidget extends Component {
                 return `${row.name}\n${f(row.affected_orders)} pedido(s) del período con faltante`;
             case "cross_count":
                 return `${row.name}\n${f(row.cross_count)} ${this.state.dimension === "product" ? "cliente(s)" : "producto(s)"} con faltante`;
-            case "backlog_age":
-                return `${row.name}\nAntigüedad del backlog (ponderada por cantidad)\nPromedio: ${f(row.backlog_age)} d — cuánto esperó la unidad pendiente promedio\nMás viejo: ${f(row.backlog_age_oldest)} d`;
+            case "pending_age":
+                return `${row.name}\nAntigüedad del pendiente (días que lleva esperando lo no entregado)\nPonderada por cantidad: ${f(row.pending_age_weighted)} d — la unidad pendiente promedio\nPedido más antiguo: ${f(row.pending_age_oldest)} d`;
             case "break_days":
                 return row.break_days == null
                     ? `${row.name}\nSin quiebre de stock (no está bajo el mínimo, o no tiene mínimo configurado)`
@@ -457,7 +477,7 @@ class UnmetDemandWidget extends Component {
             cell:     row => cols.map(c => {
                 if (c.kind === "chip") return this.diagnosisChip(row).label;
                 const v = row[c.key];
-                if (v === null || v === undefined) return "";
+                if (v === null || v === undefined || v === "") return "";
                 if (c.kind === "pct")  return v + "%";
                 if (c.kind === "days") return v + " d";
                 return v;

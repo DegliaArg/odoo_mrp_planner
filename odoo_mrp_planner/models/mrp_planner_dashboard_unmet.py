@@ -151,6 +151,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             cfg = dict(cfg, amount_method=amount_method_override)
         use_pxq          = cfg.get('amount_method', 'pxq') == 'pxq'
         exclude_services = bool(cfg.get('exclude_services'))
+        age_method       = cfg.get('backlog_age_method', 'weighted')
 
         def _empty(reason=None):
             return {'rows': [], 'kpis': empty_kpis, 'config': cfg, 'dimension': dimension}
@@ -185,6 +186,62 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             order_date    = {o['id']: o['date_order'] for o in order_rows}
             today         = date.today()
 
+            # ── Info de clientes (categoría + unificación por casa matriz) ────
+            # Reusa el mismo criterio del análisis de clientes: unifica por
+            # dígitos del CUIT (flag customer_unify_by_vat) y muestra la casa
+            # matriz como nombre. Solo aplica a la dimensión 'customer'.
+            unify = bool(cfg.get('unify_by_vat')) and dimension == 'customer'
+            partner_ids = list({p[0] for p in order_partner.values() if p[0]})
+            pinfo = {}
+            if partner_ids:
+                for p in self.env['res.partner'].sudo().browse(partner_ids).read(
+                        ['id', 'display_name', 'x_customer_category', 'vat', 'parent_id']):
+                    pinfo[p['id']] = p
+
+            def _vat_digits(pid):
+                vat = (pinfo.get(pid, {}) or {}).get('vat') or ''
+                return ''.join(ch for ch in vat if ch.isdigit())
+
+            # Clave de unificación por cliente y nombre de casa matriz por clave.
+            cust_key_by_pid  = {}
+            cust_name_by_key = {}
+            cust_cat_by_key  = {}
+            if dimension == 'customer':
+                groups = {}
+                for pid in partner_ids:
+                    vk = _vat_digits(pid) if unify else ''
+                    key = vk or ('p%s' % pid)
+                    cust_key_by_pid[pid] = key
+                    groups.setdefault(key, []).append(pid)
+                for key, pids_g in groups.items():
+                    # Nombre = casa matriz: un miembro raíz (sin parent) o el
+                    # parent común; si no, el partner de mayor id como fallback.
+                    roots = [q for q in pids_g if not (pinfo.get(q, {}) or {}).get('parent_id')]
+                    if roots:
+                        main = roots[0]
+                        cust_name_by_key[key] = (pinfo.get(main, {}) or {}).get('display_name', '')
+                    else:
+                        votes = {}
+                        for q in pids_g:
+                            par = (pinfo.get(q, {}) or {}).get('parent_id')
+                            if par:
+                                votes.setdefault(par[0], [0, par[1]])
+                                votes[par[0]][0] += 1
+                        if votes:
+                            _mid, (_n, _name) = max(votes.items(), key=lambda kv: kv[1][0])
+                            cust_name_by_key[key] = _name
+                        else:
+                            main = pids_g[0]
+                            cust_name_by_key[key] = (pinfo.get(main, {}) or {}).get('display_name', '')
+                    # Categoría del cliente: la del primer miembro con categoría.
+                    _cat = ''
+                    for q in pids_g:
+                        _c = (pinfo.get(q, {}) or {}).get('x_customer_category')
+                        if _c:
+                            _cat = _c
+                            break
+                    cust_cat_by_key[key] = _cat
+
             # ── 2. Líneas de pedido ──────────────────────────────────────────
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
             lines = self.env['sale.order.line'].sudo().search_read(
@@ -198,7 +255,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             prod_info = {
                 p['id']: p
                 for p in self.env['product.product'].sudo().browse(prod_ids).read(
-                    ['id', 'display_name', 'categ_id', 'lst_price'])
+                    ['id', 'display_name', 'categ_id', 'lst_price', 'product_tmpl_id'])
             }
             # Nombre HOJA de la familia (no el path completo "Todo / … / X"),
             # igual que el panel de ventas y el análisis de clientes.
@@ -207,10 +264,17 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             if categ_ids:
                 for c in self.env['product.category'].sudo().browse(categ_ids).read(['id', 'name']):
                     categ_leaf[c['id']] = c['name']
+            # Categoría de venta A–E: vive en product.template (campo computado),
+            # no en la variante. Batch read tmpl → x_sale_category.
+            sale_cat_by_tmpl = {}
+            _tmpl_ids = list({p['product_tmpl_id'][0] for p in prod_info.values() if p.get('product_tmpl_id')})
+            if _tmpl_ids:
+                for t in self.env['product.template'].sudo().browse(_tmpl_ids).read(['id', 'x_sale_category']):
+                    sale_cat_by_tmpl[t['id']] = t.get('x_sale_category') or ''
 
             # ── 3. Agregación por la dimensión elegida ───────────────────────
-            def _new(key, name):
-                return {'key': key, 'name': name,
+            def _new(key, name, category=''):
+                return {'key': key, 'name': name, 'category': category,
                         'qty_ordered': 0.0, 'qty_delivered': 0.0,
                         'unmet_qty': 0.0, 'unmet_amount': 0.0,
                         '_orders': set(), '_cross': set(),
@@ -235,17 +299,26 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
                 if dimension == 'customer':
                     partner = order_partner.get(oid) or (0, '')
-                    key, name, cross = partner[0], partner[1], pid
+                    pid_c = partner[0]
+                    key   = cust_key_by_pid.get(pid_c, 'p%s' % pid_c)
+                    name  = cust_name_by_key.get(key) or partner[1]
+                    category = cust_cat_by_key.get(key, '')
+                    cross = pid
                 elif dimension == 'product':
                     partner = order_partner.get(oid) or (0, '')
-                    key, name, cross = pid, pi.get('display_name', ''), partner[0]
+                    key, name = pid, pi.get('display_name', '')
+                    _tmpl = pi.get('product_tmpl_id')
+                    category  = sale_cat_by_tmpl.get(_tmpl[0], '') if _tmpl else ''
+                    cross = partner[0]
                 else:  # family
                     categ = pi.get('categ_id') or (0, '')
-                    key, name, cross = categ[0], categ_leaf.get(categ[0], 'Sin familia'), pid
+                    key, name = categ[0], categ_leaf.get(categ[0], 'Sin familia')
+                    category  = ''
+                    cross = pid
 
                 d = agg.get(key)
                 if d is None:
-                    d = _new(key, name)
+                    d = _new(key, name, category)
                     agg[key] = d
                 # Pedido/entregado se acumulan sobre TODAS las líneas de la entidad
                 # (para que el % de cumplimiento refleje su desempeño global).
@@ -275,6 +348,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 rows.append({
                     'key':             d['key'],
                     'name':            d['name'] or '(sin nombre)',
+                    'category':        d['category'] or '',
                     'qty_ordered':     round(ordered, 1),
                     'qty_delivered':   round(d['qty_delivered'], 1),
                     'unmet_qty':       round(d['unmet_qty'], 1),
@@ -283,8 +357,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     'unmet_pct':       round(d['unmet_qty'] / ordered * 100, 1) if ordered > 0 else None,
                     'affected_orders': len(d['_orders']),
                     'cross_count':     len(d['_cross']),
-                    'backlog_age':        round(d['_age_num'] / d['_age_den'], 1) if d['_age_den'] > 0 else None,
-                    'backlog_age_oldest': d['_age_oldest'],
+                    'pending_age_weighted': round(d['_age_num'] / d['_age_den'], 1) if d['_age_den'] > 0 else None,
+                    'pending_age_oldest':   d['_age_oldest'],
+                    'pending_age':          (round(d['_age_num'] / d['_age_den'], 1) if d['_age_den'] > 0 else None)
+                                            if age_method == 'weighted' else d['_age_oldest'],
                 })
 
             rows.sort(key=lambda r: r['unmet_amount'], reverse=True)
@@ -296,7 +372,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 for r in rows:
                     bd = bd_map.get(r['key'])
                     r['break_days'] = bd
-                    r['diagnosis']  = self._unmet_diagnosis(bd, r['backlog_age'])
+                    r['diagnosis']  = self._unmet_diagnosis(bd, r['pending_age'])
 
             # ── 5. KPIs globales (punto de partida; el front recalcula sobre
             #       las filas filtradas, salvo affected_orders que es distinto). ─

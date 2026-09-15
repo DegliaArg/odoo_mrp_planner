@@ -197,6 +197,16 @@ class MrpRescheduleConfig(models.Model):
             'NO considera precios históricos ni cuadra con la facturación.\n'
             'Importe real: precio efectivo de cada línea de pedido (con descuentos, '
             'sin impuestos). Cuadra con los pedidos/facturación.')
+    unmet_backlog_age_method = fields.Selection([
+        ('weighted', 'Ponderada por cantidad'),
+        ('oldest',   'Pedido más antiguo'),
+    ], string='Antigüedad del pendiente — método', default='weighted',
+       help='Cómo se calcula la "Antigüedad del pendiente" en el análisis de demanda '
+            'insatisfecha.\n'
+            'Ponderada por cantidad: Σ(pendiente × días desde el pedido) ÷ Σ pendiente. '
+            'Es la espera de la unidad pendiente promedio; menos sensible a un pedido '
+            'viejo suelto.\n'
+            'Pedido más antiguo: días desde el pedido pendiente más viejo (más crudo).')
     customer_analysis_exclude_services = fields.Boolean(
         string='Excluir servicios de los análisis de ventas',
         default=False,

@@ -248,6 +248,12 @@
                                                       style="font-size:10px; font-weight:600;"
                                                       t-esc="diagnosisChip(row).label"/>
                                             </t>
+                                            <t t-elif="col.key === 'category'">
+                                                <span t-if="row.category"
+                                                      t-att-style="'display:inline-block; min-width:18px; padding:0 5px; border-radius:3px; line-height:18px; font-size:10px; font-weight:bold; color:#fff; background:' + catColor(row.category)"
+                                                      t-esc="row.category"/>
+                                                <span t-else="" class="text-muted">—</span>
+                                            </t>
                                             <t t-else="" t-esc="cellText(row, col)"/>
                                         </td>
                                     </t>

@@ -44,6 +44,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'unify_by_vat':    bool(cfg.customer_unify_by_vat),
             'exclude_services': bool(cfg.customer_analysis_exclude_services),
             'amount_method':   cfg.sales_amount_method or 'pxq',
+            'backlog_age_method': cfg.unmet_backlog_age_method or 'weighted',
         }
 
     @staticmethod

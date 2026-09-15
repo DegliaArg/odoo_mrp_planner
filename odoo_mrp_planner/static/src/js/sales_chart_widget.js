@@ -37,6 +37,22 @@ const CAT_COLORS = {
 };
 
 /**
+ * Paleta de colores para la dona de distribución por familia (categ_id).
+ * A diferencia de la ABC, las familias no tienen un color fijo: se asignan
+ * cíclicamente por orden de participación. "Otras" usa un gris propio aparte.
+ * @type {string[]}
+ */
+const FAMILY_COLORS = [
+    "rgba(13, 110, 253, 0.80)",  "rgba(25, 135, 84, 0.80)",
+    "rgba(255, 193, 7, 0.85)",   "rgba(214, 51, 132, 0.80)",
+    "rgba(102, 16, 242, 0.78)",  "rgba(253, 126, 20, 0.82)",
+    "rgba(32, 201, 151, 0.80)",  "rgba(111, 66, 193, 0.78)",
+];
+
+/** Máximo de familias con color propio en la dona; el resto se agrupa en "Otras". */
+const FAMILY_TOP = 8;
+
+/**
  * Convierte un objeto Date a cadena ISO parcial con formato YYYY-MM-DD,
  * compatible con los campos Date de Odoo sin componente horaria.
  * @param {Date} d - Fecha a convertir.
@@ -95,11 +111,13 @@ class SalesChartWidget extends Component {
      *   recursos del canvas y evitar memory leaks.
      */
     setup() {
-        this.orm      = useService("orm");
-        this.chartRef = useRef("salesCanvas");
-        this.pieRef   = useRef("pieCanvas");
-        this._chart   = null;
-        this._pie     = null;
+        this.orm        = useService("orm");
+        this.chartRef   = useRef("salesCanvas");
+        this.pieRef     = useRef("pieCanvas");
+        this.famPieRef  = useRef("famPieCanvas");
+        this._chart     = null;
+        this._pie       = null;
+        this._famPie    = null;
 
         const now          = new Date();
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -135,14 +153,16 @@ class SalesChartWidget extends Component {
 
         onPatched(() => {
             if (!this.state.loading && this.state.rows.length) {
-                if (this.chartRef.el) this._drawChart();
-                if (this.pieRef.el)   this._drawPie();
+                if (this.chartRef.el)  this._drawChart();
+                if (this.pieRef.el)    this._drawPie();
+                if (this.famPieRef.el) this._drawFamilyPie();
             }
         });
 
         onWillUnmount(() => {
-            if (this._chart) { this._chart.destroy(); this._chart = null; }
-            if (this._pie)   { this._pie.destroy();   this._pie   = null; }
+            if (this._chart)  { this._chart.destroy();  this._chart  = null; }
+            if (this._pie)    { this._pie.destroy();    this._pie    = null; }
+            if (this._famPie) { this._famPie.destroy(); this._famPie = null; }
         });
     }
 
@@ -193,8 +213,9 @@ class SalesChartWidget extends Component {
     async _load() {
         this.state.loading   = true;
         this.state.loadError = null;
-        if (this._chart) { this._chart.destroy(); this._chart = null; }
-        if (this._pie)   { this._pie.destroy();   this._pie   = null; }
+        if (this._chart)  { this._chart.destroy();  this._chart  = null; }
+        if (this._pie)    { this._pie.destroy();    this._pie    = null; }
+        if (this._famPie) { this._famPie.destroy(); this._famPie = null; }
         try {
             const [df, dt] = this._dateRange();
             const sortBy = this.state.metric === "sku" ? "qty" : this.state.metric;
@@ -345,6 +366,101 @@ class SalesChartWidget extends Component {
                             label: ctx => {
                                 const d   = bycat[cats[ctx.dataIndex]];
                                 const v   = pieVal(cats[ctx.dataIndex]);
+                                const pct = total ? Math.round(v / total * 100) : 0;
+                                if (metric === 'qty') return [
+                                    `  ${fmtN(d.qty)} u. (${pct}%)`,
+                                    `  SKUs: ${d.skus}`,
+                                    `  Importe: ${fmtAmt(d.amount)}`,
+                                ];
+                                if (metric === 'amount') return [
+                                    `  ${fmtAmt(d.amount)} (${pct}%)`,
+                                    `  SKUs: ${d.skus}`,
+                                    `  Qty total: ${fmtN(d.qty)} u.`,
+                                ];
+                                return [
+                                    `  ${d.skus} SKU (${pct}%)`,
+                                    `  Qty total: ${fmtN(d.qty)} u.`,
+                                    `  Importe: ${fmtAmt(d.amount)}`,
+                                ];
+                            },
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    /**
+     * Renderiza la dona de distribución por familia (categoría interna de
+     * producto, categ_id). Agrupa los `state.rows` actuales por familia y
+     * reparte según la métrica activa (SKUs / unidades / PxQ). Las familias
+     * más allá de las FAMILY_TOP con mayor participación se agregan en "Otras".
+     *
+     * Importante: reparte sobre los productos VISIBLES (el top-N del ranking),
+     * igual que la dona ABC — no sobre el universo completo del período.
+     */
+    _drawFamilyPie() {
+        const canvas = this.famPieRef.el;
+        if (!canvas) return;
+        const ChartJs = globalThis.Chart;
+        if (!ChartJs) return;
+        if (this._famPie) { this._famPie.destroy(); this._famPie = null; }
+
+        const metric = this.state.metric;
+        const byfam  = {};
+        for (const r of this.state.rows) {
+            const f = r.family || 'Sin familia';
+            if (!byfam[f]) byfam[f] = { skus: 0, qty: 0, amount: 0 };
+            byfam[f].skus++;
+            byfam[f].qty    += r.qty    || 0;
+            byfam[f].amount += r.amount || 0;
+        }
+        const famVal = d => metric === 'qty' ? d.qty : metric === 'amount' ? d.amount : d.skus;
+
+        // Ordenar por participación y agrupar la cola larga en "Otras".
+        let entries = Object.keys(byfam)
+            .map(name => ({ name, d: byfam[name] }))
+            .sort((a, b) => famVal(b.d) - famVal(a.d));
+        if (entries.length > FAMILY_TOP) {
+            const head = entries.slice(0, FAMILY_TOP);
+            const otras = entries.slice(FAMILY_TOP).reduce((acc, e) => {
+                acc.skus += e.d.skus; acc.qty += e.d.qty; acc.amount += e.d.amount;
+                return acc;
+            }, { skus: 0, qty: 0, amount: 0 });
+            entries = [...head, { name: 'Otras', d: otras }];
+        }
+
+        const total  = entries.reduce((s, e) => s + famVal(e.d), 0);
+        const colors = entries.map((e, i) => e.name === 'Otras'
+            ? 'rgba(173, 181, 189, 0.75)'
+            : FAMILY_COLORS[i % FAMILY_COLORS.length]);
+        const fmtN   = v => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(v);
+        const fmtAmt = v => '$ ' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(v);
+
+        this._famPie = new ChartJs(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: entries.map(e => e.name),
+                datasets: [{
+                    data:            entries.map(e => famVal(e.d)),
+                    backgroundColor: colors,
+                    borderWidth: 1,
+                    borderColor: '#fff',
+                }],
+            },
+            plugins: [PIE_LABEL_PLUGIN],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '48%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 5, boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            title: items => entries[items[0].dataIndex].name,
+                            label: ctx => {
+                                const d   = entries[ctx.dataIndex].d;
+                                const v   = famVal(d);
                                 const pct = total ? Math.round(v / total * 100) : 0;
                                 if (metric === 'qty') return [
                                     `  ${fmtN(d.qty)} u. (${pct}%)`,

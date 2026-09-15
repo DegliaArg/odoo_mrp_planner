@@ -203,6 +203,7 @@ class MrpPlannerDashboardSales(models.TransientModel):
                 'name':          t.name,
                 'code':          t.default_code or '',
                 'sale_category': t.x_sale_category or '',
+                'family':        (t.categ_id.name or '') if t.categ_id else '',
                 'qty':           qty,
                 'amount':        amount,
             })

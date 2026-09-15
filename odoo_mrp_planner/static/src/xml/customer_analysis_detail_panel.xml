@@ -99,7 +99,16 @@
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price), true)"
                                      style="font-size:1rem;" t-esc="fmtMoney(row.avg_price)"/>
-                                <div class="small text-muted">Precio promedio</div>
+                                <div class="small text-muted">Precio prom. pedido</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card o_planner_kpi_card_xs h-100" t-att-title="cellTooltip('avg_price_delivered', row)">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <div t-att-class="'fw-bold o_planner_number ' + numSizeClass(fmtMoney(row.avg_price_delivered), true)"
+                                     style="font-size:1rem;" t-esc="fmtMoney(row.avg_price_delivered)"/>
+                                <div class="small text-muted">Precio prom. entregado</div>
                             </div>
                         </div>
                     </div>
@@ -266,7 +275,8 @@
                                         {key:'qty_pending',    label:'Sin entregar',   cls:'text-end',    tip:'Unidades sin entregar: pedido − entregado. Cero se muestra como —.'},
                                         {key:'amount_pending', label:'Monto sin entregar',      cls:'text-end',    tip:'Importe estimado sin entregar: unidades sin entregar × precio unitario promedio del período.'},
                                         {key:'amount',         label:'Monto',          cls:'text-end',    tip:'Importe total sin impuestos de las líneas del artículo en el período.'},
-                                        {key:'unit_price',     label:'P. unit.',       cls:'text-end',    tip:'Precio unitario promedio del período: Monto ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
+                                        {key:'unit_price',     label:'P.u. ped.',      cls:'text-end',    tip:'Precio unitario promedio pedido del período: Monto pedido ÷ unidades pedidas (ponderado si hubo precios distintos entre pedidos).'},
+                                        {key:'unit_price_delivered', label:'P.u. entr.', cls:'text-end', tip:'Precio unitario promedio entregado del período: Monto entregado ÷ unidades entregadas.'},
                                         {key:'delivery_pct',   label:'% Cumplim.',     cls:'text-end',    tip:'Tasa de cumplimiento: entregado de los pedidos del período ÷ pedido × 100. Semáforo configurable en Ajustes.'},
                                     ]" t-as="col" t-key="col.key">
                                         <th t-att-class="col.cls + ' user-select-none'"
@@ -325,9 +335,15 @@
                                             <t t-esc="fmtMoney(prod.amount)"/>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;"
-                                            title="Precio unitario promedio del período (Monto ÷ pedido).">
+                                            title="Precio unitario promedio pedido del período (Monto pedido ÷ pedido).">
                                             <t t-if="prod.unit_price !== null and prod.unit_price !== undefined"
                                                t-esc="fmtMoney(prod.unit_price)"/>
+                                            <span t-else="" class="text-muted">—</span>
+                                        </td>
+                                        <td class="text-end" style="padding:2px 8px;"
+                                            title="Precio unitario promedio entregado del período (Monto entregado ÷ entregado).">
+                                            <t t-if="prod.unit_price_delivered !== null and prod.unit_price_delivered !== undefined"
+                                               t-esc="fmtMoney(prod.unit_price_delivered)"/>
                                             <span t-else="" class="text-muted">—</span>
                                         </td>
                                         <td class="text-end" style="padding:2px 8px;"

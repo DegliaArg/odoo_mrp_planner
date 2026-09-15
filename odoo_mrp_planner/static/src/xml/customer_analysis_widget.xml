@@ -118,7 +118,7 @@
 
                 <!-- Métrica del gráfico -->
                 <div class="btn-group btn-group-sm" role="group">
-                    <t t-foreach="[['pxq','Importe','Importe total sin impuestos de los pedidos del período'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','P. prom.','Precio promedio por unidad (monto ÷ piezas) por cliente']]"
+                    <t t-foreach="[['pxq','Importe','Importe total sin impuestos de los pedidos del período'],['pedidos','Pedidos','Número de órdenes de venta'],['ticket','P. prom. ped.','Precio promedio pedido por unidad (monto pedido ÷ piezas pedidas) por cliente']]"
                        t-as="m" t-key="m[0]">
                         <button t-att-class="'btn ' + (state.chartMetric === m[0] ? 'btn-primary' : 'btn-outline-secondary')"
                                 style="font-size:10px; padding:1px 5px;"
@@ -326,7 +326,18 @@
                                 <i class="fa fa-tag fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.avg_price))"
                                      t-esc="fmtMoney(state.kpis.avg_price)"/>
-                                <div class="o_planner_label">Precio promedio</div>
+                                <div class="o_planner_label">Precio prom. pedido</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="kpiTooltip('avg_price_delivered')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-tags fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(state.kpis.avg_price_delivered))"
+                                     t-esc="fmtMoney(state.kpis.avg_price_delivered)"/>
+                                <div class="o_planner_label">Precio prom. entregado</div>
                             </div>
                         </div>
                     </div>
@@ -404,7 +415,8 @@
                                 ['qty_ordered',  'Demanda real'],
                                 ['qty_delivered', 'Cumplimiento de demanda'],
                                 ['total_amount', 'Monto total'],
-                                ['avg_price',    'Precio promedio'],
+                                ['avg_price',    'Precio prom. pedido'],
+                                ['avg_price_delivered', 'Precio prom. entregado'],
                                 ['trend_pct',    'Tendencia vs período anterior'],
                             ]" t-as="col" t-key="col[0]">
                                 <div class="form-check mb-1">

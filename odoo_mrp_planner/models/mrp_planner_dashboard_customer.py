@@ -162,7 +162,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_detail = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)] + svc_dom,
-                ['order_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum'],
+                ['order_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum', 'qty_delivered:sum'],
                 ['order_id', 'product_id'],
                 lazy=False,
             )
@@ -180,14 +180,26 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # entre PxQ y Real sin volver a llamar al backend.
             order_amount_pxq  = defaultdict(float)
             order_amount_real = defaultdict(float)
+            # Monto ENTREGADO por orden: precio unitario de cada línea × cantidad
+            # entregada (qty_delivered). Se acumula en paralelo al pedido para poder
+            # dar un "precio prom. entregado" = monto entregado ÷ qty entregada, que
+            # difiere del pedido cuando el mix entregado ≠ mix pedido.
+            order_amount_deliv_pxq  = defaultdict(float)
+            order_amount_deliv_real = defaultdict(float)
             partner_prod = defaultdict(lambda: defaultdict(float))
             partner_fam  = defaultdict(lambda: defaultdict(float))
             for g in sol_detail:
                 _pi      = prod_info.get(g['product_id'][0], {}) if g.get('product_id') else {}
-                amt_pxq  = (g.get('product_uom_qty') or 0.0) * (_pi.get('lst_price') or 0.0)
+                _qty     = g.get('product_uom_qty') or 0.0
+                _qd      = g.get('qty_delivered')   or 0.0
+                _lst     = _pi.get('lst_price') or 0.0
+                amt_pxq  = _qty * _lst
                 amt_real = g.get('price_subtotal') or 0.0
                 order_amount_pxq[g['order_id'][0]]  += amt_pxq
                 order_amount_real[g['order_id'][0]] += amt_real
+                _unit_real = (amt_real / _qty) if _qty else 0.0
+                order_amount_deliv_pxq[g['order_id'][0]]  += _qd * _lst
+                order_amount_deliv_real[g['order_id'][0]] += _qd * _unit_real
                 amt = amt_pxq if use_pxq else amt_real  # top_product/family usan el método configurado
                 if not g.get('product_id'):
                     continue
@@ -346,6 +358,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 total_amount_pxq  = sum(order_amount_pxq.get(s['id'],  0.0) for s in sos)
                 total_amount_real = sum(order_amount_real.get(s['id'], 0.0) for s in sos)
                 total_amount = total_amount_pxq if use_pxq else total_amount_real
+                total_amount_deliv_pxq  = sum(order_amount_deliv_pxq.get(s['id'],  0.0) for s in sos)
+                total_amount_deliv_real = sum(order_amount_deliv_real.get(s['id'], 0.0) for s in sos)
+                total_amount_delivered  = total_amount_deliv_pxq if use_pxq else total_amount_deliv_real
                 total_ordered = sum(sol_qty_by_order.get(s['id'], {}).get('ordered',   0.0) for s in sos)
                 total_deliv   = sum(sol_qty_by_order.get(s['id'], {}).get('delivered', 0.0) for s in sos)
                 delivery_pct  = round(total_deliv / total_ordered * 100, 1) if total_ordered > 0 else None
@@ -424,7 +439,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'total_amount':      round(total_amount, 2),
                     'total_amount_pxq':  round(total_amount_pxq, 2),
                     'total_amount_real': round(total_amount_real, 2),
+                    'total_amount_delivered':      round(total_amount_delivered, 2),
+                    'total_amount_delivered_pxq':  round(total_amount_deliv_pxq, 2),
+                    'total_amount_delivered_real': round(total_amount_deliv_real, 2),
                     'avg_price':         round(total_amount / total_ordered, 2) if total_ordered else 0.0,
+                    'avg_price_delivered': round(total_amount_delivered / total_deliv, 2) if total_deliv else 0.0,
                     'qty_ordered':       round(total_ordered, 1),
                     'qty_delivered':     round(total_deliv, 1),
                     'delivery_pct':      delivery_pct,
@@ -512,18 +531,21 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     base['unified_names'] = [r['partner_name'] for r in group
                                              if r['partner_id'] != _main_id]
                     for f in ('order_count', 'total_amount', 'total_amount_pxq', 'total_amount_real',
+                              'total_amount_delivered', 'total_amount_delivered_pxq', 'total_amount_delivered_real',
                               'qty_ordered', 'qty_delivered', 'qty_delivered_phys',
                               'ontime_ok', 'ontime_total',
                               'prev_amount', 'prev_amount_pxq', 'prev_amount_real',
                               'lt_w_num', 'lt_w_den', 'lt_first_sum', 'lt_first_n',
                               'lt_comp_sum', 'lt_comp_n'):
                         base[f] = sum(r[f] or 0 for r in group)
-                    base['total_amount']       = round(base['total_amount'], 2)
+                    base['total_amount']            = round(base['total_amount'], 2)
+                    base['total_amount_delivered']  = round(base['total_amount_delivered'], 2)
                     base['prev_amount']        = round(base['prev_amount'], 2)
                     base['qty_ordered']        = round(base['qty_ordered'], 1)
                     base['qty_delivered']      = round(base['qty_delivered'], 1)
                     base['qty_delivered_phys'] = round(base['qty_delivered_phys'], 1)
                     base['avg_price']    = round(base['total_amount'] / base['qty_ordered'], 2) if base['qty_ordered'] else 0.0
+                    base['avg_price_delivered'] = round(base['total_amount_delivered'] / base['qty_delivered'], 2) if base['qty_delivered'] else 0.0
                     base['delivery_pct'] = round(base['qty_delivered'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
                     base['physical_pct'] = round(base['qty_delivered_phys'] / base['qty_ordered'] * 100, 1) if base['qty_ordered'] > 0 else None
                     base['ontime_pct']   = round(base['ontime_ok'] / base['ontime_total'] * 100, 1) if base['ontime_total'] > 0 else None
@@ -578,7 +600,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)
             total_qty_global  = sum(r['qty_ordered'] for r in rows)
+            total_deliv_global = sum(r['qty_delivered'] for r in rows)
             avg_price_global  = round(sum(r['total_amount'] for r in rows) / total_qty_global, 2) if total_qty_global else 0.0
+            avg_price_delivered_global = round(sum(r['total_amount_delivered'] for r in rows) / total_deliv_global, 2) if total_deliv_global else 0.0
             delivery_vals     = [r['delivery_pct'] for r in rows if r['delivery_pct'] is not None]
             physical_vals     = [r['physical_pct'] for r in rows if r['physical_pct'] is not None]
             ontime_vals       = [r['ontime_pct']   for r in rows if r['ontime_pct']   is not None]
@@ -593,6 +617,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                     'total_amount':     total_amount_global,
                     'total_qty':        round(total_qty_global, 1),
                     'avg_price':        avg_price_global,
+                    'avg_price_delivered': avg_price_delivered_global,
                     'avg_delivery_pct': round(sum(delivery_vals) / len(delivery_vals), 1) if delivery_vals else None,
                     'avg_physical_pct': round(sum(physical_vals) / len(physical_vals), 1) if physical_vals else None,
                     'avg_ontime_pct':   round(sum(ontime_vals)   / len(ontime_vals),   1) if ontime_vals   else None,
@@ -704,6 +729,17 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 _pid = l['product_id'][0] if l.get('product_id') else None
                 return (l['product_uom_qty'] or 0.0) * (_lst_by_prod.get(_pid, 0.0) if _pid else 0.0)
             return l['price_subtotal'] or 0.0
+
+        def _line_amt_delivered(l):
+            """Monto ENTREGADO de una línea: precio unitario × cantidad entregada
+            (qty_delivered). Misma valorización que _line_amt (PxQ o real)."""
+            qd = l['qty_delivered'] or 0.0
+            if use_pxq:
+                _pid = l['product_id'][0] if l.get('product_id') else None
+                return qd * (_lst_by_prod.get(_pid, 0.0) if _pid else 0.0)
+            q = l['product_uom_qty'] or 0.0
+            unit = (l['price_subtotal'] or 0.0) / q if q else 0.0
+            return qd * unit
 
         _order_amount = defaultdict(float)
         for _l in lines_data:
@@ -842,16 +878,17 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         total_qty_ordered = round(sum(l['product_uom_qty'] or 0.0 for l in lines_data), 1)
 
         # Top productos
-        prod_totals = defaultdict(lambda: {'qty_ordered': 0.0, 'qty_delivered': 0.0, 'amount': 0.0, 'orders': set()})
+        prod_totals = defaultdict(lambda: {'qty_ordered': 0.0, 'qty_delivered': 0.0, 'amount': 0.0, 'amount_delivered': 0.0, 'orders': set()})
         prod_names  = {}
         for l in lines_data:
             if not l.get('product_id'):
                 continue
             pid = l['product_id'][0]
             prod_names[pid] = l['product_id'][1]
-            prod_totals[pid]['qty_ordered']   += l['product_uom_qty'] or 0.0
-            prod_totals[pid]['qty_delivered'] += l['qty_delivered']   or 0.0
-            prod_totals[pid]['amount']        += _line_amt(l)
+            prod_totals[pid]['qty_ordered']      += l['product_uom_qty'] or 0.0
+            prod_totals[pid]['qty_delivered']    += l['qty_delivered']   or 0.0
+            prod_totals[pid]['amount']           += _line_amt(l)
+            prod_totals[pid]['amount_delivered'] += _line_amt_delivered(l)
             prod_totals[pid]['orders'].add(l['order_id'][0])
 
         top_products = sorted([
@@ -862,10 +899,14 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 'qty_ordered':   round(v['qty_ordered'],  1),
                 'qty_delivered': round(v['qty_delivered'], 1),
                 'amount':        round(v['amount'], 2),
+                'amount_delivered': round(v['amount_delivered'], 2),
                 # Promedio ponderado del período: el mismo artículo puede haberse
                 # vendido a precios distintos en varios pedidos.
                 'unit_price':    round(v['amount'] / v['qty_ordered'], 2)
                                  if v['qty_ordered'] > 0 else None,
+                # Precio unitario entregado: monto entregado ÷ cantidad entregada.
+                'unit_price_delivered': round(v['amount_delivered'] / v['qty_delivered'], 2)
+                                 if v['qty_delivered'] > 0 else None,
                 'order_count':   len(v['orders']),
                 'delivery_pct':  round(v['qty_delivered'] / v['qty_ordered'] * 100, 1)
                                  if v['qty_ordered'] > 0 else None,

@@ -39,7 +39,8 @@ const CA_NUM_COLS = [
     { key: 'qty_ordered',      label: 'Demanda real' },
     { key: 'qty_delivered',    label: 'Cumpl. demanda' },
     { key: 'total_amount',     label: 'Monto' },
-    { key: 'avg_price',        label: 'P. prom.' },
+    { key: 'avg_price',        label: 'P. prom. ped.' },
+    { key: 'avg_price_delivered', label: 'P. prom. entr.' },
     { key: 'delivery_pct',     label: '% Cumplim.' },
     { key: 'lead_time',        label: 'Lead entrega' },
     { key: 'ontime_pct',       label: '% A tiempo' },
@@ -60,7 +61,8 @@ const CA_STATIC_COLS = [
     { key: 'qty_ordered',       label: 'Demanda real',      width: 100, align: 'end'    },
     { key: 'qty_delivered',     label: 'Cumpl. demanda',    width: 110, align: 'end'    },
     { key: 'total_amount',      label: 'Monto',             width: 110, align: 'end'    },
-    { key: 'avg_price',         label: 'P. prom.',          width: 110, align: 'end'    },
+    { key: 'avg_price',         label: 'P. prom. ped.',     width: 110, align: 'end'    },
+    { key: 'avg_price_delivered', label: 'P. prom. entr.',  width: 110, align: 'end'    },
     { key: 'delivery_pct',      label: '% Cumplim.',        width:  90, align: 'end'    },
     { key: 'lead_time',         label: 'Lead entrega',      width:  95, align: 'end'    },
     { key: 'ontime_pct',        label: '% A tiempo',        width:  90, align: 'end'    },
@@ -87,6 +89,7 @@ const CA_SORT_KEYS = {
     qty_delivered:     'qty_delivered',
     total_amount:      'total_amount',
     avg_price:         'avg_price',
+    avg_price_delivered: 'avg_price_delivered',
     delivery_pct:      'delivery_pct',
     lead_time:         'lead_time',
     ontime_pct:        'ontime_pct',
@@ -174,7 +177,7 @@ class CustomerAnalysisWidget extends Component {
             dateTo:        period.to,
             allRows:       [],
             rows:          [],
-            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, total_delivered: 0, fulfillment_pct: null, avg_price: 0, lead_weighted: null, lead_first: null, lead_complete: null, lead_time: null },
+            kpis:          { total_customers: 0, total_orders: 0, total_amount: 0, total_qty: 0, total_delivered: 0, fulfillment_pct: null, avg_price: 0, avg_price_delivered: 0, lead_weighted: null, lead_first: null, lead_complete: null, lead_time: null },
             config:        {},
             sortCol:       'total_amount',
             sortDir:       'desc',
@@ -230,6 +233,7 @@ class CustomerAnalysisWidget extends Component {
                 qty_delivered:     true,
                 total_amount:      true,
                 avg_price:         true,
+                avg_price_delivered: true,
                 delivery_pct:      true,
                 lead_time:         true,
                 ontime_pct:        false,
@@ -505,14 +509,17 @@ class CustomerAnalysisWidget extends Component {
         const totalAmount = rows.reduce((s, r) => s + (r.total_amount || 0), 0);
         const totalQty    = rows.reduce((s, r) => s + (r.qty_ordered  || 0), 0);
         const totalDelivered = rows.reduce((s, r) => s + (r.qty_delivered || 0), 0);
+        const totalAmountDelivered = rows.reduce((s, r) => s + (r.total_amount_delivered || 0), 0);
         return {
             total_customers: rows.length,
             total_orders:    totalOrders,
             total_amount:    Math.round(totalAmount * 100) / 100,
+            total_amount_delivered: Math.round(totalAmountDelivered * 100) / 100,
             total_qty:       Math.round(totalQty * 10) / 10,
             total_delivered: Math.round(totalDelivered * 10) / 10,
             fulfillment_pct: totalQty > 0 ? Math.round(totalDelivered / totalQty * 1000) / 10 : null,
             avg_price:       totalQty ? Math.round(totalAmount / totalQty * 100) / 100 : 0,
+            avg_price_delivered: totalDelivered ? Math.round(totalAmountDelivered / totalDelivered * 100) / 100 : 0,
             ...this._computeLeadKpis(rows),
         };
     }
@@ -980,9 +987,12 @@ class CustomerAnalysisWidget extends Component {
     _remapRowAmounts(rows, isReal, abc_a, abc_b) {
         for (const r of rows) {
             r.total_amount = isReal ? (r.total_amount_real || 0) : (r.total_amount_pxq || 0);
+            r.total_amount_delivered = isReal ? (r.total_amount_delivered_real || 0) : (r.total_amount_delivered_pxq || 0);
             r.prev_amount  = isReal ? (r.prev_amount_real  || 0) : (r.prev_amount_pxq  || 0);
             r.avg_price    = r.qty_ordered > 0
                 ? Math.round(r.total_amount / r.qty_ordered * 100) / 100 : 0;
+            r.avg_price_delivered = r.qty_delivered > 0
+                ? Math.round(r.total_amount_delivered / r.qty_delivered * 100) / 100 : 0;
             r.trend_pct    = r.prev_amount > 0
                 ? Math.round((r.total_amount - r.prev_amount) / r.prev_amount * 10000) / 100
                 : null;
@@ -1282,7 +1292,9 @@ class CustomerAnalysisWidget extends Component {
             case 'fulfillment_pct':
                 return `Tasa de cumplimiento del período: de lo pedido en el período, cuánto ya se entregó\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${k.fulfillment_pct != null ? k.fulfillment_pct + '%' : '—'}\nVerde ≥ ${this.state.config.delivery_warn || 80}% | Amarillo ≥ ${this.state.config.delivery_crit || 60}% (umbrales configurables en Ajustes)` + this.svcNote();
             case 'avg_price':
-                return `Precio promedio por unidad del período\nMonto total ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
+                return `Precio promedio pedido: por unidad pedida del período\nMonto pedido ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
+            case 'avg_price_delivered':
+                return `Precio promedio entregado: por unidad efectivamente entregada del período\nMonto entregado ÷ Cumplimiento de demanda\n→ ${m(k.total_amount_delivered)} ÷ ${f(k.total_delivered)} = ${m(k.avg_price_delivered)}\nDifiere del pedido cuando el mix entregado ≠ mix pedido.` + this.amountNote() + this.svcNote();
             case 'lead_time':
                 return `Lead time de entrega de los pedidos del período (clientes visibles). Días desde la confirmación hasta la fecha efectiva de cada remito de salida.\nMétodo principal (${this.leadMethodLabel()}, configurable en Ajustes): ${this.fmtDays(k.lead_time)}\n• Ponderado por cantidad: ${this.fmtDays(k.lead_weighted)} — promedia cada entrega parcial pesada por sus piezas; es lo que esperó la pieza promedio\n• Primera entrega: ${this.fmtDays(k.lead_first)} — promedio de días hasta el primer remito de cada pedido (velocidad de reacción)\n• Pedido completo: ${this.fmtDays(k.lead_complete)} — promedio de punta a punta, solo pedidos totalmente entregados`;
             case 'avg_days_between':
@@ -1315,7 +1327,9 @@ class CustomerAnalysisWidget extends Component {
             case 'ontime_pct':
                 return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
             case 'avg_price':
-                return `Precio promedio por unidad del cliente en el período\nMonto total ÷ Demanda real\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.amountNote() + this.svcNote();
+                return `Precio promedio pedido: por unidad pedida del cliente en el período\nMonto pedido ÷ Demanda real\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.amountNote() + this.svcNote();
+            case 'avg_price_delivered':
+                return `Precio promedio entregado: por unidad efectivamente entregada del cliente en el período\nMonto entregado ÷ Cumplimiento de demanda\n→ ${m(row.total_amount_delivered)} ÷ ${f(row.qty_delivered)} = ${m(row.avg_price_delivered)}\nDifiere del pedido cuando el mix entregado ≠ mix pedido.` + this.amountNote() + this.svcNote();
             case 'trend_pct':
                 return `Variación del monto vs período anterior de igual duración\n((Actual - Anterior) ÷ Anterior) × 100\n→ ((${m(row.total_amount)} - ${m(row.prev_amount)}) ÷ ${m(row.prev_amount)}) × 100 = ${row.trend_pct != null ? row.trend_pct + '%' : '—'}`;
             case 'days_since_last':
@@ -1370,7 +1384,8 @@ class CustomerAnalysisWidget extends Component {
             qty_ordered:       'Demanda real: total de piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas).',
             qty_delivered:     'Cumplimiento de demanda: piezas ya entregadas de los pedidos del período (acumulado a la fecha, cualquier fecha de entrega). Es el numerador de la tasa de cumplimiento.',
             total_amount:      'Monto total neto (sin impuestos) de pedidos confirmados en el período.',
-            avg_price:         'Precio promedio: monto total ÷ piezas pedidas del período.',
+            avg_price:         'Precio promedio pedido: monto pedido ÷ piezas pedidas del período.',
+            avg_price_delivered: 'Precio promedio entregado: monto entregado ÷ piezas entregadas (Cumpl. demanda) del período. Difiere del pedido cuando el mix entregado ≠ mix pedido.',
             delivery_pct:      'Tasa de cumplimiento: entregado (acumulado a la fecha, cualquier fecha de entrega) de los pedidos confirmados en el período ÷ pedido en el período × 100. Responde "de lo que pidió en el período, ¿cuánto ya le entregué?". Semáforo configurable en Ajustes.',
             lead_time:         'Lead time de entrega (' + this.leadMethodLabel() + '): días desde la confirmación del pedido hasta la fecha efectiva de entrega. Método principal configurable en Ajustes; el tooltip de cada celda muestra los tres métodos.',
             ontime_pct:        'Porcentaje de entregas realizadas dentro del plazo acordado. El plazo se define según el método configurado en Ajustes (fecha compromiso, fecha programada o SLA en días).',
@@ -1385,7 +1400,7 @@ class CustomerAnalysisWidget extends Component {
             partner_tag:       'Primera etiqueta de contacto asignada al cliente en Odoo (res.partner.category_id). Clic para ordenar.',
         };
         const base = titles[col.key] || '';
-        if (['total_amount', 'avg_price', 'trend_pct'].includes(col.key)) {
+        if (['total_amount', 'avg_price', 'avg_price_delivered', 'trend_pct'].includes(col.key)) {
             return base + this.amountNote() + this.svcNote();
         }
         if (['qty_ordered', 'qty_delivered'].includes(col.key)) {

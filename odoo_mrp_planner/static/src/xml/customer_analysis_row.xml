@@ -91,6 +91,11 @@
                 t-att-title="cellTooltip('avg_price', row)"
                 t-esc="fmtMoney(row.avg_price)"/>
 
+            <td t-elif="col.key === 'avg_price_delivered'"
+                class="text-end" style="padding:3px 8px;"
+                t-att-title="cellTooltip('avg_price_delivered', row)"
+                t-esc="fmtMoney(row.avg_price_delivered)"/>
+
             <td t-elif="col.key === 'delivery_pct'"
                 t-att-class="'text-end ' + deliveryClass(row.delivery_pct)"
                 style="padding:3px 8px;"

@@ -87,9 +87,8 @@
 
             <hr class="mt-0 mb-3"/>
 
-            <!-- ══ FILTROS DE CARDS + TABLA (afectan cards y tabla) ════════════ -->
+            <!-- ══ FILTROS + BÚSQUEDA + BOTONES (cards + tabla, todo en una fila) ═ -->
             <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
-                <span style="font-size:10px; white-space:nowrap;" class="text-secondary fw-bold">CARDS + TABLA:</span>
                 <div class="d-flex align-items-center gap-1">
                     <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
                            title="Fecha inicial del período de las cards y la tabla."
@@ -121,7 +120,51 @@
                             title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
                             t-on-click="() => this.setAmountMethod('real')">Real</button>
                 </div>
-                <i t-if="state.loading" class="fa fa-spinner fa-spin text-muted ms-1" title="Cargando cards y tabla…"/>
+                <i t-if="state.loading" class="fa fa-spinner fa-spin text-muted" title="Cargando cards y tabla…"/>
+
+                <PlannerSearchBar
+                    widgetKey="'unmet_demand'"
+                    placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
+                    t-props="{
+                        search:            state.productSearch,
+                        onSearch:          (t) => this.setSearch(t),
+                        showFavorites:     true,
+                        numericFields:     numColOptions,
+                        numFilters:        state.numFilters,
+                        onNumFilterAdd:    (c) => this.addNumFilter(c),
+                        onNumFilterRemove: (i) => this.removeNumFilter(i)
+                    }"/>
+                <div class="position-relative" t-on-click.stop="">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            title="Elegir qué columnas mostrar en la tabla"
+                            t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns"/>
+                        <span>Columnas</span>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
+                        <p class="small text-muted mb-1 px-1">Columnas de la tabla</p>
+                        <t t-foreach="optionalColumns" t-as="col" t-key="col.key">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ud_col_' + col.key"
+                                       t-att-checked="state.colsVisible[col.key] !== false"
+                                       t-on-change="() => this.toggleCol(col.key)"/>
+                                <label class="form-check-label small" t-att-for="'ud_col_' + col.key">
+                                    <t t-esc="col.label"/>
+                                </label>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                        title="Exportar la tabla visible a Excel (.xls)"
+                        t-on-click="exportToExcel">
+                    <i class="fa fa-download"/>
+                    <span>Exportar</span>
+                </button>
             </div>
 
             <!-- Estados de cards + tabla -->
@@ -221,65 +264,33 @@
                     </div>
                 </div>
 
-                <!-- Búsqueda + selector de columnas + export -->
-                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                    <PlannerSearchBar
-                        widgetKey="'unmet_demand'"
-                        placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
-                        t-props="{
-                            search:            state.productSearch,
-                            onSearch:          (t) => this.setSearch(t),
-                            showFavorites:     true,
-                            numericFields:     numColOptions,
-                            numFilters:        state.numFilters,
-                            onNumFilterAdd:    (c) => this.addNumFilter(c),
-                            onNumFilterRemove: (i) => this.removeNumFilter(i)
-                        }"/>
-                    <div class="position-relative" t-on-click.stop="">
-                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                                title="Elegir qué columnas mostrar en la tabla"
-                                t-on-click="toggleColsDropdown">
-                            <i class="fa fa-columns"/>
-                            <span>Columnas</span>
-                            <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                        </button>
-                        <div t-if="state.colsDropdownOpen"
-                             class="dropdown-menu show shadow p-2"
-                             style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
-                            <p class="small text-muted mb-1 px-1">Columnas de la tabla</p>
-                            <t t-foreach="optionalColumns" t-as="col" t-key="col.key">
-                                <div class="form-check mb-1">
-                                    <input type="checkbox" class="form-check-input"
-                                           t-att-id="'ud_col_' + col.key"
-                                           t-att-checked="state.colsVisible[col.key] !== false"
-                                           t-on-change="() => this.toggleCol(col.key)"/>
-                                    <label class="form-check-label small" t-att-for="'ud_col_' + col.key">
-                                        <t t-esc="col.label"/>
-                                    </label>
-                                </div>
-                            </t>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 ms-auto"
-                            title="Exportar la tabla visible a Excel (.xls)"
-                            t-on-click="exportToExcel">
-                        <i class="fa fa-download"/>
-                        <span>Exportar</span>
-                    </button>
-                </div>
-
-                <!-- Tabla de detalle -->
+                <!-- Tabla de detalle (columnas reordenables por drag y redimensionables) -->
                 <div class="border rounded bg-white" style="overflow:auto;">
-                    <table class="table table-sm table-hover mb-0" style="font-size:12px;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:12px; table-layout:fixed;">
+                        <colgroup>
+                            <col t-foreach="columns" t-as="col" t-key="col.key"
+                                 t-att-style="cols.colGroupStyle(col.key)"/>
+                        </colgroup>
                         <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
                             <tr>
                                 <t t-foreach="columns" t-as="col" t-key="col.key">
-                                    <th t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' user-select-none'"
-                                        style="padding:4px 8px; cursor:pointer; white-space:nowrap;"
+                                    <th t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' user-select-none' + (cols.state.dragOver === col.key ? ' o_col_drag_over' : '')"
+                                        style="padding:4px 8px; cursor:pointer; white-space:nowrap; position:relative;"
                                         t-att-title="colTitle(col)"
-                                        t-on-click="() => this.setSort(col.key)">
+                                        t-att-data-col-key="col.key"
+                                        t-att-data-sort-key="col.sortKey || ''"
+                                        t-att-draggable="col.fixed ? 'false' : 'true'"
+                                        t-on-click="onHeaderClick"
+                                        t-on-dragstart="cols.onDragStart"
+                                        t-on-dragover="cols.onDragOver"
+                                        t-on-drop="cols.onDrop"
+                                        t-on-dragend="cols.onDragEnd">
                                         <t t-esc="col.label"/>
                                         <i t-att-class="sortIcon(col.key)" style="opacity:0.6;"/>
+                                        <div class="o_col_resize_handle"
+                                             t-att-data-col-key="col.key"
+                                             t-on-mousedown.stop="cols.onResizeStart"
+                                             t-on-click.stop="() => {}"/>
                                     </th>
                                 </t>
                             </tr>
@@ -289,7 +300,7 @@
                                 <tr>
                                     <t t-foreach="columns" t-as="col" t-key="col.key">
                                         <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
-                                            style="padding:3px 8px; white-space:nowrap;"
+                                            style="padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
                                             t-att-title="cellTooltip(col, row)">
                                             <t t-if="col.key === 'unmet_amount'">
                                                 <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>

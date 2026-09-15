@@ -27,9 +27,30 @@ import { PlannerSearchBar } from "./planner_search_bar";
 import { applyNumericFilters } from "./planner_table";
 import { downloadExcelXml } from "./planner_export";
 import { kpiNumClass } from "./forecast_formatters";
+import { useColManager } from "./column_manager";
 
 const DIM_LABELS  = { customer: "Cliente", product: "Producto", family: "Familia" };
 const DIM_PLURALS = { customer: "Clientes", product: "Productos", family: "Familias" };
+
+// Todas las columnas posibles de la tabla (unión de las tres dimensiones). El
+// column manager gestiona el ORDEN (drag & drop) y el ancho (resize) sobre este
+// conjunto fijo; el getter `columns` filtra por dimensión activa y visibilidad.
+// Las etiquetas de name/category/cross_count se sobrescriben dinámicamente.
+const UD_ALL_COLS = [
+    { key: "name",            label: "Entidad",          width: 160, align: "start",  sortKey: "name",            fixed: true },
+    { key: "category",        label: "Categoría",        width: 80,  align: "center", sortKey: "category",        kind: "cat"   },
+    { key: "qty_ordered",     label: "Pedido",           width: 90,  align: "end",    sortKey: "qty_ordered",     kind: "num"   },
+    { key: "qty_delivered",   label: "Entregado",        width: 90,  align: "end",    sortKey: "qty_delivered",   kind: "num"   },
+    { key: "unmet_qty",       label: "Pendiente",        width: 90,  align: "end",    sortKey: "unmet_qty",       kind: "num"   },
+    { key: "unmet_amount",    label: "Monto pendiente",  width: 120, align: "end",    sortKey: "unmet_amount",    kind: "money" },
+    { key: "fulfillment_pct", label: "% Cumplim.",       width: 90,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
+    { key: "unmet_pct",       label: "% Insatisf.",      width: 90,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
+    { key: "pending_age",     label: "Antig. pendiente", width: 110, align: "end",    sortKey: "pending_age",     kind: "days"  },
+    { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days"  },
+    { key: "diagnosis",       label: "Diagnóstico",      width: 100, align: "center", sortKey: "diagnosis",       kind: "chip"  },
+    { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num"   },
+    { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num"   },
+];
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -45,6 +66,7 @@ class UnmetDemandWidget extends Component {
         this.action   = useService("action");
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
+        this.cols     = useColManager("unmet_demand", UD_ALL_COLS);
 
         const now   = new Date();
         const first = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -95,6 +117,7 @@ class UnmetDemandWidget extends Component {
         });
         onWillUnmount(() => {
             if (this._chart) { this._chart.destroy(); this._chart = null; }
+            this.cols.cancelResize();
         });
     }
 
@@ -219,41 +242,42 @@ class UnmetDemandWidget extends Component {
     get crossLabel()          { return this.state.dimension === "product" ? "# Clientes" : "# Productos"; }
     get categoryLabel()       { return this.state.dimension === "product" ? "Cat. venta" : "Categoría"; }
 
-    /** Todas las columnas aplicables a la dimensión activa de la TABLA. */
-    get allColumns() {
-        const cols = [
-            { key: "name", label: this.dimensionLabel, align: "start", fixed: true },
-        ];
-        if (this.state.dimension !== "family") {
-            cols.push({ key: "category", label: this.categoryLabel, align: "center", kind: "cat" });
-        }
-        cols.push(
-            { key: "qty_ordered",     label: "Pedido",           align: "end", kind: "num"   },
-            { key: "qty_delivered",   label: "Entregado",        align: "end", kind: "num"   },
-            { key: "unmet_qty",       label: "Pendiente",        align: "end", kind: "num"   },
-            { key: "unmet_amount",    label: "Monto pendiente",  align: "end", kind: "money" },
-            { key: "fulfillment_pct", label: "% Cumplim.",       align: "end", kind: "pct"   },
-            { key: "unmet_pct",       label: "% Insatisf.",      align: "end", kind: "pct"   },
-            { key: "pending_age",     label: "Antig. pendiente", align: "end", kind: "days"  },
-        );
-        if (this.state.dimension === "product") {
-            cols.push(
-                { key: "break_days", label: "Días quiebre", align: "end",    kind: "days" },
-                { key: "diagnosis",  label: "Diagnóstico",  align: "center", kind: "chip" },
-            );
-        }
-        cols.push(
-            { key: "affected_orders", label: "# Pedidos",     align: "end", kind: "num" },
-            { key: "cross_count",     label: this.crossLabel, align: "end", kind: "num" },
-        );
-        return cols;
+    /** ¿La columna aplica a la dimensión activa de la tabla? */
+    _colApplies(key) {
+        if (key === "category") return this.state.dimension !== "family";
+        if (key === "break_days" || key === "diagnosis") return this.state.dimension === "product";
+        return true;
     }
-    /** Columnas visibles (fijas + las no ocultadas por el selector). */
+    /** Etiqueta dinámica (o null para usar la fija de UD_ALL_COLS). */
+    _colLabel(key) {
+        if (key === "name")        return this.dimensionLabel;
+        if (key === "category")    return this.categoryLabel;
+        if (key === "cross_count") return this.crossLabel;
+        return null;
+    }
+    _withDynLabel(c) {
+        const dyn = this._colLabel(c.key);
+        return dyn ? { ...c, label: dyn } : c;
+    }
+    /** Columnas visibles, en el orden del usuario (drag), filtradas por dimensión
+     *  y por el selector; con etiquetas dinámicas. */
     get columns() {
-        return this.allColumns.filter(c => c.fixed || this.state.colsVisible[c.key] !== false);
+        return this.cols.visibleCols()
+            .filter(c => this._colApplies(c.key))
+            .filter(c => c.fixed || this.state.colsVisible[c.key] !== false)
+            .map(c => this._withDynLabel(c));
     }
-    /** Columnas opcionales (para el dropdown del selector). */
-    get optionalColumns() { return this.allColumns.filter(c => !c.fixed); }
+    /** Columnas opcionales aplicables (para el dropdown del selector). */
+    get optionalColumns() {
+        return this.cols.visibleCols()
+            .filter(c => !c.fixed && this._colApplies(c.key))
+            .map(c => this._withDynLabel(c));
+    }
+    /** Clic en encabezado: ordena por su sortKey (data-sort-key del th). */
+    onHeaderClick(ev) {
+        const sk = ev.currentTarget.dataset.sortKey;
+        if (sk) this.setSort(sk);
+    }
 
     get numColOptions() {
         return this.columns

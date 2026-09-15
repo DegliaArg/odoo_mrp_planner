@@ -164,9 +164,12 @@
     text-decoration: none;
 }
 
-/* Ocultar pager y título automático en vistas del planificador */
+/* Ocultar pager y título automático en vistas del planificador.
+   Se oculta el crumb activo (nombre del registro, "Panel del Planificador")
+   tanto cuando se llega por drill (hay botón atrás) como al abrir el panel
+   directo desde el menú (sin botón atrás). */
 .o_view_controller:has(.o_planner_dashboard) .o_pager { display: none !important; }
-.o_view_controller:has(.o_planner_dashboard) .o_breadcrumb .o_back_button ~ .active { display: none; }
+.o_view_controller:has(.o_planner_dashboard) .o_breadcrumb .active { display: none; }
 
 /* Alineación vertical en títulos de sección (badge + botón link) */
 .o_planner_section_title { display: flex; align-items: center; }

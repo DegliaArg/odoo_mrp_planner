@@ -179,7 +179,7 @@ class UnmetDemandWidget extends Component {
             { key: "fulfillment_pct", label: "% Cumplim.",       align: "end", kind: "pct"   },
             { key: "unmet_pct",       label: "% Insatisf.",      align: "end", kind: "pct"   },
             { key: "pending_age",     label: "Antig. pendiente", align: "end", kind: "days"  },
-        ];
+        );
         // Cruce con quiebre de stock: solo tiene sentido por producto.
         if (this.state.dimension === "product") {
             cols.push(

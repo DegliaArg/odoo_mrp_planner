@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.UnmetDemandWidget">
+        <div t-att-class="'o_unmet_demand_widget' + (state.loading ? ' opacity-50 pe-none' : '')">
+
+            <!-- ── Controles ─────────────────────────────────────────────── -->
+            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+
+                <!-- Período -->
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    <label class="form-label mb-0 small text-muted">Hasta</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                </div>
+
+                <div class="vr" style="height:22px;"/>
+
+                <!-- Dimensión -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión">
+                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                t-att-title="'Agregar la demanda insatisfecha por ' + d[1]"
+                                t-on-click="() => this.setDimension(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+
+                <div class="vr" style="height:22px;"/>
+
+                <!-- Valorización PxQ / Real -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización">
+                    <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="PxQ: precio de lista del artículo × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
+                    <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('real')">Real</button>
+                </div>
+
+                <PlannerSearchBar
+                    widgetKey="'unmet_demand'"
+                    placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
+                    t-props="{
+                        search:            state.productSearch,
+                        onSearch:          (t) => this.setSearch(t),
+                        showFavorites:     true,
+                        numericFields:     numColOptions,
+                        numFilters:        state.numFilters,
+                        onNumFilterAdd:    (c) => this.addNumFilter(c),
+                        onNumFilterRemove: (i) => this.removeNumFilter(i)
+                    }"/>
+
+                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                        title="Exportar la tabla visible a Excel"
+                        t-on-click="exportToExcel">
+                    <i class="fa fa-file-excel-o"/>
+                    <span>Excel</span>
+                </button>
+            </div>
+
+            <!-- Spinner (primera carga) -->
+            <div t-if="state.loading and !state.data" class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+
+            <!-- Error -->
+            <div t-elif="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar la demanda insatisfecha: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
+            <!-- Sin datos -->
+            <div t-elif="!baseRows.length" class="text-center text-muted py-5">
+                <i class="fa fa-check-circle fa-3x mb-3 d-block opacity-50"/>
+                <span>No hay demanda insatisfecha para los filtros seleccionados.</span>
+            </div>
+
+            <t t-else="">
+                <!-- ── KPIs ──────────────────────────────────────────────── -->
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             title="Monto de la demanda insatisfecha del período (cantidad pendiente × precio unitario).">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
+                                <div class="o_planner_number text-danger" t-esc="fmtMoney(kpis.total_unmet_amount)"/>
+                                <div class="o_planner_label">Monto pendiente</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             title="Unidades pedidas en el período que aún no se entregaron.">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(kpis.total_unmet_qty)"/>
+                                <div class="o_planner_label">Pendiente (u.)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             title="Entregado ÷ pedido de las entidades con faltante × 100.">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmtPct(kpis.fulfillment_pct)"/>
+                                <div class="o_planner_label">% Cumplimiento</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             title="Total de unidades pedidas de las entidades con faltante.">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(kpis.total_ordered)"/>
+                                <div class="o_planner_label">Pedido total</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             title="Total de unidades entregadas de las entidades con faltante.">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-check fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(kpis.total_delivered)"/>
+                                <div class="o_planner_label">Entregado total</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                             t-att-title="dimensionPlural + ' con demanda insatisfecha en el período.'">
+                            <div class="card-body text-center py-2">
+                                <i class="fa fa-list fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(kpis.total_rows)"/>
+                                <div class="o_planner_label"><t t-esc="dimensionPlural"/> afectados</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Gráfico top-N ─────────────────────────────────────── -->
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="small text-muted fw-semibold">
+                        Top <t t-esc="state.chartTopN"/> por <t t-esc="dimensionLabel.toLowerCase()"/>
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
+                        <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                t-on-click="() => this.setChartMetric('amount')">Monto</button>
+                        <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                t-on-click="() => this.setChartMetric('qty')">Unidades</button>
+                    </div>
+                </div>
+                <div style="position:relative; height:280px;" class="mb-3">
+                    <canvas t-ref="chartCanvas"/>
+                </div>
+
+                <!-- ── Tabla ─────────────────────────────────────────────── -->
+                <div class="border rounded bg-white" style="overflow:auto;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:12px;">
+                        <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                            <tr>
+                                <t t-foreach="columns" t-as="col" t-key="col.key">
+                                    <th t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' user-select-none'"
+                                        style="padding:4px 8px; cursor:pointer; white-space:nowrap;"
+                                        t-on-click="() => this.setSort(col.key)">
+                                        <t t-esc="col.label"/>
+                                        <i t-att-class="sortIcon(col.key)" style="opacity:0.6;"/>
+                                    </th>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="pagedRows" t-as="row" t-key="row.key">
+                                <tr>
+                                    <t t-foreach="columns" t-as="col" t-key="col.key">
+                                        <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
+                                            style="padding:3px 8px; white-space:nowrap;">
+                                            <t t-if="col.key === 'unmet_amount'">
+                                                <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>
+                                            </t>
+                                            <t t-else="" t-esc="cellText(row, col)"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ── Paginación ────────────────────────────────────────── -->
+                <div class="d-flex align-items-center justify-content-between mt-2" t-if="totalPages > 1">
+                    <span class="small text-muted">
+                        <t t-esc="pagedRowsAll.length"/> <t t-esc="dimensionPlural.toLowerCase()"/> · página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
+                    </span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" t-att-disabled="!hasPrevPage" t-on-click="prevPage">
+                            <i class="fa fa-chevron-left"/>
+                        </button>
+                        <button class="btn btn-outline-secondary" t-att-disabled="!hasNextPage" t-on-click="nextPage">
+                            <i class="fa fa-chevron-right"/>
+                        </button>
+                    </div>
+                </div>
+            </t>
+
+        </div>
+    </t>
+
+</templates>

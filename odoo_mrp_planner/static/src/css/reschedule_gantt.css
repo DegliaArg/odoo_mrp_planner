@@ -347,6 +347,10 @@ th[draggable="true"]:active { cursor: grabbing; }
 
 /* Números de KPI: nunca dos renglones; el tamaño baja por longitud del texto */
 .o_planner_number { white-space: nowrap; }
+/* Cards del análisis de clientes ("Detalle de clientes"): son 9 en una fila,
+   así que el número va un poco más chico (scopeado, no afecta otros paneles). */
+.o_ca_kpi_row .o_planner_number { font-size: clamp(0.7rem, 8.5cqi, 1.25rem) !important; }
+
 .o_planner_num_md { font-size: 1.1rem !important; }
 .o_planner_num_sm { font-size: 0.9rem !important; }
 /* Números cortos en cards angostas (fila de KPIs de clientes): escala más

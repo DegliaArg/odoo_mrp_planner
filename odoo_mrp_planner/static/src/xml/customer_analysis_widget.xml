@@ -202,7 +202,7 @@
             <!-- ── KPI cards globales: una fila, solo métricas comerciales del
                  cliente (las métricas de entrega viven en el panel de ventas).
                  Violeta = identidad de "Demanda real" compartida con ventas. ── -->
-                <div class="d-flex gap-2 mb-3">
+                <div class="d-flex gap-2 mb-3 o_ca_kpi_row">
                     <div class="flex-fill" style="min-width:0; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100"
                              t-att-title="kpiTooltip('total_customers')">

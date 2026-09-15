@@ -45,6 +45,58 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         }
 
     @api.model
+    def action_open_unmet_lines(self, period_from, period_to, warehouse_ids=None,
+                                only_pending=True):
+        """Drill-down de las cards: abre la lista de líneas de pedido del período.
+
+        :param only_pending: si True, solo las líneas con backlog (pedido >
+            entregado); si False, todas las líneas del período.
+        """
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
+        d_from_str = period_from + ' 00:00:00'
+        d_to_str   = period_to   + ' 23:59:59'
+        try:
+            cfg = self._ca_config()
+        except Exception:
+            cfg = {}
+        exclude_services = bool(cfg.get('exclude_services'))
+
+        allowed = self._get_wh_domains().allowed_ids
+        if allowed is not None:
+            allowed_set = set(allowed)
+            warehouse_ids = [w for w in (warehouse_ids or []) if w in allowed_set] or allowed
+            if not warehouse_ids:
+                warehouse_ids = [-1]
+        wh_domain  = [('warehouse_id', 'in', warehouse_ids)] if warehouse_ids else []
+        company_id = self.env.company.id
+
+        orders = self.env['sale.order'].sudo().search([
+            ('state', 'in', ['sale', 'done']),
+            ('date_order', '>=', d_from_str),
+            ('date_order', '<=', d_to_str),
+        ] + wh_domain + [('company_id', '=', company_id)])
+        svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
+        lines = self.env['sale.order.line'].sudo().search_read(
+            [('order_id', 'in', orders.ids), ('product_id', '!=', False)] + svc_dom,
+            ['id', 'product_uom_qty', 'qty_delivered'])
+        if only_pending:
+            ids = [l['id'] for l in lines
+                   if (l['product_uom_qty'] or 0.0) - (l['qty_delivered'] or 0.0) > 1e-6]
+        else:
+            ids = [l['id'] for l in lines]
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Demanda insatisfecha — líneas') if only_pending else _('Líneas del período'),
+            'res_model': 'sale.order.line',
+            'domain': [('id', 'in', ids)],
+            'view_mode': 'list',
+            'views': [[self.env.ref('odoo_mrp_planner.view_sale_order_line_unmet_list').id, 'list']],
+            'target': 'current',
+        }
+
+    @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
                               warehouse_ids=None, amount_method_override=None):
         """
@@ -124,6 +176,13 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 for p in self.env['product.product'].sudo().browse(prod_ids).read(
                     ['id', 'display_name', 'categ_id', 'lst_price'])
             }
+            # Nombre HOJA de la familia (no el path completo "Todo / … / X"),
+            # igual que el panel de ventas y el análisis de clientes.
+            categ_ids = list({p['categ_id'][0] for p in prod_info.values() if p.get('categ_id')})
+            categ_leaf = {}
+            if categ_ids:
+                for c in self.env['product.category'].sudo().browse(categ_ids).read(['id', 'name']):
+                    categ_leaf[c['id']] = c['name']
 
             # ── 3. Agregación por la dimensión elegida ───────────────────────
             def _new(key, name):
@@ -157,7 +216,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     key, name, cross = pid, pi.get('display_name', ''), partner[0]
                 else:  # family
                     categ = pi.get('categ_id') or (0, '')
-                    key, name, cross = categ[0], (categ[1] or 'Sin familia'), pid
+                    key, name, cross = categ[0], categ_leaf.get(categ[0], 'Sin familia'), pid
 
                 d = agg.get(key)
                 if d is None:

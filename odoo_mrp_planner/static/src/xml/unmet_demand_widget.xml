@@ -2,65 +2,57 @@
 <templates xml:space="preserve">
 
     <t t-name="odoo_mrp_planner.UnmetDemandWidget">
-        <div t-att-class="'o_unmet_demand_widget' + (state.loading ? ' opacity-50 pe-none' : '')">
+        <div t-att-class="'o_unmet_demand_widget' + (state.loading ? ' opacity-50 pe-none' : '')"
+             style="font-size:13px; min-height:400px;">
 
-            <!-- ── Controles ─────────────────────────────────────────────── -->
-            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <!-- ══ FILTROS (superiores: definen el análisis) ═══════════════════ -->
+            <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
 
                 <!-- Período -->
-                <div class="d-flex align-items-center gap-1">
-                    <label class="form-label mb-0 small text-muted">Desde</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                <div class="d-flex align-items-center gap-1" aria-label="Período">
+                    <span style="font-size:10px; white-space:nowrap;" class="text-muted fw-semibold">Período:</span>
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha inicial del período (pedidos confirmados)."
                            t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
-                    <label class="form-label mb-0 small text-muted">Hasta</label>
-                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha final del período (pedidos confirmados)."
                            t-att-value="state.dateTo" t-on-change="onDateToChange"/>
                 </div>
 
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
 
                 <!-- Dimensión -->
-                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión">
-                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
-                        <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
-                                t-att-title="'Agregar la demanda insatisfecha por ' + d[1]"
-                                t-on-click="() => this.setDimension(d[0])">
-                            <t t-esc="d[1]"/>
-                        </button>
-                    </t>
+                <div class="d-flex align-items-center gap-1">
+                    <span style="font-size:10px;" class="text-muted fw-semibold">Ver por:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión">
+                        <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
+                            <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:10px; padding:1px 6px;"
+                                    t-att-title="'Agregar la demanda insatisfecha por ' + d[1]"
+                                    t-on-click="() => this.setDimension(d[0])">
+                                <t t-esc="d[1]"/>
+                            </button>
+                        </t>
+                    </div>
                 </div>
 
-                <div class="vr" style="height:22px;"/>
+                <div class="vr" style="height:20px;"/>
 
                 <!-- Valorización PxQ / Real -->
-                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización">
-                    <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
-                            title="PxQ: precio de lista del artículo × cantidad pendiente."
-                            t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
-                    <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
-                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
-                            t-on-click="() => this.setAmountMethod('real')">Real</button>
+                <div class="d-flex align-items-center gap-1">
+                    <span style="font-size:10px;" class="text-muted fw-semibold">Monto:</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Valorización">
+                        <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                title="PxQ: precio de lista del artículo × cantidad pendiente."
+                                t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
+                        <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
+                                t-on-click="() => this.setAmountMethod('real')">Real</button>
+                    </div>
                 </div>
-
-                <PlannerSearchBar
-                    widgetKey="'unmet_demand'"
-                    placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
-                    t-props="{
-                        search:            state.productSearch,
-                        onSearch:          (t) => this.setSearch(t),
-                        showFavorites:     true,
-                        numericFields:     numColOptions,
-                        numFilters:        state.numFilters,
-                        onNumFilterAdd:    (c) => this.addNumFilter(c),
-                        onNumFilterRemove: (i) => this.removeNumFilter(i)
-                    }"/>
-
-                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                        title="Exportar la tabla visible a Excel"
-                        t-on-click="exportToExcel">
-                    <i class="fa fa-file-excel-o"/>
-                    <span>Excel</span>
-                </button>
             </div>
 
             <!-- Spinner (primera carga) -->
@@ -81,89 +73,146 @@
             </div>
 
             <t t-else="">
-                <!-- ── KPIs ──────────────────────────────────────────────── -->
+                <!-- ══ GRÁFICOS (KPI cards + gráfico) ══════════════════════════ -->
                 <div class="d-flex gap-2 mb-3 flex-wrap">
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Monto de la demanda insatisfecha del período (cantidad pendiente × precio unitario).">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
-                                <div class="o_planner_number text-danger" t-esc="fmtMoney(kpis.total_unmet_amount)"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(kpis.total_unmet_amount))"
+                                     class="text-danger" t-esc="fmtMoney(kpis.total_unmet_amount)"/>
                                 <div class="o_planner_label">Monto pendiente</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
+                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Unidades pedidas en el período que aún no se entregaron.">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_qty')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
                                 <div class="o_planner_number" t-esc="fmt(kpis.total_unmet_qty)"/>
                                 <div class="o_planner_label">Pendiente (u.)</div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Entregado ÷ pedido de las entidades con faltante × 100.">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmtPct(kpis.fulfillment_pct)"/>
-                                <div class="o_planner_label">% Cumplimiento</div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
+                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Total de unidades pedidas de las entidades con faltante.">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('fulfillment_pct')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + fulfillClass(kpis.fulfillment_pct)"/>
+                                <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct)" t-esc="fmtPct(kpis.fulfillment_pct)"/>
+                                <div class="o_planner_label">% Cumplimiento</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
+                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_ordered')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
                                 <div class="o_planner_number" t-esc="fmt(kpis.total_ordered)"/>
                                 <div class="o_planner_label">Pedido total</div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             title="Total de unidades entregadas de las entidades con faltante.">
-                            <div class="card-body text-center py-2">
-                                <i class="fa fa-check fa-lg text-secondary mb-1 d-block"/>
-                                <div class="o_planner_number" t-esc="fmt(kpis.total_delivered)"/>
-                                <div class="o_planner_label">Entregado total</div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
+                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
                             </div>
                         </div>
                     </div>
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                             t-att-title="dimensionPlural + ' con demanda insatisfecha en el período.'">
-                            <div class="card-body text-center py-2">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_delivered')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
+                                <div class="o_planner_number" t-esc="fmt(kpis.total_delivered)"/>
+                                <div class="o_planner_label">Entregado total</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
+                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_rows')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-list fa-lg text-secondary mb-1 d-block"/>
                                 <div class="o_planner_number" t-esc="fmt(kpis.total_rows)"/>
                                 <div class="o_planner_label"><t t-esc="dimensionPlural"/> afectados</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
+                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ── Gráfico top-N ─────────────────────────────────────── -->
+                <!-- Cabecera del gráfico: métrica + Top-N -->
                 <div class="d-flex align-items-center justify-content-between mb-1">
                     <span class="small text-muted fw-semibold">
                         Top <t t-esc="state.chartTopN"/> por <t t-esc="dimensionLabel.toLowerCase()"/>
                     </span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
-                        <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
-                                style="font-size:10px; padding:1px 6px;"
-                                t-on-click="() => this.setChartMetric('amount')">Monto</button>
-                        <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
-                                style="font-size:10px; padding:1px 6px;"
-                                t-on-click="() => this.setChartMetric('qty')">Unidades</button>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
+                            <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:10px; padding:1px 6px;"
+                                    title="Ordenar el gráfico por monto pendiente."
+                                    t-on-click="() => this.setChartMetric('amount')">Monto</button>
+                            <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:10px; padding:1px 6px;"
+                                    title="Ordenar el gráfico por unidades pendientes."
+                                    t-on-click="() => this.setChartMetric('qty')">Unidades</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad a mostrar">
+                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                                <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
+                                        style="font-size:10px; padding:1px 6px;"
+                                        t-att-title="'Mostrar el top ' + n + ' en el gráfico'"
+                                        t-on-click="() => this.setChartTopN(n)">
+                                    <t t-esc="'Top ' + n"/>
+                                </button>
+                            </t>
+                        </div>
                     </div>
                 </div>
                 <div style="position:relative; height:280px;" class="mb-3">
                     <canvas t-ref="chartCanvas"/>
                 </div>
 
-                <!-- ── Tabla ─────────────────────────────────────────────── -->
+                <hr class="mt-0 mb-3"/>
+
+                <!-- ══ FILTROS (inferiores: refinan la tabla) ══════════════════ -->
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                    <PlannerSearchBar
+                        widgetKey="'unmet_demand'"
+                        placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
+                        t-props="{
+                            search:            state.productSearch,
+                            onSearch:          (t) => this.setSearch(t),
+                            showFavorites:     true,
+                            numericFields:     numColOptions,
+                            numFilters:        state.numFilters,
+                            onNumFilterAdd:    (c) => this.addNumFilter(c),
+                            onNumFilterRemove: (i) => this.removeNumFilter(i)
+                        }"/>
+                    <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 ms-auto"
+                            title="Exportar la tabla visible a Excel (.xls)"
+                            t-on-click="exportToExcel">
+                        <i class="fa fa-download"/>
+                        <span>Exportar</span>
+                    </button>
+                </div>
+
+                <!-- ══ TABLA DE DETALLE ════════════════════════════════════════ -->
                 <div class="border rounded bg-white" style="overflow:auto;">
                     <table class="table table-sm table-hover mb-0" style="font-size:12px;">
                         <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
@@ -171,6 +220,7 @@
                                 <t t-foreach="columns" t-as="col" t-key="col.key">
                                     <th t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' user-select-none'"
                                         style="padding:4px 8px; cursor:pointer; white-space:nowrap;"
+                                        t-att-title="colTitle(col)"
                                         t-on-click="() => this.setSort(col.key)">
                                         <t t-esc="col.label"/>
                                         <i t-att-class="sortIcon(col.key)" style="opacity:0.6;"/>
@@ -183,9 +233,16 @@
                                 <tr>
                                     <t t-foreach="columns" t-as="col" t-key="col.key">
                                         <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
-                                            style="padding:3px 8px; white-space:nowrap;">
+                                            style="padding:3px 8px; white-space:nowrap;"
+                                            t-att-title="cellTooltip(col, row)">
                                             <t t-if="col.key === 'unmet_amount'">
                                                 <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>
+                                            </t>
+                                            <t t-elif="col.key === 'fulfillment_pct'">
+                                                <span t-att-class="fulfillClass(row.fulfillment_pct)" t-esc="cellText(row, col)"/>
+                                            </t>
+                                            <t t-elif="col.key === 'unmet_pct'">
+                                                <span t-att-class="unmetSeverityClass(row.unmet_pct)" t-esc="cellText(row, col)"/>
                                             </t>
                                             <t t-else="" t-esc="cellText(row, col)"/>
                                         </td>
@@ -196,7 +253,7 @@
                     </table>
                 </div>
 
-                <!-- ── Paginación ────────────────────────────────────────── -->
+                <!-- Paginación -->
                 <div class="d-flex align-items-center justify-content-between mt-2" t-if="totalPages > 1">
                     <span class="small text-muted">
                         <t t-esc="pagedRowsAll.length"/> <t t-esc="dimensionPlural.toLowerCase()"/> · página <t t-esc="state.page"/> de <t t-esc="totalPages"/>

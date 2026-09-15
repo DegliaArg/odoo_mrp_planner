@@ -22,6 +22,7 @@ import { loadBundle } from "@web/core/assets";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { applyNumericFilters } from "./planner_table";
 import { downloadExcelXml } from "./planner_export";
+import { kpiNumClass } from "./forecast_formatters";
 
 const DIM_LABELS  = { customer: "Cliente", product: "Producto", family: "Familia" };
 const DIM_PLURALS = { customer: "Clientes", product: "Productos", family: "Familias" };
@@ -37,6 +38,7 @@ class UnmetDemandWidget extends Component {
 
     setup() {
         this.orm      = useService("orm");
+        this.action   = useService("action");
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
 
@@ -55,7 +57,7 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     50,
             chartMetric:  "amount",    // "amount" | "qty"
-            chartTopN:    15,
+            chartTopN:    20,
             data:         null,
         });
 
@@ -114,6 +116,20 @@ class UnmetDemandWidget extends Component {
     setDimension(d)   { if (this.state.dimension !== d)    { this.state.dimension = d;    this._load(); } }
     setAmountMethod(m){ if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
     setChartMetric(m) { if (this.state.chartMetric !== m)  { this.state.chartMetric = m; } }
+    setChartTopN(n)   { if (this.state.chartTopN !== n)    { this.state.chartTopN = n; } }
+
+    /** Drill de las cards: abre la lista de líneas del período (pendientes o todas). */
+    async openCardLines(onlyPending) {
+        try {
+            const action = await this.orm.call(
+                "mrp.planner.dashboard", "action_open_unmet_lines",
+                [this.state.dateFrom, this.state.dateTo, [], onlyPending],
+            );
+            this.action.doAction(action);
+        } catch (e) {
+            console.error("[UnmetDemandWidget] drill", e);
+        }
+    }
     setSearch(text)   { this.state.productSearch = text; this.state.page = 1; }
     addNumFilter(c)   { this.state.numFilters = [...this.state.numFilters, c]; this.state.page = 1; }
     removeNumFilter(i){ this.state.numFilters = this.state.numFilters.filter((_, idx) => idx !== i); this.state.page = 1; }
@@ -274,6 +290,7 @@ class UnmetDemandWidget extends Component {
     fmt(n)      { return (n === null || n === undefined) ? "—" : new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(n); }
     fmtMoney(n) { return (n === null || n === undefined) ? "—" : "$ " + new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n); }
     fmtPct(n)   { return (n === null || n === undefined) ? "—" : new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(n) + "%"; }
+    kpiNumClass(text) { return kpiNumClass(text); }
     cellText(row, col) {
         if (col.kind === "money") return this.fmtMoney(row[col.key]);
         if (col.kind === "pct")   return this.fmtPct(row[col.key]);
@@ -283,6 +300,98 @@ class UnmetDemandWidget extends Component {
     sortIcon(key) {
         if (this.state.sortCol !== key) return "fa fa-sort ms-1 text-muted";
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
+    }
+
+    // ── Semáforos ─────────────────────────────────────────────────────────────
+    /** Verde/amarillo/rojo según el % de cumplimiento (más alto = mejor). */
+    fulfillClass(pct) {
+        if (pct === null || pct === undefined) return "";
+        if (pct >= 90) return "text-success";
+        if (pct >= 70) return "text-warning";
+        return "text-danger";
+    }
+    /** Severidad de la insatisfacción (más alto = peor). */
+    unmetSeverityClass(pct) {
+        if (pct === null || pct === undefined) return "";
+        if (pct >= 50) return "text-danger fw-semibold";
+        if (pct >= 20) return "text-warning";
+        return "text-muted";
+    }
+
+    // ── Tooltips (mismo formato que los demás paneles) ──────────────────────────
+    /** Nota de valorización, se anexa a los tooltips de monto. */
+    amountNote() {
+        const m = this.effAmountMethod === "real"
+            ? "Real (precio efectivo con descuentos)"
+            : "PxQ (precio de lista × cantidad)";
+        return `\nValorización: ${m}`;
+    }
+
+    kpiTooltip(key) {
+        const k = this.kpis;
+        const m = v => this.fmtMoney(v);
+        const f = v => this.fmt(v);
+        const p = v => this.fmtPct(v);
+        const dp = this.dimensionPlural.toLowerCase();
+        switch (key) {
+            case "total_unmet_amount":
+                return `Monto de la demanda insatisfecha del período\nCantidad pendiente × precio unitario\n→ ${m(k.total_unmet_amount)}` + this.amountNote();
+            case "total_unmet_qty":
+                return `Unidades pedidas en el período aún sin entregar\nΣ(pedido − entregado) por línea, solo faltantes\n→ ${f(k.total_unmet_qty)} u.`;
+            case "fulfillment_pct":
+                return `Tasa de cumplimiento de ${dp} con faltante\nEntregado ÷ Pedido × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}`;
+            case "total_ordered":
+                return `Unidades pedidas de ${dp} con demanda insatisfecha en el período\n→ ${f(k.total_ordered)} u.`;
+            case "total_delivered":
+                return `Unidades entregadas (a la fecha) de ${dp} con demanda insatisfecha\n→ ${f(k.total_delivered)} u.`;
+            case "total_rows":
+                return `${this.dimensionPlural} con al menos una unidad pendiente en el período\n→ ${f(k.total_rows)}`;
+            default:
+                return "";
+        }
+    }
+
+    colTitle(col) {
+        const crossTip = this.state.dimension === "product"
+            ? "Clientes distintos con faltante de este producto."
+            : "Productos distintos con faltante.";
+        const base = {
+            name:            `${this.dimensionLabel}. Clic para ordenar.`,
+            qty_ordered:     "Unidades pedidas en el período (suma de las líneas).",
+            qty_delivered:   "Unidades entregadas a la fecha de los pedidos del período (cualquier fecha de entrega).",
+            unmet_qty:       "Backlog pendiente: pedido − entregado (suma por línea, solo faltantes).",
+            unmet_amount:    "Monto del backlog pendiente: cantidad pendiente × precio unitario.",
+            fulfillment_pct: "Tasa de cumplimiento: entregado ÷ pedido × 100.",
+            unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
+            affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
+            cross_count:     crossTip,
+        }[col.key] || "";
+        if (col.key === "unmet_amount") return base + this.amountNote();
+        return base;
+    }
+
+    cellTooltip(col, row) {
+        const m = v => this.fmtMoney(v);
+        const f = v => this.fmt(v);
+        const p = v => this.fmtPct(v);
+        switch (col.key) {
+            case "name":
+                return row.name;
+            case "unmet_qty":
+                return `${row.name}\nPedido − entregado\n→ ${f(row.qty_ordered)} − ${f(row.qty_delivered)} = ${f(row.unmet_qty)} u.`;
+            case "unmet_amount":
+                return `${row.name}\nPendiente × precio unitario\n→ ${f(row.unmet_qty)} u. = ${m(row.unmet_amount)}` + this.amountNote();
+            case "fulfillment_pct":
+                return `${row.name}\nEntregado ÷ Pedido × 100\n→ ${f(row.qty_delivered)} ÷ ${f(row.qty_ordered)} = ${p(row.fulfillment_pct)}`;
+            case "unmet_pct":
+                return `${row.name}\nPendiente ÷ Pedido × 100\n→ ${f(row.unmet_qty)} ÷ ${f(row.qty_ordered)} = ${p(row.unmet_pct)}`;
+            case "affected_orders":
+                return `${row.name}\n${f(row.affected_orders)} pedido(s) del período con faltante`;
+            case "cross_count":
+                return `${row.name}\n${f(row.cross_count)} ${this.state.dimension === "product" ? "cliente(s)" : "producto(s)"} con faltante`;
+            default:
+                return `${row.name}\n${this.cellText(row, col)}`;
+        }
     }
 
     // ── Export ──────────────────────────────────────────────────────────────────

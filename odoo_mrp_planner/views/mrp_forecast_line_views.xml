@@ -198,6 +198,24 @@
         <field name="code">action = model.action_open_customer_analysis()</field>
     </record>
 
+    <!-- Lista de líneas para el drill de las cards de demanda insatisfecha
+         (muestra pedido vs entregado). -->
+    <record id="view_sale_order_line_unmet_list" model="ir.ui.view">
+        <field name="name">sale.order.line.unmet.list</field>
+        <field name="model">sale.order.line</field>
+        <field name="arch" type="xml">
+            <list string="Líneas de demanda insatisfecha" create="false" edit="false">
+                <field name="order_id" string="Pedido"/>
+                <field name="order_partner_id" string="Cliente"/>
+                <field name="product_id" string="Artículo"/>
+                <field name="salesman_id" string="Vendedor" optional="hide"/>
+                <field name="product_uom_qty" string="Pedido" sum="Total"/>
+                <field name="qty_delivered" string="Entregado" sum="Total"/>
+                <field name="product_uom" string="Unidad"/>
+            </list>
+        </field>
+    </record>
+
     <!-- ── Vista Análisis de demanda insatisfecha ──────────────────────── -->
     <record id="mrp_unmet_demand_form" model="ir.ui.view">
         <field name="name">mrp.unmet.demand.form</field>

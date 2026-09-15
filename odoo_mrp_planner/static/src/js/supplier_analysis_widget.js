@@ -37,6 +37,7 @@ const SUP_NUM_COLS = [
 
 const SUP_COLS = [
     { key: 'partner_name',     label: 'Proveedor',     width: 160, sortKey: 'partner_name',     title: 'Nombre del proveedor.' },
+    { key: 'partner_ref',      label: 'Referencia',    width: 90,  sortKey: 'partner_ref',       title: 'Referencia interna del contacto (campo Referencia de res.partner). Columna opcional, oculta por defecto.' },
     { key: 'supplier_cat',     label: 'Cat.',           width: 45,  sortKey: 'supplier_cat',     align: 'center', title: 'Categoría de proveedor A–E calculada según el método configurado.' },
     { key: 'order_count',      label: 'OCs',           width: 55,  sortKey: 'order_count',      align: 'end', title: 'OCs confirmadas en el período.' },
     { key: 'distinct_products',label: 'Artículos',     width: 65,  sortKey: 'distinct_products', align: 'end', title: 'Artículos distintos comprados.' },
@@ -94,7 +95,7 @@ class SupplierAnalysisWidget extends Component {
             selectedGroup:      null,
             tipoDropdownOpen:   false,
             colsDropdownOpen:   false,
-            colsVisible:        {},
+            colsVisible:        { partner_ref: false },   // "Referencia" opcional: oculta por defecto
             sortCol:            'total_amount',
             sortDir:            'desc',
             numFilters:         [],

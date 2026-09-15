@@ -310,6 +310,12 @@
                                                 <t t-esc="row.partner_name"/>
                                             </a>
                                         </t>
+                                        <t t-elif="col.key === 'partner_ref'">
+                                            <span t-if="row.partner_ref" class="text-muted small"
+                                                  t-att-title="'Referencia: ' + row.partner_ref"
+                                                  t-esc="row.partner_ref"/>
+                                            <span t-else="" class="text-muted small">—</span>
+                                        </t>
                                         <t t-elif="col.key === 'order_count'">
                                             <a href="#" class="text-primary"
                                                t-att-title="'Ver las ' + row.order_count + ' OCs de ' + row.partner_name"

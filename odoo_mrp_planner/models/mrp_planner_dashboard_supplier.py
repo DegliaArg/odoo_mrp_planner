@@ -380,6 +380,13 @@ class MrpPlannerDashboardSupplier(models.TransientModel):
             'avg_price_var_pct':  _wavg(rows, 'avg_price_var_pct'),
         }
 
+        # Referencia (ref) del contacto: columna opcional (batch en un solo SELECT).
+        ref_map = {r['id']: (r['ref'] or '')
+                   for r in self.env['res.partner'].sudo().search_read(
+                       [('id', 'in', list(partner_data.keys()))], ['id', 'ref'])}
+        for row in rows:
+            row['partner_ref'] = ref_map.get(row['partner_id'], '')
+
         # La columna de categoría de proveedor se muestra solo si está habilitada
         # en la config para no exponer campos personalizados que podrían no existir.
         show_supplier_cat = bool(cfg and cfg.enable_supplier_categories)

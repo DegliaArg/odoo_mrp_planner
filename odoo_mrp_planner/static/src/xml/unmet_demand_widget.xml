@@ -243,6 +243,11 @@
                                             <t t-elif="col.key === 'unmet_pct'">
                                                 <span t-att-class="unmetSeverityClass(row.unmet_pct)" t-esc="cellText(row, col)"/>
                                             </t>
+                                            <t t-elif="col.key === 'diagnosis'">
+                                                <span t-att-class="'badge ' + diagnosisChip(row).cls"
+                                                      style="font-size:10px; font-weight:600;"
+                                                      t-esc="diagnosisChip(row).label"/>
+                                            </t>
                                             <t t-else="" t-esc="cellText(row, col)"/>
                                         </td>
                                     </t>

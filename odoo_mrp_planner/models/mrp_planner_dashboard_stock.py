@@ -37,6 +37,100 @@ class MrpPlannerDashboardStock(models.TransientModel):
     # ── Widget quiebres de stock ─────────────────────────────────────────────
 
     @api.model
+    def _stock_break_days_map(self, product_ids, location_ids=None):
+        """Días en quiebre (bajo el punto de reorden) por producto, para el
+        subconjunto de productos dado. Misma lógica que get_stock_break_data
+        pero acotada: solo devuelve entradas para los productos que HOY están
+        por debajo de su mínimo (con ruta Fabricación). Los que no tienen
+        mínimo o no están en quiebre no aparecen en el dict.
+
+        :returns: dict {product_id: break_days}
+        """
+        if not product_ids:
+            return {}
+        product_ids = list(product_ids)
+        wh = self._get_wh_domains()
+        allowed_ids = wh.allowed_ids
+
+        # Resolver ubicaciones (mismo criterio que get_stock_break_data)
+        if location_ids:
+            locations = self.env['stock.location'].browse(location_ids).filtered(lambda l: l.exists())
+        elif allowed_ids is not None:
+            whs = self.env['stock.warehouse'].browse(allowed_ids)
+            locations = whs.mapped('lot_stock_id').filtered(lambda l: l.exists())
+        else:
+            loc_param = self.env['ir.config_parameter'].sudo().get_param('mrp_reschedule.stock_location_id')
+            try:
+                loc_id = int(loc_param) if loc_param else False
+            except (ValueError, TypeError):
+                loc_id = False
+            locations = self.env['stock.location'].browse(loc_id) if loc_id else self.env['stock.location']
+            locations = locations.filtered(lambda l: l.exists())
+        if not locations:
+            return {}
+
+        # Mínimo por producto (orderpoints con ruta fabricación)
+        mfg_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
+        if not mfg_route:
+            mfg_route = self.env['stock.route'].search([('name', 'ilike', 'manufactur')], limit=1)
+        op_domain = [('product_id', 'in', product_ids)]
+        if mfg_route:
+            op_domain.append(('route_id', '=', mfg_route.id))
+        if allowed_ids is not None and allowed_ids:
+            op_domain.append(('warehouse_id', 'in', allowed_ids))
+        min_qty_map = {}
+        for op in self.env['stock.warehouse.orderpoint'].sudo().search(op_domain):
+            pid = op.product_id.id
+            if pid not in min_qty_map or op.product_min_qty > min_qty_map[pid]:
+                min_qty_map[pid] = op.product_min_qty
+        if not min_qty_map:
+            return {}
+
+        # Stock actual
+        quant_groups = self.env['stock.quant'].sudo().read_group(
+            [('product_id', 'in', list(min_qty_map)),
+             ('location_id', 'child_of', locations.ids),
+             ('location_id.usage', '=', 'internal')],
+            ['product_id', 'quantity:sum'], ['product_id'])
+        qty_map = {g['product_id'][0]: (g['quantity'] or 0.0) for g in quant_groups}
+
+        broken = {pid: (qty_map.get(pid, 0.0), m) for pid, m in min_qty_map.items()
+                  if qty_map.get(pid, 0.0) < (m - 0.001)}
+        if not broken:
+            return {}
+
+        # Reconstrucción de la fecha de quiebre desde los movimientos de salida
+        _floor = (_date.today() - timedelta(days=365)).strftime('%Y-%m-%d 00:00:00')
+        out_moves = self.env['stock.move'].sudo().search_read([
+            ('product_id', 'in', list(broken)),
+            ('state', '=', 'done'),
+            ('date', '>=', _floor),
+            ('company_id', '=', self.env.company.id),
+            ('location_id.usage', '=', 'internal'),
+            ('location_dest_id.usage', '!=', 'internal'),
+        ], ['product_id', 'date', 'quantity'], order='date desc')
+        moves_by_pid = defaultdict(list)
+        for m in out_moves:
+            pv = m['product_id'][0] if m['product_id'] else None
+            if pv:
+                moves_by_pid[pv].append((m['date'], m['quantity'] or 0.0))
+
+        today_date = _date.today()
+        result = {}
+        for pid, (qty, minq) in broken.items():
+            accumulated = 0.0
+            break_date  = None
+            for move_dt, move_qty in moves_by_pid.get(pid, []):
+                accumulated += move_qty
+                break_date   = move_dt
+                if qty + accumulated >= minq:
+                    break
+            if break_date is not None:
+                bd = break_date.date() if isinstance(break_date, _datetime) else break_date
+                result[pid] = max(0, (today_date - bd).days)
+        return result
+
+    @api.model
     def get_stock_break_data(self, search='', location_ids=None):
         """
         Devuelve KPIs y el listado COMPLETO de quiebres de stock para el widget del dashboard.

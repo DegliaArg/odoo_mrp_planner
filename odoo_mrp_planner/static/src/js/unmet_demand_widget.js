@@ -113,7 +113,14 @@ class UnmetDemandWidget extends Component {
         if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         this._load();
     }
-    setDimension(d)   { if (this.state.dimension !== d)    { this.state.dimension = d;    this._load(); } }
+    setDimension(d)   {
+        if (this.state.dimension === d) return;
+        this.state.dimension = d;
+        // Reiniciar el orden por si estaba en una columna exclusiva de producto.
+        this.state.sortCol = "unmet_amount";
+        this.state.sortDir = "desc";
+        this._load();
+    }
     setAmountMethod(m){ if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
     setChartMetric(m) { if (this.state.chartMetric !== m)  { this.state.chartMetric = m; } }
     setChartTopN(n)   { if (this.state.chartTopN !== n)    { this.state.chartTopN = n; } }
@@ -154,7 +161,7 @@ class UnmetDemandWidget extends Component {
     get crossLabel()     { return this.state.dimension === "product" ? "# Clientes" : "# Productos"; }
 
     get columns() {
-        return [
+        const cols = [
             { key: "name",            label: this.dimensionLabel, align: "start" },
             { key: "qty_ordered",     label: "Pedido",           align: "end", kind: "num"   },
             { key: "qty_delivered",   label: "Entregado",        align: "end", kind: "num"   },
@@ -162,12 +169,23 @@ class UnmetDemandWidget extends Component {
             { key: "unmet_amount",    label: "Monto pendiente",  align: "end", kind: "money" },
             { key: "fulfillment_pct", label: "% Cumplim.",       align: "end", kind: "pct"   },
             { key: "unmet_pct",       label: "% Insatisf.",      align: "end", kind: "pct"   },
-            { key: "affected_orders", label: "# Pedidos",        align: "end", kind: "num"   },
-            { key: "cross_count",     label: this.crossLabel,    align: "end", kind: "num"   },
+            { key: "backlog_age",     label: "Días backlog",     align: "end", kind: "days"  },
         ];
+        // Cruce con quiebre de stock: solo tiene sentido por producto.
+        if (this.state.dimension === "product") {
+            cols.push(
+                { key: "break_days", label: "Días quiebre", align: "end",    kind: "days" },
+                { key: "diagnosis",  label: "Diagnóstico",  align: "center", kind: "chip" },
+            );
+        }
+        cols.push(
+            { key: "affected_orders", label: "# Pedidos",     align: "end", kind: "num" },
+            { key: "cross_count",     label: this.crossLabel, align: "end", kind: "num" },
+        );
+        return cols;
     }
     get numColOptions() {
-        return this.columns.filter(c => c.kind).map(c => ({ key: c.key, label: c.label }));
+        return this.columns.filter(c => c.kind && c.kind !== "chip").map(c => ({ key: c.key, label: c.label }));
     }
 
     // ── Filas / KPIs ─────────────────────────────────────────────────────────────
@@ -294,8 +312,31 @@ class UnmetDemandWidget extends Component {
     cellText(row, col) {
         if (col.kind === "money") return this.fmtMoney(row[col.key]);
         if (col.kind === "pct")   return this.fmtPct(row[col.key]);
+        if (col.kind === "days")  {
+            const v = row[col.key];
+            return (v === null || v === undefined) ? "—" : this.fmt(v) + " d";
+        }
         if (col.kind === "num")   return this.fmt(row[col.key]);
         return row[col.key];
+    }
+
+    /** Etiqueta + clase del chip de diagnóstico (solo productos). */
+    diagnosisChip(row) {
+        const map = {
+            chronic:     { label: "Crónico",     cls: "bg-danger text-white" },
+            supply:      { label: "Sin stock",   cls: "bg-warning text-dark" },
+            fulfillment: { label: "Fulfillment", cls: "bg-info text-dark" },
+            ok:          { label: "OK",          cls: "bg-light text-muted border" },
+        };
+        return map[row.diagnosis] || map.ok;
+    }
+    diagnosisTooltip(diag) {
+        return {
+            chronic:     "Crónico: en quiebre de stock y con backlog viejo. Venís fallando hace rato por falta de stock → reponer/fabricar es prioridad.",
+            supply:      "Sin stock: en quiebre pero el backlog es reciente. Problema de abastecimiento; al reponer se limpia.",
+            fulfillment: "Fulfillment: NO estás en quiebre (hay stock o no bajás del mínimo) y el backlog igual es viejo. El problema no es de stock: mirá asignación / logística / compromiso.",
+            ok:          "OK: sin quiebre y backlog reciente. Situación transitoria o normal.",
+        }[diag] || "";
     }
     sortIcon(key) {
         if (this.state.sortCol !== key) return "fa fa-sort ms-1 text-muted";
@@ -363,6 +404,9 @@ class UnmetDemandWidget extends Component {
             unmet_amount:    "Monto del backlog pendiente: cantidad pendiente × precio unitario.",
             fulfillment_pct: "Tasa de cumplimiento: entregado ÷ pedido × 100.",
             unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
+            backlog_age:     "Antigüedad del backlog: días desde el pedido, ponderada por la cantidad pendiente. El tooltip muestra el promedio y el más viejo.",
+            break_days:      "Días en quiebre: hace cuántos días el stock está bajo el mínimo (solo productos en quiebre con mínimo configurado). '—' = sin quiebre.",
+            diagnosis:       "Diagnóstico del cruce quiebre × backlog: Crónico (sin stock + viejo) · Sin stock (quiebre reciente) · Fulfillment (hay stock pero no entregás) · OK.",
             affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
             cross_count:     crossTip,
         }[col.key] || "";
@@ -389,6 +433,14 @@ class UnmetDemandWidget extends Component {
                 return `${row.name}\n${f(row.affected_orders)} pedido(s) del período con faltante`;
             case "cross_count":
                 return `${row.name}\n${f(row.cross_count)} ${this.state.dimension === "product" ? "cliente(s)" : "producto(s)"} con faltante`;
+            case "backlog_age":
+                return `${row.name}\nAntigüedad del backlog (ponderada por cantidad)\nPromedio: ${f(row.backlog_age)} d — cuánto esperó la unidad pendiente promedio\nMás viejo: ${f(row.backlog_age_oldest)} d`;
+            case "break_days":
+                return row.break_days == null
+                    ? `${row.name}\nSin quiebre de stock (no está bajo el mínimo, o no tiene mínimo configurado)`
+                    : `${row.name}\nDías bajo el punto de reorden (mínimo)\n→ ${f(row.break_days)} d en quiebre`;
+            case "diagnosis":
+                return `${row.name}\n${this.diagnosisTooltip(row.diagnosis)}`;
             default:
                 return `${row.name}\n${this.cellText(row, col)}`;
         }
@@ -403,9 +455,11 @@ class UnmetDemandWidget extends Component {
             headers:  cols.map(c => c.label),
             rows:     this.pagedRowsAll,
             cell:     row => cols.map(c => {
+                if (c.kind === "chip") return this.diagnosisChip(row).label;
                 const v = row[c.key];
                 if (v === null || v === undefined) return "";
-                if (c.kind === "pct") return v + "%";
+                if (c.kind === "pct")  return v + "%";
+                if (c.kind === "days") return v + " d";
                 return v;
             }),
         });

@@ -19,11 +19,15 @@ Relacionado con:
 - sale.order / sale.order.line: fuente de la demanda y las entregas.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, date
 
 from odoo import models, api, _
 
 _logger = logging.getLogger(__name__)
+
+# Umbral (días) a partir del cual se considera "viejo" el backlog de un producto,
+# usado por el diagnóstico del cruce con los días en quiebre.
+BACKLOG_OLD_DAYS = 15
 
 
 class MrpPlannerDashboardUnmet(models.TransientModel):
@@ -97,6 +101,24 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         }
 
     @api.model
+    def _unmet_diagnosis(self, break_days, backlog_age):
+        """Diagnóstico del cruce quiebre × backlog (solo productos):
+        - 'chronic'     : en quiebre + backlog viejo (sin stock hace rato y venís fallando).
+        - 'supply'      : en quiebre + backlog reciente (reponé y se limpia).
+        - 'fulfillment' : sin quiebre + backlog viejo (hay stock pero no entregás).
+        - 'ok'          : sin quiebre + backlog reciente.
+        """
+        old    = (backlog_age or 0) >= BACKLOG_OLD_DAYS
+        broken = break_days is not None
+        if broken and old:
+            return 'chronic'
+        if broken:
+            return 'supply'
+        if old:
+            return 'fulfillment'
+        return 'ok'
+
+    @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
                               warehouse_ids=None, amount_method_override=None):
         """
@@ -158,8 +180,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             ] + wh_domain + [('company_id', '=', company_id)])
             if not orders:
                 return _empty()
-            order_partner = {o['id']: (o['partner_id'] or (0, ''))
-                             for o in orders.read(['partner_id'])}
+            order_rows    = orders.read(['partner_id', 'date_order'])
+            order_partner = {o['id']: (o['partner_id'] or (0, '')) for o in order_rows}
+            order_date    = {o['id']: o['date_order'] for o in order_rows}
+            today         = date.today()
 
             # ── 2. Líneas de pedido ──────────────────────────────────────────
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
@@ -189,7 +213,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 return {'key': key, 'name': name,
                         'qty_ordered': 0.0, 'qty_delivered': 0.0,
                         'unmet_qty': 0.0, 'unmet_amount': 0.0,
-                        '_orders': set(), '_cross': set()}
+                        '_orders': set(), '_cross': set(),
+                        '_age_num': 0.0, '_age_den': 0.0, '_age_oldest': 0}
             agg = {}
             all_unmet_orders = set()
 
@@ -232,6 +257,14 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     d['_orders'].add(oid)
                     d['_cross'].add(cross)
                     all_unmet_orders.add(oid)
+                    # Antigüedad del backlog: días desde la confirmación del pedido.
+                    _od = order_date.get(oid)
+                    if _od:
+                        _days = max(0, (today - self._to_date(_od)).days)
+                        d['_age_num']    += unmet * _days
+                        d['_age_den']    += unmet
+                        if _days > d['_age_oldest']:
+                            d['_age_oldest'] = _days
 
             # ── 4. Filas (solo entidades con pendiente) ──────────────────────
             rows = []
@@ -250,9 +283,20 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     'unmet_pct':       round(d['unmet_qty'] / ordered * 100, 1) if ordered > 0 else None,
                     'affected_orders': len(d['_orders']),
                     'cross_count':     len(d['_cross']),
+                    'backlog_age':        round(d['_age_num'] / d['_age_den'], 1) if d['_age_den'] > 0 else None,
+                    'backlog_age_oldest': d['_age_oldest'],
                 })
 
             rows.sort(key=lambda r: r['unmet_amount'], reverse=True)
+
+            # ── 4b. Cruce con quiebre de stock (solo modo producto) ──────────
+            # Días en quiebre (bajo mínimo) + diagnóstico del panorama.
+            if dimension == 'product' and rows:
+                bd_map = self._stock_break_days_map([r['key'] for r in rows])
+                for r in rows:
+                    bd = bd_map.get(r['key'])
+                    r['break_days'] = bd
+                    r['diagnosis']  = self._unmet_diagnosis(bd, r['backlog_age'])
 
             # ── 5. KPIs globales (punto de partida; el front recalcula sobre
             #       las filas filtradas, salvo affected_orders que es distinto). ─

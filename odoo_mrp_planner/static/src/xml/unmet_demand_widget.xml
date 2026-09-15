@@ -110,8 +110,8 @@
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmtMoney(kpis.total_unmet_amount))"
-                                     class="text-danger" t-esc="fmtMoney(kpis.total_unmet_amount)"/>
+                                <div t-att-class="'o_planner_number text-danger ' + kpiNumClass(fmtMoney(kpis.total_unmet_amount))"
+                                     t-esc="fmtMoney(kpis.total_unmet_amount)"/>
                                 <div class="o_planner_label">Monto pendiente</div>
                             </div>
                             <div class="card-footer p-0">

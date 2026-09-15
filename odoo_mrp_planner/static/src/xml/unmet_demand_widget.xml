@@ -73,7 +73,38 @@
             </div>
 
             <t t-else="">
-                <!-- ══ GRÁFICOS (KPI cards + gráfico) ══════════════════════════ -->
+                <!-- ══ GRÁFICOS (gráfico + KPI cards) ══════════════════════════ -->
+                <!-- Cabecera del gráfico: métrica + Top-N -->
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="small text-muted fw-semibold"
+                          t-esc="'Top ' + state.chartTopN + ' por ' + dimensionLabel.toLowerCase()"/>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
+                            <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:10px; padding:1px 6px;"
+                                    title="Ordenar el gráfico por monto pendiente."
+                                    t-on-click="() => this.setChartMetric('amount')">Monto</button>
+                            <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                    style="font-size:10px; padding:1px 6px;"
+                                    title="Ordenar el gráfico por unidades pendientes."
+                                    t-on-click="() => this.setChartMetric('qty')">Unidades</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad a mostrar">
+                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
+                                <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
+                                        style="font-size:10px; padding:1px 6px;"
+                                        t-att-title="'Mostrar el top ' + n + ' en el gráfico'"
+                                        t-on-click="() => this.setChartTopN(n)">
+                                    <t t-esc="'Top ' + n"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+                <div style="position:relative; height:280px;" class="mb-3">
+                    <canvas t-ref="chartCanvas"/>
+                </div>
+
                 <div class="d-flex gap-2 mb-3 flex-wrap">
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
@@ -154,38 +185,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Cabecera del gráfico: métrica + Top-N -->
-                <div class="d-flex align-items-center justify-content-between mb-1">
-                    <span class="small text-muted fw-semibold">
-                        Top <t t-esc="state.chartTopN"/> por <t t-esc="dimensionLabel.toLowerCase()"/>
-                    </span>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del gráfico">
-                            <button t-att-class="'btn ' + (state.chartMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
-                                    style="font-size:10px; padding:1px 6px;"
-                                    title="Ordenar el gráfico por monto pendiente."
-                                    t-on-click="() => this.setChartMetric('amount')">Monto</button>
-                            <button t-att-class="'btn ' + (state.chartMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
-                                    style="font-size:10px; padding:1px 6px;"
-                                    title="Ordenar el gráfico por unidades pendientes."
-                                    t-on-click="() => this.setChartMetric('qty')">Unidades</button>
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Cantidad a mostrar">
-                            <t t-foreach="[10, 20, 50]" t-as="n" t-key="n">
-                                <button t-att-class="'btn ' + (state.chartTopN === n ? 'btn-primary' : 'btn-outline-secondary')"
-                                        style="font-size:10px; padding:1px 6px;"
-                                        t-att-title="'Mostrar el top ' + n + ' en el gráfico'"
-                                        t-on-click="() => this.setChartTopN(n)">
-                                    <t t-esc="'Top ' + n"/>
-                                </button>
-                            </t>
-                        </div>
-                    </div>
-                </div>
-                <div style="position:relative; height:280px;" class="mb-3">
-                    <canvas t-ref="chartCanvas"/>
                 </div>
 
                 <hr class="mt-0 mb-3"/>

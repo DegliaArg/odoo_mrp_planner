@@ -165,6 +165,15 @@ Mismas tres fórmulas que en Quiebres de stock; el período es el rango del fore
 
 → Ver *Análisis de clientes — % a tiempo*
 
+### Análisis de demanda insatisfecha — método de antigüedad del pendiente
+
+| Valor en Ajustes | Cómo se calcula la antigüedad |
+|---|---|
+| Ponderada por cantidad | `Σ(pendiente × días) ÷ Σ pendiente` |
+| Pedido más antiguo | Días del pedido no entregado más viejo |
+
+→ Ver *Panel de Ventas — Análisis de demanda insatisfecha*
+
 ---
 
 ## Panel de Producción
@@ -769,6 +778,7 @@ La fuente son las recepciones (`stock.picking`) con estado Hecho y tipo Entrante
 | Lead time promedio (días) | Promedio de días desde la aprobación de la OC hasta el cierre de la recepción     | `Σ(stock.picking.date_done − purchase.order.date_approve).días / count`           |
 | Variación de precio (%)   | Promedio firmado de la diferencia entre precio pagado y precio de referencia, por línea | Fórmula dependiente de `supplier_price_var_method` (ver abajo) |
 | Facturas pendientes       | Suma de saldos pendientes de pago de facturas del proveedor                       | `Σ account.move.amount_residual` donde `payment_state not in ('paid','reversed')` |
+| Referencia *(opcional)*   | Referencia comercial del contacto. Columna oculta por defecto; se activa desde el selector de columnas | `res.partner.ref` |
 
 **Variación de precio — precio de referencia (`supplier_price_var_method`)**
 
@@ -939,6 +949,17 @@ Cortes del puntaje configurables en Ajustes → "Parámetros RFM" (entre parént
 | Cantidad total    | Suma de unidades vendidas de todos los productos de esa categoría          |
 | Importe total     | Suma de importes de todos los productos de esa categoría                   |
 | % del segmento    | SKUs de la categoría ÷ total de SKUs mostrados × 100 (se muestra si ≥ 5 %) |
+
+---
+
+#### Gráfico de dona por familia de producto
+
+Junto a la dona por categoría ABC, una segunda dona reparte el total **por familia** (`product.category`, nombre hoja — no el path completo). Se calcula sobre los mismos productos visibles (el top-N del ranking), no sobre el universo completo del período. Las familias más allá de las 8 con mayor participación se agrupan en "Otras".
+
+| Dato del segmento | Fórmula en español                                                         |
+| ----------------- | -------------------------------------------------------------------------- |
+| SKUs / Cantidad / Importe | Igual que la dona ABC, pero agrupando por `product.product.categ_id` |
+| % del segmento    | Valor de la familia ÷ total mostrado × 100 (según la métrica activa: SKU / unidades / importe) |
 
 ---
 
@@ -1368,6 +1389,25 @@ ticket_promedio = importe_total_periodo / cantidad_de_pedidos
 
 ---
 
+### Precio promedio pedido y entregado
+
+Dos precios promedio **por unidad** del período, en paralelo. Ambos respetan la valorización configurada (PxQ a precio de lista o Real con descuentos) y aparecen en las cards KPI, en la columna de la tabla y en el panel de detalle del cliente.
+
+```
+precio_prom_pedido    = monto_pedido    / qty_pedida
+precio_prom_entregado = monto_entregado / qty_entregada
+```
+
+| Variable | Detalle |
+|---|---|
+| `monto_pedido` | Suma del monto de las líneas (según PxQ/Real) |
+| `monto_entregado` | Por línea: `precio_unitario × qty_delivered`, sumado |
+| `qty_pedida` / `qty_entregada` | `Σ product_uom_qty` / `Σ qty_delivered` de las líneas |
+
+> El precio entregado difiere del pedido cuando el **mix** entregado ≠ mix pedido (se entregan en distinta proporción productos con distinto precio). Campos: `avg_price` / `avg_price_delivered`.
+
+---
+
 ### Tendencia de ventas
 
 Compara el importe del período actual con el mismo período del año anterior.
@@ -1416,6 +1456,60 @@ Clasifica cada cliente según la regularidad y recencia de sus pedidos.
 | Promedio de intervalos > 90 días | Inactivo |
 
 > La condición "En riesgo" tiene precedencia sobre las demás: un cliente con intervalos frecuentes pero que no compra desde hace más de `customer_risk_days` días se clasifica como "En riesgo".
+
+---
+
+## Panel de Ventas — Análisis de demanda insatisfecha
+
+De los pedidos confirmados (`state in ('sale','done')`) del período, mide el **backlog pendiente** = pedido − entregado a la fecha, valuado a precio unitario, agregado por una dimensión conmutable: **cliente, producto o familia**. Comparte la base del análisis de clientes (filtro de empresa/almacén, exclusión de servicios y valorización PxQ/Real). Modelo: `mrp_planner_dashboard_unmet.py` (`get_unmet_demand_data`).
+
+Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/Real) con datasets separados: la de arriba afecta solo al gráfico; la segunda, las cards y la tabla.
+
+#### KPIs
+
+| KPI | Fórmula en español |
+| --- | --- |
+| Monto pendiente | `Σ (pendiente × precio_unitario)` de las filas visibles |
+| Pendiente (u.) | `Σ pendiente` |
+| % Cumplimiento | `entregado ÷ pedido × 100` (de las entidades con faltante) |
+| Pedido / Entregado total | `Σ qty_pedida` / `Σ qty_entregada` |
+| # afectados | Cantidad de entidades (clientes/productos/familias) con pendiente |
+
+#### Tabla — columnas calculadas
+
+| Columna | Fórmula en español | Campos Odoo |
+| --- | --- | --- |
+| Pendiente | `max(0, pedido − entregado)` por línea, sumado | `product_uom_qty − qty_delivered` |
+| Monto pendiente | `pendiente × precio_unitario` (PxQ o Real) | según valorización |
+| % Cumplim. | `entregado ÷ pedido × 100` | — |
+| % Insatisf. | `pendiente ÷ pedido × 100` | — |
+| Antig. pendiente | Días que lleva esperando lo no entregado (ver método configurable abajo) | `sale.order.date_order` |
+| Días quiebre *(producto)* | Días que el producto está bajo el mínimo — reusa `break_days` del panel de quiebres (`_stock_break_days_map`) | `stock.warehouse.orderpoint` + `stock.move` |
+| Diagnóstico *(producto)* | Cruce quiebre × antigüedad (ver abajo) | — |
+| # Pedidos | Pedidos distintos con faltante | `count(distinct order_id)` |
+| # Cruce | Productos (modo cliente) o clientes (modo producto) distintos con faltante | — |
+
+La tabla tiene selector de columnas con columnas reordenables/redimensionables (arrastrando el encabezado). En modo cliente, las filas se **unifican por casa matriz** con el mismo criterio del análisis de clientes (`customer_unify_by_vat`).
+
+#### Antigüedad del pendiente (`unmet_backlog_age_method`)
+
+| Valor en Ajustes | Cómo se calcula |
+| --- | --- |
+| Ponderada por cantidad *(default)* | `Σ(pendiente_i × días_i) ÷ Σ pendiente_i` — la espera de la unidad pendiente promedio |
+| Pedido más antiguo | Días desde el pedido pendiente más viejo |
+
+> El tooltip de la columna muestra siempre ambos valores, independientemente del método elegido.
+
+#### Diagnóstico (cruce quiebre × antigüedad, solo producto)
+
+Se considera el backlog "viejo" si su antigüedad ≥ `BACKLOG_OLD_DAYS` (15 días, constante).
+
+| Días en quiebre | Backlog viejo | Diagnóstico |
+| --- | --- | --- |
+| Sí (bajo el mínimo) | Sí | **Crónico** — sin stock hace rato y venís fallando → reponer/fabricar ya |
+| Sí | No | **Sin stock** — quiebre reciente; al reponer se limpia |
+| No | Sí | **Fulfillment** — hay stock pero no entregás → asignación / logística / compromiso |
+| No | No | **OK** — transitorio/normal |
 
 ---
 

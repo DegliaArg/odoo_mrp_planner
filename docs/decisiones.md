@@ -616,9 +616,56 @@ productivo ÷ (24 h × días). **A validar en staging:** unidad de `mrp.workcent
 **Reencuadre de "Eficiencia":** la pestaña plan-vs-real se renombró **"Plan vs Real"** con
 nota de que es precisión de planificación, **no** el Performance del OEE.
 
+## Nuevos KPIs de Ventas: precio prom. entregado, dona por familia, demanda insatisfecha y ref de proveedor (2026-09-15)
+
+**Contexto.** Rama `18.0-dev-kpis`: tanda de mejoras sobre los paneles de Ventas y Compras,
+más un panel nuevo de demanda insatisfecha. Todo lectura (TransientModels del dashboard),
+sin tocar el motor de programación.
+
+- ✅ **Precio promedio entregado (Análisis de clientes, v18.0.12.17.0):** junto al "precio
+  promedio pedido" existente. `avg_price_delivered = monto entregado ÷ qty entregada`, con el
+  monto entregado calculado por línea (`precio unitario × qty_delivered`). Difiere del pedido
+  cuando el mix entregado ≠ mix pedido. Aparece en cards KPI, columna de tabla e inline de
+  detalle; respeta PxQ/Real. *(mrp_planner_dashboard_customer.py + customer_analysis_widget.*)*
+
+- ✅ **Distribución de ventas por familia (Panel de ventas, v18.0.12.18.0):** segunda dona
+  que reparte por `categ_id` (nombre hoja) junto a la dona por categoría ABC, sobre el top-N
+  visible. *(mrp_planner_dashboard_sales.py + sales_chart_widget.*)*
+
+- ✅ **Análisis de demanda insatisfecha (panel nuevo, submenú Ventas):** backlog pendiente =
+  `max(0, pedido − entregado)` valuado a precio unitario, agregado por cliente/producto/familia.
+  Decisiones de criterio:
+  - **Alcance = acotado al período** (de los pedidos confirmados en el rango), no snapshot de
+    backlog abierto — coherente con el análisis de clientes.
+  - **Antigüedad del pendiente CONFIGURABLE** (`unmet_backlog_age_method`): ponderada por
+    cantidad `Σ(pend×días)÷Σpend` (default) o pedido más antiguo. El tooltip muestra ambas.
+  - **Cruce con quiebres (solo producto):** columna "días en quiebre" reusa `break_days` del
+    panel de quiebres (días bajo el mínimo, vía nuevo `_stock_break_days_map`, acotado al set
+    con faltante) + chip **Diagnóstico** = Crónico / Sin stock / Fulfillment / OK, con umbral
+    `BACKLOG_OLD_DAYS = 15`. No es "rotación": es quiebre × antigüedad.
+  - **Unificación por casa matriz** en modo cliente reusando el flag `customer_unify_by_vat`.
+  - **Filtros dedicados por sección:** una línea para el gráfico y otra para cards+tabla,
+    con **datasets independientes** (dos RPCs); selector de columnas con drag & drop
+    (`useColManager`). *(mrp_planner_dashboard_unmet.py: get_unmet_demand_data /
+    action_open_unmet_demand / action_open_unmet_lines; unmet_demand_widget.*)*
+
+- ✅ **Columna "Referencia" (ref) en Análisis de proveedores (v18.0.12.23.0):** campo
+  `res.partner.ref`, opcional (oculta por defecto), activable desde el selector de columnas.
+  *(mrp_planner_dashboard_supplier.py + supplier_analysis_widget.*)*
+
+- 🔴 **Rotura y lección aprendida:** un `cols.push(...)` cerrado con `];` en vez de `);` en
+  `unmet_demand_widget.js` pasó `node --check` (modo script) pero rompió como **ES module**
+  (lo que usa Odoo), abortando la generación de `web.assets_backend` → 0 attachments → todo el
+  backend en blanco. El error de concurrencia de `ir_attachment` en odoo.sh era secundario.
+  Desde entonces los `.js` se validan como ES module (`node --input-type=module --check`).
+
+Documentación (`README.md`, `docs/ARQUITECTURA.md`, `docs/docs.md`, `docs/formulas.md`) actualizada.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los
   configurables del análisis de clientes — diferencia aceptada por ahora.
+- **Umbral `BACKLOG_OLD_DAYS` (15 días)** del diagnóstico de demanda insatisfecha, hoy
+  constante — podría hacerse configurable si el cliente lo pide.
 - **Benchmarks de OEE hardcodeados** (verde ≥ 85%, amarillo ≥ 60%) — podrían hacerse
   configurables (o leer `oee_target` del centro) si el cliente lo pide.

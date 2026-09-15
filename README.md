@@ -1,9 +1,9 @@
 # Planificador de producción
 
-**Odoo 18 Enterprise · Fabricación · v18.0.3.0.0**  
+**Odoo 18 Enterprise · Fabricación · v18.0.12.25.0**  
 Desarrollado por [Deglia](https://deglia.xyz)
 
-Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
+Panel de control centralizado para la gestión operativa de producción: programación desde demanda, reprogramación en cascada, alertas proactivas, forecast de ventas, análisis de proveedores y clientes, análisis de demanda insatisfecha y monitoreo en tiempo real de órdenes de fabricación, compra y stock.
 
 ---
 
@@ -22,6 +22,7 @@ Panel de control centralizado para la gestión operativa de producción: program
   - [Análisis de proveedores](#análisis-de-proveedores)
   - [Gráfico de ventas](#gráfico-de-ventas)
   - [Análisis de clientes](#análisis-de-clientes)
+  - [Análisis de demanda insatisfecha](#análisis-de-demanda-insatisfecha)
 - [Programación desde demanda](#programación-desde-demanda)
 - [Reprogramación en cascada](#reprogramación-en-cascada)
 - [Sistema de alertas](#sistema-de-alertas)
@@ -43,6 +44,7 @@ Panel de control centralizado para la gestión operativa de producción: program
 | **Análisis de proveedores** | Scorecard de cumplimiento: % a tiempo, retraso promedio, lead time real y variación de precio |
 | **Categorización de ventas** | Clasificación A–E de artículos por rotación, demanda o participación acumulada (Pareto) |
 | **Análisis de clientes** | Clasificación A–E de clientes por volumen, frecuencia o RFM con drill-down a sus pedidos |
+| **Demanda insatisfecha** | Backlog pendiente (pedido − entregado) por cliente, producto o familia, con antigüedad del pendiente y cruce con quiebres de stock |
 | **Permisos granulares** | Control por usuario de qué secciones ve y qué acciones puede ejecutar |
 
 ---
@@ -91,6 +93,7 @@ Fallback de centro de trabajo (usar operaciones de la LdM o dejar sin asignar), 
 - **Categorías de venta A–E** de artículos: manual, por rotación de inventario (stock promedio del período ÷ promedio mensual de entregas o demanda, configurable), por volumen de demanda o por participación acumulada (Pareto), con umbrales y cron propios.
 - **Categorías de cliente A–E**: manual, Pareto por importe o cantidad de pedidos, o RFM (parámetros RFM compartidos con proveedores).
 - **Análisis de clientes**: método de entrega a tiempo (fecha pactada, fecha del picking o SLA en días), umbrales del ranking ABC del período, semáforos de % Cumplim. / % Físico y % A tiempo, y días para clasificar un cliente "en riesgo".
+- **Análisis de demanda insatisfecha**: método de la antigüedad del pendiente — ponderada por cantidad (default) o pedido más antiguo (`unmet_backlog_age_method`).
 - **Forecast**: umbrales de cobertura (aviso/crítico), método y unidad de rotación (unidades / COGS / ventas), cobertura de inventario (fuente de demanda y alertas), cobertura de OFs (denominador: forecast o demanda OV) y fuente/fórmula de precisión (Simple, MAPE, WAPE, WMAPE, Sesgo).
 
 ---
@@ -222,8 +225,9 @@ Scorecard de rendimiento de proveedores con columnas redimensionables y reordena
 | Lead time (d) | Lead time real promedio: días entre aprobación y recepción |
 | Var. precio | Variación promedio de precio OC vs. la referencia configurada: costo estándar, lista de precio del proveedor o precio anterior pagado (default). Ver "Referencia para variación de precio" en Ajustes → Compras |
 | Fact. pend. | Total de facturas de proveedor pendientes de pago |
+| Referencia *(opcional)* | Referencia comercial del contacto (`res.partner.ref`). Oculta por defecto; se activa desde el selector de columnas |
 
-Los indicadores de cumplimiento muestran semáforo verde / amarillo / rojo según los umbrales configurados en la pestaña Compras de Configuración.
+Los indicadores de cumplimiento muestran semáforo verde / amarillo / rojo según los umbrales configurados en la pestaña Compras de Configuración. El selector de columnas permite mostrar/ocultar y reordenar las columnas (arrastrando el encabezado).
 
 ### Gráfico de ventas
 
@@ -234,6 +238,7 @@ Gráfico de barras de ventas por producto con clasificación por categoría (A�
 - **Top N**: muestra los N productos más vendidos (configurable)
 - **Filtros**: por categoría de venta (A–E) y por categoría de producto
 - Las barras se colorean según la categoría de venta: A (verde), B (azul), C (amarillo), D (gris), E (gris claro)
+- **Donas de distribución**: junto al ranking de barras, dos donas reparten el total mostrado por **categoría ABC** de venta y por **familia** de producto (`categ_id`, nombre hoja), según la métrica activa
 
 ### Análisis de clientes
 
@@ -254,10 +259,41 @@ Clasificación A–E de clientes con drill-down a sus pedidos de venta del perí
 | Monto | Importe total de pedidos confirmados |
 | % Cumplim. | Entregado de los pedidos del período ÷ pedido × 100 |
 | % Físico | Despachado dentro del período (de cualquier pedido) ÷ pedido × 100 — puede superar 100% |
+| Precio prom. pedido | Monto pedido ÷ piezas pedidas del período |
+| Precio prom. entregado | Monto entregado ÷ piezas entregadas (por línea: precio unitario × entregado). Difiere del pedido cuando el mix entregado ≠ mix pedido |
 | Última compra | Días desde el último pedido de venta |
 | Puntaje RFM | Puntos de Recencia + Frecuencia + Monetario (solo en modo RFM) |
 
-Los umbrales de Pareto se configuran en las pestañas Compras y Ventas de Configuración; los criterios de RFM son configurables en **Ajustes → Parámetros RFM** (compartidos entre clientes y proveedores).
+Ambos precios promedio (pedido y entregado) aparecen también en las cards KPI y en el panel de detalle del cliente, y respetan la valorización PxQ/Real configurada. Los umbrales de Pareto se configuran en las pestañas Compras y Ventas de Configuración; los criterios de RFM son configurables en **Ajustes → Parámetros RFM** (compartidos entre clientes y proveedores).
+
+### Análisis de demanda insatisfecha
+
+Acceder desde **Ventas → Análisis demanda insatisfecha**. De los pedidos confirmados en el período, mide el **backlog pendiente** = pedido − entregado (a la fecha), valuado a precio unitario, agregado por una dimensión conmutable: **cliente, producto o familia**.
+
+- **Dos líneas de filtros independientes** (período · dimensión · PxQ/Real): la de arriba afecta **solo al gráfico**; la segunda afecta las **cards globales + la tabla**.
+- **Gráfico** top-N (por monto o unidades pendientes) de la dimensión elegida.
+- **Tabla** con selector de columnas y columnas reordenables/redimensionables (arrastrando el encabezado), búsqueda, filtros numéricos y exportación a Excel.
+- **Unificación por casa matriz** en modo cliente (mismo criterio que el análisis de clientes: `customer_unify_by_vat`).
+
+**KPIs**: monto pendiente, pendiente (u.), % cumplimiento, pedido total, entregado total y # entidades afectadas.
+
+| Columna | Descripción |
+|---|---|
+| Cliente / Producto / Familia | Entidad agregada según la dimensión activa (columna fija) |
+| Categoría | Categoría A–E del cliente, o de venta del producto (según dimensión) |
+| Pedido | Unidades pedidas en el período |
+| Entregado | Unidades entregadas a la fecha |
+| Pendiente | Backlog: pedido − entregado (solo faltantes) |
+| Monto pendiente | Cantidad pendiente × precio unitario (PxQ/Real) |
+| % Cumplim. | Entregado ÷ pedido × 100 |
+| % Insatisf. | Pendiente ÷ pedido × 100 |
+| Antig. pendiente | Días que lleva esperando lo no entregado. Método configurable en Ajustes → Ventas: ponderada por cantidad (default) o pedido más antiguo |
+| Días quiebre *(producto)* | Días que el producto está bajo el mínimo (reusa el cálculo del panel de quiebres) |
+| Diagnóstico *(producto)* | Cruce quiebre × antigüedad: **Crónico** (quiebre + pendiente viejo), **Sin stock** (quiebre reciente), **Fulfillment** (hay stock pero no entregás), **OK** |
+| # Pedidos | Pedidos distintos del período con faltante |
+| # Cruce | Productos (modo cliente) o clientes (modo producto) distintos con faltante |
+
+Las cards permiten abrir la lista de líneas de pedido del período (pendientes o todas).
 
 ---
 

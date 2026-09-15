@@ -37,6 +37,8 @@ Los widgets más complejos dividen su template principal en sub-templates (`t-ca
 | Forecast | `forecast_widget.xml` | `forecast_kpis.xml` — dos filas de 5 KPI cards; `forecast_controls.xml` — barra de filtros (período, depósito, columnas, exportar) |
 | Análisis de clientes | `customer_analysis_widget.xml` | `customer_analysis_row.xml` — fila de tabla con datos de columnas y lista de pedidos; `customer_analysis_detail_panel.xml` — panel de análisis individual (KPIs, gráficos, top artículos) |
 
+El widget de **demanda insatisfecha** (`unmet_demand_widget.js` / `.xml`) usa un archivo único: dos datasets independientes (gráfico vs cards+tabla), KPIs, gráfico Chart.js y tabla con `useColManager` (columnas reordenables/redimensionables). El **gráfico de ventas** (`sales_chart_widget`) dibuja el ranking de barras más dos donas (categoría ABC y familia de producto).
+
 ---
 
 ## Modelos por área
@@ -138,13 +140,14 @@ wh.allowed_ids  # list[int] | None — para filtros que usan IDs directamente
 | `mrp_planner_dashboard_mo.py` | Órdenes de fabricación |
 | `mrp_planner_dashboard_po.py` | Órdenes de compra |
 | `mrp_planner_dashboard_wc.py` | Carga de centros de trabajo (gráfico) |
-| `mrp_planner_dashboard_stock.py` | Quiebres de stock |
+| `mrp_planner_dashboard_stock.py` | Quiebres de stock. Expone `_stock_break_days_map(product_ids)` (días bajo el mínimo por producto), reutilizado por el análisis de demanda insatisfecha para el cruce quiebre × antigüedad. |
 | `mrp_planner_dashboard_forecast.py` | Datos de forecast para el widget |
 | `mrp_forecast_calc_mixin.py` | Helpers de cálculo pesado del forecast, separados del archivo principal: rotación de inventario (`_fc_rotation_data`), construcción de filas con cobertura y precisión (`_fc_build_rows`), stats de productos sin forecast (`_fc_no_fc_stats`) |
 | `mrp_planner_dashboard_forecast_export.py` | Generación del archivo Excel de exportación del forecast (`get_forecast_export`) |
-| `mrp_planner_dashboard_sales.py` | Panel de ventas: gráfico de ventas por producto, categorías disponibles. Expone `_parse_date` como helper compartido. |
-| `mrp_planner_dashboard_supplier.py` | Análisis de proveedores: KPIs de cumplimiento, lead time, variación de precio. Importa `_parse_date` de sales. |
-| `mrp_planner_dashboard_customer.py` | Análisis de clientes |
+| `mrp_planner_dashboard_sales.py` | Panel de ventas: gráfico de ventas por producto (con `family`/`categ_id` por fila para la dona por familia), categorías disponibles. Expone `_parse_date` como helper compartido. |
+| `mrp_planner_dashboard_supplier.py` | Análisis de proveedores: KPIs de cumplimiento, lead time, variación de precio, `ref` del contacto (columna opcional). Importa `_parse_date` de sales. |
+| `mrp_planner_dashboard_customer.py` | Análisis de clientes. Incluye precio promedio pedido y entregado (`avg_price` / `avg_price_delivered`, monto entregado ÷ qty entregada). Expone `_ca_config()` (valorización, exclusión de servicios, `unmet_backlog_age_method`) reutilizado por el análisis de demanda insatisfecha. |
+| `mrp_planner_dashboard_unmet.py` | Análisis de demanda insatisfecha: `get_unmet_demand_data(period, dimension, wh, amount_method)` (backlog pendiente = pedido − entregado por cliente/producto/familia, antigüedad del pendiente, cruce con quiebres vía `_stock_break_days_map` y diagnóstico), `action_open_unmet_demand` y `action_open_unmet_lines`. Comparte base con customer (mismos estados de pedido, filtro empresa/almacén, exclusión de servicios y PxQ/Real). |
 | `mrp_planner_dashboard_inventory.py` | Panel de Inventario: universo por eslabones (`_inventory_universe_types`, con `active_test=False` para tipos archivados), gráficos (tasa mensual + composición del pendiente), tabla "Análisis de movimientos" en todos los estados (`get_inventory_pending_table`) y hooks del circuito de despacho (`_inventory_dispatch_enabled` / `_inventory_dispatch_queue_ids` / `_inventory_can_dispatch`, redefinidos por odoo_mrp_planner_dispatch). Guard `_inventory_ensure_group()` en cada RPC. |
 | `mrp_planner_detail_dashboard.py` | Dashboard detalle por OF/producto (drill-down) |
 

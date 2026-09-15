@@ -1254,6 +1254,65 @@ CONDICIONES:
 
 ---
 
+### 4.10 Precio promedio pedido y entregado
+DESCRIPCION: Dos precios promedio por unidad del período, en paralelo. El pedido usa el monto y la cantidad pedidos; el entregado, el monto y la cantidad efectivamente entregados. Ambos respetan la valorización PxQ/Real.
+VARIABLES:
+- M_ped = monto pedido (Σ de líneas según PxQ o Real)
+- M_ent = monto entregado = Σ (precio_unit_l * qd_l) por línea l
+- Q_ped = Σ product_uom_qty ; Q_ent = Σ qty_delivered
+FORMULA: p_ped = M_ped / Q_ped ; p_ent = M_ent / Q_ent
+LABEL: Precio prom. pedido / Precio prom. entregado (cliente)
+CONFIG: Valorización monetaria de ventas (sales_amount_method: PxQ a precio de lista | Real)
+CONDICIONES:
+- Q_ped <= 0 -> p_ped = 0 ; Q_ent <= 0 -> p_ent = 0
+- p_ent difiere de p_ped cuando el mix entregado != mix pedido
+- Campos: avg_price / avg_price_delivered
+
+---
+
+### 4.11 Backlog pendiente (demanda insatisfecha)
+DESCRIPCION: De los pedidos confirmados del período, unidades pedidas aún sin entregar (backlog) y su valuación. Se agrega por cliente, producto o familia.
+VARIABLES:
+- q_ped_l = product_uom_qty de la línea l ; q_ent_l = qty_delivered de la línea l
+- pend_l = pendiente de la línea l ; pu_l = precio unitario (PxQ o Real)
+FORMULA: pend_l = max(0, q_ped_l - q_ent_l) ; monto_pend = sum(pend_l * pu_l)
+LABEL: Pendiente / Monto pendiente
+CONFIG: Valorización monetaria de ventas (sales_amount_method)
+CONDICIONES:
+- pct_cumpl = q_ent / q_ped * 100 (entregado sobre pedido)
+- pct_insat = pend / q_ped * 100 (cuánto de lo pedido quedó sin entregar)
+- q_ped <= 0 -> pct indefinido (—)
+
+---
+
+### 4.12 Antigüedad del pendiente
+DESCRIPCION: Días que lleva esperando lo no entregado, por entidad. El método es configurable; el tooltip muestra siempre ambos valores.
+VARIABLES:
+- pend_i = pendiente del pedido i ; d_i = días desde date_order del pedido i hasta hoy
+FORMULA (ponderada): antig = sum(pend_i * d_i) / sum(pend_i)
+FORMULA (más antiguo): antig = max(d_i)
+LABEL: Antig. pendiente
+CONFIG: Análisis de demanda insatisfecha — método de antigüedad (unmet_backlog_age_method: weighted | oldest; def: weighted)
+CONDICIONES:
+- solo pedidos con pend_i > 0 entran al cálculo
+
+---
+
+### 4.13 Diagnóstico de quiebre × antigüedad (solo producto)
+DESCRIPCION: Cruza el estado de abastecimiento (días en quiebre = días bajo el mínimo, reusa break_days del panel de quiebres) con la antigüedad del pendiente, para separar la causa del faltante.
+VARIABLES:
+- bd = días en quiebre (None si el producto no está bajo el mínimo)
+- antig = antigüedad del pendiente (bloque 4.12) ; VIEJO = BACKLOG_OLD_DAYS (def: 15)
+FORMULA: clasificación por reglas (ver CONDICIONES)
+LABEL: Diagnóstico
+CONDICIONES:
+- bd != None y antig >= VIEJO -> Crónico (sin stock hace rato y venís fallando)
+- bd != None y antig <  VIEJO -> Sin stock (quiebre reciente; al reponer se limpia)
+- bd == None y antig >= VIEJO -> Fulfillment (hay stock pero no entregás)
+- bd == None y antig <  VIEJO -> OK (transitorio/normal)
+
+---
+
 ## Sección 5 — Panel de Inventario
 
 > El universo del panel son todas las operaciones del rango (recepciones,

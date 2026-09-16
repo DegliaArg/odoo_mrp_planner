@@ -710,6 +710,19 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 curve.append([_ms(s), round(lvl, 1)])
                 curve.append([_ms(e), round(lvl, 1)])
 
+            # Curva del PENDIENTE ACUMULADO: la demanda pendiente no es fija, sube a
+            # medida que entra cada pedido (a su fecha). Escalón ascendente hasta hoy.
+            dated = sorted(((_start_dt(oid), unmet) for oid, unmet in pend if _start_dt(oid)),
+                           key=lambda x: x[0])
+            pend_curve = []
+            acc = 0.0
+            for dt, unmet in dated:
+                pend_curve.append([_ms(dt), round(acc, 1)])   # antes del escalón
+                acc += unmet
+                pend_curve.append([_ms(dt), round(acc, 1)])   # después del escalón
+            if pend_curve:
+                pend_curve.append([_ms(now), round(acc, 1)])  # se mantiene hasta hoy
+
             return {
                 'index_pct':     index_pct,
                 'diagnosis':     diagnosis,
@@ -718,6 +731,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 'days_pending':  round(yw / total_pending, 1) if total_pending > 0 else 0.0,
                 'stock_now':     round(segments[-1][2], 1) if segments else 0.0,
                 'curve':         curve,
+                'pend_curve':    pend_curve,
                 'lines':         lines,
             }
         except Exception as e:

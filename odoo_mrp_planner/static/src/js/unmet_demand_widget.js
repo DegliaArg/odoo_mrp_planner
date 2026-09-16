@@ -608,15 +608,17 @@ class UnmetDemandWidget extends Component {
 
         const dg = this.deliveryDiagnosis(a.diagnosis);
         const stock = a.curve.map(p => ({ x: p[0], y: p[1] }));
-        const xs = a.curve.map(p => p[0]);
-        const pend = [{ x: Math.min(...xs), y: a.total_pending }, { x: Math.max(...xs), y: a.total_pending }];
+        // Pendiente acumulado (escalón ascendente); si no vino, cae a la recta al total.
+        const pend = (a.pend_curve && a.pend_curve.length)
+            ? a.pend_curve.map(p => ({ x: p[0], y: p[1] }))
+            : [{ x: a.curve[0][0], y: a.total_pending }, { x: a.curve.at(-1)[0], y: a.total_pending }];
         this._deliveryChart = new ChartJs(canvas, {
             type: "line",
             data: {
                 datasets: [
                     { label: "Stock", data: stock, stepped: true, borderColor: dg.color,
                       backgroundColor: dg.color + "22", fill: true, pointRadius: 0, borderWidth: 2 },
-                    { label: "Pendiente", data: pend, borderColor: "#adb5bd", borderDash: [5, 4],
+                    { label: "Pendiente", data: pend, stepped: true, borderColor: "#adb5bd", borderDash: [5, 4],
                       pointRadius: 0, borderWidth: 1.5, fill: false },
                 ],
             },

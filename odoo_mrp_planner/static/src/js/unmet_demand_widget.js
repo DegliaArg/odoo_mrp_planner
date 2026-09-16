@@ -556,9 +556,9 @@ class UnmetDemandWidget extends Component {
             icon: dg.icon,
         };
     }
-    /** Tooltip de la columna Situación (explícito). */
+    /** Tooltip de la columna Situación (explícito; sin el nombre, lo antepone cellTooltip). */
     rowSituationTooltip(row) {
-        if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return row.name;
+        if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return "";
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
         const tail = {
@@ -566,7 +566,7 @@ class UnmetDemandWidget extends Component {
             fulfillment: "Hubo stock disponible la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
             mixed:       "A veces hubo stock y a veces no: situación mixta.",
         }[row.diagnosis] || "";
-        return `${row.name}\nDe los ${y} días que estos pedidos llevan pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.\n${tail}`;
+        return `De los ${y} días que estos pedidos llevan pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.\n${tail}`;
     }
 
     /**

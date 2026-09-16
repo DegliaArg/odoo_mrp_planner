@@ -373,7 +373,7 @@
             t-on-click="() => this.toggleExpand(row)">
             <t t-foreach="columns" t-as="col" t-key="col.key">
                 <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
-                    style="padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                    t-att-style="col.key === 'diagnosis' ? 'padding:3px 8px; white-space:normal; vertical-align:middle;' : 'padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'"
                     t-att-title="cellTooltip(col, row)">
                     <t t-if="col.key === 'unmet_amount'">
                         <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>

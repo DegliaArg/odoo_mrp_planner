@@ -518,21 +518,20 @@ class UnmetDemandWidget extends Component {
         };
         return map[diag] || map.na;
     }
-    /** Frase del panel, explícita: "hubo stock" = había al menos 1 pieza en stock. */
+    /** Frase del panel: clara y concisa, con la conclusión y qué hacer. */
     deliveryNarrative(a) {
         if (!a || a.index_pct === null || a.index_pct === undefined) return "";
         const x = Math.round(a.days_stock);
         const y = Math.round(a.days_pending);
-        const base = `Estos pedidos llevan ${y} días pendientes en promedio. Durante ${x} de esos días hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.`;
         switch (a.diagnosis) {
             case "shortage":
-                return `${base} Casi nunca hubo stock: el faltante es por falta de mercadería — hay que reponer o fabricar.`;
+                return `Estos pedidos esperan hace ${y} días. Casi nunca hubo mercadería para entregar (solo ${x} días). El faltante es por falta de stock: hay que comprar o fabricar.`;
             case "fulfillment":
-                return `${base} Hubo stock disponible la mayor parte del tiempo y no se entregó: el problema no es de stock, revisá la asignación, la logística o las prioridades de entrega.`;
+                return `Estos pedidos esperan hace ${y} días. Hubo mercadería para entregar casi siempre (${x} de esos días) y no se entregó. El problema no es el stock: revisá la entrega (asignación, logística o prioridades).`;
             case "mixed":
-                return `${base} Es una situación mixta: parte del tiempo faltó stock y parte hubo stock disponible sin entregar.`;
+                return `Estos pedidos esperan hace ${y} días. Hubo mercadería para entregar ${x} de esos días. Por momentos faltó stock y por momentos hubo sin entregar.`;
             default:
-                return base;
+                return `Estos pedidos esperan hace ${y} días. Hubo mercadería para entregar ${x} de esos días.`;
         }
     }
     /** Frase de la columna "Situación", explícita. */
@@ -543,22 +542,17 @@ class UnmetDemandWidget extends Component {
         }
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
-        return {
-            na: false,
-            label: dg.label,
-            text: `De los ${y} días pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte`,
-            chip: dg.chip,
-            icon: dg.icon,
-        };
+        const text = {
+            shortage:    `Casi nunca hubo stock: solo ${x} de ${y} días. Falta mercadería.`,
+            fulfillment: `Hubo stock ${x} de ${y} días y no se entregó. El problema no es el stock.`,
+            mixed:       `Hubo stock ${x} de ${y} días. Por momentos faltó.`,
+        }[row.diagnosis] || `Hubo stock ${x} de ${y} días.`;
+        return { na: false, label: dg.label, text, chip: dg.chip, icon: dg.icon };
     }
-    /** Tooltip de la columna Situación: la recomendación (la frase ya está en la celda). */
+    /** Tooltip de la columna Situación: aclara qué cuenta como "hubo stock". */
     rowSituationTooltip(row) {
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return "";
-        return {
-            shortage:    "Casi nunca hubo stock: falta de mercadería (comprar o fabricar).",
-            fulfillment: "Hubo stock disponible la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
-            mixed:       "A veces hubo stock y a veces no: situación mixta.",
-        }[row.diagnosis] || "";
+        return 'Un día cuenta como "con stock" si había al menos 1 pieza, aunque no alcanzara para todo el pedido.';
     }
 
     /**

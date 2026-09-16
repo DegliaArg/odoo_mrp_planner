@@ -126,7 +126,10 @@
                     placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
                     t-props="{
                         search:            state.productSearch,
+                        activeGroupBy:     groupBy,
+                        groupByDefs:       groupByDefs,
                         onSearch:          (t) => this.setSearch(t),
+                        onGroupByChange:   (k) => this.setGroupBy(k),
                         showFavorites:     true,
                         numericFields:     numColOptions,
                         numFilters:        state.numFilters,
@@ -270,6 +273,23 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Pestañas de agrupamiento (mismo patrón que forecast / análisis de clientes) -->
+                <t t-if="groupBy and allGroupsForTabs">
+                    <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">
+                        <t t-foreach="allGroupsForTabs" t-as="g" t-key="'tab_' + g.key">
+                            <li class="nav-item">
+                                <button t-att-class="'nav-link px-3 py-1 ' + ((state.selectedGroup === g.key or (state.selectedGroup === null and g_index === 0)) ? 'active fw-semibold' : 'text-muted')"
+                                        style="font-size:12px; white-space:nowrap;"
+                                        t-att-title="'Ver solo el grupo: ' + g.label"
+                                        t-on-click="() => this.setGroup(g.key)">
+                                    <t t-esc="g.label"/>
+                                    <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="g.count"/>)</span>
+                                </button>
+                            </li>
+                        </t>
+                    </ul>
+                </t>
 
                 <!-- Tabla de detalle (columnas reordenables por drag y redimensionables) -->
                 <div class="border rounded bg-white" style="overflow:auto;">
@@ -424,49 +444,64 @@
                         <div class="text-center px-2" style="min-width:100px;">
                             <div class="fw-bold lh-1" style="font-size:1.5rem;"
                                  t-att-style="'color:' + deliveryDiagnosis(a.diagnosis).color + '; font-size:1.5rem; line-height:1;'">
-                                <t t-esc="fmt(a.days_stock)"/><span class="fw-normal text-muted" style="font-size:0.9rem;">/<t t-esc="fmt(a.days_pending)"/></span>
+                                <t t-esc="Math.round(a.days_stock)"/><span class="fw-normal text-muted" style="font-size:0.9rem;">/<t t-esc="Math.round(a.days_pending)"/></span>
                             </div>
                             <div class="small text-muted">días con stock</div>
+                            <div class="text-muted" style="font-size:9px;">(de los días pendientes)</div>
                         </div>
                     </div>
 
-                    <!-- Detalle por pedido -->
-                    <div class="o_planner_section_title mb-1">
-                        <i class="fa fa-list-ul me-1 text-muted"/>
-                        <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
+                    <!-- Detalle por pedido (izq.) + curva de stock (der.) -->
+                    <div class="d-flex gap-3 align-items-start flex-wrap">
+                        <div style="flex:1 1 520px; min-width:0;">
+                            <div class="o_planner_section_title mb-1">
+                                <i class="fa fa-list-ul me-1 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
+                            </div>
+                            <table class="table table-sm table-hover mb-0" style="font-size:11px;">
+                                <tbody>
+                                    <t t-foreach="a.lines" t-as="ln" t-key="ln_index">
+                                        <tr t-if="state.expandShowAllLines or ln_index &lt; 5">
+                                            <td style="border-top:none;">
+                                                <a href="#" class="fw-semibold text-decoration-none"
+                                                   t-on-click.prevent.stop="() => this.openOrder(ln.order_id)"
+                                                   t-esc="ln.order"/>
+                                            </td>
+                                            <td class="text-end text-muted" style="border-top:none;"><t t-esc="fmt(ln.pending)"/> pendientes</td>
+                                            <td class="text-end" style="border-top:none;">
+                                                <span t-att-class="deliveryDiagnosis(ln.pct &gt;= 66 ? 'fulfillment' : (ln.pct &lt;= 33 ? 'shortage' : 'mixed')).text">
+                                                    hubo stock <t t-esc="Math.round(ln.days_stock)"/> de <t t-esc="Math.round(ln.days_total)"/> días
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                    <tr t-if="a.lines.length > 5">
+                                        <td colspan="3" style="border-top:none;">
+                                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                                    t-on-click.stop="toggleExpandLines">
+                                                <t t-if="!state.expandShowAllLines">
+                                                    <i class="fa fa-chevron-down me-1"/>ver <t t-esc="a.lines.length - 5"/> pedido(s) más
+                                                </t>
+                                                <t t-else="">
+                                                    <i class="fa fa-chevron-up me-1"/>ver menos
+                                                </t>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Curva de stock durante la espera -->
+                        <div t-if="a.curve and a.curve.length" style="flex:1 1 360px; min-width:260px;">
+                            <div class="o_planner_section_title mb-1">
+                                <i class="fa fa-area-chart me-1 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Stock durante la espera</span>
+                            </div>
+                            <div class="bg-white rounded border p-2" style="height:150px;">
+                                <canvas t-ref="deliveryChartCanvas"/>
+                            </div>
+                        </div>
                     </div>
-                    <table class="table table-sm table-hover mb-0" style="font-size:11px; max-width:580px;">
-                        <tbody>
-                            <t t-foreach="a.lines" t-as="ln" t-key="ln_index">
-                                <tr t-if="state.expandShowAllLines or ln_index &lt; 5">
-                                    <td style="border-top:none;">
-                                        <a href="#" class="fw-semibold text-decoration-none"
-                                           t-on-click.prevent.stop="() => this.openOrder(ln.order_id)"
-                                           t-esc="ln.order"/>
-                                    </td>
-                                    <td class="text-end text-muted" style="border-top:none;"><t t-esc="fmt(ln.pending)"/> pend.</td>
-                                    <td class="text-end" style="border-top:none;">
-                                        <span t-att-class="deliveryDiagnosis(ln.pct &gt;= 66 ? 'fulfillment' : (ln.pct &lt;= 33 ? 'shortage' : 'mixed')).text">
-                                            stock <t t-esc="fmt(ln.days_stock)"/> de <t t-esc="fmt(ln.days_total)"/> días
-                                        </span>
-                                    </td>
-                                </tr>
-                            </t>
-                            <tr t-if="a.lines.length > 5">
-                                <td colspan="3" style="border-top:none;">
-                                    <button class="btn btn-link btn-sm p-0 text-decoration-none"
-                                            t-on-click.stop="toggleExpandLines">
-                                        <t t-if="!state.expandShowAllLines">
-                                            <i class="fa fa-chevron-down me-1"/>ver <t t-esc="a.lines.length - 5"/> pedido(s) más
-                                        </t>
-                                        <t t-else="">
-                                            <i class="fa fa-chevron-up me-1"/>ver menos
-                                        </t>
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </t>
             </td>
         </tr>

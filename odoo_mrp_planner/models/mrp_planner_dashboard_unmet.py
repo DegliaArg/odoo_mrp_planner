@@ -585,14 +585,14 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
     @api.model
     def _coverage_days(self, segments, pend_lines, now):
-        """Días con stock suficiente para entregar, ponderados por cantidad.
+        """Días con stock para entregar al menos una parte, ponderados por cantidad.
 
         Por cada pedido pendiente (fecha, cantidad), cuenta los días de su ventana
-        [fecha, hoy] en que el stock alcanzaba para cubrirlo (stock(t) >= cantidad).
+        [fecha, hoy] en que había stock > 0 (podías entregar al menos una pieza del
+        pedido).
 
-        :returns: (x, y) — x = días-ponderados con stock suficiente, y = días-
-            ponderados totales. El promedio simple es x/Σqty e y/Σqty; el índice es
-            x/y. "Durante x/Σqty de los y/Σqty días pendientes hubo stock."
+        :returns: (x, y, Σqty) — x = días-ponderados con stock; y = días-ponderados
+            totales. El promedio es x/Σqty e y/Σqty; el índice es x/y.
         """
         xw = yw = qsum = 0.0
         for start, qty in pend_lines:
@@ -603,7 +603,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             for s, e, lvl in segments:
                 lo = max(s, start)
                 hi = min(e, now)
-                if hi > lo and lvl >= qty - 1e-6:
+                if hi > lo and lvl > 1e-6:
                     dstock += (hi - lo).total_seconds() / 86400.0
             xw += qty * dstock
             yw += qty * total
@@ -660,12 +660,12 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 return empty
             segments = self._stock_curve_segments(product_id, min(starts))
 
-            def _days_with_stock(start_dt, qty):
-                """Días entre start_dt y ahora en que el stock alcanzaba (>= qty)."""
+            def _days_with_stock(start_dt):
+                """Días entre start_dt y ahora en que hubo stock > 0 (entrega parcial)."""
                 d = 0.0
                 for s, e, lvl in segments:
                     lo = max(s, start_dt); hi = min(e, now)
-                    if hi > lo and lvl >= qty - 1e-6:
+                    if hi > lo and lvl > 1e-6:
                         d += (hi - lo).total_seconds() / 86400.0
                 return d
 
@@ -676,7 +676,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 if not sdt:
                     continue
                 total = max(0.0, (now - sdt).total_seconds() / 86400.0)
-                dstock = _days_with_stock(sdt, unmet)
+                dstock = _days_with_stock(sdt)
                 pct = round(dstock / total * 100, 1) if total > 0 else None
                 xw += unmet * dstock
                 yw += unmet * total
@@ -694,11 +694,21 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             if index_pct is None:
                 diagnosis = 'na'
             elif index_pct >= 66:
-                diagnosis = 'fulfillment'   # hubo stock suficiente la mayor parte y no entregaste
+                diagnosis = 'fulfillment'   # hubo stock la mayor parte del tiempo y no entregaste
             elif index_pct <= 33:
-                diagnosis = 'shortage'      # casi nunca alcanzó el stock
+                diagnosis = 'shortage'      # casi nunca hubo stock
             else:
                 diagnosis = 'mixed'
+
+            # Serie de la curva de stock (para el mini-gráfico): puntos [ts_ms, nivel]
+            # al inicio y fin de cada tramo (línea escalonada).
+            _epoch = datetime(1970, 1, 1)
+            def _ms(dt):
+                return int((dt - _epoch).total_seconds() * 1000)
+            curve = []
+            for s, e, lvl in segments:
+                curve.append([_ms(s), round(lvl, 1)])
+                curve.append([_ms(e), round(lvl, 1)])
 
             return {
                 'index_pct':     index_pct,
@@ -707,6 +717,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 'days_stock':    round(xw / total_pending, 1) if total_pending > 0 else 0.0,
                 'days_pending':  round(yw / total_pending, 1) if total_pending > 0 else 0.0,
                 'stock_now':     round(segments[-1][2], 1) if segments else 0.0,
+                'curve':         curve,
                 'lines':         lines,
             }
         except Exception as e:

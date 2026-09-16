@@ -28,7 +28,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
 import { PlannerSearchBar } from "./planner_search_bar";
-import { applyNumericFilters } from "./planner_table";
+import { applyNumericFilters, buildGroupTabs } from "./planner_table";
 import { downloadExcelXml } from "./planner_export";
 import { kpiNumClass } from "./forecast_formatters";
 import { useColManager } from "./column_manager";
@@ -48,7 +48,6 @@ const UD_ALL_COLS = [
     { key: "unmet_qty",       label: "Pendiente",        width: 82,  align: "end",    sortKey: "unmet_qty",       kind: "num"   },
     { key: "unmet_amount",    label: "Monto pendiente",  width: 108, align: "end",    sortKey: "unmet_amount",    kind: "money" },
     { key: "fulfillment_pct", label: "% Cumplim.",       width: 78,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
-    { key: "unmet_pct",       label: "% Insatisf.",      width: 78,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 92,  align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 90,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
     { key: "diagnosis",       label: "Situación",        width: 340, align: "start",  sortKey: "diagnosis",       kind: "situation" },
@@ -69,7 +68,7 @@ const PERSIST_KEYS = [
     "chartDateFrom", "chartDateTo", "chartDimension", "chartAmountMethod",
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
-    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll",
+    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll", "groupBy",
 ];
 function loadFilters() {
     try {
@@ -97,6 +96,9 @@ class UnmetDemandWidget extends Component {
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
         this._chartDrawn = null;   // {data, metric, topN} del último dibujo; evita redibujar en patches ajenos al gráfico
+        this.deliveryChartRef = useRef("deliveryChartCanvas");
+        this._deliveryChart = null;
+        this._deliveryDrawnKey = null;
         this.cols     = useColManager("unmet_demand_v2", UD_ALL_COLS);
 
         const now   = new Date();
@@ -134,6 +136,8 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
+            groupBy:       pick("groupBy", null),   // null | 'category' — agrupador por pestañas
+            selectedGroup: null,                    // pestaña activa del agrupador
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
             expandData:   {},                       // cache {product_id: análisis} del expand
             expandLoading: false,
@@ -160,6 +164,7 @@ class UnmetDemandWidget extends Component {
             }
         });
         onPatched(() => {
+            this._drawDeliveryChart();
             if (this.state.chartLoading || !this.chartRef.el || !this.chartRowsAll.length) return;
             // Solo redibujar si cambió algo que afecta al gráfico (dataset, métrica o Top N).
             // Los patches por filtros/búsqueda/orden/paginación de la tabla se ignoran.
@@ -177,6 +182,7 @@ class UnmetDemandWidget extends Component {
         });
         onWillUnmount(() => {
             if (this._chart) { this._chart.destroy(); this._chart = null; }
+            if (this._deliveryChart) { this._deliveryChart.destroy(); this._deliveryChart = null; }
             this.cols.cancelResize();
         });
     }
@@ -362,8 +368,8 @@ class UnmetDemandWidget extends Component {
     // ── Filas / KPIs (dataset de la tabla) ──────────────────────────────────────
     get baseRows() { return (this.state.data && this.state.data.rows) || []; }
 
-    /** Filas tras búsqueda + filtros numéricos (sin ordenar ni paginar). */
-    get filteredRows() {
+    /** Filas tras búsqueda + filtros numéricos (sin agrupar, ordenar ni paginar). */
+    get baseFilteredRows() {
         let rows = this.baseRows;
         const q = this.state.productSearch.toLowerCase();
         if (q) rows = rows.filter(r => (r.name || "").toLowerCase().includes(q));
@@ -371,6 +377,40 @@ class UnmetDemandWidget extends Component {
             const v = r[k];
             return (v === null || v === undefined) ? null : v;
         });
+    }
+    /** Filas tras aplicar también la pestaña activa del agrupador. */
+    get filteredRows() {
+        let rows = this.baseFilteredRows;
+        if (this.groupBy) {
+            const groups = this.allGroupsForTabs || [];
+            const sel = (groups.some(g => g.key === this.state.selectedGroup))
+                ? this.state.selectedGroup
+                : (groups.length ? groups[0].key : null);
+            if (sel !== null) rows = rows.filter(r => (r.category || "—") === sel);
+        }
+        return rows;
+    }
+
+    // ── Agrupador por pestañas (categoría de venta; solo dimensiones con category) ──
+    /** ¿El agrupador aplica a la dimensión activa? (familia no tiene categoría) */
+    get canGroup()  { return this.state.dimension !== "family"; }
+    get groupBy()   { return this.canGroup ? this.state.groupBy : null; }
+    /** Opciones del agrupador para la search bar. */
+    get groupByDefs() {
+        return this.canGroup ? [{ key: "category", label: this.categoryLabel }] : [];
+    }
+    setGroupBy(key) {
+        this.state.groupBy = key || null;
+        this.state.selectedGroup = null;
+        this.state.page = 1;
+    }
+    setGroup(key) { this.state.selectedGroup = key; this.state.page = 1; }
+    /** Pestañas: un grupo por categoría, con conteo, sobre el conjunto filtrado. */
+    get allGroupsForTabs() {
+        if (!this.groupBy) return null;
+        return buildGroupTabs(this.baseFilteredRows,
+            r => r.category || "—",
+            { labelFn: k => (k === "—" ? "Sin categoría" : k) });
     }
 
     /** Filas filtradas y ordenadas (todas, sin paginar). */
@@ -483,24 +523,24 @@ class UnmetDemandWidget extends Component {
         };
         return map[diag] || map.na;
     }
-    /** Frase del panel, en lenguaje natural (histórico: días con stock suficiente). */
+    /** Frase del panel, explícita: "hubo stock" = había al menos 1 pieza en stock. */
     deliveryNarrative(a) {
         if (!a || a.index_pct === null || a.index_pct === undefined) return "";
         const x = Math.round(a.days_stock);
         const y = Math.round(a.days_pending);
-        const base = `Durante ${x} de los ${y} días que estos pedidos llevan pendientes hubo stock suficiente para entregar.`;
+        const base = `Estos pedidos llevan ${y} días pendientes en promedio. Durante ${x} de esos días hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.`;
         switch (a.diagnosis) {
             case "shortage":
-                return `${base} Casi nunca tuviste con qué: el faltante es por falta de stock — hay que reponer o fabricar.`;
+                return `${base} Casi nunca hubo stock: el faltante es por falta de mercadería — hay que reponer o fabricar.`;
             case "fulfillment":
-                return `${base} Tenías stock la mayor parte del tiempo y no se entregó: el problema no es de stock, revisá asignación, logística o prioridades.`;
+                return `${base} Hubo stock disponible la mayor parte del tiempo y no se entregó: el problema no es de stock, revisá la asignación, la logística o las prioridades de entrega.`;
             case "mixed":
-                return `${base} Es una mezcla: parte del tiempo faltó stock y parte lo tuviste sin entregar.`;
+                return `${base} Es una situación mixta: parte del tiempo faltó stock y parte hubo stock disponible sin entregar.`;
             default:
                 return base;
         }
     }
-    /** Frase de la columna "Situación" en lenguaje natural (histórico por fila). */
+    /** Frase de la columna "Situación", explícita. */
     rowSituation(row) {
         const dg = this.deliveryDiagnosis(row.diagnosis);
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") {
@@ -511,22 +551,22 @@ class UnmetDemandWidget extends Component {
         return {
             na: false,
             label: dg.label,
-            text: `${x} de ${y} días con stock para entregar`,
+            text: `Hubo stock para entregar ${x} de los ${y} días pendientes`,
             chip: dg.chip,
             icon: dg.icon,
         };
     }
-    /** Tooltip de la columna Situación (lenguaje natural). */
+    /** Tooltip de la columna Situación (explícito). */
     rowSituationTooltip(row) {
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return row.name;
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
         const tail = {
-            shortage:    "Casi nunca hubo stock suficiente: falta de stock (comprar/fabricar).",
-            fulfillment: "Hubo stock la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
-            mixed:       "A veces hubo stock y a veces no: mezcla de falta de stock y de entrega.",
+            shortage:    "Casi nunca hubo stock: falta de mercadería (comprar o fabricar).",
+            fulfillment: "Hubo stock disponible la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
+            mixed:       "A veces hubo stock y a veces no: situación mixta.",
         }[row.diagnosis] || "";
-        return `${row.name}\nDurante ${x} de los ${y} días pendientes hubo stock suficiente para entregar.\n${tail}`;
+        return `${row.name}\nDe los ${y} días que estos pedidos llevan pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.\n${tail}`;
     }
 
     /**
@@ -550,6 +590,53 @@ class UnmetDemandWidget extends Component {
 
     // ── Gráfico (dataset propio) ────────────────────────────────────────────────
     get chartRowsAll() { return (this.state.chartData && this.state.chartData.rows) || []; }
+
+    /** Mini-gráfico del inline: curva de stock durante la espera vs nivel pendiente. */
+    _drawDeliveryChart() {
+        const canvas = this.deliveryChartRef.el;
+        const a = this.state.expandData[this.state.expandedKey];
+        // Sin canvas, sin datos, o ya dibujado para esta fila: nada que hacer.
+        if (!canvas || !a || !a.curve || !a.curve.length) {
+            if (!canvas && this._deliveryChart) { this._deliveryChart.destroy(); this._deliveryChart = null; this._deliveryDrawnKey = null; }
+            return;
+        }
+        if (this._deliveryDrawnKey === this.state.expandedKey && this._deliveryChart) return;
+        const ChartJs = globalThis.Chart;
+        if (!ChartJs) return;
+        if (this._deliveryChart) { this._deliveryChart.destroy(); this._deliveryChart = null; }
+        this._deliveryDrawnKey = this.state.expandedKey;
+
+        const dg = this.deliveryDiagnosis(a.diagnosis);
+        const stock = a.curve.map(p => ({ x: p[0], y: p[1] }));
+        const xs = a.curve.map(p => p[0]);
+        const pend = [{ x: Math.min(...xs), y: a.total_pending }, { x: Math.max(...xs), y: a.total_pending }];
+        this._deliveryChart = new ChartJs(canvas, {
+            type: "line",
+            data: {
+                datasets: [
+                    { label: "Stock", data: stock, stepped: true, borderColor: dg.color,
+                      backgroundColor: dg.color + "22", fill: true, pointRadius: 0, borderWidth: 2 },
+                    { label: "Pendiente", data: pend, borderColor: "#adb5bd", borderDash: [5, 4],
+                      pointRadius: 0, borderWidth: 1.5, fill: false },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { type: "linear", ticks: { font: { size: 9 }, maxRotation: 0, maxTicksLimit: 5,
+                             callback: v => new Date(v).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) },
+                         grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { font: { size: 9 } }, grid: { color: "rgba(0,0,0,0.05)" } },
+                },
+                plugins: {
+                    legend: { display: true, labels: { boxWidth: 10, font: { size: 9 } } },
+                    tooltip: { callbacks: {
+                        title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString("es-AR") : "",
+                        label: c => `${c.dataset.label}: ${this.fmt(c.parsed.y)}` } },
+                },
+            },
+        });
+    }
 
     _drawChart() {
         const canvas = this.chartRef.el;

@@ -271,14 +271,8 @@
                     </div>
                 </div>
 
-                <!-- Tabla de detalle (columnas reordenables por drag y redimensionables),
-                     flanqueada por las flechas de paginación a izquierda y derecha. -->
-                <div class="d-flex align-items-center gap-2">
-                  <button class="btn btn-outline-secondary flex-shrink-0" t-if="totalPages > 1"
-                          t-att-disabled="!hasPrevPage" t-on-click="prevPage" title="Página anterior">
-                      <i class="fa fa-chevron-left"/>
-                  </button>
-                  <div class="border rounded bg-white flex-grow-1" style="overflow:auto; min-width:0;">
+                <!-- Tabla de detalle (columnas reordenables por drag y redimensionables) -->
+                <div class="border rounded bg-white" style="overflow:auto;">
                     <table class="table table-sm table-hover mb-0" style="font-size:12px; table-layout:fixed;">
                         <colgroup>
                             <col t-foreach="columns" t-as="col" t-key="col.key"
@@ -330,16 +324,21 @@
                             </tr>
                         </tfoot>
                     </table>
-                  </div>
-                  <button class="btn btn-outline-secondary flex-shrink-0" t-if="totalPages > 1"
-                          t-att-disabled="!hasNextPage" t-on-click="nextPage" title="Página siguiente">
-                      <i class="fa fa-chevron-right"/>
-                  </button>
                 </div>
 
-                <!-- Info de paginación (centrada, debajo de la tabla) -->
-                <div class="text-center small text-muted mt-2" t-if="totalPages > 1">
-                    <t t-esc="pagedRowsAll.length"/> <t t-esc="dimensionPlural.toLowerCase()"/> · página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
+                <!-- Paginación: flechas a los extremos (ancho completo), info al centro -->
+                <div class="d-flex align-items-center justify-content-between mt-2" t-if="totalPages > 1">
+                    <button class="btn btn-outline-secondary btn-sm" t-att-disabled="!hasPrevPage"
+                            t-on-click="prevPage" title="Página anterior">
+                        <i class="fa fa-chevron-left"/>
+                    </button>
+                    <span class="small text-muted">
+                        <t t-esc="pagedRowsAll.length"/> <t t-esc="dimensionPlural.toLowerCase()"/> · página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
+                    </span>
+                    <button class="btn btn-outline-secondary btn-sm" t-att-disabled="!hasNextPage"
+                            t-on-click="nextPage" title="Página siguiente">
+                        <i class="fa fa-chevron-right"/>
+                    </button>
                 </div>
             </t>
 

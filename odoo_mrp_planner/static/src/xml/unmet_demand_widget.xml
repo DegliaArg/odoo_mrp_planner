@@ -6,7 +6,6 @@
 
             <!-- ══ FILTROS DEL GRÁFICO (afectan SOLO al gráfico) ═══════════════ -->
             <div class="d-flex align-items-center gap-1 mb-2 flex-wrap">
-                <span style="font-size:10px; white-space:nowrap;" class="text-primary fw-bold">GRÁFICO:</span>
                 <div class="d-flex align-items-center gap-1">
                     <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
                            title="Fecha inicial del período del gráfico."

@@ -374,12 +374,18 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     r['break_days'] = bd
                     r['diagnosis']  = self._unmet_diagnosis(bd, r['pending_age'])
 
-            # ── 5. KPIs globales (punto de partida; el front recalcula sobre
-            #       las filas filtradas, salvo affected_orders que es distinto). ─
-            tot_unmet_qty = sum(r['unmet_qty']     for r in rows)
-            tot_unmet_amt = sum(r['unmet_amount']  for r in rows)
-            tot_ordered   = sum(r['qty_ordered']   for r in rows)
-            tot_delivered = sum(r['qty_delivered'] for r in rows)
+            # ── 5. KPIs globales ─────────────────────────────────────────────
+            # Backlog (pendiente): sobre las filas; el front lo recalcula al filtrar
+            # la tabla. Demanda/entregado/cumplimiento: TOTALES del período, con la
+            # misma fuente que el panel de Ventas → Forecast ("Demanda real" y
+            # "Cumplimiento de demanda"), independientes de la dimensión elegida
+            # (cliente/producto/familia) y del backlog. Así los cards no bailan al
+            # cambiar de dimensión y coinciden siempre entre paneles.
+            tot_unmet_qty = sum(r['unmet_qty']    for r in rows)
+            tot_unmet_amt = sum(r['unmet_amount'] for r in rows)
+            so_data, demand_del_data = self._so_demand_delivered_by_product(period_from, period_to)
+            tot_ordered   = sum(q for pd in so_data.values()         for q in pd.values())
+            tot_delivered = sum(q for pd in demand_del_data.values() for q in pd.values())
             kpis = {
                 'total_unmet_qty':    round(tot_unmet_qty, 1),
                 'total_unmet_amount': round(tot_unmet_amt, 2),

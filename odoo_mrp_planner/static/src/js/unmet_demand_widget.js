@@ -66,6 +66,7 @@ class UnmetDemandWidget extends Component {
         this.action   = useService("action");
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
+        this._chartDrawn = null;   // {data, metric, topN} del último dibujo; evita redibujar en patches ajenos al gráfico
         this.cols     = useColManager("unmet_demand", UD_ALL_COLS);
 
         const now   = new Date();
@@ -111,9 +112,20 @@ class UnmetDemandWidget extends Component {
             }
         });
         onPatched(() => {
-            if (!this.state.chartLoading && this.chartRef.el && this.chartRowsAll.length) {
-                this._drawChart();
-            }
+            if (this.state.chartLoading || !this.chartRef.el || !this.chartRowsAll.length) return;
+            // Solo redibujar si cambió algo que afecta al gráfico (dataset, métrica o Top N).
+            // Los patches por filtros/búsqueda/orden/paginación de la tabla se ignoran.
+            const d = this._chartDrawn;
+            if (d && this._chart
+                && d.data === this.state.chartData
+                && d.metric === this.state.chartMetric
+                && d.topN === this.state.chartTopN) return;
+            this._chartDrawn = {
+                data:   this.state.chartData,
+                metric: this.state.chartMetric,
+                topN:   this.state.chartTopN,
+            };
+            this._drawChart();
         });
         onWillUnmount(() => {
             if (this._chart) { this._chart.destroy(); this._chart = null; }
@@ -326,18 +338,25 @@ class UnmetDemandWidget extends Component {
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
-    /** KPIs recalculados sobre las filas filtradas (consistentes con la tabla). */
+    /**
+     * KPIs de los cards.
+     *  - Backlog (monto/unidades pendientes, # entidades): se recalcula sobre las
+     *    filas filtradas, así refleja el detalle que ves en la tabla.
+     *  - Demanda (Pedido) / Entregado / % Cumplimiento: son TOTALES del período
+     *    que vienen del backend (misma fuente que Ventas → Forecast). NO dependen
+     *    de la dimensión (cliente/producto/familia) ni de los filtros de la tabla:
+     *    esos filtros solo desagregan el detalle, no mueven los cards.
+     */
     get kpis() {
         const rows = this.filteredRows;
         const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
-        const ordered   = sum("qty_ordered");
-        const delivered = sum("qty_delivered");
+        const bk = (this.state.data && this.state.data.kpis) || {};
         return {
             total_unmet_amount: Math.round(sum("unmet_amount") * 100) / 100,
             total_unmet_qty:    Math.round(sum("unmet_qty") * 10) / 10,
-            total_ordered:      Math.round(ordered * 10) / 10,
-            total_delivered:    Math.round(delivered * 10) / 10,
-            fulfillment_pct:    ordered > 0 ? Math.round(delivered / ordered * 1000) / 10 : null,
+            total_ordered:      bk.total_ordered ?? null,
+            total_delivered:    bk.total_delivered ?? null,
+            fulfillment_pct:    bk.fulfillment_pct ?? null,
             total_rows:         rows.length,
         };
     }
@@ -481,11 +500,11 @@ class UnmetDemandWidget extends Component {
             case "total_unmet_qty":
                 return `Unidades pedidas en el período aún sin entregar\nΣ(pedido − entregado) por línea, solo faltantes\n→ ${f(k.total_unmet_qty)} u.`;
             case "fulfillment_pct":
-                return `Tasa de cumplimiento de ${dp} con faltante\nEntregado ÷ Pedido × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}`;
+                return `Tasa de cumplimiento del período\nEntregado ÷ Pedido × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período (misma fuente que Ventas → Forecast); no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_ordered":
-                return `Unidades pedidas de ${dp} con demanda insatisfecha en el período\n→ ${f(k.total_ordered)} u.`;
+                return `Demanda real del período: unidades pedidas en órdenes de venta confirmadas (producto vendible)\n→ ${f(k.total_ordered)} u.\nMismo cálculo que la card "Demanda real" del panel de Ventas → Forecast. No depende de la dimensión ni de los filtros de la tabla.`;
             case "total_delivered":
-                return `Unidades entregadas (a la fecha) de ${dp} con demanda insatisfecha\n→ ${f(k.total_delivered)} u.`;
+                return `Cumplimiento de demanda del período: entregas reales de los pedidos del período\n→ ${f(k.total_delivered)} u.\nMismo cálculo que la card "Cumplimiento de demanda" del panel de Ventas → Forecast. No depende de la dimensión ni de los filtros de la tabla.`;
             case "total_rows":
                 return `${this.dimensionPlural} con al menos una unidad pendiente en el período\n→ ${f(k.total_rows)}`;
             default:

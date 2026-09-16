@@ -72,6 +72,144 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         return set()
 
     @api.model
+    def _so_demand_delivered_by_product(self, period_from, period_to):
+        """Demanda real y cumplimiento del período, por producto y mes.
+
+        Fuente ÚNICA compartida por el panel de Forecast (cards "Demanda real" y
+        "Cumplimiento de demanda") y por el de demanda insatisfecha, para que
+        ambos muestren siempre los mismos números.
+
+        - Demanda real: unidades pedidas en órdenes de venta confirmadas cuyo
+          `date_order` cae en el período (producto vendible, exclusión de
+          servicios según config), a nivel compañía.
+        - Cumplimiento: entregas reales (movimientos de salida `done`) de los
+          pedidos de ese período, agrupadas por el mes de confirmación del pedido.
+
+        :param period_from: str 'YYYY-MM' o 'YYYY-MM-DD'.
+        :param period_to:   str 'YYYY-MM' o 'YYYY-MM-DD'.
+        :returns: (so_data, demand_del_data) — dos dicts {product_id: {ym: qty}}.
+        """
+        from datetime import date as _date
+
+        def _parse_ym(ym):
+            parts = ym.split('-')
+            y, m = int(parts[0]), int(parts[1])
+            d = int(parts[2]) if len(parts) >= 3 else 1
+            return _date(y, m, d)
+
+        def _months_between(d_from, d_to):
+            months = []
+            d = _date(d_from.year, d_from.month, 1)
+            while d <= _date(d_to.year, d_to.month, 1):
+                months.append(f"{d.year}-{d.month:02d}")
+                if d.month == 12:
+                    d = _date(d.year + 1, 1, 1)
+                else:
+                    d = _date(d.year, d.month + 1, 1)
+            return months
+
+        so_data = {}          # {product_id: {ym: qty}}
+        demand_del_data = {}  # {product_id: {ym: qty}}
+        try:
+            d_from = _parse_ym(period_from)
+            d_to   = _parse_ym(period_to)
+        except Exception:
+            return so_data, demand_del_data
+        months = _months_between(d_from, d_to)
+
+        tz_name = self.env.context.get('tz') or self.env.user.tz or 'UTC'
+        user_tz = pytz.timezone(tz_name)
+
+        def _to_utc(dt_naive):
+            return user_tz.localize(dt_naive).astimezone(pytz.utc).replace(tzinfo=None)
+
+        def _dt_ym(dt_utc):
+            return pytz.utc.localize(dt_utc).astimezone(user_tz).strftime('%Y-%m')
+
+        dt_from = _to_utc(datetime.combine(d_from, datetime.min.time()))
+        dt_to   = _to_utc(datetime.combine(d_to,   datetime.max.time()))
+
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        _exclude_services = bool(cfg and cfg.customer_analysis_exclude_services)
+        _svc_dom = [('product_id.type', '!=', 'service')] if _exclude_services else []
+        company_id = self.env.company.id
+
+        # ── Demanda real: pedidos de venta confirmados ─────────────────────────
+        try:
+            so_domain = [
+                ('order_id.state', 'in', ('sale', 'done')),
+                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
+                ('product_id.sale_ok', '=', True),
+                ('company_id', '=', company_id),
+            ] + _svc_dom
+            sol_rows = self.env['sale.order.line'].search(so_domain).read(
+                ['product_id', 'product_uom_qty', 'order_id']
+            )
+            _order_ids  = list({r['order_id'][0] for r in sol_rows if r['order_id']})
+            _order_dates = {o['id']: o['date_order'] for o in
+                            self.env['sale.order'].browse(_order_ids).read(['id', 'date_order'])}
+            for _sl in sol_rows:
+                pid = _sl['product_id'][0] if _sl['product_id'] else False
+                if not pid:
+                    continue
+                dt  = _order_dates.get(_sl['order_id'][0]) if _sl['order_id'] else None
+                if not dt:
+                    continue
+                ym  = _dt_ym(dt)
+                if ym not in months:
+                    continue
+                so_data.setdefault(pid, {})
+                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + _sl['product_uom_qty']
+        except Exception:
+            pass    # módulo sale no disponible
+
+        # ── Cumplimiento de demanda: entregas de los pedidos del período ───────
+        _period_so_ids = []
+        try:
+            _period_sos = self.env['sale.order'].search([
+                ('state', 'in', ('sale', 'done')),
+                ('date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_order', '<=', fields.Datetime.to_string(dt_to)),
+                ('company_id', '=', company_id),
+            ])
+            _period_so_ids = _period_sos.ids
+            _so_to_ym = {
+                so.id: so.date_order.strftime('%Y-%m')
+                for so in _period_sos if so.date_order
+            }
+            if _period_so_ids:
+                demand_del_dom = [
+                    ('state', '=', 'done'),
+                    ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                    ('picking_id.sale_id', 'in', _period_so_ids),
+                    ('product_id.sale_ok', '=', True),
+                    ('company_id', '=', company_id),
+                ]
+                _dd_lines = self.env['stock.move.line'].search(demand_del_dom).read(
+                    ['product_id', 'quantity', 'picking_id'])
+                _dd_pick_ids = list({ml['picking_id'][0] for ml in _dd_lines if ml['picking_id']})
+                _dd_pick_to_so = {}
+                if _dd_pick_ids:
+                    for _p in self.env['stock.picking'].browse(_dd_pick_ids).read(['id', 'sale_id']):
+                        if _p['sale_id']:
+                            _dd_pick_to_so[_p['id']] = _p['sale_id'][0]
+                for _ml in _dd_lines:
+                    _pid   = _ml['product_id'][0] if _ml['product_id'] else False
+                    _pick  = _ml['picking_id'][0]  if _ml['picking_id'] else False
+                    if not _pid or not _pick:
+                        continue
+                    _so_id = _dd_pick_to_so.get(_pick)
+                    _ym    = _so_to_ym.get(_so_id) if _so_id else None
+                    if _ym:
+                        demand_del_data.setdefault(_pid, {})
+                        demand_del_data[_pid][_ym] = demand_del_data[_pid].get(_ym, 0.0) + _ml['quantity']
+        except Exception:
+            pass
+
+        return so_data, demand_del_data
+
+    @api.model
     def get_forecast_dashboard_data(self, period_from, period_to, warehouse_ids=None):
         """
         Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado.
@@ -146,7 +284,6 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         # demanda real (con y sin FC) — las entregas no cambian (los servicios no
         # generan remitos).
         _exclude_services = bool(cfg and cfg.customer_analysis_exclude_services)
-        _svc_dom = [('product_id.type', '!=', 'service')] if _exclude_services else []
         warning_pct    = cfg.forecast_warning_pct    if cfg else FORECAST_WARNING_PCT    # umbral de alerta (cobertura aceptable mínima)
         critical_pct   = cfg.forecast_critical_pct   if cfg else FORECAST_CRITICAL_PCT   # umbral crítico (cobertura insuficiente)
         rotation_unit   = (cfg.forecast_rotation_unit   if cfg else None) or 'days'
@@ -396,83 +533,10 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 dispatch_del_by_order_month[pid][_oym] = \
                     dispatch_del_by_order_month[pid].get(_oym, 0.0) + qty
 
-        # ── Demanda real: pedidos de venta confirmados ─────────────────────────
-        so_data = {}    # {product_id: {ym: qty}}
-        try:
-            so_domain = [
-                ('order_id.state', 'in', ('sale', 'done')),
-                ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
-                ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', '=', self.env.company.id),
-            ] + _svc_dom
-            sol_rows = self.env['sale.order.line'].search(so_domain).read(
-                ['product_id', 'product_uom_qty', 'order_id']
-            )
-            # Precarga date_order de todas las sale.order en un solo SELECT
-            _order_ids  = list({r['order_id'][0] for r in sol_rows if r['order_id']})
-            _order_dates = {o['id']: o['date_order'] for o in
-                            self.env['sale.order'].browse(_order_ids).read(['id', 'date_order'])}
-            for _sl in sol_rows:
-                pid = _sl['product_id'][0] if _sl['product_id'] else False
-                if not pid:
-                    continue
-                dt  = _order_dates.get(_sl['order_id'][0]) if _sl['order_id'] else None
-                if not dt:
-                    continue
-                ym  = _dt_ym(dt)
-                if ym not in months:
-                    continue
-                so_data.setdefault(pid, {})
-                so_data[pid][ym] = so_data[pid].get(ym, 0.0) + _sl['product_uom_qty']
-        except Exception:
-            pass    # módulo sale no disponible
-
-        # ── Cumplimiento de demanda: entregas de pedidos del período, por mes del pedido ──
-        demand_del_data = {}  # {product_id: {ym: qty}} — agrupado por mes de confirmación del SO
-        _period_so_ids  = []
-        try:
-            _period_sos = self.env['sale.order'].search([
-                ('state', 'in', ('sale', 'done')),
-                ('date_order', '>=', fields.Datetime.to_string(dt_from)),
-                ('date_order', '<=', fields.Datetime.to_string(dt_to)),
-                ('company_id', '=', self.env.company.id),
-            ])
-            _period_so_ids = _period_sos.ids
-            # Mapa SO → mes de confirmación
-            _so_to_ym = {
-                so.id: so.date_order.strftime('%Y-%m')
-                for so in _period_sos if so.date_order
-            }
-            if _period_so_ids:
-                demand_del_dom = [
-                    ('state', '=', 'done'),
-                    ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                    ('picking_id.sale_id', 'in', _period_so_ids),
-                    ('product_id.sale_ok', '=', True),
-                    ('company_id', '=', self.env.company.id),
-                ]
-                _dd_lines = self.env['stock.move.line'].search(demand_del_dom).read(
-                    ['product_id', 'quantity', 'picking_id'])
-                # Mapa picking → SO id
-                _dd_pick_ids = list({ml['picking_id'][0] for ml in _dd_lines if ml['picking_id']})
-                _dd_pick_to_so = {}
-                if _dd_pick_ids:
-                    for _p in self.env['stock.picking'].browse(_dd_pick_ids).read(['id', 'sale_id']):
-                        if _p['sale_id']:
-                            _dd_pick_to_so[_p['id']] = _p['sale_id'][0]
-                for _ml in _dd_lines:
-                    _pid   = _ml['product_id'][0] if _ml['product_id'] else False
-                    _pick  = _ml['picking_id'][0]  if _ml['picking_id'] else False
-                    if not _pid or not _pick:
-                        continue
-                    _so_id = _dd_pick_to_so.get(_pick)
-                    _ym    = _so_to_ym.get(_so_id) if _so_id else None
-                    if _ym:
-                        demand_del_data.setdefault(_pid, {})
-                        demand_del_data[_pid][_ym] = demand_del_data[_pid].get(_ym, 0.0) + _ml['quantity']
-        except Exception:
-            pass
+        # ── Demanda real (pedidos SO) y cumplimiento (entregas reales) ─────────
+        # Fuente única compartida con el panel de demanda insatisfecha, para que
+        # ambos muestren los mismos totales. Devuelve {product_id: {ym: qty}}.
+        so_data, demand_del_data = self._so_demand_delivered_by_product(period_from, period_to)
 
         # ── Universo de la tabla: productos con forecast ∪ vendibles con
         #    actividad en el período (pedidos, OFs, entregas). Los que no tienen

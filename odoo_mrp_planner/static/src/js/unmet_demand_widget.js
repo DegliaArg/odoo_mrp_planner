@@ -139,6 +139,9 @@ class UnmetDemandWidget extends Component {
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
             groupBy:      pick("groupBy", ""),      // "" | "diagnosis" — agrupador de la tabla (solo producto)
             collapsedGroups: {},                    // {diagKey: true} = grupo colapsado (transitorio)
+            expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
+            expandData:   {},                       // cache {product_id: análisis} del expand
+            expandLoading: false,
             colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
@@ -438,6 +441,40 @@ class UnmetDemandWidget extends Component {
     toggleGroup(key) {
         this.state.collapsedGroups = { ...this.state.collapsedGroups, [key]: !this.state.collapsedGroups[key] };
     }
+    // ── Análisis de entregabilidad (expandir fila, solo producto) ────────────────
+    /** ¿Se puede expandir la fila para ver el análisis histórico? (solo producto) */
+    get canExpand() { return this.state.dimension === "product"; }
+    /** Expandir/colapsar una fila; al expandir carga el análisis on-demand. */
+    async toggleExpand(row) {
+        if (!this.canExpand) return;
+        if (this.state.expandedKey === row.key) { this.state.expandedKey = null; return; }
+        this.state.expandedKey = row.key;
+        if (this.state.expandData[row.key] === undefined) {
+            this.state.expandLoading = true;
+            try {
+                const res = await this.orm.call(
+                    "mrp.planner.dashboard", "get_unmet_delivery_analysis",
+                    [row.key, this.state.dateFrom, this.state.dateTo]);
+                this.state.expandData = { ...this.state.expandData, [row.key]: res };
+            } catch (e) {
+                console.error("[UnmetDemandWidget] delivery analysis", e);
+                this.state.expandData = { ...this.state.expandData, [row.key]: { error: true } };
+            } finally {
+                this.state.expandLoading = false;
+            }
+        }
+    }
+    /** Etiqueta + clase del diagnóstico refinado de entregabilidad. */
+    deliveryDiagnosis(diag) {
+        const map = {
+            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark" },
+            shortage:    { label: "Falta de stock", cls: "bg-danger text-white" },
+            mixed:       { label: "Mixto",          cls: "bg-warning text-dark" },
+            na:          { label: "Sin datos",      cls: "bg-light text-muted border" },
+        };
+        return map[diag] || map.na;
+    }
+
     /** Filas agrupadas por diagnóstico (sobre todas las filtradas y ordenadas). */
     get groupedRows() {
         const buckets = {};

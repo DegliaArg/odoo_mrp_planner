@@ -330,6 +330,8 @@
                                     </tr>
                                     <t t-if="!grp.collapsed" t-foreach="grp.rows" t-as="row" t-key="row.key">
                                         <t t-call="odoo_mrp_planner.UnmetDemandDetailRow"/>
+                                        <t t-if="canExpand and state.expandedKey === row.key"
+                                           t-call="odoo_mrp_planner.UnmetDemandExpandRow"/>
                                     </t>
                                 </t>
                             </t>
@@ -337,6 +339,8 @@
                             <t t-else="">
                                 <t t-foreach="pagedRows" t-as="row" t-key="row.key">
                                     <t t-call="odoo_mrp_planner.UnmetDemandDetailRow"/>
+                                    <t t-if="canExpand and state.expandedKey === row.key"
+                                       t-call="odoo_mrp_planner.UnmetDemandExpandRow"/>
                                 </t>
                             </t>
                         </tbody>
@@ -379,7 +383,9 @@
     <!-- Fila de detalle de la tabla (reutilizada en modo normal y agrupado).
          Requiere `row` y `columns` en el scope. -->
     <t t-name="odoo_mrp_planner.UnmetDemandDetailRow">
-        <tr>
+        <tr t-att-style="canExpand ? 'cursor:pointer;' : ''"
+            t-att-class="canExpand and state.expandedKey === row.key ? 'table-active' : ''"
+            t-on-click="() => this.toggleExpand(row)">
             <t t-foreach="columns" t-as="col" t-key="col.key">
                 <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
                     style="padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
@@ -404,9 +410,60 @@
                               t-esc="row.category"/>
                         <span t-else="" class="text-muted">—</span>
                     </t>
+                    <t t-elif="col.fixed">
+                        <i t-if="canExpand"
+                           t-att-class="'fa me-1 text-muted ' + (state.expandedKey === row.key ? 'fa-caret-down' : 'fa-caret-right')"/>
+                        <t t-esc="cellText(row, col)"/>
+                    </t>
                     <t t-else="" t-esc="cellText(row, col)"/>
                 </td>
             </t>
+        </tr>
+    </t>
+
+    <!-- Panel de análisis de entregabilidad (fila expandida). Requiere `row`. -->
+    <t t-name="odoo_mrp_planner.UnmetDemandExpandRow">
+        <tr>
+            <td t-att-colspan="columns.length" class="bg-light" style="padding:8px 16px;">
+                <t t-set="a" t-value="state.expandData[row.key]"/>
+                <div t-if="!a" class="text-muted small">
+                    <i class="fa fa-spinner fa-spin me-1"/>Analizando entregabilidad…
+                </div>
+                <div t-elif="a.error" class="text-danger small">Error al analizar la entregabilidad.</div>
+                <div t-else="">
+                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                        <span class="fw-bold small">Entregabilidad histórica:</span>
+                        <span t-att-class="'badge ' + deliveryDiagnosis(a.diagnosis).cls"
+                              t-esc="deliveryDiagnosis(a.diagnosis).label"/>
+                        <span t-if="a.index_pct !== null" class="fw-bold" t-esc="fmtPct(a.index_pct)"/>
+                        <span class="text-muted small">del tiempo pendiente (ponderado) hubo stock para haber entregado</span>
+                    </div>
+                    <div class="progress mb-2" style="height:8px; max-width:320px;">
+                        <div class="progress-bar bg-info" role="progressbar"
+                             t-att-style="'width:' + (a.index_pct || 0) + '%;'"/>
+                    </div>
+                    <table class="table table-sm table-borderless mb-0" style="font-size:11px; max-width:660px;">
+                        <thead>
+                            <tr class="text-muted">
+                                <th>Pedido</th>
+                                <th class="text-end">Pendiente</th>
+                                <th class="text-end">Días pendiente</th>
+                                <th class="text-end">Días con stock</th>
+                                <th class="text-end">% entregable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="a.lines" t-as="ln" t-key="ln_index">
+                                <td t-esc="ln.order"/>
+                                <td class="text-end" t-esc="fmt(ln.pending)"/>
+                                <td class="text-end" t-esc="fmt(ln.days_total)"/>
+                                <td class="text-end" t-esc="fmt(ln.days_deliverable)"/>
+                                <td class="text-end" t-esc="fmtPct(ln.pct)"/>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </td>
         </tr>
     </t>
 

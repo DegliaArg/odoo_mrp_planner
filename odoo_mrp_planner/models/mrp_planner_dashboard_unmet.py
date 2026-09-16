@@ -710,18 +710,53 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 curve.append([_ms(s), round(lvl, 1)])
                 curve.append([_ms(e), round(lvl, 1)])
 
+            # Nivel de stock en un instante (ms) según los segmentos, para posar los
+            # marcadores de entrega sobre la curva.
+            _seg_ms = [(_ms(s), _ms(e), lvl) for s, e, lvl in segments]
+            def _make_stock_lookup(_segments):
+                def _at(ms):
+                    for s_ms, e_ms, lvl in _seg_ms:
+                        if s_ms <= ms <= e_ms:
+                            return round(lvl, 1)
+                    return round(_seg_ms[-1][2], 1) if _seg_ms else 0.0
+                return _at
+
             # Curva del PENDIENTE ACUMULADO: la demanda pendiente no es fija, sube a
             # medida que entra cada pedido (a su fecha). Escalón ascendente hasta hoy.
-            dated = sorted(((_start_dt(oid), unmet) for oid, unmet in pend if _start_dt(oid)),
-                           key=lambda x: x[0])
+            # order_pts: marcador en cada entrada de pedido (fecha, nivel acumulado,
+            # nombre, cantidad) para señalarlos en el gráfico.
+            dated = sorted(((oid, _start_dt(oid), unmet) for oid, unmet in pend if _start_dt(oid)),
+                           key=lambda x: x[1])
             pend_curve = []
+            order_pts = []
             acc = 0.0
-            for dt, unmet in dated:
+            for oid, dt, unmet in dated:
                 pend_curve.append([_ms(dt), round(acc, 1)])   # antes del escalón
                 acc += unmet
                 pend_curve.append([_ms(dt), round(acc, 1)])   # después del escalón
+                order_pts.append({'x': _ms(dt), 'y': round(acc, 1),
+                                  'order': (orders.get(oid) or {}).get('name') or '',
+                                  'qty': round(unmet, 1)})
             if pend_curve:
                 pend_curve.append([_ms(now), round(acc, 1)])  # se mantiene hasta hoy
+
+            # Entregas del producto en la ventana (movimientos de salida done): para
+            # marcar dónde SÍ salió mercadería. Se ubican sobre la curva de stock.
+            stock_at = _make_stock_lookup(segments)
+            deliv_pts = []
+            if starts:
+                dmoves = self.env['stock.move.line'].sudo().search_read(
+                    [('product_id', '=', product_id), ('state', '=', 'done'),
+                     ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                     ('date', '>=', fields.Datetime.to_string(min(starts))),
+                     ('company_id', '=', self.env.company.id)],
+                    ['date', 'quantity'])
+                agg_deliv = {}
+                for m in dmoves:
+                    ms = _ms(m['date'])
+                    agg_deliv[ms] = agg_deliv.get(ms, 0.0) + (m['quantity'] or 0.0)
+                for ms, q in sorted(agg_deliv.items()):
+                    deliv_pts.append({'x': ms, 'y': stock_at(ms), 'qty': round(q, 1)})
 
             return {
                 'index_pct':     index_pct,
@@ -732,6 +767,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 'stock_now':     round(segments[-1][2], 1) if segments else 0.0,
                 'curve':         curve,
                 'pend_curve':    pend_curve,
+                'order_pts':     order_pts,
+                'deliv_pts':     deliv_pts,
                 'lines':         lines,
             }
         except Exception as e:

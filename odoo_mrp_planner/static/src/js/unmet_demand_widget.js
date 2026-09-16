@@ -604,14 +604,22 @@ class UnmetDemandWidget extends Component {
         const pend = (a.pend_curve && a.pend_curve.length)
             ? a.pend_curve.map(p => ({ x: p[0], y: p[1] }))
             : [{ x: a.curve[0][0], y: a.total_pending }, { x: a.curve.at(-1)[0], y: a.total_pending }];
+        const orderPts = (a.order_pts || []).map(p => ({ x: p.x, y: p.y, _order: p.order, _qty: p.qty }));
+        const delivPts = (a.deliv_pts || []).map(p => ({ x: p.x, y: p.y, _qty: p.qty }));
         this._deliveryChart = new ChartJs(canvas, {
             type: "line",
             data: {
                 datasets: [
                     { label: "Stock", data: stock, stepped: true, borderColor: dg.color,
-                      backgroundColor: dg.color + "22", fill: true, pointRadius: 0, borderWidth: 2 },
+                      backgroundColor: dg.color + "22", fill: true, pointRadius: 0, borderWidth: 2, order: 3 },
                     { label: "Pendiente", data: pend, stepped: true, borderColor: "#adb5bd", borderDash: [5, 4],
-                      pointRadius: 0, borderWidth: 1.5, fill: false },
+                      pointRadius: 0, borderWidth: 1.5, fill: false, order: 4 },
+                    { label: "Entra pedido", data: orderPts, type: "scatter", showLine: false,
+                      pointStyle: "circle", pointRadius: 4, pointHoverRadius: 6,
+                      backgroundColor: "#6c757d", borderColor: "#fff", borderWidth: 1, order: 1 },
+                    { label: "Entrega", data: delivPts, type: "scatter", showLine: false,
+                      pointStyle: "triangle", pointRadius: 6, pointHoverRadius: 8,
+                      backgroundColor: "#198754", borderColor: "#fff", borderWidth: 1, order: 0 },
                 ],
             },
             options: {
@@ -626,7 +634,12 @@ class UnmetDemandWidget extends Component {
                     legend: { display: true, labels: { boxWidth: 10, font: { size: 9 } } },
                     tooltip: { callbacks: {
                         title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString("es-AR") : "",
-                        label: c => `${c.dataset.label}: ${this.fmt(c.parsed.y)}` } },
+                        label: c => {
+                            const raw = c.raw || {};
+                            if (c.dataset.label === "Entra pedido") return `Entra ${raw._order}: +${this.fmt(raw._qty)} u`;
+                            if (c.dataset.label === "Entrega")      return `Entrega: ${this.fmt(raw._qty)} u`;
+                            return `${c.dataset.label}: ${this.fmt(c.parsed.y)}`;
+                        } } },
                 },
             },
         });

@@ -540,7 +540,7 @@ class UnmetDemandWidget extends Component {
             case "total_unmet_amount":
                 return `Valorización del pendiente del período\nCantidad pendiente × precio unitario\n→ ${m(k.total_unmet_amount)}` + this.amountNote();
             case "total_unmet_qty":
-                return `Unidades pedidas en el período aún sin entregar\nΣ(pedido − entregado) por línea, solo faltantes\n→ ${f(k.total_unmet_qty)} u.`;
+                return `Pendiente del período: Demanda real − Cumplimiento de demanda\n→ ${f(k.total_ordered)} − ${f(k.total_delivered)} = ${f(k.total_unmet_qty)} u.\nSe desagrega por cliente/producto/familia en la tabla.`;
             case "fulfillment_pct":
                 return `Tasa de cumplimiento del período\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_ordered":

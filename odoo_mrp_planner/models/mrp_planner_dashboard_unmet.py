@@ -101,8 +101,9 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         if focus not in ('ordered', 'delivered', 'pending', 'value', 'fulfillment'):
             focus = 'pending'
 
-        # Mismo dominio que las cards (y que el Forecast) → el "Ver" suma exactamente.
-        lines = self.env['sale.order.line'].sudo().search_read(
+        # Mismo dominio que las cards (y que el Forecast), sin sudo → el "Ver" suma
+        # exactamente lo mismo que la card (ambos respetan las reglas del usuario).
+        lines = self.env['sale.order.line'].search_read(
             self._unmet_line_domain(period_from, period_to),
             ['id', 'product_uom_qty', 'qty_delivered'])
 
@@ -208,9 +209,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             company_id = self.env.company.id
 
             # ── 1. Pedidos confirmados del período ───────────────────────────
-            # A nivel compañía (sin filtro de almacén), igual que la "Demanda real"
-            # del Forecast. sudo(): el usuario del panel no accede a sale.order.
-            orders = self.env['sale.order'].sudo().search([
+            # A nivel compañía (sin filtro de almacén) y SIN sudo: respeta las
+            # reglas de registro del usuario, igual que la "Demanda real" del
+            # Forecast → los totales coinciden entre paneles.
+            orders = self.env['sale.order'].search([
                 ('state', 'in', ['sale', 'done']),
                 ('date_order', '>=', fields.Datetime.to_string(dt_from)),
                 ('date_order', '<=', fields.Datetime.to_string(dt_to)),
@@ -281,8 +283,9 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
             # ── 2. Líneas de pedido ──────────────────────────────────────────
             # sale_ok=True + exclusión de servicios: mismo filtro que el Forecast.
+            # Sin sudo: respeta las reglas de registro del usuario (igual que el Forecast).
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
-            lines = self.env['sale.order.line'].sudo().search_read(
+            lines = self.env['sale.order.line'].search_read(
                 [('order_id', 'in', orders.ids), ('product_id.sale_ok', '=', True)] + svc_dom,
                 ['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'],
             )
@@ -321,13 +324,13 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             all_unmet_orders = set()
 
             # Totales del período sobre TODAS las líneas analizadas (las mismas del
-            # dominio de la Demanda real). Cumplimiento = Σ cantidades entregadas
-            # (qty_delivered, directo del pedido, sin importar la fecha de entrega);
-            # Pendiente = Σ máx(0, pedido − entregado). Coinciden con la suma del
-            # drill "Ver".
+            # dominio de la Demanda real):
+            #   Demanda real = Σ pedido; Cumplimiento = Σ entregado (qty_delivered,
+            #   directo del pedido, sin importar la fecha de entrega).
+            #   Pendiente = Demanda − Cumplimiento (derivación pura: pedí X, entregué
+            #   Y, debo X−Y), no una suma independiente.
             period_ordered   = 0.0
             period_delivered = 0.0
-            period_unmet_qty = 0.0
             period_unmet_amt = 0.0
 
             for l in lines:
@@ -347,7 +350,6 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
                 period_ordered   += ordered
                 period_delivered += delivered
-                period_unmet_qty += unmet
                 period_unmet_amt += unmet_amt
 
                 if dimension == 'customer':
@@ -392,22 +394,28 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                         if _days > d['_age_oldest']:
                             d['_age_oldest'] = _days
 
-            # ── 4. Filas (solo entidades con pendiente) ──────────────────────
+            # ── 4. Filas: desagregación del pendiente por entidad ─────────────
+            # Pendiente por entidad = pedido − entregado (misma derivación que la
+            # card). Así la suma de la columna Pendiente de la tabla coincide con el
+            # total de la card. La valorización (unmet_amount) y la antigüedad son
+            # el detalle del backlog por línea de esa entidad.
             rows = []
             for d in agg.values():
-                if d['unmet_qty'] <= 0:
+                ordered   = d['qty_ordered']
+                delivered = d['qty_delivered']
+                unmet     = ordered - delivered
+                if unmet <= 1e-6:
                     continue
-                ordered = d['qty_ordered']
                 rows.append({
                     'key':             d['key'],
                     'name':            d['name'] or '(sin nombre)',
                     'category':        d['category'] or '',
                     'qty_ordered':     round(ordered, 1),
-                    'qty_delivered':   round(d['qty_delivered'], 1),
-                    'unmet_qty':       round(d['unmet_qty'], 1),
+                    'qty_delivered':   round(delivered, 1),
+                    'unmet_qty':       round(unmet, 1),
                     'unmet_amount':    round(d['unmet_amount'], 2),
-                    'fulfillment_pct': round(d['qty_delivered'] / ordered * 100, 1) if ordered > 0 else None,
-                    'unmet_pct':       round(d['unmet_qty'] / ordered * 100, 1) if ordered > 0 else None,
+                    'fulfillment_pct': round(delivered / ordered * 100, 1) if ordered > 0 else None,
+                    'unmet_pct':       round(unmet / ordered * 100, 1) if ordered > 0 else None,
                     'affected_orders': len(d['_orders']),
                     'cross_count':     len(d['_cross']),
                     'pending_age_weighted': round(d['_age_num'] / d['_age_den'], 1) if d['_age_den'] > 0 else None,
@@ -428,13 +436,12 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     r['diagnosis']  = self._unmet_diagnosis(bd, r['pending_age'])
 
             # ── 5. KPIs globales del período ─────────────────────────────────
-            # Demanda real / Cumplimiento / Pendiente son totales FIJOS del período
-            # (todas las líneas analizadas): no dependen de la dimensión elegida
-            # (cliente/producto/familia) ni de los filtros de la tabla. Cada uno se
-            # calcula directo de las líneas (Σ pedido, Σ entregado, Σ pendiente), y
-            # el "Ver" de cada card suma esas mismas líneas → coinciden.
+            # Demanda real y Cumplimiento son totales FIJOS del período (Σ pedido y
+            # Σ entregado sobre las mismas líneas, directo del pedido). Pendiente se
+            # DERIVA de ambos (Demanda − Cumplimiento): pedí X, entregué Y, debo X−Y.
+            # No dependen de la dimensión ni de los filtros de la tabla.
             kpis = {
-                'total_unmet_qty':    round(period_unmet_qty, 1),
+                'total_unmet_qty':    round(period_ordered - period_delivered, 1),
                 'total_unmet_amount': round(period_unmet_amt, 2),
                 'total_ordered':      round(period_ordered, 1),
                 'total_delivered':    round(period_delivered, 1),

@@ -646,17 +646,13 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 return empty
             total_pending = sum(u for _o, u in pend)
 
-            # Fecha de referencia por pedido: compromiso si existe, si no confirmación.
-            so_fields = ['date_order', 'name']
-            has_commit = 'commitment_date' in self.env['sale.order']._fields
-            if has_commit:
-                so_fields.append('commitment_date')
+            # Fecha de referencia por pedido: confirmación (date_order), igual que la
+            # columna "Antig. pendiente" y la columna Situación, para que coincidan.
             order_ids = list({oid for oid, _q in pend})
-            orders = {o['id']: o for o in self.env['sale.order'].sudo().browse(order_ids).read(so_fields)}
+            orders = {o['id']: o for o in self.env['sale.order'].sudo().browse(order_ids).read(['date_order', 'name'])}
 
             def _start_dt(oid):
-                o = orders.get(oid) or {}
-                return (o.get('commitment_date') if has_commit else None) or o.get('date_order')
+                return (orders.get(oid) or {}).get('date_order')
 
             now = fields.Datetime.now()
             starts = [_start_dt(oid) for oid, _q in pend if _start_dt(oid)]

@@ -69,8 +69,11 @@ const PERSIST_KEYS = [
     "chartDateFrom", "chartDateTo", "chartDimension", "chartAmountMethod",
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
-    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll",
+    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll", "groupBy",
 ];
+
+// Orden de presentación de los grupos por diagnóstico (crónico primero, OK último).
+const DIAG_ORDER = ["chronic", "supply", "fulfillment", "ok"];
 function loadFilters() {
     try {
         const raw = localStorage.getItem(FILTERS_KEY);
@@ -134,6 +137,8 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
+            groupBy:      pick("groupBy", ""),      // "" | "diagnosis" — agrupador de la tabla (solo producto)
+            collapsedGroups: {},                    // {diagKey: true} = grupo colapsado (transitorio)
             colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
@@ -388,9 +393,8 @@ class UnmetDemandWidget extends Component {
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
-    /** Totales de la tabla, sobre TODAS las filas filtradas (no solo la página). */
-    get totals() {
-        const rows = this.filteredRows;
+    /** Suma de un conjunto de filas (para el pie de tabla y los subtotales de grupo). */
+    _sumRows(rows) {
         const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
         const ordered   = sum("qty_ordered");
         const delivered = sum("qty_delivered");
@@ -406,9 +410,11 @@ class UnmetDemandWidget extends Component {
             unmet_pct:       ordered > 0 ? unmet / ordered * 100 : null,
         };
     }
-    /** Texto de la celda de totales para una columna (vacío si no aplica sumar). */
-    footerText(col) {
-        const t = this.totals;
+    /** Totales de la tabla, sobre TODAS las filas filtradas (no solo la página). */
+    get totals() { return this._sumRows(this.filteredRows); }
+
+    /** Texto de la celda de totales de una columna, dado un objeto de sumas. */
+    _totalText(t, col) {
         switch (col.key) {
             case "qty_ordered":
             case "qty_delivered":
@@ -419,6 +425,39 @@ class UnmetDemandWidget extends Component {
             case "unmet_pct":       return this.fmtPct(t.unmet_pct);
             default:                return "";   // categoría, antigüedad, quiebre, diagnóstico, # cruce: no se totalizan
         }
+    }
+    footerText(col)            { return this._totalText(this.totals, col); }
+    groupSubtotal(group, col)  { return this._totalText(group.totals, col); }
+
+    // ── Agrupador por diagnóstico (solo dimensión producto) ──────────────────────
+    /** ¿La tabla está agrupada por diagnóstico ahora mismo? */
+    get isGrouped() { return this.state.groupBy === "diagnosis" && this.state.dimension === "product"; }
+    /** Toggle del agrupador por diagnóstico. */
+    toggleGroupBy() { this.state.groupBy = this.state.groupBy === "diagnosis" ? "" : "diagnosis"; }
+    /** Colapsar/expandir un grupo. */
+    toggleGroup(key) {
+        this.state.collapsedGroups = { ...this.state.collapsedGroups, [key]: !this.state.collapsedGroups[key] };
+    }
+    /** Filas agrupadas por diagnóstico (sobre todas las filtradas y ordenadas). */
+    get groupedRows() {
+        const buckets = {};
+        for (const r of this.pagedRowsAll) {
+            const k = r.diagnosis || "ok";
+            (buckets[k] = buckets[k] || []).push(r);
+        }
+        return DIAG_ORDER.filter(k => buckets[k]).map(k => {
+            const rows = buckets[k];
+            const chip = this.diagnosisChip({ diagnosis: k });
+            return {
+                key:       k,
+                label:     chip.label,
+                cls:       chip.cls,
+                tooltip:   this.diagnosisTooltip(k),
+                rows,
+                totals:    this._sumRows(rows),
+                collapsed: !!this.state.collapsedGroups[k],
+            };
+        });
     }
 
     /**

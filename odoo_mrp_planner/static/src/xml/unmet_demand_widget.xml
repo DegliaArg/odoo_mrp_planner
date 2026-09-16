@@ -139,6 +139,13 @@
                     <i t-att-class="'fa ' + (state.showAll ? 'fa-list' : 'fa-filter')"/>
                     <span t-esc="state.showAll ? 'Todas' : 'Solo con faltante'"/>
                 </button>
+                <button t-if="state.dimension === 'product'"
+                        t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (isGrouped ? 'btn-secondary' : 'btn-outline-secondary')"
+                        t-att-title="isGrouped ? 'Tabla agrupada por diagnóstico. Clic para desagrupar.' : 'Agrupar la tabla por diagnóstico (Crónico / Sin stock / Fulfillment / OK).'"
+                        t-on-click="toggleGroupBy">
+                    <i class="fa fa-object-group"/>
+                    <span>Agrupar por diagnóstico</span>
+                </button>
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                             title="Elegir qué columnas mostrar en la tabla"
@@ -303,36 +310,34 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <t t-foreach="pagedRows" t-as="row" t-key="row.key">
-                                <tr>
-                                    <t t-foreach="columns" t-as="col" t-key="col.key">
-                                        <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
-                                            style="padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
-                                            t-att-title="cellTooltip(col, row)">
-                                            <t t-if="col.key === 'unmet_amount'">
-                                                <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>
-                                            </t>
-                                            <t t-elif="col.key === 'fulfillment_pct'">
-                                                <span t-att-class="fulfillClass(row.fulfillment_pct)" t-esc="cellText(row, col)"/>
-                                            </t>
-                                            <t t-elif="col.key === 'unmet_pct'">
-                                                <span t-att-class="unmetSeverityClass(row.unmet_pct)" t-esc="cellText(row, col)"/>
-                                            </t>
-                                            <t t-elif="col.key === 'diagnosis'">
-                                                <span t-att-class="'badge ' + diagnosisChip(row).cls"
-                                                      style="font-size:10px; font-weight:600;"
-                                                      t-esc="diagnosisChip(row).label"/>
-                                            </t>
-                                            <t t-elif="col.key === 'category'">
-                                                <span t-if="row.category"
-                                                      t-att-style="'display:inline-block; min-width:18px; padding:0 5px; border-radius:3px; line-height:18px; font-size:10px; font-weight:bold; color:#fff; background:' + catColor(row.category)"
-                                                      t-esc="row.category"/>
-                                                <span t-else="" class="text-muted">—</span>
-                                            </t>
-                                            <t t-else="" t-esc="cellText(row, col)"/>
-                                        </td>
+                            <!-- Modo agrupado por diagnóstico (solo producto) -->
+                            <t t-if="isGrouped">
+                                <t t-foreach="groupedRows" t-as="grp" t-key="grp.key">
+                                    <tr class="table-active" style="cursor:pointer;"
+                                        t-att-title="grp.tooltip"
+                                        t-on-click="() => this.toggleGroup(grp.key)">
+                                        <t t-foreach="columns" t-as="col" t-key="col.key">
+                                            <td t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' fw-bold'"
+                                                style="padding:4px 8px; white-space:nowrap;">
+                                                <t t-if="col.fixed">
+                                                    <i t-att-class="'fa me-1 ' + (grp.collapsed ? 'fa-caret-right' : 'fa-caret-down')"/>
+                                                    <span t-att-class="'badge ' + grp.cls" style="font-size:10px;" t-esc="grp.label"/>
+                                                    <span class="text-muted ms-1">(<t t-esc="grp.totals.count"/>)</span>
+                                                </t>
+                                                <t t-else="" t-esc="groupSubtotal(grp, col)"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <t t-if="!grp.collapsed" t-foreach="grp.rows" t-as="row" t-key="row.key">
+                                        <t t-call="odoo_mrp_planner.UnmetDemandDetailRow"/>
                                     </t>
-                                </tr>
+                                </t>
+                            </t>
+                            <!-- Modo normal (paginado) -->
+                            <t t-else="">
+                                <t t-foreach="pagedRows" t-as="row" t-key="row.key">
+                                    <t t-call="odoo_mrp_planner.UnmetDemandDetailRow"/>
+                                </t>
                             </t>
                         </tbody>
                         <tfoot t-if="pagedRowsAll.length" style="position:sticky; bottom:0; background:#f1f3f5; z-index:1;">
@@ -352,8 +357,8 @@
                     </table>
                 </div>
 
-                <!-- Paginación -->
-                <div class="d-flex align-items-center justify-content-between mt-2" t-if="totalPages > 1">
+                <!-- Paginación (oculta al agrupar: los grupos muestran todas las filas) -->
+                <div class="d-flex align-items-center justify-content-between mt-2" t-if="totalPages > 1 and !isGrouped">
                     <span class="small text-muted">
                         <t t-esc="pagedRowsAll.length"/> <t t-esc="dimensionPlural.toLowerCase()"/> · página <t t-esc="state.page"/> de <t t-esc="totalPages"/>
                     </span>
@@ -369,6 +374,40 @@
             </t>
 
         </div>
+    </t>
+
+    <!-- Fila de detalle de la tabla (reutilizada en modo normal y agrupado).
+         Requiere `row` y `columns` en el scope. -->
+    <t t-name="odoo_mrp_planner.UnmetDemandDetailRow">
+        <tr>
+            <t t-foreach="columns" t-as="col" t-key="col.key">
+                <td t-att-class="col.align === 'end' ? 'text-end' : 'text-start'"
+                    style="padding:3px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                    t-att-title="cellTooltip(col, row)">
+                    <t t-if="col.key === 'unmet_amount'">
+                        <span class="fw-semibold text-danger" t-esc="cellText(row, col)"/>
+                    </t>
+                    <t t-elif="col.key === 'fulfillment_pct'">
+                        <span t-att-class="fulfillClass(row.fulfillment_pct)" t-esc="cellText(row, col)"/>
+                    </t>
+                    <t t-elif="col.key === 'unmet_pct'">
+                        <span t-att-class="unmetSeverityClass(row.unmet_pct)" t-esc="cellText(row, col)"/>
+                    </t>
+                    <t t-elif="col.key === 'diagnosis'">
+                        <span t-att-class="'badge ' + diagnosisChip(row).cls"
+                              style="font-size:10px; font-weight:600;"
+                              t-esc="diagnosisChip(row).label"/>
+                    </t>
+                    <t t-elif="col.key === 'category'">
+                        <span t-if="row.category"
+                              t-att-style="'display:inline-block; min-width:18px; padding:0 5px; border-radius:3px; line-height:18px; font-size:10px; font-weight:bold; color:#fff; background:' + catColor(row.category)"
+                              t-esc="row.category"/>
+                        <span t-else="" class="text-muted">—</span>
+                    </t>
+                    <t t-else="" t-esc="cellText(row, col)"/>
+                </td>
+            </t>
+        </tr>
     </t>
 
 </templates>

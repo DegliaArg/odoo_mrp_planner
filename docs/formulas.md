@@ -1298,18 +1298,20 @@ CONDICIONES:
 
 ---
 
-### 4.13 Diagnóstico de quiebre × antigüedad (solo producto)
-DESCRIPCION: Cruza el estado de abastecimiento (días en quiebre = días bajo el mínimo, reusa break_days del panel de quiebres) con la antigüedad del pendiente, para separar la causa del faltante.
+### 4.13 Columna "Situación" (solo producto)
+DESCRIPCION: Frase por fila que explica la causa del faltante comparando la antigüedad del pendiente con los días en quiebre (versión por fila del índice de entregabilidad del bloque 4.14, usando la antigüedad ponderada de la fila). Reemplazó al diagnóstico anterior de 4 estados (Crónico / Sin stock / Fulfillment / OK), que resultaba poco claro para el usuario.
 VARIABLES:
-- bd = días en quiebre (None si el producto no está bajo el mínimo)
-- antig = antigüedad del pendiente (bloque 4.12) ; VIEJO = BACKLOG_OLD_DAYS (def: 15)
-FORMULA: clasificación por reglas (ver CONDICIONES)
-LABEL: Diagnóstico
-CONDICIONES:
-- bd != None y antig >= VIEJO -> Crónico (sin stock hace rato y venís fallando)
-- bd != None y antig <  VIEJO -> Sin stock (quiebre reciente; al reponer se limpia)
-- bd == None y antig >= VIEJO -> Fulfillment (hay stock pero no entregás)
-- bd == None y antig <  VIEJO -> OK (transitorio/normal)
+- bd = días en quiebre (break_days; 0 si el producto no está bajo el mínimo)
+- antig = antigüedad del pendiente de la fila (bloque 4.12)
+- deliv = max(0, antig − bd) = días sin quiebre (había stock sano para entregar)
+- pct = deliv / antig × 100
+FORMULA: frase compuesta con antig y deliv, coloreada según el diagnóstico
+LABEL: Situación
+CONDICIONES (color/diagnóstico, igual que 4.14):
+- pct <= 33 -> Falta de stock: "{antig}d pendiente, en quiebre casi todo"
+- 33 < pct < 66 -> Mixto: "{antig}d pendiente: {deliv}d con stock, {antig−deliv}d en quiebre"
+- pct >= 66 -> Fulfillment: "{antig}d pendiente, {deliv}d tenías stock para entregar"
+- El tooltip muestra la narrativa completa; expandir la fila detalla por pedido (4.14)
 
 ### 4.14 Índice de entregabilidad (on-demand, al expandir un producto)
 DESCRIPCION: Profundiza el diagnóstico del bloque 4.13, que solo mira si el producto está quebrado HOY. Se calcula bajo demanda al expandir la fila de un producto. Por cada pedido pendiente compara su antigüedad con los días que el producto estuvo EN QUIEBRE (bajo el mínimo): los días SIN quiebre son días en que había stock sano para haber entregado. Separa "falta de stock real" de "fallo de fulfillment" (tenías stock y no entregaste).

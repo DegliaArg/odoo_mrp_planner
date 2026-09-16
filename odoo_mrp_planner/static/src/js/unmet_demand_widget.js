@@ -51,7 +51,7 @@ const UD_ALL_COLS = [
     { key: "unmet_pct",       label: "% Insatisf.",      width: 90,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 110, align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Diagnóstico",      width: 100, align: "center", sortKey: "diagnosis",       kind: "chip"  },
+    { key: "diagnosis",       label: "Situación",        width: 230, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
@@ -484,6 +484,39 @@ class UnmetDemandWidget extends Component {
                 return "";
         }
     }
+    /** Frase compacta de la columna "Situación" (por fila de producto). */
+    rowSituation(row) {
+        const dg = this.deliveryDiagnosis(row.diagnosis);
+        if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") {
+            return { text: "—", cls: "text-muted" };
+        }
+        const p = Math.round(row.pending_age || 0);
+        const d = Math.round(row.deliv_days || 0);
+        let text;
+        switch (row.diagnosis) {
+            case "shortage":
+                text = `${p}d pendiente, en quiebre casi todo`;
+                break;
+            case "fulfillment":
+                text = `${p}d pendiente, ${d}d tenías stock para entregar`;
+                break;
+            case "mixed":
+                text = `${p}d pendiente: ${d}d con stock, ${p - d}d en quiebre`;
+                break;
+            default:
+                text = "—";
+        }
+        return { text, cls: dg.text };
+    }
+    /** Tooltip de la columna Situación: narrativa completa (reusa deliveryNarrative). */
+    rowSituationTooltip(row) {
+        return this.deliveryNarrative({
+            index_pct:        row.deliv_pct,
+            diagnosis:        row.diagnosis,
+            days_total:       row.pending_age,
+            days_deliverable: row.deliv_days,
+        }) || row.name;
+    }
 
     /**
      * KPIs de los cards: TODOS son totales del período que vienen del backend.
@@ -590,24 +623,6 @@ class UnmetDemandWidget extends Component {
         return map[name] || "#6c757d";
     }
 
-    /** Etiqueta + clase del chip de diagnóstico (solo productos). */
-    diagnosisChip(row) {
-        const map = {
-            chronic:     { label: "Crónico",     cls: "bg-danger text-white" },
-            supply:      { label: "Sin stock",   cls: "bg-warning text-dark" },
-            fulfillment: { label: "Fulfillment", cls: "bg-info text-dark" },
-            ok:          { label: "OK",          cls: "bg-light text-muted border" },
-        };
-        return map[row.diagnosis] || map.ok;
-    }
-    diagnosisTooltip(diag) {
-        return {
-            chronic:     "Crónico: en quiebre de stock y con backlog viejo. Venís fallando hace rato por falta de stock → reponer/fabricar es prioridad.",
-            supply:      "Sin stock: en quiebre pero el backlog es reciente. Problema de abastecimiento; al reponer se limpia.",
-            fulfillment: "Fulfillment: NO estás en quiebre (hay stock o no bajás del mínimo) y el backlog igual es viejo. El problema no es de stock: mirá asignación / logística / compromiso.",
-            ok:          "OK: sin quiebre y backlog reciente. Situación transitoria o normal.",
-        }[diag] || "";
-    }
     sortIcon(key) {
         if (this.state.sortCol !== key) return "fa fa-sort ms-1 text-muted";
         return this.state.sortDir === "asc" ? "fa fa-sort-asc ms-1" : "fa fa-sort-desc ms-1";
@@ -676,7 +691,7 @@ class UnmetDemandWidget extends Component {
             unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
             pending_age:     "Antigüedad del pendiente: días que lleva esperando lo que no se entregó. El método (ponderado por cantidad o pedido más antiguo) se elige en Ajustes. El tooltip muestra ambos.",
             break_days:      "Días en quiebre: hace cuántos días el stock está bajo el mínimo (solo productos en quiebre con mínimo configurado). '—' = sin quiebre.",
-            diagnosis:       "Diagnóstico del cruce quiebre × antigüedad del pendiente: Crónico (sin stock + viejo) · Sin stock (quiebre reciente) · Fulfillment (hay stock pero no entregás) · OK.",
+            diagnosis:       "Situación: compara la antigüedad del pendiente con los días en quiebre. Los días sin quiebre son días en que había stock sano para haber entregado. Expandí la fila para el detalle por pedido.",
             affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
             cross_count:     crossTip,
         }[col.key] || "";
@@ -710,7 +725,7 @@ class UnmetDemandWidget extends Component {
                     ? `${row.name}\nSin quiebre de stock (no está bajo el mínimo, o no tiene mínimo configurado)`
                     : `${row.name}\nDías bajo el punto de reorden (mínimo)\n→ ${f(row.break_days)} d en quiebre`;
             case "diagnosis":
-                return `${row.name}\n${this.diagnosisTooltip(row.diagnosis)}`;
+                return `${row.name}\n${this.rowSituationTooltip(row)}`;
             default:
                 return `${row.name}\n${this.cellText(row, col)}`;
         }
@@ -725,7 +740,7 @@ class UnmetDemandWidget extends Component {
             headers:  cols.map(c => c.label),
             rows:     this.pagedRowsAll,
             cell:     row => cols.map(c => {
-                if (c.kind === "chip") return this.diagnosisChip(row).label;
+                if (c.kind === "situation") return this.rowSituation(row).text;
                 const v = row[c.key];
                 if (v === null || v === undefined || v === "") return "";
                 if (c.kind === "pct")  return v + "%";

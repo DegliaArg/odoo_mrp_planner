@@ -26,10 +26,6 @@ from odoo import models, fields, api, _
 
 _logger = logging.getLogger(__name__)
 
-# Umbral (días) a partir del cual se considera "viejo" el backlog de un producto,
-# usado por el diagnóstico del cruce con los días en quiebre.
-BACKLOG_OLD_DAYS = 15
-
 
 class MrpPlannerDashboardUnmet(models.TransientModel):
     _inherit = 'mrp.planner.dashboard'
@@ -169,24 +165,6 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             'views': [[self.env.ref('odoo_mrp_planner.view_sale_order_line_unmet_list').id, 'list']],
             'target': 'current',
         }
-
-    @api.model
-    def _unmet_diagnosis(self, break_days, backlog_age):
-        """Diagnóstico del cruce quiebre × backlog (solo productos):
-        - 'chronic'     : en quiebre + backlog viejo (sin stock hace rato y venís fallando).
-        - 'supply'      : en quiebre + backlog reciente (reponé y se limpia).
-        - 'fulfillment' : sin quiebre + backlog viejo (hay stock pero no entregás).
-        - 'ok'          : sin quiebre + backlog reciente.
-        """
-        old    = (backlog_age or 0) >= BACKLOG_OLD_DAYS
-        broken = break_days is not None
-        if broken and old:
-            return 'chronic'
-        if broken:
-            return 'supply'
-        if old:
-            return 'fulfillment'
-        return 'ok'
 
     @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
@@ -464,14 +442,29 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
             rows.sort(key=lambda r: r['unmet_amount'], reverse=True)
 
-            # ── 4b. Cruce con quiebre de stock (solo modo producto) ──────────
-            # Días en quiebre (bajo mínimo) + diagnóstico del panorama.
+            # ── 4b. Entregabilidad por fila (solo modo producto) ─────────────
+            # Compara la antigüedad del pendiente con los días en quiebre: los días
+            # sin quiebre son días en que había stock sano para haber entregado.
+            # Versión por fila (usa la antigüedad ponderada); el panel expandido lo
+            # detalla por pedido. diagnosis ∈ shortage | mixed | fulfillment | na.
             if dimension == 'product' and rows:
                 bd_map = self._stock_break_days_map([r['key'] for r in rows])
                 for r in rows:
                     bd = bd_map.get(r['key'])
                     r['break_days'] = bd
-                    r['diagnosis']  = self._unmet_diagnosis(bd, r['pending_age'])
+                    antig = r.get('pending_age') or 0
+                    deliv = max(0, antig - (bd or 0)) if antig else 0
+                    r['deliv_days'] = round(deliv, 1)
+                    pct = round(deliv / antig * 100, 1) if antig else None
+                    r['deliv_pct'] = pct
+                    if pct is None:
+                        r['diagnosis'] = 'na'
+                    elif pct >= 66:
+                        r['diagnosis'] = 'fulfillment'
+                    elif pct <= 33:
+                        r['diagnosis'] = 'shortage'
+                    else:
+                        r['diagnosis'] = 'mixed'
 
             # ── 5. KPIs globales del período ─────────────────────────────────
             # Demanda real y Cumplimiento son totales FIJOS del período (Σ pedido y

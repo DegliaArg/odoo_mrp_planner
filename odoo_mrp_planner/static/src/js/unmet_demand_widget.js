@@ -384,6 +384,39 @@ class UnmetDemandWidget extends Component {
     nextPage() { if (this.hasNextPage) this.state.page++; }
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
+    /** Totales de la tabla, sobre TODAS las filas filtradas (no solo la página). */
+    get totals() {
+        const rows = this.filteredRows;
+        const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
+        const ordered   = sum("qty_ordered");
+        const delivered = sum("qty_delivered");
+        const unmet     = sum("unmet_qty");
+        return {
+            count:           rows.length,
+            qty_ordered:     ordered,
+            qty_delivered:   delivered,
+            unmet_qty:       unmet,
+            unmet_amount:    sum("unmet_amount"),
+            affected_orders: sum("affected_orders"),
+            fulfillment_pct: ordered > 0 ? delivered / ordered * 100 : null,
+            unmet_pct:       ordered > 0 ? unmet / ordered * 100 : null,
+        };
+    }
+    /** Texto de la celda de totales para una columna (vacío si no aplica sumar). */
+    footerText(col) {
+        const t = this.totals;
+        switch (col.key) {
+            case "qty_ordered":
+            case "qty_delivered":
+            case "unmet_qty":       return this.fmt(t[col.key]);
+            case "unmet_amount":    return this.fmtMoney(t.unmet_amount);
+            case "affected_orders": return this.fmt(t.affected_orders);
+            case "fulfillment_pct": return this.fmtPct(t.fulfillment_pct);
+            case "unmet_pct":       return this.fmtPct(t.unmet_pct);
+            default:                return "";   // categoría, antigüedad, quiebre, diagnóstico, # cruce: no se totalizan
+        }
+    }
+
     /**
      * KPIs de los cards: TODOS son totales del período que vienen del backend.
      * No dependen de la dimensión (cliente/producto/familia) ni de los filtros de

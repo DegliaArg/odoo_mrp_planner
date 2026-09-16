@@ -329,6 +329,20 @@
                                 </tr>
                             </t>
                         </tbody>
+                        <tfoot t-if="pagedRowsAll.length" style="position:sticky; bottom:0; background:#f1f3f5; z-index:1;">
+                            <tr style="border-top:2px solid #dee2e6;">
+                                <t t-foreach="columns" t-as="col" t-key="col.key">
+                                    <td t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' fw-bold'"
+                                        style="padding:4px 8px; white-space:nowrap;">
+                                        <t t-if="col.fixed">Total (<t t-esc="pagedRowsAll.length"/>)</t>
+                                        <t t-elif="col.key === 'unmet_amount'">
+                                            <span class="text-danger" t-esc="footerText(col)"/>
+                                        </t>
+                                        <t t-else="" t-esc="footerText(col)"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
 

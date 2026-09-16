@@ -141,7 +141,6 @@ class UnmetDemandWidget extends Component {
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
             expandData:   {},                       // cache {product_id: análisis} del expand
             expandLoading: false,
-            expandShowAllLines: false,              // ver todos los pedidos del panel (no solo el top 5)
             colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
@@ -489,13 +488,9 @@ class UnmetDemandWidget extends Component {
             target: "current",
         });
     }
-    /** Mostrar/ocultar todos los pedidos del panel expandido (más allá del top 5). */
-    toggleExpandLines() { this.state.expandShowAllLines = !this.state.expandShowAllLines; }
-
     /** Expandir/colapsar una fila; al expandir carga el análisis on-demand. */
     async toggleExpand(row) {
         if (!this.canExpand) return;
-        this.state.expandShowAllLines = false;   // arrancar colapsado el detalle
         if (this.state.expandedKey === row.key) { this.state.expandedKey = null; return; }
         this.state.expandedKey = row.key;
         if (this.state.expandData[row.key] === undefined) {

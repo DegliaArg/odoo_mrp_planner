@@ -451,17 +451,18 @@
                         </div>
                     </div>
 
-                    <!-- Detalle por pedido (izq.) + curva de stock (der.) -->
+                    <!-- Detalle por pedido (izq., con scroll) + curva de stock (der., protagonista) -->
                     <div class="d-flex gap-3 align-items-start flex-wrap">
-                        <div style="flex:1 1 520px; min-width:0;">
+                        <div style="flex:1 1 380px; min-width:0;">
                             <div class="o_planner_section_title mb-1">
                                 <i class="fa fa-list-ul me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
+                                <span class="text-muted ms-1" style="font-size:11px;">(<t t-esc="a.lines.length"/>)</span>
                             </div>
-                            <table class="table table-sm table-hover mb-0" style="font-size:11px;">
-                                <tbody>
-                                    <t t-foreach="a.lines" t-as="ln" t-key="ln_index">
-                                        <tr t-if="state.expandShowAllLines or ln_index &lt; 5">
+                            <div style="max-height:280px; overflow-y:auto;">
+                                <table class="table table-sm table-hover mb-0" style="font-size:11px;">
+                                    <tbody>
+                                        <tr t-foreach="a.lines" t-as="ln" t-key="ln_index">
                                             <td style="border-top:none;">
                                                 <a href="#" class="fw-semibold text-decoration-none"
                                                    t-on-click.prevent.stop="() => this.openOrder(ln.order_id)"
@@ -474,30 +475,17 @@
                                                 </span>
                                             </td>
                                         </tr>
-                                    </t>
-                                    <tr t-if="a.lines.length > 5">
-                                        <td colspan="3" style="border-top:none;">
-                                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
-                                                    t-on-click.stop="toggleExpandLines">
-                                                <t t-if="!state.expandShowAllLines">
-                                                    <i class="fa fa-chevron-down me-1"/>ver <t t-esc="a.lines.length - 5"/> pedido(s) más
-                                                </t>
-                                                <t t-else="">
-                                                    <i class="fa fa-chevron-up me-1"/>ver menos
-                                                </t>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <!-- Curva de stock durante la espera -->
-                        <div t-if="a.curve and a.curve.length" style="flex:1 1 360px; min-width:260px;">
+                        <!-- Curva de stock durante la espera (protagonista) -->
+                        <div t-if="a.curve and a.curve.length" style="flex:2 1 520px; min-width:320px;">
                             <div class="o_planner_section_title mb-1">
                                 <i class="fa fa-area-chart me-1 text-muted"/>
                                 <span class="text-uppercase fw-bold text-muted small">Stock durante la espera</span>
                             </div>
-                            <div class="bg-white rounded border p-2" style="height:150px;">
+                            <div class="bg-white rounded border p-2" style="height:280px;">
                                 <canvas t-ref="deliveryChartCanvas"/>
                             </div>
                         </div>

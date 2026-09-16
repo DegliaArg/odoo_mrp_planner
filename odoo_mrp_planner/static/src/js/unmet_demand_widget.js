@@ -8,7 +8,11 @@
  *
  * Tiene DOS conjuntos de filtros independientes (período · dimensión · PxQ/Real):
  *   - los de arriba afectan SOLO al gráfico (dataset chartData);
- *   - los de la segunda línea afectan las cards globales + la tabla (dataset data).
+ *   - los de la segunda línea afectan el dataset de la tabla (dataset data).
+ * Las cards (Demanda real / Cumplimiento de demanda / Pendiente) son totales
+ * FIJOS del período que llegan del backend en `data.kpis`: cierran entre sí
+ * (Demanda real = Cumplimiento + Pendiente) y no dependen de la dimensión ni de
+ * los filtros de la tabla — la dimensión y los filtros solo desagregan el detalle.
  * La tabla incluye un selector de columnas para armarla a gusto.
  *
  * RPC:
@@ -207,12 +211,13 @@ class UnmetDemandWidget extends Component {
     }
     setAmountMethod(m) { if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
 
-    /** Drill de las cards: abre la lista de líneas del período (pendientes o todas). */
-    async openCardLines(onlyPending) {
+    /** Drill de las cards: abre la lista de líneas del período enfocada según la
+     *  card (focus = 'ordered' | 'delivered' | 'pending' | 'fulfillment'). */
+    async openCardLines(focus) {
         try {
             const action = await this.orm.call(
                 "mrp.planner.dashboard", "action_open_unmet_lines",
-                [this.state.dateFrom, this.state.dateTo, [], onlyPending]);
+                [this.state.dateFrom, this.state.dateTo, [], focus]);
             this.action.doAction(action);
         } catch (e) {
             console.error("[UnmetDemandWidget] drill", e);
@@ -339,25 +344,21 @@ class UnmetDemandWidget extends Component {
     prevPage() { if (this.hasPrevPage) this.state.page--; }
 
     /**
-     * KPIs de los cards.
-     *  - Backlog (monto/unidades pendientes, # entidades): se recalcula sobre las
-     *    filas filtradas, así refleja el detalle que ves en la tabla.
-     *  - Demanda (Pedido) / Entregado / % Cumplimiento: son TOTALES del período
-     *    que vienen del backend (misma fuente que Ventas → Forecast). NO dependen
-     *    de la dimensión (cliente/producto/familia) ni de los filtros de la tabla:
-     *    esos filtros solo desagregan el detalle, no mueven los cards.
+     * KPIs de los cards: TODOS son totales del período que vienen del backend.
+     * No dependen de la dimensión (cliente/producto/familia) ni de los filtros de
+     * la tabla — esos solo desagregan el detalle, no mueven los cards. Cierran
+     * entre sí: Pedido = Entregado + Pendiente, y coinciden con la suma del drill
+     * "Ver" de cada card.
      */
     get kpis() {
-        const rows = this.filteredRows;
-        const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
-        const bk = (this.state.data && this.state.data.kpis) || {};
+        const k = (this.state.data && this.state.data.kpis) || {};
         return {
-            total_unmet_amount: Math.round(sum("unmet_amount") * 100) / 100,
-            total_unmet_qty:    Math.round(sum("unmet_qty") * 10) / 10,
-            total_ordered:      bk.total_ordered ?? null,
-            total_delivered:    bk.total_delivered ?? null,
-            fulfillment_pct:    bk.fulfillment_pct ?? null,
-            total_rows:         rows.length,
+            total_unmet_amount: k.total_unmet_amount ?? null,
+            total_unmet_qty:    k.total_unmet_qty ?? null,
+            total_ordered:      k.total_ordered ?? null,
+            total_delivered:    k.total_delivered ?? null,
+            fulfillment_pct:    k.fulfillment_pct ?? null,
+            total_rows:         k.total_rows ?? 0,
         };
     }
 
@@ -500,11 +501,11 @@ class UnmetDemandWidget extends Component {
             case "total_unmet_qty":
                 return `Unidades pedidas en el período aún sin entregar\nΣ(pedido − entregado) por línea, solo faltantes\n→ ${f(k.total_unmet_qty)} u.`;
             case "fulfillment_pct":
-                return `Tasa de cumplimiento del período\nEntregado ÷ Pedido × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período (misma fuente que Ventas → Forecast); no depende de la dimensión ni de los filtros de la tabla.`;
+                return `Tasa de cumplimiento del período\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_ordered":
-                return `Demanda real del período: unidades pedidas en órdenes de venta confirmadas (producto vendible)\n→ ${f(k.total_ordered)} u.\nMismo cálculo que la card "Demanda real" del panel de Ventas → Forecast. No depende de la dimensión ni de los filtros de la tabla.`;
+                return `Demanda real del período: unidades pedidas en pedidos de venta confirmados\n→ ${f(k.total_ordered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.\nDemanda real = Cumplimiento de demanda + Pendiente.`;
             case "total_delivered":
-                return `Cumplimiento de demanda del período: entregas reales de los pedidos del período\n→ ${f(k.total_delivered)} u.\nMismo cálculo que la card "Cumplimiento de demanda" del panel de Ventas → Forecast. No depende de la dimensión ni de los filtros de la tabla.`;
+                return `Cumplimiento de demanda del período: entregado hacia lo pedido (topeado al pedido; las sobre-entregas no cuentan)\n→ ${f(k.total_delivered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_rows":
                 return `${this.dimensionPlural} con al menos una unidad pendiente en el período\n→ ${f(k.total_rows)}`;
             default:

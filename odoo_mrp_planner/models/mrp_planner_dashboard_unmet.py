@@ -50,14 +50,20 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
     @api.model
     def action_open_unmet_lines(self, period_from, period_to, warehouse_ids=None,
-                                only_pending=True):
-        """Drill-down de las cards: abre la lista de líneas de pedido del período.
+                                focus='pending'):
+        """Drill-down de las cards: abre la lista de líneas de pedido del período,
+        enfocada según la card desde la que se abre.
 
-        :param only_pending: si True, solo las líneas con backlog (pedido >
-            entregado); si False, todas las líneas del período.
+        :param focus: qué card lo abre, define columna visible y filtro de filas:
+            - 'ordered'     → todas las líneas, columna Pedido.
+            - 'delivered'   → líneas con algo entregado, columna Entregado.
+            - 'pending'     → líneas con backlog (pedido > entregado), columna Pendiente.
+            - 'fulfillment' → todas las líneas, columnas Pedido y Entregado.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
+        if focus not in ('ordered', 'delivered', 'pending', 'fulfillment'):
+            focus = 'pending'
         d_from_str = period_from + ' 00:00:00'
         d_to_str   = period_to   + ' 23:59:59'
         try:
@@ -84,17 +90,34 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         lines = self.env['sale.order.line'].sudo().search_read(
             [('order_id', 'in', orders.ids), ('product_id', '!=', False)] + svc_dom,
             ['id', 'product_uom_qty', 'qty_delivered'])
-        if only_pending:
-            ids = [l['id'] for l in lines
-                   if (l['product_uom_qty'] or 0.0) - (l['qty_delivered'] or 0.0) > 1e-6]
-        else:
+
+        def _ordered(l):   return l['product_uom_qty'] or 0.0
+        def _delivered(l): return l['qty_delivered'] or 0.0
+        if focus == 'pending':
+            ids = [l['id'] for l in lines if _ordered(l) - _delivered(l) > 1e-6]
+        elif focus == 'delivered':
+            ids = [l['id'] for l in lines if _delivered(l) > 1e-6]
+        else:  # ordered / fulfillment
             ids = [l['id'] for l in lines]
+
+        titles = {
+            'ordered':     _('Demanda del período — líneas'),
+            'delivered':   _('Entregado del período — líneas'),
+            'pending':     _('Demanda insatisfecha — líneas'),
+            'fulfillment': _('Cumplimiento del período — líneas'),
+        }
+        ctx = {
+            'unmet_show_ordered':   focus in ('ordered', 'fulfillment'),
+            'unmet_show_delivered': focus in ('delivered', 'fulfillment'),
+            'unmet_show_pending':   focus == 'pending',
+        }
 
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Demanda insatisfecha — líneas') if only_pending else _('Líneas del período'),
+            'name': titles.get(focus, titles['pending']),
             'res_model': 'sale.order.line',
             'domain': [('id', 'in', ids)],
+            'context': ctx,
             'view_mode': 'list',
             'views': [[self.env.ref('odoo_mrp_planner.view_sale_order_line_unmet_list').id, 'list']],
             'target': 'current',
@@ -282,6 +305,15 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             agg = {}
             all_unmet_orders = set()
 
+            # Totales del período sobre TODAS las líneas (no solo las de backlog):
+            # así Pedido = Entregado + Pendiente cierra siempre y coincide con la
+            # suma del drill "Ver". Entregado se topea al pedido (las sobre-entregas
+            # no suman como cumplimiento); Pendiente = pedido − entregado (mín. 0).
+            period_ordered   = 0.0
+            period_delivered = 0.0
+            period_unmet_qty = 0.0
+            period_unmet_amt = 0.0
+
             for l in lines:
                 pid       = l['product_id'][0]
                 pi        = prod_info.get(pid, {})
@@ -296,6 +328,11 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 else:
                     unit = (l['price_subtotal'] or 0.0) / ordered if ordered else 0.0
                 unmet_amt = unmet * unit
+
+                period_ordered   += ordered
+                period_delivered += min(ordered, delivered)
+                period_unmet_qty += unmet
+                period_unmet_amt += unmet_amt
 
                 if dimension == 'customer':
                     partner = order_partner.get(oid) or (0, '')
@@ -374,24 +411,22 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     r['break_days'] = bd
                     r['diagnosis']  = self._unmet_diagnosis(bd, r['pending_age'])
 
-            # ── 5. KPIs globales ─────────────────────────────────────────────
-            # Backlog (pendiente): sobre las filas; el front lo recalcula al filtrar
-            # la tabla. Demanda/entregado/cumplimiento: TOTALES del período, con la
-            # misma fuente que el panel de Ventas → Forecast ("Demanda real" y
-            # "Cumplimiento de demanda"), independientes de la dimensión elegida
-            # (cliente/producto/familia) y del backlog. Así los cards no bailan al
-            # cambiar de dimensión y coinciden siempre entre paneles.
-            tot_unmet_qty = sum(r['unmet_qty']    for r in rows)
-            tot_unmet_amt = sum(r['unmet_amount'] for r in rows)
-            so_data, demand_del_data = self._so_demand_delivered_by_product(period_from, period_to)
-            tot_ordered   = sum(q for pd in so_data.values()         for q in pd.values())
-            tot_delivered = sum(q for pd in demand_del_data.values() for q in pd.values())
+            # ── 5. KPIs globales del período ─────────────────────────────────
+            # Pedido / Entregado / Pendiente son totales FIJOS del período (todas
+            # las líneas, no solo el backlog): no dependen de la dimensión elegida
+            # (cliente/producto/familia) ni de los filtros de la tabla, y cierran
+            # entre sí. El "Ver" de cada card suma las mismas líneas → coinciden.
+            r_ordered   = round(period_ordered, 1)
+            r_unmet_qty = round(period_unmet_qty, 1)
+            # Derivar el entregado de los dos redondeados garantiza que en pantalla
+            # Pedido = Entregado + Pendiente aun con el redondeo a un decimal.
+            r_delivered = round(r_ordered - r_unmet_qty, 1)
             kpis = {
-                'total_unmet_qty':    round(tot_unmet_qty, 1),
-                'total_unmet_amount': round(tot_unmet_amt, 2),
-                'total_ordered':      round(tot_ordered, 1),
-                'total_delivered':    round(tot_delivered, 1),
-                'fulfillment_pct':    round(tot_delivered / tot_ordered * 100, 1) if tot_ordered > 0 else None,
+                'total_unmet_qty':    r_unmet_qty,
+                'total_unmet_amount': round(period_unmet_amt, 2),
+                'total_ordered':      r_ordered,
+                'total_delivered':    r_delivered,
+                'fulfillment_pct':    round(period_delivered / period_ordered * 100, 1) if period_ordered > 0 else None,
                 'total_rows':         len(rows),
                 'affected_orders':    len(all_unmet_orders),
             }

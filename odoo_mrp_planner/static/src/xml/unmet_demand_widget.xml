@@ -191,8 +191,8 @@
                                 <div class="o_planner_label">Monto pendiente</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
-                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
+                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -204,8 +204,8 @@
                                 <div class="o_planner_label">Pendiente (u.)</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
-                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
+                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -214,11 +214,11 @@
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + fulfillClass(kpis.fulfillment_pct)"/>
                                 <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct) + ' ' + kpiNumClass(fmtPct(kpis.fulfillment_pct))" t-esc="fmtPct(kpis.fulfillment_pct)"/>
-                                <div class="o_planner_label">% Cumplimiento</div>
+                                <div class="o_planner_label">Tasa de cumplimiento</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
-                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas del período con las columnas Demanda real y Cumplimiento de demanda"
+                                        t-on-click="() => this.openCardLines('fulfillment')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -227,11 +227,11 @@
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_ordered))" t-esc="fmt(kpis.total_ordered)"/>
-                                <div class="o_planner_label">Pedido total</div>
+                                <div class="o_planner_label">Demanda real</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
-                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas del período (columna Demanda real)"
+                                        t-on-click="() => this.openCardLines('ordered')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -240,11 +240,11 @@
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_delivered))" t-esc="fmt(kpis.total_delivered)"/>
-                                <div class="o_planner_label">Entregado total</div>
+                                <div class="o_planner_label">Cumplimiento de demanda</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas de pedido del período"
-                                        t-on-click="() => this.openCardLines(false)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con entrega del período (columna Cumplimiento de demanda)"
+                                        t-on-click="() => this.openCardLines('delivered')">Ver →</button>
                             </div>
                         </div>
                     </div>
@@ -256,8 +256,8 @@
                                 <div class="o_planner_label"><t t-esc="dimensionPlural"/> afectados</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas de pedido con backlog pendiente del período"
-                                        t-on-click="() => this.openCardLines(true)">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
+                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
                             </div>
                         </div>
                     </div>

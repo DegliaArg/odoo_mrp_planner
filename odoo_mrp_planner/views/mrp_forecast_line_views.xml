@@ -198,8 +198,10 @@
         <field name="code">action = model.action_open_customer_analysis()</field>
     </record>
 
-    <!-- Lista de líneas para el drill de las cards de demanda insatisfecha
-         (muestra pedido vs entregado). -->
+    <!-- Lista de líneas para el drill de las cards de demanda insatisfecha.
+         Cada card ("Ver") pasa por contexto qué columna de cantidad mostrar
+         (unmet_show_ordered / _delivered / _pending), así los tres drills no son
+         la misma tabla: cada uno enfoca su métrica. -->
     <record id="view_sale_order_line_unmet_list" model="ir.ui.view">
         <field name="name">sale.order.line.unmet.list</field>
         <field name="model">sale.order.line</field>
@@ -209,8 +211,12 @@
                 <field name="order_partner_id" string="Cliente"/>
                 <field name="product_id" string="Artículo"/>
                 <field name="salesman_id" string="Vendedor" optional="hide"/>
-                <field name="product_uom_qty" string="Pedido" sum="Total"/>
-                <field name="qty_delivered" string="Entregado" sum="Total"/>
+                <field name="product_uom_qty" string="Pedido" sum="Total"
+                       column_invisible="not context.get('unmet_show_ordered')"/>
+                <field name="fulfilled_qty" string="Entregado" sum="Total"
+                       column_invisible="not context.get('unmet_show_delivered')"/>
+                <field name="unmet_qty" string="Pendiente" sum="Total"
+                       column_invisible="not context.get('unmet_show_pending')"/>
                 <field name="product_uom" string="Unidad"/>
             </list>
         </field>

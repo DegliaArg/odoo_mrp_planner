@@ -50,7 +50,7 @@ const UD_ALL_COLS = [
     { key: "fulfillment_pct", label: "% Cumplim.",       width: 78,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 92,  align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 90,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Situación",        width: 380, align: "start",  sortKey: "diagnosis",       kind: "situation" },
+    { key: "diagnosis",       label: "Situación",        width: 420, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
@@ -543,10 +543,10 @@ class UnmetDemandWidget extends Component {
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
         const text = {
-            shortage:    `Casi nunca hubo stock: solo ${x} de ${y} días. Falta mercadería.`,
-            fulfillment: `Hubo stock ${x} de ${y} días y no se entregó. El problema no es el stock.`,
-            mixed:       `Hubo stock ${x} de ${y} días. Por momentos faltó.`,
-        }[row.diagnosis] || `Hubo stock ${x} de ${y} días.`;
+            shortage:    `Estos pedidos esperan hace ${y} días y casi nunca hubo mercadería para entregar (solo ${x} de esos días). El faltante es por falta de stock: hay que comprar o fabricar.`,
+            fulfillment: `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar casi siempre (${x} de esos días), pero igual no se entregó. El problema no es el stock: revisá la entrega (asignación, logística o prioridades).`,
+            mixed:       `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días. Por momentos faltó stock y por momentos hubo mercadería sin entregar.`,
+        }[row.diagnosis] || `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días.`;
         return { na: false, label: dg.label, text, chip: dg.chip, icon: dg.icon };
     }
     /** Tooltip de la columna Situación: aclara qué cuenta como "hubo stock". */

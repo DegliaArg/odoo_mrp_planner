@@ -50,10 +50,10 @@ const UD_ALL_COLS = [
     { key: "fulfillment_pct", label: "% Cumplim.",       width: 90,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
     { key: "unmet_pct",       label: "% Insatisf.",      width: 90,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 110, align: "end",    sortKey: "pending_age",     kind: "days"  },
-    { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days"  },
+    { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
     { key: "diagnosis",       label: "Diagnóstico",      width: 100, align: "center", sortKey: "diagnosis",       kind: "chip"  },
-    { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num"   },
-    { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num"   },
+    { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
+    { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
 
 function toDateStr(d) {
@@ -69,11 +69,8 @@ const PERSIST_KEYS = [
     "chartDateFrom", "chartDateTo", "chartDimension", "chartAmountMethod",
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
-    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll", "groupBy",
+    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll",
 ];
-
-// Orden de presentación de los grupos por diagnóstico (crónico primero, OK último).
-const DIAG_ORDER = ["chronic", "supply", "fulfillment", "ok"];
 function loadFilters() {
     try {
         const raw = localStorage.getItem(FILTERS_KEY);
@@ -137,8 +134,6 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
-            groupBy:      pick("groupBy", ""),      // "" | "diagnosis" — agrupador de la tabla (solo producto)
-            collapsedGroups: {},                    // {diagKey: true} = grupo colapsado (transitorio)
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
             expandData:   {},                       // cache {product_id: análisis} del expand
             expandLoading: false,
@@ -294,9 +289,17 @@ class UnmetDemandWidget extends Component {
         if (ev) ev.stopPropagation();
         this.state.colsDropdownOpen = !this.state.colsDropdownOpen;
     }
+    /** Visibilidad efectiva de una columna opcional: el usuario manda (true/false
+     *  explícito guardado); si no la tocó, visible salvo que sea defaultHidden. */
+    isColVisible(key) {
+        const v = this.state.colsVisible[key];
+        if (v === false) return false;
+        if (v === true)  return true;
+        const col = this.cols.colMap[key];
+        return !(col && col.defaultHidden);
+    }
     toggleCol(key) {
-        const cur = this.state.colsVisible[key];
-        this.state.colsVisible = { ...this.state.colsVisible, [key]: cur === false ? true : false };
+        this.state.colsVisible = { ...this.state.colsVisible, [key]: !this.isColVisible(key) };
     }
 
     // ── Config activa ───────────────────────────────────────────────────────────
@@ -334,7 +337,7 @@ class UnmetDemandWidget extends Component {
     get columns() {
         return this.cols.visibleCols()
             .filter(c => this._colApplies(c.key))
-            .filter(c => c.fixed || this.state.colsVisible[c.key] !== false)
+            .filter(c => c.fixed || this.isColVisible(c.key))
             .map(c => this._withDynLabel(c));
     }
     /** Columnas opcionales aplicables (para el dropdown del selector). */
@@ -429,18 +432,8 @@ class UnmetDemandWidget extends Component {
             default:                return "";   // categoría, antigüedad, quiebre, diagnóstico, # cruce: no se totalizan
         }
     }
-    footerText(col)            { return this._totalText(this.totals, col); }
-    groupSubtotal(group, col)  { return this._totalText(group.totals, col); }
+    footerText(col) { return this._totalText(this.totals, col); }
 
-    // ── Agrupador por diagnóstico (solo dimensión producto) ──────────────────────
-    /** ¿La tabla está agrupada por diagnóstico ahora mismo? */
-    get isGrouped() { return this.state.groupBy === "diagnosis" && this.state.dimension === "product"; }
-    /** Toggle del agrupador por diagnóstico. */
-    toggleGroupBy() { this.state.groupBy = this.state.groupBy === "diagnosis" ? "" : "diagnosis"; }
-    /** Colapsar/expandir un grupo. */
-    toggleGroup(key) {
-        this.state.collapsedGroups = { ...this.state.collapsedGroups, [key]: !this.state.collapsedGroups[key] };
-    }
     // ── Análisis de entregabilidad (expandir fila, solo producto) ────────────────
     /** ¿Se puede expandir la fila para ver el análisis histórico? (solo producto) */
     get canExpand() { return this.state.dimension === "product"; }
@@ -464,37 +457,32 @@ class UnmetDemandWidget extends Component {
             }
         }
     }
-    /** Etiqueta + clase del diagnóstico refinado de entregabilidad. */
+    /** Etiqueta + clases (badge, texto, barra) del diagnóstico refinado. */
     deliveryDiagnosis(diag) {
         const map = {
-            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark" },
-            shortage:    { label: "Falta de stock", cls: "bg-danger text-white" },
-            mixed:       { label: "Mixto",          cls: "bg-warning text-dark" },
-            na:          { label: "Sin datos",      cls: "bg-light text-muted border" },
+            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info" },
+            shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger" },
+            mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning" },
+            na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary" },
         };
         return map[diag] || map.na;
     }
-
-    /** Filas agrupadas por diagnóstico (sobre todas las filtradas y ordenadas). */
-    get groupedRows() {
-        const buckets = {};
-        for (const r of this.pagedRowsAll) {
-            const k = r.diagnosis || "ok";
-            (buckets[k] = buckets[k] || []).push(r);
+    /** Frase explicativa del diagnóstico, armada con los números del análisis. */
+    deliveryNarrative(a) {
+        if (!a || a.index_pct === null || a.index_pct === undefined) return "";
+        const dt = Math.round(a.days_total);
+        const dd = Math.round(a.days_deliverable);
+        const enQuiebre = Math.max(0, dt - dd);
+        switch (a.diagnosis) {
+            case "shortage":
+                return `Los pedidos llevan en promedio ${dt} días pendientes y estuviste en quiebre casi todo ese tiempo (solo ${dd} días con stock sano). El faltante es por falta de stock: reponer o fabricar es la prioridad.`;
+            case "fulfillment":
+                return `Los pedidos llevan en promedio ${dt} días pendientes y durante ${dd} de esos días tuviste stock sano para haber entregado y no se entregó. El problema no es de stock: revisá asignación, logística o prioridades de entrega.`;
+            case "mixed":
+                return `Los pedidos llevan en promedio ${dt} días pendientes: durante ${dd} hubo stock sano para entregar y ${enQuiebre} estuviste en quiebre. Es una mezcla de falta de stock y de fulfillment.`;
+            default:
+                return "";
         }
-        return DIAG_ORDER.filter(k => buckets[k]).map(k => {
-            const rows = buckets[k];
-            const chip = this.diagnosisChip({ diagnosis: k });
-            return {
-                key:       k,
-                label:     chip.label,
-                cls:       chip.cls,
-                tooltip:   this.diagnosisTooltip(k),
-                rows,
-                totals:    this._sumRows(rows),
-                collapsed: !!this.state.collapsedGroups[k],
-            };
-        });
     }
 
     /**

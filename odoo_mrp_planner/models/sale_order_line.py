@@ -19,14 +19,14 @@ class SaleOrderLine(models.Model):
         help='Cantidad pedida aún no entregada: pedido − entregado (mínimo 0). '
              'Usada por el drill "Ver" del análisis de demanda insatisfecha.',
     )
-    fulfilled_qty = fields.Float(
-        string='Entregado',
+    unmet_amount = fields.Monetary(
+        string='Valorización del pendiente',
         compute='_compute_demand_split',
         store=True,
-        digits='Product Unit of Measure',
-        help='Entregado hacia lo pedido: mín(pedido, entregado). No cuenta las '
-             'sobre-entregas. Es el "Cumplimiento de demanda" que cierra con el '
-             'pedido y el pendiente en el análisis de demanda insatisfecha.',
+        currency_field='currency_id',
+        help='Valor real del pendiente de la línea: subtotal × (pendiente ÷ pedido). '
+             'Valorización "real" (con descuentos) del backlog; usada por el drill '
+             '"Ver" de la card de Valorización del pendiente.',
     )
 
     @api.depends('qty_delivered', 'product_uom_qty')
@@ -39,10 +39,11 @@ class SaleOrderLine(models.Model):
             else:
                 line.delivery_status = 'pending'
 
-    @api.depends('qty_delivered', 'product_uom_qty')
+    @api.depends('qty_delivered', 'product_uom_qty', 'price_subtotal')
     def _compute_demand_split(self):
         for line in self:
             ordered   = line.product_uom_qty or 0.0
             delivered = line.qty_delivered or 0.0
-            line.unmet_qty     = max(0.0, ordered - delivered)
-            line.fulfilled_qty = min(ordered, delivered)
+            unmet     = max(0.0, ordered - delivered)
+            line.unmet_qty    = unmet
+            line.unmet_amount = (line.price_subtotal or 0.0) * (unmet / ordered) if ordered else 0.0

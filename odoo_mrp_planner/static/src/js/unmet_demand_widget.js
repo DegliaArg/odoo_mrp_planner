@@ -212,12 +212,14 @@ class UnmetDemandWidget extends Component {
     setAmountMethod(m) { if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
 
     /** Drill de las cards: abre la lista de líneas del período enfocada según la
-     *  card (focus = 'ordered' | 'delivered' | 'pending' | 'fulfillment'). */
-    async openCardLines(focus) {
+     *  card (focus = 'ordered' | 'delivered' | 'pending' | 'value' | 'fulfillment').
+     *  Con groupByDimension=true, agrupa por la dimensión activa (card de afectados). */
+    async openCardLines(focus, groupByDimension = false) {
         try {
             const action = await this.orm.call(
                 "mrp.planner.dashboard", "action_open_unmet_lines",
-                [this.state.dateFrom, this.state.dateTo, [], focus]);
+                [this.state.dateFrom, this.state.dateTo, [], focus,
+                 groupByDimension ? this.state.dimension : null]);
             this.action.doAction(action);
         } catch (e) {
             console.error("[UnmetDemandWidget] drill", e);
@@ -497,7 +499,7 @@ class UnmetDemandWidget extends Component {
         const dp = this.dimensionPlural.toLowerCase();
         switch (key) {
             case "total_unmet_amount":
-                return `Monto de la demanda insatisfecha del período\nCantidad pendiente × precio unitario\n→ ${m(k.total_unmet_amount)}` + this.amountNote();
+                return `Valorización del pendiente del período\nCantidad pendiente × precio unitario\n→ ${m(k.total_unmet_amount)}` + this.amountNote();
             case "total_unmet_qty":
                 return `Unidades pedidas en el período aún sin entregar\nΣ(pedido − entregado) por línea, solo faltantes\n→ ${f(k.total_unmet_qty)} u.`;
             case "fulfillment_pct":
@@ -505,7 +507,7 @@ class UnmetDemandWidget extends Component {
             case "total_ordered":
                 return `Demanda real del período: unidades pedidas en pedidos de venta confirmados\n→ ${f(k.total_ordered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.\nDemanda real = Cumplimiento de demanda + Pendiente.`;
             case "total_delivered":
-                return `Cumplimiento de demanda del período: entregado hacia lo pedido (topeado al pedido; las sobre-entregas no cuentan)\n→ ${f(k.total_delivered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
+                return `Cumplimiento de demanda del período: suma de lo entregado (qty_delivered) de las líneas de esos pedidos, sin importar la fecha de entrega\n→ ${f(k.total_delivered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_rows":
                 return `${this.dimensionPlural} con al menos una unidad pendiente en el período\n→ ${f(k.total_rows)}`;
             default:

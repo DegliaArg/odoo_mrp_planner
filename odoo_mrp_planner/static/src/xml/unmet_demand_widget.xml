@@ -182,46 +182,7 @@
             <t t-else="">
                 <!-- Cards globales -->
                 <div class="d-flex gap-2 mb-3 flex-wrap">
-                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number text-danger ' + kpiNumClass(fmtMoney(kpis.total_unmet_amount))"
-                                     t-esc="fmtMoney(kpis.total_unmet_amount)"/>
-                                <div class="o_planner_label">Monto pendiente</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
-                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_qty')">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
-                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_unmet_qty))" t-esc="fmt(kpis.total_unmet_qty)"/>
-                                <div class="o_planner_label">Pendiente (u.)</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
-                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
-                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('fulfillment_pct')">
-                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + fulfillClass(kpis.fulfillment_pct)"/>
-                                <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct) + ' ' + kpiNumClass(fmtPct(kpis.fulfillment_pct))" t-esc="fmtPct(kpis.fulfillment_pct)"/>
-                                <div class="o_planner_label">Tasa de cumplimiento</div>
-                            </div>
-                            <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas del período con las columnas Demanda real y Cumplimiento de demanda"
-                                        t-on-click="() => this.openCardLines('fulfillment')">Ver →</button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- 1 · Demanda real -->
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_ordered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -235,6 +196,7 @@
                             </div>
                         </div>
                     </div>
+                    <!-- 2 · Cumplimiento de demanda -->
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_delivered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -248,6 +210,36 @@
                             </div>
                         </div>
                     </div>
+                    <!-- 3 · Pendiente (u.) -->
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_qty')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_unmet_qty))" t-esc="fmt(kpis.total_unmet_qty)"/>
+                                <div class="o_planner_label">Pendiente (u.)</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
+                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 4 · Valorización del pendiente -->
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_unmet_amount')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i class="fa fa-exclamation-circle fa-lg text-danger mb-1 d-block"/>
+                                <div t-att-class="'o_planner_number text-danger ' + kpiNumClass(fmtMoney(kpis.total_unmet_amount))"
+                                     t-esc="fmtMoney(kpis.total_unmet_amount)"/>
+                                <div class="o_planner_label">Valorización del pendiente</div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog y su valorización real (subtotal × pendiente ÷ pedido)"
+                                        t-on-click="() => this.openCardLines('value')">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 5 · Clientes/Productos/Familias afectados -->
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_rows')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -256,8 +248,18 @@
                                 <div class="o_planner_label"><t t-esc="dimensionPlural"/> afectados</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog pendiente del período (columna Pendiente)"
-                                        t-on-click="() => this.openCardLines('pending')">Ver →</button>
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver las líneas con backlog agrupadas por la dimensión activa"
+                                        t-on-click="() => this.openCardLines('pending', true)">Ver →</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 6 · Tasa de cumplimiento (indicador, sin drill) -->
+                    <div class="flex-fill" style="min-width:130px; flex-basis:0;">
+                        <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('fulfillment_pct')">
+                            <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + fulfillClass(kpis.fulfillment_pct)"/>
+                                <div t-att-class="'o_planner_number ' + fulfillClass(kpis.fulfillment_pct) + ' ' + kpiNumClass(fmtPct(kpis.fulfillment_pct))" t-esc="fmtPct(kpis.fulfillment_pct)"/>
+                                <div class="o_planner_label">Tasa de cumplimiento</div>
                             </div>
                         </div>
                     </div>

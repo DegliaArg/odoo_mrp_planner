@@ -213,11 +213,15 @@
                 <field name="salesman_id" string="Vendedor" optional="hide"/>
                 <field name="product_uom_qty" string="Pedido" sum="Total"
                        column_invisible="not context.get('unmet_show_ordered')"/>
-                <field name="fulfilled_qty" string="Entregado" sum="Total"
+                <field name="qty_delivered" string="Entregado" sum="Total"
                        column_invisible="not context.get('unmet_show_delivered')"/>
                 <field name="unmet_qty" string="Pendiente" sum="Total"
                        column_invisible="not context.get('unmet_show_pending')"/>
-                <field name="product_uom" string="Unidad"/>
+                <field name="product_uom" string="Unidad"
+                       column_invisible="context.get('unmet_show_amount')"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="unmet_amount" string="Valorización pendiente (real)" sum="Total"
+                       column_invisible="not context.get('unmet_show_amount')"/>
             </list>
         </field>
     </record>

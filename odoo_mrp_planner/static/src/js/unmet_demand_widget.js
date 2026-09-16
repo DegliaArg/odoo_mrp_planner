@@ -467,55 +467,37 @@ class UnmetDemandWidget extends Component {
         };
         return map[diag] || map.na;
     }
-    /** Frase explicativa del diagnóstico, armada con los números del análisis. */
+    /** Frase del panel: proporción del pendiente que podías cubrir (histórico). */
     deliveryNarrative(a) {
         if (!a || a.index_pct === null || a.index_pct === undefined) return "";
-        const dt = Math.round(a.days_total);
-        const dd = Math.round(a.days_deliverable);
-        const enQuiebre = Math.max(0, dt - dd);
+        const idx = this.fmtPct(a.index_pct);
         switch (a.diagnosis) {
             case "shortage":
-                return `Los pedidos llevan en promedio ${dt} días pendientes y estuviste en quiebre casi todo ese tiempo (solo ${dd} días con stock sano). El faltante es por falta de stock: reponer o fabricar es la prioridad.`;
+                return `En promedio, con el stock que tuviste solo podías cubrir ${idx} de lo pendiente. El faltante es por falta de stock: reponer o fabricar es la prioridad.`;
             case "fulfillment":
-                return `Los pedidos llevan en promedio ${dt} días pendientes y durante ${dd} de esos días tuviste stock sano para haber entregado y no se entregó. El problema no es de stock: revisá asignación, logística o prioridades de entrega.`;
+                return `En promedio tenías stock para cubrir ${idx} de lo pendiente y no se entregó. El problema no es de stock: revisá asignación, logística o prioridades de entrega.`;
             case "mixed":
-                return `Los pedidos llevan en promedio ${dt} días pendientes: durante ${dd} hubo stock sano para entregar y ${enQuiebre} estuviste en quiebre. Es una mezcla de falta de stock y de fulfillment.`;
+                return `En promedio podías cubrir ${idx} de lo pendiente con el stock disponible. Es una mezcla: parte falta de stock, parte fulfillment.`;
             default:
                 return "";
         }
     }
-    /** Frase compacta de la columna "Situación" (por fila de producto). */
+    /** Frase compacta de la columna "Situación" = cobertura de HOY (por fila). */
     rowSituation(row) {
         const dg = this.deliveryDiagnosis(row.diagnosis);
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") {
             return { text: "—", cls: "text-muted" };
         }
-        const p = Math.round(row.pending_age || 0);
-        const d = Math.round(row.deliv_days || 0);
-        let text;
-        switch (row.diagnosis) {
-            case "shortage":
-                text = `${p}d pendiente, en quiebre casi todo`;
-                break;
-            case "fulfillment":
-                text = `${p}d pendiente, ${d}d tenías stock para entregar`;
-                break;
-            case "mixed":
-                text = `${p}d pendiente: ${d}d con stock, ${p - d}d en quiebre`;
-                break;
-            default:
-                text = "—";
-        }
-        return { text, cls: dg.text };
+        const s = Math.round(row.stock_now || 0);
+        const p = Math.round(row.unmet_qty || 0);
+        return { text: `Hoy cubrís ${this.fmtPct(row.cover_pct)} (${s} de ${p})`, cls: dg.text };
     }
-    /** Tooltip de la columna Situación: narrativa completa (reusa deliveryNarrative). */
+    /** Tooltip de la columna Situación. */
     rowSituationTooltip(row) {
-        return this.deliveryNarrative({
-            index_pct:        row.deliv_pct,
-            diagnosis:        row.diagnosis,
-            days_total:       row.pending_age,
-            days_deliverable: row.deliv_days,
-        }) || row.name;
+        if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return row.name;
+        const s = Math.round(row.stock_now || 0);
+        const p = Math.round(row.unmet_qty || 0);
+        return `${row.name}\nHoy tenés ${s} en stock de ${p} pendientes (cubre ${this.fmtPct(row.cover_pct)}).\nExpandí la fila para ver la cobertura histórica (durante la espera).`;
     }
 
     /**
@@ -691,7 +673,7 @@ class UnmetDemandWidget extends Component {
             unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
             pending_age:     "Antigüedad del pendiente: días que lleva esperando lo que no se entregó. El método (ponderado por cantidad o pedido más antiguo) se elige en Ajustes. El tooltip muestra ambos.",
             break_days:      "Días en quiebre: hace cuántos días el stock está bajo el mínimo (solo productos en quiebre con mínimo configurado). '—' = sin quiebre.",
-            diagnosis:       "Situación: compara la antigüedad del pendiente con los días en quiebre. Los días sin quiebre son días en que había stock sano para haber entregado. Expandí la fila para el detalle por pedido.",
+            diagnosis:       "Situación: qué proporción del pendiente cubrís con el stock que tenés HOY (stock actual ÷ pendiente). Expandí la fila para la cobertura histórica (a lo largo de la espera).",
             affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
             cross_count:     crossTip,
         }[col.key] || "";

@@ -442,26 +442,34 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
             rows.sort(key=lambda r: r['unmet_amount'], reverse=True)
 
-            # ── 4b. Entregabilidad por fila (solo modo producto) ─────────────
-            # Compara la antigüedad del pendiente con los días en quiebre: los días
-            # sin quiebre son días en que había stock sano para haber entregado.
-            # Versión por fila (usa la antigüedad ponderada); el panel expandido lo
-            # detalla por pedido. diagnosis ∈ shortage | mixed | fulfillment | na.
+            # ── 4b. Situación por fila = cobertura de HOY (solo modo producto) ──
+            # Cobertura hoy = min(1, stock_actual / pendiente): qué proporción del
+            # pendiente podrías cubrir con el stock que tenés hoy. Es la foto rápida
+            # (barata) para toda la tabla; el panel expandido calcula el histórico
+            # (proporción cubrible a lo largo del tiempo). diagnosis ∈ shortage |
+            # mixed | fulfillment | na. break_days se mantiene para su columna.
             if dimension == 'product' and rows:
-                bd_map = self._stock_break_days_map([r['key'] for r in rows])
+                pids = [r['key'] for r in rows]
+                bd_map = self._stock_break_days_map(pids)
+                stock_map = {}
+                company_id = self.env.company.id
+                for g in self.env['stock.quant'].sudo().read_group(
+                        [('product_id', 'in', pids), ('location_id.usage', '=', 'internal'),
+                         ('company_id', '=', company_id)],
+                        ['product_id', 'quantity:sum'], ['product_id']):
+                    stock_map[g['product_id'][0]] = g['quantity'] or 0.0
                 for r in rows:
-                    bd = bd_map.get(r['key'])
-                    r['break_days'] = bd
-                    antig = r.get('pending_age') or 0
-                    deliv = max(0, antig - (bd or 0)) if antig else 0
-                    r['deliv_days'] = round(deliv, 1)
-                    pct = round(deliv / antig * 100, 1) if antig else None
-                    r['deliv_pct'] = pct
-                    if pct is None:
+                    r['break_days'] = bd_map.get(r['key'])
+                    stock = stock_map.get(r['key'], 0.0)
+                    P = r['unmet_qty']
+                    cover = min(1.0, stock / P) if P > 0 else 0.0
+                    r['stock_now'] = round(stock, 1)
+                    r['cover_pct'] = round(cover * 100, 1) if P > 0 else None
+                    if P <= 0:
                         r['diagnosis'] = 'na'
-                    elif pct >= 66:
+                    elif cover * 100 >= 66:
                         r['diagnosis'] = 'fulfillment'
-                    elif pct <= 33:
+                    elif cover * 100 <= 33:
                         r['diagnosis'] = 'shortage'
                     else:
                         r['diagnosis'] = 'mixed'
@@ -486,24 +494,66 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             _logger.error('[UnmetDemand] error: %s', e, exc_info=True)
             return _empty()
 
+    # ── Curva de stock histórica (para el análisis de entregabilidad) ────────────
+    @api.model
+    def _stock_curve_segments(self, product_id, date_from):
+        """Reconstruye la curva de stock on-hand del producto (ubicaciones internas
+        de la compañía) desde `date_from` hasta ahora, partiendo del stock actual y
+        aplicando hacia atrás todas las entradas y salidas (capta reposiciones).
+
+        :returns: list[(start_dt, end_dt, stock_level)] — segmentos con stock
+            constante, en orden cronológico.
+        """
+        company_id = self.env.company.id
+        now = fields.Datetime.now()
+        quant_groups = self.env['stock.quant'].sudo().read_group(
+            [('product_id', '=', product_id), ('location_id.usage', '=', 'internal'),
+             ('company_id', '=', company_id)], ['quantity:sum'], [])
+        stock_now = (quant_groups[0]['quantity'] if quant_groups else 0.0) or 0.0
+
+        df = fields.Datetime.to_string(date_from)
+        base = [('product_id', '=', product_id), ('state', '=', 'done'),
+                ('date', '>=', df), ('company_id', '=', company_id)]
+        ins = self.env['stock.move'].sudo().search_read(
+            base + [('location_id.usage', '!=', 'internal'),
+                    ('location_dest_id.usage', '=', 'internal')], ['date', 'quantity'])
+        outs = self.env['stock.move'].sudo().search_read(
+            base + [('location_id.usage', '=', 'internal'),
+                    ('location_dest_id.usage', '!=', 'internal')], ['date', 'quantity'])
+        deltas = [(m['date'], (m['quantity'] or 0.0)) for m in ins]
+        deltas += [(m['date'], -(m['quantity'] or 0.0)) for m in outs]
+        deltas.sort(key=lambda x: x[0])
+
+        stock_start = stock_now - sum(d for _, d in deltas)
+        segments = []
+        cur_stock = stock_start
+        cur_start = date_from
+        for dt, delta in deltas:
+            if dt > cur_start:
+                segments.append((cur_start, dt, cur_stock))
+            cur_stock += delta
+            cur_start = dt
+        if now > cur_start:
+            segments.append((cur_start, now, cur_stock))
+        return segments
+
     # ── Análisis de entregabilidad (on-demand, al expandir un producto) ──────────
     @api.model
     def get_unmet_delivery_analysis(self, product_id, period_from, period_to):
         """Análisis de entregabilidad de un producto (on-demand al expandir su fila).
 
-        Profundiza el diagnóstico rápido (que solo mira si está quebrado HOY):
-        compara, por cada pedido pendiente, cuánto de su tiempo pendiente el producto
-        estuvo EN QUIEBRE (bajo el mínimo) vs cuánto NO. Los días sin quiebre son días
-        en que había stock sano para haber entregado → señal de fulfillment; los días
-        en quiebre son falta de stock. Usa break_days del panel de quiebres (no
-        reconstruye la curva de stock).
+        Mide, a lo largo de la vida del backlog, qué PROPORCIÓN del pendiente podías
+        cubrir con el stock que tenías: cobertura(t) = min(1, stock(t) / pendiente).
+        El índice es el promedio (ponderado por cantidad) de esa cobertura. Así
+        distingue "tenías algo" de "tenías suficiente": 2 unidades de un pendiente de
+        68 dan ~3% (falta de stock), no 98% como el criterio binario stock>0.
 
-        :returns: dict con index_pct, diagnosis, total_pending, days, break_days y lines[].
+        :returns: dict con index_pct, diagnosis, total_pending, stock_now y lines[].
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
         empty = {'index_pct': None, 'diagnosis': 'na', 'total_pending': 0.0,
-                 'days_deliverable': 0.0, 'days_total': 0.0, 'break_days': None, 'lines': []}
+                 'stock_now': 0.0, 'lines': []}
         try:
             product_id = int(product_id)
         except (TypeError, ValueError):
@@ -522,6 +572,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     pend.append((l['order_id'][0], unmet))
             if not pend:
                 return empty
+            total_pending = sum(u for _o, u in pend)
 
             # Fecha de referencia por pedido: compromiso si existe, si no confirmación.
             so_fields = ['date_order', 'name']
@@ -535,54 +586,60 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 o = orders.get(oid) or {}
                 return (o.get('commitment_date') if has_commit else None) or o.get('date_order')
 
-            # Días en quiebre (bajo el mínimo) del producto: tramo continuo hasta hoy.
-            break_days = self._stock_break_days_map([product_id]).get(product_id)
-            bd = break_days or 0
-            today = date.today()
+            now = fields.Datetime.now()
+            starts = [_start_dt(oid) for oid, _q in pend if _start_dt(oid)]
+            if not starts:
+                return empty
+            segments = self._stock_curve_segments(product_id, min(starts))
+            P = total_pending or 1.0
+
+            def _coverage(start_dt):
+                """(días-equivalentes cubiertos, días totales) entre start_dt y ahora.
+                Cobertura de cada tramo = min(1, stock/pendiente_total)."""
+                total = max(0.0, (now - start_dt).total_seconds() / 86400.0)
+                covered = 0.0
+                for seg_start, seg_end, level in segments:
+                    lo = max(seg_start, start_dt)
+                    hi = min(seg_end, now)
+                    if hi > lo:
+                        dur = (hi - lo).total_seconds() / 86400.0
+                        covered += dur * min(1.0, max(0.0, level) / P)
+                return covered, total
 
             lines = []
             num = den = 0.0
-            tot_pending = 0.0
             for oid, unmet in pend:
                 sdt = _start_dt(oid)
                 if not sdt:
                     continue
-                antig = max(0, (today - self._to_date(sdt)).days)
-                # Días entregables = días de la ventana en que NO estabas en quiebre
-                # (tenías stock sano y podías haber entregado).
-                deliv = max(0, antig - bd)
-                pct = round(deliv / antig * 100, 1) if antig > 0 else None
-                num += unmet * deliv
-                den += unmet * antig
-                tot_pending += unmet
+                cov_days, total = _coverage(sdt)
+                pct = round(cov_days / total * 100, 1) if total > 0 else None
+                num += unmet * cov_days
+                den += unmet * total
                 lines.append({
-                    'order':            (orders.get(oid) or {}).get('name') or '',
-                    'pending':          round(unmet, 1),
-                    'days_total':       antig,
-                    'days_deliverable': deliv,
-                    'pct':              pct,
+                    'order':      (orders.get(oid) or {}).get('name') or '',
+                    'pending':    round(unmet, 1),
+                    'days_total': round(total, 1),
+                    'pct':        pct,   # cobertura promedio de este pedido
                 })
             lines.sort(key=lambda r: r['pending'], reverse=True)
 
             index_pct = round(num / den * 100, 1) if den > 0 else None
-            # Diagnóstico refinado por el índice de entregabilidad ponderado.
             if index_pct is None:
                 diagnosis = 'na'
             elif index_pct >= 66:
-                diagnosis = 'fulfillment'   # mucho tiempo sin quiebre y no entregaste
+                diagnosis = 'fulfillment'   # podías cubrir la mayoría y no entregaste
             elif index_pct <= 33:
-                diagnosis = 'shortage'      # en quiebre casi toda la ventana
+                diagnosis = 'shortage'      # casi nunca alcanzaba el stock
             else:
-                diagnosis = 'mixed'         # parte en quiebre, parte con stock
+                diagnosis = 'mixed'
 
             return {
-                'index_pct':        index_pct,
-                'diagnosis':        diagnosis,
-                'total_pending':    round(tot_pending, 1),
-                'days_deliverable': round(num / tot_pending, 1) if tot_pending > 0 else 0.0,
-                'days_total':       round(den / tot_pending, 1) if tot_pending > 0 else 0.0,
-                'break_days':       break_days,
-                'lines':            lines,
+                'index_pct':     index_pct,
+                'diagnosis':     diagnosis,
+                'total_pending': round(total_pending, 1),
+                'stock_now':     round(segments[-1][2], 1) if segments else 0.0,
+                'lines':         lines,
             }
         except Exception as e:
             _logger.error('[UnmetDemand] delivery analysis error: %s', e, exc_info=True)

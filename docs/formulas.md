@@ -1298,35 +1298,35 @@ CONDICIONES:
 
 ---
 
-### 4.13 Columna "Situación" (solo producto)
-DESCRIPCION: Frase por fila que explica la causa del faltante comparando la antigüedad del pendiente con los días en quiebre (versión por fila del índice de entregabilidad del bloque 4.14, usando la antigüedad ponderada de la fila). Reemplazó al diagnóstico anterior de 4 estados (Crónico / Sin stock / Fulfillment / OK), que resultaba poco claro para el usuario.
+### 4.13 Columna "Situación" (solo producto) — cobertura de HOY
+DESCRIPCION: Frase por fila que indica qué PROPORCIÓN del pendiente podés cubrir con el stock que tenés HOY. Es la foto rápida (barata) para toda la tabla; el histórico se calcula al expandir (bloque 4.14). Reemplazó al diagnóstico anterior de 4 estados (Crónico / Sin stock / Fulfillment / OK), que resultaba poco claro.
 VARIABLES:
-- bd = días en quiebre (break_days; 0 si el producto no está bajo el mínimo)
-- antig = antigüedad del pendiente de la fila (bloque 4.12)
-- deliv = max(0, antig − bd) = días sin quiebre (había stock sano para entregar)
-- pct = deliv / antig × 100
-FORMULA: frase compuesta con antig y deliv, coloreada según el diagnóstico
+- stock_hoy = stock on-hand actual del producto (Σ stock.quant en ubicaciones internas de la compañía)
+- P = pendiente de la fila (unmet_qty)
+- cover = min(1, stock_hoy / P)
+FORMULA: cobertura_hoy = cover × 100 ; frase "Hoy cubrís {cover}% ({stock_hoy} de {P})", coloreada según diagnóstico
 LABEL: Situación
-CONDICIONES (color/diagnóstico, igual que 4.14):
-- pct <= 33 -> Falta de stock: "{antig}d pendiente, en quiebre casi todo"
-- 33 < pct < 66 -> Mixto: "{antig}d pendiente: {deliv}d con stock, {antig−deliv}d en quiebre"
-- pct >= 66 -> Fulfillment: "{antig}d pendiente, {deliv}d tenías stock para entregar"
-- El tooltip muestra la narrativa completa; expandir la fila detalla por pedido (4.14)
+CONDICIONES (color/diagnóstico, mismos cortes que 4.14):
+- cover <= 33% -> Falta de stock
+- 33% < cover < 66% -> Mixto
+- cover >= 66% -> Fulfillment
+- El tooltip muestra el detalle; expandir la fila da la cobertura histórica (4.14)
 
-### 4.14 Índice de entregabilidad (on-demand, al expandir un producto)
-DESCRIPCION: Profundiza el diagnóstico del bloque 4.13, que solo mira si el producto está quebrado HOY. Se calcula bajo demanda al expandir la fila de un producto. Por cada pedido pendiente compara su antigüedad con los días que el producto estuvo EN QUIEBRE (bajo el mínimo): los días SIN quiebre son días en que había stock sano para haber entregado. Separa "falta de stock real" de "fallo de fulfillment" (tenías stock y no entregaste).
+### 4.14 Cobertura histórica / proporción cubrible (on-demand, al expandir un producto)
+DESCRIPCION: Profundiza la columna Situación (que solo mira HOY). Reconstruye la curva de stock del producto y mide, a lo largo de la vida del backlog, qué PROPORCIÓN del pendiente podías cubrir con el stock que tenías. Distingue "tener algo" de "tener suficiente": 2 unidades de un pendiente de 68 dan ~3% (falta de stock), no ~98% como el criterio binario stock>0.
 VARIABLES:
-- break_days = días en quiebre del producto (tramo continuo bajo el mínimo hasta hoy; reusa break_days del panel de quiebres, bloque 4.13). 0 si el producto NO está en quiebre hoy.
-- por cada pedido pendiente i: inicio_i = fecha de compromiso del pedido (commitment_date) o, si no hay, fecha de confirmación (date_order) ; pend_i = cantidad pendiente (pedido − entregado, entregado topeado en 0)
-- antig_i = días desde inicio_i hasta hoy
-- dias_entregable_i = max(0, antig_i − break_days) = días de la ventana en que el producto NO estaba en quiebre
-FORMULA: indice = Σ(pend_i × dias_entregable_i) / Σ(pend_i × antig_i) × 100
-LABEL: Entregabilidad (%)
-CONDICIONES (diagnóstico refinado):
-- indice >= 66 -> Fulfillment (mucho tiempo sin quiebre y no entregaste)
-- indice <= 33 -> Falta de stock (en quiebre casi toda la ventana)
-- 33 < indice < 66 -> Mixto (parte en quiebre, parte con stock)
-LIMITACION: break_days mide el tramo de quiebre CONTINUO actual, no el historial completo de entradas y salidas. Si el producto entró y salió de quiebre varias veces durante la ventana del pendiente, solo se cuenta el tramo actual; es una aproximación (suficiente para el caso típico de producto crónicamente quebrado).
+- stock_hoy = Σ stock.quant en ubicaciones internas de la compañía
+- curva stock(t) = stock_hoy aplicando hacia atrás todas las entradas (+) y salidas (−) internas↔externas (capta reposiciones)
+- P = pendiente total del producto (Σ pendiente de sus líneas)
+- por cada pedido pendiente i: inicio_i = commitment_date o, si no hay, date_order ; pend_i = cantidad pendiente
+- cobertura_i = promedio temporal sobre [inicio_i, hoy] de min(1, stock(t) / P)
+FORMULA: indice = Σ(pend_i × cobertura_i) / Σ(pend_i) × 100
+LABEL: Cobertura histórica (%)
+CONDICIONES (diagnóstico):
+- indice >= 66 -> Fulfillment (podías cubrir la mayoría y no entregaste)
+- indice <= 33 -> Falta de stock (casi nunca alcanzaba el stock)
+- 33 < indice < 66 -> Mixto (parte falta de stock, parte fulfillment)
+LIMITACION: la curva usa el stock FÍSICO on-hand; las reservas históricas (stock que un día ya estaba comprometido a otro pedido) no son reconstruibles en Odoo, así que la cobertura puede sobrestimar si ese stock no estaba realmente libre.
 
 ---
 

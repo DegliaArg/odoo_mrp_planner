@@ -420,16 +420,16 @@
                     <!-- KPI strip -->
                     <div class="row g-2 mb-3 flex-nowrap">
                         <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Entregabilidad: % del tiempo pendiente (ponderado por cantidad) en que había stock sano para haber entregado.">
+                            <div class="card o_planner_kpi_card_xs h-100" title="Cobertura histórica: proporción del pendiente (ponderada por cantidad) que podías cubrir con el stock que tuviste a lo largo de la espera.">
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                     <div t-att-class="'fw-bold o_planner_number ' + deliveryDiagnosis(a.diagnosis).text"
                                          style="font-size:1rem;" t-esc="fmtPct(a.index_pct)"/>
-                                    <div class="small text-muted">Entregabilidad</div>
+                                    <div class="small text-muted">Cobertura histórica</div>
                                 </div>
                             </div>
                         </div>
                         <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Diagnóstico refinado según el índice de entregabilidad.">
+                            <div class="card o_planner_kpi_card_xs h-100" title="Diagnóstico según la cobertura histórica.">
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                     <div class="d-flex justify-content-center">
                                         <span t-att-class="'badge ' + deliveryDiagnosis(a.diagnosis).cls"
@@ -440,29 +440,18 @@
                             </div>
                         </div>
                         <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Antigüedad promedio (ponderada por cantidad) de los pedidos pendientes.">
+                            <div class="card o_planner_kpi_card_xs h-100" title="Total pendiente del producto en el período.">
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="fw-bold o_planner_number" style="font-size:1rem;"><t t-esc="fmt(a.days_total)"/> d</div>
-                                    <div class="small text-muted">Días pendiente (prom.)</div>
+                                    <div class="fw-bold o_planner_number" style="font-size:1rem;" t-esc="fmt(a.total_pending)"/>
+                                    <div class="small text-muted">Pendiente</div>
                                 </div>
                             </div>
                         </div>
                         <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Días promedio (ponderados) en que hubo stock sano para haber entregado.">
+                            <div class="card o_planner_kpi_card_xs h-100" title="Stock on-hand actual del producto.">
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="fw-bold o_planner_number" style="font-size:1rem;"><t t-esc="fmt(a.days_deliverable)"/> d</div>
-                                    <div class="small text-muted">Días con stock (prom.)</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Días que el producto lleva en quiebre (bajo el mínimo) de forma continua hasta hoy.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="fw-bold o_planner_number" style="font-size:1rem;">
-                                        <t t-if="a.break_days !== null"><t t-esc="fmt(a.break_days)"/> d</t>
-                                        <t t-else="">—</t>
-                                    </div>
-                                    <div class="small text-muted">Días en quiebre</div>
+                                    <div class="fw-bold o_planner_number" style="font-size:1rem;" t-esc="fmt(a.stock_now)"/>
+                                    <div class="small text-muted">Stock actual</div>
                                 </div>
                             </div>
                         </div>
@@ -476,14 +465,13 @@
                         <i class="fa fa-list me-1 text-muted"/>
                         <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
                     </div>
-                    <table class="table table-sm table-hover mb-0" style="font-size:11px; max-width:720px;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:11px; max-width:640px;">
                         <thead>
                             <tr class="text-muted">
                                 <th style="border-top:none;">Pedido</th>
                                 <th class="text-end" style="border-top:none;">Pendiente</th>
                                 <th class="text-end" style="border-top:none;">Días pendiente</th>
-                                <th class="text-end" style="border-top:none;">Días con stock</th>
-                                <th style="border-top:none; min-width:140px;">% entregable</th>
+                                <th style="border-top:none; min-width:150px;">Cobertura</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -491,7 +479,6 @@
                                 <td class="fw-semibold" t-esc="ln.order"/>
                                 <td class="text-end" t-esc="fmt(ln.pending)"/>
                                 <td class="text-end" t-esc="fmt(ln.days_total)"/>
-                                <td class="text-end" t-esc="fmt(ln.days_deliverable)"/>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="progress flex-grow-1" style="height:6px;">

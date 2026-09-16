@@ -338,7 +338,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 pi        = prod_info.get(pid, {})
                 oid       = l['order_id'][0]
                 ordered   = l['product_uom_qty'] or 0.0
-                delivered = l['qty_delivered']   or 0.0
+                # Entregado hacia la demanda: se topea en 0 para no restar las
+                # devoluciones (qty_delivered negativo). Así el cumplimiento cuenta
+                # lo que salió, igual que el Forecast (movimientos de salida done).
+                delivered = max(0.0, l['qty_delivered'] or 0.0)
                 unmet     = ordered - delivered
                 if unmet < 0:
                     unmet = 0.0

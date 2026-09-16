@@ -43,7 +43,9 @@ class SaleOrderLine(models.Model):
     def _compute_demand_split(self):
         for line in self:
             ordered   = line.product_uom_qty or 0.0
-            delivered = line.qty_delivered or 0.0
+            # Entregado topeado en 0: una devolución (qty_delivered negativo) no
+            # aumenta el pendiente. Coherente con el cálculo del panel y el Forecast.
+            delivered = max(0.0, line.qty_delivered or 0.0)
             unmet     = max(0.0, ordered - delivered)
             line.unmet_qty    = unmet
             line.unmet_amount = (line.price_subtotal or 0.0) * (unmet / ordered) if ordered else 0.0

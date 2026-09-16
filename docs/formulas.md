@@ -1311,6 +1311,22 @@ CONDICIONES:
 - bd == None y antig >= VIEJO -> Fulfillment (hay stock pero no entregás)
 - bd == None y antig <  VIEJO -> OK (transitorio/normal)
 
+### 4.14 Índice de entregabilidad histórica (on-demand, al expandir un producto)
+DESCRIPCION: Profundiza el diagnóstico del bloque 4.13, que solo mira si el producto está quebrado HOY. Se calcula bajo demanda al expandir la fila de un producto. Reconstruye la curva de stock físico histórico y mide, por cada pedido pendiente, qué fracción del tiempo que lleva pendiente HUBO stock disponible para haber entregado. Separa "falta de stock real" de "fallo de fulfillment" (tenías stock y no entregaste).
+VARIABLES:
+- stock_hoy = stock on-hand actual del producto (Σ stock.quant en ubicaciones internas de la compañía)
+- curva(t) = stock on-hand en el instante t, reconstruido = stock_hoy menos el efecto de todos los movimientos internos↔externos (entradas +, salidas −) posteriores a t
+- por cada línea pendiente i: inicio_i = fecha de compromiso del pedido (commitment_date) o, si no hay, fecha de confirmación (date_order) ; pend_i = cantidad pendiente (pedido − entregado, entregado topeado en 0)
+- dias_total_i = días desde inicio_i hasta hoy
+- dias_entregable_i = días dentro de [inicio_i, hoy] en que curva(t) > 0
+FORMULA: indice = Σ(pend_i × dias_entregable_i) / Σ(pend_i × dias_total_i) × 100
+LABEL: Entregabilidad histórica (%)
+CONDICIONES (diagnóstico refinado):
+- indice >= 66 -> Fulfillment (tuviste stock la mayor parte del tiempo, no entregaste)
+- indice <= 33 -> Falta de stock (casi nunca hubo stock)
+- 33 < indice < 66 -> Mixto (parte stock, parte entrega)
+LIMITACION: la curva usa el stock FÍSICO on-hand. Las reservas históricas (stock que un día dado ya estaba comprometido a otro pedido) NO son reconstruibles en Odoo, por lo que "había stock" puede sobrestimar la entregabilidad si ese stock no estaba realmente libre. Es la mejor aproximación disponible sin un log histórico de reservas.
+
 ---
 
 ## Sección 5 — Panel de Inventario

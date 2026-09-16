@@ -437,6 +437,8 @@
                               t-esc="deliveryDiagnosis(a.diagnosis).label"/>
                         <span t-if="a.index_pct !== null" class="fw-bold" t-esc="fmtPct(a.index_pct)"/>
                         <span class="text-muted small">del tiempo pendiente (ponderado) hubo stock para haber entregado</span>
+                        <i class="fa fa-info-circle text-muted"
+                           title="Cómo se calcula: se reconstruye el stock físico histórico del producto (stock actual aplicando hacia atrás entradas y salidas) y, por cada pedido pendiente, se mide qué fracción del tiempo desde su fecha hubo stock &gt; 0.&#10;&#10;Índice alto → tenías stock la mayor parte del tiempo y no entregaste (Fulfillment); índice bajo → casi nunca hubo stock (Falta de stock).&#10;&#10;Limitación: usa el stock FÍSICO on-hand; las reservas históricas (stock que ese día ya estaba comprometido a otro pedido) no son reconstruibles en Odoo, así que la entregabilidad puede estar sobrestimada si ese stock no estaba realmente libre."/>
                     </div>
                     <div class="progress mb-2" style="height:8px; max-width:320px;">
                         <div class="progress-bar bg-info" role="progressbar"

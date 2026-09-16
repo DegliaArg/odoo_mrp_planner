@@ -325,7 +325,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                         'qty_ordered': 0.0, 'qty_delivered': 0.0,
                         'unmet_qty': 0.0, 'unmet_amount': 0.0,
                         '_orders': set(), '_cross': set(),
-                        '_age_num': 0.0, '_age_den': 0.0, '_age_oldest': 0}
+                        '_age_num': 0.0, '_age_den': 0.0, '_age_oldest': 0,
+                        '_pend_lines': []}   # [(order_date, unmet)] por línea pendiente (para entregabilidad)
             agg = {}
             all_unmet_orders = set()
 
@@ -404,6 +405,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                         d['_age_den']    += unmet
                         if _days > d['_age_oldest']:
                             d['_age_oldest'] = _days
+                        if dimension == 'product':
+                            d['_pend_lines'].append((_od, unmet))
 
             # ── 4. Filas: desagregación del pendiente por entidad ─────────────
             # Pendiente por entidad = pedido − entregado (misma derivación que la
@@ -442,34 +445,30 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
             rows.sort(key=lambda r: r['unmet_amount'], reverse=True)
 
-            # ── 4b. Situación por fila = cobertura de HOY (solo modo producto) ──
-            # Cobertura hoy = min(1, stock_actual / pendiente): qué proporción del
-            # pendiente podrías cubrir con el stock que tenés hoy. Es la foto rápida
-            # (barata) para toda la tabla; el panel expandido calcula el histórico
-            # (proporción cubrible a lo largo del tiempo). diagnosis ∈ shortage |
-            # mixed | fulfillment | na. break_days se mantiene para su columna.
+            # ── 4b. Situación por fila = entregabilidad histórica (solo producto) ──
+            # Por cada pedido pendiente se cuentan los días de su ventana en que el
+            # stock alcanzaba para cubrirlo; la columna resume "durante X de los Y
+            # días pendientes hubo stock disponible para entregar". Batch: pocas
+            # consultas para todos los productos de la tabla.
             if dimension == 'product' and rows:
                 pids = [r['key'] for r in rows]
                 bd_map = self._stock_break_days_map(pids)
-                stock_map = {}
-                company_id = self.env.company.id
-                for g in self.env['stock.quant'].sudo().read_group(
-                        [('product_id', 'in', pids), ('location_id.usage', '=', 'internal'),
-                         ('company_id', '=', company_id)],
-                        ['product_id', 'quantity:sum'], ['product_id']):
-                    stock_map[g['product_id'][0]] = g['quantity'] or 0.0
+                all_dates = [od for r in rows for (od, _q) in agg[r['key']]['_pend_lines'] if od]
+                curves = self._stock_curves_batch(pids, min(all_dates)) if all_dates else {}
+                now_dt = fields.Datetime.now()
                 for r in rows:
                     r['break_days'] = bd_map.get(r['key'])
-                    stock = stock_map.get(r['key'], 0.0)
-                    P = r['unmet_qty']
-                    cover = min(1.0, stock / P) if P > 0 else 0.0
-                    r['stock_now'] = round(stock, 1)
-                    r['cover_pct'] = round(cover * 100, 1) if P > 0 else None
-                    if P <= 0:
+                    xw, yw, _qs = self._coverage_days(curves.get(r['key'], []),
+                                                      agg[r['key']]['_pend_lines'], now_dt)
+                    r['deliv_days'] = round(xw / _qs, 1) if _qs else 0.0
+                    r['pend_days']  = round(yw / _qs, 1) if _qs else 0.0
+                    pct = round(xw / yw * 100, 1) if yw > 0 else None
+                    r['deliv_pct'] = pct
+                    if pct is None:
                         r['diagnosis'] = 'na'
-                    elif cover * 100 >= 66:
+                    elif pct >= 66:
                         r['diagnosis'] = 'fulfillment'
-                    elif cover * 100 <= 33:
+                    elif pct <= 33:
                         r['diagnosis'] = 'shortage'
                     else:
                         r['diagnosis'] = 'mixed'
@@ -537,29 +536,102 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             segments.append((cur_start, now, cur_stock))
         return segments
 
+    @api.model
+    def _stock_curves_batch(self, product_ids, date_from):
+        """Como _stock_curve_segments pero para muchos productos en pocos queries
+        (1 read_group de stock + 2 search_read de movimientos). Devuelve
+        {product_id: [(start_dt, end_dt, level), ...]}."""
+        product_ids = list(product_ids)
+        if not product_ids:
+            return {}
+        company_id = self.env.company.id
+        now = fields.Datetime.now()
+        stock_now = {}
+        for g in self.env['stock.quant'].sudo().read_group(
+                [('product_id', 'in', product_ids), ('location_id.usage', '=', 'internal'),
+                 ('company_id', '=', company_id)], ['product_id', 'quantity:sum'], ['product_id']):
+            stock_now[g['product_id'][0]] = g['quantity'] or 0.0
+
+        df = fields.Datetime.to_string(date_from)
+        base = [('product_id', 'in', product_ids), ('state', '=', 'done'),
+                ('date', '>=', df), ('company_id', '=', company_id)]
+        deltas = {pid: [] for pid in product_ids}
+        for m in self.env['stock.move'].sudo().search_read(
+                base + [('location_id.usage', '!=', 'internal'),
+                        ('location_dest_id.usage', '=', 'internal')], ['date', 'quantity', 'product_id']):
+            if m['product_id']:
+                deltas.setdefault(m['product_id'][0], []).append((m['date'], m['quantity'] or 0.0))
+        for m in self.env['stock.move'].sudo().search_read(
+                base + [('location_id.usage', '=', 'internal'),
+                        ('location_dest_id.usage', '!=', 'internal')], ['date', 'quantity', 'product_id']):
+            if m['product_id']:
+                deltas.setdefault(m['product_id'][0], []).append((m['date'], -(m['quantity'] or 0.0)))
+
+        curves = {}
+        for pid in product_ids:
+            dl = sorted(deltas.get(pid, []), key=lambda x: x[0])
+            cur = (stock_now.get(pid, 0.0)) - sum(d for _, d in dl)
+            segs = []
+            cur_start = date_from
+            for dt, delta in dl:
+                if dt > cur_start:
+                    segs.append((cur_start, dt, cur))
+                cur += delta
+                cur_start = dt
+            if now > cur_start:
+                segs.append((cur_start, now, cur))
+            curves[pid] = segs
+        return curves
+
+    @api.model
+    def _coverage_days(self, segments, pend_lines, now):
+        """Días con stock suficiente para entregar, ponderados por cantidad.
+
+        Por cada pedido pendiente (fecha, cantidad), cuenta los días de su ventana
+        [fecha, hoy] en que el stock alcanzaba para cubrirlo (stock(t) >= cantidad).
+
+        :returns: (x, y) — x = días-ponderados con stock suficiente, y = días-
+            ponderados totales. El promedio simple es x/Σqty e y/Σqty; el índice es
+            x/y. "Durante x/Σqty de los y/Σqty días pendientes hubo stock."
+        """
+        xw = yw = qsum = 0.0
+        for start, qty in pend_lines:
+            if not start or qty <= 0:
+                continue
+            total = max(0.0, (now - start).total_seconds() / 86400.0)
+            dstock = 0.0
+            for s, e, lvl in segments:
+                lo = max(s, start)
+                hi = min(e, now)
+                if hi > lo and lvl >= qty - 1e-6:
+                    dstock += (hi - lo).total_seconds() / 86400.0
+            xw += qty * dstock
+            yw += qty * total
+            qsum += qty
+        return xw, yw, qsum
+
     # ── Análisis de entregabilidad (on-demand, al expandir un producto) ──────────
     @api.model
     def get_unmet_delivery_analysis(self, product_id, period_from, period_to):
         """Análisis de entregabilidad de un producto (on-demand al expandir su fila).
 
-        Mide, a lo largo de la vida del backlog, qué PROPORCIÓN del pendiente podías
-        cubrir con el stock que tenías: cobertura(t) = min(1, stock(t) / pendiente).
-        El índice es el promedio (ponderado por cantidad) de esa cobertura. Así
-        distingue "tenías algo" de "tenías suficiente": 2 unidades de un pendiente de
-        68 dan ~3% (falta de stock), no 98% como el criterio binario stock>0.
+        Por cada pedido pendiente cuenta los días de su ventana en que el stock
+        alcanzaba para cubrirlo (stock(t) >= cantidad del pedido). Resume "durante X
+        de los Y días pendientes hubo stock disponible para entregar". Así distingue
+        "tener algo" de "tener suficiente": 2 unidades de un pendiente de 68 dan 0
+        días con stock (falta de stock), no ~98% como el criterio binario stock>0.
 
-        :returns: dict con index_pct, diagnosis, total_pending, stock_now y lines[].
+        :returns: dict con index_pct, diagnosis, days_stock, days_pending, stock_now y lines[].
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
         empty = {'index_pct': None, 'diagnosis': 'na', 'total_pending': 0.0,
-                 'stock_now': 0.0, 'lines': []}
+                 'days_stock': 0.0, 'days_pending': 0.0, 'stock_now': 0.0, 'lines': []}
         try:
             product_id = int(product_id)
         except (TypeError, ValueError):
             return empty
         try:
-            # Líneas pendientes del producto en el período (mismo dominio que el panel).
             dom = self._unmet_line_domain(period_from, period_to) + [('product_id', '=', product_id)]
             sol = self.env['sale.order.line'].search_read(
                 dom, ['product_uom_qty', 'qty_delivered', 'order_id'])
@@ -591,46 +663,43 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             if not starts:
                 return empty
             segments = self._stock_curve_segments(product_id, min(starts))
-            P = total_pending or 1.0
 
-            def _coverage(start_dt):
-                """(días-equivalentes cubiertos, días totales) entre start_dt y ahora.
-                Cobertura de cada tramo = min(1, stock/pendiente_total)."""
-                total = max(0.0, (now - start_dt).total_seconds() / 86400.0)
-                covered = 0.0
-                for seg_start, seg_end, level in segments:
-                    lo = max(seg_start, start_dt)
-                    hi = min(seg_end, now)
-                    if hi > lo:
-                        dur = (hi - lo).total_seconds() / 86400.0
-                        covered += dur * min(1.0, max(0.0, level) / P)
-                return covered, total
+            def _days_with_stock(start_dt, qty):
+                """Días entre start_dt y ahora en que el stock alcanzaba (>= qty)."""
+                d = 0.0
+                for s, e, lvl in segments:
+                    lo = max(s, start_dt); hi = min(e, now)
+                    if hi > lo and lvl >= qty - 1e-6:
+                        d += (hi - lo).total_seconds() / 86400.0
+                return d
 
             lines = []
-            num = den = 0.0
+            xw = yw = 0.0
             for oid, unmet in pend:
                 sdt = _start_dt(oid)
                 if not sdt:
                     continue
-                cov_days, total = _coverage(sdt)
-                pct = round(cov_days / total * 100, 1) if total > 0 else None
-                num += unmet * cov_days
-                den += unmet * total
+                total = max(0.0, (now - sdt).total_seconds() / 86400.0)
+                dstock = _days_with_stock(sdt, unmet)
+                pct = round(dstock / total * 100, 1) if total > 0 else None
+                xw += unmet * dstock
+                yw += unmet * total
                 lines.append({
                     'order':      (orders.get(oid) or {}).get('name') or '',
                     'pending':    round(unmet, 1),
                     'days_total': round(total, 1),
-                    'pct':        pct,   # cobertura promedio de este pedido
+                    'days_stock': round(dstock, 1),
+                    'pct':        pct,
                 })
             lines.sort(key=lambda r: r['pending'], reverse=True)
 
-            index_pct = round(num / den * 100, 1) if den > 0 else None
+            index_pct = round(xw / yw * 100, 1) if yw > 0 else None
             if index_pct is None:
                 diagnosis = 'na'
             elif index_pct >= 66:
-                diagnosis = 'fulfillment'   # podías cubrir la mayoría y no entregaste
+                diagnosis = 'fulfillment'   # hubo stock suficiente la mayor parte y no entregaste
             elif index_pct <= 33:
-                diagnosis = 'shortage'      # casi nunca alcanzaba el stock
+                diagnosis = 'shortage'      # casi nunca alcanzó el stock
             else:
                 diagnosis = 'mixed'
 
@@ -638,6 +707,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 'index_pct':     index_pct,
                 'diagnosis':     diagnosis,
                 'total_pending': round(total_pending, 1),
+                'days_stock':    round(xw / total_pending, 1) if total_pending > 0 else 0.0,
+                'days_pending':  round(yw / total_pending, 1) if total_pending > 0 else 0.0,
                 'stock_now':     round(segments[-1][2], 1) if segments else 0.0,
                 'lines':         lines,
             }

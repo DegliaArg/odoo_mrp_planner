@@ -1298,35 +1298,34 @@ CONDICIONES:
 
 ---
 
-### 4.13 Columna "Situación" (solo producto) — cobertura de HOY
-DESCRIPCION: Frase por fila que indica qué PROPORCIÓN del pendiente podés cubrir con el stock que tenés HOY. Es la foto rápida (barata) para toda la tabla; el histórico se calcula al expandir (bloque 4.14). Reemplazó al diagnóstico anterior de 4 estados (Crónico / Sin stock / Fulfillment / OK), que resultaba poco claro.
+### 4.13 Columna "Situación" (solo producto) — días con stock suficiente
+DESCRIPCION: Frase por fila, en lenguaje natural, que dice de los días que los pedidos llevan pendientes en cuántos hubo stock suficiente para entregarlos: "Durante X de los Y días pendientes hubo stock para entregar". Reemplazó al diagnóstico de 4 estados (Crónico / Sin stock / Fulfillment / OK), poco claro. Mismo cálculo que 4.14 pero batcheado para toda la tabla.
 VARIABLES:
-- stock_hoy = stock on-hand actual del producto (Σ stock.quant en ubicaciones internas de la compañía)
-- P = pendiente de la fila (unmet_qty)
-- cover = min(1, stock_hoy / P)
-FORMULA: cobertura_hoy = cover × 100 ; frase "Hoy cubrís {cover}% ({stock_hoy} de {P})", coloreada según diagnóstico
+- curva stock(t) por producto (batch; ver 4.14)
+- por cada pedido pendiente i: inicio_i (commitment_date o date_order), pend_i (cantidad pendiente)
+- dias_stock_i = días de [inicio_i, hoy] con stock(t) >= pend_i (había suficiente para entregarlo)
+- X = Σ(pend_i × dias_stock_i) / Σpend_i ; Y = Σ(pend_i × dias_total_i) / Σpend_i
+FORMULA: frase "Durante {X} de los {Y} días pendientes hubo stock para entregar", coloreada según diagnóstico
 LABEL: Situación
-CONDICIONES (color/diagnóstico, mismos cortes que 4.14):
-- cover <= 33% -> Falta de stock
-- 33% < cover < 66% -> Mixto
-- cover >= 66% -> Fulfillment
-- El tooltip muestra el detalle; expandir la fila da la cobertura histórica (4.14)
+CONDICIONES (diagnóstico, con indice = ΣX/ΣY × 100):
+- indice <= 33 -> Falta de stock
+- 33 < indice < 66 -> Mixto
+- indice >= 66 -> Fulfillment
 
-### 4.14 Cobertura histórica / proporción cubrible (on-demand, al expandir un producto)
-DESCRIPCION: Profundiza la columna Situación (que solo mira HOY). Reconstruye la curva de stock del producto y mide, a lo largo de la vida del backlog, qué PROPORCIÓN del pendiente podías cubrir con el stock que tenías. Distingue "tener algo" de "tener suficiente": 2 unidades de un pendiente de 68 dan ~3% (falta de stock), no ~98% como el criterio binario stock>0.
+### 4.14 Entregabilidad histórica (on-demand, al expandir un producto)
+DESCRIPCION: Detalle por pedido de la columna Situación. Reconstruye la curva de stock del producto y, por cada pedido pendiente, cuenta los días de su ventana en que el stock alcanzaba para cubrirlo (stock >= cantidad del pedido). Distingue "tener algo" de "tener suficiente": 2 unidades de un pendiente de 68 dan 0 días con stock (falta de stock), no ~98% como el criterio binario stock>0.
 VARIABLES:
 - stock_hoy = Σ stock.quant en ubicaciones internas de la compañía
 - curva stock(t) = stock_hoy aplicando hacia atrás todas las entradas (+) y salidas (−) internas↔externas (capta reposiciones)
-- P = pendiente total del producto (Σ pendiente de sus líneas)
 - por cada pedido pendiente i: inicio_i = commitment_date o, si no hay, date_order ; pend_i = cantidad pendiente
-- cobertura_i = promedio temporal sobre [inicio_i, hoy] de min(1, stock(t) / P)
-FORMULA: indice = Σ(pend_i × cobertura_i) / Σ(pend_i) × 100
-LABEL: Cobertura histórica (%)
+- dias_stock_i = días de [inicio_i, hoy] con stock(t) >= pend_i
+FORMULA: indice = Σ(pend_i × dias_stock_i) / Σ(pend_i × dias_total_i) × 100
+LABEL: Entregabilidad histórica (%)
 CONDICIONES (diagnóstico):
-- indice >= 66 -> Fulfillment (podías cubrir la mayoría y no entregaste)
-- indice <= 33 -> Falta de stock (casi nunca alcanzaba el stock)
+- indice >= 66 -> Fulfillment (hubo stock suficiente la mayor parte y no entregaste)
+- indice <= 33 -> Falta de stock (casi nunca alcanzó el stock)
 - 33 < indice < 66 -> Mixto (parte falta de stock, parte fulfillment)
-LIMITACION: la curva usa el stock FÍSICO on-hand; las reservas históricas (stock que un día ya estaba comprometido a otro pedido) no son reconstruibles en Odoo, así que la cobertura puede sobrestimar si ese stock no estaba realmente libre.
+LIMITACION: la curva usa el stock FÍSICO on-hand; las reservas históricas (stock que un día ya estaba comprometido a otro pedido) no son reconstruibles en Odoo, así que la entregabilidad puede sobrestimar si ese stock no estaba realmente libre.
 
 ---
 

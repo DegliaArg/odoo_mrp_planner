@@ -387,8 +387,7 @@
         </tr>
     </t>
 
-    <!-- Panel de análisis de entregabilidad (fila expandida). Requiere `row`.
-         Misma estética que el detalle de cliente: KPI strip + narrativa + detalle. -->
+    <!-- Panel de entregabilidad (fila expandida), en lenguaje natural. Requiere `row`. -->
     <t t-name="odoo_mrp_planner.UnmetDemandExpandRow">
         <tr>
             <td t-att-colspan="columns.length" style="padding:12px 16px; background:#f8f9fa; border-top:none;">
@@ -397,100 +396,31 @@
                 <t t-if="!a">
                     <div class="d-flex align-items-center gap-2 py-2">
                         <div class="spinner-border spinner-border-sm text-primary" role="status"/>
-                        <span class="text-muted small">Analizando entregabilidad…</span>
+                        <span class="text-muted small">Analizando…</span>
                     </div>
                 </t>
                 <t t-elif="a.error">
-                    <div class="text-danger small">Error al analizar la entregabilidad.</div>
+                    <div class="text-danger small">No se pudo analizar este producto.</div>
                 </t>
                 <t t-elif="a.index_pct === null">
-                    <div class="text-muted small">Sin datos suficientes para analizar la entregabilidad de este producto.</div>
+                    <div class="text-muted small">No hay datos suficientes para analizar este producto.</div>
                 </t>
                 <t t-else="">
+                    <!-- Diagnóstico + frase en lenguaje natural -->
                     <div class="d-flex align-items-center gap-2 mb-2">
-                        <div class="o_planner_section_title" style="margin-bottom:0;">
-                            <i class="fa fa-truck me-1 text-muted"/>
-                            <span class="text-uppercase fw-bold text-muted small">Análisis de entregabilidad</span>
-                        </div>
-                        <i class="fa fa-info-circle text-muted"
-                           style="cursor:help;"
-                           title="Cómo se calcula: por cada pedido pendiente se compara su antigüedad con los días que el producto estuvo en quiebre (bajo el mínimo). Los días SIN quiebre son días en que había stock sano para haber entregado.&#10;&#10;Índice alto → tuviste stock la mayor parte del tiempo y no entregaste (Fulfillment); índice bajo → estuviste en quiebre casi todo el tiempo (Falta de stock).&#10;&#10;Nota: los días en quiebre usan el tramo continuo de quiebre actual (break_days), no el historial completo de entradas y salidas."/>
+                        <span t-att-class="'badge ' + deliveryDiagnosis(a.diagnosis).cls"
+                              t-esc="deliveryDiagnosis(a.diagnosis).label"/>
+                        <span class="fw-semibold" t-esc="deliveryNarrative(a)"/>
                     </div>
 
-                    <!-- KPI strip -->
-                    <div class="row g-2 mb-3 flex-nowrap">
-                        <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Cobertura histórica: proporción del pendiente (ponderada por cantidad) que podías cubrir con el stock que tuviste a lo largo de la espera.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div t-att-class="'fw-bold o_planner_number ' + deliveryDiagnosis(a.diagnosis).text"
-                                         style="font-size:1rem;" t-esc="fmtPct(a.index_pct)"/>
-                                    <div class="small text-muted">Cobertura histórica</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Diagnóstico según la cobertura histórica.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="d-flex justify-content-center">
-                                        <span t-att-class="'badge ' + deliveryDiagnosis(a.diagnosis).cls"
-                                              t-esc="deliveryDiagnosis(a.diagnosis).label"/>
-                                    </div>
-                                    <div class="small text-muted mt-1">Diagnóstico</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Total pendiente del producto en el período.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="fw-bold o_planner_number" style="font-size:1rem;" t-esc="fmt(a.total_pending)"/>
-                                    <div class="small text-muted">Pendiente</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="card o_planner_kpi_card_xs h-100" title="Stock on-hand actual del producto.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <div class="fw-bold o_planner_number" style="font-size:1rem;" t-esc="fmt(a.stock_now)"/>
-                                    <div class="small text-muted">Stock actual</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Narrativa del diagnóstico -->
-                    <div class="alert alert-light border py-2 px-3 mb-3 small" t-esc="deliveryNarrative(a)"/>
-
-                    <!-- Detalle por pedido -->
-                    <div class="o_planner_section_title mb-1">
-                        <i class="fa fa-list me-1 text-muted"/>
-                        <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
-                    </div>
-                    <table class="table table-sm table-hover mb-0" style="font-size:11px; max-width:640px;">
-                        <thead>
-                            <tr class="text-muted">
-                                <th style="border-top:none;">Pedido</th>
-                                <th class="text-end" style="border-top:none;">Pendiente</th>
-                                <th class="text-end" style="border-top:none;">Días pendiente</th>
-                                <th style="border-top:none; min-width:150px;">Cobertura</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr t-foreach="a.lines" t-as="ln" t-key="ln_index">
-                                <td class="fw-semibold" t-esc="ln.order"/>
-                                <td class="text-end" t-esc="fmt(ln.pending)"/>
-                                <td class="text-end" t-esc="fmt(ln.days_total)"/>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="progress flex-grow-1" style="height:6px;">
-                                            <div t-att-class="'progress-bar ' + deliveryDiagnosis(a.diagnosis).bar"
-                                                 role="progressbar" t-att-style="'width:' + (ln.pct || 0) + '%;'"/>
-                                        </div>
-                                        <span class="text-muted" style="min-width:42px; text-align:right;" t-esc="fmtPct(ln.pct)"/>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <!-- Detalle por pedido, en frases -->
+                    <ul class="mb-0 ps-3 small text-muted">
+                        <li t-foreach="a.lines" t-as="ln" t-key="ln_index">
+                            <b class="text-body" t-esc="ln.order"/>:
+                            <t t-esc="fmt(ln.pending)"/> unidades pendientes hace <t t-esc="fmt(ln.days_total)"/> días —
+                            hubo stock para entregarlas <t t-esc="fmt(ln.days_stock)"/> de esos días.
+                        </li>
+                    </ul>
                 </t>
             </td>
         </tr>

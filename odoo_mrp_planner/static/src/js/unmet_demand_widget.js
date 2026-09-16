@@ -51,7 +51,7 @@ const UD_ALL_COLS = [
     { key: "unmet_pct",       label: "% Insatisf.",      width: 90,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 110, align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Situación",        width: 230, align: "start",  sortKey: "diagnosis",       kind: "situation" },
+    { key: "diagnosis",       label: "Situación",        width: 300, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
@@ -467,37 +467,44 @@ class UnmetDemandWidget extends Component {
         };
         return map[diag] || map.na;
     }
-    /** Frase del panel: proporción del pendiente que podías cubrir (histórico). */
+    /** Frase del panel, en lenguaje natural (histórico: días con stock suficiente). */
     deliveryNarrative(a) {
         if (!a || a.index_pct === null || a.index_pct === undefined) return "";
-        const idx = this.fmtPct(a.index_pct);
+        const x = Math.round(a.days_stock);
+        const y = Math.round(a.days_pending);
+        const base = `Durante ${x} de los ${y} días que estos pedidos llevan pendientes hubo stock suficiente para entregar.`;
         switch (a.diagnosis) {
             case "shortage":
-                return `En promedio, con el stock que tuviste solo podías cubrir ${idx} de lo pendiente. El faltante es por falta de stock: reponer o fabricar es la prioridad.`;
+                return `${base} Casi nunca tuviste con qué: el faltante es por falta de stock — hay que reponer o fabricar.`;
             case "fulfillment":
-                return `En promedio tenías stock para cubrir ${idx} de lo pendiente y no se entregó. El problema no es de stock: revisá asignación, logística o prioridades de entrega.`;
+                return `${base} Tenías stock la mayor parte del tiempo y no se entregó: el problema no es de stock, revisá asignación, logística o prioridades.`;
             case "mixed":
-                return `En promedio podías cubrir ${idx} de lo pendiente con el stock disponible. Es una mezcla: parte falta de stock, parte fulfillment.`;
+                return `${base} Es una mezcla: parte del tiempo faltó stock y parte lo tuviste sin entregar.`;
             default:
-                return "";
+                return base;
         }
     }
-    /** Frase compacta de la columna "Situación" = cobertura de HOY (por fila). */
+    /** Frase de la columna "Situación" en lenguaje natural (histórico por fila). */
     rowSituation(row) {
         const dg = this.deliveryDiagnosis(row.diagnosis);
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") {
             return { text: "—", cls: "text-muted" };
         }
-        const s = Math.round(row.stock_now || 0);
-        const p = Math.round(row.unmet_qty || 0);
-        return { text: `Hoy cubrís ${this.fmtPct(row.cover_pct)} (${s} de ${p})`, cls: dg.text };
+        const x = Math.round(row.deliv_days || 0);
+        const y = Math.round(row.pend_days || 0);
+        return { text: `Durante ${x} de los ${y} días pendientes hubo stock para entregar`, cls: dg.text };
     }
-    /** Tooltip de la columna Situación. */
+    /** Tooltip de la columna Situación (lenguaje natural). */
     rowSituationTooltip(row) {
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return row.name;
-        const s = Math.round(row.stock_now || 0);
-        const p = Math.round(row.unmet_qty || 0);
-        return `${row.name}\nHoy tenés ${s} en stock de ${p} pendientes (cubre ${this.fmtPct(row.cover_pct)}).\nExpandí la fila para ver la cobertura histórica (durante la espera).`;
+        const x = Math.round(row.deliv_days || 0);
+        const y = Math.round(row.pend_days || 0);
+        const tail = {
+            shortage:    "Casi nunca hubo stock suficiente: falta de stock (comprar/fabricar).",
+            fulfillment: "Hubo stock la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
+            mixed:       "A veces hubo stock y a veces no: mezcla de falta de stock y de entrega.",
+        }[row.diagnosis] || "";
+        return `${row.name}\nDurante ${x} de los ${y} días pendientes hubo stock suficiente para entregar.\n${tail}`;
     }
 
     /**
@@ -673,7 +680,7 @@ class UnmetDemandWidget extends Component {
             unmet_pct:       "Insatisfacción: pendiente ÷ pedido × 100. Cuánto de lo pedido quedó sin entregar.",
             pending_age:     "Antigüedad del pendiente: días que lleva esperando lo que no se entregó. El método (ponderado por cantidad o pedido más antiguo) se elige en Ajustes. El tooltip muestra ambos.",
             break_days:      "Días en quiebre: hace cuántos días el stock está bajo el mínimo (solo productos en quiebre con mínimo configurado). '—' = sin quiebre.",
-            diagnosis:       "Situación: qué proporción del pendiente cubrís con el stock que tenés HOY (stock actual ÷ pendiente). Expandí la fila para la cobertura histórica (a lo largo de la espera).",
+            diagnosis:       "Situación: de los días que los pedidos llevan pendientes, en cuántos hubo stock suficiente para entregarlos. Expandí la fila para ver el detalle por pedido.",
             affected_orders: "Pedidos distintos del período con al menos una unidad pendiente.",
             cross_count:     crossTip,
         }[col.key] || "";

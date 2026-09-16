@@ -69,7 +69,7 @@ const PERSIST_KEYS = [
     "chartDateFrom", "chartDateTo", "chartDimension", "chartAmountMethod",
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
-    "sortCol", "sortDir", "pageSize", "colsVisible",
+    "sortCol", "sortDir", "pageSize", "colsVisible", "showAll",
 ];
 function loadFilters() {
     try {
@@ -133,6 +133,7 @@ class UnmetDemandWidget extends Component {
             sortDir:      pick("sortDir", "desc"),
             page:         1,
             pageSize:     pick("pageSize", 50),
+            showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
             colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
@@ -185,7 +186,7 @@ class UnmetDemandWidget extends Component {
             this.state.data = await this.orm.call(
                 "mrp.planner.dashboard", "get_unmet_demand_data",
                 [this.state.dateFrom, this.state.dateTo, this.state.dimension,
-                 [], this.state.amountMethod || null]);
+                 [], this.state.amountMethod || null, this.state.showAll]);
         } catch (e) {
             console.error("[UnmetDemandWidget] table", e);
             this.state.data      = null;
@@ -249,6 +250,9 @@ class UnmetDemandWidget extends Component {
         this._load();
     }
     setAmountMethod(m) { if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
+    /** Toggle tabla: mostrar todas las entidades del período (footer cuadra con las
+     *  cards) o solo las que tienen faltante (defecto, foco en lo insatisfecho). */
+    toggleShowAll() { this.state.showAll = !this.state.showAll; this._load(); }
 
     /** Drill de las cards: abre la lista de líneas del período enfocada según la
      *  card (focus = 'ordered' | 'delivered' | 'pending' | 'value' | 'fulfillment').

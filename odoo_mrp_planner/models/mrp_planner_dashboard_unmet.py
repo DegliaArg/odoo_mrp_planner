@@ -101,20 +101,47 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         if focus not in ('ordered', 'delivered', 'pending', 'value', 'fulfillment'):
             focus = 'pending'
 
+        # Agrupar por la dimensión activa (card de afectados). Clientes por casa
+        # matriz (unifica sucursales, coincide con el conteo de la card) y familia
+        # por categoría de producto.
+        group_field = {'customer': 'commercial_partner_id',
+                       'product':  'product_id',
+                       'family':   'product_categ_id'}.get(group_dimension)
+
         # Mismo dominio que las cards (y que el Forecast), sin sudo → el "Ver" suma
         # exactamente lo mismo que la card (ambos respetan las reglas del usuario).
+        read_fields = ['id', 'product_uom_qty', 'qty_delivered']
+        if group_field:
+            read_fields.append(group_field)
         lines = self.env['sale.order.line'].search_read(
-            self._unmet_line_domain(period_from, period_to),
-            ['id', 'product_uom_qty', 'qty_delivered'])
+            self._unmet_line_domain(period_from, period_to), read_fields)
 
         def _ordered(l):   return l['product_uom_qty'] or 0.0
-        def _delivered(l): return l['qty_delivered'] or 0.0
+        # Entregado topeado en 0 (devoluciones no cuentan), igual que el panel.
+        def _delivered(l): return max(0.0, l['qty_delivered'] or 0.0)
+        def _gkey(l):      return (l[group_field][0] if l[group_field] else False) if group_field else None
+
+        # Drill de afectados (agrupado): limitar a entidades con pendiente NETO > 0,
+        # mismo criterio que la card, para que el conteo de grupos coincida (p. ej.
+        # excluye productos con una línea faltante compensada por sobre-entrega).
+        allowed_keys = None
+        if group_field:
+            net = {}
+            for l in lines:
+                k = _gkey(l)
+                a = net.setdefault(k, [0.0, 0.0])
+                a[0] += _ordered(l); a[1] += _delivered(l)
+            allowed_keys = {k for k, (o, d) in net.items() if o - d > 1e-6}
+
+        def _in_scope(l):
+            return allowed_keys is None or _gkey(l) in allowed_keys
+
         if focus in ('pending', 'value'):
-            ids = [l['id'] for l in lines if _ordered(l) - _delivered(l) > 1e-6]
+            ids = [l['id'] for l in lines if _ordered(l) - _delivered(l) > 1e-6 and _in_scope(l)]
         elif focus == 'delivered':
-            ids = [l['id'] for l in lines if _delivered(l) > 1e-6]
+            ids = [l['id'] for l in lines if _delivered(l) > 1e-6 and _in_scope(l)]
         else:  # ordered / fulfillment
-            ids = [l['id'] for l in lines]
+            ids = [l['id'] for l in lines if _in_scope(l)]
 
         titles = {
             'ordered':     _('Demanda del período — líneas'),
@@ -129,12 +156,6 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             'unmet_show_pending':   focus in ('pending', 'value'),
             'unmet_show_amount':    focus == 'value',
         }
-        # Agrupar por la dimensión activa (card de afectados). Clientes por casa
-        # matriz (unifica sucursales, coincide con el conteo de la card) y familia
-        # por categoría de producto.
-        group_field = {'customer': 'commercial_partner_id',
-                       'product':  'product_id',
-                       'family':   'product_categ_id'}.get(group_dimension)
         if group_field:
             ctx['group_by'] = [group_field]
 
@@ -169,7 +190,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
     @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
-                              warehouse_ids=None, amount_method_override=None):
+                              warehouse_ids=None, amount_method_override=None,
+                              include_all=False):
         """
         Devuelve las filas de demanda insatisfecha del período, agregadas por la
         dimensión pedida, más los KPIs globales.
@@ -179,6 +201,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         :param dimension:   'customer' | 'product' | 'family'.
         :param warehouse_ids: list[int] | None.
         :param amount_method_override: 'pxq' | 'real' | None (hereda de config).
+        :param include_all: si True, incluye también las entidades sin pendiente
+            (para el toggle "mostrar todo": el footer de la tabla cuadra con las
+            cards). Si False (defecto), solo las entidades con pendiente neto.
+            'total_rows' (afectados) cuenta solo las con pendiente en ambos casos.
         :returns: dict con 'rows', 'kpis', 'config', 'dimension'.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
@@ -407,12 +433,16 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             # total de la card. La valorización (unmet_amount) y la antigüedad son
             # el detalle del backlog por línea de esa entidad.
             rows = []
+            n_affected = 0   # entidades con pendiente (card "afectados"), sin importar include_all
             for d in agg.values():
                 ordered   = d['qty_ordered']
                 delivered = d['qty_delivered']
                 unmet     = ordered - delivered
-                if unmet <= 1e-6:
-                    continue
+                has_pending = unmet > 1e-6
+                if has_pending:
+                    n_affected += 1
+                elif not include_all:
+                    continue   # sin pendiente: se omite salvo en modo "mostrar todo"
                 rows.append({
                     'key':             d['key'],
                     'name':            d['name'] or '(sin nombre)',
@@ -454,7 +484,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 'total_ordered':      round(period_ordered, 1),
                 'total_delivered':    round(period_delivered, 1),
                 'fulfillment_pct':    round(period_delivered / period_ordered * 100, 1) if period_ordered > 0 else None,
-                'total_rows':         len(rows),
+                'total_rows':         n_affected,
                 'affected_orders':    len(all_unmet_orders),
             }
             return {'rows': rows, 'kpis': kpis, 'config': cfg, 'dimension': dimension}

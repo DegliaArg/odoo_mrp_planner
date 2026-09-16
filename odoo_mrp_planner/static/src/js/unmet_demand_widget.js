@@ -476,7 +476,7 @@ class UnmetDemandWidget extends Component {
     /** Etiqueta + clases/estilos (badge, texto, barra, alert, ícono, chip) del diagnóstico. */
     deliveryDiagnosis(diag) {
         const map = {
-            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info",      alert: "alert-info",      icon: "fa-dolly",                 chip: "background:#cff4fc; color:#055160;", color: "#0dcaf0" },
+            fulfillment: { label: "Falla de entrega", cls: "bg-info text-dark",        text: "text-info",    bar: "bg-info",      alert: "alert-info",      icon: "fa-dolly",                 chip: "background:#cff4fc; color:#055160;", color: "#0dcaf0" },
             shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger",    alert: "alert-danger",    icon: "fa-exclamation-triangle",  chip: "background:#f8d7da; color:#842029;", color: "#dc3545" },
             mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning",   alert: "alert-warning",   icon: "fa-adjust",                chip: "background:#fff3cd; color:#664d03;", color: "#ffc107" },
             na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary", alert: "alert-secondary", icon: "fa-question-circle",       chip: "background:#e9ecef; color:#6c757d;", color: "#6c757d" },

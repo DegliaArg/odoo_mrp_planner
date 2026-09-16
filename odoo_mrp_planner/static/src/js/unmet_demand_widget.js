@@ -23,7 +23,7 @@
  *   - record: Object (opcional) — registro del dashboard (infra de widgets)
  */
 
-import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onPatched, onWillUnmount, useRef, useEffect } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
@@ -60,6 +60,32 @@ function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// ── Persistencia de filtros (localStorage) ─────────────────────────────────────
+// Se guardan los filtros del gráfico y de la tabla/cards para que sobrevivan al
+// recargar el panel. La búsqueda de texto, los filtros numéricos y la paginación
+// son transitorios y NO se persisten.
+const FILTERS_KEY = "_planner_unmet_filters_v1";
+const PERSIST_KEYS = [
+    "chartDateFrom", "chartDateTo", "chartDimension", "chartAmountMethod",
+    "chartMetric", "chartTopN",
+    "dateFrom", "dateTo", "dimension", "amountMethod",
+    "sortCol", "sortDir", "pageSize", "colsVisible",
+];
+function loadFilters() {
+    try {
+        const raw = localStorage.getItem(FILTERS_KEY);
+        const s = raw ? JSON.parse(raw) : null;
+        return (s && typeof s === "object") ? s : {};
+    } catch (e) { return {}; }
+}
+function saveFilters(state) {
+    try {
+        const data = {};
+        for (const k of PERSIST_KEYS) data[k] = state[k];
+        localStorage.setItem(FILTERS_KEY, JSON.stringify(data));
+    } catch (e) { /* storage lleno o no disponible: ignorar */ }
+}
+
 class UnmetDemandWidget extends Component {
     static template = "odoo_mrp_planner.UnmetDemandWidget";
     static components = { PlannerSearchBar };
@@ -77,35 +103,48 @@ class UnmetDemandWidget extends Component {
         const first = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
         const last  = toDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
+        // Filtros persistidos (localStorage): pisan los defaults si existen.
+        const saved = loadFilters();
+        const pick = (k, dflt) => (saved[k] !== undefined && saved[k] !== null) ? saved[k] : dflt;
+
         this.state = useState({
             // ── Gráfico (filtros de arriba, independientes) ──
             chartLoading:      true,
             chartError:        null,
-            chartDateFrom:     first,
-            chartDateTo:       last,
-            chartDimension:    "customer",
-            chartAmountMethod: "",
+            chartDateFrom:     pick("chartDateFrom", first),
+            chartDateTo:       pick("chartDateTo", last),
+            chartDimension:    pick("chartDimension", "customer"),
+            chartAmountMethod: pick("chartAmountMethod", ""),
             chartData:         null,
-            chartMetric:       "amount",   // "amount" | "qty"
-            chartTopN:         20,
+            chartMetric:       pick("chartMetric", "amount"),   // "amount" | "qty"
+            chartTopN:         pick("chartTopN", 20),
 
             // ── Cards globales + tabla (segunda línea de filtros) ──
             loading:      true,
             loadError:    null,
-            dateFrom:     first,
-            dateTo:       last,
-            dimension:    "customer",
-            amountMethod: "",
+            dateFrom:     pick("dateFrom", first),
+            dateTo:       pick("dateTo", last),
+            dimension:    pick("dimension", "customer"),
+            amountMethod: pick("amountMethod", ""),
             data:         null,
             productSearch: "",
             numFilters:   [],
-            sortCol:      "unmet_amount",
-            sortDir:      "desc",
+            sortCol:      pick("sortCol", "unmet_amount"),
+            sortDir:      pick("sortDir", "desc"),
             page:         1,
-            pageSize:     50,
-            colsVisible:      {},          // {key: false} = oculta; ausente/true = visible
+            pageSize:     pick("pageSize", 50),
+            colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
+
+        // Persistir los filtros cada vez que cambia alguno de los relevantes.
+        useEffect(
+            () => { saveFilters(this.state); },
+            () => PERSIST_KEYS.map(k => {
+                const v = this.state[k];
+                return (v && typeof v === "object") ? JSON.stringify(v) : v;
+            }),
+        );
 
         onMounted(async () => {
             try {

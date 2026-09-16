@@ -296,7 +296,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             prod_info = {
                 p['id']: p
                 for p in self.env['product.product'].sudo().browse(prod_ids).read(
-                    ['id', 'display_name', 'categ_id', 'lst_price', 'product_tmpl_id'])
+                    ['id', 'display_name', 'default_code', 'categ_id', 'lst_price', 'product_tmpl_id'])
             }
             # Nombre HOJA de la familia (no el path completo "Todo / … / X"),
             # igual que el panel de ventas y el análisis de clientes.
@@ -314,8 +314,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                     sale_cat_by_tmpl[t['id']] = t.get('x_sale_category') or ''
 
             # ── 3. Agregación por la dimensión elegida ───────────────────────
-            def _new(key, name, category=''):
-                return {'key': key, 'name': name, 'category': category,
+            def _new(key, name, category='', code=''):
+                return {'key': key, 'name': name, 'category': category, 'code': code,
                         'qty_ordered': 0.0, 'qty_delivered': 0.0,
                         'unmet_qty': 0.0, 'unmet_amount': 0.0,
                         '_orders': set(), '_cross': set(),
@@ -352,6 +352,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 period_delivered += delivered
                 period_unmet_amt += unmet_amt
 
+                code = ''
                 if dimension == 'customer':
                     partner = order_partner.get(oid) or (0, '')
                     pid_c = partner[0]
@@ -362,6 +363,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 elif dimension == 'product':
                     partner = order_partner.get(oid) or (0, '')
                     key, name = pid, pi.get('display_name', '')
+                    code  = pi.get('default_code') or ''   # referencia interna (eje X del gráfico)
                     _tmpl = pi.get('product_tmpl_id')
                     category  = sale_cat_by_tmpl.get(_tmpl[0], '') if _tmpl else ''
                     cross = partner[0]
@@ -373,7 +375,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
                 d = agg.get(key)
                 if d is None:
-                    d = _new(key, name, category)
+                    d = _new(key, name, category, code)
                     agg[key] = d
                 # Pedido/entregado se acumulan sobre TODAS las líneas de la entidad
                 # (para que el % de cumplimiento refleje su desempeño global).
@@ -409,6 +411,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 rows.append({
                     'key':             d['key'],
                     'name':            d['name'] or '(sin nombre)',
+                    'code':            d['code'] or '',
                     'category':        d['category'] or '',
                     'qty_ordered':     round(ordered, 1),
                     'qty_delivered':   round(delivered, 1),

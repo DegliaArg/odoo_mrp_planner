@@ -451,7 +451,11 @@ class UnmetDemandWidget extends Component {
         const rows   = [...this.chartRowsAll]
             .sort((a, b) => (b[field] || 0) - (a[field] || 0))
             .slice(0, this.state.chartTopN);
-        const labels = rows.map(r => r.name.length > 22 ? r.name.slice(0, 20) + "…" : r.name);
+        // En modo producto, el eje X muestra solo la referencia interna (queda
+        // corto); el tooltip sigue mostrando el nombre completo. Fallback al nombre
+        // si el producto no tiene referencia.
+        const axisOf = r => (this.state.chartDimension === "product" && r.code) ? r.code : r.name;
+        const labels = rows.map(r => { const s = axisOf(r); return s.length > 22 ? s.slice(0, 20) + "…" : s; });
         const data   = rows.map(r => r[field]);
         const colors = rows.map(r => {
             const p = r.unmet_pct || 0;

@@ -50,7 +50,7 @@ const UD_ALL_COLS = [
     { key: "fulfillment_pct", label: "% Cumplim.",       width: 78,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 92,  align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 90,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Situación",        width: 340, align: "start",  sortKey: "diagnosis",       kind: "situation" },
+    { key: "diagnosis",       label: "Situación",        width: 380, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
@@ -551,22 +551,19 @@ class UnmetDemandWidget extends Component {
         return {
             na: false,
             label: dg.label,
-            text: `Hubo stock para entregar ${x} de los ${y} días pendientes`,
+            text: `De los ${y} días pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte`,
             chip: dg.chip,
             icon: dg.icon,
         };
     }
-    /** Tooltip de la columna Situación (explícito; sin el nombre, lo antepone cellTooltip). */
+    /** Tooltip de la columna Situación: la recomendación (la frase ya está en la celda). */
     rowSituationTooltip(row) {
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") return "";
-        const x = Math.round(row.deliv_days || 0);
-        const y = Math.round(row.pend_days || 0);
-        const tail = {
+        return {
             shortage:    "Casi nunca hubo stock: falta de mercadería (comprar o fabricar).",
             fulfillment: "Hubo stock disponible la mayor parte del tiempo y no se entregó: revisá logística/asignación.",
             mixed:       "A veces hubo stock y a veces no: situación mixta.",
         }[row.diagnosis] || "";
-        return `De los ${y} días que estos pedidos llevan pendientes, durante ${x} hubo stock disponible (al menos 1 pieza) para entregar aunque sea una parte.\n${tail}`;
     }
 
     /**

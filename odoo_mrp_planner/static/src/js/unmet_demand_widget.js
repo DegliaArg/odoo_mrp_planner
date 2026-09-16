@@ -457,13 +457,13 @@ class UnmetDemandWidget extends Component {
             }
         }
     }
-    /** Etiqueta + clases (badge, texto, barra) del diagnóstico refinado. */
+    /** Etiqueta + clases (badge, texto, barra, alert, ícono) del diagnóstico. */
     deliveryDiagnosis(diag) {
         const map = {
-            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info" },
-            shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger" },
-            mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning" },
-            na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary" },
+            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info",      alert: "alert-info",      icon: "fa-dolly" },
+            shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger",    alert: "alert-danger",    icon: "fa-exclamation-triangle" },
+            mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning",   alert: "alert-warning",   icon: "fa-adjust" },
+            na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary", alert: "alert-secondary", icon: "fa-question-circle" },
         };
         return map[diag] || map.na;
     }

@@ -406,21 +406,42 @@
                     <div class="text-muted small">No hay datos suficientes para analizar este producto.</div>
                 </t>
                 <t t-else="">
-                    <!-- Diagnóstico + frase en lenguaje natural -->
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span t-att-class="'badge ' + deliveryDiagnosis(a.diagnosis).cls"
-                              t-esc="deliveryDiagnosis(a.diagnosis).label"/>
-                        <span class="fw-semibold" t-esc="deliveryNarrative(a)"/>
+                    <!-- Banner compacto: se entiende de un vistazo -->
+                    <div t-att-class="'alert d-flex align-items-center gap-3 mb-2 py-2 px-3 ' + deliveryDiagnosis(a.diagnosis).alert">
+                        <i t-att-class="'fa fa-2x ' + deliveryDiagnosis(a.diagnosis).icon"/>
+                        <div class="flex-grow-1" style="min-width:0;">
+                            <div class="fw-bold" t-esc="deliveryDiagnosis(a.diagnosis).label"/>
+                            <div class="small" t-esc="deliveryNarrative(a)"/>
+                        </div>
+                        <div class="text-center px-2" style="min-width:96px;">
+                            <div class="fw-bold lh-1" style="font-size:1.4rem;">
+                                <t t-esc="fmt(a.days_stock)"/><span class="fw-normal text-muted" style="font-size:0.9rem;">/<t t-esc="fmt(a.days_pending)"/></span>
+                            </div>
+                            <div class="small text-muted">días con stock</div>
+                        </div>
                     </div>
 
-                    <!-- Detalle por pedido, en frases -->
-                    <ul class="mb-0 ps-3 small text-muted">
-                        <li t-foreach="a.lines" t-as="ln" t-key="ln_index">
-                            <b class="text-body" t-esc="ln.order"/>:
-                            <t t-esc="fmt(ln.pending)"/> unidades pendientes hace <t t-esc="fmt(ln.days_total)"/> días —
-                            hubo stock para entregarlas <t t-esc="fmt(ln.days_stock)"/> de esos días.
-                        </li>
-                    </ul>
+                    <!-- Detalle compacto (top pedidos) -->
+                    <table class="table table-sm mb-0" style="font-size:11px; max-width:540px;">
+                        <tbody>
+                            <t t-foreach="a.lines" t-as="ln" t-key="ln_index">
+                                <tr t-if="ln_index &lt; 5">
+                                    <td class="fw-semibold" style="border-top:none;" t-esc="ln.order"/>
+                                    <td class="text-end text-muted" style="border-top:none;"><t t-esc="fmt(ln.pending)"/> pend.</td>
+                                    <td class="text-end" style="border-top:none;">
+                                        <span t-att-class="deliveryDiagnosis(ln.pct &gt;= 66 ? 'fulfillment' : (ln.pct &lt;= 33 ? 'shortage' : 'mixed')).text">
+                                            stock <t t-esc="fmt(ln.days_stock)"/> de <t t-esc="fmt(ln.days_total)"/> días
+                                        </span>
+                                    </td>
+                                </tr>
+                            </t>
+                            <tr t-if="a.lines.length > 5">
+                                <td colspan="3" class="text-muted fst-italic" style="border-top:none;">
+                                    y <t t-esc="a.lines.length - 5"/> pedido(s) más
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </t>
             </td>
         </tr>

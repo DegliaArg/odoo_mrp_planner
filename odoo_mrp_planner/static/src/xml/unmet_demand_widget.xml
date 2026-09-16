@@ -365,9 +365,15 @@
                         <span t-att-class="unmetSeverityClass(row.unmet_pct)" t-esc="cellText(row, col)"/>
                     </t>
                     <t t-elif="col.key === 'diagnosis'">
-                        <span t-att-class="'small ' + rowSituation(row).cls"
-                              style="white-space:normal; line-height:1.15;"
-                              t-esc="rowSituation(row).text"/>
+                        <t t-if="rowSituation(row).na">
+                            <span class="text-muted">—</span>
+                        </t>
+                        <t t-else="">
+                            <span t-att-style="'display:inline-flex; align-items:center; gap:5px; white-space:normal; text-align:left; font-size:11px; font-weight:500; line-height:1.2; padding:3px 9px; border-radius:12px; ' + rowSituation(row).chip">
+                                <i t-att-class="'fa ' + rowSituation(row).icon"/>
+                                <span t-esc="rowSituation(row).text"/>
+                            </span>
+                        </t>
                     </t>
                     <t t-elif="col.key === 'category'">
                         <span t-if="row.category"
@@ -405,27 +411,39 @@
                     <div class="text-muted small">No hay datos suficientes para analizar este producto.</div>
                 </t>
                 <t t-else="">
-                    <!-- Banner compacto: se entiende de un vistazo -->
-                    <div t-att-class="'alert d-flex align-items-center gap-3 mb-2 py-2 px-3 ' + deliveryDiagnosis(a.diagnosis).alert">
-                        <i t-att-class="'fa fa-2x ' + deliveryDiagnosis(a.diagnosis).icon"/>
+                    <!-- Banner: card blanca con borde de color (estética del detalle de cliente) -->
+                    <div class="d-flex align-items-center gap-3 mb-3 p-3 bg-white rounded shadow-sm"
+                         t-att-style="'border-left:4px solid ' + deliveryDiagnosis(a.diagnosis).color + ';'">
+                        <i t-att-class="'fa fa-2x ' + deliveryDiagnosis(a.diagnosis).icon"
+                           t-att-style="'color:' + deliveryDiagnosis(a.diagnosis).color + ';'"/>
                         <div class="flex-grow-1" style="min-width:0;">
-                            <div class="fw-bold" t-esc="deliveryDiagnosis(a.diagnosis).label"/>
-                            <div class="small" t-esc="deliveryNarrative(a)"/>
+                            <div class="fw-bold" t-att-style="'color:' + deliveryDiagnosis(a.diagnosis).color + ';'"
+                                 t-esc="deliveryDiagnosis(a.diagnosis).label"/>
+                            <div class="small text-muted" t-esc="deliveryNarrative(a)"/>
                         </div>
-                        <div class="text-center px-2" style="min-width:96px;">
-                            <div class="fw-bold lh-1" style="font-size:1.4rem;">
+                        <div class="text-center px-2" style="min-width:100px;">
+                            <div class="fw-bold lh-1" style="font-size:1.5rem;"
+                                 t-att-style="'color:' + deliveryDiagnosis(a.diagnosis).color + '; font-size:1.5rem; line-height:1;'">
                                 <t t-esc="fmt(a.days_stock)"/><span class="fw-normal text-muted" style="font-size:0.9rem;">/<t t-esc="fmt(a.days_pending)"/></span>
                             </div>
                             <div class="small text-muted">días con stock</div>
                         </div>
                     </div>
 
-                    <!-- Detalle compacto (top pedidos) -->
-                    <table class="table table-sm mb-0" style="font-size:11px; max-width:540px;">
+                    <!-- Detalle por pedido -->
+                    <div class="o_planner_section_title mb-1">
+                        <i class="fa fa-list-ul me-1 text-muted"/>
+                        <span class="text-uppercase fw-bold text-muted small">Detalle por pedido</span>
+                    </div>
+                    <table class="table table-sm table-hover mb-0" style="font-size:11px; max-width:580px;">
                         <tbody>
                             <t t-foreach="a.lines" t-as="ln" t-key="ln_index">
-                                <tr t-if="ln_index &lt; 5">
-                                    <td class="fw-semibold" style="border-top:none;" t-esc="ln.order"/>
+                                <tr t-if="state.expandShowAllLines or ln_index &lt; 5">
+                                    <td style="border-top:none;">
+                                        <a href="#" class="fw-semibold text-decoration-none"
+                                           t-on-click.prevent.stop="() => this.openOrder(ln.order_id)"
+                                           t-esc="ln.order"/>
+                                    </td>
                                     <td class="text-end text-muted" style="border-top:none;"><t t-esc="fmt(ln.pending)"/> pend.</td>
                                     <td class="text-end" style="border-top:none;">
                                         <span t-att-class="deliveryDiagnosis(ln.pct &gt;= 66 ? 'fulfillment' : (ln.pct &lt;= 33 ? 'shortage' : 'mixed')).text">
@@ -435,8 +453,16 @@
                                 </tr>
                             </t>
                             <tr t-if="a.lines.length > 5">
-                                <td colspan="3" class="text-muted fst-italic" style="border-top:none;">
-                                    y <t t-esc="a.lines.length - 5"/> pedido(s) más
+                                <td colspan="3" style="border-top:none;">
+                                    <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                            t-on-click.stop="toggleExpandLines">
+                                        <t t-if="!state.expandShowAllLines">
+                                            <i class="fa fa-chevron-down me-1"/>ver <t t-esc="a.lines.length - 5"/> pedido(s) más
+                                        </t>
+                                        <t t-else="">
+                                            <i class="fa fa-chevron-up me-1"/>ver menos
+                                        </t>
+                                    </button>
                                 </td>
                             </tr>
                         </tbody>

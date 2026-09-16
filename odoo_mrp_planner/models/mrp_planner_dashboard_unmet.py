@@ -685,6 +685,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 xw += unmet * dstock
                 yw += unmet * total
                 lines.append({
+                    'order_id':   oid,
                     'order':      (orders.get(oid) or {}).get('name') or '',
                     'pending':    round(unmet, 1),
                     'days_total': round(total, 1),

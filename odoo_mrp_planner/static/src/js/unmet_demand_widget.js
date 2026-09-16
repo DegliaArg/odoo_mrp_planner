@@ -41,17 +41,17 @@ const DIM_PLURALS = { customer: "Clientes", product: "Productos", family: "Famil
 // conjunto fijo; el getter `columns` filtra por dimensión activa y visibilidad.
 // Las etiquetas de name/category/cross_count se sobrescriben dinámicamente.
 const UD_ALL_COLS = [
-    { key: "name",            label: "Entidad",          width: 160, align: "start",  sortKey: "name",            fixed: true },
-    { key: "category",        label: "Categoría",        width: 80,  align: "center", sortKey: "category",        kind: "cat"   },
-    { key: "qty_ordered",     label: "Pedido",           width: 90,  align: "end",    sortKey: "qty_ordered",     kind: "num"   },
-    { key: "qty_delivered",   label: "Entregado",        width: 90,  align: "end",    sortKey: "qty_delivered",   kind: "num"   },
-    { key: "unmet_qty",       label: "Pendiente",        width: 90,  align: "end",    sortKey: "unmet_qty",       kind: "num"   },
-    { key: "unmet_amount",    label: "Monto pendiente",  width: 120, align: "end",    sortKey: "unmet_amount",    kind: "money" },
-    { key: "fulfillment_pct", label: "% Cumplim.",       width: 90,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
-    { key: "unmet_pct",       label: "% Insatisf.",      width: 90,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
-    { key: "pending_age",     label: "Antig. pendiente", width: 110, align: "end",    sortKey: "pending_age",     kind: "days"  },
-    { key: "break_days",      label: "Días quiebre",     width: 95,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Situación",        width: 300, align: "start",  sortKey: "diagnosis",       kind: "situation" },
+    { key: "name",            label: "Entidad",          width: 150, align: "start",  sortKey: "name",            fixed: true },
+    { key: "category",        label: "Categoría",        width: 68,  align: "center", sortKey: "category",        kind: "cat"   },
+    { key: "qty_ordered",     label: "Pedido",           width: 76,  align: "end",    sortKey: "qty_ordered",     kind: "num"   },
+    { key: "qty_delivered",   label: "Entregado",        width: 82,  align: "end",    sortKey: "qty_delivered",   kind: "num"   },
+    { key: "unmet_qty",       label: "Pendiente",        width: 82,  align: "end",    sortKey: "unmet_qty",       kind: "num"   },
+    { key: "unmet_amount",    label: "Monto pendiente",  width: 108, align: "end",    sortKey: "unmet_amount",    kind: "money" },
+    { key: "fulfillment_pct", label: "% Cumplim.",       width: 78,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
+    { key: "unmet_pct",       label: "% Insatisf.",      width: 78,  align: "end",    sortKey: "unmet_pct",       kind: "pct"   },
+    { key: "pending_age",     label: "Antig. pendiente", width: 92,  align: "end",    sortKey: "pending_age",     kind: "days"  },
+    { key: "break_days",      label: "Días quiebre",     width: 90,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
+    { key: "diagnosis",       label: "Situación",        width: 340, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];
@@ -97,7 +97,7 @@ class UnmetDemandWidget extends Component {
         this.chartRef = useRef("chartCanvas");
         this._chart   = null;
         this._chartDrawn = null;   // {data, metric, topN} del último dibujo; evita redibujar en patches ajenos al gráfico
-        this.cols     = useColManager("unmet_demand", UD_ALL_COLS);
+        this.cols     = useColManager("unmet_demand_v2", UD_ALL_COLS);
 
         const now   = new Date();
         const first = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -137,6 +137,7 @@ class UnmetDemandWidget extends Component {
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
             expandData:   {},                       // cache {product_id: análisis} del expand
             expandLoading: false,
+            expandShowAllLines: false,              // ver todos los pedidos del panel (no solo el top 5)
             colsVisible:      pick("colsVisible", {}),   // {key: false} = oculta; ausente/true = visible
             colsDropdownOpen: false,
         });
@@ -437,9 +438,24 @@ class UnmetDemandWidget extends Component {
     // ── Análisis de entregabilidad (expandir fila, solo producto) ────────────────
     /** ¿Se puede expandir la fila para ver el análisis histórico? (solo producto) */
     get canExpand() { return this.state.dimension === "product"; }
+    /** Abre el pedido de venta (hipervínculo desde el detalle por pedido). */
+    openOrder(orderId) {
+        if (!orderId) return;
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "sale.order",
+            res_id: orderId,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+    /** Mostrar/ocultar todos los pedidos del panel expandido (más allá del top 5). */
+    toggleExpandLines() { this.state.expandShowAllLines = !this.state.expandShowAllLines; }
+
     /** Expandir/colapsar una fila; al expandir carga el análisis on-demand. */
     async toggleExpand(row) {
         if (!this.canExpand) return;
+        this.state.expandShowAllLines = false;   // arrancar colapsado el detalle
         if (this.state.expandedKey === row.key) { this.state.expandedKey = null; return; }
         this.state.expandedKey = row.key;
         if (this.state.expandData[row.key] === undefined) {
@@ -457,13 +473,13 @@ class UnmetDemandWidget extends Component {
             }
         }
     }
-    /** Etiqueta + clases (badge, texto, barra, alert, ícono) del diagnóstico. */
+    /** Etiqueta + clases/estilos (badge, texto, barra, alert, ícono, chip) del diagnóstico. */
     deliveryDiagnosis(diag) {
         const map = {
-            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info",      alert: "alert-info",      icon: "fa-dolly" },
-            shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger",    alert: "alert-danger",    icon: "fa-exclamation-triangle" },
-            mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning",   alert: "alert-warning",   icon: "fa-adjust" },
-            na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary", alert: "alert-secondary", icon: "fa-question-circle" },
+            fulfillment: { label: "Fulfillment",    cls: "bg-info text-dark",          text: "text-info",    bar: "bg-info",      alert: "alert-info",      icon: "fa-dolly",                 chip: "background:#cff4fc; color:#055160;", color: "#0dcaf0" },
+            shortage:    { label: "Falta de stock", cls: "bg-danger text-white",       text: "text-danger",  bar: "bg-danger",    alert: "alert-danger",    icon: "fa-exclamation-triangle",  chip: "background:#f8d7da; color:#842029;", color: "#dc3545" },
+            mixed:       { label: "Mixto",          cls: "bg-warning text-dark",       text: "text-warning", bar: "bg-warning",   alert: "alert-warning",   icon: "fa-adjust",                chip: "background:#fff3cd; color:#664d03;", color: "#ffc107" },
+            na:          { label: "Sin datos",      cls: "bg-light text-muted border", text: "text-muted",   bar: "bg-secondary", alert: "alert-secondary", icon: "fa-question-circle",       chip: "background:#e9ecef; color:#6c757d;", color: "#6c757d" },
         };
         return map[diag] || map.na;
     }
@@ -488,11 +504,17 @@ class UnmetDemandWidget extends Component {
     rowSituation(row) {
         const dg = this.deliveryDiagnosis(row.diagnosis);
         if (this.state.dimension !== "product" || !row.diagnosis || row.diagnosis === "na") {
-            return { text: "—", cls: "text-muted" };
+            return { na: true, text: "—", cls: "text-muted", chip: dg.chip, icon: dg.icon, label: dg.label };
         }
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
-        return { text: `Durante ${x} de los ${y} días pendientes hubo stock para entregar`, cls: dg.text };
+        return {
+            na: false,
+            label: dg.label,
+            text: `${x} de ${y} días con stock para entregar`,
+            chip: dg.chip,
+            icon: dg.icon,
+        };
     }
     /** Tooltip de la columna Situación (lenguaje natural). */
     rowSituationTooltip(row) {

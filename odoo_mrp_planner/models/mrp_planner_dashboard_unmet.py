@@ -129,10 +129,12 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             'unmet_show_pending':   focus in ('pending', 'value'),
             'unmet_show_amount':    focus == 'value',
         }
-        # Agrupar por la dimensión activa (card de afectados).
-        group_field = {'customer': 'order_partner_id',
+        # Agrupar por la dimensión activa (card de afectados). Clientes por casa
+        # matriz (unifica sucursales, coincide con el conteo de la card) y familia
+        # por categoría de producto.
+        group_field = {'customer': 'commercial_partner_id',
                        'product':  'product_id',
-                       'family':   'product_id'}.get(group_dimension)
+                       'family':   'product_categ_id'}.get(group_dimension)
         if group_field:
             ctx['group_by'] = [group_field]
 

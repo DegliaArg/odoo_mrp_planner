@@ -28,6 +28,17 @@ class SaleOrderLine(models.Model):
              'Valorización "real" (con descuentos) del backlog; usada por el drill '
              '"Ver" de la card de Valorización del pendiente.',
     )
+    # Campos related almacenados para agrupar el drill "Ver" del análisis de
+    # demanda insatisfecha por casa matriz (clientes con sucursales unificadas) y
+    # por categoría de producto (familia), coincidiendo con las cards del panel.
+    commercial_partner_id = fields.Many2one(
+        'res.partner', string='Casa matriz',
+        related='order_partner_id.commercial_partner_id', store=True, index=True,
+    )
+    product_categ_id = fields.Many2one(
+        'product.category', string='Categoría de producto',
+        related='product_id.categ_id', store=True, index=True,
+    )
 
     @api.depends('qty_delivered', 'product_uom_qty')
     def _compute_line_delivery_status(self):

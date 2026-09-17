@@ -661,6 +661,20 @@ sin tocar el motor de programación.
 
 Documentación (`README.md`, `docs/ARQUITECTURA.md`, `docs/docs.md`, `docs/formulas.md`) actualizada.
 
+## Demanda insatisfecha: filtros cruzados, barra única y pulido de UX (2026-09-17)
+
+**Contexto.** Rama `18.0-dev-kpis`, `odoo_mrp_planner` v18.0.12.47.0. Tanda de UX sobre el panel de demanda insatisfecha (solo frontend + un parámetro nuevo de lectura en el backend).
+
+- ✅ **Filtros cruzados cliente/producto/familia (`cross_filters`):** acotan cards + tabla por una entidad distinta a la dimensión agrupada (ej. ver por **producto** acotado a un **cliente**). Backend: `get_unmet_demand_data(..., cross_filters)` agrega al dominio de líneas `order_id.partner_id child_of`, `product_id =`, `product_id.categ_id child_of`; recorta las líneas → cards, tabla y KPIs reflejan el subconjunto. Al cambiar la dimensión agrupada se descarta el cruce que pasaría a ser el agrupador.
+  - **Decisión (control):** autocompletar tipo Odoo (`name_search` sobre el **maestro completo**, no solo las entidades del período) en vez de un desplegable acotado.
+  - **Decisión (ubicación) — corrección tras feedback:** el primer intento los puso como **inputs sueltos** en la barra de herramientas (quedó desprolijo). Se rehízo integrándolos en la **barra de búsqueda única compartida** (`PlannerSearchBar`), como el resto de los paneles: sección "Cruzar con" en el dropdown + chips en la barra + limpieza en "Borrar todo". El soporte quedó **reutilizable** en `PlannerSearchBar` (props `crossDefs`/`crossValues`/`onCrossSet`/`onCrossRemove`), disponible para cualquier panel.
+- ✅ **Cards arriba de la barra de filtros** en la sección inferior (antes: filtros y luego cards). La barra de filtros queda siempre visible aunque no haya datos.
+- ✅ **Toggle "Solo faltantes" = switch real** (Bootstrap `form-switch`, activado por defecto), en vez del botón que alternaba texto "Todas ↔ Solo con faltante". Mapea al `include_all` invertido del RPC.
+- ✅ **Columna "Situación" — frases reescritas:** unificadas a "Estos productos…", `Falla de entrega` sin el remate técnico. (La lógica ya era la entregabilidad histórica de `formulas.md` 4.13/4.14; se corrigió la deriva de `README.md`/`docs.md`, que todavía describían el viejo diagnóstico Crónico/Sin stock/Fulfillment/OK.)
+- ↪️ **No tocado:** el gráfico superior conserva sus filtros propios e independientes (los cross-filters aplican solo a cards + tabla). Se descartó sumar series al gráfico inline de entregabilidad (evaluado y pospuesto).
+
+Documentación (`README.md`, `docs/ARQUITECTURA.md`, `docs/docs.md`) actualizada; `formulas.md` ya estaba al día.
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

@@ -44,7 +44,7 @@ Panel de control centralizado para la gestión operativa de producción: program
 | **Análisis de proveedores** | Scorecard de cumplimiento: % a tiempo, retraso promedio, lead time real y variación de precio |
 | **Categorización de ventas** | Clasificación A–E de artículos por rotación, demanda o participación acumulada (Pareto) |
 | **Análisis de clientes** | Clasificación A–E de clientes por volumen, frecuencia o RFM con drill-down a sus pedidos |
-| **Demanda insatisfecha** | Backlog pendiente (pedido − entregado) por cliente, producto o familia, con antigüedad del pendiente y cruce con quiebres de stock |
+| **Demanda insatisfecha** | Backlog pendiente (pedido − entregado) por cliente, producto o familia, con antigüedad del pendiente, situación de entregabilidad y filtros cruzados (ej. ver productos de un cliente) |
 | **Permisos granulares** | Control por usuario de qué secciones ve y qué acciones puede ejecutar |
 
 ---
@@ -270,9 +270,11 @@ Ambos precios promedio (pedido y entregado) aparecen también en las cards KPI y
 
 Acceder desde **Ventas → Análisis demanda insatisfecha**. De los pedidos confirmados en el período, mide el **backlog pendiente** = pedido − entregado (a la fecha), valuado a precio unitario, agregado por una dimensión conmutable: **cliente, producto o familia**.
 
-- **Dos líneas de filtros independientes** (período · dimensión · PxQ/Real): la de arriba afecta **solo al gráfico**; la segunda afecta las **cards globales + la tabla**.
+- **Dos líneas de filtros independientes** (período · dimensión · PxQ/Real): la de arriba afecta **solo al gráfico**; la segunda afecta las **cards globales + la tabla**. En la parte inferior las **cards se muestran arriba** de la barra de filtros.
 - **Gráfico** top-N (por monto o unidades pendientes) de la dimensión elegida.
 - **Tabla** con selector de columnas y columnas reordenables/redimensionables (arrastrando el encabezado), búsqueda, filtros numéricos y exportación a Excel.
+- **Filtros cruzados** (cliente / producto / familia) integrados en la barra de búsqueda única (sección "Cruzar con" con autocompletar): acotan cards + tabla por una entidad distinta a la dimensión que se está agrupando (ej. ver por **producto** acotado a un **cliente**). Aparecen como chips y se limpian con "Borrar todo".
+- **Toggle "Solo faltantes"** (activado por defecto): muestra solo las entidades con pendiente o todas (el pie de tabla cuadra con las cards).
 - **Unificación por casa matriz** en modo cliente (mismo criterio que el análisis de clientes: `customer_unify_by_vat`).
 
 **KPIs**: monto pendiente, pendiente (u.), % cumplimiento, pedido total, entregado total y # entidades afectadas.
@@ -289,7 +291,7 @@ Acceder desde **Ventas → Análisis demanda insatisfecha**. De los pedidos conf
 | % Insatisf. | Pendiente ÷ pedido × 100 |
 | Antig. pendiente | Días que lleva esperando lo no entregado. Método configurable en Ajustes → Ventas: ponderada por cantidad (default) o pedido más antiguo |
 | Días quiebre *(producto)* | Días que el producto está bajo el mínimo (reusa el cálculo del panel de quiebres) |
-| Diagnóstico *(producto)* | Cruce quiebre × antigüedad: **Crónico** (quiebre + pendiente viejo), **Sin stock** (quiebre reciente), **Fulfillment** (hay stock pero no entregás), **OK** |
+| Situación *(producto)* | Entregabilidad histórica: de los días que el pedido lleva pendiente, en cuántos hubo stock suficiente para entregarlo. Frase en lenguaje natural coloreada según diagnóstico: **Falta de stock** (casi nunca alcanzó), **Falla de entrega** (hubo stock y no se entregó), **Mixto** (parte y parte), **Sin datos**. Al expandir la fila muestra la curva de stock vs pendiente. Ver `docs/formulas.md` 4.13/4.14 |
 | # Pedidos | Pedidos distintos del período con faltante |
 | # Cruce | Productos (modo cliente) o clientes (modo producto) distintos con faltante |
 

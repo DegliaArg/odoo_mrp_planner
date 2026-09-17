@@ -1463,7 +1463,9 @@ Clasifica cada cliente según la regularidad y recencia de sus pedidos.
 
 De los pedidos confirmados (`state in ('sale','done')`) del período, mide el **backlog pendiente** = pedido − entregado a la fecha, valuado a precio unitario, agregado por una dimensión conmutable: **cliente, producto o familia**. Comparte la base del análisis de clientes (filtro de empresa/almacén, exclusión de servicios y valorización PxQ/Real). Modelo: `mrp_planner_dashboard_unmet.py` (`get_unmet_demand_data`).
 
-Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/Real) con datasets separados: la de arriba afecta solo al gráfico; la segunda, las cards y la tabla.
+Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/Real) con datasets separados: la de arriba afecta solo al gráfico; la segunda, las cards y la tabla. En la sección inferior las **cards se muestran arriba** de la barra de filtros.
+
+La segunda línea trae, además, **filtros cruzados** (cliente / producto / familia) integrados en la barra de búsqueda única (`PlannerSearchBar`, sección "Cruzar con" con autocompletar por `name_search`): acotan cards + tabla por una entidad distinta a la dimensión agrupada (ej. ver por producto acotado a un cliente; backend `cross_filters`). Y un **toggle "Solo faltantes"** (activado por defecto; `include_all` invertido) que alterna entre solo entidades con pendiente y todas.
 
 #### KPIs
 
@@ -1485,7 +1487,7 @@ Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/R
 | % Insatisf. | `pendiente ÷ pedido × 100` | — |
 | Antig. pendiente | Días que lleva esperando lo no entregado (ver método configurable abajo) | `sale.order.date_order` |
 | Días quiebre *(producto)* | Días que el producto está bajo el mínimo — reusa `break_days` del panel de quiebres (`_stock_break_days_map`) | `stock.warehouse.orderpoint` + `stock.move` |
-| Diagnóstico *(producto)* | Cruce quiebre × antigüedad (ver abajo) | — |
+| Situación *(producto)* | Entregabilidad histórica (ver abajo) | `stock.quant` + `stock.move` |
 | # Pedidos | Pedidos distintos con faltante | `count(distinct order_id)` |
 | # Cruce | Productos (modo cliente) o clientes (modo producto) distintos con faltante | — |
 
@@ -1500,16 +1502,18 @@ La tabla tiene selector de columnas con columnas reordenables/redimensionables (
 
 > El tooltip de la columna muestra siempre ambos valores, independientemente del método elegido.
 
-#### Diagnóstico (cruce quiebre × antigüedad, solo producto)
+#### Situación — entregabilidad histórica (solo producto)
 
-Se considera el backlog "viejo" si su antigüedad ≥ `BACKLOG_OLD_DAYS` (15 días, constante).
+Reemplazó al viejo diagnóstico de 4 estados (Crónico / Sin stock / Fulfillment / OK). Por cada pedido pendiente reconstruye la curva de stock del producto y cuenta los días de su ventana en que el stock alcanzaba para cubrirlo (`stock(t) ≥ cantidad del pedido`) — distingue "tener algo" de "tener suficiente". El índice ponderado `Σ(pend×días_con_stock) ÷ Σ(pend×días_totales) × 100` define el diagnóstico y la frase (en lenguaje natural) de la celda. Cálculo completo en `docs/formulas.md` 4.13 (columna, batch) y 4.14 (detalle al expandir).
 
-| Días en quiebre | Backlog viejo | Diagnóstico |
+| Índice | Situación | Frase |
 | --- | --- | --- |
-| Sí (bajo el mínimo) | Sí | **Crónico** — sin stock hace rato y venís fallando → reponer/fabricar ya |
-| Sí | No | **Sin stock** — quiebre reciente; al reponer se limpia |
-| No | Sí | **Fulfillment** — hay stock pero no entregás → asignación / logística / compromiso |
-| No | No | **OK** — transitorio/normal |
+| ≥ 66 | **Falla de entrega** | Hubo stock disponible casi siempre pero igual no se entregó |
+| ≤ 33 | **Falta de stock** | Casi nunca hubo mercadería; hay que comprar o fabricar |
+| 33–66 | **Mixto** | Por momentos faltó stock y por momentos hubo sin entregar |
+| — | **Sin datos** | Sin información suficiente |
+
+> Al expandir la fila se abre un inline con el detalle por pedido y un mini-gráfico de la curva de stock vs el pendiente acumulado. Un día cuenta como "con stock" si había al menos 1 pieza, aunque no alcanzara para todo el pedido.
 
 ---
 

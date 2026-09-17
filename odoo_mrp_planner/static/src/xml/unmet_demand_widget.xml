@@ -86,111 +86,8 @@
 
             <hr class="mt-0 mb-3"/>
 
-            <!-- ══ FILTROS + BÚSQUEDA + BOTONES (cards + tabla, todo en una fila) ═ -->
-            <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
-                <div class="d-flex align-items-center gap-1">
-                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
-                           title="Fecha inicial del período de las cards y la tabla."
-                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
-                    <span class="text-muted" style="font-size:10px;">→</span>
-                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
-                           title="Fecha final del período de las cards y la tabla."
-                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
-                </div>
-                <div class="vr" style="height:20px;"/>
-                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión de la tabla">
-                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
-                        <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
-                                style="font-size:10px; padding:1px 6px;"
-                                t-att-title="'Agregar cards y tabla por ' + d[1]"
-                                t-on-click="() => this.setDimension(d[0])">
-                            <t t-esc="d[1]"/>
-                        </button>
-                    </t>
-                </div>
-                <div class="vr" style="height:20px;"/>
-                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización de la tabla">
-                    <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
-                            style="font-size:10px; padding:1px 6px;"
-                            title="PxQ: precio de lista × cantidad pendiente."
-                            t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
-                    <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
-                            style="font-size:10px; padding:1px 6px;"
-                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
-                            t-on-click="() => this.setAmountMethod('real')">Real</button>
-                </div>
-                <i t-if="state.loading" class="fa fa-spinner fa-spin text-muted" title="Cargando cards y tabla…"/>
-
-                <PlannerSearchBar
-                    widgetKey="'unmet_demand'"
-                    placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
-                    t-props="{
-                        search:            state.productSearch,
-                        activeGroupBy:     groupBy,
-                        groupByDefs:       groupByDefs,
-                        onSearch:          (t) => this.setSearch(t),
-                        onGroupByChange:   (k) => this.setGroupBy(k),
-                        showFavorites:     true,
-                        numericFields:     numColOptions,
-                        numFilters:        state.numFilters,
-                        onNumFilterAdd:    (c) => this.addNumFilter(c),
-                        onNumFilterRemove: (i) => this.removeNumFilter(i)
-                    }"/>
-                <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
-                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Activá para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Desactivá para mostrar todas (el pie de tabla cuadra con las tarjetas).'">
-                    <input class="form-check-input ms-0 mt-0" type="checkbox" role="switch"
-                           id="unmet_only_shortage"
-                           t-att-checked="!state.showAll"
-                           t-on-change="toggleShowAll"/>
-                    <label class="form-check-label text-nowrap" for="unmet_only_shortage" style="cursor:pointer;">Solo faltantes</label>
-                </div>
-                <div class="position-relative" t-on-click.stop="">
-                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                            title="Elegir qué columnas mostrar en la tabla"
-                            t-on-click="toggleColsDropdown">
-                        <i class="fa fa-columns"/>
-                        <span>Columnas</span>
-                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
-                    </button>
-                    <div t-if="state.colsDropdownOpen"
-                         class="dropdown-menu show shadow p-2"
-                         style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
-                        <p class="small text-muted mb-1 px-1">Columnas de la tabla</p>
-                        <t t-foreach="optionalColumns" t-as="col" t-key="col.key">
-                            <div class="form-check mb-1">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'ud_col_' + col.key"
-                                       t-att-checked="isColVisible(col.key)"
-                                       t-on-change="() => this.toggleCol(col.key)"/>
-                                <label class="form-check-label small" t-att-for="'ud_col_' + col.key">
-                                    <t t-esc="col.label"/>
-                                </label>
-                            </div>
-                        </t>
-                    </div>
-                </div>
-                <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
-                        title="Exportar la tabla visible a Excel (.xls)"
-                        t-on-click="exportToExcel">
-                    <i class="fa fa-download"/>
-                    <span>Exportar</span>
-                </button>
-            </div>
-
-            <!-- Estados de cards + tabla -->
-            <div t-if="state.loading and !state.data" class="text-center text-muted py-5">
-                <i class="fa fa-spinner fa-spin fa-2x"/>
-            </div>
-            <div t-elif="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
-                <i class="fa fa-exclamation-triangle me-2"/>
-                Error al cargar la demanda insatisfecha: <strong><t t-esc="state.loadError"/></strong>
-            </div>
-            <div t-elif="!baseRows.length" class="text-center text-muted py-5">
-                <i class="fa fa-check-circle fa-3x mb-3 d-block opacity-50"/>
-                <span>No hay demanda insatisfecha para los filtros de cards y tabla.</span>
-            </div>
-
-            <t t-else="">
+            <!-- ══ CARDS GLOBALES (arriba de los filtros) ═══════════════════════ -->
+            <t t-if="state.data and baseRows.length">
                 <!-- Cards globales -->
                 <div class="d-flex gap-2 mb-3 flex-wrap">
                     <!-- 1 · Demanda real -->
@@ -275,7 +172,137 @@
                         </div>
                     </div>
                 </div>
+            </t>
 
+            <!-- ══ FILTROS + BÚSQUEDA + BOTONES (cards + tabla, todo en una fila) ═ -->
+            <div class="d-flex align-items-center gap-1 mb-3 flex-wrap">
+                <div class="d-flex align-items-center gap-1">
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha inicial del período de las cards y la tabla."
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    <span class="text-muted" style="font-size:10px;">→</span>
+                    <input type="date" class="form-control form-control-sm" style="font-size:10px; padding:1px 4px; width:112px;"
+                           title="Fecha final del período de las cards y la tabla."
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                </div>
+                <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Dimensión de la tabla">
+                    <t t-foreach="[['customer','Cliente'],['product','Producto'],['family','Familia']]" t-as="d" t-key="d[0]">
+                        <button t-att-class="'btn ' + (state.dimension === d[0] ? 'btn-primary' : 'btn-outline-secondary')"
+                                style="font-size:10px; padding:1px 6px;"
+                                t-att-title="'Agregar cards y tabla por ' + d[1]"
+                                t-on-click="() => this.setDimension(d[0])">
+                            <t t-esc="d[1]"/>
+                        </button>
+                    </t>
+                </div>
+                <div class="vr" style="height:20px;"/>
+                <!-- Filtros cruzados: acotar por otra dimensión (ej. ver productos de un cliente) -->
+                <t t-foreach="activeCrossDims" t-as="cd" t-key="cd">
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="text-muted" style="font-size:10px;" t-esc="crossDimLabel(cd) + ':'"/>
+                        <t t-if="state.crossFilters[cd]">
+                            <span class="badge bg-primary d-flex align-items-center gap-1"
+                                  style="font-size:10px; font-weight:normal;"
+                                  t-att-title="'Filtrando por ' + crossDimLabel(cd).toLowerCase() + ': ' + state.crossFilters[cd].name">
+                                <t t-esc="state.crossFilters[cd].name"/>
+                                <i class="fa fa-times" style="cursor:pointer;"
+                                   t-att-title="'Quitar filtro de ' + crossDimLabel(cd).toLowerCase()"
+                                   t-on-click="() => this.clearCrossFilter(cd)"/>
+                            </span>
+                        </t>
+                        <div t-else="" style="width:150px;">
+                            <AutoComplete
+                                value="''"
+                                sources="crossSources(cd)"
+                                placeholder="'Buscar ' + crossDimLabel(cd).toLowerCase() + '…'"
+                                onSelect="(option) => this.setCrossFilter(cd, option.record)"/>
+                        </div>
+                    </div>
+                </t>
+                <div class="vr" style="height:20px;"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Valorización de la tabla">
+                    <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="PxQ: precio de lista × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
+                    <button t-att-class="'btn ' + (effAmountMethod === 'real' ? 'btn-primary' : 'btn-outline-secondary')"
+                            style="font-size:10px; padding:1px 6px;"
+                            title="Real: precio efectivo de la línea (con descuentos) × cantidad pendiente."
+                            t-on-click="() => this.setAmountMethod('real')">Real</button>
+                </div>
+                <i t-if="state.loading" class="fa fa-spinner fa-spin text-muted" title="Cargando cards y tabla…"/>
+
+                <PlannerSearchBar
+                    widgetKey="'unmet_demand'"
+                    placeholder="'Buscar ' + dimensionLabel.toLowerCase() + '…'"
+                    t-props="{
+                        search:            state.productSearch,
+                        activeGroupBy:     groupBy,
+                        groupByDefs:       groupByDefs,
+                        onSearch:          (t) => this.setSearch(t),
+                        onGroupByChange:   (k) => this.setGroupBy(k),
+                        showFavorites:     true,
+                        numericFields:     numColOptions,
+                        numFilters:        state.numFilters,
+                        onNumFilterAdd:    (c) => this.addNumFilter(c),
+                        onNumFilterRemove: (i) => this.removeNumFilter(i)
+                    }"/>
+                <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
+                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Activá para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Desactivá para mostrar todas (el pie de tabla cuadra con las tarjetas).'">
+                    <input class="form-check-input ms-0 mt-0" type="checkbox" role="switch"
+                           id="unmet_only_shortage"
+                           t-att-checked="!state.showAll"
+                           t-on-change="toggleShowAll"/>
+                    <label class="form-check-label text-nowrap" for="unmet_only_shortage" style="cursor:pointer;">Solo faltantes</label>
+                </div>
+                <div class="position-relative" t-on-click.stop="">
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            title="Elegir qué columnas mostrar en la tabla"
+                            t-on-click="toggleColsDropdown">
+                        <i class="fa fa-columns"/>
+                        <span>Columnas</span>
+                        <i t-att-class="'fa ' + (state.colsDropdownOpen ? 'fa-chevron-up' : 'fa-chevron-down')"/>
+                    </button>
+                    <div t-if="state.colsDropdownOpen"
+                         class="dropdown-menu show shadow p-2"
+                         style="min-width:200px; position:absolute; z-index:1050; top:100%; right:0; margin-top:2px;">
+                        <p class="small text-muted mb-1 px-1">Columnas de la tabla</p>
+                        <t t-foreach="optionalColumns" t-as="col" t-key="col.key">
+                            <div class="form-check mb-1">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'ud_col_' + col.key"
+                                       t-att-checked="isColVisible(col.key)"
+                                       t-on-change="() => this.toggleCol(col.key)"/>
+                                <label class="form-check-label small" t-att-for="'ud_col_' + col.key">
+                                    <t t-esc="col.label"/>
+                                </label>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                        title="Exportar la tabla visible a Excel (.xls)"
+                        t-on-click="exportToExcel">
+                    <i class="fa fa-download"/>
+                    <span>Exportar</span>
+                </button>
+            </div>
+
+            <!-- Estados de cards + tabla -->
+            <div t-if="state.loading and !state.data" class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+            </div>
+            <div t-elif="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar la demanda insatisfecha: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+            <div t-elif="!baseRows.length" class="text-center text-muted py-5">
+                <i class="fa fa-check-circle fa-3x mb-3 d-block opacity-50"/>
+                <span>No hay demanda insatisfecha para los filtros de cards y tabla.</span>
+            </div>
+
+            <t t-else="">
                 <!-- Pestañas de agrupamiento (mismo patrón que forecast / análisis de clientes) -->
                 <t t-if="groupBy and allGroupsForTabs">
                     <ul class="nav nav-tabs mb-0" style="flex-wrap:nowrap; overflow-x:auto;">

@@ -169,7 +169,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
     @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
                               warehouse_ids=None, amount_method_override=None,
-                              include_all=False):
+                              include_all=False, cross_filters=None):
         """
         Devuelve las filas de demanda insatisfecha del período, agregadas por la
         dimensión pedida, más los KPIs globales.
@@ -183,6 +183,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             (para el toggle "mostrar todo": el footer de la tabla cuadra con las
             cards). Si False (defecto), solo las entidades con pendiente neto.
             'total_rows' (afectados) cuenta solo las con pendiente en ambos casos.
+        :param cross_filters: dict {'customer': id, 'product': id, 'family': id}
+            con filtros CRUZADOS independientes de la dimensión de agregación
+            (p. ej. ver por producto pero acotado a un cliente). Cada uno recorta
+            las líneas analizadas → cards, tabla y KPIs reflejan el subconjunto.
         :returns: dict con 'rows', 'kpis', 'config', 'dimension'.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
@@ -205,6 +209,23 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         use_pxq          = cfg.get('amount_method', 'pxq') == 'pxq'
         exclude_services = bool(cfg.get('exclude_services'))
         age_method       = cfg.get('backlog_age_method', 'weighted')
+
+        # Filtros cruzados (cliente/producto/familia), independientes de la
+        # dimensión de agregación: recortan las líneas analizadas.
+        cf = cross_filters or {}
+        def _cf_int(k):
+            try:
+                return int(cf.get(k)) if cf.get(k) else None
+            except (TypeError, ValueError):
+                return None
+        cf_customer, cf_product, cf_family = _cf_int('customer'), _cf_int('product'), _cf_int('family')
+        cross_dom = []
+        if cf_customer:
+            cross_dom.append(('order_id.partner_id', 'child_of', cf_customer))
+        if cf_product:
+            cross_dom.append(('product_id', '=', cf_product))
+        if cf_family:
+            cross_dom.append(('product_id.categ_id', 'child_of', cf_family))
 
         def _empty(reason=None):
             return {'rows': [], 'kpis': empty_kpis, 'config': cfg, 'dimension': dimension}
@@ -292,7 +313,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             # Sin sudo: respeta las reglas de registro del usuario (igual que el Forecast).
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
             lines = self.env['sale.order.line'].search_read(
-                [('order_id', 'in', orders.ids), ('product_id.sale_ok', '=', True)] + svc_dom,
+                [('order_id', 'in', orders.ids), ('product_id.sale_ok', '=', True)] + svc_dom + cross_dom,
                 ['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'],
             )
             if not lines:

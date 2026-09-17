@@ -27,6 +27,7 @@ import { Component, useState, onMounted, onPatched, onWillUnmount, useRef, useEf
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
+import { AutoComplete } from "@web/core/autocomplete/autocomplete";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { applyNumericFilters, buildGroupTabs } from "./planner_table";
 import { downloadExcelXml } from "./planner_export";
@@ -35,6 +36,14 @@ import { useColManager } from "./column_manager";
 
 const DIM_LABELS  = { customer: "Cliente", product: "Producto", family: "Familia" };
 const DIM_PLURALS = { customer: "Clientes", product: "Productos", family: "Familias" };
+
+// Filtros cruzados: por cada dimensión, el modelo y dominio para el name_search
+// del autocompletado (busca en TODO el maestro, no solo el período).
+const CROSS_DIMS = {
+    customer: { label: "Cliente",  model: "res.partner",       domain: [] },
+    product:  { label: "Producto", model: "product.product",   domain: [["sale_ok", "=", true]] },
+    family:   { label: "Familia",  model: "product.category",  domain: [] },
+};
 
 // Todas las columnas posibles de la tabla (unión de las tres dimensiones). El
 // column manager gestiona el ORDEN (drag & drop) y el ancho (resize) sobre este
@@ -69,6 +78,7 @@ const PERSIST_KEYS = [
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
     "sortCol", "sortDir", "pageSize", "colsVisible", "showAll", "groupBy",
+    "crossFilters",
 ];
 function loadFilters() {
     try {
@@ -87,7 +97,7 @@ function saveFilters(state) {
 
 class UnmetDemandWidget extends Component {
     static template = "odoo_mrp_planner.UnmetDemandWidget";
-    static components = { PlannerSearchBar };
+    static components = { PlannerSearchBar, AutoComplete };
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
@@ -136,6 +146,7 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
+            crossFilters: pick("crossFilters", {}), // {customer|product|family: {id, name}} — filtros cruzados
             groupBy:       pick("groupBy", null),   // null | 'category' — agrupador por pestañas
             selectedGroup: null,                    // pestaña activa del agrupador
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
@@ -195,7 +206,8 @@ class UnmetDemandWidget extends Component {
             this.state.data = await this.orm.call(
                 "mrp.planner.dashboard", "get_unmet_demand_data",
                 [this.state.dateFrom, this.state.dateTo, this.state.dimension,
-                 [], this.state.amountMethod || null, this.state.showAll]);
+                 [], this.state.amountMethod || null, this.state.showAll,
+                 this._crossFilterIds()]);
         } catch (e) {
             console.error("[UnmetDemandWidget] table", e);
             this.state.data      = null;
@@ -256,12 +268,62 @@ class UnmetDemandWidget extends Component {
         this.state.dimension = d;
         this.state.sortCol = "unmet_amount";
         this.state.sortDir = "desc";
+        // El cross-filter de la dimensión que ahora agrupamos deja de tener sentido.
+        if (this.state.crossFilters && this.state.crossFilters[d]) {
+            const cf = { ...this.state.crossFilters };
+            delete cf[d];
+            this.state.crossFilters = cf;
+        }
         this._load();
     }
     setAmountMethod(m) { if (this.state.amountMethod !== m) { this.state.amountMethod = m; this._load(); } }
     /** Toggle tabla: mostrar todas las entidades del período (footer cuadra con las
      *  cards) o solo las que tienen faltante (defecto, foco en lo insatisfecho). */
     toggleShowAll() { this.state.showAll = !this.state.showAll; this._load(); }
+
+    // ── Filtros cruzados (cliente/producto/familia) ─────────────────────────────
+    /** Dimensiones cruzables = las tres menos la que se está agrupando (cruzar por
+     *  la propia dimensión no aporta: dejaría una sola fila). */
+    get activeCrossDims() {
+        return ["customer", "product", "family"].filter((d) => d !== this.state.dimension);
+    }
+    crossDimLabel(dim) { return CROSS_DIMS[dim].label; }
+    /** {dim: {id,name}} → {dim: id} para el RPC (solo los seteados). */
+    _crossFilterIds() {
+        const out = {};
+        for (const [dim, v] of Object.entries(this.state.crossFilters || {})) {
+            if (v && v.id) out[dim] = v.id;
+        }
+        return out;
+    }
+    /** Sources del AutoComplete para una dimensión: name_search sobre su maestro.
+     *  Cacheado por dimensión → referencia estable entre renders (no reinicia el
+     *  input mientras se escribe). */
+    crossSources(dim) {
+        if (!this._crossSourcesCache) this._crossSourcesCache = {};
+        if (!this._crossSourcesCache[dim]) {
+            const meta = CROSS_DIMS[dim];
+            this._crossSourcesCache[dim] = [{
+                options: async (request) => {
+                    const recs = await this.orm.call(meta.model, "name_search", [], {
+                        name: request || "", args: meta.domain, limit: 8,
+                    });
+                    return recs.map(([id, name]) => ({ label: name, record: { id, name } }));
+                },
+            }];
+        }
+        return this._crossSourcesCache[dim];
+    }
+    setCrossFilter(dim, record) {
+        this.state.crossFilters = { ...this.state.crossFilters, [dim]: record };
+        this._load();
+    }
+    clearCrossFilter(dim) {
+        const cf = { ...this.state.crossFilters };
+        delete cf[dim];
+        this.state.crossFilters = cf;
+        this._load();
+    }
 
     /** Drill de las cards: abre la lista de líneas del período enfocada según la
      *  card (focus = 'ordered' | 'delivered' | 'pending' | 'value' | 'fulfillment').

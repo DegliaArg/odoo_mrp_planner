@@ -543,10 +543,10 @@ class UnmetDemandWidget extends Component {
         const x = Math.round(row.deliv_days || 0);
         const y = Math.round(row.pend_days || 0);
         const text = {
-            shortage:    `Estos pedidos esperan hace ${y} días y casi nunca hubo mercadería para entregar (solo ${x} de esos días). El faltante es por falta de stock: hay que comprar o fabricar.`,
-            fulfillment: `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar casi siempre (${x} de esos días), pero igual no se entregó. El problema no es el stock: revisá la entrega (asignación, logística o prioridades).`,
-            mixed:       `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días. Por momentos faltó stock y por momentos hubo mercadería sin entregar.`,
-        }[row.diagnosis] || `Estos pedidos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días.`;
+            shortage:    `Estos productos esperan hace ${y} días y casi nunca hubo mercadería para entregar (solo ${x} de esos días). El faltante es por falta de stock: hay que comprar o fabricar.`,
+            fulfillment: `Estos productos esperan hace ${y} días y hubo stock disponible para entregar casi siempre (${x} de esos días), pero igual no se entregó.`,
+            mixed:       `Estos productos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días. Por momentos faltó stock y por momentos hubo mercadería sin entregar.`,
+        }[row.diagnosis] || `Estos productos esperan hace ${y} días y hubo mercadería para entregar ${x} de esos días.`;
         return { na: false, label: dg.label, text, chip: dg.chip, icon: dg.icon };
     }
     /** Tooltip de la columna Situación: aclara qué cuenta como "hubo stock". */

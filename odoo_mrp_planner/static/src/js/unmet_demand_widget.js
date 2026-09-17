@@ -146,6 +146,7 @@ class UnmetDemandWidget extends Component {
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
             crossFilters: pick("crossFilters", {}), // {customer|product|family: {id, name}} — filtros cruzados
+            familyUniverse: [],                     // ids de familias presentes en el período (acota el cruce por familia)
             groupBy:       pick("groupBy", null),   // null | 'category' — agrupador por pestañas
             selectedGroup: null,                    // pestaña activa del agrupador
             expandedKey:  null,                     // fila expandida (análisis de entregabilidad, solo producto)
@@ -167,7 +168,7 @@ class UnmetDemandWidget extends Component {
         onMounted(async () => {
             try {
                 await loadBundle("web.chartjs_lib");
-                await Promise.all([this._load(), this._loadChart()]);
+                await Promise.all([this._load(), this._loadChart(), this._loadFamilyUniverse()]);
             } catch (e) {
                 if (e.message !== "Component is destroyed") throw e;
             }
@@ -235,6 +236,18 @@ class UnmetDemandWidget extends Component {
         }
     }
 
+    // ── Carga: universo de familias del período (acota el cruce por familia) ─────
+    async _loadFamilyUniverse() {
+        try {
+            this.state.familyUniverse = await this.orm.call(
+                "mrp.planner.dashboard", "get_unmet_family_universe",
+                [this.state.dateFrom, this.state.dateTo]);
+        } catch (e) {
+            console.error("[UnmetDemandWidget] family universe", e);
+            this.state.familyUniverse = [];
+        }
+    }
+
     // ── Controles del gráfico ───────────────────────────────────────────────────
     onChartDateFromChange(ev) {
         this.state.chartDateFrom = ev.target.value;
@@ -256,11 +269,13 @@ class UnmetDemandWidget extends Component {
         this.state.dateFrom = ev.target.value;
         if (this.state.dateFrom > this.state.dateTo) this.state.dateTo = this.state.dateFrom;
         this._load();
+        this._loadFamilyUniverse();
     }
     onDateToChange(ev) {
         this.state.dateTo = ev.target.value;
         if (this.state.dateTo < this.state.dateFrom) this.state.dateFrom = this.state.dateTo;
         this._load();
+        this._loadFamilyUniverse();
     }
     setDimension(d) {
         if (this.state.dimension === d) return;
@@ -286,9 +301,15 @@ class UnmetDemandWidget extends Component {
     get activeCrossDims() {
         return ["customer", "product", "family"].filter((d) => d !== this.state.dimension);
     }
-    /** Defs para el PlannerSearchBar: [{key, label, model, domain}] de las dims cruzables. */
+    /** Defs para el PlannerSearchBar: [{key, label, model, domain}] de las dims cruzables.
+     *  Familia se acota al universo de análisis (categorías presentes en el período),
+     *  no a todo el maestro de categorías. */
     get crossDefs() {
-        return this.activeCrossDims.map((d) => ({ key: d, ...CROSS_DIMS[d] }));
+        return this.activeCrossDims.map((d) => {
+            const def = { key: d, ...CROSS_DIMS[d] };
+            if (d === "family") def.domain = [["id", "in", this.state.familyUniverse || []]];
+            return def;
+        });
     }
     /** Valores activos {dim: {id,name}} de las dims cruzables (para chips de la barra). */
     get crossValues() {

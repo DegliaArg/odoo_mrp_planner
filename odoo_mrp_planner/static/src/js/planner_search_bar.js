@@ -151,13 +151,18 @@ export class PlannerSearchBar extends Component {
 
     // ── Filtros cruzados (autocompletar por entidad) ────────────────────────────
     /** Sources del AutoComplete para un cross-def: name_search sobre su maestro.
-     *  Cacheado por key → referencia estable entre renders. */
+     *  La referencia del array se cachea por key (estable entre renders, no reinicia
+     *  el input), pero el closure lee la def VIGENTE — así un cambio de dominio
+     *  (ej. familias del período) surte efecto sin recrear la source. */
     crossSources(def) {
+        if (!this._crossDefsByKey) this._crossDefsByKey = {};
+        this._crossDefsByKey[def.key] = def;
         if (!this._crossSourcesCache[def.key]) {
             this._crossSourcesCache[def.key] = [{
                 options: async (request) => {
-                    const recs = await this.orm.call(def.model, "name_search", [], {
-                        name: request || "", args: def.domain || [], limit: 8,
+                    const d = this._crossDefsByKey[def.key];
+                    const recs = await this.orm.call(d.model, "name_search", [], {
+                        name: request || "", args: d.domain || [], limit: 8,
                     });
                     return recs.map(([id, name]) => ({ label: name, record: { id, name } }));
                 },

@@ -1465,7 +1465,7 @@ De los pedidos confirmados (`state in ('sale','done')`) del período, mide el **
 
 Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/Real) con datasets separados: la de arriba afecta solo al gráfico; la segunda, las cards y la tabla. En la sección inferior las **cards se muestran arriba** de la barra de filtros.
 
-La segunda línea trae, además, **filtros cruzados** (cliente / producto / familia) integrados en la barra de búsqueda única (`PlannerSearchBar`, sección "Cruzar con" con autocompletar por `name_search`): acotan cards + tabla por una entidad distinta a la dimensión agrupada (ej. ver por producto acotado a un cliente; backend `cross_filters`). Y un **toggle "Solo faltantes"** (activado por defecto; `include_all` invertido) que alterna entre solo entidades con pendiente y todas.
+La segunda línea trae, además, **filtros cruzados** (cliente / producto / familia) integrados en la barra de búsqueda única (`PlannerSearchBar`, sección "Cruzar con" con autocompletar por `name_search`): acotan cards + tabla por una entidad distinta a la dimensión agrupada (ej. ver por producto acotado a un cliente; backend `cross_filters`). El autocompletar de cliente/producto busca sobre todo el maestro; el de **familia se limita a las familias presentes en el universo de análisis** del período (categorías de las líneas confirmadas, vía `get_unmet_family_universe`), para no ofrecer categorías sin demanda. Y un **toggle "Solo faltantes"** (activado por defecto; `include_all` invertido) que alterna entre solo entidades con pendiente y todas.
 
 #### KPIs
 

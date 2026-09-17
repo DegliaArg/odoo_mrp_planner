@@ -167,6 +167,28 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         }
 
     @api.model
+    def get_unmet_family_universe(self, period_from, period_to):
+        """IDs de familias (product.category hoja) presentes en el universo de
+        análisis del período — las categorías de los productos de las líneas
+        confirmadas (mismo dominio que las cards). Sirve para acotar el
+        autocompletado del filtro cruzado por familia a lo que realmente existe,
+        en vez de todo el maestro de categorías. Independiente de la dimensión y
+        de los demás filtros cruzados."""
+        self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
+                                   'odoo_mrp_planner.group_sales')
+        try:
+            lines = self.env['sale.order.line'].search_read(
+                self._unmet_line_domain(period_from, period_to), ['product_id'])
+            prod_ids = list({l['product_id'][0] for l in lines if l['product_id']})
+            if not prod_ids:
+                return []
+            cats = self.env['product.product'].sudo().browse(prod_ids).read(['categ_id'])
+            return list({c['categ_id'][0] for c in cats if c.get('categ_id')})
+        except Exception as e:
+            _logger.error('[UnmetDemand] family universe error: %s', e, exc_info=True)
+            return []
+
+    @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
                               warehouse_ids=None, amount_method_override=None,
                               include_all=False, cross_filters=None):

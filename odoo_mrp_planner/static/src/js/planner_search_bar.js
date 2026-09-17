@@ -18,10 +18,13 @@
  */
 
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
+import { AutoComplete } from "@web/core/autocomplete/autocomplete";
 import { NUM_OPS } from "./planner_table";
 
 export class PlannerSearchBar extends Component {
     static template = "odoo_mrp_planner.PlannerSearchBar";
+    static components = { AutoComplete };
     static props = {
         widgetKey:      { type: String },
         placeholder:    { type: String, optional: true },
@@ -39,11 +42,18 @@ export class PlannerSearchBar extends Component {
         numFilters:       { type: Array, optional: true },   // [{col, op, mode, value, col2}]
         onNumFilterAdd:   { type: Function, optional: true }, // (condición) => void
         onNumFilterRemove:{ type: Function, optional: true }, // (índice) => void
+        // Filtros cruzados por entidad (autocompletar name_search sobre un maestro)
+        crossDefs:      { type: Array,  optional: true },  // [{key, label, model, domain}]
+        crossValues:    { type: Object, optional: true },  // {key: {id, name}}
+        onCrossSet:     { type: Function, optional: true },// (key, {id,name}) => void
+        onCrossRemove:  { type: Function, optional: true },// (key) => void
         "*":            true,
     };
 
     setup() {
         this.numOps = NUM_OPS;
+        this.orm = useService("orm");
+        this._crossSourcesCache = {};
         this.localState = useState({
             open:        false,
             favoriteName:'',
@@ -100,6 +110,13 @@ export class PlannerSearchBar extends Component {
             chips.push({ type: 'num', key: 'num_' + i, index: i,
                          prefix: 'Filtro', label: this.numFilterLabel(c) });
         });
+        const cv = this.props.crossValues || {};
+        for (const [k, v] of Object.entries(cv)) {
+            if (!v) continue;
+            const def = (this.props.crossDefs || []).find(d => d.key === k);
+            chips.push({ type: 'cross', key: 'cross_' + k, crossKey: k,
+                         prefix: def ? def.label : 'Cruce', label: v.name });
+        }
         return chips;
     }
 
@@ -108,6 +125,7 @@ export class PlannerSearchBar extends Component {
         if (chip.type === 'filter'   && this.props.onFilterChange)  this.props.onFilterChange(null);
         if (chip.type === 'groupBy'  && this.props.onGroupByChange) this.props.onGroupByChange(null);
         if (chip.type === 'num'      && this.props.onNumFilterRemove) this.props.onNumFilterRemove(chip.index);
+        if (chip.type === 'cross'    && this.props.onCrossRemove) this.props.onCrossRemove(chip.crossKey);
     }
 
     clearAll() {
@@ -120,11 +138,35 @@ export class PlannerSearchBar extends Component {
                 this.props.onNumFilterRemove(i);
             }
         }
+        if (this.props.onCrossRemove) {
+            for (const k of Object.keys(this.props.crossValues || {})) this.props.onCrossRemove(k);
+        }
     }
 
     get hasActiveState() {
         return !!(this.props.search || this.props.activeFilter || this.props.activeGroupBy
-                  || (this.props.numFilters || []).length);
+                  || (this.props.numFilters || []).length
+                  || Object.keys(this.props.crossValues || {}).length);
+    }
+
+    // ── Filtros cruzados (autocompletar por entidad) ────────────────────────────
+    /** Sources del AutoComplete para un cross-def: name_search sobre su maestro.
+     *  Cacheado por key → referencia estable entre renders. */
+    crossSources(def) {
+        if (!this._crossSourcesCache[def.key]) {
+            this._crossSourcesCache[def.key] = [{
+                options: async (request) => {
+                    const recs = await this.orm.call(def.model, "name_search", [], {
+                        name: request || "", args: def.domain || [], limit: 8,
+                    });
+                    return recs.map(([id, name]) => ({ label: name, record: { id, name } }));
+                },
+            }];
+        }
+        return this._crossSourcesCache[def.key];
+    }
+    onCrossSelect(def, option) {
+        if (this.props.onCrossSet) this.props.onCrossSet(def.key, option.record);
     }
 
     // ── Filtro numérico (modal "Agregar filtro personalizado", estilo Odoo) ─────

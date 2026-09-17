@@ -27,7 +27,6 @@ import { Component, useState, onMounted, onPatched, onWillUnmount, useRef, useEf
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { loadBundle } from "@web/core/assets";
-import { AutoComplete } from "@web/core/autocomplete/autocomplete";
 import { PlannerSearchBar } from "./planner_search_bar";
 import { applyNumericFilters, buildGroupTabs } from "./planner_table";
 import { downloadExcelXml } from "./planner_export";
@@ -97,7 +96,7 @@ function saveFilters(state) {
 
 class UnmetDemandWidget extends Component {
     static template = "odoo_mrp_planner.UnmetDemandWidget";
-    static components = { PlannerSearchBar, AutoComplete };
+    static components = { PlannerSearchBar };
     static props = { record: { type: Object, optional: true }, "*": true };
 
     setup() {
@@ -287,7 +286,18 @@ class UnmetDemandWidget extends Component {
     get activeCrossDims() {
         return ["customer", "product", "family"].filter((d) => d !== this.state.dimension);
     }
-    crossDimLabel(dim) { return CROSS_DIMS[dim].label; }
+    /** Defs para el PlannerSearchBar: [{key, label, model, domain}] de las dims cruzables. */
+    get crossDefs() {
+        return this.activeCrossDims.map((d) => ({ key: d, ...CROSS_DIMS[d] }));
+    }
+    /** Valores activos {dim: {id,name}} de las dims cruzables (para chips de la barra). */
+    get crossValues() {
+        const out = {};
+        for (const d of this.activeCrossDims) {
+            if (this.state.crossFilters[d]) out[d] = this.state.crossFilters[d];
+        }
+        return out;
+    }
     /** {dim: {id,name}} → {dim: id} para el RPC (solo los seteados). */
     _crossFilterIds() {
         const out = {};
@@ -295,24 +305,6 @@ class UnmetDemandWidget extends Component {
             if (v && v.id) out[dim] = v.id;
         }
         return out;
-    }
-    /** Sources del AutoComplete para una dimensión: name_search sobre su maestro.
-     *  Cacheado por dimensión → referencia estable entre renders (no reinicia el
-     *  input mientras se escribe). */
-    crossSources(dim) {
-        if (!this._crossSourcesCache) this._crossSourcesCache = {};
-        if (!this._crossSourcesCache[dim]) {
-            const meta = CROSS_DIMS[dim];
-            this._crossSourcesCache[dim] = [{
-                options: async (request) => {
-                    const recs = await this.orm.call(meta.model, "name_search", [], {
-                        name: request || "", args: meta.domain, limit: 8,
-                    });
-                    return recs.map(([id, name]) => ({ label: name, record: { id, name } }));
-                },
-            }];
-        }
-        return this._crossSourcesCache[dim];
     }
     setCrossFilter(dim, record) {
         this.state.crossFilters = { ...this.state.crossFilters, [dim]: record };

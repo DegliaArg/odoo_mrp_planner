@@ -197,30 +197,6 @@
                     </t>
                 </div>
                 <div class="vr" style="height:20px;"/>
-                <!-- Filtros cruzados: acotar por otra dimensión (ej. ver productos de un cliente) -->
-                <t t-foreach="activeCrossDims" t-as="cd" t-key="cd">
-                    <div class="d-flex align-items-center gap-1">
-                        <span class="text-muted" style="font-size:10px;" t-esc="crossDimLabel(cd) + ':'"/>
-                        <t t-if="state.crossFilters[cd]">
-                            <span class="badge bg-primary d-flex align-items-center gap-1"
-                                  style="font-size:10px; font-weight:normal;"
-                                  t-att-title="'Filtrando por ' + crossDimLabel(cd).toLowerCase() + ': ' + state.crossFilters[cd].name">
-                                <t t-esc="state.crossFilters[cd].name"/>
-                                <i class="fa fa-times" style="cursor:pointer;"
-                                   t-att-title="'Quitar filtro de ' + crossDimLabel(cd).toLowerCase()"
-                                   t-on-click="() => this.clearCrossFilter(cd)"/>
-                            </span>
-                        </t>
-                        <div t-else="" style="width:150px;">
-                            <AutoComplete
-                                value="''"
-                                sources="crossSources(cd)"
-                                placeholder="'Buscar ' + crossDimLabel(cd).toLowerCase() + '…'"
-                                onSelect="(option) => this.setCrossFilter(cd, option.record)"/>
-                        </div>
-                    </div>
-                </t>
-                <div class="vr" style="height:20px;"/>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Valorización de la tabla">
                     <button t-att-class="'btn ' + (effAmountMethod === 'pxq' ? 'btn-primary' : 'btn-outline-secondary')"
                             style="font-size:10px; padding:1px 6px;"
@@ -246,7 +222,11 @@
                         numericFields:     numColOptions,
                         numFilters:        state.numFilters,
                         onNumFilterAdd:    (c) => this.addNumFilter(c),
-                        onNumFilterRemove: (i) => this.removeNumFilter(i)
+                        onNumFilterRemove: (i) => this.removeNumFilter(i),
+                        crossDefs:         crossDefs,
+                        crossValues:       crossValues,
+                        onCrossSet:        (k, r) => this.setCrossFilter(k, r),
+                        onCrossRemove:     (k) => this.clearCrossFilter(k)
                     }"/>
                 <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
                         t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Activá para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Desactivá para mostrar todas (el pie de tabla cuadra con las tarjetas).'">

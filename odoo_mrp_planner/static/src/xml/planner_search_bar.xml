@@ -74,6 +74,34 @@
                     </div>
                 </t>
 
+                <!-- ── Cruzar con (filtros por entidad, autocompletar) ──────── -->
+                <t t-if="props.crossDefs and props.crossDefs.length">
+                    <div t-if="(props.filterDefs and props.filterDefs.length) or (props.groupByDefs and props.groupByDefs.length) or (props.numericFields and props.numericFields.length)"
+                         class="dropdown-divider my-1"/>
+                    <div class="o_planner_search_section_header">Cruzar con</div>
+                    <t t-foreach="props.crossDefs" t-as="cd" t-key="cd.key">
+                        <div class="o_planner_search_item" style="cursor:default;" t-on-click.stop="">
+                            <t t-if="props.crossValues and props.crossValues[cd.key]">
+                                <i class="fa fa-fw fa-check text-success"/>
+                                <span class="flex-grow-1"><t t-esc="cd.label"/>: <b t-esc="props.crossValues[cd.key].name"/></span>
+                                <i class="fa fa-times text-muted small" style="cursor:pointer;"
+                                   t-att-title="'Quitar filtro de ' + cd.label.toLowerCase()"
+                                   t-on-click.stop="() => this.props.onCrossRemove(cd.key)"/>
+                            </t>
+                            <t t-else="">
+                                <span class="text-muted me-2" style="min-width:64px;"><t t-esc="cd.label"/></span>
+                                <div class="flex-grow-1">
+                                    <AutoComplete
+                                        value="''"
+                                        sources="crossSources(cd)"
+                                        placeholder="'Buscar ' + cd.label.toLowerCase() + '…'"
+                                        onSelect="(option) => this.onCrossSelect(cd, option)"/>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </t>
+
                 <!-- ── Favoritos ────────────────────────────────────────────── -->
                 <t t-if="props.showFavorites">
                     <div class="dropdown-divider my-1"/>

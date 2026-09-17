@@ -136,11 +136,12 @@
                         onNumFilterAdd:    (c) => this.addNumFilter(c),
                         onNumFilterRemove: (i) => this.removeNumFilter(i)
                     }"/>
-                <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (state.showAll ? 'btn-secondary' : 'btn-outline-secondary')"
-                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Clic para ver solo las que tienen faltante.' : 'Mostrando solo las entidades con faltante. Clic para mostrar todas (el pie de tabla cuadra con las tarjetas).'"
+                <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (!state.showAll ? 'btn-secondary active' : 'btn-outline-secondary')"
+                        t-att-aria-pressed="!state.showAll ? 'true' : 'false'"
+                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Clic para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Clic para mostrar todas (el pie de tabla cuadra con las tarjetas).'"
                         t-on-click="toggleShowAll">
-                    <i t-att-class="'fa ' + (state.showAll ? 'fa-list' : 'fa-filter')"/>
-                    <span t-esc="state.showAll ? 'Todas' : 'Solo con faltante'"/>
+                    <i class="fa fa-filter"/>
+                    <span>Con faltantes</span>
                 </button>
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"

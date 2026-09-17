@@ -136,13 +136,14 @@
                         onNumFilterAdd:    (c) => this.addNumFilter(c),
                         onNumFilterRemove: (i) => this.removeNumFilter(i)
                     }"/>
-                <button t-att-class="'btn btn-sm d-flex align-items-center gap-1 ' + (!state.showAll ? 'btn-secondary active' : 'btn-outline-secondary')"
-                        t-att-aria-pressed="!state.showAll ? 'true' : 'false'"
-                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Clic para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Clic para mostrar todas (el pie de tabla cuadra con las tarjetas).'"
-                        t-on-click="toggleShowAll">
-                    <i class="fa fa-filter"/>
-                    <span>Con faltantes</span>
-                </button>
+                <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
+                        t-att-title="state.showAll ? 'Mostrando TODAS las entidades del período (el pie de tabla cuadra con las tarjetas). Activá para filtrar solo las que tienen faltante.' : 'Filtrando solo las entidades con faltante. Desactivá para mostrar todas (el pie de tabla cuadra con las tarjetas).'">
+                    <input class="form-check-input ms-0 mt-0" type="checkbox" role="switch"
+                           id="unmet_only_shortage"
+                           t-att-checked="!state.showAll"
+                           t-on-change="toggleShowAll"/>
+                    <label class="form-check-label text-nowrap" for="unmet_only_shortage" style="cursor:pointer;">Solo faltantes</label>
+                </div>
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                             title="Elegir qué columnas mostrar en la tabla"

@@ -181,8 +181,23 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         :param default_min: float — mínimo operativo en minutos si no hay datos.
         :returns: float — duración en horas.
         """
-        wc = op.workcenter_id
         cycle = op.time_cycle_manual or op.time_cycle or 0.0
+        return self._wc_duration_hours(op.workcenter_id, cycle, bom_factor, default_min)
+
+    def _wc_duration_hours(self, wc, cycle, bom_factor, default_min=60.0):
+        """Duración en horas de una operación en un CT concreto, dado su tiempo de ciclo.
+
+        Núcleo compartido entre el CT primario (`_get_op_duration_hours`) y cada
+        centro alternativo (que tiene su propio `time_cycle_manual` y su propia
+        eficiencia/setup). Modela la duración como Odoo: ciclo escalado por
+        bom_factor y ajustado por la eficiencia del CT + setup/limpieza (una vez).
+
+        :param wc: mrp.workcenter | None — centro donde se ejecuta la operación.
+        :param cycle: float — tiempo de ciclo en minutos para ese CT.
+        :param bom_factor: float — factor de escala de la LdM.
+        :param default_min: float — mínimo operativo en minutos si el total es 0.
+        :returns: float — duración en horas.
+        """
         eff = ((wc.time_efficiency or 100.0) / 100.0) if wc else 1.0
         cycle_scaled = (cycle * bom_factor) / (eff or 1.0)
         setup = ((wc.time_start or 0.0) + (wc.time_stop or 0.0)) if wc else 0.0
@@ -283,15 +298,19 @@ class MrpDemandExpansionMixin(models.AbstractModel):
                 matched = False
                 new_ops = []
                 for primary, candidates, dur, _pin in node['operations']:
-                    if any(c.id == wc.id for c in candidates):
+                    if any(c.id == wc.id for c, _d in candidates):
                         new_ops.append((primary, candidates, dur, wc))
                         matched = True
                     else:
                         new_ops.append((primary, candidates, dur, _pin))
                 if not matched:
+                    # El CT no era candidato de ninguna operación (viene del dominio
+                    # amplio de compatibles): se agrega con la duración del primario
+                    # (dur) como respaldo, para que la elección pineada sea válida.
                     new_ops = [
                         (primary,
-                         candidates if any(c.id == wc.id for c in candidates) else list(candidates) + [wc],
+                         candidates if any(c.id == wc.id for c, _d in candidates)
+                         else list(candidates) + [(wc, dur)],
                          dur, wc)
                         for primary, candidates, dur, _pin in node['operations']
                     ]
@@ -314,28 +333,39 @@ class MrpDemandExpansionMixin(models.AbstractModel):
         preferred = centros.filtered('is_preferred')
         return (preferred[:1] if preferred else centros[:1]).workcenter_id or None
 
-    def _wc_candidates(self, wc, op=None):
-        """CTs candidatos para una operación: el primario + los alternativos
-        definidos en la operación de la LdM (alternative_workcenter_ids).
+    def _wc_candidates(self, wc, op, bom_factor, base_dur, default_min=60.0):
+        """CTs candidatos para una operación, cada uno con SU duración en horas.
 
-        Si la operación tiene alternativos configurados, se usan SOLO esos
-        (ignorando los alternativos nativos del CT). Si no hay alternativos
-        en la operación, se devuelve solo el primario.
+        Devuelve pares (CT, duración): el primario con `base_dur` (calculada del
+        time_cycle de la operación) + cada alternativo definido en la operación
+        (alternative_workcenter_ids), con la duración derivada de SU propio
+        time_cycle_manual y de la eficiencia/setup de ESE centro.
 
-        El primario va PRIMERO en la lista → desempata a su favor cuando dos
-        candidatos terminan al mismo tiempo.
+        El primario va PRIMERO → desempata a su favor cuando dos candidatos
+        terminan al mismo tiempo. Un alternativo sin CT, inactivo o igual al
+        primario se ignora.
 
         :param wc: mrp.workcenter | None — centro primario de la operación.
         :param op: mrp.routing.workcenter | None — operación de la LdM.
-        :returns: list[mrp.workcenter] — candidatos ([] si no hay centro).
+        :param bom_factor: float — factor de escala de la LdM.
+        :param base_dur: float — duración en horas del primario (ya calculada).
+        :param default_min: float — mínimo operativo en minutos si no hay datos.
+        :returns: list[(mrp.workcenter, float)] — candidatos ([] si no hay centro).
         """
         if not wc:
             return []
-        if op and hasattr(op, 'alternative_workcenter_ids'):
-            alts = op.alternative_workcenter_ids.filtered('active')
-            if alts:
-                return [wc] + [a for a in alts if a.id != wc.id]
-        return [wc]
+        candidates = [(wc, base_dur)]
+        if op and 'alternative_workcenter_ids' in op._fields:
+            seen = {wc.id}
+            for alt in op.alternative_workcenter_ids:
+                alt_wc = alt.workcenter_id
+                if not alt_wc or not alt_wc.active or alt_wc.id in seen:
+                    continue
+                seen.add(alt_wc.id)
+                alt_dur = self._wc_duration_hours(
+                    alt_wc, alt.time_cycle_manual or 0.0, bom_factor, default_min)
+                candidates.append((alt_wc, alt_dur))
+        return candidates
 
     # ── Nodos hoja ────────────────────────────────────────────────────────────
 
@@ -503,10 +533,13 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             or _icp.get_param('mrp_reschedule.wc_fallback', 'ldm')
         )
         # Cada operación guarda (primario, candidatos, duración, pin). candidatos =
-        # primario + sus alternativos activos (universo estable para elegir y para
-        # reasignar desde el tablero — NUNCA se colapsa). La ELECCIÓN del CT se hace
-        # al programar (según carga), salvo que haya un pin (override manual). pin =
-        # None por defecto; _apply_wc_overrides lo setea al reasignar.
+        # lista de (CT, duración): primario + sus alternativos activos, CADA UNO con
+        # su propia duración (el alternativo puede tener otro time_cycle). Universo
+        # estable para elegir y para reasignar desde el tablero — NUNCA se colapsa.
+        # La 3ª posición (dur) es la duración del primario: fallback cuando no hay
+        # candidatos o cuando se pinnea un CT que no estaba entre los candidatos.
+        # La ELECCIÓN del CT se hace al programar (según carga), salvo que haya un
+        # pin (override manual). pin = None por defecto; _apply_wc_overrides lo setea.
         op_minutes = caches.get('op_minutes', 60.0)
         of_hours   = caches.get('of_hours', 8.0)
         operations = []
@@ -516,14 +549,16 @@ class MrpDemandExpansionMixin(models.AbstractModel):
             if bom.operation_ids else of_hours
         )
         if preferred_wc:
-            operations = [(preferred_wc, [preferred_wc], dur_bom, None)]
+            operations = [(preferred_wc, [(preferred_wc, dur_bom)], dur_bom, None)]
         elif bom.operation_ids and wc_fallback == 'ldm':
             for op in bom.operation_ids.sorted('sequence'):
                 wc = op.workcenter_id
-                operations.append((wc, self._wc_candidates(wc, op=op),
-                                   self._get_op_duration_hours(op, bom_factor,
-                                                               default_min=op_minutes),
-                                   None))
+                base_dur = self._get_op_duration_hours(op, bom_factor,
+                                                       default_min=op_minutes)
+                operations.append((wc,
+                                   self._wc_candidates(wc, op, bom_factor,
+                                                       base_dur, op_minutes),
+                                   base_dur, None))
         else:
             operations = [(None, [], dur_bom, None)]
 

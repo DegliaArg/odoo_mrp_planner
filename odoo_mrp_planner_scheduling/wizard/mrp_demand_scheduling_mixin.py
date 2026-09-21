@@ -177,7 +177,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             # Todos los candidatos (primario + alternativos): sin su agenda real, un
             # alternativo sin carga parecería siempre libre y ganaría mal el reparto.
             for _primary, candidates, _dur, _pin in node['operations']:
-                for wc in candidates:
+                for wc, _d in candidates:
                     wc_ids.add(wc.id)
             for child in node['children']:
                 _collect(child)
@@ -356,30 +356,38 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
         def _cal(wc):
             return (wc.resource_calendar_id or company_calendar) if wc else company_calendar
 
+        def _pin_candidates(candidates, pinned, dur_h):
+            # Con pin (reasignación manual) se elige SOLO ese CT, con su duración
+            # tomada de los candidatos (o dur_h de respaldo si no estaba). Sin pin,
+            # se evalúan todos los candidatos, cada uno con SU duración.
+            if not pinned:
+                return candidates
+            pdur = next((d for c, d in candidates if c.id == pinned.id), dur_h)
+            return [(pinned, pdur)]
+
         def _forward():
             placed = []
             t = after_dt
             for primary, candidates, dur_h, pinned in operations:
-                # Con pin (reasignación manual) se elige SOLO ese CT; sin pin, el
-                # mejor entre todos los candidatos. La lista completa se persiste
-                # igual (para poder reasignar de nuevo desde el tablero).
-                cands = [pinned] if pinned else candidates
+                # La lista completa se persiste igual (para poder reasignar de nuevo
+                # desde el tablero), aunque con pin se programe solo el pineado.
+                cands = _pin_candidates(candidates, pinned, dur_h)
                 if not cands:
                     cs, ce = self._schedule_in_gaps(
                         company_calendar, max(t, after_dt), dur_h, wc_busy.get(0, []))
-                    chosen, is_primary = None, True
+                    chosen, chosen_dur, is_primary = None, dur_h, True
                 else:
                     best = None
-                    for cand in cands:
+                    for cand, cdur in cands:
                         cs, ce = self._schedule_in_gaps(
-                            _cal(cand), max(t, after_dt), dur_h, wc_busy.get(cand.id, []))
+                            _cal(cand), max(t, after_dt), cdur, wc_busy.get(cand.id, []))
                         if best is None or ce < best[1]:
-                            best = (cs, ce, cand)
-                    cs, ce, chosen = best
+                            best = (cs, ce, cand, cdur)
+                    cs, ce, chosen, chosen_dur = best
                     is_primary = bool(primary) and chosen.id == primary.id
                 placed.append({'primary': primary, 'chosen': chosen,
                                'candidates': candidates, 'is_primary': is_primary,
-                               'dur': dur_h, 'start': cs, 'end': ce})
+                               'dur': chosen_dur, 'start': cs, 'end': ce})
                 t = ce
             return placed
 
@@ -387,23 +395,23 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
             placed = []
             t = target_end
             for primary, candidates, dur_h, pinned in reversed(operations):
-                cands = [pinned] if pinned else candidates
+                cands = _pin_candidates(candidates, pinned, dur_h)
                 if not cands:
                     cs, ce = self._schedule_backward_in_gaps(
                         company_calendar, t, dur_h, wc_busy.get(0, []))
-                    chosen, is_primary = None, True
+                    chosen, chosen_dur, is_primary = None, dur_h, True
                 else:
                     best = None
-                    for cand in cands:
+                    for cand, cdur in cands:
                         cs, ce = self._schedule_backward_in_gaps(
-                            _cal(cand), t, dur_h, wc_busy.get(cand.id, []))
+                            _cal(cand), t, cdur, wc_busy.get(cand.id, []))
                         if best is None or cs > best[0]:   # inicio más tardío
-                            best = (cs, ce, cand)
-                    cs, ce, chosen = best
+                            best = (cs, ce, cand, cdur)
+                    cs, ce, chosen, chosen_dur = best
                     is_primary = bool(primary) and chosen.id == primary.id
                 placed.append({'primary': primary, 'chosen': chosen,
                                'candidates': candidates, 'is_primary': is_primary,
-                               'dur': dur_h, 'start': cs, 'end': ce})
+                               'dur': chosen_dur, 'start': cs, 'end': ce})
                 t = cs
             placed.reverse()   # volver al orden de la ruta
             return placed
@@ -617,7 +625,7 @@ class MrpDemandSchedulingMixin(models.AbstractModel):
                 continue
             op_seq += 10
             primary_wc = o.get('primary_wc')
-            cand_ids = [c.id for c in (o.get('candidates') or [])]
+            cand_ids = [c.id for c, _d in (o.get('candidates') or [])]
             ops_data.append({
                 'sequence':              op_seq,
                 'workcenter_id':         o['wc'].id,

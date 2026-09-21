@@ -3,7 +3,8 @@
 
     <!-- ── Tabla de operaciones en la LdM: columna de CTs alternativos ── -->
     <!-- La tabla usa mrp_routing_workcenter_bom_tree_view via list_view_ref.
-         Se agrega la columna después de "Centro de trabajo". -->
+         El detalle (centro + tiempo) se edita abriendo la operación; en la tabla
+         se muestran solo como chips de solo-lectura para vista rápida. -->
     <record id="mrp_routing_workcenter_bom_tree_scheduling_alt_wc" model="ir.ui.view">
         <field name="name">mrp.routing.workcenter.bom.tree.scheduling.alt.wc</field>
         <field name="model">mrp.routing.workcenter</field>
@@ -16,14 +17,15 @@
                 <field name="alternative_workcenter_ids"
                        widget="many2many_tags"
                        optional="show"
-                       string="Centros alternativos"
-                       domain="[('id', '!=', workcenter_id), ('active', '=', True)]"
-                       options="{'no_create': True, 'no_create_edit': True}"/>
+                       readonly="1"
+                       string="Centros alternativos"/>
             </field>
         </field>
     </record>
 
-    <!-- ── Popup de operación: CTs alternativos debajo del CT primario ── -->
+    <!-- ── Popup de operación: tabla de CTs alternativos (centro + tiempo) ── -->
+    <!-- Cada línea precarga el time_cycle_manual de la operación via context;
+         se puede ajustar por centro. -->
     <record id="mrp_routing_workcenter_form_scheduling_alt_wc" model="ir.ui.view">
         <field name="name">mrp.routing.workcenter.form.scheduling.alt.wc</field>
         <field name="model">mrp.routing.workcenter</field>
@@ -31,9 +33,16 @@
         <field name="arch" type="xml">
             <field name="workcenter_id" position="after">
                 <field name="alternative_workcenter_ids"
-                       widget="many2many_tags"
                        string="Centros alternativos"
-                       options="{'no_create': True, 'no_create_edit': True}"/>
+                       context="{'default_time_cycle_manual': time_cycle_manual}">
+                    <list editable="bottom">
+                        <field name="sequence" widget="handle"/>
+                        <field name="workcenter_id"
+                               domain="[('id', '!=', parent.workcenter_id), ('active', '=', True)]"
+                               options="{'no_create': True, 'no_create_edit': True}"/>
+                        <field name="time_cycle_manual"/>
+                    </list>
+                </field>
             </field>
         </field>
     </record>

@@ -1,4 +1,5 @@
 from . import mrp_schedule_mixin
+from . import mrp_routing_workcenter_alt
 from . import mrp_routing_workcenter
 from . import mrp_product_workcenter
 from . import mrp_reschedule_config

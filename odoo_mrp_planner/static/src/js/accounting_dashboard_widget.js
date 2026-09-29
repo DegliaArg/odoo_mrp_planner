@@ -85,9 +85,11 @@ class AccountingDashboardWidget extends Component {
         this.evoRef = useRef("evoCanvas");
         this.famRef = useRef("famCanvas");
         this.catRef = useRef("catCanvas");
+        this.funnelRef = useRef("funnelCanvas");
         this._evo = null;
         this._fam = null;
         this._cat = null;
+        this._funnel = null;
 
         const now = new Date();
         const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -101,6 +103,8 @@ class AccountingDashboardWidget extends Component {
             familyId: "",
             saleCategory: "",
             families: [],
+            // Métrica de las donas de mix: 'amount' ($) o 'qty' (cantidad facturada).
+            mixMetric: "amount",
             data: null,
         });
 
@@ -122,6 +126,7 @@ class AccountingDashboardWidget extends Component {
                 if (this.evoRef.el) this._drawEvolution();
                 if (this.famRef.el) this._drawFamilyPie();
                 if (this.catRef.el) this._drawSaleCatPie();
+                if (this.funnelRef.el) this._drawFunnel();
             }
         });
 
@@ -129,6 +134,7 @@ class AccountingDashboardWidget extends Component {
             if (this._evo) { this._evo.destroy(); this._evo = null; }
             if (this._fam) { this._fam.destroy(); this._fam = null; }
             if (this._cat) { this._cat.destroy(); this._cat = null; }
+            if (this._funnel) { this._funnel.destroy(); this._funnel = null; }
         });
     }
 
@@ -150,6 +156,32 @@ class AccountingDashboardWidget extends Component {
 
     fmtInt(v) {
         return new Intl.NumberFormat("es-AR").format(v || 0);
+    }
+
+    /** Cantidad facturada (unidades). Las UdM pueden diferir entre familias:
+     * el total es referencial, igual que en el panel de inventario. */
+    fmtQty(v) {
+        return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(v || 0) + " u.";
+    }
+
+    /** Valor de una fila de mix según la métrica activa. */
+    mixVal(row) {
+        return this.state.mixMetric === "qty" ? row.qty : row.amount;
+    }
+
+    /** % de una fila de mix según la métrica activa. */
+    mixPct(row) {
+        return this.state.mixMetric === "qty" ? row.pct_qty : row.pct;
+    }
+
+    /** Formatea un valor de mix según la métrica activa ($ o unidades). */
+    fmtMix(v) {
+        return this.state.mixMetric === "qty" ? this.fmtQty(v) : this.fmtAmt(v);
+    }
+
+    /** Cambia la métrica de las donas de mix y las redibuja (sin recargar). */
+    setMixMetric(m) {
+        if (this.state.mixMetric !== m) { this.state.mixMetric = m; }
     }
 
     /** Etiqueta 'YYYY-MM' → 'mmm aa' (ej. 'ene 25') para los ejes/tooltips. */
@@ -217,6 +249,7 @@ class AccountingDashboardWidget extends Component {
         if (this._evo) { this._evo.destroy(); this._evo = null; }
         if (this._fam) { this._fam.destroy(); this._fam = null; }
         if (this._cat) { this._cat.destroy(); this._cat = null; }
+        if (this._funnel) { this._funnel.destroy(); this._funnel = null; }
         try {
             const data = await this.orm.call(
                 "mrp.planner.dashboard",
@@ -298,7 +331,7 @@ class AccountingDashboardWidget extends Component {
             data: {
                 labels: rows.map(r => r.name),
                 datasets: [{
-                    data: rows.map(r => r.amount),
+                    data: rows.map(r => this.mixVal(r)),
                     backgroundColor: colors,
                     borderWidth: 1,
                     borderColor: "#fff",
@@ -313,7 +346,7 @@ class AccountingDashboardWidget extends Component {
                     legend: { position: "bottom", labels: { font: { size: 10 }, padding: 5, boxWidth: 12 } },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `  ${this.fmtAmt(rows[ctx.dataIndex].amount)} (${this.fmtPct(rows[ctx.dataIndex].pct)})`,
+                            label: ctx => `  ${this.fmtMix(this.mixVal(rows[ctx.dataIndex]))} (${this.fmtPct(this.mixPct(rows[ctx.dataIndex]))})`,
                         },
                     },
                 },
@@ -337,7 +370,7 @@ class AccountingDashboardWidget extends Component {
             data: {
                 labels: rows.map(r => r.name),
                 datasets: [{
-                    data: rows.map(r => r.amount),
+                    data: rows.map(r => this.mixVal(r)),
                     backgroundColor: colors,
                     borderWidth: 1,
                     borderColor: "#fff",
@@ -352,9 +385,62 @@ class AccountingDashboardWidget extends Component {
                     legend: { position: "bottom", labels: { font: { size: 11 }, padding: 6, boxWidth: 14 } },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `  ${this.fmtAmt(rows[ctx.dataIndex].amount)} (${this.fmtPct(rows[ctx.dataIndex].pct)})`,
+                            label: ctx => `  ${this.fmtMix(this.mixVal(rows[ctx.dataIndex]))} (${this.fmtPct(this.mixPct(rows[ctx.dataIndex]))})`,
                         },
                     },
+                },
+            },
+        });
+    }
+
+    /**
+     * Embudo del período (unidades): Pedido → Entregado → Facturado, como
+     * barras horizontales. Las conversiones se muestran aparte en el template.
+     */
+    _drawFunnel() {
+        const canvas = this.funnelRef.el;
+        if (!canvas) return;
+        const ChartJs = globalThis.Chart;
+        if (!ChartJs) return;
+        if (this._funnel) { this._funnel.destroy(); this._funnel = null; }
+
+        const f = this.state.data.funnel || {};
+        const labels = ["Pedido", "Entregado", "Facturado"];
+        const data = [f.ordered || 0, f.delivered || 0, f.invoiced || 0];
+        const colors = [
+            "rgba(108, 117, 125, 0.75)",
+            "rgba(13, 110, 253, 0.75)",
+            "rgba(25, 135, 84, 0.80)",
+        ];
+
+        this._funnel = new ChartJs(canvas, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors,
+                    borderRadius: 3,
+                }],
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => this.fmtQty(ctx.raw) } },
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: "rgba(0,0,0,0.06)" },
+                        ticks: {
+                            font: { size: 11 },
+                            callback: v => new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 }).format(v),
+                        },
+                    },
+                    y: { grid: { display: false }, ticks: { font: { size: 12 } } },
                 },
             },
         });

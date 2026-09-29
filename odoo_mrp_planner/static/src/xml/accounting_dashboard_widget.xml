@@ -149,8 +149,16 @@
                         <div class="col-12 col-lg-3">
                             <div class="card o_planner_card h-100">
                                 <div class="card-body">
-                                    <div class="d-flex align-items-center mb-2">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
                                         <span class="fw-semibold small">Mix por familia</span>
+                                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del mix">
+                                            <button t-att-class="'btn btn-sm ' + (state.mixMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                                    style="font-size:10px; padding:0 6px;" title="Ver el mix en pesos facturados (neto)"
+                                                    t-on-click="() => this.setMixMetric('amount')">$</button>
+                                            <button t-att-class="'btn btn-sm ' + (state.mixMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                                    style="font-size:10px; padding:0 6px;" title="Ver el mix en cantidad facturada (unidades)"
+                                                    t-on-click="() => this.setMixMetric('qty')">Unid.</button>
+                                        </div>
                                     </div>
                                     <div style="position:relative; height:260px;">
                                         <canvas t-ref="famCanvas"/>
@@ -165,8 +173,16 @@
                         <div class="col-12 col-lg-3">
                             <div class="card o_planner_card h-100">
                                 <div class="card-body">
-                                    <div class="d-flex align-items-center mb-2">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
                                         <span class="fw-semibold small">Mix por categoría de venta</span>
+                                        <div class="btn-group btn-group-sm" role="group" aria-label="Métrica del mix">
+                                            <button t-att-class="'btn btn-sm ' + (state.mixMetric === 'amount' ? 'btn-primary' : 'btn-outline-secondary')"
+                                                    style="font-size:10px; padding:0 6px;" title="Ver el mix en pesos facturados (neto)"
+                                                    t-on-click="() => this.setMixMetric('amount')">$</button>
+                                            <button t-att-class="'btn btn-sm ' + (state.mixMetric === 'qty' ? 'btn-primary' : 'btn-outline-secondary')"
+                                                    style="font-size:10px; padding:0 6px;" title="Ver el mix en cantidad facturada (unidades)"
+                                                    t-on-click="() => this.setMixMetric('qty')">Unid.</button>
+                                        </div>
                                     </div>
                                     <div style="position:relative; height:260px;">
                                         <canvas t-ref="catCanvas"/>
@@ -180,63 +196,42 @@
                         </div>
                     </div>
 
-                    <!-- ── Tablas: top clientes + por vendedor ── -->
+                    <!-- ── Embudo Pedido → Entregado → Facturado (del período) ── -->
                     <div class="row g-3">
-                        <div class="col-12 col-lg-6">
+                        <div class="col-12">
                             <div class="card o_planner_card h-100">
                                 <div class="card-body">
-                                    <div class="fw-semibold small mb-2">Top clientes por facturación</div>
-                                    <div t-if="!state.data.top_customers.length" class="text-muted small py-3 text-center">
-                                        Sin facturación en el período.
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="fw-semibold small">Embudo Pedido → Entregado → Facturado</span>
+                                        <span class="text-muted small ms-2"
+                                              title="Flujo del período en unidades: pedido (órdenes de venta confirmadas por fecha de pedido), entregado (salidas validadas) y facturado (facturas de cliente, neto de NC). Cada etapa cuenta lo ocurrido en el rango según su propia fecha, así que las conversiones son indicadores agregados, no un seguimiento línea a línea. Respeta el filtro de familia y las compañías activas; las unidades combinan UdM distintas (total referencial).">
+                                            <i class="fa fa-info-circle"/>
+                                        </span>
                                     </div>
-                                    <table t-if="state.data.top_customers.length"
-                                           class="table table-sm table-hover mb-0 align-middle" style="font-size:12px;">
-                                        <thead>
-                                            <tr class="text-muted">
-                                                <th>Cliente</th>
-                                                <th class="text-end">Facturación</th>
-                                                <th class="text-end" style="width:70px;">%</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <t t-foreach="state.data.top_customers" t-as="row" t-key="row.id || row.name">
-                                                <tr>
-                                                    <td class="text-truncate" style="max-width:0;" t-att-title="row.name" t-esc="row.name"/>
-                                                    <td class="text-end" t-esc="fmtAmt(row.amount)"/>
-                                                    <td class="text-end text-muted" t-esc="fmtPct(row.pct)"/>
-                                                </tr>
-                                            </t>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-6">
-                            <div class="card o_planner_card h-100">
-                                <div class="card-body">
-                                    <div class="fw-semibold small mb-2">Facturación por vendedor</div>
-                                    <div t-if="!state.data.by_salesperson.length" class="text-muted small py-3 text-center">
-                                        Sin facturación en el período.
+                                    <div class="row align-items-center">
+                                        <div class="col-12 col-lg-8">
+                                            <div style="position:relative; height:180px;">
+                                                <canvas t-ref="funnelCanvas"/>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-lg-4">
+                                            <!-- Conversiones -->
+                                            <div class="d-flex flex-column gap-2">
+                                                <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">
+                                                    <span class="small text-muted">Entregado / Pedido</span>
+                                                    <span class="fw-bold" t-esc="fmtPct(state.data.funnel.deliver_pct)"/>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">
+                                                    <span class="small text-muted">Facturado / Entregado</span>
+                                                    <span class="fw-bold" t-esc="fmtPct(state.data.funnel.bill_pct)"/>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1">
+                                                    <span class="small text-muted">Facturado / Pedido</span>
+                                                    <span class="fw-bold" t-esc="fmtPct(state.data.funnel.bill_vs_order_pct)"/>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <table t-if="state.data.by_salesperson.length"
-                                           class="table table-sm table-hover mb-0 align-middle" style="font-size:12px;">
-                                        <thead>
-                                            <tr class="text-muted">
-                                                <th>Vendedor</th>
-                                                <th class="text-end">Facturación</th>
-                                                <th class="text-end" style="width:70px;">%</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <t t-foreach="state.data.by_salesperson" t-as="row" t-key="row.id || row.name">
-                                                <tr>
-                                                    <td class="text-truncate" style="max-width:0;" t-att-title="row.name" t-esc="row.name"/>
-                                                    <td class="text-end" t-esc="fmtAmt(row.amount)"/>
-                                                    <td class="text-end text-muted" t-esc="fmtPct(row.pct)"/>
-                                                </tr>
-                                            </t>
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
                         </div>

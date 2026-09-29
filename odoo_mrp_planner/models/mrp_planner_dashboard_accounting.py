@@ -8,7 +8,12 @@ Backend del Panel de Contabilidad: KPIs generales de FACTURACIÓN real (lo
 emitido en account.move), distinto del panel de ventas que mira pedidos y
 entregas. Lo que al cliente le importa: facturación mensual desglosada por
 familia (categoría de producto) y por categoría de venta (ABC A–E), más top
-clientes, facturación por vendedor y la evolución de los últimos 12 meses.
+el embudo Pedido→Entregado→Facturado del período y la evolución de los
+últimos 12 meses.
+
+El ranking de clientes NO se repite acá: ya vive en "Análisis de clientes".
+La diferencia de fuente es deliberada: los demás paneles miden pedido/vendido
+(sale.order) o entregado (stock); este mide FACTURADO real (account.move).
 
 Criterios de cálculo (mismos que se acordaron con el negocio):
 - Base: facturas de cliente POSTEADAS (move_type in out_invoice/out_refund).
@@ -147,8 +152,8 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
             filtrar; None = todas.
         :param sale_category: str|None — categoría de venta ABC ('A'..'E') o
             '__none__' (sin categoría); None/'' = todas.
-        :returns: dict con 'kpis', 'by_family', 'by_sale_category',
-            'top_customers', 'by_salesperson' y 'evolution'.
+        :returns: dict con 'kpis', 'by_family', 'by_sale_category', 'funnel'
+            (embudo Pedido→Entregado→Facturado del período) y 'evolution'.
         """
         self._accounting_ensure_group()
         company_ids = self._accounting_company_ids()
@@ -184,15 +189,14 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
         if family_id:
             line_dom.append(('product_id.categ_id', '=', int(family_id)))
         lines = self.env['account.move.line'].sudo().search_read(
-            line_dom, ['balance', 'product_id', 'move_id'])
+            line_dom, ['balance', 'quantity', 'product_id', 'move_id'])
         if not lines:
             return empty
 
         # ── Mapas auxiliares (batch, sin N+1) ────────────────────────────────
         move_ids = list({l['move_id'][0] for l in lines if l['move_id']})
         moves = {m['id']: m for m in self.env['account.move'].sudo().browse(move_ids)
-                 .read(['invoice_date', 'invoice_user_id', 'move_type',
-                        'commercial_partner_id', 'company_id'])}
+                 .read(['invoice_date', 'move_type', 'company_id'])}
 
         prod_ids = list({l['product_id'][0] for l in lines if l['product_id']})
         prod_info = {}          # prod_id → (tmpl_id, categ_id, categ_name)
@@ -229,6 +233,10 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
             if not inv_date:
                 continue
             amount = -(l['balance'] or 0.0)  # neto, NC resta
+            # Cantidad facturada neta: la NC resta unidades igual que el importe.
+            qty = l['quantity'] or 0.0
+            if move['move_type'] == 'out_refund':
+                qty = -qty
             pid = l['product_id'][0] if l['product_id'] else False
             tid, _cid, cname = prod_info.get(pid, (False, False, _('Sin familia')))
             comp_id = move['company_id'][0] if move['company_id'] else False
@@ -240,6 +248,7 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
                     continue
             enriched.append({
                 'amount': amount,
+                'qty': qty,
                 'date': inv_date,
                 'month': inv_date.strftime('%Y-%m'),
                 'family': cname,
@@ -247,10 +256,6 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
                 'salecat': scat,
                 'move_id': l['move_id'][0],
                 'move_type': move['move_type'],
-                'partner_id': move['commercial_partner_id'][0] if move['commercial_partner_id'] else False,
-                'partner': move['commercial_partner_id'][1] if move['commercial_partner_id'] else _('Sin cliente'),
-                'user_id': move['invoice_user_id'][0] if move['invoice_user_id'] else False,
-                'user': move['invoice_user_id'][1] if move['invoice_user_id'] else _('Sin vendedor'),
             })
 
         in_period = [e for e in enriched if d_from <= e['date'] <= d_to]
@@ -260,8 +265,7 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
             'kpis': kpis,
             'by_family': self._accounting_group_sum(in_period, 'family', 'family_id', top=8),
             'by_sale_category': self._accounting_salecat_breakdown(in_period),
-            'top_customers': self._accounting_group_sum(in_period, 'partner', 'partner_id', top=10),
-            'by_salesperson': self._accounting_group_sum(in_period, 'user', 'user_id', top=10),
+            'funnel': self._accounting_funnel(company_ids, d_from, d_to, family_id),
             'evolution': self._accounting_evolution(enriched, evo_from, d_to),
         }
 
@@ -274,7 +278,9 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
                 'invoices': 0, 'avg_ticket': 0.0, 'refunds': 0.0, 'ytd': 0.0,
             },
             'by_family': [], 'by_sale_category': [],
-            'top_customers': [], 'by_salesperson': [], 'evolution': [],
+            'funnel': {'ordered': 0.0, 'delivered': 0.0, 'invoiced': 0.0,
+                       'deliver_pct': None, 'bill_pct': None, 'bill_vs_order_pct': None},
+            'evolution': [],
         }
 
     def _accounting_kpis(self, enriched, d_from, d_to, prev_from, prev_to, ytd_from):
@@ -312,7 +318,8 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
         }
 
     def _accounting_group_sum(self, rows, name_key, id_key, top=None):
-        """Suma neta por dimensión, ordenada de mayor a menor, con % del total.
+        """Suma neta por dimensión (importe y cantidad), ordenada de mayor a
+        menor por importe, con % del total en ambas métricas.
 
         :param top: int|None — recorta a los N primeros (el resto se agrupa en
             'Otros' con su id en False). None = sin recorte.
@@ -321,40 +328,50 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
         for r in rows:
             k = r[id_key]
             if k not in agg:
-                agg[k] = {'id': k, 'name': r[name_key], 'amount': 0.0}
+                agg[k] = {'id': k, 'name': r[name_key], 'amount': 0.0, 'qty': 0.0}
             agg[k]['amount'] += r['amount']
+            agg[k]['qty'] += r.get('qty', 0.0)
         items = sorted(agg.values(), key=lambda d: d['amount'], reverse=True)
         if top and len(items) > top:
             head = items[:top]
             rest = items[top:]
-            otros = sum(i['amount'] for i in rest)
-            head.append({'id': False, 'name': _('Otros'), 'amount': otros})
+            head.append({'id': False, 'name': _('Otros'),
+                         'amount': sum(i['amount'] for i in rest),
+                         'qty': sum(i['qty'] for i in rest)})
             items = head
-        total = sum(i['amount'] for i in items) or 0.0
+        total_a = sum(i['amount'] for i in items) or 0.0
+        total_q = sum(i['qty'] for i in items) or 0.0
         for i in items:
             i['amount'] = round(i['amount'], 2)
-            i['pct'] = round(i['amount'] / total * 100, 1) if total else 0.0
+            i['qty'] = round(i['qty'], 2)
+            i['pct'] = round(i['amount'] / total_a * 100, 1) if total_a else 0.0
+            i['pct_qty'] = round(i['qty'] / total_q * 100, 1) if total_q else 0.0
         return items
 
     def _accounting_salecat_breakdown(self, rows):
         """Facturación neta por categoría de venta ABC (A–E + Sin cat.),
-        siempre en el orden A→E→sin, con % del total."""
+        siempre en el orden A→E→sin, con importe, cantidad y % de cada uno."""
         ORDER = ['A', 'B', 'C', 'D', 'E', '']
         NAMES = {'A': 'Cat. A', 'B': 'Cat. B', 'C': 'Cat. C',
                  'D': 'Cat. D', 'E': 'Cat. E', '': _('Sin cat.')}
-        agg = {c: 0.0 for c in ORDER}
+        agg = {c: {'amount': 0.0, 'qty': 0.0} for c in ORDER}
         for r in rows:
-            agg[r['salecat'] if r['salecat'] in agg else ''] += r['amount']
-        total = sum(agg.values()) or 0.0
+            c = r['salecat'] if r['salecat'] in agg else ''
+            agg[c]['amount'] += r['amount']
+            agg[c]['qty'] += r.get('qty', 0.0)
+        total_a = sum(v['amount'] for v in agg.values()) or 0.0
+        total_q = sum(v['qty'] for v in agg.values()) or 0.0
         out = []
         for c in ORDER:
-            if not agg[c]:
+            if not agg[c]['amount'] and not agg[c]['qty']:
                 continue
             out.append({
                 'code': c or '__none__',
                 'name': NAMES[c],
-                'amount': round(agg[c], 2),
-                'pct': round(agg[c] / total * 100, 1) if total else 0.0,
+                'amount': round(agg[c]['amount'], 2),
+                'qty': round(agg[c]['qty'], 2),
+                'pct': round(agg[c]['amount'] / total_a * 100, 1) if total_a else 0.0,
+                'pct_qty': round(agg[c]['qty'] / total_q * 100, 1) if total_q else 0.0,
             })
         return out
 
@@ -373,3 +390,77 @@ class MrpPlannerDashboardAccounting(models.TransientModel):
             if e['month'] in agg:
                 agg[e['month']] += e['amount']
         return [{'ym': m, 'amount': round(agg[m], 2)} for m in months]
+
+    # ── Embudo Pedido → Entregado → Facturado ──────────────────────────────────
+
+    def _accounting_funnel(self, company_ids, d_from, d_to, family_id=None):
+        """Embudo del período en UNIDADES: pedido (SO confirmadas), entregado
+        (salidas validadas) y facturado (facturas de cliente, neto de NC).
+
+        Complementa lo que ya tienen otros paneles (Ventas/Forecast miran
+        pedido y entregas; nadie cruza contra la facturación real) sin
+        duplicarlo: acá el foco es cuánto de lo movido del período llegó a
+        FACTURARSE.
+
+        Semántica: FLUJO del período — cada etapa cuenta lo ocurrido en el
+        rango según su propia fecha (pedido: date_order; entregado: fecha del
+        movimiento; facturado: invoice_date). No es una cohorte pedido→factura,
+        así que las conversiones son indicadores agregados de salud, no un
+        seguimiento línea a línea. Multiempresa: respeta las compañías activas.
+        Las unidades combinan UdM distintas (total referencial), igual que el
+        panel de inventario.
+
+        :returns: dict — ordered/delivered/invoiced (unidades) y las
+            conversiones deliver_pct, bill_pct y bill_vs_order_pct.
+        """
+        d_from_s = d_from.strftime('%Y-%m-%d')
+        d_to_s = d_to.strftime('%Y-%m-%d')
+        categ_dom = [('product_id.categ_id', '=', int(family_id))] if family_id else []
+
+        def _sum(model, dom, qty_field):
+            g = self.env[model].sudo().read_group(dom, [f'{qty_field}:sum'], [])
+            return (g[0][qty_field] or 0.0) if g and g[0].get(qty_field) else 0.0
+
+        # Pedido: líneas de venta confirmadas con date_order en el período.
+        ordered = _sum('sale.order.line', [
+            ('order_id.state', 'in', ('sale', 'done')),
+            ('order_id.date_order', '>=', d_from_s + ' 00:00:00'),
+            ('order_id.date_order', '<=', d_to_s + ' 23:59:59'),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company_ids),
+        ] + categ_dom, 'product_uom_qty')
+
+        # Entregado: movimientos de salida validados en el período.
+        delivered = _sum('stock.move.line', [
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ('date', '>=', d_from_s + ' 00:00:00'),
+            ('date', '<=', d_to_s + ' 23:59:59'),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company_ids),
+        ] + categ_dom, 'quantity')
+
+        # Facturado: líneas de producto de facturas de cliente (neto de NC).
+        inv_base = [
+            ('parent_state', '=', 'posted'),
+            ('display_type', '=', 'product'),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company_ids),
+            ('move_id.invoice_date', '>=', d_from_s),
+            ('move_id.invoice_date', '<=', d_to_s),
+        ] + categ_dom
+        inv_pos = _sum('account.move.line',
+                       inv_base + [('move_id.move_type', '=', 'out_invoice')], 'quantity')
+        inv_neg = _sum('account.move.line',
+                       inv_base + [('move_id.move_type', '=', 'out_refund')], 'quantity')
+        invoiced = inv_pos - inv_neg
+
+        pct = lambda num, den: round(num / den * 100, 1) if den else None
+        return {
+            'ordered': round(ordered, 2),
+            'delivered': round(delivered, 2),
+            'invoiced': round(invoiced, 2),
+            'deliver_pct': pct(delivered, ordered),      # entregado / pedido
+            'bill_pct': pct(invoiced, delivered),        # facturado / entregado
+            'bill_vs_order_pct': pct(invoiced, ordered),  # facturado / pedido
+        }

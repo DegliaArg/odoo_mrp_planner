@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Vista del Panel de contabilidad ────────────────────────────────── -->
+    <record id="mrp_contabilidad_dashboard_form" model="ir.ui.view">
+        <field name="name">mrp.contabilidad.dashboard.form</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Panel de contabilidad" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+
+                        <!-- Encabezado -->
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">Panel de contabilidad</h4>
+                            </div>
+                            <div class="col-auto d-flex gap-2 align-items-center">
+                                <widget name="refresh_stamp"/>
+                                <button name="action_refresh_contabilidad" type="object"
+                                        string="Actualizar"
+                                        class="btn btn-outline-primary btn-sm"/>
+                            </div>
+                        </div>
+
+                        <!-- FACTURACIÓN -->
+                        <div class="o_planner_section mb-4">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-line-chart me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Facturación</span>
+                            </div>
+                            <widget name="accounting_dashboard_widget"/>
+                        </div>
+
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción de servidor para abrir el panel ─────────────────────────── -->
+    <record id="action_mrp_contabilidad_dashboard_open" model="ir.actions.server">
+        <field name="name">Panel de contabilidad</field>
+        <field name="model_id" ref="odoo_mrp_planner.model_mrp_planner_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_contabilidad()</field>
+    </record>
+
+    <!-- ── Sección Contabilidad (misma jerarquía que Compras, Ventas e Inventario).
+         El menú padre se hace visible al colgarle este submenú con acción. ── -->
+    <menuitem id="mrp_contabilidad_menu"
+              name="Contabilidad"
+              parent="odoo_mrp_planner.mrp_planner_menu_root"
+              sequence="30"
+              groups="odoo_mrp_planner.group_accounting_read,odoo_mrp_planner.group_accounting_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+
+    <menuitem id="mrp_contabilidad_panel_menu"
+              name="Panel de contabilidad"
+              parent="mrp_contabilidad_menu"
+              sequence="1"
+              action="action_mrp_contabilidad_dashboard_open"
+              groups="odoo_mrp_planner.group_accounting_read,odoo_mrp_planner.group_accounting_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+
+</odoo>

@@ -76,13 +76,30 @@
         <field name="implied_ids" eval="[(4, ref('group_inventory_read'))]"/>
     </record>
 
+    <!-- Contabilidad – Lectura -->
+    <record id="group_accounting_read" model="res.groups">
+        <field name="name">Contabilidad - Lectura</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de contabilidad y sus KPIs. No puede modificar configuraciones.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Contabilidad – Administrador -->
+    <record id="group_accounting_admin" model="res.groups">
+        <field name="name">Contabilidad - Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el panel de contabilidad y puede modificar la configuración de sus KPIs.</field>
+        <field name="users" eval="[]"/>
+        <field name="implied_ids" eval="[(4, ref('group_accounting_read'))]"/>
+    </record>
+
     <!-- Administrador -->
     <record id="group_admin" model="res.groups">
         <field name="name">Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
         <field name="comment">Acceso completo al módulo: todos los paneles, todas las configuraciones y todas las funciones de programación y reprogramación.</field>
         <field name="users" eval="[]"/>
-        <field name="implied_ids" eval="[(4, ref('group_prod')), (4, ref('group_purchase_admin')), (4, ref('group_sales')), (4, ref('group_prod_read')), (4, ref('group_purchase')), (4, ref('group_sales_read'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_prod')), (4, ref('group_purchase_admin')), (4, ref('group_sales')), (4, ref('group_accounting_admin')), (4, ref('group_prod_read')), (4, ref('group_purchase')), (4, ref('group_sales_read')), (4, ref('group_accounting_read'))]"/>
     </record>
 
 </odoo>

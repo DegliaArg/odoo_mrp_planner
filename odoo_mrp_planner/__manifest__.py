@@ -1,6 +1,6 @@
 {
     'name': 'KPIs',
-    'version': '18.0.12.48.0',
+    'version': '18.0.12.50.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -47,7 +47,7 @@ Programación y reprogramación
     'website': 'https://deglia.xyz',
     'license': 'OPL-1',
     'category': 'Manufacturing',
-    'depends': ['mrp', 'mrp_subcontracting', 'purchase', 'stock', 'mail', 'sale'],
+    'depends': ['mrp', 'mrp_subcontracting', 'purchase', 'stock', 'mail', 'sale', 'account'],
     'data': [
         'security/groups.xml',
         'security/ir_rules.xml',
@@ -60,6 +60,7 @@ Programación y reprogramación
         'views/res_config_settings_views.xml',
         'views/stock_picking_views.xml',
         'views/mrp_inventory_dashboard_views.xml',
+        'views/mrp_accounting_dashboard_views.xml',
         'views/mrp_production_analysis_views.xml',
         'data/ir_cron_inventory.xml',
         'views/res_partner_views.xml',
@@ -122,6 +123,8 @@ Programación y reprogramación
             'odoo_mrp_planner/static/src/xml/production_analysis_widget.xml',
             'odoo_mrp_planner/static/src/js/purchase_analysis_widget.js',
             'odoo_mrp_planner/static/src/xml/purchase_analysis_widget.xml',
+            'odoo_mrp_planner/static/src/js/accounting_dashboard_widget.js',
+            'odoo_mrp_planner/static/src/xml/accounting_dashboard_widget.xml',
         ],
     },
     'installable': True,

@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.AccountingDashboardWidget">
+        <div class="o_accounting_dashboard_widget">
+
+            <!-- ════ Barra de filtros (misma estética que ventas/inventario) ════ -->
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+
+                <!-- Rango de fechas (por fecha de factura) -->
+                <div class="d-flex align-items-center gap-1" aria-label="Período de facturación">
+                    <label class="form-label mb-0 small text-muted">Desde</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                           title="Fecha de factura desde"
+                           t-att-value="state.dateFrom" t-on-change="onDateFromChange"/>
+                    <label class="form-label mb-0 small text-muted ms-1">Hasta</label>
+                    <input type="date" class="form-control form-control-sm" style="max-width:140px;"
+                           title="Fecha de factura hasta"
+                           t-att-value="state.dateTo" t-on-change="onDateToChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Fijar el rango al mes calendario en curso"
+                            t-att-aria-pressed="isCurrentMonth ? 'true' : 'false'"
+                            t-on-click="setCurrentMonth">
+                        Mes en curso
+                    </button>
+                </div>
+
+                <div class="vr" style="height:24px;"/>
+
+                <!-- Familia (categoría de producto) -->
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Familia</label>
+                    <select class="form-select form-select-sm" style="max-width:200px;"
+                            title="Filtrar por familia (categoría de producto)"
+                            t-on-change="onFamilyChange">
+                        <option value="">Todas</option>
+                        <t t-foreach="state.families" t-as="f" t-key="f.id">
+                            <option t-att-value="f.id" t-att-selected="state.familyId == f.id"
+                                    t-esc="f.name"/>
+                        </t>
+                    </select>
+                </div>
+
+                <!-- Categoría de venta ABC (botones, como en ventas) -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="Categoría de venta">
+                    <button t-att-class="'btn ' + (state.saleCategory === '' ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Todas las categorías de venta"
+                            t-on-click="() => this.setSaleCat('')">ABC</button>
+                    <t t-foreach="['A','B','C','D','E']" t-as="c" t-key="c">
+                        <button t-att-class="'btn ' + (state.saleCategory === c ? 'btn-primary' : 'btn-outline-secondary')"
+                                t-att-title="'Solo categoría de venta ' + c"
+                                t-on-click="() => this.setSaleCat(c)"
+                                t-esc="c"/>
+                    </t>
+                </div>
+            </div>
+
+            <!-- Error de backend -->
+            <div t-if="state.loadError" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el panel: <strong><t t-esc="state.loadError"/></strong>
+            </div>
+
+            <!-- Spinner de primera carga -->
+            <t t-if="!state.loadError and state.loading and !state.data">
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x"/>
+                    <div class="mt-2 small">Cargando datos…</div>
+                </div>
+            </t>
+
+            <t t-if="state.data">
+                <div t-att-class="'o_planner_fade_in ' + (state.loading ? 'opacity-50 pe-none' : '')">
+
+                    <!-- ── Cards KPI ── -->
+                    <div class="d-flex gap-2 mb-4">
+                        <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Facturación neta del período (facturas de cliente posteadas, sin impuestos, en moneda de la compañía; las notas de crédito restan).">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-file-text-o fa-lg text-primary mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmtAmt(state.data.kpis.revenue)"/>
+                                    <div class="o_planner_label">Facturación del período</div>
+                                    <div t-att-class="'mt-1 ' + deltaClass" style="font-size:10px;"
+                                         t-esc="deltaLabel"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Cantidad de facturas de cliente emitidas en el período (sin contar notas de crédito).">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-list-ol fa-lg text-secondary mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmtInt(state.data.kpis.invoices)"/>
+                                    <div class="o_planner_label">Facturas emitidas</div>
+                                    <div class="text-muted mt-1" style="font-size:10px;">
+                                        Ticket prom. <t t-esc="fmtAmt2(state.data.kpis.avg_ticket)"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Total de notas de crédito emitidas en el período (ya descontadas de la facturación neta).">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-undo fa-lg text-danger mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmtAmt(state.data.kpis.refunds)"/>
+                                    <div class="o_planner_label">Notas de crédito</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Facturación neta acumulada del año en curso, desde el 1 de enero hasta la fecha final del rango.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-calendar fa-lg text-info mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmtAmt(state.data.kpis.ytd)"/>
+                                    <div class="o_planner_label">Facturación YTD (año)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Gráficos: evolución + mixes ── -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-lg-6">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="fw-semibold small">Evolución mensual — Facturación neta</span>
+                                        <span class="text-muted small ms-2"
+                                              title="Facturación neta por mes de los últimos 12 meses (hasta el mes de la fecha final del rango). Respeta los filtros de familia y categoría de venta.">
+                                            <i class="fa fa-info-circle"/>
+                                        </span>
+                                    </div>
+                                    <div style="position:relative; height:260px;">
+                                        <canvas t-ref="evoCanvas"/>
+                                        <div t-if="!state.data.evolution or !state.data.evolution.length"
+                                             class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                            <div class="text-center">
+                                                <i class="fa fa-bar-chart fa-2x mb-2 d-block"/>
+                                                <span class="small">Sin facturación en el rango.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-3">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="fw-semibold small">Mix por familia</span>
+                                    </div>
+                                    <div style="position:relative; height:260px;">
+                                        <canvas t-ref="famCanvas"/>
+                                        <div t-if="!state.data.by_family or !state.data.by_family.length"
+                                             class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                            <span class="small">Sin datos.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-3">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="fw-semibold small">Mix por categoría de venta</span>
+                                    </div>
+                                    <div style="position:relative; height:260px;">
+                                        <canvas t-ref="catCanvas"/>
+                                        <div t-if="!state.data.by_sale_category or !state.data.by_sale_category.length"
+                                             class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                            <span class="small">Sin datos.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Tablas: top clientes + por vendedor ── -->
+                    <div class="row g-3">
+                        <div class="col-12 col-lg-6">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="fw-semibold small mb-2">Top clientes por facturación</div>
+                                    <div t-if="!state.data.top_customers.length" class="text-muted small py-3 text-center">
+                                        Sin facturación en el período.
+                                    </div>
+                                    <table t-if="state.data.top_customers.length"
+                                           class="table table-sm table-hover mb-0 align-middle" style="font-size:12px;">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th>Cliente</th>
+                                                <th class="text-end">Facturación</th>
+                                                <th class="text-end" style="width:70px;">%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <t t-foreach="state.data.top_customers" t-as="row" t-key="row.id || row.name">
+                                                <tr>
+                                                    <td class="text-truncate" style="max-width:0;" t-att-title="row.name" t-esc="row.name"/>
+                                                    <td class="text-end" t-esc="fmtAmt(row.amount)"/>
+                                                    <td class="text-end text-muted" t-esc="fmtPct(row.pct)"/>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="fw-semibold small mb-2">Facturación por vendedor</div>
+                                    <div t-if="!state.data.by_salesperson.length" class="text-muted small py-3 text-center">
+                                        Sin facturación en el período.
+                                    </div>
+                                    <table t-if="state.data.by_salesperson.length"
+                                           class="table table-sm table-hover mb-0 align-middle" style="font-size:12px;">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th>Vendedor</th>
+                                                <th class="text-end">Facturación</th>
+                                                <th class="text-end" style="width:70px;">%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <t t-foreach="state.data.by_salesperson" t-as="row" t-key="row.id || row.name">
+                                                <tr>
+                                                    <td class="text-truncate" style="max-width:0;" t-att-title="row.name" t-esc="row.name"/>
+                                                    <td class="text-end" t-esc="fmtAmt(row.amount)"/>
+                                                    <td class="text-end text-muted" t-esc="fmtPct(row.pct)"/>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /fade -->
+            </t>
+
+        </div>
+    </t>
+
+</templates>

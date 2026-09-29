@@ -34,6 +34,7 @@ from . import mrp_planner_dashboard_customer
 from . import mrp_planner_dashboard_unmet
 from . import mrp_planner_detail_dashboard
 from . import mrp_planner_dashboard_inventory
+from . import mrp_planner_dashboard_accounting
 from . import mrp_planner_dashboard_purchase_analysis
 from . import purchase_order
 from . import sale_order_line

@@ -33,7 +33,10 @@ class MrpPlannerDashboard(models.TransientModel):
             return {'row': None, 'detail': {}, 'config': {}}
         partner_id = int(partner_id)
 
-        data = self.get_customer_analysis_data(date_from, date_to, None)
+        # partner_ids acota el cálculo pesado a este cliente (rápido); el ABC que
+        # devuelve ya es el poblacional real (se recalcula aparte en el método).
+        data = self.get_customer_analysis_data(
+            date_from, date_to, None, partner_ids=[partner_id])
         if not isinstance(data, dict):
             data = {}
         rows = data.get('rows', []) or []

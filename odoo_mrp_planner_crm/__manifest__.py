@@ -1,6 +1,6 @@
 {
     'name': 'Planificador de producción — KPIs de cliente en CRM',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.0.1',
     'summary': 'Indicadores del cliente (Análisis de cliente) dentro del form de la oportunidad',
     'description': """
 Extensión de CRM del Planificador de producción.

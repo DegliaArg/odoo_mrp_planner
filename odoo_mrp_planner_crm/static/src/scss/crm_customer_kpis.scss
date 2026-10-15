@@ -13,4 +13,16 @@
     .o_planner_kpi_card_xs {
         min-width: 0;
     }
+
+    // Grilla de cards KPI responsiva: se acomoda al ancho disponible (sirve con
+    // cualquier zoom o ancho de chatter), en vez de un número fijo por fila.
+    .o_crm_kpi_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.5rem;
+
+        > .col {
+            min-width: 0;
+        }
+    }
 }

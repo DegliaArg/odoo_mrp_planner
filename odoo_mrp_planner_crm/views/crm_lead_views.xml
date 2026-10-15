@@ -9,7 +9,8 @@
         <field name="model">crm.lead</field>
         <field name="inherit_id" ref="crm.crm_lead_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
+            <!-- Primera pestaña del notebook (se abre por defecto). -->
+            <xpath expr="//notebook/page[1]" position="before">
                 <page string="Análisis del cliente"
                       name="customer_kpis"
                       invisible="not partner_id">

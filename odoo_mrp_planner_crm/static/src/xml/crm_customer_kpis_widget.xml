@@ -62,7 +62,7 @@
 
             <!-- ── Cards de resumen (5 por fila, 2 filas) ────────────────────── -->
             <t t-if="state.row">
-                <div class="row row-cols-2 row-cols-md-5 g-2 mb-3">
+                <div class="o_crm_kpi_grid mb-3">
                     <div class="col">
                         <div class="card o_planner_kpi_card_xs h-100" title="Pedidos confirmados del cliente en el período.">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">

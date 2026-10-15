@@ -477,6 +477,9 @@
                                                    t-on-click.prevent.stop="() => this.openOrder(ln.order_id)"
                                                    t-esc="ln.order"/>
                                             </td>
+                                            <td class="text-muted text-truncate" style="border-top:none; max-width:160px;"
+                                                t-att-title="ln.customer"
+                                                t-esc="ln.customer"/>
                                             <td class="text-end text-muted" style="border-top:none;"><t t-esc="fmt(ln.pending)"/> pendientes</td>
                                             <td class="text-end" style="border-top:none;">
                                                 <span t-att-class="deliveryDiagnosis(ln.pct &gt;= 66 ? 'fulfillment' : (ln.pct &lt;= 33 ? 'shortage' : 'mixed')).text">

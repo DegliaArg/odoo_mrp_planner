@@ -692,7 +692,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             # Fecha de referencia por pedido: confirmación (date_order), igual que la
             # columna "Antig. pendiente" y la columna Situación, para que coincidan.
             order_ids = list({oid for oid, _q in pend})
-            orders = {o['id']: o for o in self.env['sale.order'].sudo().browse(order_ids).read(['date_order', 'name'])}
+            orders = {o['id']: o for o in self.env['sale.order'].sudo().browse(order_ids).read(['date_order', 'name', 'partner_id'])}
 
             def _start_dt(oid):
                 return (orders.get(oid) or {}).get('date_order')
@@ -726,6 +726,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 lines.append({
                     'order_id':   oid,
                     'order':      (orders.get(oid) or {}).get('name') or '',
+                    'customer':   ((orders.get(oid) or {}).get('partner_id') or (0, ''))[1],
                     'pending':    round(unmet, 1),
                     'days_total': round(total, 1),
                     'days_stock': round(dstock, 1),

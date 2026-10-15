@@ -330,7 +330,7 @@
                                     </tr>
                                     <!-- Acordeón: OFs activas -->
                                     <tr t-if="prod.mo_count and state.expandedProducts[prod.id]">
-                                        <td t-att-colspan="visibleStockCols.length + 1" class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        <td t-att-colspan="visibleStockCols.length + 1" class="p-0" style="background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
                                             <div class="px-3 py-2">
 
                                                 <div t-if="state.mosLoading[prod.id]"

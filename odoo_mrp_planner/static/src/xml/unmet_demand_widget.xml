@@ -307,7 +307,7 @@
                             <col t-foreach="columns" t-as="col" t-key="col.key"
                                  t-att-style="cols.colGroupStyle(col.key)"/>
                         </colgroup>
-                        <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                        <thead style="position:sticky; top:0; background:var(--bs-tertiary-bg, #f8f9fa); z-index:1;">
                             <tr>
                                 <t t-foreach="columns" t-as="col" t-key="col.key">
                                     <th t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' user-select-none' + (cols.state.dragOver === col.key ? ' o_col_drag_over' : '')"
@@ -338,7 +338,7 @@
                                    t-call="odoo_mrp_planner.UnmetDemandExpandRow"/>
                             </t>
                         </tbody>
-                        <tfoot t-if="pagedRowsAll.length" style="position:sticky; bottom:0; background:#f1f3f5; z-index:1;">
+                        <tfoot t-if="pagedRowsAll.length" style="position:sticky; bottom:0; background:var(--bs-tertiary-bg, #f1f3f5); z-index:1;">
                             <tr style="border-top:2px solid #dee2e6;">
                                 <t t-foreach="columns" t-as="col" t-key="col.key">
                                     <td t-att-class="(col.align === 'end' ? 'text-end' : 'text-start') + ' fw-bold'"
@@ -424,7 +424,7 @@
     <!-- Panel de entregabilidad (fila expandida), en lenguaje natural. Requiere `row`. -->
     <t t-name="odoo_mrp_planner.UnmetDemandExpandRow">
         <tr>
-            <td t-att-colspan="columns.length" style="padding:12px 16px; background:#f8f9fa; border-top:none;">
+            <td t-att-colspan="columns.length" style="padding:12px 16px; background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
                 <t t-set="a" t-value="state.expandData[row.key]"/>
 
                 <t t-if="!a">

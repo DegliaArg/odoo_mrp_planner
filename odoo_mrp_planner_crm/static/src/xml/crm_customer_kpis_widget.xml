@@ -329,7 +329,7 @@
                 <t t-if="state.panelData and state.panelData.orders and state.panelData.orders.length">
                     <div class="border rounded bg-white" style="overflow:auto; max-height:320px;">
                         <table class="table table-sm table-hover mb-0" style="font-size:11px;">
-                            <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                            <thead style="position:sticky; top:0; background:var(--bs-tertiary-bg, #f8f9fa); z-index:1;">
                                 <tr>
                                     <t t-foreach="[
                                         {key:'name',         label:'Pedido',       cls:''},
@@ -393,7 +393,7 @@
                     </div>
                     <div class="border rounded bg-white" style="overflow:auto; max-height:320px;">
                         <table class="table table-sm table-hover mb-0" style="font-size:11px;">
-                            <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                            <thead style="position:sticky; top:0; background:var(--bs-tertiary-bg, #f8f9fa); z-index:1;">
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
                                     <t t-foreach="[

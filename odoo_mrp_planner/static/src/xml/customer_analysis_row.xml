@@ -197,7 +197,7 @@
     <!-- Sub-fila expandible: pedidos -->
     <tr t-if="state.expandedRows[row.partner_id]">
         <td t-att-colspan="staticVisibleCols.length + 3"
-            style="padding:0; background:#f8f9fa; border-top:none;">
+            style="padding:0; background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
 
             <t t-if="state.rowOrdersLoading[row.partner_id]">
                 <div class="d-flex align-items-center justify-content-center py-2 gap-2">
@@ -209,7 +209,7 @@
             <t t-elif="state.rowOrders[row.partner_id] and state.rowOrders[row.partner_id].length">
                 <table class="table table-sm mb-0" style="font-size:11px;">
                     <thead>
-                        <tr style="background:#e2e6ea;">
+                        <tr style="background:var(--bs-secondary-bg, #e2e6ea);">
                             <t t-foreach="[
                                 {key:'name',         label:'Pedido',     cls:'',         pad:'3px 8px 3px 40px', tip:'Número de la orden de venta. Clic para abrir.'},
                                 {key:'date',         label:'Fecha',      cls:'',         pad:'3px 8px',          tip:'Fecha de confirmación de la orden.'},

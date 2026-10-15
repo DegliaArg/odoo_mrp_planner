@@ -8,7 +8,7 @@
 
     <tr t-if="state.panelPartnerId === row.partner_id">
         <td t-att-colspan="staticVisibleCols.length + 3"
-            style="padding:12px 16px; background:#f8f9fa; border-top:none;">
+            style="padding:12px 16px; background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
 
             <t t-if="state.panelLoading">
                 <div class="d-flex align-items-center gap-2 py-3">
@@ -263,7 +263,7 @@
                     </div>
                     <div class="border rounded bg-white" style="overflow:auto; max-height:220px;">
                         <table class="table table-sm table-hover mb-0" style="font-size:11px;">
-                            <thead style="position:sticky; top:0; background:#f8f9fa; z-index:1;">
+                            <thead style="position:sticky; top:0; background:var(--bs-tertiary-bg, #f8f9fa); z-index:1;">
                                 <tr>
                                     <th style="padding:3px 6px; width:24px;">#</th>
                                     <t t-foreach="[

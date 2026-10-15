@@ -80,7 +80,7 @@
                                     <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                         <th rowspan="2"
                                             t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
-                                            t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
+                                            t-att-style="'padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none; position:relative; overflow:hidden; ' + (cols.colGroupStyle(col.key) || '')"
                                             t-att-title="colTitle(col)"
                                             t-att-data-col-key="col.key"
                                             t-att-draggable="col.fixed ? 'false' : 'true'"
@@ -101,7 +101,7 @@
                                     <t t-foreach="state.data.months" t-as="m" t-key="m">
                                         <th t-att-colspan="monthColspan"
                                             class="text-center text-nowrap"
-                                            style="padding:4px 8px; background:#f8f9fa;">
+                                            style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
                                             <t t-esc="monthLabels[m_index]"/>
                                         </th>
                                     </t>
@@ -109,7 +109,7 @@
                                     <th t-if="showTotal"
                                         t-att-colspan="totalColspan"
                                         class="text-center fw-bold"
-                                        style="padding:4px 8px; background:#f8f9fa;">Total</th>
+                                        style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Total</th>
                                 </tr>
 
                                 <!-- Fila 2 -->
@@ -117,25 +117,25 @@
                                     <t t-foreach="state.data.months" t-as="m" t-key="'h_' + m">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted"
-                                            style="min-width:65px; padding:3px 5px; background:#f8f9fa;"
+                                            style="min-width:65px; padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa);"
                                             title="Cantidad planificada en el forecast.">
                                             Forecast
                                         </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted"
-                                            style="min-width:75px; padding:3px 5px; background:#f8f9fa;"
+                                            style="min-width:75px; padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa);"
                                             title="OFs con fecha de fin en el mes. % = cobertura.">
                                             OFs
                                         </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted"
-                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
+                                            style="min-width:80px; padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa);"
                                             title="Unidades entregadas. % = tasa física.">
                                             Entregado
                                         </th>
                                         <th t-if="state.visibleCols.demand_delivered"
                                             class="text-end text-muted"
-                                            style="min-width:80px; padding:3px 5px; background:#f8f9fa;"
+                                            style="min-width:80px; padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa);"
                                             title="Entregado de pedidos confirmados en ese mes (cualquier fecha de entrega). % = cumplimiento.">
                                             Cumplim.
                                         </th>
@@ -143,35 +143,35 @@
                                     <t t-if="showTotal">
                                         <th t-if="state.visibleCols.forecast"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none;"
                                             title="Total forecast del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_forecast')">
                                             Forecast <i t-att-class="sortIcon('total_forecast')"/>
                                         </th>
                                         <th t-if="state.visibleCols.mos"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none;"
                                             title="Total OFs del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_mos')">
                                             OFs <i t-att-class="sortIcon('total_mos')"/>
                                         </th>
                                         <th t-if="state.visibleCols.delivered"
                                             class="text-end text-muted fw-bold"
-                                            style="padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
+                                            style="padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none;"
                                             title="Total entregado del período. Clic para ordenar."
                                             t-on-click="() => this.setSort('total_delivered')">
                                             Entregado <i t-att-class="sortIcon('total_delivered')"/>
                                         </th>
                                         <th t-if="state.visibleCols.demand_delivered"
                                             class="text-end"
-                                            style="padding:3px 5px; font-size:11px; white-space:nowrap; cursor:pointer; font-weight:600; background:#f8f9fa;"
+                                            style="padding:3px 5px; font-size:11px; white-space:nowrap; cursor:pointer; font-weight:600; background:var(--bs-tertiary-bg, #f8f9fa);"
                                             t-on-click="() => this.setSort('total_demand_delivered')"
                                             title="Cumplimiento de demanda: todo lo entregado de pedidos del período (cualquier fecha de entrega). Clic para ordenar.">
                                             Cumplim. <i t-att-class="sortIcon('total_demand_delivered')"/>
                                         </th>
                                         <th t-if="showForecastAcc"
                                             class="text-end text-muted fw-bold"
-                                            style="min-width:60px; padding:3px 5px; background:#f8f9fa; cursor:pointer; user-select:none;"
+                                            style="min-width:60px; padding:3px 5px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none;"
                                             t-att-title="state.data.acc_formula === 'mape' ? 'MAPE: promedio de (100 − |error/real|×100) por período. Sensible a períodos de bajo volumen. Clic para ordenar.' : state.data.acc_formula === 'wape' ? 'WAPE: 100 − (Σ|error| ÷ Σentregado × 100). Ponderado por volumen real. Rango 0-100%. Clic para ordenar.' : state.data.acc_formula === 'wmape' ? 'WMAPE: 100 − (Σ|Entregado−Forecast| ÷ ΣForecast × 100). Rango 0-100%. Clic para ordenar.' : state.data.acc_formula === 'bias' ? 'Sesgo: (Entregado−Forecast) ÷ Forecast × 100. Verde ±10% | Amarillo ±20% | Rojo >±20%. Clic para ordenar.' : 'Precisión simple: Entregado ÷ Forecast × 100. Puede superar 100%. Verde ≥90% | Amarillo ≥70% | Rojo menos de 70%. Clic para ordenar.'"
                                             t-on-click="() => this.setSort('total_forecast_acc')">
                                             <t t-esc="state.data.acc_formula === 'mape' ? 'MAPE%' : state.data.acc_formula === 'wape' ? 'WAPE%' : state.data.acc_formula === 'wmape' ? 'WMAPE%' : state.data.acc_formula === 'bias' ? 'Sesgo%' : 'Prec.%'"/>
@@ -384,7 +384,7 @@
                                         <!-- Acordeón de OFs -->
                                         <tr t-if="state.expandedProducts[row.product_id]">
                                             <td t-att-colspan="tableColspan"
-                                                class="p-0" style="background:#f8f9fa; border-top:none;">
+                                                class="p-0" style="background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
                                                 <div class="px-3 py-2">
 
                                                     <div t-if="state.mosLoading[row.product_id]"
@@ -457,7 +457,7 @@
                             </tbody>
 
                             <!-- Totales globales -->
-                            <tfoot class="fw-bold" style="background:#f8f9fa;">
+                            <tfoot class="fw-bold" style="background:var(--bs-tertiary-bg, #f8f9fa);">
                                 <tr>
                                     <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">
                                         <td t-att-class="col.key === 'demand' ? 'text-end' : ''"

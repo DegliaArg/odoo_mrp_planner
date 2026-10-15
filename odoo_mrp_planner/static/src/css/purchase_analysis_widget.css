@@ -18,8 +18,8 @@
     position: fixed;
     z-index: 1050;
     min-width: 200px;
-    background: #fff;
-    border: 1px solid #ced4da;
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #ced4da);
     border-radius: 5px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
     padding: 4px 0;
@@ -34,11 +34,11 @@
     cursor: pointer;
     font-size: 0.82rem;
     user-select: none;
-    color: #212529;
+    color: var(--bs-body-color, #212529);
 }
 
 .o_pca_dropdown_item:hover {
-    background: #f0f4ff;
+    background: var(--bs-tertiary-bg, #f0f4ff);
 }
 
 /* ── Slider de navegación de semanas ─────────────────────────────── */
@@ -69,17 +69,17 @@
 
 .o_pca_matrix {
     font-size: 0.82rem;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--bs-border-color, #dee2e6);
     border-radius: 0.375rem;
     overflow: hidden;
 }
 
 .o_pca_matrix thead th {
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--bs-border-color, #dee2e6);
     border-top: none;
     font-weight: 600;
     padding: 0.55rem 0.5rem;
-    background: #f8f9fa;
+    background: var(--bs-tertiary-bg, #f8f9fa);
 }
 
 /* Columna CT — encabezado */
@@ -89,7 +89,7 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #6c757d;
-    border-right: 2px solid #dee2e6 !important;
+    border-right: 2px solid var(--bs-border-color, #dee2e6) !important;
     vertical-align: middle;
 }
 
@@ -97,11 +97,11 @@
 .o_pca_wc_cell {
     text-align: center;
     vertical-align: middle !important;
-    background: #f8f9fa;
-    border-right: 2px solid #dee2e6 !important;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border-right: 2px solid var(--bs-border-color, #dee2e6) !important;
     font-weight: 600;
     font-size: 0.78rem;
-    color: #343a40;
+    color: var(--bs-body-color, #343a40);
     word-break: break-word;
     padding: 0.5rem 0.4rem;
 }
@@ -109,19 +109,19 @@
 /* Encabezados de semana */
 .o_pca_week_header {
     font-size: 0.8rem;
-    border-right: 1px solid #e9ecef !important;
+    border-right: 1px solid var(--bs-border-color, #e9ecef) !important;
 }
 
 /* Celdas de datos */
 .o_pca_cell {
     vertical-align: top;
     padding: 0.35rem !important;
-    border-right: 1px solid #e9ecef !important;
+    border-right: 1px solid var(--bs-border-color, #e9ecef) !important;
 }
 
 /* Filas del cuerpo */
 .o_pca_matrix tbody tr {
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--bs-border-color, #e9ecef);
     transition: background 0.08s;
 }
 
@@ -132,8 +132,8 @@
 
 /* Estado por defecto: borde gris claro visible */
 .o_pca_chip_default {
-    background: #f8f9fa;
-    border-color: #ced4da !important;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border-color: var(--bs-border-color, #ced4da) !important;
 }
 
 /* Hover: borde más oscuro + sombra sutil */
@@ -172,38 +172,38 @@
 
 /* El espacio viene del padding del <td> en el XML (10px arriba) */
 .o_pca_detail {
-    border: 1px solid #ced4da;
+    border: 1px solid var(--bs-border-color, #ced4da);
     border-radius: 5px;
-    background: #fff;
+    background: var(--bs-body-bg, #fff);
     overflow: hidden;
 }
 
 /* Cabecera del panel (nombre OF + estado) */
 .o_pca_detail_header {
-    background: #f1f3f5;
-    border-bottom: 1px solid #dee2e6;
+    background: var(--bs-secondary-bg, #f1f3f5);
+    border-bottom: 1px solid var(--bs-border-color, #dee2e6);
     font-size: 0.83rem;
 }
 
 /* Encabezados de la tablita */
 .o_pca_detail .table thead th {
-    background: #f8f9fa;
-    color: #343a40;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    color: var(--bs-body-color, #343a40);
     font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    border-bottom: 2px solid #ced4da !important;
+    border-bottom: 2px solid var(--bs-border-color, #ced4da) !important;
     border-top: none !important;
 }
 
 /* Separadores de filas */
 .o_pca_detail .table td {
-    border-color: #e9ecef !important;
+    border-color: var(--bs-border-color, #e9ecef) !important;
     font-size: 0.82rem;
 }
 
 /* Hover suave */
 .o_pca_detail .table-hover > tbody > tr:hover > * {
-    background-color: #f8f9fa !important;
+    background-color: var(--bs-tertiary-bg, #f8f9fa) !important;
 }

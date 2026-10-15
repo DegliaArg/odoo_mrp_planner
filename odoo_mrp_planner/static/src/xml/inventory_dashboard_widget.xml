@@ -525,7 +525,7 @@
                         <thead style="position:sticky; top:0; z-index:3;">
                             <tr>
                                 <th class="text-center align-middle"
-                                    style="width:28px; padding:4px 8px; background:#f8f9fa;">
+                                    style="width:28px; padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
                                     <input type="checkbox" class="form-check-input"
                                            title="Seleccionar todos los remitos de la página"
                                            t-att-checked="allSelected"
@@ -534,7 +534,7 @@
                                 <!-- Headers gestionados por el col manager: drag & drop + resize -->
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="col.key">
                                     <th t-att-class="'align-middle ' + (col.align ? 'text-' + col.align + ' ' : '') + (cols.state.dragOver === col.key ? 'o_col_drag_over' : '')"
-                                        t-att-style="'padding:4px 8px; background:#f8f9fa; cursor:pointer; user-select:none; position:relative; overflow:hidden; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
+                                        t-att-style="'padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa); cursor:pointer; user-select:none; position:relative; overflow:hidden; white-space:nowrap; ' + (cols.colGroupStyle(col.key) || '')"
                                         t-att-title="colTitle(col)"
                                         t-att-data-col-key="col.key"
                                         t-att-draggable="col.fixed ? 'false' : 'true'"
@@ -649,7 +649,7 @@
 
                         <!-- Totales de lo que muestra la tabla: conjunto filtrado/buscado
                              y, si hay agrupamiento, solo la pestaña activa (todas las páginas) -->
-                        <tfoot class="fw-bold" style="background:#f8f9fa;">
+                        <tfoot class="fw-bold" style="background:var(--bs-tertiary-bg, #f8f9fa);">
                             <tr>
                                 <td/>
                                 <t t-foreach="staticVisibleCols" t-as="col" t-key="'tf_' + col.key">

@@ -382,7 +382,7 @@
                                 <tr t-if="state.expandedSuppliers[row.partner_id]">
                                     <td t-att-colspan="tableColspan"
 
-                                        class="p-0" style="background:#f8f9fa; border-top:none;">
+                                        class="p-0" style="background:var(--bs-tertiary-bg, #f8f9fa); border-top:none;">
                                         <div class="px-4 py-2">
 
                                             <div t-if="state.posLoading[row.partner_id]"

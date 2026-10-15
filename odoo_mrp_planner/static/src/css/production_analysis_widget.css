@@ -2,7 +2,7 @@
 
 /* Contenedor: borde exterior con radio, sin borde interno del .table-responsive */
 .o_production_analysis_widget .table-responsive {
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--bs-border-color, #dee2e6);
     border-radius: 0.375rem;
     overflow: hidden;
 }
@@ -17,18 +17,18 @@
 .o_production_analysis_widget .table-bordered th,
 .o_production_analysis_widget .table-bordered td {
     border: none !important;
-    border-bottom: 1px solid #e9ecef !important;
+    border-bottom: 1px solid var(--bs-border-color, #e9ecef) !important;
 }
 
 /* Thead: separador inferior más marcado + fondo sutil */
 .o_production_analysis_widget .table-bordered thead th {
-    background: #f8f9fa !important;
-    border-bottom: 2px solid #dee2e6 !important;
+    background: var(--bs-tertiary-bg, #f8f9fa) !important;
+    border-bottom: 2px solid var(--bs-border-color, #dee2e6) !important;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: #495057;
+    color: var(--bs-body-color, #495057);
     padding: 0.5rem 0.5rem;
     white-space: nowrap;
 }
@@ -45,7 +45,7 @@
 
 /* Sub-filas de desglose (scrap por motivo) */
 .o_production_analysis_widget .table tbody tr.table-light td {
-    border-bottom: 1px solid #f0f0f0 !important;
+    border-bottom: 1px solid var(--bs-border-color, #f0f0f0) !important;
     color: #6c757d;
 }
 

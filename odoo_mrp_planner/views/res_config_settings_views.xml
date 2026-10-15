@@ -769,9 +769,12 @@
                                                help="Brechas demanda/OF vs forecast: hasta este % (absoluto) se muestran en verde."/>
                                         <field name="forecast_gap_warn_pct"
                                                help="Brechas demanda/OF vs forecast: hasta este % en amarillo; por encima, rojo."/>
-                                        <field name="forecast_acc_green_pct"
+                                        <!-- Umbrales de color de la Precisión del forecast ocultos a pedido
+                                             del usuario (2026-10), junto con el KPI de precisión. No se borran:
+                                             para reactivarlos, quitar invisible="1". -->
+                                        <field name="forecast_acc_green_pct" invisible="1"
                                                help="Precisión del forecast: desde este % se muestra en verde. Para la fórmula Sesgo se usan los complementos (desvío ≤ 100−verde)."/>
-                                        <field name="forecast_acc_warn_pct"
+                                        <field name="forecast_acc_warn_pct" invisible="1"
                                                help="Precisión del forecast: desde este % en amarillo; por debajo, rojo."/>
                                     </group>
 
@@ -826,7 +829,10 @@
                                         </div>
                                     </group>
 
-                                    <group string="Forecast — Precisión">
+                                    <!-- Grupo "Forecast — Precisión" oculto a pedido del usuario (2026-10),
+                                         junto con el KPI/columna de precisión del forecast (MAPE/WAPE/etc).
+                                         No se borra: para reactivarlo, quitar invisible="1". -->
+                                    <group string="Forecast — Precisión" invisible="1">
                                         <field name="forecast_precision_source" widget="radio" nolabel="1"
                                                help="Dato usado como 'real' al calcular la precisión. Demanda: OVs confirmadas. Entregas: movimientos de salida completados."/>
                                         <field name="forecast_acc_formula" widget="radio" nolabel="1"/>

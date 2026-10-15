@@ -5,7 +5,11 @@
          Muestra los KPIs del cliente (campo Contacto) reutilizando el Análisis
          de clientes del Planificador. Solo visible cuando hay contacto cargado. -->
     <!-- Datos comerciales del cliente (solo lectura) junto al Contacto en el
-         encabezado del lead: condición de pago y lista de precios. -->
+         encabezado del lead: término de pago y lista de precios.
+         Además, como este CRM se usa como listado de clientes y no como embudo
+         de ventas, se ocultan los campos de funnel que no suman (Ingreso
+         esperado y Probabilidad) y la pestaña "Información adicional".
+         Nada se borra: para reactivar, quitar el invisible correspondiente. -->
     <record id="crm_lead_view_form_customer_data" model="ir.ui.view">
         <field name="name">crm.lead.form.customer.data</field>
         <field name="model">crm.lead</field>
@@ -16,6 +20,21 @@
                        invisible="not partner_id" readonly="1"/>
                 <field name="x_partner_pricelist_id"
                        invisible="not partner_id" readonly="1"/>
+            </xpath>
+
+            <!-- Ocultar "Ingreso esperado" + "Probabilidad": es toda la fila <h2>
+                 del título del lead. No se usa el CRM como embudo de ventas. -->
+            <xpath expr="//div[@class='oe_title']/h2" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Ocultar las pestañas de funnel "Extra Information" / "Extra Info"
+                 (el form nativo muestra una u otra según el tipo lead/oportunidad). -->
+            <xpath expr="//page[@name='extra']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//page[@name='lead']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
         </field>
     </record>

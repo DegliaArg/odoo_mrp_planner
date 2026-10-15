@@ -5,7 +5,7 @@ Modelo: extensión de 'crm.lead'
 Expone en el formulario de la oportunidad, junto a los datos del cliente, dos
 datos comerciales del contacto (campos related, SOLO lectura):
 
-- Condición de pago  -> partner_id.property_payment_term_id (account)
+- Término de pago    -> partner_id.property_payment_term_id (account)
 - Lista de precios   -> partner_id.property_product_pricelist (product)
   ("descuento comercial" en la operatoria del cliente).
 
@@ -20,7 +20,7 @@ class CrmLead(models.Model):
 
     x_partner_payment_term_id = fields.Many2one(
         related='partner_id.property_payment_term_id',
-        string='Condición de pago',
+        string='Término de pago',
         readonly=True,
     )
     x_partner_pricelist_id = fields.Many2one(

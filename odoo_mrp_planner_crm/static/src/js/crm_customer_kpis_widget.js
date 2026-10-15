@@ -67,6 +67,7 @@ class CrmCustomerKpisWidget extends Component {
             row: null,            // fila de KPIs del cliente (get_customer_analysis_data)
             panelData: null,      // detalle (get_customer_detail)
             config: {},
+            amountMethod: null,   // null = método de Ajustes; 'pxq' | 'real' = override del toggle
             activeTab: "evolucion",
             // Claves que esperan drawPanelCharts() y los helpers del panel base:
             panelPartnerId: null,
@@ -128,7 +129,7 @@ class CrmCustomerKpisWidget extends Component {
             this._loadedKey = null;
             return;
         }
-        const key = `${pid}_${this.state.dateFrom}_${this.state.dateTo}`;
+        const key = `${pid}_${this.state.dateFrom}_${this.state.dateTo}_${this.state.amountMethod || ""}`;
         if (key === this._loadedKey || this.state.loading) {
             return;
         }
@@ -146,7 +147,7 @@ class CrmCustomerKpisWidget extends Component {
             const res = await this.orm.call(
                 "mrp.planner.dashboard",
                 "get_crm_customer_kpis",
-                [pid, this.state.dateFrom, this.state.dateTo]
+                [pid, this.state.dateFrom, this.state.dateTo, this.state.amountMethod]
             );
             this.state.row = res.row || null;
             this.state.panelData = res.detail || null;
@@ -165,8 +166,18 @@ class CrmCustomerKpisWidget extends Component {
         if (!pid) {
             return;
         }
-        this._loadedKey = `${pid}_${this.state.dateFrom}_${this.state.dateTo}`;
+        this._loadedKey = `${pid}_${this.state.dateFrom}_${this.state.dateTo}_${this.state.amountMethod || ""}`;
         this._load(pid);
+    }
+
+    /** Toggle de valorización del monto (PxQ ↔ importe real). Recarga acotada. */
+    setAmountMethod(method) {
+        const m = method === "real" ? "real" : "pxq";
+        if (this.state.amountMethod === m) {
+            return;
+        }
+        this.state.amountMethod = m;
+        this._reload();
     }
 
     /** Redibuja los gráficos del panel cuando la sub-pestaña activa los contiene. */
@@ -544,9 +555,11 @@ class CrmCustomerKpisWidget extends Component {
         return { weighted: "ponderado", first: "1ª entrega", complete: "pedido completo" }[m] || m;
     }
 
-    /** Método de valorización efectivo (config global; sin override en CRM). */
+    /** Método de valorización efectivo: override del toggle o el de Ajustes. */
     get effectiveAmountMethod() {
-        return (this.state.config && this.state.config.amount_method) || "pxq";
+        return this.state.amountMethod
+            || (this.state.config && this.state.config.amount_method)
+            || "pxq";
     }
 
     get amountLabelSuffix() {

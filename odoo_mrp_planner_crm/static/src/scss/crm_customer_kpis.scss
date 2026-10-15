@@ -2,7 +2,23 @@
 // Las clases de cards/números/títulos (o_planner_kpi_card_xs, o_planner_number,
 // o_planner_num_sm/md, o_planner_section_title) viven en el módulo base
 // (odoo_mrp_planner) y se reutilizan tal cual. Acá solo el contenedor.
+
+// El field widget es un many2one: por defecto Odoo lo renderiza en línea y se
+// achica/agranda con el contenido (dejaba espacio a la derecha y, con la tabla
+// ancha de Artículos, empujaba y rompía el layout). Forzarlo a bloque que ocupa
+// exactamente el ancho de la pestaña, para que las tablas anchas scrolleen
+// dentro de su contenedor en vez de ensanchar el widget.
+.o_field_widget.o_field_crm_customer_kpis {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .o_crm_customer_kpis {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: 4px 2px;
 
     .nav-pills .nav-link {

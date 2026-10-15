@@ -13,7 +13,7 @@ class MrpPlannerDashboard(models.TransientModel):
     _inherit = 'mrp.planner.dashboard'
 
     @api.model
-    def get_crm_customer_kpis(self, partner_id, date_from, date_to):
+    def get_crm_customer_kpis(self, partner_id, date_from, date_to, amount_method=None):
         """Indicadores del cliente para el panel de la oportunidad.
 
         Combina, sin cálculos nuevos:
@@ -27,16 +27,20 @@ class MrpPlannerDashboard(models.TransientModel):
         :param partner_id: int — cliente (campo "Contacto" de la oportunidad).
         :param date_from:  str 'YYYY-MM-DD'.
         :param date_to:    str 'YYYY-MM-DD'.
+        :param amount_method: 'pxq' | 'real' | None — valorización del monto
+            (override del toggle del panel). None usa el método de Ajustes.
         :returns: dict {'row': dict|None, 'detail': dict, 'config': dict}.
         """
         if not partner_id:
             return {'row': None, 'detail': {}, 'config': {}}
         partner_id = int(partner_id)
+        override = amount_method if amount_method in ('pxq', 'real') else None
 
         # partner_ids acota el cálculo pesado a este cliente (rápido); el ABC que
         # devuelve ya es el poblacional real (se recalcula aparte en el método).
         data = self.get_customer_analysis_data(
-            date_from, date_to, None, partner_ids=[partner_id])
+            date_from, date_to, None,
+            amount_method_override=override, partner_ids=[partner_id])
         if not isinstance(data, dict):
             data = {}
         rows = data.get('rows', []) or []
@@ -47,7 +51,8 @@ class MrpPlannerDashboard(models.TransientModel):
             None,
         )
 
-        detail = self.get_customer_detail(partner_id, date_from, date_to)
+        detail = self.get_customer_detail(
+            partner_id, date_from, date_to, amount_method_override=override)
 
         return {
             'row': row,

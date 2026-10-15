@@ -38,6 +38,13 @@
                     <button t-att-class="isPresetYtd ? 'btn btn-primary' : 'btn btn-outline-secondary'"
                             style="font-size:11px;" t-on-click="() => this.setPreset('ytd')">Año</button>
                 </div>
+                <div class="btn-group btn-group-sm ms-1" role="group"
+                     title="Valorización del monto: PxQ (cantidad × precio de lista actual) o importe real (price_subtotal, con descuentos).">
+                    <button t-att-class="effectiveAmountMethod === 'pxq' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                            style="font-size:11px;" t-on-click="() => this.setAmountMethod('pxq')">PxQ</button>
+                    <button t-att-class="effectiveAmountMethod === 'real' ? 'btn btn-primary' : 'btn btn-outline-secondary'"
+                            style="font-size:11px;" t-on-click="() => this.setAmountMethod('real')">Real</button>
+                </div>
             </div>
         </div>
 
@@ -300,9 +307,9 @@
                                 </div>
                                 <div style="flex:1; overflow-y:auto; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px;">
                                     <t t-foreach="state.panelData.family_mix" t-as="f" t-key="f_index">
-                                        <div class="d-flex align-items-center gap-1" style="min-width:0;">
-                                            <span t-att-style="'flex-shrink:0; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + donutColor(f_index)"/>
-                                            <span class="small text-truncate" style="flex:1; min-width:0; font-size:11px;" t-esc="f.name"/>
+                                        <div class="d-flex align-items-start gap-1" style="min-width:0;">
+                                            <span t-att-style="'flex-shrink:0; margin-top:3px; display:inline-block; width:10px; height:10px; border-radius:2px; background:' + donutColor(f_index)"/>
+                                            <span class="small" style="flex:1; min-width:0; font-size:11px; white-space:normal; overflow-wrap:anywhere;" t-esc="f.name"/>
                                             <span class="small text-muted ms-1" style="flex-shrink:0; font-size:11px;"
                                                   t-esc="(state.panelMetric === 'qty' ? f.pct : f.pct_amount) + '%'"/>
                                         </div>

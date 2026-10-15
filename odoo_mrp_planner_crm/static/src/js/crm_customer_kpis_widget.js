@@ -525,6 +525,16 @@ class CrmCustomerKpisWidget extends Component {
         return map[name] || "#6c757d";
     }
 
+    /** Color de la primera etiqueta de contacto (res.partner.category) del cliente. */
+    partnerTagColor(colorIdx) {
+        const palette = [
+            "#aaaaaa", "#e06c75", "#e09b49", "#e8d04a",
+            "#56b4d3", "#7b65be", "#73c7ae", "#a8a8a8",
+            "#71bb63", "#de9898", "#e0734b", "#b9699b",
+        ];
+        return palette[colorIdx] ?? "#aaaaaa";
+    }
+
     donutColor(idx) {
         return CHART_COLORS.donut[idx % CHART_COLORS.donut.length];
     }

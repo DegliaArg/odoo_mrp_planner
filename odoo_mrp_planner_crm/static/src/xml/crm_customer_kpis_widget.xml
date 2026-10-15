@@ -19,6 +19,11 @@
                 <span t-if="state.row and state.row.frequency_segment"
                       t-att-class="'badge ' + freqBadgeClass(state.row.frequency_segment)"
                       t-esc="freqLabel(state.row.frequency_segment)"/>
+                <span t-if="state.row and state.row.partner_tag"
+                      style="padding:2px 8px; border-radius:10px; font-size:11px; font-weight:500; color:#fff;"
+                      t-att-style="'padding:2px 8px; border-radius:10px; font-size:11px; font-weight:500; color:#fff; background:' + partnerTagColor(state.row.partner_tag_color)"
+                      t-att-title="'Etiqueta de contacto: ' + state.row.partner_tag"
+                      t-esc="state.row.partner_tag"/>
             </div>
             <div class="ms-auto d-flex align-items-center gap-1 flex-wrap">
                 <label class="small text-muted mb-0">Desde</label>

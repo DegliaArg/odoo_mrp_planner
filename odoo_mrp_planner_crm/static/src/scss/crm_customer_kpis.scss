@@ -1,0 +1,16 @@
+// Panel de KPIs del cliente en el formulario de la oportunidad.
+// Las clases de cards/números/títulos (o_planner_kpi_card_xs, o_planner_number,
+// o_planner_num_sm/md, o_planner_section_title) viven en el módulo base
+// (odoo_mrp_planner) y se reutilizan tal cual. Acá solo el contenedor.
+.o_crm_customer_kpis {
+    padding: 4px 2px;
+
+    .nav-pills .nav-link {
+        cursor: pointer;
+    }
+
+    // Evitar que las cards angostas de la grilla se corten en pantallas chicas.
+    .o_planner_kpi_card_xs {
+        min-width: 0;
+    }
+}

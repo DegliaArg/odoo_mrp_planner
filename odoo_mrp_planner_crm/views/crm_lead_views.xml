@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Pestaña "Análisis del cliente" en el formulario de la oportunidad.
+         Muestra los KPIs del cliente (campo Contacto) reutilizando el Análisis
+         de clientes del Planificador. Solo visible cuando hay contacto cargado. -->
+    <record id="crm_lead_view_form_customer_kpis" model="ir.ui.view">
+        <field name="name">crm.lead.form.customer.kpis</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Análisis del cliente"
+                      name="customer_kpis"
+                      invisible="not partner_id">
+                    <field name="partner_id"
+                           widget="crm_customer_kpis"
+                           nolabel="1"
+                           readonly="1"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

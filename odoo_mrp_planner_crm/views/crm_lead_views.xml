@@ -15,7 +15,17 @@
         <field name="model">crm.lead</field>
         <field name="inherit_id" ref="crm.crm_lead_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='partner_id']" position="after">
+            <!-- El form nativo tiene DOS grupos de partner excluyentes según el
+                 tipo: "lead_partner" (solo leads) y "opportunity_partner" (solo
+                 oportunidades). Agregamos los campos comerciales en ambos para
+                 que se vean siempre, sin importar el tipo del registro. -->
+            <xpath expr="//group[@name='lead_partner']//field[@name='partner_id']" position="after">
+                <field name="x_partner_payment_term_id"
+                       invisible="not partner_id" readonly="1"/>
+                <field name="x_partner_pricelist_id"
+                       invisible="not partner_id" readonly="1"/>
+            </xpath>
+            <xpath expr="//group[@name='opportunity_partner']//field[@name='partner_id']" position="after">
                 <field name="x_partner_payment_term_id"
                        invisible="not partner_id" readonly="1"/>
                 <field name="x_partner_pricelist_id"

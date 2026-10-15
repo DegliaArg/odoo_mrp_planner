@@ -324,6 +324,11 @@ class ForecastWidget extends Component {
         return n || 1;
     }
     get showForecastAcc() {
+        // Columna de error del forecast (MAPE/WAPE/WMAPE/Sesgo) oculta a pedido
+        // del usuario (2026-10). No se borra: para reactivarla, quitar este
+        // "return false" y dejar la condición original de abajo.
+        return false;
+        // eslint-disable-next-line no-unreachable
         return this.state.visibleCols.total &&
                this.state.visibleCols.forecast &&
                this.state.visibleCols.delivered;

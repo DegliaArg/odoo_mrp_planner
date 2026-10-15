@@ -58,7 +58,10 @@ const UD_ALL_COLS = [
     { key: "fulfillment_pct", label: "% Cumplim.",       width: 78,  align: "end",    sortKey: "fulfillment_pct", kind: "pct"   },
     { key: "pending_age",     label: "Antig. pendiente", width: 92,  align: "end",    sortKey: "pending_age",     kind: "days"  },
     { key: "break_days",      label: "Días quiebre",     width: 90,  align: "end",    sortKey: "break_days",      kind: "days", defaultHidden: true },
-    { key: "diagnosis",       label: "Situación",        width: 420, align: "start",  sortKey: "diagnosis",       kind: "situation" },
+    // Columna "Situación" oculta a pedido del usuario (2026-10). No se borra:
+    // para reactivarla, descomentar esta línea (toda la lógica rowSituation/
+    // deliveryDiagnosis/kind:"situation" sigue presente).
+    // { key: "diagnosis",       label: "Situación",        width: 420, align: "start",  sortKey: "diagnosis",       kind: "situation" },
     { key: "affected_orders", label: "# Pedidos",        width: 80,  align: "end",    sortKey: "affected_orders", kind: "num",  defaultHidden: true },
     { key: "cross_count",     label: "# Cruce",          width: 90,  align: "end",    sortKey: "cross_count",     kind: "num",  defaultHidden: true },
 ];

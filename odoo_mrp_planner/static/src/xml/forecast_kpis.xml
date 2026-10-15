@@ -142,8 +142,10 @@
             </div>
             <!-- Card 4: Entregas validadas — "Ver →" abre el desglose por mes de
                  pedido (reemplaza los KPIs); la sublista completa se alcanza
-                 desde la fila Total del desglose. -->
-            <div class="col">
+                 desde la fila Total del desglose.
+                 OCULTA a pedido del usuario (2026-10). No se borra: para
+                 reactivarla, quitar el t-if="false". -->
+            <div class="col" t-if="false">
                 <div class="card o_planner_card h-100 o_planner_card_clickable"
                      t-att-title="fcKpiTooltip('delivered')"
                      t-on-click="openDelBreakdown">
@@ -217,8 +219,10 @@
 
         <!-- Fila 2: métricas -->
         <div t-att-class="'row row-cols-2 g-2 mb-3 ' + (state.data.dispatch_enabled ? 'row-cols-md-6' : 'row-cols-md-5')">
-            <!-- Card 1: Precisión forecast -->
-            <div class="col">
+            <!-- Card 1: Precisión forecast (MAPE/WAPE/WMAPE/Sesgo).
+                 OCULTA a pedido del usuario (2026-10). No se borra: para
+                 reactivarla, quitar el t-if="false". -->
+            <div class="col" t-if="false">
                 <div class="card o_planner_card h-100">
                     <div class="card-body text-center py-3"
                          t-att-title="accGlobalTooltip()">
@@ -254,8 +258,10 @@
                 </div>
             </div>
             <!-- Card 3: Brecha OF vs fc — indicador puro, sin drill (era un
-                 duplicado del Ver de "Producción planificada") -->
-            <div class="col">
+                 duplicado del Ver de "Producción planificada").
+                 OCULTA a pedido del usuario (2026-10). No se borra: para
+                 reactivarla, quitar el t-if="false". -->
+            <div class="col" t-if="false">
                 <div class="card o_planner_card h-100"
                      t-att-title="mosGapTooltip()">
                     <div class="card-body text-center py-3 d-flex flex-column justify-content-center">
@@ -267,8 +273,10 @@
                     </div>
                 </div>
             </div>
-            <!-- Card 4: Tasa validada -->
-            <div class="col">
+            <!-- Card 4: Tasa validada.
+                 OCULTA a pedido del usuario (2026-10). No se borra: para
+                 reactivarla, quitar el t-if="false". -->
+            <div class="col" t-if="false">
                 <div class="card o_planner_card h-100"
                      t-att-title="fcKpiTooltip('svc')">
                     <div class="card-body text-center py-3 d-flex flex-column justify-content-center">

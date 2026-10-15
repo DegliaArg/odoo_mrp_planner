@@ -72,10 +72,19 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
     # ── Método principal ─────────────────────────────────────────────────────
 
     @api.model
-    def get_customer_analysis_data(self, period_from, period_to, warehouse_ids=None, amount_method_override=None):
+    def get_customer_analysis_data(self, period_from, period_to, warehouse_ids=None,
+                                   amount_method_override=None, partner_ids=None):
         """
         Retorna todas las filas de clientes con sus métricas para el período dado.
         El front carga todo de una vez y gestiona sort/filter/paginación en memoria.
+
+        :param partner_ids: list[int] | None — si se pasa, el cálculo pesado
+            (pedidos, período anterior y entregas físicas) se acota a esos
+            clientes, de modo que la llamada sea barata cuando solo interesa uno
+            (p. ej. el panel de la oportunidad de CRM). El ABC del período sigue
+            siendo poblacional: se calcula aparte con una consulta liviana de
+            solo-montos sobre TODO el universo de clientes del período, para que
+            el segmento del cliente sea el real y no 'A' por quedar solo.
 
         Cada fila incluye, entre otras métricas, la tasa de cumplimiento
         (delivery_pct: entregado de los pedidos del período ÷ pedido), la tasa
@@ -119,6 +128,10 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # Todas las consultas sudo de este método filtran por la empresa activa:
             # sin esto, en multiempresa el análisis mezclaría ventas de otras empresas.
             company_dom = [('company_id', '=', self.env.company.id)]
+            # Acotar el cálculo pesado a un subconjunto de clientes (p. ej. uno
+            # solo desde CRM). El ABC se recalcula aparte sobre todo el universo.
+            partner_ids = [int(p) for p in partner_ids] if partner_ids else None
+            partner_dom = [('partner_id', 'in', partner_ids)] if partner_ids else []
 
             # ── 1. Órdenes confirmadas en el período ─────────────────────────
             # sudo(): usuario no tiene acceso directo a sale.order; se lee sólo el agregado para el dashboard
@@ -126,7 +139,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 ('state', 'in', ['sale', 'done']),
                 ('date_order', '>=', d_from_str),
                 ('date_order', '<=', d_to_str),
-            ] + wh_domain + company_dom)
+            ] + wh_domain + company_dom + partner_dom)
             _logger.info('[CustomerAnalysis] %s – %s → %d orders', period_from, period_to, len(orders))
             if not orders:
                 return {'rows': [], 'kpis': empty_kpis, 'config': cfg}
@@ -249,7 +262,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                  ('order_id.date_order', '>=', d_prev_from),
                  ('order_id.date_order', '<=', d_prev_to)] + svc_dom
                 + [('order_id.' + k, op, v) for (k, op, v) in wh_domain]
-                + [('order_id.company_id', '=', self.env.company.id)],
+                + [('order_id.company_id', '=', self.env.company.id)]
+                + ([('order_partner_id', 'in', partner_ids)] if partner_ids else []),
                 ['order_partner_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum'],
                 ['order_partner_id', 'product_id'],
                 lazy=False,
@@ -284,6 +298,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ]
             if warehouse_ids:
                 phys_pick_domain.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+            if partner_ids:
+                phys_pick_domain.append(('sale_id.partner_id', 'in', partner_ids))
             # sudo(): usuario no tiene acceso directo a stock.picking; solo agregado para el dashboard
             phys_picks = self.env['stock.picking'].sudo().search_read(
                 phys_pick_domain, ['id', 'sale_id'])
@@ -584,19 +600,66 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
             abc_a_cut  = (cfg.get('abc_a_pct') or 20) / 100.0
             abc_b_cut  = abc_a_cut + (cfg.get('abc_b_pct') or 50) / 100.0
-            _abc_total = sum(r['total_amount'] for r in rows)
-            _abc_cum   = 0.0
-            for r in sorted(rows, key=lambda x: x['total_amount'], reverse=True):
-                if _abc_total <= 0 or r['total_amount'] <= 0:
-                    r['abc_segment'] = 'C'
+
+            # Universo para el ABC. Normalmente son las propias filas (todos los
+            # clientes). Con partner_ids (cálculo acotado a un cliente), las filas
+            # NO representan al universo, así que los montos por cliente de TODO el
+            # período se traen con una consulta liviana de solo-montos — mismos
+            # filtros y método de valorización que total_amount — para que el
+            # segmento sea el poblacional real. (Con "Unificar por CUIT" activo el
+            # universo barato no fusiona por CUIT; caso borde poco frecuente.)
+            if partner_ids:
+                abc_amount_by_partner = defaultdict(float)
+                abc_dom = (
+                    [('order_id.state', 'in', ['sale', 'done']),
+                     ('order_id.date_order', '>=', d_from_str),
+                     ('order_id.date_order', '<=', d_to_str),
+                     ('order_id.company_id', '=', self.env.company.id)]
+                    + svc_dom
+                    + [('order_id.' + k, op, v) for (k, op, v) in wh_domain]
+                )
+                if use_pxq:
+                    abc_groups = self.env['sale.order.line'].sudo().read_group(
+                        abc_dom,
+                        ['order_partner_id', 'product_id', 'product_uom_qty:sum'],
+                        ['order_partner_id', 'product_id'], lazy=False,
+                    )
+                    _abc_prod_ids = list({g['product_id'][0] for g in abc_groups if g.get('product_id')})
+                    _abc_lst = {
+                        p['id']: (p['lst_price'] or 0.0)
+                        for p in self.env['product.product'].sudo().browse(_abc_prod_ids).read(['id', 'lst_price'])
+                    } if _abc_prod_ids else {}
+                    for g in abc_groups:
+                        if not g.get('order_partner_id'):
+                            continue
+                        _lst = _abc_lst.get(g['product_id'][0], 0.0) if g.get('product_id') else 0.0
+                        abc_amount_by_partner[g['order_partner_id'][0]] += (g.get('product_uom_qty') or 0.0) * _lst
+                else:
+                    for g in self.env['sale.order.line'].sudo().read_group(
+                        abc_dom, ['order_partner_id', 'price_subtotal:sum'], ['order_partner_id'],
+                    ):
+                        if g.get('order_partner_id'):
+                            abc_amount_by_partner[g['order_partner_id'][0]] += g.get('price_subtotal') or 0.0
+                _abc_src = dict(abc_amount_by_partner)
+            else:
+                _abc_src = {r['partner_id']: r['total_amount'] for r in rows}
+
+            _abc_total = sum(_abc_src.values())
+            _abc_seg = {}
+            _abc_cum = 0.0
+            for _pid, _amt in sorted(_abc_src.items(), key=lambda kv: kv[1], reverse=True):
+                if _abc_total <= 0 or _amt <= 0:
+                    _abc_seg[_pid] = 'C'
                     continue
                 if _abc_cum < abc_a_cut:
-                    r['abc_segment'] = 'A'
+                    _abc_seg[_pid] = 'A'
                 elif _abc_cum < abc_b_cut:
-                    r['abc_segment'] = 'B'
+                    _abc_seg[_pid] = 'B'
                 else:
-                    r['abc_segment'] = 'C'
-                _abc_cum += r['total_amount'] / _abc_total
+                    _abc_seg[_pid] = 'C'
+                _abc_cum += _amt / _abc_total
+            for r in rows:
+                r['abc_segment'] = _abc_seg.get(r['partner_id'], 'C')
 
             total_customers   = len(rows)
             total_orders      = sum(r['order_count'] for r in rows)

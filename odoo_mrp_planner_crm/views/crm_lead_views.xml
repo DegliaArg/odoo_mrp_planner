@@ -4,6 +4,22 @@
     <!-- Pestaña "Análisis del cliente" en el formulario de la oportunidad.
          Muestra los KPIs del cliente (campo Contacto) reutilizando el Análisis
          de clientes del Planificador. Solo visible cuando hay contacto cargado. -->
+    <!-- Datos comerciales del cliente (solo lectura) junto al Contacto en el
+         encabezado del lead: condición de pago y lista de precios. -->
+    <record id="crm_lead_view_form_customer_data" model="ir.ui.view">
+        <field name="name">crm.lead.form.customer.data</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="x_partner_payment_term_id"
+                       invisible="not partner_id" readonly="1"/>
+                <field name="x_partner_pricelist_id"
+                       invisible="not partner_id" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
     <record id="crm_lead_view_form_customer_kpis" model="ir.ui.view">
         <field name="name">crm.lead.form.customer.kpis</field>
         <field name="model">crm.lead</field>

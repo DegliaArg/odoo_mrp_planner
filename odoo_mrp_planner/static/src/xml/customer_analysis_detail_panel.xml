@@ -19,19 +19,11 @@
 
             <t t-if="!state.panelLoading and state.panelData">
 
-                <!-- Barra de acciones del panel: exportar el detalle a Excel -->
-                <div class="d-flex justify-content-end mb-2">
-                    <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
-                            title="Exportar el detalle de este cliente a Excel (.xlsx) con gráficos"
-                            t-on-click="() => this.exportCustomerDetail(row.partner_id)">
-                        <i class="fa fa-file-excel-o"/>
-                        <span>Exportar detalle</span>
-                    </button>
-                </div>
-
                 <!-- KPI strip: fila 1 volúmenes, fila 2 calidad (misma lógica que
                      los KPIs principales y el panel de ventas). Espaciadores
-                     invisibles igualan la altura de las cards sin botón Ver. -->
+                     invisibles igualan la altura de las cards sin botón Ver.
+                     El export del detalle vive en el ícono de la fila (no se
+                     duplica un botón acá). -->
                 <div class="row g-2 mb-3 flex-nowrap">
                     <div class="col">
                         <div class="card o_planner_kpi_card_xs h-100" title="Pedidos confirmados del cliente en el período.">

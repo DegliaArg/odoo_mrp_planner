@@ -1166,11 +1166,15 @@ class CustomerAnalysisWidget extends Component {
                 return v + ' d';
             return v;
         };
+        // Respeta la selección: si hay filas tildadas exporta solo esas (igual
+        // que los KPIs y los totales del pie); si no, exporta todo lo filtrado.
+        const allRows = this._filteredRows || this.state.allRows;
+        const picked  = this.sel.pick(allRows);
         downloadExcelXml({
             filename: `clientes_${this.state.dateFrom}_${this.state.dateTo}.xls`,
             sheet:    'Clientes',
             headers:  cols.map(c => c.label),
-            rows:     this._filteredRows || this.state.allRows,
+            rows:     picked.length ? picked : allRows,
             cell:     row => cols.map(c => cellVal(row, c.key)),
         });
     }

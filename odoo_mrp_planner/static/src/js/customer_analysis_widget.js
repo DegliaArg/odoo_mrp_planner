@@ -134,8 +134,9 @@ class CustomerAnalysisWidget extends Component {
     static components = { PlannerSearchBar };
 
     setup() {
-        this.orm    = useService("orm");
-        this.action = useService("action");
+        this.orm          = useService("orm");
+        this.action       = useService("action");
+        this.notification = useService("notification");
 
         // Chart refs — top (donut + bar) + panel lateral
         this.topChartRef  = useRef("topChart");
@@ -1172,6 +1173,36 @@ class CustomerAnalysisWidget extends Component {
             rows:     this._filteredRows || this.state.allRows,
             cell:     row => cols.map(c => cellVal(row, c.key)),
         });
+    }
+
+    /**
+     * Exporta el detalle de UN cliente a .xlsx (server-side, openpyxl) con las
+     * cinco hojas del panel inline y gráficos nativos. Se dispara tanto desde el
+     * ícono de la fila como desde la cabecera del panel expandido; en ambos casos
+     * manda la fila del front como `summary` para la hoja Resumen.
+     * @param {number} partnerId - Partner de la fila (representativo si unificado).
+     */
+    async exportCustomerDetail(partnerId) {
+        const row  = this.state.allRows.find(r => r.partner_id === partnerId);
+        const pids = (row && row.partner_ids) || [partnerId];
+        try {
+            const res = await this.orm.call(
+                "mrp.planner.dashboard",
+                "get_customer_detail_export",
+                [partnerId, this.state.dateFrom, this.state.dateTo, null,
+                 pids, this.state.localAmountMethod, row || null]
+            );
+            if (res && res.url) {
+                this.action.doAction({ type: "ir.actions.act_url", url: res.url, target: "self" });
+            } else if (res && res.error) {
+                this.notification.add(
+                    `${res.error}. Instalá la librería openpyxl en el servidor para exportar a Excel.`,
+                    { type: "danger" });
+            }
+        } catch (e) {
+            console.error("[CustomerAnalysis] exportCustomerDetail", e);
+            this.notification.add("No se pudo generar el archivo de exportación.", { type: "danger" });
+        }
     }
 
     donutColor(idx) { return CHART_COLORS.donut[idx % CHART_COLORS.donut.length]; }

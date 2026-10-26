@@ -1078,3 +1078,186 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'physical_pct':       round(phys_total / total_qty_ordered * 100, 1) if total_qty_ordered > 0 else None,
             'phys_by_order_month': {k: round(v, 1) for k, v in sorted(phys_break_total.items())},
         }
+
+    @api.model
+    def get_customer_detail_export(self, partner_id, period_from, period_to,
+                                   warehouse_ids=None, partner_ids=None,
+                                   amount_method_override=None, summary=None):
+        """
+        Exporta a .xlsx el detalle de UN cliente —lo mismo que muestra el panel
+        inline— con gráficos nativos de Excel (versión simplificada: torta del
+        mix de familias + barras de evolución pedido vs entregado).
+
+        Reutiliza get_customer_detail para todo el cálculo pesado (con sus guards
+        de grupo/compañía/IDOR y la valorización PxQ/real), y recibe en `summary`
+        la fila ya calculada del front —lo que se ve en la tabla— para la hoja
+        Resumen (el ABC del período y la frecuencia son poblacionales y ya vienen
+        resueltos ahí, así que no se recalculan).
+
+        Hojas: Resumen · Evolución mensual · Mix familias · Top artículos · Pedidos.
+
+        :param summary: dict | None — fila del cliente tal como la muestra la
+            tabla (order_count, qty_ordered, total_amount, delivery_pct, …).
+        :returns: dict con 'url' (descarga) o 'error' si openpyxl no está.
+        """
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from openpyxl.chart import PieChart, BarChart, Reference
+        except ImportError:
+            return {'error': 'openpyxl no disponible'}
+
+        detail = self.get_customer_detail(
+            partner_id, period_from, period_to, warehouse_ids,
+            partner_ids, amount_method_override)
+
+        s = summary or {}
+        partner_name = detail.get('partner_name') or s.get('partner_name') or 'cliente'
+
+        hdr_fill = PatternFill('solid', fgColor='1F497D')
+        hdr_font = Font(bold=True, color='FFFFFF')
+
+        def _write_table(ws, columns, rows):
+            """columns: list[(header, key, is_number)]. Escribe encabezado +
+            filas, ajusta anchos y fija el encabezado."""
+            for ci, (hdr, _key, _num) in enumerate(columns, start=1):
+                c = ws.cell(1, ci, hdr)
+                c.font = hdr_font
+                c.fill = hdr_fill
+                c.alignment = Alignment(horizontal='center')
+            for ri, row in enumerate(rows, start=2):
+                for ci, (_hdr, key, num) in enumerate(columns, start=1):
+                    val = row.get(key)
+                    if num:
+                        ws.cell(ri, ci, val if isinstance(val, (int, float)) else 0)
+                    else:
+                        ws.cell(ri, ci, '' if val is None else str(val))
+            for ci, (hdr, key, _num) in enumerate(columns, start=1):
+                body = max((len(str(r.get(key) or '')) for r in rows), default=0)
+                width = min(max(len(str(hdr)), body) + 2, 45)
+                ws.column_dimensions[ws.cell(1, ci).column_letter].width = max(width, 10)
+            ws.freeze_panes = 'A2'
+
+        wb = openpyxl.Workbook()
+
+        # ── Hoja 1: Resumen (Métrica | Valor, de la fila del front) ──────────
+        ws = wb.active
+        ws.title = 'Resumen'
+        c = ws.cell(1, 1, 'Métrica'); c.font = hdr_font; c.fill = hdr_fill
+        c = ws.cell(1, 2, 'Valor');   c.font = hdr_font; c.fill = hdr_fill
+        resumen = [
+            ('Cliente',                     partner_name,                 False),
+            ('Período',                     f'{period_from} → {period_to}', False),
+            ('Pedidos',                     s.get('order_count'),         True),
+            ('Demanda real (u)',            s.get('qty_ordered'),         True),
+            ('Cumplimiento de demanda (u)', s.get('qty_delivered'),       True),
+            ('Monto total',                 s.get('total_amount'),        True),
+            ('Precio prom. pedido',         s.get('avg_price'),           True),
+            ('Precio prom. entregado',      s.get('avg_price_delivered'), True),
+            ('% Cumplimiento',              s.get('delivery_pct'),        True),
+            ('Lead entrega (días)',         s.get('lead_time'),           True),
+            ('% A tiempo',                  s.get('ontime_pct'),          True),
+            ('Días sin comprar',            s.get('days_since_last'),     True),
+            ('Tendencia %',                 s.get('trend_pct'),           True),
+            ('Cat. global',                 s.get('customer_category'),   False),
+            ('ABC período',                 s.get('abc_segment'),         False),
+            ('Vendedor',                    s.get('salesperson'),         False),
+            ('País',                        s.get('country'),             False),
+            ('Provincia',                   s.get('province'),            False),
+        ]
+        for ri, (label, val, num) in enumerate(resumen, start=2):
+            ws.cell(ri, 1, label)
+            if num:
+                ws.cell(ri, 2, val if isinstance(val, (int, float)) else 0)
+            else:
+                ws.cell(ri, 2, '' if val is None else str(val))
+        ws.column_dimensions['A'].width = 28
+        ws.column_dimensions['B'].width = 24
+        ws.freeze_panes = 'A2'
+
+        # ── Hoja 2: Evolución mensual (+ barras pedido vs entregado) ─────────
+        ws_evo = wb.create_sheet('Evolución mensual')
+        evo_rows = detail.get('monthly_data', []) or []
+        _write_table(ws_evo, [
+            ('Mes',               'month',             False),
+            ('Monto',             'amount',            True),
+            ('Monto entregado',   'amount_delivered',  True),
+            ('Cant. pedida',      'qty_ordered',       True),
+            ('Cant. entregada',   'qty_delivered',     True),
+            ('Pedidos',           'orders',            True),
+            ('% Cumplim.',        'delivery_pct',      True),
+            ('Despachado físico', 'qty_delivered_phys', True),
+            ('% Físico',          'physical_pct',      True),
+        ], evo_rows)
+        if evo_rows:
+            bar = BarChart()
+            bar.type = 'col'
+            bar.title = 'Evolución: monto pedido vs entregado'
+            bar.height = 8
+            bar.width = 18
+            n = len(evo_rows)
+            data = Reference(ws_evo, min_col=2, max_col=3, min_row=1, max_row=n + 1)
+            cats = Reference(ws_evo, min_col=1, min_row=2, max_row=n + 1)
+            bar.add_data(data, titles_from_data=True)
+            bar.set_categories(cats)
+            ws_evo.add_chart(bar, 'L2')
+
+        # ── Hoja 3: Mix familias (+ torta por cantidad) ──────────────────────
+        ws_fam = wb.create_sheet('Mix familias')
+        fam_rows = detail.get('family_mix', []) or []
+        _write_table(ws_fam, [
+            ('Familia',  'name',       False),
+            ('Cantidad', 'qty',        True),
+            ('Monto',    'amount',     True),
+            ('% Cant',   'pct',        True),
+            ('% Monto',  'pct_amount', True),
+        ], fam_rows)
+        if fam_rows:
+            pie = PieChart()
+            pie.title = 'Mix de familias (cantidad)'
+            pie.height = 8
+            pie.width = 12
+            n = len(fam_rows)
+            data = Reference(ws_fam, min_col=2, min_row=1, max_row=n + 1)
+            cats = Reference(ws_fam, min_col=1, min_row=2, max_row=n + 1)
+            pie.add_data(data, titles_from_data=True)
+            pie.set_categories(cats)
+            ws_fam.add_chart(pie, 'H2')
+
+        # ── Hoja 4: Top artículos ────────────────────────────────────────────
+        ws_top = wb.create_sheet('Top artículos')
+        top_rows = []
+        for p in (detail.get('top_products', []) or []):
+            qo = p.get('qty_ordered') or 0
+            qd = p.get('qty_delivered') or 0
+            pend = round(qo - qd, 1)
+            top_rows.append(dict(p, qty_pending=pend if pend > 0 else 0))
+        _write_table(ws_top, [
+            ('Artículo',    'name',                 False),
+            ('Cat. venta',  'sale_category',        False),
+            ('Familia',     'family',               False),
+            ('Pedido',      'qty_ordered',          True),
+            ('Entregado',   'qty_delivered',        True),
+            ('Sin entregar', 'qty_pending',         True),
+            ('Monto',       'amount',               True),
+            ('P.u. ped.',   'unit_price',           True),
+            ('P.u. entr.',  'unit_price_delivered', True),
+            ('% Cumplim.',  'delivery_pct',         True),
+        ], top_rows)
+
+        # ── Hoja 5: Pedidos ──────────────────────────────────────────────────
+        ws_ped = wb.create_sheet('Pedidos')
+        _write_table(ws_ped, [
+            ('Pedido',           'name',          False),
+            ('Fecha',            'date',          False),
+            ('Estado',           'state',         False),
+            ('Monto',            'amount',        True),
+            ('% Cumplim.',       'delivery_pct',  True),
+            ('Lead ponderado',   'lead_weighted', True),
+            ('Lead primero',     'lead_first',    True),
+            ('Lead completo',    'lead_complete', True),
+        ], detail.get('orders', []) or [])
+
+        safe = ''.join(ch if ch.isalnum() else '-' for ch in partner_name)[:40].strip('-') or 'cliente'
+        filename = f'detallecliente_{safe}_{period_from}_{period_to}.xlsx'
+        return self._planner_save_xlsx(wb, filename)

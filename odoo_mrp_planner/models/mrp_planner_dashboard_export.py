@@ -101,6 +101,21 @@ class MrpPlannerDashboardExport(models.TransientModel):
 
         ws.freeze_panes = 'A2'  # Encabezado fijo al hacer scroll
 
+        return self._planner_save_xlsx(wb, filename)
+
+    @api.model
+    def _planner_save_xlsx(self, wb, filename):
+        """
+        Serializa un Workbook de openpyxl a un ir.attachment y devuelve su URL de
+        descarga. Centraliza la limpieza de exports previos del mismo usuario
+        (mismo prefijo) para que cualquier export —tabla simple o multi-hoja con
+        gráficos— reutilice la misma mecánica.
+
+        :param wb: openpyxl.Workbook ya armado.
+        :param filename: str — nombre del archivo (.xlsx). Su primer segmento
+            antes de '_' se usa como prefijo para limpiar exports previos.
+        :returns: dict con 'url'.
+        """
         buf = io.BytesIO()
         wb.save(buf)
         content = base64.b64encode(buf.getvalue()).decode()

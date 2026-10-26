@@ -178,8 +178,14 @@
 
         </t>
 
-        <!-- Botón detalle (activo cuando está expandido) -->
-        <td style="padding:3px 4px; text-align:center; width:36px;">
+        <!-- Acciones: exportar detalle a Excel + abrir panel de análisis -->
+        <td style="padding:3px 4px; text-align:center; white-space:nowrap;">
+            <button class="btn btn-sm btn-link p-0 me-1 text-success"
+                    style="font-size:12px;"
+                    title="Exportar el detalle de este cliente a Excel (.xlsx) con gráficos"
+                    t-on-click="() => this.exportCustomerDetail(row.partner_id)">
+                <i class="fa fa-file-excel-o"/>
+            </button>
             <button t-att-class="state.panelPartnerId === row.partner_id
                         ? 'btn btn-sm btn-primary p-0 px-1'
                         : 'btn btn-sm btn-link p-0'"

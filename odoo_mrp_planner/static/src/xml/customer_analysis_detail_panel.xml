@@ -261,7 +261,7 @@
                     <div class="text-muted" style="font-size:10px; margin-bottom:3px;">
                         <i class="fa fa-info-circle me-1"/>El Top varía según la columna por la que se ordena.
                     </div>
-                    <div class="border rounded bg-white" style="overflow:auto; max-height:220px;">
+                    <div class="border rounded bg-body" style="overflow:auto; max-height:220px;">
                         <table class="table table-sm table-hover mb-0" style="font-size:11px;">
                             <thead style="position:sticky; top:0; background:var(--bs-tertiary-bg, #f8f9fa); z-index:1;">
                                 <tr>

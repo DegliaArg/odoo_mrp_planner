@@ -50,6 +50,26 @@ const FREQ_COLORS = {
 };
 
 /**
+ * Colores dependientes del tema (claro/oscuro). Los gráficos Chart.js pintan
+ * sobre <canvas> y no heredan CSS, por lo que sus textos/grillas/bordes deben
+ * leerse de las variables de Bootstrap/Odoo en tiempo de dibujo para ser
+ * legibles en ambos modos (el fix de v18.0.12.53.0 dejó los charts afuera a
+ * propósito; esto lo completa). Fallbacks = valores claros originales.
+ * @returns {{text:string, muted:string, grid:string, bg:string}}
+ */
+function themeColors() {
+    const cs = getComputedStyle(document.documentElement);
+    const v  = (name, fallback) => (cs.getPropertyValue(name) || '').trim() || fallback;
+    return {
+        text:  v('--bs-body-color',      '#212529'),
+        muted: v('--bs-secondary-color', '#6c757d'),
+        grid:  v('--bs-border-color',    'rgba(0,0,0,0.1)'),
+        // Separador entre sectores del donut: mezcla con el fondo del panel.
+        bg:    v('--bs-tertiary-bg',     '#ffffff'),
+    };
+}
+
+/**
  * Destruye los gráficos del panel lateral (bar, donut, line).
  * @param {Object} widget - Instancia del CustomerAnalysisWidget
  */
@@ -94,6 +114,7 @@ export function drawTopChart(widget) {
     const ChartJs = globalThis.Chart;
     if (typeof ChartJs === 'undefined') return;
     if (widget._topChart) { widget._topChart.destroy(); widget._topChart = null; }
+    const th = themeColors();
 
     const fieldMap = { pxq: 'total_amount', pedidos: 'order_count', ticket: 'avg_price' };
     const field    = fieldMap[metric] || 'total_amount';
@@ -130,12 +151,12 @@ export function drawTopChart(widget) {
             scales: {
                 x: {
                     grid:  { display: false },
-                    ticks: { font: { size: 11 }, maxRotation: 45 },
+                    ticks: { font: { size: 11 }, maxRotation: 45, color: th.muted },
                 },
                 y: {
                     beginAtZero: true,
-                    grid:  { color: 'rgba(0,0,0,0.06)' },
-                    ticks: { callback: v => widget.fmtK(v), font: { size: 11 } },
+                    grid:  { color: th.grid },
+                    ticks: { callback: v => widget.fmtK(v), font: { size: 11 }, color: th.muted },
                 },
             },
         },
@@ -160,6 +181,7 @@ export function drawTopDonut(widget) {
     const ChartJs = globalThis.Chart;
     if (typeof ChartJs === 'undefined') return;
     if (widget._topDonutChart) { widget._topDonutChart.destroy(); widget._topDonutChart = null; }
+    const th = themeColors();
 
     let groupField, colorMap, nameMap, order;
     if (donutType === 'abc') {
@@ -221,7 +243,7 @@ export function drawTopDonut(widget) {
                 data:            cats.map(c => byGroup[c].count),
                 backgroundColor: cats.map(c => colorMap[c] ?? CAT_COLORS['']),
                 borderWidth:  1,
-                borderColor:  '#fff',
+                borderColor:  th.bg,
             }],
         },
         plugins: [pieLabelPlugin],
@@ -230,7 +252,7 @@ export function drawTopDonut(widget) {
             maintainAspectRatio: false,
             cutout: '48%',
             plugins: {
-                legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6, boxWidth: 14 } },
+                legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 6, boxWidth: 14, color: th.text } },
                 tooltip: {
                     callbacks: {
                         title: items => nameMap[cats[items[0].dataIndex]] || cats[items[0].dataIndex],
@@ -260,6 +282,7 @@ export function drawPanelCharts(widget) {
     if (!data) return;
     const Chart = globalThis.Chart;
     if (typeof Chart === 'undefined') return;
+    const th = themeColors();
 
     const chartMode  = widget.state.panelChartMode || 'bar';
     const baseKey    = `${widget.state.panelPartnerId}_${widget.state.panelMetric}_${widget.state.dateFrom}_${widget.state.dateTo}`;
@@ -292,7 +315,7 @@ export function drawPanelCharts(widget) {
                     if (!v) return;
                     const label = ds._fmt ? ds._fmt(v) : String(v);
                     ctx.save();
-                    ctx.fillStyle    = '#555';
+                    ctx.fillStyle    = th.muted;
                     ctx.font         = 'bold 9px sans-serif';
                     ctx.textAlign    = 'center';
                     ctx.textBaseline = 'bottom';
@@ -342,7 +365,7 @@ export function drawPanelCharts(widget) {
                     data:            scm.map(s => isQty ? s.qty : s.amount),
                     backgroundColor: scm.map(s => CAT_COLORS[s.name] ?? CAT_COLORS['']),
                     borderWidth:     2,
-                    borderColor:     '#fff',
+                    borderColor:     th.bg,
                 }],
             },
             plugins: [pieLabelPlugin],
@@ -381,7 +404,7 @@ export function drawPanelCharts(widget) {
                     data:            data.family_mix.map(f => isQty ? f.qty : f.amount),
                     backgroundColor: CHART_COLORS.donut,
                     borderWidth:     2,
-                    borderColor:     '#fff',
+                    borderColor:     th.bg,
                 }],
             },
             plugins: [pieLabelPlugin],
@@ -464,13 +487,13 @@ export function drawPanelCharts(widget) {
                     responsive:          true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend:   { display: true, labels: { font: { size: 11 }, boxWidth: 12 } },
+                        legend:   { display: true, labels: { font: { size: 11 }, boxWidth: 12, color: th.text } },
                         barLabel: {},
                         tooltip:  { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`, afterLabel: physAfterLabel } },
                     },
                     scales: {
-                        x: { ticks: { font: { size: 10 } } },
-                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+                        x: { ticks: { font: { size: 10 }, color: th.muted }, grid: { color: th.grid } },
+                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 }, color: th.muted }, grid: { color: th.grid } },
                     },
                 },
                 plugins: [barLabelPlugin],
@@ -518,12 +541,12 @@ export function drawPanelCharts(widget) {
                     responsive:          true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend:  { display: true, labels: { font: { size: 10 }, boxWidth: 12 } },
+                        legend:  { display: true, labels: { font: { size: 10 }, boxWidth: 12, color: th.text } },
                         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtLbl(ctx.parsed.y)}`, afterLabel: physAfterLabel } },
                     },
                     scales: {
-                        x: { ticks: { font: { size: 10 } } },
-                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+                        x: { ticks: { font: { size: 10 }, color: th.muted }, grid: { color: th.grid } },
+                        y: { beginAtZero: true, ticks: { callback: fmtTick, font: { size: 10 }, color: th.muted }, grid: { color: th.grid } },
                     },
                 },
             });

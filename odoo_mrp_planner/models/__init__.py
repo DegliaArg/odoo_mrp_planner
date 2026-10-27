@@ -10,6 +10,7 @@ from . import mrp_planner_shift
 from . import mrp_reschedule_config_forecast
 from . import mrp_reschedule_config_categories
 from . import mrp_reschedule_config_inventory
+from . import mrp_reschedule_config_management
 from . import mrp_planner_run_log
 from . import mrp_dispatch_stock_log
 from . import mrp_partner_category
@@ -35,6 +36,7 @@ from . import mrp_planner_dashboard_unmet
 from . import mrp_planner_detail_dashboard
 from . import mrp_planner_dashboard_inventory
 from . import mrp_planner_dashboard_purchase_analysis
+from . import mrp_planner_dashboard_management
 from . import purchase_order
 from . import sale_order_line
 from . import stock_picking

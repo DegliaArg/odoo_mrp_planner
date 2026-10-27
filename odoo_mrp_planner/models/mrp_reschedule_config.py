@@ -390,6 +390,7 @@ class MrpRescheduleConfig(models.Model):
             'odoo_mrp_planner.group_sales',
             'odoo_mrp_planner.group_purchase_admin',
             'odoo_mrp_planner.group_inventory_admin',
+            'odoo_mrp_planner.group_management',
             'base.group_system',
         ]
 

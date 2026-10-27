@@ -76,13 +76,30 @@
         <field name="implied_ids" eval="[(4, ref('group_inventory_read'))]"/>
     </record>
 
+    <!-- Gerencia – Lectura -->
+    <record id="group_management_read" model="res.groups">
+        <field name="name">Gerencia - Lectura</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el Resumen de dirección: demanda, facturación, despachos, embalajes, picking y producción del mes. No puede modificar configuraciones.</field>
+        <field name="users" eval="[]"/>
+    </record>
+
+    <!-- Gerencia – Administrador -->
+    <record id="group_management" model="res.groups">
+        <field name="name">Gerencia - Administrador</field>
+        <field name="category_id" ref="module_category_mrp_planner"/>
+        <field name="comment">Ve el Resumen de dirección y configura los tipos de operación (despachos, embalajes, picking) que alimentan sus indicadores.</field>
+        <field name="users" eval="[]"/>
+        <field name="implied_ids" eval="[(4, ref('group_management_read'))]"/>
+    </record>
+
     <!-- Administrador -->
     <record id="group_admin" model="res.groups">
         <field name="name">Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
         <field name="comment">Acceso completo al módulo: todos los paneles, todas las configuraciones y todas las funciones de programación y reprogramación.</field>
         <field name="users" eval="[]"/>
-        <field name="implied_ids" eval="[(4, ref('group_prod')), (4, ref('group_purchase_admin')), (4, ref('group_sales')), (4, ref('group_prod_read')), (4, ref('group_purchase')), (4, ref('group_sales_read'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_prod')), (4, ref('group_purchase_admin')), (4, ref('group_sales')), (4, ref('group_prod_read')), (4, ref('group_purchase')), (4, ref('group_sales_read')), (4, ref('group_management')), (4, ref('group_management_read'))]"/>
     </record>
 
 </odoo>

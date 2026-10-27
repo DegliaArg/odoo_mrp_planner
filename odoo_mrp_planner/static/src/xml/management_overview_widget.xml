@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="odoo_mrp_planner.ManagementOverviewWidget">
+        <div class="o_management_overview_widget">
+
+            <!-- ════ Barra de filtro: selector de MES (por defecto, mes en curso) ════ -->
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div class="d-flex align-items-center gap-1">
+                    <label class="form-label mb-0 small text-muted">Mes</label>
+                    <input type="month" class="form-control form-control-sm"
+                           style="max-width:160px;"
+                           title="Mes a consolidar"
+                           t-att-value="state.month"
+                           t-on-change="onMonthChange"/>
+                    <button t-att-class="'btn btn-sm ' + (isCurrentMonth ? 'btn-primary' : 'btn-outline-secondary')"
+                            title="Volver al mes en curso"
+                            t-att-aria-pressed="isCurrentMonth ? 'true' : 'false'"
+                            style="white-space:nowrap;"
+                            t-on-click="setCurrentMonth">
+                        Mes en curso
+                    </button>
+                </div>
+                <span class="text-muted small fst-italic ms-1">
+                    <i class="fa fa-calendar me-1"/><t t-esc="monthLabel"/>
+                </span>
+            </div>
+
+            <!-- Error de backend -->
+            <div t-if="state.error" class="alert alert-danger py-2 mb-2" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"/>
+                Error al cargar el panel: <strong><t t-esc="state.error"/></strong>
+            </div>
+
+            <!-- Spinner SOLO en la primera carga -->
+            <div t-if="!state.error and state.loading and !state.data" class="text-center text-muted py-5">
+                <i class="fa fa-spinner fa-spin fa-2x"/>
+                <div class="mt-2 small">Cargando datos…</div>
+            </div>
+
+            <t t-if="state.data">
+                <div t-att-class="'o_planner_fade_in ' + (state.reloading ? 'opacity-50 pe-none' : '')">
+
+                    <!-- ════ FILA DE INDICADORES ════ -->
+                    <div class="d-flex gap-2 mb-4 flex-wrap">
+
+                        <!-- Facturado — piezas -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas facturadas del mes (facturas de cliente validadas; las notas de crédito restan).">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-file-text-o fa-lg text-secondary mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.data.invoiced.total_qty)"/>
+                                    <div class="o_planner_label">Facturado (piezas)</div>
+                                    <t t-set="di" t-value="delta(daily.invoiced_qty)"/>
+                                    <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
+                                        <span class="text-muted">Hoy: </span>
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Facturado — monto -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Monto facturado del mes, sin impuestos (facturas de cliente validadas; las notas de crédito restan).">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-dollar fa-lg text-success mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="money(state.data.invoiced.total_amount)"/>
+                                    <div class="o_planner_label">Facturado</div>
+                                    <t t-set="di" t-value="delta(daily.invoiced_amount)"/>
+                                    <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
+                                        <span class="text-muted">Hoy: </span>
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + money(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Despachos (acumulado del mes, estado Hecho) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas despachadas del mes: transferencias validadas (estado Hecho) de los tipos de operación configurados en Ajustes → Gerencia.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
+                                    <t t-if="state.data.dispatch.configured">
+                                        <div class="o_planner_number" t-esc="fmt(state.data.dispatch.qty)"/>
+                                        <div class="o_planner_label">Despachos (piezas)</div>
+                                        <div class="text-muted mt-1" style="font-size:10px;">
+                                            <t t-esc="state.data.dispatch.pickings"/> transferencia(s)
+                                        </div>
+                                        <t t-set="di" t-value="delta(daily.dispatch)"/>
+                                        <div t-if="hasDaily and di.show" style="font-size:10px;">
+                                            <span class="text-muted">Hoy: </span>
+                                            <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                                <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                            </span>
+                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                            <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>%)</span>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="o_planner_label">Despachos</div>
+                                        <div class="text-muted small mt-1" style="font-size:10px;">
+                                            Configurá el tipo de operación en Ajustes → Gerencia.
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Embalajes (foto del pendiente actual) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas pendientes de embalar AHORA: transferencias en estado Listo/Asignado de los tipos configurados. Es una foto del momento, no un acumulado del mes.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-archive fa-lg text-info mb-1 d-block"/>
+                                    <t t-if="state.data.packing.configured">
+                                        <div class="o_planner_number" t-esc="fmt(state.data.packing.qty)"/>
+                                        <div class="o_planner_label">Embalajes (pendiente)</div>
+                                        <div class="text-muted mt-1" style="font-size:10px;">
+                                            <t t-esc="state.data.packing.pickings"/> transferencia(s) · ahora
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="o_planner_label">Embalajes</div>
+                                        <div class="text-muted small mt-1" style="font-size:10px;">
+                                            Configurá el tipo de operación en Ajustes → Gerencia.
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Picking (foto del pendiente actual) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas pendientes de pickear AHORA: transferencias en estado Listo/Asignado de los tipos configurados. Es una foto del momento, no un acumulado del mes.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-hand-paper-o fa-lg text-info mb-1 d-block"/>
+                                    <t t-if="state.data.picking.configured">
+                                        <div class="o_planner_number" t-esc="fmt(state.data.picking.qty)"/>
+                                        <div class="o_planner_label">Picking (pendiente)</div>
+                                        <div class="text-muted mt-1" style="font-size:10px;">
+                                            <t t-esc="state.data.picking.pickings"/> transferencia(s) · ahora
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="o_planner_label">Picking</div>
+                                        <div class="text-muted small mt-1" style="font-size:10px;">
+                                            Configurá el tipo de operación en Ajustes → Gerencia.
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ════ DEMANDA · PRODUCIDO (por categoría) ════ -->
+                    <div class="row g-3 mb-4">
+
+                        <!-- Demanda -->
+                        <div class="col-12 col-xl-6">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="o_planner_section_title mb-3 d-flex align-items-center">
+                                        <i class="fa fa-shopping-basket me-2 text-muted"/>
+                                        <span class="text-uppercase fw-bold text-muted small">Demanda por categoría</span>
+                                        <span class="ms-auto fw-bold" t-esc="fmt(state.data.demand.total_qty)"/>
+                                    </div>
+                                    <t t-set="di" t-value="delta(daily.demand)"/>
+                                    <div t-if="hasDaily and di.show" class="text-muted small mb-2" style="font-size:11px;">
+                                        Hoy:
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-7">
+                                            <t t-call="odoo_mrp_planner.ManagementCategTable">
+                                                <t t-set="rows" t-value="state.data.demand.rows"/>
+                                                <t t-set="withAmount" t-value="false"/>
+                                            </t>
+                                        </div>
+                                        <div class="col-5">
+                                            <div style="position:relative; height:220px;">
+                                                <canvas t-ref="demandCanvas"/>
+                                                <div t-if="!state.data.demand.rows.length"
+                                                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                                    <div class="text-center">
+                                                        <i class="fa fa-pie-chart fa-2x mb-2 d-block"/>
+                                                        <span class="small">Sin demanda en el mes.</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Producido -->
+                        <div class="col-12 col-xl-6">
+                            <div class="card o_planner_card h-100">
+                                <div class="card-body">
+                                    <div class="o_planner_section_title mb-3 d-flex align-items-center">
+                                        <i class="fa fa-industry me-2 text-muted"/>
+                                        <span class="text-uppercase fw-bold text-muted small">Producido por categoría</span>
+                                        <span class="ms-auto fw-bold" t-esc="fmt(state.data.produced.total_qty)"/>
+                                    </div>
+                                    <t t-set="di" t-value="delta(daily.produced)"/>
+                                    <div t-if="hasDaily and di.show" class="text-muted small mb-2" style="font-size:11px;">
+                                        Hoy:
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-7">
+                                            <t t-call="odoo_mrp_planner.ManagementCategTable">
+                                                <t t-set="rows" t-value="state.data.produced.rows"/>
+                                                <t t-set="withAmount" t-value="false"/>
+                                            </t>
+                                        </div>
+                                        <div class="col-5">
+                                            <div style="position:relative; height:220px;">
+                                                <canvas t-ref="producedCanvas"/>
+                                                <div t-if="!state.data.produced.rows.length"
+                                                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                                    <div class="text-center">
+                                                        <i class="fa fa-pie-chart fa-2x mb-2 d-block"/>
+                                                        <span class="small">Sin producción en el mes.</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ════ FACTURADO por categoría (piezas + monto) ════ -->
+                    <div class="card o_planner_card mb-3">
+                        <div class="card-body">
+                            <div class="o_planner_section_title mb-3 d-flex align-items-center">
+                                <i class="fa fa-file-text-o me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Facturado por categoría</span>
+                                <span class="ms-auto fw-bold">
+                                    <t t-esc="fmt(state.data.invoiced.total_qty)"/> pz ·
+                                    <t t-esc="money(state.data.invoiced.total_amount)"/>
+                                </span>
+                            </div>
+                            <t t-call="odoo_mrp_planner.ManagementCategTable">
+                                <t t-set="rows" t-value="state.data.invoiced.rows"/>
+                                <t t-set="withAmount" t-value="true"/>
+                            </t>
+                        </div>
+                    </div>
+
+                </div><!-- /fade -->
+            </t>
+
+        </div>
+    </t>
+
+    <!-- ════ Sub-template: tabla por categoría (con o sin columna de monto) ════ -->
+    <t t-name="odoo_mrp_planner.ManagementCategTable">
+        <div t-if="!rows.length" class="text-center text-muted py-3 border rounded">
+            <i class="fa fa-inbox me-1"/> Sin datos en el mes.
+        </div>
+        <div t-if="rows.length" class="border rounded" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:12px;">
+                <thead style="position:sticky; top:0; z-index:2;">
+                    <tr>
+                        <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Categoría</th>
+                        <th class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Piezas</th>
+                        <th t-if="withAmount" class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="rows" t-as="r" t-key="r.categ_id">
+                        <tr>
+                            <td t-esc="r.name"/>
+                            <td class="text-end" t-esc="fmt(r.qty)"/>
+                            <td t-if="withAmount" class="text-end" t-esc="money(r.amount)"/>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+        </div>
+    </t>
+
+</templates>

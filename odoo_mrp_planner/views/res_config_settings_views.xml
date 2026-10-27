@@ -938,7 +938,7 @@
               parent="mrp_planner_menu_root"
               sequence="99"
               action="action_mrp_reschedule_config"
-              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_inventory_admin,odoo_mrp_planner.group_admin,base.group_system"/>
+              groups="odoo_mrp_planner.group_prod,odoo_mrp_planner.group_sales,odoo_mrp_planner.group_purchase_admin,odoo_mrp_planner.group_inventory_admin,odoo_mrp_planner.group_management,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <!-- Herencia: agrega toggle de rotación al grupo Quiebres de stock -->
     <record id="mrp_reschedule_config_form_view_rotation" model="ir.ui.view">

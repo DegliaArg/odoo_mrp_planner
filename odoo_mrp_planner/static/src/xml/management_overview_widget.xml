@@ -44,6 +44,48 @@
                     <!-- ════ FILA DE INDICADORES ════ -->
                     <div class="d-flex gap-2 mb-4 flex-wrap">
 
+                        <!-- Demanda (acumulado del mes) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas demandadas del mes: líneas de ventas confirmadas con fecha de pedido en el mes.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-shopping-basket fa-lg text-primary mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.data.demand.total_qty)"/>
+                                    <div class="o_planner_label">Demanda</div>
+                                    <t t-set="di" t-value="delta(daily.demand)"/>
+                                    <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
+                                        <span class="text-muted">Hoy: </span>
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Producido (acumulado del mes) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Piezas producidas del mes: OFs terminadas con fecha de fin en el mes.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-industry fa-lg text-primary mb-1 d-block"/>
+                                    <div class="o_planner_number" t-esc="fmt(state.data.produced.total_qty)"/>
+                                    <div class="o_planner_label">Producido</div>
+                                    <t t-set="di" t-value="delta(daily.produced)"/>
+                                    <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
+                                        <span class="text-muted">Hoy: </span>
+                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
+                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
+                                        </span>
+                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
+                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Facturado — piezas -->
                         <div class="flex-fill" style="min-width:150px; flex-basis:0;">
                             <div class="card o_planner_card o_planner_kpi_card_lg h-100"

@@ -54,9 +54,22 @@ class HomeLauncherWidget extends Component {
         return order.map(s => ({ name: s, panels: map[s] }));
     }
 
-    /** Abre el panel: pide su acción al backend y la ejecuta. */
+    /** Abre el panel: pide su acción al backend y la ejecuta.
+     *
+     * Los métodos action_open_* devuelven el dict de la acción con view_id +
+     * view_mode pero sin la clave `views` (que normalmente completa el cargador
+     * de acciones al abrir por menú). doAction() preprocesa haciendo
+     * action.views.map(...), así que la normalizamos antes para evitar el
+     * TypeError "Cannot read properties of undefined (reading 'map')".
+     */
     async open(panel) {
         const action = await this.orm.call("mrp.planner.dashboard", panel.method, []);
+        if (action && action.type === "ir.actions.act_window" && !action.views) {
+            const mode = action.view_mode || "form";
+            action.views = action.view_id
+                ? [[action.view_id, mode]]
+                : mode.split(",").map(m => [false, m.trim()]);
+        }
         this.action.doAction(action);
     }
 }

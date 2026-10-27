@@ -44,3 +44,11 @@ class MrpRescheduleConfigManagement(models.Model):
              'Resumen diario (transferencias en estado Listo/Asignado). '
              'Es una foto del pendiente actual: muestra las piezas listas para pickear ahora.',
     )
+    management_production_warehouse_ids = fields.Many2many(
+        'stock.warehouse',
+        'mrp_resched_cfg_mgmt_prod_wh_rel', 'config_id', 'warehouse_id',
+        string='Producido — Depósitos',
+        help='Si se indican, el indicador de PRODUCIDO del Resumen diario solo '
+             'cuenta OFs cuyo depósito (el del tipo de operación de la OF) esté '
+             'entre estos. Vacío = todos los depósitos.',
+    )

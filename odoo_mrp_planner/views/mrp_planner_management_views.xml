@@ -100,6 +100,16 @@
                                     son una foto del momento, no un acumulado del mes.
                                 </div>
                             </group>
+                            <group string="Producido — Depósitos">
+                                <div class="text-muted small mb-2">
+                                    Opcional: limitá el indicador de producido a uno o más depósitos.
+                                    Vacío = todos.
+                                </div>
+                                <field name="management_production_warehouse_ids"
+                                       widget="many2many_tags"
+                                       options="{'no_create': True, 'no_create_edit': True}"
+                                       placeholder="Depósitos a considerar en producido (vacío = todos)…"/>
+                            </group>
                         </div>
                     </div>
                 </page>

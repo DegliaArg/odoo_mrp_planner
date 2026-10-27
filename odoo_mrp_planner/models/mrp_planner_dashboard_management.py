@@ -102,17 +102,17 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         categ_of = {}
         for p in prods:
             categ_of[p.id] = (p.categ_id.id or 0,
-                              p.categ_id.display_name or _('Sin categoría'))
+                              p.categ_id.display_name or _('Sin familia'))
 
         qty = defaultdict(float)
         amt = defaultdict(float)
         names = {}
         for pid, v in qty_pairs:
-            cid, cname = categ_of.get(pid, (0, _('Sin categoría')))
+            cid, cname = categ_of.get(pid, (0, _('Sin familia')))
             qty[cid] += v
             names[cid] = cname
         for pid, v in (amt_pairs or []):
-            cid, cname = categ_of.get(pid, (0, _('Sin categoría')))
+            cid, cname = categ_of.get(pid, (0, _('Sin familia')))
             amt[cid] += v
             names[cid] = cname
 
@@ -137,7 +137,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('order_id.date_order', '>=', dt_from),
             ('order_id.date_order', '<=', dt_to),
             ('product_id', '!=', False),
-            ('company_id', '=', company.id),
+            ('company_id', 'in', company.ids),
         ]
         if allowed_ids is not None:
             dom.append(('order_id.warehouse_id', 'in', allowed_ids))
@@ -151,7 +151,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('order_id.date_order', '>=', dt_from),
             ('order_id.date_order', '<=', dt_to),
             ('product_id', '!=', False),
-            ('company_id', '=', company.id),
+            ('company_id', 'in', company.ids),
         ]
         if allowed_ids is not None:
             dom.append(('order_id.warehouse_id', 'in', allowed_ids))
@@ -175,7 +175,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('product_id', '!=', False),
             ('move_id.invoice_date', '>=', d_from),
             ('move_id.invoice_date', '<=', d_to),
-            ('company_id', '=', company.id),
+            ('company_id', 'in', company.ids),
         ]
         qty = amt = 0.0
         for mtype, sign in (('out_invoice', 1.0), ('out_refund', -1.0)):
@@ -202,7 +202,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('product_id', '!=', False),
             ('move_id.invoice_date', '>=', d_from),
             ('move_id.invoice_date', '<=', d_to),
-            ('company_id', '=', company.id),
+            ('company_id', 'in', company.ids),
         ]
         qty_pairs = defaultdict(float)
         amt_pairs = defaultdict(float)
@@ -220,27 +220,29 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     # ── Producido (OFs terminadas) ───────────────────────────────────────────
 
-    def _mgmt_produced_qty(self, dt_from, dt_to, company, allowed_ids):
-        """Σ cantidad producida (OFs terminadas) en el rango."""
+    def _mgmt_produced_domain(self, dt_from, dt_to, company, allowed_ids, prod_wh_ids):
+        """Dominio común de OFs terminadas del rango para el indicador de
+        producido, con el filtro de depósito del usuario y el configurable."""
         dom = ([('state', '=', 'done'),
                 ('date_finished', '>=', dt_from),
                 ('date_finished', '<=', dt_to),
-                ('company_id', '=', company.id)]
+                ('company_id', 'in', company.ids)]
                + no_subcontract_domain(self.env))
         if allowed_ids is not None:
             dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+        if prod_wh_ids:
+            dom.append(('picking_type_id.warehouse_id', 'in', prod_wh_ids))
+        return dom
+
+    def _mgmt_produced_qty(self, dt_from, dt_to, company, allowed_ids, prod_wh_ids=None):
+        """Σ cantidad producida (OFs terminadas) en el rango."""
+        dom = self._mgmt_produced_domain(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
         mos = self.env['mrp.production'].sudo().search(dom)
         return sum(mos.mapped('qty_produced'))
 
-    def _mgmt_produced(self, dt_from, dt_to, company, allowed_ids):
-        """Producido del mes por categoría."""
-        dom = ([('state', '=', 'done'),
-                ('date_finished', '>=', dt_from),
-                ('date_finished', '<=', dt_to),
-                ('company_id', '=', company.id)]
-               + no_subcontract_domain(self.env))
-        if allowed_ids is not None:
-            dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+    def _mgmt_produced(self, dt_from, dt_to, company, allowed_ids, prod_wh_ids=None):
+        """Producido del mes por familia (categoría de producto)."""
+        dom = self._mgmt_produced_domain(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
         mos = self.env['mrp.production'].sudo().search(dom)
         pairs = [(mo.product_id.id, mo.qty_produced or 0.0)
                  for mo in mos if mo.product_id]
@@ -248,30 +250,60 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     # ── Movimientos (despachos / embalajes / picking) ────────────────────────
 
+    def _mgmt_agg_by_sale_category(self, pairs):
+        """Agrega (product_id, piezas) por categoría de venta (x_sale_category A–E).
+
+        :param pairs: list[(product_id, qty)].
+        :returns: list[dict] con key, name y qty, ordenada A, B, C, D, E y
+            finalmente los sin categoría de venta.
+        """
+        prod_ids = {pid for pid, _v in pairs}
+        prods = self.env['product.product'].sudo().browse(list(prod_ids))
+        cat_of = {p.id: (p.product_tmpl_id.x_sale_category or '') for p in prods}
+        names = {'A': 'Cat. A', 'B': 'Cat. B', 'C': 'Cat. C',
+                 'D': 'Cat. D', 'E': 'Cat. E', '': 'Sin cat. venta'}
+        agg = defaultdict(float)
+        for pid, v in pairs:
+            agg[cat_of.get(pid, '')] += v
+        order = ['A', 'B', 'C', 'D', 'E', '']
+        return [{'key': k or 'none', 'name': names.get(k, k), 'qty': round(agg[k], 2)}
+                for k in order if k in agg]
+
     def _mgmt_move_pieces(self, picking_type_ids, state, company, allowed_ids,
-                          dt_from=None, dt_to=None):
+                          dt_from=None, dt_to=None, with_breakdown=False):
         """Piezas movidas en las transferencias de los tipos dados, en un estado.
 
         :param dt_from/dt_to: si se pasan, filtra por fecha de validación
             (date_done) — usado por Despachos (acumulado del mes/día). Sin
             fechas es una foto del estado actual (Embalajes/Picking en Asignado).
-        :returns: dict {'configured', 'qty', 'pickings'}.
+        :param with_breakdown: si True, incluye el desglose por categoría de
+            venta en 'rows' (se omite en los cálculos diarios para no recargar).
+        :returns: dict {'configured', 'qty', 'pickings', 'rows'}.
         """
         if not picking_type_ids:
-            return {'configured': False, 'qty': 0.0, 'pickings': 0}
+            return {'configured': False, 'qty': 0.0, 'pickings': 0, 'rows': []}
         Picking = self.env['stock.picking'].sudo()
         dom = [
             ('picking_type_id', 'in', picking_type_ids),
             ('state', '=', state),
-            ('company_id', '=', company.id),
+            ('company_id', 'in', company.ids),
         ]
         if allowed_ids is not None:
             dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
         if dt_from and dt_to:
             dom += [('date_done', '>=', dt_from), ('date_done', '<=', dt_to)]
         pickings = Picking.search(dom)
-        qty = sum(pickings.mapped('move_ids').mapped('quantity'))
-        return {'configured': True, 'qty': round(qty, 2), 'pickings': len(pickings)}
+        moves = pickings.mapped('move_ids')
+        qty = sum(moves.mapped('quantity'))
+        rows = []
+        if with_breakdown:
+            by_prod = defaultdict(float)
+            for m in moves:
+                if m.product_id:
+                    by_prod[m.product_id.id] += (m.quantity or 0.0)
+            rows = self._mgmt_agg_by_sale_category(list(by_prod.items()))
+        return {'configured': True, 'qty': round(qty, 2),
+                'pickings': len(pickings), 'rows': rows}
 
     # ── Punto de entrada del panel ───────────────────────────────────────────
 
@@ -285,7 +317,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             (solo si el mes es el actual) para la variación diaria.
         """
         self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
-        company = self.env.company
+        # Respeta el selector multiempresa nativo: todos los indicadores filtran
+        # por las compañías tildadas (self.env.companies), no solo la activa.
+        # La empresa activa se usa solo para moneda y config de tipos de operación.
+        active = self.env.company
+        company = self.env.companies
         today = fields.Date.context_today(self)
         if not month:
             month = '%04d-%02d' % (today.year, today.month)
@@ -303,16 +339,17 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         disp_types = cfg.management_dispatch_picking_type_ids.ids
         pack_types = cfg.management_packing_picking_type_ids.ids
         pick_types = cfg.management_picking_picking_type_ids.ids
+        prod_wh_ids = cfg.management_production_warehouse_ids.ids
 
         is_current = (first.year == today.year and first.month == today.month)
 
         if no_access:
             empty = {'rows': [], 'total_qty': 0.0}
             empty_inv = {'rows': [], 'total_qty': 0.0, 'total_amount': 0.0}
-            zero = {'configured': True, 'qty': 0.0, 'pickings': 0}
+            zero = {'configured': True, 'qty': 0.0, 'pickings': 0, 'rows': []}
             return {
                 'month': month, 'is_current': is_current,
-                'currency': company.currency_id.symbol or '$',
+                'currency': active.currency_id.symbol or '$',
                 'demand': empty, 'invoiced': empty_inv, 'produced': dict(empty),
                 'dispatch': zero, 'packing': zero, 'picking': zero,
                 'daily': {},
@@ -320,11 +357,13 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
         demand = self._mgmt_demand(dt_from, dt_to, company, allowed_ids)
         invoiced = self._mgmt_invoiced(d_from, d_to, company)
-        produced = self._mgmt_produced(dt_from, dt_to, company, allowed_ids)
+        produced = self._mgmt_produced(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
         dispatch = self._mgmt_move_pieces(disp_types, 'done', company, allowed_ids,
-                                          dt_from, dt_to)
-        packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids)
-        picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids)
+                                          dt_from, dt_to, with_breakdown=True)
+        packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
+                                         with_breakdown=True)
+        picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
+                                         with_breakdown=True)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}
@@ -354,16 +393,16 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                                                         allowed_ids, yd_f, yd_t)['qty'],
                 },
                 'produced': {
-                    'today': round(self._mgmt_produced_qty(td_f, td_t, company, allowed_ids), 2),
-                    'yesterday': round(self._mgmt_produced_qty(yd_f, yd_t, company, allowed_ids), 2),
+                    'today': round(self._mgmt_produced_qty(td_f, td_t, company, allowed_ids, prod_wh_ids), 2),
+                    'yesterday': round(self._mgmt_produced_qty(yd_f, yd_t, company, allowed_ids, prod_wh_ids), 2),
                 },
             }
 
         return {
             'month': month,
             'is_current': is_current,
-            'currency': company.currency_id.symbol or '$',
-            'company_name': company.name,
+            'currency': active.currency_id.symbol or '$',
+            'company_name': active.name,
             'demand': demand,
             'invoiced': invoiced,
             'produced': produced,

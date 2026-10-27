@@ -1,6 +1,6 @@
 {
     'name': 'KPIs',
-    'version': '18.0.13.1.1',
+    'version': '18.0.13.2.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -74,6 +74,7 @@ Programación y reprogramación
         'web.assets_backend': [
             'odoo_mrp_planner/static/src/css/reschedule_gantt.css',
             'odoo_mrp_planner/static/src/css/home_launcher.css',
+            'odoo_mrp_planner/static/src/css/management_overview_widget.css',
             'odoo_mrp_planner/static/src/css/production_analysis_widget.css',
             'odoo_mrp_planner/static/src/css/purchase_analysis_widget.css',
             'odoo_mrp_planner/static/src/js/column_manager.js',

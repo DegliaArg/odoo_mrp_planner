@@ -51,7 +51,7 @@
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                     <i class="fa fa-file-text-o fa-lg text-secondary mb-1 d-block"/>
                                     <div class="o_planner_number" t-esc="fmt(state.data.invoiced.total_qty)"/>
-                                    <div class="o_planner_label">Facturado (piezas)</div>
+                                    <div class="o_planner_label">Facturado</div>
                                     <t t-set="di" t-value="delta(daily.invoiced_qty)"/>
                                     <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
                                         <span class="text-muted">Hoy: </span>
@@ -94,7 +94,7 @@
                                     <i class="fa fa-truck fa-lg text-secondary mb-1 d-block"/>
                                     <t t-if="state.data.dispatch.configured">
                                         <div class="o_planner_number" t-esc="fmt(state.data.dispatch.qty)"/>
-                                        <div class="o_planner_label">Despachos (piezas)</div>
+                                        <div class="o_planner_label">Despachos</div>
                                         <div class="text-muted mt-1" style="font-size:10px;">
                                             <t t-esc="state.data.dispatch.pickings"/> transferencia(s)
                                         </div>
@@ -126,7 +126,7 @@
                                     <i class="fa fa-archive fa-lg text-info mb-1 d-block"/>
                                     <t t-if="state.data.packing.configured">
                                         <div class="o_planner_number" t-esc="fmt(state.data.packing.qty)"/>
-                                        <div class="o_planner_label">Embalajes (pendiente)</div>
+                                        <div class="o_planner_label">Embalajes</div>
                                         <div class="text-muted mt-1" style="font-size:10px;">
                                             <t t-esc="state.data.packing.pickings"/> transferencia(s) · ahora
                                         </div>
@@ -149,7 +149,7 @@
                                     <i class="fa fa-hand-paper-o fa-lg text-info mb-1 d-block"/>
                                     <t t-if="state.data.picking.configured">
                                         <div class="o_planner_number" t-esc="fmt(state.data.picking.qty)"/>
-                                        <div class="o_planner_label">Picking (pendiente)</div>
+                                        <div class="o_planner_label">Pickings</div>
                                         <div class="text-muted mt-1" style="font-size:10px;">
                                             <t t-esc="state.data.picking.pickings"/> transferencia(s) · ahora
                                         </div>
@@ -175,7 +175,7 @@
                                 <div class="card-body">
                                     <div class="o_planner_section_title mb-3 d-flex align-items-center">
                                         <i class="fa fa-shopping-basket me-2 text-muted"/>
-                                        <span class="text-uppercase fw-bold text-muted small">Demanda por categoría</span>
+                                        <span class="text-uppercase fw-bold text-muted small">Demanda por familia</span>
                                         <span class="ms-auto fw-bold" t-esc="fmt(state.data.demand.total_qty)"/>
                                     </div>
                                     <t t-set="di" t-value="delta(daily.demand)"/>
@@ -187,26 +187,10 @@
                                         <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
                                         <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-7">
-                                            <t t-call="odoo_mrp_planner.ManagementCategTable">
-                                                <t t-set="rows" t-value="state.data.demand.rows"/>
-                                                <t t-set="withAmount" t-value="false"/>
-                                            </t>
-                                        </div>
-                                        <div class="col-5">
-                                            <div style="position:relative; height:220px;">
-                                                <canvas t-ref="demandCanvas"/>
-                                                <div t-if="!state.data.demand.rows.length"
-                                                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
-                                                    <div class="text-center">
-                                                        <i class="fa fa-pie-chart fa-2x mb-2 d-block"/>
-                                                        <span class="small">Sin demanda en el mes.</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <t t-call="odoo_mrp_planner.ManagementCategTable">
+                                        <t t-set="rows" t-value="state.data.demand.rows"/>
+                                        <t t-set="withAmount" t-value="false"/>
+                                    </t>
                                 </div>
                             </div>
                         </div>
@@ -217,7 +201,7 @@
                                 <div class="card-body">
                                     <div class="o_planner_section_title mb-3 d-flex align-items-center">
                                         <i class="fa fa-industry me-2 text-muted"/>
-                                        <span class="text-uppercase fw-bold text-muted small">Producido por categoría</span>
+                                        <span class="text-uppercase fw-bold text-muted small">Producido por familia</span>
                                         <span class="ms-auto fw-bold" t-esc="fmt(state.data.produced.total_qty)"/>
                                     </div>
                                     <t t-set="di" t-value="delta(daily.produced)"/>
@@ -229,26 +213,10 @@
                                         <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
                                         <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-7">
-                                            <t t-call="odoo_mrp_planner.ManagementCategTable">
-                                                <t t-set="rows" t-value="state.data.produced.rows"/>
-                                                <t t-set="withAmount" t-value="false"/>
-                                            </t>
-                                        </div>
-                                        <div class="col-5">
-                                            <div style="position:relative; height:220px;">
-                                                <canvas t-ref="producedCanvas"/>
-                                                <div t-if="!state.data.produced.rows.length"
-                                                     class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-muted">
-                                                    <div class="text-center">
-                                                        <i class="fa fa-pie-chart fa-2x mb-2 d-block"/>
-                                                        <span class="small">Sin producción en el mes.</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <t t-call="odoo_mrp_planner.ManagementCategTable">
+                                        <t t-set="rows" t-value="state.data.produced.rows"/>
+                                        <t t-set="withAmount" t-value="false"/>
+                                    </t>
                                 </div>
                             </div>
                         </div>
@@ -259,7 +227,7 @@
                         <div class="card-body">
                             <div class="o_planner_section_title mb-3 d-flex align-items-center">
                                 <i class="fa fa-file-text-o me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Facturado por categoría</span>
+                                <span class="text-uppercase fw-bold text-muted small">Facturado por familia</span>
                                 <span class="ms-auto fw-bold">
                                     <t t-esc="fmt(state.data.invoiced.total_qty)"/> pz ·
                                     <t t-esc="money(state.data.invoiced.total_amount)"/>
@@ -272,32 +240,91 @@
                         </div>
                     </div>
 
+                    <!-- ════ MOVIMIENTOS por categoría de venta ════ -->
+                    <div class="card o_planner_card mb-3">
+                        <div class="card-body">
+                            <div class="o_planner_section_title mb-3">
+                                <i class="fa fa-truck me-2 text-muted"/>
+                                <span class="text-uppercase fw-bold text-muted small">Movimientos por categoría de venta</span>
+                            </div>
+                            <div class="row g-3">
+
+                                <!-- Despachos -->
+                                <div class="col-12 col-xl-4">
+                                    <div class="fw-semibold small mb-2">
+                                        <i class="fa fa-truck me-1 text-secondary"/>Despachos
+                                        <span class="text-muted">· <t t-esc="fmt(state.data.dispatch.qty)"/> pz</span>
+                                    </div>
+                                    <t t-if="state.data.dispatch.configured" t-call="odoo_mrp_planner.ManagementCategTable">
+                                        <t t-set="rows" t-value="state.data.dispatch.rows"/>
+                                        <t t-set="withAmount" t-value="false"/>
+                                        <t t-set="firstCol" t-value="'Cat. venta'"/>
+                                    </t>
+                                    <div t-else="" class="text-muted small">Configurá el tipo de operación en Ajustes → Gerencia.</div>
+                                </div>
+
+                                <!-- Embalajes -->
+                                <div class="col-12 col-xl-4">
+                                    <div class="fw-semibold small mb-2">
+                                        <i class="fa fa-archive me-1 text-info"/>Embalajes
+                                        <span class="text-muted">· <t t-esc="fmt(state.data.packing.qty)"/> pz · ahora</span>
+                                    </div>
+                                    <t t-if="state.data.packing.configured" t-call="odoo_mrp_planner.ManagementCategTable">
+                                        <t t-set="rows" t-value="state.data.packing.rows"/>
+                                        <t t-set="withAmount" t-value="false"/>
+                                        <t t-set="firstCol" t-value="'Cat. venta'"/>
+                                    </t>
+                                    <div t-else="" class="text-muted small">Configurá el tipo de operación en Ajustes → Gerencia.</div>
+                                </div>
+
+                                <!-- Pickings -->
+                                <div class="col-12 col-xl-4">
+                                    <div class="fw-semibold small mb-2">
+                                        <i class="fa fa-hand-paper-o me-1 text-info"/>Pickings
+                                        <span class="text-muted">· <t t-esc="fmt(state.data.picking.qty)"/> pz · ahora</span>
+                                    </div>
+                                    <t t-if="state.data.picking.configured" t-call="odoo_mrp_planner.ManagementCategTable">
+                                        <t t-set="rows" t-value="state.data.picking.rows"/>
+                                        <t t-set="withAmount" t-value="false"/>
+                                        <t t-set="firstCol" t-value="'Cat. venta'"/>
+                                    </t>
+                                    <div t-else="" class="text-muted small">Configurá el tipo de operación en Ajustes → Gerencia.</div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
                 </div><!-- /fade -->
             </t>
 
         </div>
     </t>
 
-    <!-- ════ Sub-template: tabla por categoría (con o sin columna de monto) ════ -->
+    <!-- ════ Sub-template: tabla por familia/categoría (con o sin monto) ════
+         Variables: rows, withAmount (bool), firstCol (encabezado 1ª columna). -->
     <t t-name="odoo_mrp_planner.ManagementCategTable">
-        <div t-if="!rows.length" class="text-center text-muted py-3 border rounded">
+        <div t-if="!rows.length" class="text-center text-muted py-4">
             <i class="fa fa-inbox me-1"/> Sin datos en el mes.
         </div>
-        <div t-if="rows.length" class="border rounded" style="max-height:300px; overflow-y:auto;">
-            <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:12px;">
-                <thead style="position:sticky; top:0; z-index:2;">
+        <div t-if="rows.length" style="max-height:320px; overflow-y:auto;">
+            <table class="table o_mgmt_table">
+                <thead>
                     <tr>
-                        <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Categoría</th>
-                        <th class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Piezas</th>
-                        <th t-if="withAmount" class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Monto</th>
+                        <th><t t-esc="firstCol or 'Familia'"/></th>
+                        <th class="text-end">Piezas</th>
+                        <th t-if="withAmount" class="text-end">Monto</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <t t-foreach="rows" t-as="r" t-key="r.categ_id">
+                    <t t-foreach="rows" t-as="r" t-key="r_index">
                         <tr>
-                            <td t-esc="r.name"/>
-                            <td class="text-end" t-esc="fmt(r.qty)"/>
-                            <td t-if="withAmount" class="text-end" t-esc="money(r.amount)"/>
+                            <td class="o_mgmt_famcell">
+                                <div class="o_mgmt_rowbar" t-attf-style="width:{{ barPct(r, rows, withAmount) }}%;"/>
+                                <span class="o_mgmt_famname" t-esc="r.name"/>
+                            </td>
+                            <td class="text-end o_mgmt_num" t-esc="fmt(r.qty)"/>
+                            <td t-if="withAmount" class="text-end o_mgmt_num" t-esc="money(r.amount)"/>
                         </tr>
                     </t>
                 </tbody>

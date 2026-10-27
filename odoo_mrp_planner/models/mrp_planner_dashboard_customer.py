@@ -1094,7 +1094,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         Resumen (el ABC del período y la frecuencia son poblacionales y ya vienen
         resueltos ahí, así que no se recalculan).
 
-        Hojas: Resumen · Evolución mensual · Mix familias · Top artículos · Pedidos.
+        Hojas: Resumen · Evolución mensual · Mix familias · Mix cat. venta ·
+        Top artículos · Pedidos.
 
         :param summary: dict | None — fila del cliente tal como la muestra la
             tabla (order_count, qty_ordered, total_amount, delivery_pct, …).
@@ -1224,7 +1225,30 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             pie.set_categories(cats)
             ws_fam.add_chart(pie, 'H2')
 
-        # ── Hoja 4: Top artículos ────────────────────────────────────────────
+        # ── Hoja 4: Mix cat. venta (+ torta por cantidad) ────────────────────
+        ws_sc = wb.create_sheet('Mix cat. venta')
+        sc_rows = detail.get('sale_category_mix', []) or []
+        _write_table(ws_sc, [
+            ('Cat. venta', 'name',       False),
+            ('Cantidad',   'qty',        True),
+            ('Monto',      'amount',     True),
+            ('% Cant',     'pct',        True),
+            ('% Monto',    'pct_amount', True),
+            ('SKUs',       'sku_count',  True),
+        ], sc_rows)
+        if sc_rows:
+            pie_sc = PieChart()
+            pie_sc.title = 'Mix categoría de venta (cantidad)'
+            pie_sc.height = 8
+            pie_sc.width = 12
+            n = len(sc_rows)
+            data = Reference(ws_sc, min_col=2, min_row=1, max_row=n + 1)
+            cats = Reference(ws_sc, min_col=1, min_row=2, max_row=n + 1)
+            pie_sc.add_data(data, titles_from_data=True)
+            pie_sc.set_categories(cats)
+            ws_sc.add_chart(pie_sc, 'H2')
+
+        # ── Hoja 5: Top artículos ────────────────────────────────────────────
         ws_top = wb.create_sheet('Top artículos')
         top_rows = []
         for p in (detail.get('top_products', []) or []):
@@ -1245,7 +1269,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             ('% Cumplim.',  'delivery_pct',         True),
         ], top_rows)
 
-        # ── Hoja 5: Pedidos ──────────────────────────────────────────────────
+        # ── Hoja 6: Pedidos ──────────────────────────────────────────────────
         ws_ped = wb.create_sheet('Pedidos')
         _write_table(ws_ped, [
             ('Pedido',           'name',          False),

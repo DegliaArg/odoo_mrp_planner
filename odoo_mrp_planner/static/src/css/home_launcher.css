@@ -1,0 +1,9 @@
+/* Tarjetas del mosaico de Inicio: realce sutil al pasar el mouse, coherente
+   con el resto de las o_planner_card del módulo. */
+.o_home_tile {
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.o_home_tile:hover {
+    box-shadow: 0 .4rem 1rem rgba(0, 0, 0, .12);
+    transform: translateY(-2px);
+}

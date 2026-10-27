@@ -63,6 +63,12 @@ class HomeLauncherWidget extends Component {
      * TypeError "Cannot read properties of undefined (reading 'map')".
      */
     async open(panel) {
+        // Panel con acción declarada por xml_id (p. ej. un act_window estándar):
+        // doAction la carga correctamente (con sus views) por sí solo.
+        if (panel.action) {
+            this.action.doAction(panel.action);
+            return;
+        }
         const action = await this.orm.call("mrp.planner.dashboard", panel.method, []);
         if (action && action.type === "ir.actions.act_window" && !action.views) {
             const mode = action.view_mode || "form";

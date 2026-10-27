@@ -55,11 +55,14 @@
                                     <t t-set="di" t-value="delta(daily.demand)"/>
                                     <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
                                         <span class="text-muted">Hoy: </span>
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                        <span class="fw-semibold" t-esc="fmt(di.today)"/>
+                                        <t t-if="di.dir !== 'flat'">
+                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':'fa-arrow-down text-danger')"/>
+                                            <span t-att-class="di.dir==='up' ? 'text-success' : 'text-danger'">
+                                                <t t-esc="(di.diff>=0?'+':'−') + fmt(di.absDiff)"/>
+                                            </span>
+                                            <span class="text-muted ms-1">vs ayer</span>
+                                        </t>
                                     </div>
                                 </div>
                             </div>
@@ -76,11 +79,14 @@
                                     <t t-set="di" t-value="delta(daily.produced)"/>
                                     <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
                                         <span class="text-muted">Hoy: </span>
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                        <span class="fw-semibold" t-esc="fmt(di.today)"/>
+                                        <t t-if="di.dir !== 'flat'">
+                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':'fa-arrow-down text-danger')"/>
+                                            <span t-att-class="di.dir==='up' ? 'text-success' : 'text-danger'">
+                                                <t t-esc="(di.diff>=0?'+':'−') + fmt(di.absDiff)"/>
+                                            </span>
+                                            <span class="text-muted ms-1">vs ayer</span>
+                                        </t>
                                     </div>
                                 </div>
                             </div>
@@ -97,11 +103,14 @@
                                     <t t-set="di" t-value="delta(daily.invoiced_qty)"/>
                                     <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
                                         <span class="text-muted">Hoy: </span>
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                        <span class="fw-semibold" t-esc="fmt(di.today)"/>
+                                        <t t-if="di.dir !== 'flat'">
+                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':'fa-arrow-down text-danger')"/>
+                                            <span t-att-class="di.dir==='up' ? 'text-success' : 'text-danger'">
+                                                <t t-esc="(di.diff>=0?'+':'−') + fmt(di.absDiff)"/>
+                                            </span>
+                                            <span class="text-muted ms-1">vs ayer</span>
+                                        </t>
                                     </div>
                                 </div>
                             </div>
@@ -118,11 +127,14 @@
                                     <t t-set="di" t-value="delta(daily.invoiced_amount)"/>
                                     <div t-if="hasDaily and di.show" class="mt-1" style="font-size:10px;">
                                         <span class="text-muted">Hoy: </span>
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + money(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
+                                        <span class="fw-semibold" t-esc="money(di.today)"/>
+                                        <t t-if="di.dir !== 'flat'">
+                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':'fa-arrow-down text-danger')"/>
+                                            <span t-att-class="di.dir==='up' ? 'text-success' : 'text-danger'">
+                                                <t t-esc="(di.diff>=0?'+':'−') + money(di.absDiff)"/>
+                                            </span>
+                                            <span class="text-muted ms-1">vs ayer</span>
+                                        </t>
                                     </div>
                                 </div>
                             </div>
@@ -143,61 +155,18 @@
                                         <t t-set="di" t-value="delta(daily.dispatch)"/>
                                         <div t-if="hasDaily and di.show" style="font-size:10px;">
                                             <span class="text-muted">Hoy: </span>
-                                            <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                                <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                            </span>
-                                            <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                            <span t-if="di.pct !== null" class="text-muted ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>%)</span>
+                                            <span class="fw-semibold" t-esc="fmt(di.today)"/>
+                                            <t t-if="di.dir !== 'flat'">
+                                                <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':'fa-arrow-down text-danger')"/>
+                                                <span t-att-class="di.dir==='up' ? 'text-success' : 'text-danger'">
+                                                    <t t-esc="(di.diff>=0?'+':'−') + fmt(di.absDiff)"/>
+                                                </span>
+                                                <span class="text-muted ms-1">vs ayer</span>
+                                            </t>
                                         </div>
                                     </t>
                                     <t t-else="">
                                         <div class="o_planner_label">Despachos</div>
-                                        <div class="text-muted small mt-1" style="font-size:10px;">
-                                            Configurá el tipo de operación en Ajustes → Gerencia.
-                                        </div>
-                                    </t>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Embalajes (foto del pendiente actual) -->
-                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
-                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                 title="Piezas pendientes de embalar AHORA: transferencias en estado Listo/Asignado de los tipos configurados. Es una foto del momento, no un acumulado del mes.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <i class="fa fa-archive fa-lg text-info mb-1 d-block"/>
-                                    <t t-if="state.data.packing.configured">
-                                        <div class="o_planner_number" t-esc="fmt(state.data.packing.qty)"/>
-                                        <div class="o_planner_label">Embalajes</div>
-                                        <div class="text-muted mt-1" style="font-size:10px;">
-                                            <t t-esc="state.data.packing.pickings"/> transferencia(s) · ahora
-                                        </div>
-                                    </t>
-                                    <t t-else="">
-                                        <div class="o_planner_label">Embalajes</div>
-                                        <div class="text-muted small mt-1" style="font-size:10px;">
-                                            Configurá el tipo de operación en Ajustes → Gerencia.
-                                        </div>
-                                    </t>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Picking (foto del pendiente actual) -->
-                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
-                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                 title="Piezas pendientes de pickear AHORA: transferencias en estado Listo/Asignado de los tipos configurados. Es una foto del momento, no un acumulado del mes.">
-                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                                    <i class="fa fa-hand-paper-o fa-lg text-info mb-1 d-block"/>
-                                    <t t-if="state.data.picking.configured">
-                                        <div class="o_planner_number" t-esc="fmt(state.data.picking.qty)"/>
-                                        <div class="o_planner_label">Pickings</div>
-                                        <div class="text-muted mt-1" style="font-size:10px;">
-                                            <t t-esc="state.data.picking.pickings"/> transferencia(s) · ahora
-                                        </div>
-                                    </t>
-                                    <t t-else="">
-                                        <div class="o_planner_label">Picking</div>
                                         <div class="text-muted small mt-1" style="font-size:10px;">
                                             Configurá el tipo de operación en Ajustes → Gerencia.
                                         </div>
@@ -220,15 +189,6 @@
                                         <span class="text-uppercase fw-bold text-muted small">Demanda por familia</span>
                                         <span class="ms-auto fw-bold" t-esc="fmt(state.data.demand.total_qty)"/>
                                     </div>
-                                    <t t-set="di" t-value="delta(daily.demand)"/>
-                                    <div t-if="hasDaily and di.show" class="text-muted small mb-2" style="font-size:11px;">
-                                        Hoy:
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
-                                    </div>
                                     <t t-call="odoo_mrp_planner.ManagementCategTable">
                                         <t t-set="rows" t-value="state.data.demand.rows"/>
                                         <t t-set="withAmount" t-value="false"/>
@@ -245,15 +205,6 @@
                                         <i class="fa fa-industry me-2 text-muted"/>
                                         <span class="text-uppercase fw-bold text-muted small">Producido por familia</span>
                                         <span class="ms-auto fw-bold" t-esc="fmt(state.data.produced.total_qty)"/>
-                                    </div>
-                                    <t t-set="di" t-value="delta(daily.produced)"/>
-                                    <div t-if="hasDaily and di.show" class="text-muted small mb-2" style="font-size:11px;">
-                                        Hoy:
-                                        <span t-att-class="di.dir==='down' ? 'text-danger' : 'text-success'">
-                                            <t t-esc="(di.today >= 0 ? '+' : '') + fmt(di.today)"/>
-                                        </span>
-                                        <i t-att-class="'fa ms-1 ' + (di.dir==='up'?'fa-arrow-up text-success':(di.dir==='down'?'fa-arrow-down text-danger':'fa-minus text-muted'))"/>
-                                        <span t-if="di.pct !== null" class="ms-1">(<t t-esc="(di.pct>=0?'+':'')+di.pct"/>% vs ayer)</span>
                                     </div>
                                     <t t-call="odoo_mrp_planner.ManagementCategTable">
                                         <t t-set="rows" t-value="state.data.produced.rows"/>

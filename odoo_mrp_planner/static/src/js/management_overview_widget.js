@@ -112,16 +112,22 @@ class ManagementOverviewWidget extends Component {
     }
 
     /**
-     * Describe la variación de hoy vs ayer para un indicador acumulable.
+     * Variación de hoy vs ayer para un indicador acumulable, en términos
+     * LINEALES (hoy − ayer), sin porcentuales.
      * @param {{today:number, yesterday:number}} d
-     * @returns {{show:boolean, today:number, dir:string, pct:(number|null)}}
+     * @returns {{show:boolean, today:number, diff:number, absDiff:number, dir:string}}
      */
     delta(d) {
         if (!d) return { show: false };
         const today = d.today || 0, yest = d.yesterday || 0;
-        const dir = today > yest ? "up" : (today < yest ? "down" : "flat");
-        const pct = yest > 0 ? Math.round((today - yest) / yest * 100) : null;
-        return { show: true, today, dir, pct };
+        const diff = today - yest;
+        return {
+            show: true,
+            today,
+            diff,
+            absDiff: Math.abs(diff),
+            dir: diff > 0 ? "up" : (diff < 0 ? "down" : "flat"),
+        };
     }
 
     get daily() { return this.state.data?.daily || {}; }

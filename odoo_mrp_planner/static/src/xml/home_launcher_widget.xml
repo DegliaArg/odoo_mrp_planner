@@ -39,7 +39,7 @@
                         <span class="text-uppercase fw-bold text-muted small" t-esc="sec.name"/>
                     </div>
                     <div class="row g-3">
-                        <t t-foreach="sec.panels" t-as="p" t-key="p.method">
+                        <t t-foreach="sec.panels" t-as="p" t-key="p.name">
                             <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
                                 <div class="card o_planner_card h-100 o_home_tile"
                                      style="cursor:pointer;"

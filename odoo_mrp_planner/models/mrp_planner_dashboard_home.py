@@ -94,6 +94,16 @@ class MrpPlannerDashboardHome(models.TransientModel):
                 'desc': 'Cumplimiento, lead time, ABC y segmentos',
                 'icon': 'fa-users', 'method': 'action_open_customer_analysis',
             })
+            panels.append({
+                'section': 'Ventas', 'name': 'Análisis demanda insatisfecha',
+                'desc': 'Pedidos pendientes de entrega y su antigüedad',
+                'icon': 'fa-exclamation-circle', 'method': 'action_open_unmet_demand',
+            })
+            panels.append({
+                'section': 'Ventas', 'name': 'Líneas de forecast',
+                'desc': 'Carga y edición del forecast mensual de ventas',
+                'icon': 'fa-table', 'action': 'odoo_mrp_planner.action_mrp_forecast_line',
+            })
         if can('odoo_mrp_planner.group_inventory_read', 'odoo_mrp_planner.group_inventory_admin'):
             panels.append({
                 'section': 'Inventario', 'name': 'Panel de inventario',

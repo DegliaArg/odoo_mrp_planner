@@ -2,7 +2,7 @@
 
 /**
  * @widget ManagementOverviewWidget
- * @description Panel de Gerencia (Resumen de dirección). Consolida en una sola
+ * @description Panel de Gerencia (Resumen diario). Consolida en una sola
  * vista los indicadores que el CEO recibe a diario por mail, para el mes
  * seleccionado (por defecto, el mes en curso):
  *   - Facturado del mes (piezas + monto) con variación diaria.

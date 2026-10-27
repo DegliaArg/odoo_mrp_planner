@@ -57,7 +57,7 @@ class MrpPlannerDashboardHome(models.TransientModel):
         panels = []
         if can('odoo_mrp_planner.group_management_read', 'odoo_mrp_planner.group_management'):
             panels.append({
-                'section': 'Gerencia', 'name': 'Resumen de dirección',
+                'section': 'Gerencia', 'name': 'Resumen diario',
                 'desc': 'Demanda, facturado, despachos y producción del mes',
                 'icon': 'fa-briefcase', 'method': 'action_open_gerencia',
             })

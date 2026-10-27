@@ -4,7 +4,7 @@
 Módulo: mrp_reschedule_config_management.py
 Modelo: extensión de mrp.reschedule.config
 
-Campos de configuración de la sección Gerencia (Resumen de dirección): qué
+Campos de configuración de la sección Gerencia (Resumen diario): qué
 tipos de operación (stock.picking.type) alimentan cada indicador de movimiento
 del panel. Son IDs específicos de cada base, por eso se configuran acá en vez
 de hardcodearlos.
@@ -25,7 +25,7 @@ class MrpRescheduleConfigManagement(models.Model):
         'mrp_resched_cfg_mgmt_dispatch_rel', 'config_id', 'picking_type_id',
         string='Despachos — Tipos de operación',
         help='Tipos de operación que se cuentan como DESPACHOS del mes en el '
-             'Resumen de dirección (transferencias validadas / estado Hecho). '
+             'Resumen diario (transferencias validadas / estado Hecho). '
              'La cantidad se mide en piezas movidas.',
     )
     management_packing_picking_type_ids = fields.Many2many(
@@ -33,7 +33,7 @@ class MrpRescheduleConfigManagement(models.Model):
         'mrp_resched_cfg_mgmt_packing_rel', 'config_id', 'picking_type_id',
         string='Embalajes — Tipos de operación',
         help='Tipos de operación que se cuentan como EMBALAJES pendientes en el '
-             'Resumen de dirección (transferencias en estado Listo/Asignado). '
+             'Resumen diario (transferencias en estado Listo/Asignado). '
              'Es una foto del pendiente actual: muestra las piezas listas para embalar ahora.',
     )
     management_picking_picking_type_ids = fields.Many2many(
@@ -41,6 +41,6 @@ class MrpRescheduleConfigManagement(models.Model):
         'mrp_resched_cfg_mgmt_picking_rel', 'config_id', 'picking_type_id',
         string='Picking — Tipos de operación',
         help='Tipos de operación que se cuentan como PICKING pendiente en el '
-             'Resumen de dirección (transferencias en estado Listo/Asignado). '
+             'Resumen diario (transferencias en estado Listo/Asignado). '
              'Es una foto del pendiente actual: muestra las piezas listas para pickear ahora.',
     )

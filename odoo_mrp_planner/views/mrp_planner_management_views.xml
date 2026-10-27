@@ -2,10 +2,10 @@
 <odoo>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         ACCIÓN SERVIDOR — Gerencia (Resumen de dirección)
+         ACCIÓN SERVIDOR — Gerencia (Resumen diario)
     ════════════════════════════════════════════════════════════════════ -->
     <record id="action_mrp_planner_gerencia_open" model="ir.actions.server">
-        <field name="name">Resumen de dirección</field>
+        <field name="name">Resumen diario</field>
         <field name="model_id" ref="model_mrp_planner_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_gerencia()</field>
@@ -26,7 +26,7 @@
                         <!-- Encabezado -->
                         <div class="row align-items-center mb-4 pb-3 o_planner_header">
                             <div class="col">
-                                <h4 class="mb-0 fw-bold">Resumen de dirección</h4>
+                                <h4 class="mb-0 fw-bold">Resumen diario</h4>
                             </div>
                             <div class="col-auto d-flex gap-2 align-items-center">
                                 <widget name="refresh_stamp"/>
@@ -55,7 +55,7 @@
               groups="odoo_mrp_planner.group_management_read,odoo_mrp_planner.group_management,odoo_mrp_planner.group_admin,base.group_system"/>
 
     <menuitem id="mrp_gerencia_panel_menu"
-              name="Resumen de dirección"
+              name="Resumen diario"
               parent="mrp_gerencia_menu"
               sequence="1"
               action="action_mrp_planner_gerencia_open"
@@ -76,7 +76,7 @@
                       groups="odoo_mrp_planner.group_management,odoo_mrp_planner.group_admin,base.group_system">
                     <div class="row">
                         <div class="col-7">
-                            <group string="Tipos de operación del Resumen de dirección">
+                            <group string="Tipos de operación del Resumen diario">
                                 <div class="text-muted small mb-2">
                                     Elegí qué tipos de operación alimentan cada indicador de
                                     movimiento del panel de Gerencia. Son propios de esta base,

@@ -4,7 +4,7 @@
 Módulo: mrp_planner_dashboard_management.py
 Modelo: extensión de mrp.planner.dashboard
 
-Backend del panel de Gerencia (Resumen de dirección): consolida en una sola
+Backend del panel de Gerencia (Resumen diario): consolida en una sola
 consulta los indicadores que el CEO recibe a diario por mail, calculados en
 vivo para el mes seleccionado (por defecto, el mes en curso):
 
@@ -50,11 +50,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     @api.model
     def action_open_gerencia(self):
-        """Abre el panel de Gerencia (Resumen de dirección)."""
+        """Abre el panel de Gerencia (Resumen diario)."""
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Resumen de Dirección'),
+            'name': _('Resumen diario'),
             'res_model': 'mrp.planner.dashboard',
             'res_id': rec.id,
             'view_mode': 'form',
@@ -277,7 +277,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     @api.model
     def get_management_overview(self, month=None):
-        """Consolida todos los indicadores del Resumen de dirección para un mes.
+        """Consolida todos los indicadores del Resumen diario para un mes.
 
         :param month: str 'YYYY-MM'. None ⇒ mes en curso.
         :returns: dict con demand/invoiced/produced (rows por categoría + total)

@@ -80,7 +80,7 @@
     <record id="group_management_read" model="res.groups">
         <field name="name">Gerencia - Lectura</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
-        <field name="comment">Ve el Resumen de dirección: demanda, facturación, despachos, embalajes, picking y producción del mes. No puede modificar configuraciones.</field>
+        <field name="comment">Ve el Resumen diario: demanda, facturación, despachos, embalajes, picking y producción del mes. No puede modificar configuraciones.</field>
         <field name="users" eval="[]"/>
     </record>
 
@@ -88,7 +88,7 @@
     <record id="group_management" model="res.groups">
         <field name="name">Gerencia - Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
-        <field name="comment">Ve el Resumen de dirección y configura los tipos de operación (despachos, embalajes, picking) que alimentan sus indicadores.</field>
+        <field name="comment">Ve el Resumen diario y configura los tipos de operación (despachos, embalajes, picking) que alimentan sus indicadores.</field>
         <field name="users" eval="[]"/>
         <field name="implied_ids" eval="[(4, ref('group_management_read'))]"/>
     </record>

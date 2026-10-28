@@ -30,17 +30,33 @@ class MrpPlannerDashboard(models.TransientModel):
         :param amount_method: 'pxq' | 'real' | None — valorización del monto
             (override del toggle del panel). None usa el método de Ajustes.
         :returns: dict {'row': dict|None, 'detail': dict, 'config': dict}.
+
+        Unificación de sucursales: con "Unificar clientes por CUIT" activo en
+        Ajustes, el panel muestra el cliente UNIFICADO (casa matriz + todas sus
+        sucursales/razones sociales del mismo CUIT), igual que el Análisis de
+        clientes. Para lograrlo se reconstruye el grupo de contactos que comparten
+        el CUIT del contacto de la oportunidad y se pasa como ``partner_ids`` a
+        los métodos base, que ya saben fusionar y subir el nombre a la matriz.
         """
         if not partner_id:
             return {'row': None, 'detail': {}, 'config': {}}
         partner_id = int(partner_id)
         override = amount_method if amount_method in ('pxq', 'real') else None
 
-        # partner_ids acota el cálculo pesado a este cliente (rápido); el ABC que
+        # Con unificación por CUIT activa, el cálculo se acota al GRUPO de
+        # sucursales (no solo al contacto), para que la fusión de la fila se dé
+        # igual que en el análisis. Sin unificación, al contacto puntual.
+        try:
+            unify = bool(self._ca_config().get('unify_by_vat'))
+        except Exception:
+            unify = False
+        group_ids = self._ca_unify_group_ids(partner_id) if unify else [partner_id]
+
+        # partner_ids acota el cálculo pesado a este grupo (rápido); el ABC que
         # devuelve ya es el poblacional real (se recalcula aparte en el método).
         data = self.get_customer_analysis_data(
             date_from, date_to, None,
-            amount_method_override=override, partner_ids=[partner_id])
+            amount_method_override=override, partner_ids=group_ids)
         if not isinstance(data, dict):
             data = {}
         rows = data.get('rows', []) or []
@@ -51,8 +67,14 @@ class MrpPlannerDashboard(models.TransientModel):
             None,
         )
 
+        # Detalle sobre el grupo completo y con el contacto REPRESENTATIVO (la
+        # casa matriz que eligió la fusión), para que el título y los agregados
+        # del panel reflejen al cliente unificado y no a la sucursal puntual.
+        detail_pid = row.get('partner_id') if row else partner_id
+        detail_group = (row.get('partner_ids') if row else None) or group_ids
         detail = self.get_customer_detail(
-            partner_id, date_from, date_to, amount_method_override=override)
+            detail_pid, date_from, date_to,
+            partner_ids=detail_group, amount_method_override=override)
 
         return {
             'row': row,

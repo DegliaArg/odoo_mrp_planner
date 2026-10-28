@@ -47,6 +47,31 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'backlog_age_method': cfg.unmet_backlog_age_method or 'weighted',
         }
 
+    @api.model
+    def _ca_unify_group_ids(self, partner_id):
+        """IDs de todos los contactos que comparten el CUIT del ``partner_id``
+        (incluido él mismo), con la MISMA normalización por dígitos que usa la
+        unificación por CUIT del Análisis de clientes.
+
+        Permite que un consumidor acotado a un cliente (p. ej. el panel de la
+        oportunidad de CRM) reconstruya el grupo de sucursales/razones sociales
+        y lo pase como ``partner_ids`` a los métodos de análisis, para que la
+        fusión "igual que en el análisis" también se dé ahí. Sin CUIT devuelve
+        solo ``[partner_id]`` (los contactos sin CUIT nunca se unifican).
+        """
+        partner_id = int(partner_id)
+        # sudo(): solo se leen ids+vat para reconstruir el grupo; el acceso real
+        # a los datos lo revalidan get_customer_analysis_data/get_customer_detail.
+        raw = self.env['res.partner'].sudo().browse(partner_id).vat or ''
+        digits = ''.join(c for c in raw if c.isdigit())
+        if not digits:
+            return [partner_id]
+        candidates = self.env['res.partner'].sudo().search_read(
+            [('vat', '!=', False)], ['id', 'vat'])
+        ids = [c['id'] for c in candidates
+               if ''.join(ch for ch in (c['vat'] or '') if ch.isdigit()) == digits]
+        return ids or [partner_id]
+
     @staticmethod
     def _to_date(val):
         if val is None:

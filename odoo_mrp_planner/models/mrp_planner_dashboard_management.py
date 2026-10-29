@@ -12,7 +12,8 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
 - Facturado del mes: piezas y monto, total y por categoría (facturas de cliente).
 - Despachos del mes: piezas de transferencias validadas (estado Hecho).
 - Embalajes / Picking: piezas pendientes AHORA (foto del estado Listo/Asignado).
-- Producido del mes por categoría de producto (OFs terminadas).
+- Producido del mes por categoría de producto (OFs según la config de estados
+  y modo de fecha de la Comparativa Producido vs. Programado).
 
 Variación diaria: en los 4 indicadores acumulables (demanda, facturado,
 despachos, producido) se devuelve además lo aportado hoy y ayer para mostrar
@@ -222,14 +223,38 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 amt_pairs[pid] += (g['price_subtotal'] or 0.0) * sign
         return self._mgmt_agg_by_categ(list(qty_pairs.items()), list(amt_pairs.items()))
 
-    # ── Producido (OFs terminadas) ───────────────────────────────────────────
+    # ── Producido (OFs según config de la Comparativa) ───────────────────────
+
+    def _mgmt_produced_states(self):
+        """Estados de OF a incluir en el producido, espejando la Comparativa
+        Producido vs. Programado (mrp.reschedule.config). Misma lógica y mismo
+        fallback que get_comparison_data para que ambos paneles coincidan."""
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        states = []
+        if cfg:
+            if cfg.forecast_mo_state_draft:     states.append('draft')
+            if cfg.forecast_mo_state_confirmed: states.append('confirmed')
+            if cfg.forecast_mo_state_progress:  states.append('progress')
+            if cfg.forecast_mo_state_to_close:  states.append('to_close')
+            if cfg.forecast_mo_state_done:      states.append('done')
+        return states or ['confirmed', 'progress', 'to_close']
 
     def _mgmt_produced_domain(self, dt_from, dt_to, company, allowed_ids, prod_wh_ids):
-        """Dominio común de OFs terminadas del rango para el indicador de
-        producido, con el filtro de depósito del usuario y el configurable."""
-        dom = ([('state', '=', 'done'),
-                ('date_finished', '>=', dt_from),
-                ('date_finished', '<=', dt_to),
+        """Dominio común de OFs del rango para el indicador de producido.
+
+        Espeja la Comparativa Producido vs. Programado: usa los mismos estados
+        configurados (mrp.reschedule.config) y el mismo campo de fecha según
+        ``comparison_date_mode`` (fecha de cierre / fecha de inicio). En los
+        modos de solapamiento/proporcional se aproxima por fecha de cierre
+        (el producido proporcional desde movimientos de stock no se replica en
+        el resumen diario). Incluye el filtro de depósito del usuario y el
+        configurable."""
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        mode = (cfg.comparison_date_mode if cfg else None) or 'finish_date'
+        date_field = 'date_start' if mode == 'start_date' else 'date_finished'
+        dom = ([('state', 'in', self._mgmt_produced_states()),
+                (date_field, '>=', dt_from),
+                (date_field, '<=', dt_to),
                 ('company_id', 'in', company.ids)]
                + no_subcontract_domain(self.env))
         if allowed_ids is not None:
@@ -239,7 +264,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         return dom
 
     def _mgmt_produced_qty(self, dt_from, dt_to, company, allowed_ids, prod_wh_ids=None):
-        """Σ cantidad producida (OFs terminadas) en el rango."""
+        """Σ cantidad producida (OFs según config de la Comparativa) en el rango."""
         dom = self._mgmt_produced_domain(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
         mos = self.env['mrp.production'].sudo().search(dom)
         return sum(mos.mapped('qty_produced'))

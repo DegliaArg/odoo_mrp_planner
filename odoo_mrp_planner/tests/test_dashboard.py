@@ -10,8 +10,14 @@ Cobertura:
   y no mezcla OFs de depósitos distintos.
 - test_mo_stats_no_full_load: _compute_mo_stats produce contadores coherentes
   (mo_in_progress + otros <= mo_total) con cinco OFs en distintos estados.
+- test_delivery_rate_ignores_operation_type_filter: la "Tasa de entrega s/
+  disponible" es de la cadena completa y no se vacía al filtrar por un tipo de
+  operación que no sea la salida final (outgoing).
+- test_picking_types_selector_excludes_archived: el selector de Tipo de
+  operación ofrece solo tipos activos, aunque el cálculo del universo siga
+  incluyendo los archivados (remitos históricos).
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from odoo.tests import tagged, TransactionCase
 from odoo.exceptions import AccessError
@@ -387,3 +393,119 @@ class TestMrpPlannerDashboard(TransactionCase):
         dash = self._new_dashboard()
         with self.assertRaises(AccessError):
             dash.with_user(user_no_perms).action_refresh_compras()
+
+    # ── Test 6: la tasa de entrega ignora el filtro de tipo de operación ───────
+
+    def test_delivery_rate_ignores_operation_type_filter(self):
+        """
+        Regresión (Panel de Inventario): la "Tasa de entrega s/ disponible" es
+        un indicador de la CADENA de despacho completa (recolección → … →
+        salida outgoing). No debe vaciarse al poner el filtro de Tipo de
+        operación en un eslabón que no sea la salida final.
+
+        Escenario:
+        - Se habilita el registro de disponibilidad (snapshots).
+        - Se crea UNA salida a cliente validada en el mes en curso (numerador).
+        - Se pide la evolución filtrando por un tipo INTERNO (no-outgoing).
+        - Antes del fix el numerador quedaba en 0 (intersección vacía) y la
+          tasa en 0%/None; ahora la tasa se calcula sobre la cadena completa
+          del depósito y sigue siendo > 0.
+        """
+        company = self.env.company
+        self.env.user.write({"mrp_planner_all_warehouses": True})
+
+        cfg = self.env["mrp.reschedule.config"].sudo().get_config()
+        cfg.dispatch_stock_log_enabled = True
+
+        wh = self.warehouse
+        out_type = wh.out_type_id
+        self.assertTrue(out_type, "El depósito del test debe tener tipo de salida")
+
+        # Salida a cliente validada dentro del mes en curso (día 15 para caer
+        # cómodamente dentro del mes en cualquier huso horario).
+        today = date.today()
+        move_dt = datetime(today.year, today.month, 15, 12, 0, 0)
+        picking = self.env["stock.picking"].create({
+            "picking_type_id": out_type.id,
+            "location_id": out_type.default_location_src_id.id,
+            "location_dest_id": out_type.default_location_dest_id.id,
+            "company_id": company.id,
+        })
+        move = self.env["stock.move"].create({
+            "name": self.product.name,
+            "product_id": self.product.id,
+            "product_uom_qty": 5.0,
+            "product_uom": self.product.uom_id.id,
+            "picking_id": picking.id,
+            "location_id": picking.location_id.id,
+            "location_dest_id": picking.location_dest_id.id,
+            "company_id": company.id,
+        })
+        # Se fuerza el estado validado con write() para no depender del flujo.
+        move.write({"state": "done", "quantity": 5.0})
+        picking.write({"state": "done", "date_done": move_dt})
+
+        # Un tipo de operación NO-outgoing del mismo depósito (eslabón interno).
+        internal_type = wh.int_type_id
+        self.assertTrue(internal_type, "El depósito debe tener tipo interno")
+
+        dash = self._new_dashboard()
+        first = today.replace(day=1).strftime("%Y-%m-%d")
+        last = today.strftime("%Y-%m-%d")
+
+        data = dash.get_inventory_dashboard_data(
+            first, last, warehouse_ids=[wh.id],
+            picking_type_ids=[internal_type.id])
+        ym = today.strftime("%Y-%m")
+        month = next((m for m in data["trend"] if m["ym"] == ym), None)
+        self.assertIsNotNone(month, "El mes en curso debe estar en la evolución")
+        self.assertGreater(
+            month["num"], 0,
+            "La salida validada debe contar en el numerador pese al filtro")
+        self.assertIsNotNone(
+            month["rate"],
+            "La tasa no debe ser None con una salida validada")
+        self.assertGreater(
+            month["rate"], 0,
+            "La tasa no debe quedar en 0% por el filtro de tipo de operación")
+
+    # ── Test 7: el selector de tipos de operación excluye archivados ───────────
+
+    def test_picking_types_selector_excludes_archived(self):
+        """
+        Regresión (Panel de Inventario): el selector "Tipo de operación" debe
+        ofrecer solo tipos ACTIVOS. El cálculo del universo sigue incluyendo
+        los archivados (los remitos históricos los referencian), pero no deben
+        aparecer como opción de filtro manual.
+        """
+        company = self.env.company
+        self.env.user.write({"mrp_planner_all_warehouses": True})
+        wh = self.warehouse
+
+        archived = self.env["stock.picking.type"].create({
+            "name": "Tipo Archivado Test",
+            "code": "internal",
+            "sequence_code": "ARCHTST",
+            "warehouse_id": wh.id,
+            "company_id": company.id,
+        })
+        archived.active = False
+
+        dash = self._new_dashboard()
+
+        # El universo (cálculo) sí incluye el archivado (active_test=False).
+        _ids, info = dash._inventory_universe_types(company, [wh.id])
+        self.assertIn(
+            archived.id, info,
+            "El universo de cálculo debe seguir incluyendo tipos archivados")
+
+        # El selector NO debe ofrecerlo; sí los tipos activos del depósito.
+        selector_ids = {d["id"]
+                        for d in dash.get_inventory_picking_types(
+                            warehouse_ids=[wh.id])}
+        self.assertNotIn(
+            archived.id, selector_ids,
+            "El selector no debe ofrecer tipos archivados")
+        self.assertIn(
+            wh.int_type_id.id, selector_ids,
+            "Los tipos activos del depósito deben seguir en el selector")

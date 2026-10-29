@@ -155,8 +155,11 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def get_inventory_picking_types(self, warehouse_ids=None):
-        """Tipos de operación para los filtros del panel: TODOS los del
-        universo (entradas, internas y salidas de los depósitos visibles).
+        """Tipos de operación para los filtros del panel: los del universo
+        (entradas, internas y salidas de los depósitos visibles) que sigan
+        ACTIVOS. El universo incluye tipos archivados para no perder remitos
+        históricos en el cálculo (ver _inventory_universe_types), pero el
+        selector no debe ofrecer tipos ya archivados como opción de filtro.
 
         :returns: list[dict] — {'id', 'name'} ordenados por nombre.
         """
@@ -164,7 +167,11 @@ class MrpPlannerDashboard(models.TransientModel):
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
         _ids, info = self._inventory_universe_types(
             self.env.company, warehouse_ids or None)
-        return sorted(({'id': t, 'name': i[3]} for t, i in info.items()),
+        # active_test=True por defecto: deja fuera los tipos archivados.
+        active_ids = set(self.env['stock.picking.type'].sudo()
+                         .search([('id', 'in', list(info))]).ids)
+        return sorted(({'id': t, 'name': i[3]}
+                       for t, i in info.items() if t in active_ids),
                       key=lambda d: d['name'])
 
     @api.model
@@ -188,9 +195,11 @@ class MrpPlannerDashboard(models.TransientModel):
         respetan "Forzar cantidades enteras" de Ajustes.
 
         :param picking_type_ids: filtro opcional de tipos de operación de la
-            cadena. Con filtro activo, los meses de la tasa se calculan en
-            vivo desde los snapshots crudos (el consolidado mensual no guarda
-            el tipo de operación).
+            cadena. Aplica al pendiente por depósito (composición actual), pero
+            NO a la tasa/evolución: la tasa es un indicador de la cadena de
+            despacho completa (recolección → … → salida outgoing) y filtrarla
+            por un eslabón intermedio la dejaría en 0%. La tasa respeta solo el
+            depósito.
         """
         self._inventory_ensure_group()
         warehouse_ids = self._inventory_effective_whs(warehouse_ids)
@@ -238,8 +247,9 @@ class MrpPlannerDashboard(models.TransientModel):
                 by_wh[wh_key][1] += qty - avail
 
         # ── Evolución mensual de la tasa s/ disponible ────────────────────────
-        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg,
-                                           picking_type_ids=picking_type_ids) \
+        # La tasa NO toma el filtro de tipo de operación (ver docstring): es un
+        # indicador de la cadena completa y solo respeta el depósito.
+        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg) \
             if log_enabled else []
 
         # Cantidades en piezas con el redondeo configurado (las tasas no).
@@ -257,13 +267,12 @@ class MrpPlannerDashboard(models.TransientModel):
         }
 
     @api.model
-    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None,
-                              picking_type_ids=None):
+    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None):
         """Tasa s/ disponible por mes del rango: consolidado si el mes está
         cerrado en mrp.planner.kpi.monthly, cálculo vivo desde los snapshots
-        si no. Con filtro de tipos de operación, TODOS los meses se calculan
-        en vivo (el consolidado no guarda el tipo): los meses cuyos snapshots
-        ya se purgaron quedan sin datos. Meses sin datos quedan con num/den 0
+        si no. Es un indicador de la cadena de despacho completa: respeta el
+        depósito pero NO el tipo de operación (filtrar por un eslabón
+        intermedio dejaría la tasa en 0%). Meses sin datos quedan con num/den 0
         y rate None. Las cantidades num/den_extra respetan el redondeo
         configurado; la tasa no."""
         Log = self.env['mrp.dispatch.stock.log'].sudo()
@@ -282,7 +291,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 ('company_id', '=', company.id),
                 ('period', '=', month_start),
             ]
-            has_marker = not picking_type_ids and Monthly.search_count(
+            has_marker = Monthly.search_count(
                 base_dom + [('product_id', '=', False), ('warehouse_id', '=', False)])
             if has_marker:
                 if warehouse_ids:
@@ -299,8 +308,7 @@ class MrpPlannerDashboard(models.TransientModel):
                 source = 'monthly'
             else:
                 num, den_extra = self._inventory_rate_live_month(
-                    company, month_start, warehouse_ids, Log,
-                    picking_type_ids=picking_type_ids)
+                    company, month_start, warehouse_ids, Log)
                 source = 'live'
             total = num + den_extra
             trend.append({
@@ -313,15 +321,13 @@ class MrpPlannerDashboard(models.TransientModel):
         return trend
 
     @api.model
-    def _inventory_rate_live_month(self, company, month_start, warehouse_ids, Log,
-                                   picking_type_ids=None):
+    def _inventory_rate_live_month(self, company, month_start, warehouse_ids, Log):
         """Numerador y denominador extra de un mes NO consolidado, desde los
         snapshots crudos. Delegado al mismo helper que usa el cierre mensual
         (_dispatch_month_figures: deduplicación por cadena, exclusión de lo
         entregado hasta fin de mes) para que en vivo y congelado den igual."""
         num, den = Log._dispatch_month_figures(
-            company, month_start, warehouse_ids=warehouse_ids or None,
-            picking_type_ids=picking_type_ids or None)
+            company, month_start, warehouse_ids=warehouse_ids or None)
         return sum(num.values()), sum(den.values())
 
     # ── Llamada 2: tabla operativa ────────────────────────────────────────────
@@ -373,10 +379,10 @@ class MrpPlannerDashboard(models.TransientModel):
 
         # La tasa (única métrica que necesita snapshots/consolidado) viaja
         # como period_kpis; los validados ahora son filas de la tabla y sus
-        # KPIs se calculan en el cliente.
+        # KPIs se calculan en el cliente. La tasa es de cadena completa: NO
+        # toma el filtro de tipo de operación (solo el depósito).
         period = self._inventory_period_kpis(company, cfg, warehouse_ids,
-                                             date_from, date_to,
-                                             picking_type_ids=picking_type_ids)
+                                             date_from, date_to)
 
         if picking_type_ids:
             type_info = {t: info for t, info in type_info.items()
@@ -594,12 +600,12 @@ class MrpPlannerDashboard(models.TransientModel):
                 'dispatch_enabled': dispatch_enabled, 'period_kpis': period}
 
     @api.model
-    def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
-                               picking_type_ids=None):
+    def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to):
         """Tasa de entrega s/ disponible del rango de la tabla — la única
         métrica que necesita el servidor (snapshots/consolidado). Los
         validados son filas de la tabla y sus KPIs se calculan en el cliente.
-        Requiere rango completo; siempre semántica de salidas.
+        Requiere rango completo; siempre semántica de salidas de cadena
+        completa (respeta el depósito, no el tipo de operación).
 
         :returns: dict — rate_available(_num/_den).
         """
@@ -607,8 +613,7 @@ class MrpPlannerDashboard(models.TransientModel):
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
             trend = self._inventory_rate_trend(
                 company, fields.Date.from_string(date_from),
-                fields.Date.from_string(date_to), warehouse_ids, cfg,
-                picking_type_ids=picking_type_ids)
+                fields.Date.from_string(date_to), warehouse_ids, cfg)
             rate_num = sum(m['num'] for m in trend)
             rate_den = rate_num + sum(m['den_extra'] for m in trend)
             rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None

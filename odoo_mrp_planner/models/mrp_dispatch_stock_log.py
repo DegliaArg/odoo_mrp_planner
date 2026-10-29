@@ -403,8 +403,7 @@ class MrpDispatchStockLog(models.Model):
         return done
 
     @api.model
-    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None,
-                                picking_type_ids=None):
+    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None):
         """Numerador y denominador extra de un mes, por depósito y producto.
 
         - Numerador: cantidad entregada en el mes — salidas a cliente
@@ -418,6 +417,12 @@ class MrpDispatchStockLog(models.Model):
 
         Lo comparten el cierre mensual (consolidado) y el cálculo en vivo del
         panel, para que ambos den el mismo número.
+
+        La tasa es un indicador de la CADENA de despacho completa: el numerador
+        son siempre las salidas 'outgoing' y el denominador todos los eslabones
+        disponibles. Por eso NO filtra por tipo de operación (filtrar por un
+        eslabón intermedio dejaría el numerador en 0 y la tasa en 0%); solo
+        respeta el depósito.
 
         :returns: (num, den) — dicts {(warehouse_id, product_id): qty}.
         """
@@ -433,8 +438,6 @@ class MrpDispatchStockLog(models.Model):
         ]
         if warehouse_ids:
             disp_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
-        if picking_type_ids:
-            disp_dom.append(('picking_type_id', 'in', picking_type_ids))
         dispatched_picks = self.env['stock.picking'].sudo().search(disp_dom)
         num = {}  # {(warehouse_id, product_id): qty}
         if dispatched_picks:
@@ -462,8 +465,6 @@ class MrpDispatchStockLog(models.Model):
         ]
         if warehouse_ids:
             log_dom.append(('warehouse_id', 'in', warehouse_ids))
-        if picking_type_ids:
-            log_dom.append(('picking_id.picking_type_id', 'in', picking_type_ids))
         logs = self.sudo().search(log_dom)
         den = {}  # {(warehouse_id, product_id): qty}
         if logs:

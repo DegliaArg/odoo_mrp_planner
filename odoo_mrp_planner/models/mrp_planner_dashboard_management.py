@@ -169,7 +169,13 @@ class MrpPlannerDashboardManagement(models.TransientModel):
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
 
     def _mgmt_invoiced_day(self, d_from, d_to, company):
-        """(piezas, monto) facturado en el rango de fechas de factura."""
+        """(piezas, monto) facturado en el rango de fechas de factura.
+
+        El monto se suma con ``balance`` (moneda de la empresa): a diferencia de
+        ``price_subtotal`` —que está en la moneda del documento— ``balance`` ya
+        viene convertido al TC de cada factura, por lo que facturas en ARS y en
+        USD se consolidan correctamente en un único total en ARS.
+        """
         AML = self.env['account.move.line'].sudo()
         base = [
             ('parent_state', '=', 'posted'),
@@ -185,10 +191,12 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         qty = amt = 0.0
         for mtype, sign in (('out_invoice', 1.0), ('out_refund', -1.0)):
             res = AML.read_group(base + [('move_id.move_type', '=', mtype)],
-                                 ['quantity:sum', 'price_subtotal:sum'], [])
+                                 ['quantity:sum', 'balance:sum'], [])
             if res and res[0]:
                 qty += (res[0]['quantity'] or 0.0) * sign
-                amt += (res[0]['price_subtotal'] or 0.0) * sign
+                # out_invoice→crédito (balance −), out_refund→débito (balance +):
+                # -balance deja las facturas en + y las notas de crédito en −.
+                amt += -(res[0]['balance'] or 0.0)
         return qty, amt
 
     def _mgmt_invoiced(self, d_from, d_to, company):
@@ -196,6 +204,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
         No se filtra por depósito: las facturas no tienen depósito.
         Refunds (notas de crédito) restan.
+        Monto en ``balance`` (moneda de la empresa): consolida ARS y USD en ARS
+        al TC de cada factura (ver _mgmt_invoiced_day).
         """
         AML = self.env['account.move.line'].sudo()
         base = [
@@ -213,14 +223,15 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         amt_pairs = defaultdict(float)
         for mtype, sign in (('out_invoice', 1.0), ('out_refund', -1.0)):
             groups = AML.read_group(base + [('move_id.move_type', '=', mtype)],
-                                    ['product_id', 'quantity:sum', 'price_subtotal:sum'],
+                                    ['product_id', 'quantity:sum', 'balance:sum'],
                                     ['product_id'])
             for g in groups:
                 if not g['product_id']:
                     continue
                 pid = g['product_id'][0]
                 qty_pairs[pid] += (g['quantity'] or 0.0) * sign
-                amt_pairs[pid] += (g['price_subtotal'] or 0.0) * sign
+                # -balance: facturas en +, notas de crédito en −, en moneda empresa.
+                amt_pairs[pid] += -(g['balance'] or 0.0)
         return self._mgmt_agg_by_categ(list(qty_pairs.items()), list(amt_pairs.items()))
 
     # ── Producido (OFs según config de la Comparativa) ───────────────────────

@@ -310,7 +310,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 for k in order if k in agg]
 
     def _mgmt_move_pieces(self, picking_type_ids, state, company, allowed_ids,
-                          dt_from=None, dt_to=None, with_breakdown=False):
+                          dt_from=None, dt_to=None, with_breakdown=False,
+                          by_move=False):
         """Piezas movidas en las transferencias de los tipos dados, en un estado.
 
         :param dt_from/dt_to: si se pasan, filtra por fecha de validación
@@ -318,22 +319,43 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             fechas es una foto del estado actual (Embalajes/Picking en Asignado).
         :param with_breakdown: si True, incluye el desglose por categoría de
             venta en 'rows' (se omite en los cálculos diarios para no recargar).
+        :param by_move: si True, cuenta a nivel ``stock.move`` (estado del
+            movimiento) en vez de a nivel transferencia. Necesario para que
+            Embalajes/Picking en 'assigned' coincidan con el historial filtrado
+            por estado del movimiento: una transferencia parcialmente reservada
+            queda en 'confirmed' y se perdería si se filtra por su estado, pero
+            sus líneas reservadas sí están en 'assigned' a nivel movimiento.
         :returns: dict {'configured', 'qty', 'pickings', 'rows'}.
         """
         if not picking_type_ids:
             return {'configured': False, 'qty': 0.0, 'pickings': 0, 'rows': []}
-        Picking = self.env['stock.picking'].sudo()
-        dom = [
-            ('picking_type_id', 'in', picking_type_ids),
-            ('state', '=', state),
-            ('company_id', 'in', company.ids),
-        ]
-        if allowed_ids is not None:
-            dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
-        if dt_from and dt_to:
-            dom += [('date_done', '>=', dt_from), ('date_done', '<=', dt_to)]
-        pickings = Picking.search(dom)
-        moves = pickings.mapped('move_ids')
+        if by_move:
+            Move = self.env['stock.move'].sudo()
+            dom = [
+                ('picking_type_id', 'in', picking_type_ids),
+                ('state', '=', state),
+                ('company_id', 'in', company.ids),
+            ]
+            if allowed_ids is not None:
+                dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+            if dt_from and dt_to:
+                dom += [('date', '>=', dt_from), ('date', '<=', dt_to)]
+            moves = Move.search(dom)
+            pickings_count = len(moves.mapped('picking_id'))
+        else:
+            Picking = self.env['stock.picking'].sudo()
+            dom = [
+                ('picking_type_id', 'in', picking_type_ids),
+                ('state', '=', state),
+                ('company_id', 'in', company.ids),
+            ]
+            if allowed_ids is not None:
+                dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+            if dt_from and dt_to:
+                dom += [('date_done', '>=', dt_from), ('date_done', '<=', dt_to)]
+            pickings = Picking.search(dom)
+            moves = pickings.mapped('move_ids')
+            pickings_count = len(pickings)
         qty = sum(moves.mapped('quantity'))
         rows = []
         if with_breakdown:
@@ -343,7 +365,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                     by_prod[m.product_id.id] += (m.quantity or 0.0)
             rows = self._mgmt_agg_by_sale_category(list(by_prod.items()))
         return {'configured': True, 'qty': round(qty, 2),
-                'pickings': len(pickings), 'rows': rows}
+                'pickings': pickings_count, 'rows': rows}
 
     # ── Punto de entrada del panel ───────────────────────────────────────────
 
@@ -401,9 +423,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         dispatch = self._mgmt_move_pieces(disp_types, 'done', company, allowed_ids,
                                           dt_from, dt_to, with_breakdown=True)
         packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
-                                         with_breakdown=True)
+                                         with_breakdown=True, by_move=True)
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
-                                         with_breakdown=True)
+                                         with_breakdown=True, by_move=True)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}

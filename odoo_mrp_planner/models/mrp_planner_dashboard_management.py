@@ -137,6 +137,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('order_id.date_order', '>=', dt_from),
             ('order_id.date_order', '<=', dt_to),
             ('product_id', '!=', False),
+            # Alinea la demanda con el panel de Ventas: solo productos vendibles.
+            ('product_id.sale_ok', '=', True),
             ('company_id', 'in', company.ids),
         ]
         if allowed_ids is not None:
@@ -151,6 +153,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             ('order_id.date_order', '>=', dt_from),
             ('order_id.date_order', '<=', dt_to),
             ('product_id', '!=', False),
+            # Alinea la demanda con el panel de Ventas: solo productos vendibles.
+            ('product_id.sale_ok', '=', True),
             ('company_id', 'in', company.ids),
         ]
         if allowed_ids is not None:

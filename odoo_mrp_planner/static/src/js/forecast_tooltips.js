@@ -188,7 +188,7 @@ export function fcKpiTooltip(widget, key) {
                 ? `\n  Entregado: ${widget.fmt(fk.total_demand_delivered - noFcDel)} con FC + ${widget.fmt(noFcDel)} sin FC = ${widget.fmt(fk.total_demand_delivered)}`
                 + `\n  Demanda:   ${widget.fmt(fk.total_so_demand - noFcDem)} con FC + ${widget.fmt(noFcDem)} sin FC = ${widget.fmt(fk.total_so_demand)}`
                 : '';
-            return `Cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${widget.fmt(fk.total_demand_delivered)} ÷ ${widget.fmt(fk.total_so_demand)} × 100 = ${widget.fmtPct(fk.overall_demand_service_rate)}` + svcNote;
+            return `Tasa de servicio: cumplimiento (pedidos del período entregados en cualquier fecha) ÷ demanda real total${noFcPart}\n→ ${widget.fmt(fk.total_demand_delivered)} ÷ ${widget.fmt(fk.total_so_demand)} × 100 = ${widget.fmtPct(fk.overall_demand_service_rate)}` + svcNote;
         }
     }
     return '';

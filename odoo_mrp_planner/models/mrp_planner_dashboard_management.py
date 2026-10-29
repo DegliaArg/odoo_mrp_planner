@@ -14,6 +14,9 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
 - Embalajes / Picking: piezas pendientes AHORA (foto del estado Listo/Asignado).
 - Producido del mes por categoría de producto (OFs según la config de estados
   y modo de fecha de la Comparativa Producido vs. Programado).
+- Tasa de servicio del mes: entregas de salida validadas de los pedidos del
+  período ÷ demanda del período × 100 (espeja la "Tasa de servicio" del panel
+  de Ventas). Indicador de ratio, sin variación diaria.
 
 Variación diaria: en los 4 indicadores acumulables (demanda, facturado,
 despachos, producido) se devuelve además lo aportado hoy y ayer para mostrar
@@ -165,6 +168,46 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         pairs = [(g['product_id'][0], g['product_uom_qty'] or 0.0)
                  for g in groups if g['product_id']]
         return self._mgmt_agg_by_categ(pairs)
+
+    # ── Tasa de servicio (entregado de los pedidos del período ÷ pedido) ──────
+
+    def _mgmt_service_rate(self, dt_from, dt_to, company, allowed_ids):
+        """Tasa de servicio del mes: de lo pedido en el período, cuánto se
+        entregó realmente. Espeja la "Tasa de servicio" del panel de Ventas
+        (antes "Tasa de cumplimiento"):
+
+        - Denominador = demanda del período (líneas de venta confirmadas; la
+          MISMA base que la card Demanda, para que ambas cierren entre sí).
+        - Numerador = entregas de salida validadas (stock.move.line 'done' de
+          tipo outgoing) de los pedidos de ese período, sin importar la fecha
+          de entrega (puede ser posterior al mes).
+
+        :returns: dict {'ordered', 'delivered', 'rate'} — rate None si no hubo
+            pedido en el período.
+        """
+        ordered = self._mgmt_demand_qty(dt_from, dt_to, company, allowed_ids)
+        delivered = 0.0
+        so_dom = [
+            ('state', 'in', ['sale', 'done']),
+            ('date_order', '>=', dt_from),
+            ('date_order', '<=', dt_to),
+            ('company_id', 'in', company.ids),
+        ]
+        if allowed_ids is not None:
+            so_dom.append(('warehouse_id', 'in', allowed_ids))
+        sos = self.env['sale.order'].sudo().search(so_dom)
+        if sos:
+            res = self.env['stock.move.line'].sudo().read_group([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('picking_id.sale_id', 'in', sos.ids),
+                ('product_id.sale_ok', '=', True),
+                ('company_id', 'in', company.ids),
+            ], ['quantity:sum'], [])
+            delivered = (res[0]['quantity'] or 0.0) if res and res[0] else 0.0
+        rate = round(delivered / ordered * 100, 1) if ordered > 0 else None
+        return {'ordered': round(ordered, 2),
+                'delivered': round(delivered, 2), 'rate': rate}
 
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
 
@@ -414,6 +457,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 'currency': active.currency_id.symbol or '$',
                 'demand': empty, 'invoiced': empty_inv, 'produced': dict(empty),
                 'dispatch': zero, 'packing': zero, 'picking': zero,
+                'service': {'ordered': 0.0, 'delivered': 0.0, 'rate': None},
+                'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
+                'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
                 'daily': {},
             }
 
@@ -426,6 +472,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                                          with_breakdown=True, by_move=True)
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
                                          with_breakdown=True, by_move=True)
+        service = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}
@@ -471,5 +518,10 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'dispatch': dispatch,
             'packing': packing,
             'picking': picking,
+            'service': service,
+            # Umbrales de color de la tasa de servicio: mismos que el panel de
+            # Ventas y el análisis de clientes (Ajustes → Ventas).
+            'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
+            'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
             'daily': daily,
         }

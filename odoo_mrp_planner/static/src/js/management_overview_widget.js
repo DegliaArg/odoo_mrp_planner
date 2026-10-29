@@ -8,6 +8,8 @@
  *   - Facturado del mes (piezas + monto) con variación diaria.
  *   - Despachos del mes (piezas, estado Hecho) con variación diaria.
  *   - Embalajes / Picking pendientes AHORA (foto del estado Asignado).
+ *   - Tasa de servicio del mes (entregado de los pedidos del mes ÷ pedido),
+ *     con semáforo; espeja la "Tasa de servicio" del panel de Ventas.
  *   - Demanda del mes por categoría de producto (tabla).
  *   - Producido del mes por categoría de producto (tabla).
  *
@@ -109,6 +111,27 @@ class ManagementOverviewWidget extends Component {
     money(v) {
         const sym = this.state.data?.currency || "$";
         return `${sym} ${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(v || 0)}`;
+    }
+
+    /** Porcentaje con 1 decimal; "—" si es null/undefined (sin pedidos). */
+    fmtPct(v) {
+        if (v === null || v === undefined) return "—";
+        return `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(v)}%`;
+    }
+
+    /**
+     * Color de semáforo de la tasa de servicio, con los mismos umbrales que el
+     * panel de Ventas (verde ≥ green, amarillo ≥ warn, rojo si no).
+     * @param {number|null} v
+     * @returns {string} clase de texto Bootstrap.
+     */
+    svcClass(v) {
+        if (v === null || v === undefined) return "text-muted";
+        const g = this.state.data?.rate_green_pct ?? 80;
+        const w = this.state.data?.rate_warn_pct ?? 60;
+        if (v >= g) return "text-success";
+        if (v >= w) return "text-warning";
+        return "text-danger";
     }
 
     /**

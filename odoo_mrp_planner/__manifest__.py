@@ -1,6 +1,6 @@
 {
     'name': 'KPIs',
-    'version': '18.0.13.3.5',
+    'version': '18.0.13.4.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.

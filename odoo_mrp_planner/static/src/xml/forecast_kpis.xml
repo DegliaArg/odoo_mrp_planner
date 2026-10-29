@@ -201,7 +201,7 @@
             </div>
         </div>
 
-        <!-- Fila 2: Brecha demanda vs fc · Producción planificada · Tasa de cumplimiento -->
+        <!-- Fila 2: Brecha demanda vs fc · Producción planificada · Tasa de servicio -->
         <div t-att-class="'row row-cols-2 g-2 mb-3 ' + (state.data.dispatch_enabled ? 'row-cols-md-4' : 'row-cols-md-3')">
             <!-- Brecha demanda vs fc — indicador puro, sin drill (era un
                  duplicado del Ver de "Demanda real" y una brecha no tiene sublista propia) -->
@@ -239,7 +239,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Tasa de cumplimiento -->
+            <!-- Tasa de servicio -->
             <div class="col">
                 <div class="card o_planner_card h-100"
                      t-att-title="fcKpiTooltip('demand_svc')">
@@ -248,7 +248,7 @@
                         <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)">
                             <t t-esc="fmtPct(filteredKpis.overall_demand_service_rate)"/>
                         </div>
-                        <div class="o_planner_label">Tasa de cumplimiento</div>
+                        <div class="o_planner_label">Tasa de servicio</div>
                     </div>
                 </div>
             </div>

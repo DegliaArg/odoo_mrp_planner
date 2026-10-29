@@ -175,6 +175,22 @@
                             </div>
                         </div>
 
+                        <!-- Tasa de servicio (entregado de los pedidos del mes ÷ pedido) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Tasa de servicio del mes: de lo pedido en el mes (demanda), cuánto ya se entregó realmente (entregas de salida validadas de esos pedidos, en cualquier fecha). Misma métrica que la Tasa de servicio del panel de Ventas. Semáforo configurable en Ajustes → Ventas.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-check-circle fa-lg text-secondary mb-1 d-block"/>
+                                    <div t-att-class="'o_planner_number ' + svcClass(state.data.service.rate)"
+                                         t-esc="fmtPct(state.data.service.rate)"/>
+                                    <div class="o_planner_label">Tasa de servicio</div>
+                                    <div class="text-muted mt-1" style="font-size:10px;">
+                                        <t t-esc="fmt(state.data.service.delivered)"/> / <t t-esc="fmt(state.data.service.ordered)"/> pz
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- ════ DEMANDA · PRODUCIDO (por categoría) ════ -->

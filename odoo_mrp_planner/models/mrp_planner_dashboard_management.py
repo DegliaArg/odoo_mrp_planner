@@ -35,7 +35,9 @@ Relacionado con:
 """
 import logging
 from collections import defaultdict
+from datetime import datetime, time
 
+import pytz
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, api, fields, _
@@ -89,6 +91,27 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         """('YYYY-MM-DD 00:00:00', 'YYYY-MM-DD 23:59:59') de un date."""
         s = fields.Date.to_string(d)
         return s + ' 00:00:00', s + ' 23:59:59'
+
+    def _mgmt_month_bounds_utc(self, first, last):
+        """Cotas UTC naïve del mes [first, last] según la zona horaria del usuario.
+
+        Los datetime de Odoo se guardan en UTC, pero el "mes" que ve el usuario
+        es en su huso local. Para que un filtro por ``stock.move.date`` coincida
+        con el que aplica el reporte nativo de inventario (que ajusta por TZ),
+        hay que convertir medianoche local → UTC. Devuelve cotas inclusivas
+        'YYYY-MM-DD HH:MM:SS' listas para usar con >= y <=.
+        """
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        start_local = tz.localize(datetime.combine(first, time.min))
+        # Medianoche del día siguiente al último, menos 1 s ⇒ cota superior
+        # inclusiva (p. ej. '…-11-01 02:59:59' para octubre en UTC-3).
+        end_local = tz.localize(datetime.combine(
+            last + relativedelta(days=1), time.min))
+        start_utc = start_local.astimezone(pytz.utc).replace(tzinfo=None)
+        end_utc = (end_local.astimezone(pytz.utc).replace(tzinfo=None)
+                   - relativedelta(seconds=1))
+        return (fields.Datetime.to_string(start_utc),
+                fields.Datetime.to_string(end_utc))
 
     # ── Agregación por categoría ─────────────────────────────────────────────
 
@@ -472,10 +495,14 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         produced = self._mgmt_produced(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
         dispatch = self._mgmt_move_pieces(disp_types, 'done', company, allowed_ids,
                                           dt_from, dt_to, with_breakdown=True)
+        # Embalajes/Picking filtran por fecha programada del movimiento, que es
+        # un datetime UTC: usamos cotas del mes ajustadas a la TZ del usuario
+        # para espejar el reporte nativo de inventario (ver _mgmt_move_pieces).
+        mdt_from, mdt_to = self._mgmt_month_bounds_utc(first, last)
         packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
-                                         dt_from, dt_to, with_breakdown=True, by_move=True)
+                                         mdt_from, mdt_to, with_breakdown=True, by_move=True)
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
-                                         dt_from, dt_to, with_breakdown=True, by_move=True)
+                                         mdt_from, mdt_to, with_breakdown=True, by_move=True)
         service = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──

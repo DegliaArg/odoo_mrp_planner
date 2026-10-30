@@ -11,8 +11,10 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
 - Demanda del mes por categoría de producto (líneas de venta confirmadas).
 - Facturado del mes: piezas y monto, total y por categoría (facturas de cliente).
 - Despachos del mes: piezas de transferencias validadas (estado Hecho).
-- Embalajes / Picking: demanda (piezas pedidas) de los movimientos en estado
-  Asignado cuya fecha programada cae en el mes seleccionado.
+- Embalajes: demanda (product_uom_qty) de los movimientos en estado Asignado
+  cuya fecha programada cae en el mes seleccionado (nivel stock.move).
+- Picking: piezas (quantity_product_uom) a nivel línea de operación
+  (stock.move.line), espejo del reporte nativo Historial de movimientos.
 - Producido del mes por categoría de producto (OFs según la config de estados
   y modo de fecha de la Comparativa Producido vs. Programado).
 - Tasa de servicio del mes: entregas de salida validadas de los pedidos del
@@ -378,32 +380,48 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     def _mgmt_move_pieces(self, picking_type_ids, state, company, allowed_ids,
                           dt_from=None, dt_to=None, with_breakdown=False,
-                          by_move=False):
+                          by_move=False, by_line=False):
         """Piezas movidas en las transferencias de los tipos dados, en un estado.
 
-        :param dt_from/dt_to: si se pasan, filtra por fecha. A nivel transferencia
-            (by_move=False) usa la fecha de validación (date_done) — Despachos
-            (acumulado del mes/día). A nivel movimiento (by_move=True) usa
-            ``stock.move.date``, que para movimientos no finalizados es la fecha
-            programada — Embalajes/Picking en Asignado cuyo programado cae en el
-            mes del slicer.
+        Tres niveles de agregación según el indicador:
+
+        - Transferencia (``by_move=False`` y ``by_line=False``): Despachos.
+          Filtra por fecha de validación (``date_done``) y suma ``quantity``
+          (piezas efectivamente despachadas) de los movimientos de los pickings.
+        - Movimiento (``by_move=True``): Embalajes. Cuenta a nivel ``stock.move``
+          (estado del movimiento) y suma ``product_uom_qty``. Filtra por
+          ``stock.move.date`` (fecha programada en Asignado).
+        - Línea de operación (``by_line=True``): Picking. Cuenta a nivel
+          ``stock.move.line`` sumando ``quantity_product_uom``, EXACTAMENTE como
+          el reporte nativo "Inventario → Reportes → Historial de movimientos"
+          (acción stock.move.line, pivot_measures = quantity_product_uom). Un
+          movimiento puede partirse en varias líneas (lotes/ubicaciones), por eso
+          a nivel ``stock.move`` no coincidía con ese reporte.
+
         :param with_breakdown: si True, incluye el desglose por categoría de
             venta en 'rows' (se omite en los cálculos diarios para no recargar).
-        :param by_move: si True, cuenta a nivel ``stock.move`` (estado del
-            movimiento) en vez de a nivel transferencia. Necesario para que
-            Embalajes/Picking en 'assigned' coincidan con el historial filtrado
-            por estado del movimiento: una transferencia parcialmente reservada
-            queda en 'confirmed' y se perdería si se filtra por su estado, pero
-            sus líneas reservadas sí están en 'assigned' a nivel movimiento.
-            Además, en este modo la medida es la **demanda** (product_uom_qty),
-            no lo reservado (quantity), para espejar la Demanda del reporte de
-            movimientos de inventario; a nivel transferencia (Despachos, done)
-            se usa quantity, que es lo efectivamente despachado.
         :returns: dict {'configured', 'qty', 'pickings', 'rows'}.
         """
         if not picking_type_ids:
             return {'configured': False, 'qty': 0.0, 'pickings': 0, 'rows': []}
-        if by_move:
+        if by_line:
+            # Picking: nivel línea de operación, espejo del Historial de
+            # movimientos (stock.move.line / quantity_product_uom).
+            MoveLine = self.env['stock.move.line'].sudo()
+            dom = [
+                ('picking_type_id', 'in', picking_type_ids),
+                ('state', '=', state),
+                ('company_id', 'in', company.ids),
+            ]
+            if allowed_ids is not None:
+                dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+            if dt_from and dt_to:
+                dom += [('date', '>=', dt_from), ('date', '<=', dt_to)]
+            records = MoveLine.search(dom)
+            pickings_count = len(records.mapped('picking_id'))
+            qty_field = 'quantity_product_uom'
+        elif by_move:
+            # Embalajes: nivel movimiento, demanda (product_uom_qty).
             Move = self.env['stock.move'].sudo()
             dom = [
                 ('picking_type_id', 'in', picking_type_ids),
@@ -414,8 +432,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
             if dt_from and dt_to:
                 dom += [('date', '>=', dt_from), ('date', '<=', dt_to)]
-            moves = Move.search(dom)
-            pickings_count = len(moves.mapped('picking_id'))
+            records = Move.search(dom)
+            pickings_count = len(records.mapped('picking_id'))
+            qty_field = 'product_uom_qty'
         else:
             Picking = self.env['stock.picking'].sudo()
             dom = [
@@ -428,21 +447,17 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             if dt_from and dt_to:
                 dom += [('date_done', '>=', dt_from), ('date_done', '<=', dt_to)]
             pickings = Picking.search(dom)
-            moves = pickings.mapped('move_ids')
+            records = pickings.mapped('move_ids')
             pickings_count = len(pickings)
-        # Medida: para el snapshot de asignados (by_move ⇒ Embalajes/Picking)
-        # usamos la demanda (product_uom_qty), que es lo pedido aunque el stock
-        # no alcance a reservarlo — así coincide con la Demanda del reporte de
-        # movimientos de inventario. Para Despachos (done) usamos quantity, que
-        # es lo efectivamente despachado.
-        qty_field = 'product_uom_qty' if by_move else 'quantity'
-        qty = sum(moves.mapped(qty_field))
+            # Despachos (done): piezas efectivamente despachadas del movimiento.
+            qty_field = 'quantity'
+        qty = sum(records.mapped(qty_field))
         rows = []
         if with_breakdown:
             by_prod = defaultdict(float)
-            for m in moves:
-                if m.product_id:
-                    by_prod[m.product_id.id] += (m[qty_field] or 0.0)
+            for r in records:
+                if r.product_id:
+                    by_prod[r.product_id.id] += (r[qty_field] or 0.0)
             rows = self._mgmt_agg_by_sale_category(list(by_prod.items()))
         return {'configured': True, 'qty': round(qty, 2),
                 'pickings': pickings_count, 'rows': rows}
@@ -511,8 +526,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         mdt_from, mdt_to = self._mgmt_month_bounds_utc(first, last)
         packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_move=True)
+        # Picking: a nivel línea (stock.move.line) para coincidir con el reporte
+        # nativo Historial de movimientos. Embalajes queda a nivel movimiento
+        # (by_move) porque así ya coincide — no se toca.
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
-                                         mdt_from, mdt_to, with_breakdown=True, by_move=True)
+                                         mdt_from, mdt_to, with_breakdown=True, by_line=True)
         service = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──

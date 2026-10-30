@@ -11,8 +11,8 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
 - Demanda del mes por categoría de producto (líneas de venta confirmadas).
 - Facturado del mes: piezas y monto, total y por categoría (facturas de cliente).
 - Despachos del mes: piezas de transferencias validadas (estado Hecho).
-- Embalajes / Picking: piezas pendientes (estado Asignado) cuya fecha programada
-  cae en el mes seleccionado.
+- Embalajes / Picking: demanda (piezas pedidas) de los movimientos en estado
+  Asignado cuya fecha programada cae en el mes seleccionado.
 - Producido del mes por categoría de producto (OFs según la config de estados
   y modo de fecha de la Comparativa Producido vs. Programado).
 - Tasa de servicio del mes: entregas de salida validadas de los pedidos del
@@ -395,6 +395,10 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             por estado del movimiento: una transferencia parcialmente reservada
             queda en 'confirmed' y se perdería si se filtra por su estado, pero
             sus líneas reservadas sí están en 'assigned' a nivel movimiento.
+            Además, en este modo la medida es la **demanda** (product_uom_qty),
+            no lo reservado (quantity), para espejar la Demanda del reporte de
+            movimientos de inventario; a nivel transferencia (Despachos, done)
+            se usa quantity, que es lo efectivamente despachado.
         :returns: dict {'configured', 'qty', 'pickings', 'rows'}.
         """
         if not picking_type_ids:
@@ -426,13 +430,19 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             pickings = Picking.search(dom)
             moves = pickings.mapped('move_ids')
             pickings_count = len(pickings)
-        qty = sum(moves.mapped('quantity'))
+        # Medida: para el snapshot de asignados (by_move ⇒ Embalajes/Picking)
+        # usamos la demanda (product_uom_qty), que es lo pedido aunque el stock
+        # no alcance a reservarlo — así coincide con la Demanda del reporte de
+        # movimientos de inventario. Para Despachos (done) usamos quantity, que
+        # es lo efectivamente despachado.
+        qty_field = 'product_uom_qty' if by_move else 'quantity'
+        qty = sum(moves.mapped(qty_field))
         rows = []
         if with_breakdown:
             by_prod = defaultdict(float)
             for m in moves:
                 if m.product_id:
-                    by_prod[m.product_id.id] += (m.quantity or 0.0)
+                    by_prod[m.product_id.id] += (m[qty_field] or 0.0)
             rows = self._mgmt_agg_by_sale_category(list(by_prod.items()))
         return {'configured': True, 'qty': round(qty, 2),
                 'pickings': pickings_count, 'rows': rows}

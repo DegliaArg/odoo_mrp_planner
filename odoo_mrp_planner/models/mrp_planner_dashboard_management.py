@@ -11,7 +11,8 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
 - Demanda del mes por categoría de producto (líneas de venta confirmadas).
 - Facturado del mes: piezas y monto, total y por categoría (facturas de cliente).
 - Despachos del mes: piezas de transferencias validadas (estado Hecho).
-- Embalajes / Picking: piezas pendientes AHORA (foto del estado Listo/Asignado).
+- Embalajes / Picking: piezas pendientes (estado Asignado) cuya fecha programada
+  cae en el mes seleccionado.
 - Producido del mes por categoría de producto (OFs según la config de estados
   y modo de fecha de la Comparativa Producido vs. Programado).
 - Tasa de servicio del mes: entregas de salida validadas de los pedidos del
@@ -357,9 +358,12 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                           by_move=False):
         """Piezas movidas en las transferencias de los tipos dados, en un estado.
 
-        :param dt_from/dt_to: si se pasan, filtra por fecha de validación
-            (date_done) — usado por Despachos (acumulado del mes/día). Sin
-            fechas es una foto del estado actual (Embalajes/Picking en Asignado).
+        :param dt_from/dt_to: si se pasan, filtra por fecha. A nivel transferencia
+            (by_move=False) usa la fecha de validación (date_done) — Despachos
+            (acumulado del mes/día). A nivel movimiento (by_move=True) usa
+            ``stock.move.date``, que para movimientos no finalizados es la fecha
+            programada — Embalajes/Picking en Asignado cuyo programado cae en el
+            mes del slicer.
         :param with_breakdown: si True, incluye el desglose por categoría de
             venta en 'rows' (se omite en los cálculos diarios para no recargar).
         :param by_move: si True, cuenta a nivel ``stock.move`` (estado del
@@ -469,9 +473,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         dispatch = self._mgmt_move_pieces(disp_types, 'done', company, allowed_ids,
                                           dt_from, dt_to, with_breakdown=True)
         packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
-                                         with_breakdown=True, by_move=True)
+                                         dt_from, dt_to, with_breakdown=True, by_move=True)
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
-                                         with_breakdown=True, by_move=True)
+                                         dt_from, dt_to, with_breakdown=True, by_move=True)
         service = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──

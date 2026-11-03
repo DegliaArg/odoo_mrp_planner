@@ -9,13 +9,13 @@
         <field name="default" eval="False"/>
         <field name="format">A4</field>
         <field name="orientation">Portrait</field>
-        <field name="margin_top">6</field>
-        <field name="margin_bottom">6</field>
-        <field name="margin_left">7</field>
-        <field name="margin_right">7</field>
+        <field name="margin_top">7</field>
+        <field name="margin_bottom">7</field>
+        <field name="margin_left">8</field>
+        <field name="margin_right">8</field>
         <field name="header_spacing">0</field>
         <field name="header_line" eval="False"/>
-        <field name="dpi">90</field>
+        <field name="dpi">96</field>
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
@@ -31,154 +31,93 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         TEMPLATE — Resumen diario (compacto, una página)
+         TEMPLATE — Resumen diario (estética del panel de Gerencia, 1 página)
+         Se usa docs/o + web.basic_layout (patrón estándar) para tener el <head>
+         con charset UTF-8 correcto (si no, los acentos salen mal) y que 'o' sea
+         un registro real (evita el crash por o._name).
     ════════════════════════════════════════════════════════════════════ -->
     <template id="report_management_daily">
         <t t-call="web.html_container">
-                <div class="page" style="font-family:Arial,Helvetica,sans-serif; color:#2c3e50; font-size:9px;">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.basic_layout">
+                    <div class="page" style="font-family:'Lato','Helvetica Neue',Arial,sans-serif; color:#1e293b; font-size:9px;">
 
-                    <!-- Formateadores reutilizables -->
-                    <t t-set="cur" t-value="ov['currency']"/>
-                    <t t-set="green" t-value="ov['rate_green_pct']"/>
-                    <t t-set="warn" t-value="ov['rate_warn_pct']"/>
+                        <!-- ── Encabezado ─────────────────────────────────── -->
+                        <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+                            <tr>
+                                <td style="vertical-align:bottom; border-bottom:3px solid #2563eb; padding-bottom:6px;">
+                                    <div style="font-size:17px; font-weight:bold; color:#0f172a;" t-out="rep['company_label']"/>
+                                    <div style="font-size:11px; color:#64748b; letter-spacing:0.3px;">Resumen diario de Gerencia</div>
+                                </td>
+                                <td style="vertical-align:bottom; border-bottom:3px solid #2563eb; padding-bottom:6px; text-align:right; font-size:9px; color:#64748b; white-space:nowrap;">
+                                    <div>Mes <span style="font-weight:bold; color:#0f172a;" t-out="rep['month']"/></div>
+                                    <div>Emitido <span t-out="rep['report_date']"/></div>
+                                </td>
+                            </tr>
+                        </table>
 
-                    <!-- ── Encabezado ─────────────────────────────────────── -->
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #34495e; padding-bottom:4px; margin-bottom:8px;">
-                        <div>
-                            <div style="font-size:15px; font-weight:bold;" t-out="company_label"/>
-                            <div style="font-size:11px; color:#7f8c8d;">Resumen diario de Gerencia</div>
-                        </div>
-                        <div style="text-align:right; font-size:9px; color:#7f8c8d;">
-                            <div>Mes: <span style="font-weight:bold; color:#2c3e50;" t-out="ov['month']"/></div>
-                            <div>Emitido: <span t-out="report_date"/></div>
-                        </div>
+                        <!-- ── Tira de KPIs (tarjetas) ────────────────────── -->
+                        <table style="width:100%; border-collapse:separate; border-spacing:5px 0; margin-bottom:12px; table-layout:fixed;">
+                            <tr>
+                                <td t-foreach="rep['kpis']" t-as="k" style="vertical-align:top;">
+                                    <div t-attf-style="border:1px solid #e2e8f0; border-top:3px solid {{k['color']}}; border-radius:7px; padding:7px 3px; text-align:center; background:#ffffff;">
+                                        <i t-attf-class="fa {{k['icon']}}" t-attf-style="font-size:15px; color:{{k['color']}};"/>
+                                        <div style="font-size:13px; font-weight:bold; color:#0f172a; margin-top:3px;" t-out="k['value']"/>
+                                        <div style="font-size:7.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.3px;" t-out="k['label']"/>
+                                        <div t-if="k['delta']" style="font-size:7.5px; margin-top:2px; color:#64748b;">
+                                            Hoy
+                                            <span t-attf-style="font-weight:bold; color:{{'#16a34a' if k['delta']['dir']=='up' else ('#dc2626' if k['delta']['dir']=='down' else '#64748b')}};">
+                                                <t t-out="k['delta']['text']"/>
+                                                <i t-if="k['delta']['dir']=='up'" class="fa fa-arrow-up"/>
+                                                <i t-if="k['delta']['dir']=='down'" class="fa fa-arrow-down"/>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <!-- Tasa de servicio -->
+                                <td style="vertical-align:top;">
+                                    <div t-attf-style="border:1px solid #e2e8f0; border-top:3px solid {{rep['service_card']['color']}}; border-radius:7px; padding:7px 3px; text-align:center; background:#ffffff;">
+                                        <i t-attf-class="fa {{rep['service_card']['icon']}}" t-attf-style="font-size:15px; color:{{rep['service_card']['color']}};"/>
+                                        <div t-attf-style="font-size:13px; font-weight:bold; color:{{rep['service_card']['color']}}; margin-top:3px;" t-out="rep['service_card']['value']"/>
+                                        <div style="font-size:7.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.3px;" t-out="rep['service_card']['label']"/>
+                                        <div style="font-size:7.5px; margin-top:2px; color:#64748b;" t-out="rep['service_card']['sub']"/>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ── Secciones por familia (3 columnas, con barras) ─ -->
+                        <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+                            <tr style="vertical-align:top;">
+                                <td t-foreach="rep['sections']" t-as="s" t-attf-style="width:33.33%; padding:{{'0 0 0 6px' if s_index == 2 else ('0 3px' if s_index == 1 else '0 6px 0 0')}};">
+                                    <div t-attf-style="font-size:9px; font-weight:bold; color:#fff; background:{{s['color']}}; padding:3px 6px; border-radius:5px 5px 0 0;">
+                                        <i t-attf-class="fa {{s['icon']}}" style="margin-right:4px;"/><t t-out="s['title']"/>
+                                    </div>
+                                    <table style="width:100%; border-collapse:collapse;">
+                                        <tr t-foreach="s['rows']" t-as="r"
+                                            t-attf-style="border-bottom:1px solid #f1f5f9; background:linear-gradient(to right, {{s['light']}} {{r['bar']}}%, #ffffff {{r['bar']}}%);">
+                                            <td style="padding:2px 5px; color:#334155;" t-out="r['name']"/>
+                                            <td style="padding:2px 5px; text-align:right; font-weight:bold; color:#0f172a; white-space:nowrap;" t-out="r['value']"/>
+                                        </tr>
+                                        <tr t-if="s['others']" style="border-bottom:1px solid #f1f5f9; color:#94a3b8;">
+                                            <td style="padding:2px 5px; font-style:italic;">Otras familias</td>
+                                            <td style="padding:2px 5px; text-align:right; white-space:nowrap;" t-out="s['others']"/>
+                                        </tr>
+                                        <tr t-attf-style="border-top:2px solid {{s['color']}};">
+                                            <td style="padding:3px 5px; font-weight:bold; color:#0f172a;">Total</td>
+                                            <td style="padding:3px 5px; text-align:right; font-weight:bold; color:#0f172a; white-space:nowrap;" t-out="s['total']"/>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ── Nota de la tasa de servicio ────────────────── -->
+                        <div style="margin-top:10px; font-size:7.5px; color:#94a3b8; border-top:1px solid #f1f5f9; padding-top:5px;" t-out="rep['svc_note']"/>
+
                     </div>
-
-                    <!-- ── Tira de KPIs ───────────────────────────────────── -->
-                    <table style="width:100%; border-collapse:separate; border-spacing:4px 0; margin-bottom:8px;">
-                        <tr>
-                            <td t-foreach="[
-                                    ('Demanda', '{:,.0f}'.format(ov['demand']['total_qty']) + ' pz', '#2980b9'),
-                                    ('Facturado', cur + ' ' + '{:,.0f}'.format(ov['invoiced']['total_amount']), '#27ae60'),
-                                    ('Facturado (pz)', '{:,.0f}'.format(ov['invoiced']['total_qty']) + ' pz', '#27ae60'),
-                                    ('Producido', '{:,.0f}'.format(ov['produced']['total_qty']) + ' pz', '#8e44ad'),
-                                    ('Despachos', '{:,.0f}'.format(ov['dispatch']['qty']) + ' pz', '#d35400'),
-                                    ('Embalajes', '{:,.0f}'.format(ov['packing']['qty']) + ' pz', '#16a085'),
-                                    ('Picking', '{:,.0f}'.format(ov['picking']['qty']) + ' pz', '#c0392b'),
-                                ]" t-as="kpi"
-                                t-attf-style="width:12.5%; border:1px solid #ecf0f1; border-top:3px solid {{kpi[2]}}; border-radius:3px; padding:5px 3px; text-align:center; vertical-align:top;">
-                                <div style="font-size:12px; font-weight:bold;" t-out="kpi[1]"/>
-                                <div style="font-size:8px; color:#7f8c8d; text-transform:uppercase;" t-out="kpi[0]"/>
-                            </td>
-                            <!-- Tasa de servicio (con semáforo) -->
-                            <t t-set="rate" t-value="ov['service']['rate']"/>
-                            <t t-set="svc_color" t-value="'#27ae60' if (rate is not None and rate &gt;= green) else ('#f39c12' if (rate is not None and rate &gt;= warn) else '#c0392b')"/>
-                            <td t-attf-style="width:12.5%; border:1px solid #ecf0f1; border-top:3px solid {{svc_color}}; border-radius:3px; padding:5px 3px; text-align:center; vertical-align:top;">
-                                <div t-attf-style="font-size:12px; font-weight:bold; color:{{svc_color}};">
-                                    <span t-out="'—' if rate is None else ('{:,.1f}'.format(rate) + '%')"/>
-                                </div>
-                                <div style="font-size:8px; color:#7f8c8d; text-transform:uppercase;">Tasa servicio</div>
-                                <div style="font-size:7px; color:#95a5a6;">
-                                    <t t-out="'{:,.0f}'.format(ov['service']['delivered'])"/>/<t t-out="'{:,.0f}'.format(ov['service']['ordered'])"/>
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- ── Aporte del día (solo mes en curso) ─────────────── -->
-                    <t t-if="ov['is_current'] and ov['daily']">
-                        <div style="background:#f8f9fa; border:1px solid #ecf0f1; border-radius:3px; padding:4px 8px; margin-bottom:8px; font-size:8px;">
-                            <span style="font-weight:bold; text-transform:uppercase; color:#7f8c8d;">Aporte de hoy: </span>
-                            <span>Demanda <b t-out="'{:+,.0f}'.format(ov['daily']['demand']['today'])"/> pz</span>
-                            <span> · Facturado <b t-out="cur + ' ' + '{:+,.0f}'.format(ov['daily']['invoiced_amount']['today'])"/></span>
-                            <span> (<b t-out="'{:+,.0f}'.format(ov['daily']['invoiced_qty']['today'])"/> pz)</span>
-                            <span> · Despachos <b t-out="'{:+,.0f}'.format(ov['daily']['dispatch']['today'])"/> pz</span>
-                            <span> · Producido <b t-out="'{:+,.0f}'.format(ov['daily']['produced']['today'])"/> pz</span>
-                        </div>
-                    </t>
-
-                    <!-- ── Tablas por familia (3 columnas) ────────────────── -->
-                    <table style="width:100%; border-collapse:collapse;">
-                        <tr style="vertical-align:top;">
-
-                            <!-- Demanda por familia -->
-                            <td style="width:33%; padding-right:5px;">
-                                <div style="font-size:9px; font-weight:bold; background:#2980b9; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Demanda por familia</div>
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <tr t-foreach="ov['demand']['rows'][:9]" t-as="r"
-                                        style="border-bottom:1px solid #ecf0f1;">
-                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
-                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="'{:,.0f}'.format(r['qty'])"/>
-                                    </tr>
-                                    <tr t-if="len(ov['demand']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
-                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
-                                        <td style="padding:1.5px 4px; text-align:right;" t-out="'{:,.0f}'.format(extra['demand_others'])"/>
-                                    </tr>
-                                    <tr style="border-top:2px solid #2980b9; font-weight:bold;">
-                                        <td style="padding:2px 4px;">Total</td>
-                                        <td style="padding:2px 4px; text-align:right;" t-out="'{:,.0f}'.format(ov['demand']['total_qty'])"/>
-                                    </tr>
-                                </table>
-                            </td>
-
-                            <!-- Facturado por familia -->
-                            <td style="width:34%; padding:0 3px;">
-                                <div style="font-size:9px; font-weight:bold; background:#27ae60; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Facturado por familia</div>
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <tr t-foreach="ov['invoiced']['rows'][:9]" t-as="r"
-                                        style="border-bottom:1px solid #ecf0f1;">
-                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
-                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="cur + ' ' + '{:,.0f}'.format(r['amount'])"/>
-                                    </tr>
-                                    <tr t-if="len(ov['invoiced']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
-                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
-                                        <td style="padding:1.5px 4px; text-align:right;" t-out="cur + ' ' + '{:,.0f}'.format(extra['invoiced_others'])"/>
-                                    </tr>
-                                    <tr style="border-top:2px solid #27ae60; font-weight:bold;">
-                                        <td style="padding:2px 4px;">Total</td>
-                                        <td style="padding:2px 4px; text-align:right;" t-out="cur + ' ' + '{:,.0f}'.format(ov['invoiced']['total_amount'])"/>
-                                    </tr>
-                                </table>
-                            </td>
-
-                            <!-- Producido por familia -->
-                            <td style="width:33%; padding-left:5px;">
-                                <div style="font-size:9px; font-weight:bold; background:#8e44ad; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Producido por familia</div>
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <tr t-foreach="ov['produced']['rows'][:9]" t-as="r"
-                                        style="border-bottom:1px solid #ecf0f1;">
-                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
-                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="'{:,.0f}'.format(r['qty'])"/>
-                                    </tr>
-                                    <tr t-if="len(ov['produced']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
-                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
-                                        <td style="padding:1.5px 4px; text-align:right;" t-out="'{:,.0f}'.format(extra['produced_others'])"/>
-                                    </tr>
-                                    <tr style="border-top:2px solid #8e44ad; font-weight:bold;">
-                                        <td style="padding:2px 4px;">Total</td>
-                                        <td style="padding:2px 4px; text-align:right;" t-out="'{:,.0f}'.format(ov['produced']['total_qty'])"/>
-                                    </tr>
-                                </table>
-                            </td>
-
-                        </tr>
-                    </table>
-
-                    <!-- ── Nota tasa de servicio ──────────────────────────── -->
-                    <div style="margin-top:8px; font-size:7.5px; color:#95a5a6; border-top:1px solid #ecf0f1; padding-top:4px;">
-                        Tasa de servicio = entregado ÷ demanda del mes.
-                        <t t-if="ov['service']['excused']">
-                            Se descontaron <span style="font-weight:bold;" t-out="'{:,.0f}'.format(ov['service']['excused'])"/> pz de demanda
-                            de pedidos pendientes sin stock disponible para pickear hace más de
-                            <span t-out="ov['service']['excuse_days']"/> días
-                            (demanda bruta <span t-out="'{:,.0f}'.format(ov['service']['ordered_gross'])"/> pz).
-                        </t>
-                        <t t-else="">
-                            Sin demanda excusada por faltante prolongado este mes.
-                        </t>
-                    </div>
-
-                </div>
+                </t>
+            </t>
         </t>
     </template>
 

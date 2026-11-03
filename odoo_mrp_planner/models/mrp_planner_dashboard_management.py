@@ -37,7 +37,6 @@ Relacionado con:
 """
 import base64
 import logging
-import re
 from collections import defaultdict
 from datetime import datetime, time
 
@@ -712,7 +711,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                     continue
                 if cfg.management_report_last_sent_date == today_local:
                     continue
-                if not (cfg.management_report_partner_ids or cfg.management_report_extra_emails):
+                if not cfg._management_report_recipient_emails():
                     _logger.warning('[MgmtReport] Config %s sin destinatarios; se omite.', cfg.id)
                     continue
                 if self._send_management_report(cfg, manual=False):
@@ -735,15 +734,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         companies = cfg.management_report_company_ids or cfg.company_id or self.env.company
         primary = companies[:1]   # empresa principal: remitente, moneda, etc.
 
-        # Destinatarios: emails de contactos + emails sueltos, deduplicados.
-        emails = set()
-        for partner in cfg.management_report_partner_ids:
-            if partner.email:
-                emails.add(partner.email.strip())
-        for raw in re.split(r'[;,\n]+', cfg.management_report_extra_emails or ''):
-            raw = raw.strip()
-            if raw:
-                emails.add(raw)
+        # Destinatarios resueltos en vivo (grupo Gerencia + adicionales − excluidos
+        # + emails sueltos); refleja siempre la membresía actual de los grupos.
+        emails = cfg._management_report_recipient_emails()
         if not emails:
             _logger.warning('[MgmtReport] Config %s sin emails válidos; no se envía.', cfg.id)
             return False
@@ -779,7 +772,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             '<p>Adjuntamos el <strong>Resumen diario de Gerencia</strong> de '
             '%(company)s correspondiente al %(date)s, con la demanda, facturado, '
             'producido, despachos, embalajes, picking y la tasa de servicio del mes.</p>'
-            '<p>Este correo se genera automáticamente desde el planificador.</p>'
+            '<p>Este correo se genera automáticamente desde el módulo de KPIs.</p>'
             '<p>Saludos.</p>',
             company=company_label, date=date_str)
         mail = self.env['mail.mail'].sudo().create({

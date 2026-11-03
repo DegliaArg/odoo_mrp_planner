@@ -22,6 +22,8 @@ Relacionado con:
 - mrp_planner_dashboard_management._cron_send_management_report / _send_management_report:
   usan los campos management_report_* para generar y enviar el PDF.
 """
+import re
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -85,18 +87,39 @@ class MrpRescheduleConfigManagement(models.Model):
              'selector multiempresa del panel). Vacío = la empresa de esta '
              'configuración.',
     )
+    management_report_group_recipients = fields.Boolean(
+        string='Enviar a los usuarios del grupo Gerencia',
+        default=True,
+        help='Si está activo, el PDF se envía SIEMPRE a los contactos de todos los '
+             'usuarios que tengan el grupo Gerencia (Lectura o Administrador). '
+             'Se resuelve en el momento del envío, así que al agregar o quitar '
+             'usuarios de esos grupos la lista de destinatarios se actualiza sola.',
+    )
     management_report_partner_ids = fields.Many2many(
         'res.partner',
         'mrp_resched_cfg_mgmt_report_partner_rel', 'config_id', 'partner_id',
-        string='Destinatarios (contactos)',
-        help='Contactos que reciben el PDF. Se usa su email. El envío es un correo '
-             'directo, así que llega por mail aunque el contacto sea un usuario con '
-             'notificaciones en bandeja de Odoo.',
+        string='Destinatarios adicionales (contactos)',
+        help='Contactos EXTRA que reciben el PDF además de los del grupo Gerencia. '
+             'Se usa su email. El envío es un correo directo, así que llega por mail '
+             'aunque el contacto sea un usuario con notificaciones en bandeja de Odoo.',
+    )
+    management_report_excluded_partner_ids = fields.Many2many(
+        'res.partner',
+        'mrp_resched_cfg_mgmt_report_excl_rel', 'config_id', 'partner_id',
+        string='Excluir destinatarios',
+        help='Contactos que NO deben recibir el PDF aunque estén en el grupo Gerencia. '
+             'Sirve para sacar manualmente a alguien del envío automático.',
     )
     management_report_extra_emails = fields.Char(
         string='Destinatarios (emails sueltos)',
         help='Emails adicionales separados por coma, que no necesitan ser contactos '
-             'de Odoo. Se combinan con los destinatarios de contactos.',
+             'de Odoo. Se combinan con el resto de los destinatarios.',
+    )
+    management_report_recipients_preview = fields.Char(
+        string='Destinatarios resueltos',
+        compute='_compute_management_report_recipients_preview',
+        help='Lista final de emails a los que saldría el PDF ahora mismo '
+             '(grupo Gerencia + adicionales − excluidos + emails sueltos).',
     )
     management_report_service_excuse_days = fields.Integer(
         string='Días de faltante para excusar la tasa de servicio',
@@ -113,14 +136,55 @@ class MrpRescheduleConfigManagement(models.Model):
              'día si el cron vuelve a correr. El botón "Enviar ahora" no la toca.',
     )
 
+    # ── Resolución de destinatarios ──────────────────────────────────────────
+
+    def _management_report_group_users(self):
+        """Usuarios de los grupos de Gerencia (Lectura + Administrador)."""
+        groups = self.env['res.groups']
+        for xmlid in ('odoo_mrp_planner.group_management_read',
+                      'odoo_mrp_planner.group_management'):
+            grp = self.env.ref(xmlid, raise_if_not_found=False)
+            if grp:
+                groups |= grp
+        return groups.users
+
+    def _management_report_recipient_emails(self):
+        """Set de emails a los que sale el PDF, resuelto EN VIVO:
+
+        (contactos del grupo Gerencia si está activo + contactos adicionales
+        − contactos excluidos) ∪ emails sueltos. Al resolverse en cada envío, la
+        lista refleja siempre la membresía actual de los grupos.
+        """
+        self.ensure_one()
+        partners = self.management_report_partner_ids
+        if self.management_report_group_recipients:
+            partners |= self._management_report_group_users().partner_id
+        partners -= self.management_report_excluded_partner_ids
+        emails = {p.email.strip() for p in partners if p.email}
+        for raw in re.split(r'[;,\n]+', self.management_report_extra_emails or ''):
+            raw = raw.strip()
+            if raw:
+                emails.add(raw)
+        return emails
+
+    @api.depends('management_report_group_recipients', 'management_report_partner_ids',
+                 'management_report_excluded_partner_ids', 'management_report_extra_emails')
+    def _compute_management_report_recipients_preview(self):
+        for cfg in self:
+            try:
+                emails = cfg._management_report_recipient_emails()
+            except Exception:
+                emails = set()
+            cfg.management_report_recipients_preview = ', '.join(sorted(emails)) or '—'
+
     def action_send_management_report_now(self):
         """Envía el PDF del Resumen diario de inmediato a los destinatarios
-        configurados (para probar en producción). No chequea la hora ni la marca
+        resueltos (para probar en producción). No chequea la hora ni la marca
         de último envío: es un disparo manual."""
         self.ensure_one()
-        if not (self.management_report_partner_ids or self.management_report_extra_emails):
-            raise UserError(_('Configurá al menos un destinatario (contacto o email) '
-                              'antes de enviar el Resumen diario.'))
+        if not self._management_report_recipient_emails():
+            raise UserError(_('No hay destinatarios: activá el grupo Gerencia o '
+                              'agregá al menos un contacto/email antes de enviar.'))
         self.env['mrp.planner.dashboard']._send_management_report(self, manual=True)
         return {
             'type': 'ir.actions.client',

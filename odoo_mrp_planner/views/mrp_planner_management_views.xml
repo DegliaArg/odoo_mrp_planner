@@ -134,13 +134,21 @@
                                        invisible="not management_report_enabled"
                                        options="{'no_create': True, 'no_create_edit': True}"
                                        placeholder="Empresas a consolidar (vacío = empresa de esta configuración)…"/>
+                                <field name="management_report_group_recipients"
+                                       invisible="not management_report_enabled"/>
                                 <field name="management_report_partner_ids"
                                        widget="many2many_tags"
                                        invisible="not management_report_enabled"
-                                       placeholder="Contactos destinatarios…"/>
+                                       placeholder="Contactos adicionales (además del grupo Gerencia)…"/>
+                                <field name="management_report_excluded_partner_ids"
+                                       widget="many2many_tags"
+                                       invisible="not management_report_enabled"
+                                       placeholder="Contactos a excluir del envío…"/>
                                 <field name="management_report_extra_emails"
                                        invisible="not management_report_enabled"
                                        placeholder="otro@correo.com, tercero@correo.com"/>
+                                <field name="management_report_recipients_preview" readonly="1"
+                                       invisible="not management_report_enabled"/>
                                 <field name="management_report_last_sent_date" readonly="1"
                                        invisible="not management_report_enabled"/>
                             </group>

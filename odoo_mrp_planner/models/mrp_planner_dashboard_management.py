@@ -779,8 +779,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             '<p>Adjuntamos el <strong>Resumen diario de Gerencia</strong> de '
             '%(company)s correspondiente al %(date)s, con la demanda, facturado, '
             'producido, despachos, embalajes, picking y la tasa de servicio del mes.</p>'
-            '<p>Este correo se genera automáticamente desde el planificador. '
-            'Ante dudas, respondé a este mail.</p>'
+            '<p>Este correo se genera automáticamente desde el planificador.</p>'
             '<p>Saludos.</p>',
             company=company_label, date=date_str)
         mail = self.env['mail.mail'].sudo().create({

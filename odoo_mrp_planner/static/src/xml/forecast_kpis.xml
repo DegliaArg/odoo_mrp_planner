@@ -239,7 +239,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Tasa de servicio -->
+            <!-- Tasa de cumplimiento -->
             <div class="col">
                 <div class="card o_planner_card h-100"
                      t-att-title="fcKpiTooltip('demand_svc')">
@@ -248,7 +248,7 @@
                         <div t-att-class="'o_planner_number ' + svcClass(filteredKpis.overall_demand_service_rate)">
                             <t t-esc="fmtPct(filteredKpis.overall_demand_service_rate)"/>
                         </div>
-                        <div class="o_planner_label">Tasa de servicio</div>
+                        <div class="o_planner_label">Tasa de cumplimiento</div>
                     </div>
                 </div>
             </div>

@@ -104,14 +104,6 @@ class MrpRescheduleConfigManagement(models.Model):
         help='Emails adicionales separados por coma que no son contactos de Odoo. '
              'Se suman a los destinatarios de arriba.',
     )
-    management_report_service_excuse_days = fields.Integer(
-        string='Días de faltante para excusar la tasa de servicio',
-        default=5,
-        help='En la tasa de servicio del PDF, se descuentan del denominador '
-             '(demanda) los pedidos pendientes que llevan MÁS de estos días sin '
-             'disponibilidad de stock para hacer la recolección. Así la tasa no se '
-             'penaliza por demanda que físicamente no se pudo pickear por quiebre.',
-    )
     management_report_last_sent_date = fields.Date(
         string='Último envío automático',
         readonly=True,

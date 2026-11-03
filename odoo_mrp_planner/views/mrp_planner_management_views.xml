@@ -110,14 +110,6 @@
                                        options="{'no_create': True, 'no_create_edit': True}"
                                        placeholder="Depósitos a considerar en producido (vacío = todos)…"/>
                             </group>
-                            <group string="Tasa de servicio del Resumen diario">
-                                <div class="text-muted small mb-2">
-                                    La tasa de servicio (panel y PDF) descuenta del denominador la
-                                    demanda de pedidos pendientes sin stock disponible para pickear
-                                    hace más de estos días, para no penalizar por quiebres.
-                                </div>
-                                <field name="management_report_service_excuse_days"/>
-                            </group>
                         </div>
                         <div class="col-5">
                             <group string="Envío automático por mail">

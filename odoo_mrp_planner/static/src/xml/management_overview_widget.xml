@@ -178,7 +178,7 @@
                         <!-- Tasa de servicio (entregado de los pedidos del mes ÷ pedido) -->
                         <div class="flex-fill" style="min-width:150px; flex-basis:0;">
                             <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                                 title="Tasa de servicio del mes: de lo pedido en el mes (demanda), cuánto ya se entregó realmente (entregas de salida validadas de esos pedidos, en cualquier fecha). Al denominador se le descuenta la demanda de pedidos pendientes sin stock disponible para pickear hace más días que los configurados (Ajustes → Gerencia), para no penalizar por quiebres. Semáforo configurable en Ajustes → Ventas.">
+                                 title="Tasa de servicio del mes: entregado ÷ demanda, pero el denominador suma SOLO los pedidos trabajados en el mes (los que tuvieron al menos una entrega de salida validada en el mes). Los pedidos sin ninguna entrega en el mes no cuentan. Distinta de la Tasa de cumplimiento de Ventas (que toma toda la demanda). Semáforo configurable en Ajustes → Ventas.">
                                 <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                     <i class="fa fa-check-circle fa-lg text-secondary mb-1 d-block"/>
                                     <div t-att-class="'o_planner_number ' + svcClass(state.data.service.rate)"
@@ -186,8 +186,8 @@
                                     <div class="o_planner_label">Tasa de servicio</div>
                                     <div class="text-muted mt-1" style="font-size:10px;">
                                         <t t-esc="fmt(state.data.service.delivered)"/> / <t t-esc="fmt(state.data.service.ordered)"/> pz
-                                        <t t-if="state.data.service.excused">
-                                            <br/>(−<t t-esc="fmt(state.data.service.excused)"/> pz por faltante)
+                                        <t t-if="state.data.service.worked_orders">
+                                            <br/><t t-esc="state.data.service.worked_orders"/> ped. trabajados
                                         </t>
                                     </div>
                                 </div>

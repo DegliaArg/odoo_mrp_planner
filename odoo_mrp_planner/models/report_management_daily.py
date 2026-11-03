@@ -149,16 +149,12 @@ class ReportManagementDaily(models.AbstractModel):
         ]
 
         # Nota de la tasa de servicio.
-        if svc.get('excused'):
-            svc_note = (
-                'Tasa de servicio = entregado ÷ demanda del mes. Se descontaron %s pz '
-                'de demanda de pedidos pendientes sin stock para pickear hace más de %s '
-                'días (demanda bruta %s pz).' % (
-                    self._int(svc['excused']), svc.get('excuse_days'),
-                    self._int(svc['ordered_gross'])))
-        else:
-            svc_note = ('Tasa de servicio = entregado ÷ demanda del mes. '
-                        'Sin demanda excusada por faltante prolongado este mes.')
+        svc_note = (
+            'Tasa de servicio = entregado ÷ demanda, contando SOLO los pedidos '
+            'trabajados en el mes (los que tuvieron al menos una entrega en el mes): '
+            '%s de %s pedidos del mes. Distinta de la Tasa de cumplimiento de Ventas, '
+            'que toma toda la demanda.' % (
+                svc.get('worked_orders', 0), svc.get('total_orders', 0)))
 
         rep = {
             'company_label': ', '.join(companies.mapped('name')),

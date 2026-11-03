@@ -17,9 +17,10 @@ vivo para el mes seleccionado (por defecto, el mes en curso):
   (stock.move.line), espejo del reporte nativo Historial de movimientos.
 - Producido del mes por categoría de producto (OFs según la config de estados
   y modo de fecha de la Comparativa Producido vs. Programado).
-- Tasa de servicio del mes: entregas de salida validadas de los pedidos del
-  período ÷ demanda del período × 100 (espeja la "Tasa de servicio" del panel
-  de Ventas). Indicador de ratio, sin variación diaria.
+- Tasa de servicio del mes: entregado ÷ demanda, pero el denominador suma SOLO
+  los pedidos TRABAJADOS en el período (los que tuvieron al menos una entrega en
+  el período). Distinta de la "Tasa de cumplimiento" de Ventas, que toma toda la
+  demanda. Indicador de ratio, sin variación diaria.
 
 Variación diaria: en los 4 indicadores acumulables (demanda, facturado,
 despachos, producido) se devuelve además lo aportado hoy y ayer para mostrar
@@ -236,33 +237,24 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         return {'ordered': round(ordered, 2),
                 'delivered': round(delivered, 2), 'rate': rate}
 
-    def _mgmt_service_rate_report(self, dt_from, dt_to, company, allowed_ids, excuse_days):
-        """Tasa de servicio del Resumen diario (panel + PDF) con el denominador
-        AJUSTADO por faltante prolongado.
+    def _mgmt_service_rate_report(self, dt_from, dt_to, company, allowed_ids):
+        """Tasa de servicio del Resumen diario de Gerencia (panel + PDF).
 
-        Igual que _mgmt_service_rate, pero al denominador (demanda del período) se le
-        descuenta la demanda de los pedidos pendientes que llevan MÁS de
-        ``excuse_days`` días sin disponibilidad de stock para hacer la recolección
-        (picking). La idea: no penalizar la tasa por demanda que físicamente no se
-        pudo pickear por quiebre de stock.
+        A diferencia de la Tasa de cumplimiento de Ventas (que toma TODA la demanda),
+        acá el denominador suma SOLO los pedidos TRABAJADOS en el período: aquellos de
+        los que se entregó al menos una pieza dentro del período (una entrega de salida
+        validada con fecha en el período). Los pedidos sin ninguna entrega en el período
+        NO suman al denominador.
 
-        "Sin disponibilidad para recolección" = la cantidad pendiente (pedido −
-        entregado) de una línea cuyo producto no tiene stock libre (``free_qty`` ≤ 0)
-        en la empresa, y cuyo pedido se confirmó hace más de ``excuse_days`` días.
+        - Denominador = demanda (cantidad pedida) de los pedidos trabajados.
+        - Numerador   = piezas entregadas de esos pedidos (entregas de salida
+          validadas, en cualquier fecha).
 
-        Para que el número cierre con el numerador, ``ordered`` devuelve el
-        denominador YA AJUSTADO (lo que usa ``rate``); ``ordered_gross`` es la demanda
-        bruta y ``excused`` lo descontado.
-
-        :returns: dict {'ordered', 'ordered_gross', 'excused', 'delivered', 'rate',
-            'excuse_days'} — rate None si el denominador ajustado es 0.
+        :returns: dict {'ordered', 'delivered', 'rate', 'worked_orders',
+            'total_orders'} — rate None si no hay pedidos trabajados.
         """
-        base = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
-        ordered_gross = base['ordered']
-        delivered = base['delivered']
-
-        excuse_days = int(excuse_days or 0)
-        excused = 0.0
+        empty = {'ordered': 0.0, 'delivered': 0.0, 'rate': None,
+                 'worked_orders': 0, 'total_orders': 0}
         so_dom = [
             ('state', 'in', ['sale', 'done']),
             ('date_order', '>=', dt_from),
@@ -272,47 +264,48 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         if allowed_ids is not None:
             so_dom.append(('warehouse_id', 'in', allowed_ids))
         sos = self.env['sale.order'].sudo().search(so_dom)
-        if sos:
-            today = fields.Date.context_today(self)
-            date_order = {o.id: o.date_order for o in sos}
-            lines = self.env['sale.order.line'].sudo().search([
-                ('order_id', 'in', sos.ids),
-                ('product_id', '!=', False),
-                ('product_id.sale_ok', '=', True),
-            ])
-            # free_qty (stock libre para reservar) por (empresa, producto): el stock
-            # que sirve a un pedido es el de SU empresa, así que se lee en el contexto
-            # de cada empresa (soporta la consolidación multiempresa del reporte).
-            free_qty = {}
-            lines_by_company = defaultdict(list)
-            for line in lines:
-                lines_by_company[line.company_id.id].append(line)
-            for comp_id, comp_lines in lines_by_company.items():
-                pids = list({l.product_id.id for l in comp_lines})
-                for p in self.env['product.product'].sudo().with_company(comp_id).browse(pids):
-                    free_qty[(comp_id, p.id)] = p.free_qty
-            for line in lines:
-                unmet = (line.product_uom_qty or 0.0) - max(0.0, line.qty_delivered or 0.0)
-                if unmet <= 0:
-                    continue
-                od = date_order.get(line.order_id.id)
-                if not od:
-                    continue
-                if (today - od.date()).days <= excuse_days:
-                    continue
-                if free_qty.get((line.company_id.id, line.product_id.id), 0.0) > 1e-6:
-                    continue  # hay stock para pickear: no se excusa
-                excused += unmet
+        if not sos:
+            return empty
 
-        ordered_adj = max(0.0, ordered_gross - excused)
-        rate = round(delivered / ordered_adj * 100, 1) if ordered_adj > 0 else None
+        # Pedidos TRABAJADOS: tuvieron ≥1 entrega de salida validada EN el período.
+        worked = self.env['stock.move.line'].sudo().search([
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ('picking_id.sale_id', 'in', sos.ids),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+            ('date', '>=', dt_from), ('date', '<=', dt_to),
+        ])
+        worked_so_ids = list(set(worked.mapped('picking_id.sale_id').ids))
+        if not worked_so_ids:
+            return dict(empty, total_orders=len(sos))
+
+        # Denominador: demanda (cantidad pedida) de los pedidos trabajados.
+        dem = self.env['sale.order.line'].sudo().read_group([
+            ('order_id', 'in', worked_so_ids),
+            ('product_id', '!=', False),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+        ], ['product_uom_qty:sum'], [])
+        ordered = (dem[0]['product_uom_qty'] or 0.0) if dem and dem[0] else 0.0
+
+        # Numerador: entregado (cualquier fecha) de los pedidos trabajados.
+        deliv = self.env['stock.move.line'].sudo().read_group([
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ('picking_id.sale_id', 'in', worked_so_ids),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+        ], ['quantity:sum'], [])
+        delivered = (deliv[0]['quantity'] or 0.0) if deliv and deliv[0] else 0.0
+
+        rate = round(delivered / ordered * 100, 1) if ordered > 0 else None
         return {
-            'ordered': round(ordered_adj, 2),
-            'ordered_gross': round(ordered_gross, 2),
-            'excused': round(excused, 2),
+            'ordered': round(ordered, 2),
             'delivered': round(delivered, 2),
             'rate': rate,
-            'excuse_days': excuse_days,
+            'worked_orders': len(worked_so_ids),
+            'total_orders': len(sos),
         }
 
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
@@ -592,7 +585,6 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         no_access = allowed_ids is not None and not allowed_ids
 
         cfg = self.env['mrp.reschedule.config'].get_config()
-        excuse_days = cfg.management_report_service_excuse_days or 0
         disp_types = cfg.management_dispatch_picking_type_ids.ids
         pack_types = cfg.management_packing_picking_type_ids.ids
         pick_types = cfg.management_picking_picking_type_ids.ids
@@ -609,9 +601,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 'currency': active.currency_id.symbol or '$',
                 'demand': empty, 'invoiced': empty_inv, 'produced': dict(empty),
                 'dispatch': zero, 'packing': zero, 'picking': zero,
-                'service': {'ordered': 0.0, 'ordered_gross': 0.0, 'excused': 0.0,
-                            'delivered': 0.0, 'rate': None,
-                            'excuse_days': excuse_days},
+                'service': {'ordered': 0.0, 'delivered': 0.0, 'rate': None,
+                            'worked_orders': 0, 'total_orders': 0},
                 'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
                 'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
                 'daily': {},
@@ -633,7 +624,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         # (by_move) porque así ya coincide — no se toca.
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_line=True)
-        service = self._mgmt_service_rate_report(dt_from, dt_to, company, allowed_ids, excuse_days)
+        service = self._mgmt_service_rate_report(dt_from, dt_to, company, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}

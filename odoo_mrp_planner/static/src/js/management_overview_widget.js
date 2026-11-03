@@ -8,8 +8,9 @@
  *   - Facturado del mes (piezas + monto) con variación diaria.
  *   - Despachos del mes (piezas, estado Hecho) con variación diaria.
  *   - Embalajes / Picking pendientes AHORA (foto del estado Asignado).
- *   - Tasa de servicio del mes (entregado de los pedidos del mes ÷ pedido),
- *     con semáforo; espeja la "Tasa de servicio" del panel de Ventas.
+ *   - Tasa de servicio del mes (entregado ÷ demanda, denominador SOLO con los
+ *     pedidos trabajados en el mes), con semáforo. Distinta de la "Tasa de
+ *     cumplimiento" de Ventas, que toma toda la demanda.
  *   - Demanda del mes por categoría de producto (tabla).
  *   - Producido del mes por categoría de producto (tabla).
  *

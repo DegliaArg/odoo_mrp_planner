@@ -76,11 +76,14 @@ class MrpRescheduleConfigManagement(models.Model):
              'a la que se envía el PDF. El cron corre cada hora y dispara el envío '
              'al llegar a esta hora. Ej.: 8.0 = 08:00, 18.5 = 18:30.',
     )
-    management_report_company_id = fields.Many2one(
+    management_report_company_ids = fields.Many2many(
         'res.company',
-        string='Empresa a reportar',
-        help='Empresa cuyos indicadores se incluyen en el PDF. Vacío = la empresa '
-             'de esta configuración.',
+        'mrp_resched_cfg_mgmt_report_company_rel', 'config_id', 'company_id',
+        string='Empresas a reportar',
+        default=lambda self: self.env.company,
+        help='Empresas cuyos indicadores se consolidan en el PDF (igual que el '
+             'selector multiempresa del panel). Vacío = la empresa de esta '
+             'configuración.',
     )
     management_report_partner_ids = fields.Many2many(
         'res.partner',

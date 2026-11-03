@@ -46,7 +46,7 @@
                     <!-- ── Encabezado ─────────────────────────────────────── -->
                     <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #34495e; padding-bottom:4px; margin-bottom:8px;">
                         <div>
-                            <div style="font-size:15px; font-weight:bold;" t-out="company.name"/>
+                            <div style="font-size:15px; font-weight:bold;" t-out="company_label"/>
                             <div style="font-size:11px; color:#7f8c8d;">Resumen diario de Gerencia</div>
                         </div>
                         <div style="text-align:right; font-size:9px; color:#7f8c8d;">

@@ -281,13 +281,17 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 ('product_id', '!=', False),
                 ('product_id.sale_ok', '=', True),
             ])
-            # free_qty (stock libre para reservar) por producto, en la empresa activa
-            # del contexto (en el PDF se fija con with_company a la empresa reportada).
-            prod_ids = lines.mapped('product_id').ids
+            # free_qty (stock libre para reservar) por (empresa, producto): el stock
+            # que sirve a un pedido es el de SU empresa, así que se lee en el contexto
+            # de cada empresa (soporta la consolidación multiempresa del reporte).
             free_qty = {}
-            if prod_ids:
-                for p in self.env['product.product'].sudo().browse(prod_ids):
-                    free_qty[p.id] = p.free_qty
+            lines_by_company = defaultdict(list)
+            for line in lines:
+                lines_by_company[line.company_id.id].append(line)
+            for comp_id, comp_lines in lines_by_company.items():
+                pids = list({l.product_id.id for l in comp_lines})
+                for p in self.env['product.product'].sudo().with_company(comp_id).browse(pids):
+                    free_qty[(comp_id, p.id)] = p.free_qty
             for line in lines:
                 unmet = (line.product_uom_qty or 0.0) - max(0.0, line.qty_delivered or 0.0)
                 if unmet <= 0:
@@ -297,7 +301,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                     continue
                 if (today - od.date()).days <= excuse_days:
                     continue
-                if free_qty.get(line.product_id.id, 0.0) > 1e-6:
+                if free_qty.get((line.company_id.id, line.product_id.id), 0.0) > 1e-6:
                     continue  # hay stock para pickear: no se excusa
                 excused += unmet
 
@@ -728,7 +732,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             los deja registrados en el log.
         :returns: True si se envió.
         """
-        company = cfg.management_report_company_id or cfg.company_id or self.env.company
+        companies = cfg.management_report_company_ids or cfg.company_id or self.env.company
+        primary = companies[:1]   # empresa principal: remitente, moneda, etc.
 
         # Destinatarios: emails de contactos + emails sueltos, deduplicados.
         emails = set()
@@ -747,18 +752,20 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         today_local = pytz.utc.localize(datetime.utcnow()).astimezone(tz).date()
         month = '%04d-%02d' % (today_local.year, today_local.month)
         date_str = today_local.strftime('%d/%m/%Y')
+        company_label = ', '.join(companies.mapped('name'))
 
-        # El PDF se calcula a nivel empresa completa (force_all_warehouses) y con la
-        # empresa reportada fijada en el contexto (afecta free_qty de la tasa).
+        # El PDF se calcula a nivel empresa completa (force_all_warehouses) y con las
+        # empresas reportadas fijadas en el contexto (consolida como el panel; afecta
+        # el free_qty por empresa de la tasa de servicio).
         rec = self.create({})
         pdf_content, _ct = self.env['ir.actions.report'].sudo().with_company(
-            company)._render_qweb_pdf(
+            primary).with_context(allowed_company_ids=companies.ids)._render_qweb_pdf(
             'odoo_mrp_planner.action_report_management_daily', rec.ids,
-            data={'company_id': company.id, 'month': month,
+            data={'company_ids': companies.ids, 'month': month,
                   'report_date': fields.Date.to_string(today_local)})
 
         fname = _('Resumen diario %(company)s %(date)s.pdf',
-                  company=company.name, date=today_local)
+                  company=company_label, date=today_local)
         attachment = self.env['ir.attachment'].sudo().create({
             'name': fname,
             'type': 'binary',
@@ -766,7 +773,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'mimetype': 'application/pdf',
         })
         subject = _('Resumen diario de Gerencia — %(company)s — %(date)s',
-                    company=company.name, date=date_str)
+                    company=company_label, date=date_str)
         body = _(
             '<p>Hola,</p>'
             '<p>Adjuntamos el <strong>Resumen diario de Gerencia</strong> de '
@@ -775,11 +782,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             '<p>Este correo se genera automáticamente desde el planificador. '
             'Ante dudas, respondé a este mail.</p>'
             '<p>Saludos.</p>',
-            company=company.name, date=date_str)
+            company=company_label, date=date_str)
         mail = self.env['mail.mail'].sudo().create({
             'subject': subject,
             'body_html': body,
-            'email_from': company.email or (self.env.user.email_formatted or False),
+            'email_from': primary.email or (self.env.user.email_formatted or False),
             'email_to': ','.join(sorted(emails)),
             'attachment_ids': [(4, attachment.id)],
             'auto_delete': True,

@@ -25,10 +25,15 @@ class ReportManagementDaily(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         data = data or {}
-        company = (self.env['res.company'].browse(data['company_id'])
-                   if data.get('company_id') else self.env.company)
-        overview = self.env['mrp.planner.dashboard'].with_company(company).with_context(
-            allowed_company_ids=[company.id]
+        # Empresas a consolidar: company_ids (lista) o, por compatibilidad, un
+        # company_id suelto; si no viene nada, la empresa activa.
+        company_ids = data.get('company_ids') or (
+            [data['company_id']] if data.get('company_id') else [])
+        companies = (self.env['res.company'].browse(company_ids)
+                     if company_ids else self.env.company)
+        primary = companies[:1] or self.env.company
+        overview = self.env['mrp.planner.dashboard'].with_company(primary).with_context(
+            allowed_company_ids=companies.ids
         )._get_management_overview_data(month=data.get('month'), force_all_warehouses=True)
         report_date = (data.get('report_date')
                        or fields.Date.to_string(fields.Date.context_today(self)))
@@ -52,6 +57,7 @@ class ReportManagementDaily(models.AbstractModel):
             'docs': self.env['mrp.planner.dashboard'].browse(docids),
             'o': overview,
             'extra': extra,
-            'company': company,
+            'company': primary,
+            'company_label': ', '.join(companies.mapped('name')),
             'report_date': report_date,
         }

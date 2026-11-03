@@ -129,10 +129,11 @@
                                 <field name="management_report_enabled"/>
                                 <field name="management_report_hour" widget="float_time"
                                        invisible="not management_report_enabled"/>
-                                <field name="management_report_company_id"
+                                <field name="management_report_company_ids"
+                                       widget="many2many_tags"
                                        invisible="not management_report_enabled"
                                        options="{'no_create': True, 'no_create_edit': True}"
-                                       placeholder="Vacío = empresa de esta configuración…"/>
+                                       placeholder="Empresas a consolidar (vacío = empresa de esta configuración)…"/>
                                 <field name="management_report_partner_ids"
                                        widget="many2many_tags"
                                        invisible="not management_report_enabled"

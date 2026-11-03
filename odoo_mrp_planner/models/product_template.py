@@ -52,19 +52,6 @@ class ProductTemplate(models.Model):
              'Se usa en la vista para mostrar u ocultar el campo x_sale_category.',
     )
 
-    # product_variant_id (calculado, no almacenado) no trae método de búsqueda en
-    # el core. Odoo exige que un campo usado en el @api.depends de OTRO campo
-    # computado sea "searchable" para saber qué registros recomputar; si no, emite
-    # un UserWarning. Cuando hay campos de Studio sobre product.product que lo usan
-    # en sus dependencias, ese warning puede escalar y tumbar la carga del registry
-    # ("Failed to load registry") en cada actualización/rebuild. Darle un search
-    # (extensión mínima del campo: sólo agrega el método, conserva compute/store del
-    # core) lo vuelve searchable y evita ese fallo intermitente del build en Odoo.sh.
-    product_variant_id = fields.Many2one(search='_search_product_variant_id')
-
-    def _search_product_variant_id(self, operator, value):
-        return [('product_variant_ids', operator, value)]
-
     @api.depends_context('company')
     def _compute_sale_category(self):
         cats = self.env['mrp.product.company.category'].search([

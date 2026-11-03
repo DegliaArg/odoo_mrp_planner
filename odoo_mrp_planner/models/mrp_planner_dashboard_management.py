@@ -378,6 +378,24 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     # ── Producido (OFs según config de la Comparativa) ───────────────────────
 
+    def _mgmt_operational_config(self):
+        """Config de Gerencia OPERATIVA (tipos de operación de despachos/embalajes/
+        picking, depósitos y estados del producido).
+
+        En multiempresa esa config puede estar armada en una empresa distinta de la
+        reportada (p. ej. la operación/producción vive en una empresa y la facturación
+        en otra). El informe muestra TODAS las empresas para lo operativo, así que
+        toma la config de la empresa que la tenga cargada. Devuelve la primera config
+        con settings operativos; si ninguna, la de la empresa activa."""
+        configs = self.env['mrp.reschedule.config'].sudo().search([])
+        for cfg in configs:
+            if (cfg.management_dispatch_picking_type_ids
+                    or cfg.management_packing_picking_type_ids
+                    or cfg.management_picking_picking_type_ids
+                    or cfg.management_production_warehouse_ids):
+                return cfg
+        return self.env['mrp.reschedule.config'].get_config()
+
     def _mgmt_produced_states(self):
         """Estados de OF a incluir en el producido, espejando la Comparativa
         Producido vs. Programado (mrp.reschedule.config). Misma lógica y mismo
@@ -572,12 +590,20 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         if report_mode:
             # Modo informe (PDF): facturado por las empresas de la config; el resto,
             # TODAS las empresas del sistema (la config de empresas no las limita).
+            # La config OPERATIVA (tipos de op., depósitos/estados de producido) se
+            # toma de la empresa que la tenga armada (p. ej. la operación vive en
+            # "Fábrica" aunque el informe sea de otra empresa) → op_company.
             invoice_co = invoice_companies
             all_co = self.env['res.company'].sudo().search([])
+            op_company = self._mgmt_operational_config().company_id or self.env.company
         else:
             # Panel: todos los indicadores respetan el selector multiempresa nativo.
             invoice_co = self.env.companies
             all_co = self.env.companies
+            op_company = self.env.company
+        # `op_self` resuelve get_config() → config operativa (estados/fecha del
+        # producido). `cfg` se lee de esa misma empresa (tipos de op., depósitos).
+        op_self = self.with_company(op_company)
         today = fields.Date.context_today(self)
         if not month:
             month = '%04d-%02d' % (today.year, today.month)
@@ -594,7 +620,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             allowed_ids = self._get_wh_domains().allowed_ids
         no_access = allowed_ids is not None and not allowed_ids
 
-        cfg = self.env['mrp.reschedule.config'].get_config()
+        cfg = op_self.env['mrp.reschedule.config'].get_config()
         disp_types = cfg.management_dispatch_picking_type_ids.ids
         pack_types = cfg.management_packing_picking_type_ids.ids
         pick_types = cfg.management_picking_picking_type_ids.ids
@@ -623,7 +649,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         # las del sistema; en el panel, el selector).
         demand = self._mgmt_demand(dt_from, dt_to, all_co, allowed_ids)
         invoiced = self._mgmt_invoiced(d_from, d_to, invoice_co)
-        produced = self._mgmt_produced(dt_from, dt_to, all_co, allowed_ids, prod_wh_ids)
+        produced = op_self._mgmt_produced(dt_from, dt_to, all_co, allowed_ids, prod_wh_ids)
         dispatch = self._mgmt_move_pieces(disp_types, 'done', all_co, allowed_ids,
                                           dt_from, dt_to, with_breakdown=True)
         # Embalajes/Picking filtran por fecha programada del movimiento, que es
@@ -667,8 +693,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                                                         allowed_ids, yd_f, yd_t)['qty'],
                 },
                 'produced': {
-                    'today': round(self._mgmt_produced_qty(td_f, td_t, all_co, allowed_ids, prod_wh_ids), 2),
-                    'yesterday': round(self._mgmt_produced_qty(yd_f, yd_t, all_co, allowed_ids, prod_wh_ids), 2),
+                    'today': round(op_self._mgmt_produced_qty(td_f, td_t, all_co, allowed_ids, prod_wh_ids), 2),
+                    'yesterday': round(op_self._mgmt_produced_qty(yd_f, yd_t, all_co, allowed_ids, prod_wh_ids), 2),
                 },
             }
 

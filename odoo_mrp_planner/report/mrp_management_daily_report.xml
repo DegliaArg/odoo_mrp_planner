@@ -2,25 +2,21 @@
 <odoo>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         PAPERFORMAT — A4 vertical, márgenes chicos (one-pager ejecutivo)
+         PAPERFORMAT — A4 vertical
     ════════════════════════════════════════════════════════════════════ -->
     <record id="paperformat_management_daily" model="report.paperformat">
         <field name="name">Resumen diario de Gerencia</field>
         <field name="default" eval="False"/>
         <field name="format">A4</field>
         <field name="orientation">Portrait</field>
-        <field name="margin_top">6</field>
-        <field name="margin_bottom">6</field>
+        <field name="margin_top">12</field>
+        <field name="margin_bottom">12</field>
         <field name="margin_left">7</field>
         <field name="margin_right">7</field>
-        <field name="header_spacing">0</field>
-        <field name="header_line" eval="False"/>
+        <field name="header_spacing">9</field>
         <field name="dpi">96</field>
     </record>
 
-    <!-- ════════════════════════════════════════════════════════════════════
-         ACCIÓN DE REPORTE
-    ════════════════════════════════════════════════════════════════════ -->
     <record id="action_report_management_daily" model="ir.actions.report">
         <field name="name">Resumen diario de Gerencia</field>
         <field name="model">mrp.planner.dashboard</field>
@@ -31,85 +27,113 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         TEMPLATE — one-pager ejecutivo para Gerencia
+         TEMPLATE — Resumen diario (estética Capemi, sin grilla "Excel")
     ════════════════════════════════════════════════════════════════════ -->
     <template id="report_management_daily">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="web.basic_layout">
-                    <div class="page" style="font-family:'Lato','Helvetica Neue',Arial,sans-serif; color:#0f172a; font-size:9px;">
+                <t t-call="web.external_layout">
+                    <t t-set="company" t-value="company or o.env.company"/>
 
-                        <!-- ══════ ENCABEZADO (banda) ══════ -->
-                        <table style="width:100%; border-collapse:collapse; margin-bottom:11px; border-radius:9px; background:#0f172a; overflow:hidden;">
-                            <tr>
-                                <td style="width:7px; background:#2563eb;"/>
-                                <td style="padding:13px 16px;">
-                                    <div style="font-size:19px; font-weight:bold; color:#ffffff; letter-spacing:0.2px;" t-out="rep['company_label']"/>
-                                    <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:1.6px; margin-top:2px;">Resumen diario de Gerencia</div>
-                                </td>
-                                <td style="padding:13px 18px; text-align:right; white-space:nowrap;">
-                                    <div style="font-size:15px; font-weight:bold; color:#ffffff;" t-out="rep['month_label']"/>
-                                    <div style="font-size:9px; color:#94a3b8; margin-top:2px;">Emitido <span t-out="rep['report_date']"/></div>
-                                </td>
-                            </tr>
-                        </table>
+                    <style>
+                        /* Mata TODOS los bordes/cajas que mete el layout de la empresa
+                           (el que parece Excel). Después reponemos solo líneas suaves. */
+                        .article table, .article tr, .article td, .article th,
+                        .article thead, .article tbody {
+                            border:0 !important; border-radius:0 !important;
+                            box-shadow:none !important; background-image:none !important; }
 
-                        <!-- ══════ KPIs DESTACADOS (3 + tasa de servicio) ══════ -->
-                        <table style="width:100%; border-collapse:separate; border-spacing:7px 0; margin-bottom:8px; table-layout:fixed;">
+                        .mg-title { font-size:19px; font-weight:700; color:#004b88; margin:0; letter-spacing:.2px; }
+                        .mg-sub   { font-size:10px; color:#6b7784; margin:3px 0 0; }
+                        .mg-rule  { border:0; border-top:3px solid #004b88; margin:9px 0 14px; }
+
+                        .mg-sec   { font-size:11px; font-weight:700; color:#004b88;
+                                    text-transform:uppercase; letter-spacing:.6px;
+                                    padding-left:8px; border-left:3px solid #004b88;
+                                    margin:16px 0 9px; }
+
+                        /* KPIs */
+                        table.mg-kpis { width:100%; border-collapse:separate !important;
+                                        border-spacing:7px 0; table-layout:fixed; }
+                        .mg-kpi   { background:#f6f9fc; border-radius:10px !important;
+                                    padding:12px 8px; text-align:center; }
+                        .mg-kpi-v { font-size:18px; font-weight:700; line-height:1.05; }
+                        .mg-kpi-l { font-size:7.5px; color:#8a97a3; text-transform:uppercase;
+                                    letter-spacing:.5px; margin-top:5px; }
+                        .mg-kpi-d { font-size:7.5px; margin-top:4px; }
+                        .mg-kpi-s { font-size:7px; color:#9aa6b1; margin-top:3px; }
+                        .mg-up    { color:#1e7e34; } .mg-dn { color:#b45309; } .mg-fl { color:#8a97a3; }
+
+                        /* Tablas limpias (sin grilla): banda de título + zebra suave */
+                        table.mg-grid { width:100%; border-collapse:collapse !important; table-layout:fixed; }
+                        table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 5px; }
+
+                        .mg-band  { background:#004b88 !important; color:#fff; font-size:9px;
+                                    font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+                                    padding:5px 9px; border-radius:7px 7px 0 0 !important; }
+                        .mg-band .mg-tot { float:right; font-weight:700; }
+
+                        table.mg-tbl { width:100%; border-collapse:collapse !important;
+                                       font-size:8.5px; background:#fff; }
+                        table.mg-tbl td { padding:3px 9px !important;
+                                          border-bottom:1px solid #eef2f6 !important; }
+                        table.mg-tbl td.mg-r { text-align:right; font-weight:700; color:#0f2a43;
+                                               white-space:nowrap; }
+                        table.mg-tbl tbody tr:nth-child(even) td { background:#f7fafc; }
+                        table.mg-tbl td.mg-nm { color:#3d4b57; }
+                        .mg-oth td { color:#9aa6b1 !important; font-style:italic; }
+                        .mg-ttr td { background:#eef4f9 !important; color:#004b88 !important;
+                                     font-weight:700 !important; border-top:2px solid #cfe0ee !important;
+                                     border-bottom:0 !important; }
+                        .mg-empty { font-size:8px; color:#9aa6b1; padding:7px 9px;
+                                    background:#fff; font-style:italic; }
+                        .mg-box   { border:1px solid #e6edf3 !important; border-radius:8px !important;
+                                    overflow:hidden; }
+
+                        .mg-foot  { border-top:1px solid #e6edf3; margin-top:16px; padding-top:6px;
+                                    font-size:7.5px; color:#9aa6b1; }
+                    </style>
+
+                    <div class="page">
+
+                        <!-- ══ Título ══ -->
+                        <p class="mg-title">Resumen diario de Gerencia</p>
+                        <p class="mg-sub">
+                            <strong t-out="rep['company_label']"/> ·
+                            <t t-out="rep['month_label']"/> · Emitido <t t-out="rep['report_date']"/>
+                        </p>
+                        <hr class="mg-rule"/>
+
+                        <!-- ══ KPIs ══ -->
+                        <table class="mg-kpis o_ignore_layout_styling">
                             <tr>
-                                <td t-foreach="rep['primary']" t-as="k" style="vertical-align:top;">
-                                    <div t-attf-style="border:1px solid #e5e7eb; border-top:3px solid {{k['color']}}; border-radius:9px; background:#ffffff; padding:11px 12px; height:86px;">
-                                        <table style="width:100%; border-collapse:collapse;">
-                                            <tr>
-                                                <td style="vertical-align:middle;">
-                                                    <div t-attf-style="width:26px; height:26px; border-radius:50%; background:{{k['light']}}; text-align:center; line-height:26px;">
-                                                        <i t-attf-class="fa {{k['icon']}}" t-attf-style="color:{{k['color']}}; font-size:13px;"/>
-                                                    </div>
-                                                </td>
-                                                <td t-if="k['delta']" style="vertical-align:middle; text-align:right;">
-                                                    <span t-attf-style="font-size:8px; font-weight:bold; padding:2px 6px; border-radius:9px; white-space:nowrap; background:{{'#dcfce7' if k['delta']['dir']=='up' else ('#fef3c7' if k['delta']['dir']=='down' else '#f1f5f9')}}; color:{{'#16a34a' if k['delta']['dir']=='up' else ('#b45309' if k['delta']['dir']=='down' else '#64748b')}};">
-                                                        <i t-if="k['delta']['dir']=='up'" class="fa fa-arrow-up"/><i t-if="k['delta']['dir']=='down'" class="fa fa-arrow-down"/>
-                                                        Hoy <t t-out="k['delta']['text']"/>
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <div style="font-size:20px; font-weight:bold; color:#0f172a; margin-top:7px; line-height:1;">
-                                            <t t-out="k['value']"/><span t-if="k['unit']" style="font-size:9px; font-weight:normal; color:#94a3b8;"> <t t-out="k['unit']"/></span>
+                                <td t-foreach="rep['kpis']" t-as="k" style="width:16.66%;">
+                                    <div class="mg-kpi">
+                                        <div class="mg-kpi-v" t-attf-style="color:{{k['accent']}};" t-out="k['value']"/>
+                                        <div class="mg-kpi-l" t-out="k['label']"/>
+                                        <div t-if="k['delta']" t-attf-class="mg-kpi-d {{'mg-up' if k['delta']['dir']=='up' else ('mg-dn' if k['delta']['dir']=='down' else 'mg-fl')}}">
+                                            Hoy <t t-out="k['delta']['text']"/>
                                         </div>
-                                        <div style="font-size:8.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px;" t-out="k['label']"/>
-                                    </div>
-                                </td>
-                                <!-- Tasa de servicio -->
-                                <td style="vertical-align:top;">
-                                    <div t-attf-style="border:1px solid #e5e7eb; border-top:3px solid {{rep['service_card']['color']}}; border-radius:9px; background:#ffffff; padding:11px 12px; height:86px;">
-                                        <div t-attf-style="width:26px; height:26px; border-radius:50%; background:{{rep['service_card']['light']}}; text-align:center; line-height:26px;">
-                                            <i t-attf-class="fa {{rep['service_card']['icon']}}" t-attf-style="color:{{rep['service_card']['color']}}; font-size:13px;"/>
-                                        </div>
-                                        <div t-attf-style="font-size:20px; font-weight:bold; color:{{rep['service_card']['color']}}; margin-top:7px; line-height:1;" t-out="rep['service_card']['value']"/>
-                                        <div style="font-size:8.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px;" t-out="rep['service_card']['label']"/>
-                                        <div style="font-size:7.5px; color:#94a3b8; margin-top:1px;">
-                                            <t t-out="rep['service_card']['sub']"/> · <t t-out="rep['service_card']['extra']"/>
-                                        </div>
+                                        <div t-if="k['sub']" class="mg-kpi-s" t-out="k['sub']"/>
                                     </div>
                                 </td>
                             </tr>
                         </table>
 
-                        <!-- ══════ KPIs SECUNDARIOS (tira) ══════ -->
-                        <table style="width:100%; border-collapse:separate; border-spacing:7px 0; margin-bottom:11px; table-layout:fixed;">
+                        <!-- ══ Por familia ══ -->
+                        <p class="mg-sec">Por familia</p>
+                        <table class="mg-grid o_ignore_layout_styling">
                             <tr>
-                                <td t-foreach="rep['secondary']" t-as="s" style="vertical-align:top;">
-                                    <div style="border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc; padding:8px 11px;">
-                                        <table style="width:100%; border-collapse:collapse;">
-                                            <tr>
-                                                <td style="vertical-align:middle; width:22px;">
-                                                    <i t-attf-class="fa {{s['icon']}}" t-attf-style="color:{{s['color']}}; font-size:14px;"/>
-                                                </td>
-                                                <td style="vertical-align:middle; padding-left:4px;">
-                                                    <div style="font-size:13px; font-weight:bold; color:#0f172a; line-height:1;" t-out="s['value']"/>
-                                                    <div style="font-size:7.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px;" t-out="s['label']"/>
-                                                </td>
+                                <td t-foreach="rep['families']" t-as="f" class="mg-col" style="width:33.33%;">
+                                    <div class="mg-box">
+                                        <div class="mg-band"><t t-out="f['title']"/><span class="mg-tot" t-out="f['total']"/></div>
+                                        <table class="mg-tbl">
+                                            <tr t-foreach="f['rows']" t-as="r">
+                                                <td class="mg-nm" t-out="r['name']"/>
+                                                <td class="mg-r" t-out="r['value']"/>
+                                            </tr>
+                                            <tr t-if="f['others']" class="mg-oth">
+                                                <td>Otras familias</td><td class="mg-r" t-out="f['others']"/>
                                             </tr>
                                         </table>
                                     </div>
@@ -117,50 +141,32 @@
                             </tr>
                         </table>
 
-                        <!-- ══════ DESGLOSE POR FAMILIA (3 columnas) ══════ -->
-                        <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
-                            <tr style="vertical-align:top;">
-                                <td t-foreach="rep['sections']" t-as="sec" t-attf-style="width:33.33%; padding:{{'0 0 0 5px' if sec_index == 2 else ('0 2.5px' if sec_index == 1 else '0 5px 0 0')}};">
-                                    <div style="border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
-                                        <!-- Encabezado de sección -->
-                                        <table t-attf-style="width:100%; border-collapse:collapse; background:{{sec['color']}};">
-                                            <tr>
-                                                <td style="padding:5px 8px;">
-                                                    <i t-attf-class="fa {{sec['icon']}}" style="color:#ffffff; font-size:9px; margin-right:4px;"/>
-                                                    <span style="font-size:8.5px; font-weight:bold; color:#ffffff; text-transform:uppercase; letter-spacing:0.4px;" t-out="sec['title']"/>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <!-- Filas con barras -->
-                                        <table style="width:100%; border-collapse:collapse; background:#ffffff;">
-                                            <tr t-foreach="sec['rows']" t-as="r"
-                                                t-attf-style="background:linear-gradient(to right, {{sec['light']}} {{r['bar']}}%, #ffffff {{r['bar']}}%);">
-                                                <td style="padding:2.5px 8px; color:#334155; font-size:8.5px; border-bottom:1px solid #f1f5f9;" t-out="r['name']"/>
-                                                <td style="padding:2.5px 8px; text-align:right; font-weight:bold; color:#0f172a; font-size:8.5px; white-space:nowrap; border-bottom:1px solid #f1f5f9;" t-out="r['value']"/>
-                                            </tr>
-                                            <tr t-if="sec['others']">
-                                                <td style="padding:2.5px 8px; font-style:italic; color:#94a3b8; font-size:8px; border-bottom:1px solid #f1f5f9;">Otras familias</td>
-                                                <td style="padding:2.5px 8px; text-align:right; color:#94a3b8; font-size:8px; white-space:nowrap; border-bottom:1px solid #f1f5f9;" t-out="sec['others']"/>
-                                            </tr>
-                                            <tr t-attf-style="background:{{sec['light']}};">
-                                                <td t-attf-style="padding:4px 8px; font-weight:bold; color:{{sec['color']}}; font-size:9px; border-top:1px solid {{sec['bar']}};">TOTAL</td>
-                                                <td t-attf-style="padding:4px 8px; text-align:right; font-weight:bold; color:{{sec['color']}}; font-size:9px; white-space:nowrap; border-top:1px solid {{sec['bar']}};" t-out="sec['total']"/>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <!-- ══════ PIE ══════ -->
-                        <table style="width:100%; border-collapse:collapse; margin-top:12px; border-top:1px solid #e5e7eb;">
+                        <!-- ══ Movimientos por categoría de venta ══ -->
+                        <p class="mg-sec">Movimientos por categoría de venta</p>
+                        <table class="mg-grid o_ignore_layout_styling">
                             <tr>
-                                <td style="padding-top:5px; font-size:7.5px; color:#94a3b8; vertical-align:top;" t-out="rep['svc_note']"/>
-                                <td style="padding-top:5px; font-size:7.5px; color:#cbd5e1; text-align:right; white-space:nowrap; vertical-align:top;">
-                                    Generado automáticamente · Módulo KPIs
+                                <td t-foreach="rep['movements']" t-as="mv" class="mg-col" style="width:33.33%;">
+                                    <div class="mg-box">
+                                        <div class="mg-band"><t t-out="mv['title']"/><span class="mg-tot" t-out="mv['total']"/></div>
+                                        <t t-if="mv['configured'] and mv['rows']">
+                                            <table class="mg-tbl">
+                                                <tr t-foreach="mv['rows']" t-as="r">
+                                                    <td class="mg-nm" t-out="r['name']"/>
+                                                    <td class="mg-r"><t t-out="r['value']"/> pz</td>
+                                                </tr>
+                                            </table>
+                                        </t>
+                                        <div t-else="" class="mg-empty">
+                                            <t t-if="not mv['configured']">Sin tipo de operación configurado.</t>
+                                            <t t-else="">Sin movimientos en el período.</t>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         </table>
+
+                        <!-- ══ Pie ══ -->
+                        <div class="mg-foot" t-out="rep['svc_note']"/>
 
                     </div>
                 </t>

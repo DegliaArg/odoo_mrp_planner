@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         PAPERFORMAT — A4 vertical, márgenes chicos (todo en una página)
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="paperformat_management_daily" model="report.paperformat">
+        <field name="name">Resumen diario de Gerencia</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">6</field>
+        <field name="margin_bottom">6</field>
+        <field name="margin_left">7</field>
+        <field name="margin_right">7</field>
+        <field name="header_spacing">0</field>
+        <field name="header_line" eval="False"/>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         ACCIÓN DE REPORTE
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="action_report_management_daily" model="ir.actions.report">
+        <field name="name">Resumen diario de Gerencia</field>
+        <field name="model">mrp.planner.dashboard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">odoo_mrp_planner.report_management_daily</field>
+        <field name="report_file">odoo_mrp_planner.report_management_daily</field>
+        <field name="paperformat_id" ref="paperformat_management_daily"/>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         TEMPLATE — Resumen diario (compacto, una página)
+    ════════════════════════════════════════════════════════════════════ -->
+    <template id="report_management_daily">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <div class="page" style="font-family:Arial,Helvetica,sans-serif; color:#2c3e50; font-size:9px;">
+
+                    <!-- Formateadores reutilizables -->
+                    <t t-set="cur" t-value="o['currency']"/>
+                    <t t-set="green" t-value="o['rate_green_pct']"/>
+                    <t t-set="warn" t-value="o['rate_warn_pct']"/>
+
+                    <!-- ── Encabezado ─────────────────────────────────────── -->
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #34495e; padding-bottom:4px; margin-bottom:8px;">
+                        <div>
+                            <div style="font-size:15px; font-weight:bold;" t-out="company.name"/>
+                            <div style="font-size:11px; color:#7f8c8d;">Resumen diario de Gerencia</div>
+                        </div>
+                        <div style="text-align:right; font-size:9px; color:#7f8c8d;">
+                            <div>Mes: <span style="font-weight:bold; color:#2c3e50;" t-out="o['month']"/></div>
+                            <div>Emitido: <span t-out="report_date"/></div>
+                        </div>
+                    </div>
+
+                    <!-- ── Tira de KPIs ───────────────────────────────────── -->
+                    <table style="width:100%; border-collapse:separate; border-spacing:4px 0; margin-bottom:8px;">
+                        <tr>
+                            <td t-foreach="[
+                                    ('Demanda', '{:,.0f}'.format(o['demand']['total_qty']) + ' pz', '#2980b9'),
+                                    ('Facturado', cur + ' ' + '{:,.0f}'.format(o['invoiced']['total_amount']), '#27ae60'),
+                                    ('Facturado (pz)', '{:,.0f}'.format(o['invoiced']['total_qty']) + ' pz', '#27ae60'),
+                                    ('Producido', '{:,.0f}'.format(o['produced']['total_qty']) + ' pz', '#8e44ad'),
+                                    ('Despachos', '{:,.0f}'.format(o['dispatch']['qty']) + ' pz', '#d35400'),
+                                    ('Embalajes', '{:,.0f}'.format(o['packing']['qty']) + ' pz', '#16a085'),
+                                    ('Picking', '{:,.0f}'.format(o['picking']['qty']) + ' pz', '#c0392b'),
+                                ]" t-as="kpi"
+                                t-attf-style="width:12.5%; border:1px solid #ecf0f1; border-top:3px solid {{kpi[2]}}; border-radius:3px; padding:5px 3px; text-align:center; vertical-align:top;">
+                                <div style="font-size:12px; font-weight:bold;" t-out="kpi[1]"/>
+                                <div style="font-size:8px; color:#7f8c8d; text-transform:uppercase;" t-out="kpi[0]"/>
+                            </td>
+                            <!-- Tasa de servicio (con semáforo) -->
+                            <t t-set="rate" t-value="o['service']['rate']"/>
+                            <t t-set="svc_color" t-value="'#27ae60' if (rate is not None and rate &gt;= green) else ('#f39c12' if (rate is not None and rate &gt;= warn) else '#c0392b')"/>
+                            <td t-attf-style="width:12.5%; border:1px solid #ecf0f1; border-top:3px solid {{svc_color}}; border-radius:3px; padding:5px 3px; text-align:center; vertical-align:top;">
+                                <div t-attf-style="font-size:12px; font-weight:bold; color:{{svc_color}};">
+                                    <span t-out="'—' if rate is None else ('{:,.1f}'.format(rate) + '%')"/>
+                                </div>
+                                <div style="font-size:8px; color:#7f8c8d; text-transform:uppercase;">Tasa servicio</div>
+                                <div style="font-size:7px; color:#95a5a6;">
+                                    <t t-out="'{:,.0f}'.format(o['service']['delivered'])"/>/<t t-out="'{:,.0f}'.format(o['service']['ordered'])"/>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- ── Aporte del día (solo mes en curso) ─────────────── -->
+                    <t t-if="o['is_current'] and o['daily']">
+                        <div style="background:#f8f9fa; border:1px solid #ecf0f1; border-radius:3px; padding:4px 8px; margin-bottom:8px; font-size:8px;">
+                            <span style="font-weight:bold; text-transform:uppercase; color:#7f8c8d;">Aporte de hoy: </span>
+                            <span>Demanda <b t-out="'{:+,.0f}'.format(o['daily']['demand']['today'])"/> pz</span>
+                            <span> · Facturado <b t-out="cur + ' ' + '{:+,.0f}'.format(o['daily']['invoiced_amount']['today'])"/></span>
+                            <span> (<b t-out="'{:+,.0f}'.format(o['daily']['invoiced_qty']['today'])"/> pz)</span>
+                            <span> · Despachos <b t-out="'{:+,.0f}'.format(o['daily']['dispatch']['today'])"/> pz</span>
+                            <span> · Producido <b t-out="'{:+,.0f}'.format(o['daily']['produced']['today'])"/> pz</span>
+                        </div>
+                    </t>
+
+                    <!-- ── Tablas por familia (3 columnas) ────────────────── -->
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr style="vertical-align:top;">
+
+                            <!-- Demanda por familia -->
+                            <td style="width:33%; padding-right:5px;">
+                                <div style="font-size:9px; font-weight:bold; background:#2980b9; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Demanda por familia</div>
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <tr t-foreach="o['demand']['rows'][:9]" t-as="r"
+                                        style="border-bottom:1px solid #ecf0f1;">
+                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
+                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="'{:,.0f}'.format(r['qty'])"/>
+                                    </tr>
+                                    <tr t-if="len(o['demand']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
+                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
+                                        <td style="padding:1.5px 4px; text-align:right;" t-out="'{:,.0f}'.format(extra['demand_others'])"/>
+                                    </tr>
+                                    <tr style="border-top:2px solid #2980b9; font-weight:bold;">
+                                        <td style="padding:2px 4px;">Total</td>
+                                        <td style="padding:2px 4px; text-align:right;" t-out="'{:,.0f}'.format(o['demand']['total_qty'])"/>
+                                    </tr>
+                                </table>
+                            </td>
+
+                            <!-- Facturado por familia -->
+                            <td style="width:34%; padding:0 3px;">
+                                <div style="font-size:9px; font-weight:bold; background:#27ae60; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Facturado por familia</div>
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <tr t-foreach="o['invoiced']['rows'][:9]" t-as="r"
+                                        style="border-bottom:1px solid #ecf0f1;">
+                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
+                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="cur + ' ' + '{:,.0f}'.format(r['amount'])"/>
+                                    </tr>
+                                    <tr t-if="len(o['invoiced']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
+                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
+                                        <td style="padding:1.5px 4px; text-align:right;" t-out="cur + ' ' + '{:,.0f}'.format(extra['invoiced_others'])"/>
+                                    </tr>
+                                    <tr style="border-top:2px solid #27ae60; font-weight:bold;">
+                                        <td style="padding:2px 4px;">Total</td>
+                                        <td style="padding:2px 4px; text-align:right;" t-out="cur + ' ' + '{:,.0f}'.format(o['invoiced']['total_amount'])"/>
+                                    </tr>
+                                </table>
+                            </td>
+
+                            <!-- Producido por familia -->
+                            <td style="width:33%; padding-left:5px;">
+                                <div style="font-size:9px; font-weight:bold; background:#8e44ad; color:#fff; padding:2px 5px; border-radius:2px 2px 0 0;">Producido por familia</div>
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <tr t-foreach="o['produced']['rows'][:9]" t-as="r"
+                                        style="border-bottom:1px solid #ecf0f1;">
+                                        <td style="padding:1.5px 4px;" t-out="r['name']"/>
+                                        <td style="padding:1.5px 4px; text-align:right; font-weight:bold;" t-out="'{:,.0f}'.format(r['qty'])"/>
+                                    </tr>
+                                    <tr t-if="len(o['produced']['rows']) &gt; extra['top']" style="border-bottom:1px solid #ecf0f1; color:#95a5a6;">
+                                        <td style="padding:1.5px 4px; font-style:italic;">Otras familias</td>
+                                        <td style="padding:1.5px 4px; text-align:right;" t-out="'{:,.0f}'.format(extra['produced_others'])"/>
+                                    </tr>
+                                    <tr style="border-top:2px solid #8e44ad; font-weight:bold;">
+                                        <td style="padding:2px 4px;">Total</td>
+                                        <td style="padding:2px 4px; text-align:right;" t-out="'{:,.0f}'.format(o['produced']['total_qty'])"/>
+                                    </tr>
+                                </table>
+                            </td>
+
+                        </tr>
+                    </table>
+
+                    <!-- ── Nota tasa de servicio ──────────────────────────── -->
+                    <div style="margin-top:8px; font-size:7.5px; color:#95a5a6; border-top:1px solid #ecf0f1; padding-top:4px;">
+                        Tasa de servicio = entregado ÷ demanda del mes.
+                        <t t-if="o['service']['excused']">
+                            Se descontaron <span style="font-weight:bold;" t-out="'{:,.0f}'.format(o['service']['excused'])"/> pz de demanda
+                            de pedidos pendientes sin stock disponible para pickear hace más de
+                            <span t-out="o['service']['excuse_days']"/> días
+                            (demanda bruta <span t-out="'{:,.0f}'.format(o['service']['ordered_gross'])"/> pz).
+                        </t>
+                        <t t-else="">
+                            Sin demanda excusada por faltante prolongado este mes.
+                        </t>
+                    </div>
+
+                </div>
+            </t>
+        </t>
+    </template>
+
+</odoo>

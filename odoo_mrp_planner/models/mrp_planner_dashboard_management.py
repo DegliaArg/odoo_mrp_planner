@@ -35,7 +35,9 @@ Relacionado con:
 - mrp_reschedule_config_management: campos management_*_picking_type_ids.
 - sale.order.line / account.move.line / stock.picking / mrp.production: fuentes.
 """
+import base64
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, time
 
@@ -234,6 +236,81 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         rate = round(delivered / ordered * 100, 1) if ordered > 0 else None
         return {'ordered': round(ordered, 2),
                 'delivered': round(delivered, 2), 'rate': rate}
+
+    def _mgmt_service_rate_report(self, dt_from, dt_to, company, allowed_ids, excuse_days):
+        """Tasa de servicio del Resumen diario (panel + PDF) con el denominador
+        AJUSTADO por faltante prolongado.
+
+        Igual que _mgmt_service_rate, pero al denominador (demanda del período) se le
+        descuenta la demanda de los pedidos pendientes que llevan MÁS de
+        ``excuse_days`` días sin disponibilidad de stock para hacer la recolección
+        (picking). La idea: no penalizar la tasa por demanda que físicamente no se
+        pudo pickear por quiebre de stock.
+
+        "Sin disponibilidad para recolección" = la cantidad pendiente (pedido −
+        entregado) de una línea cuyo producto no tiene stock libre (``free_qty`` ≤ 0)
+        en la empresa, y cuyo pedido se confirmó hace más de ``excuse_days`` días.
+
+        Para que el número cierre con el numerador, ``ordered`` devuelve el
+        denominador YA AJUSTADO (lo que usa ``rate``); ``ordered_gross`` es la demanda
+        bruta y ``excused`` lo descontado.
+
+        :returns: dict {'ordered', 'ordered_gross', 'excused', 'delivered', 'rate',
+            'excuse_days'} — rate None si el denominador ajustado es 0.
+        """
+        base = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
+        ordered_gross = base['ordered']
+        delivered = base['delivered']
+
+        excuse_days = int(excuse_days or 0)
+        excused = 0.0
+        so_dom = [
+            ('state', 'in', ['sale', 'done']),
+            ('date_order', '>=', dt_from),
+            ('date_order', '<=', dt_to),
+            ('company_id', 'in', company.ids),
+        ]
+        if allowed_ids is not None:
+            so_dom.append(('warehouse_id', 'in', allowed_ids))
+        sos = self.env['sale.order'].sudo().search(so_dom)
+        if sos:
+            today = fields.Date.context_today(self)
+            date_order = {o.id: o.date_order for o in sos}
+            lines = self.env['sale.order.line'].sudo().search([
+                ('order_id', 'in', sos.ids),
+                ('product_id', '!=', False),
+                ('product_id.sale_ok', '=', True),
+            ])
+            # free_qty (stock libre para reservar) por producto, en la empresa activa
+            # del contexto (en el PDF se fija con with_company a la empresa reportada).
+            prod_ids = lines.mapped('product_id').ids
+            free_qty = {}
+            if prod_ids:
+                for p in self.env['product.product'].sudo().browse(prod_ids):
+                    free_qty[p.id] = p.free_qty
+            for line in lines:
+                unmet = (line.product_uom_qty or 0.0) - max(0.0, line.qty_delivered or 0.0)
+                if unmet <= 0:
+                    continue
+                od = date_order.get(line.order_id.id)
+                if not od:
+                    continue
+                if (today - od.date()).days <= excuse_days:
+                    continue
+                if free_qty.get(line.product_id.id, 0.0) > 1e-6:
+                    continue  # hay stock para pickear: no se excusa
+                excused += unmet
+
+        ordered_adj = max(0.0, ordered_gross - excused)
+        rate = round(delivered / ordered_adj * 100, 1) if ordered_adj > 0 else None
+        return {
+            'ordered': round(ordered_adj, 2),
+            'ordered_gross': round(ordered_gross, 2),
+            'excused': round(excused, 2),
+            'delivered': round(delivered, 2),
+            'rate': rate,
+            'excuse_days': excuse_days,
+        }
 
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
 
@@ -466,14 +543,30 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     @api.model
     def get_management_overview(self, month=None):
-        """Consolida todos los indicadores del Resumen diario para un mes.
+        """RPC del panel de Gerencia: aplica el guard de permisos y delega el
+        cálculo en _get_management_overview_data (que reutiliza el reporte PDF).
 
         :param month: str 'YYYY-MM'. None ⇒ mes en curso.
-        :returns: dict con demand/invoiced/produced (rows por categoría + total)
-            y dispatch/packing/picking (piezas), más los aportes de hoy/ayer
-            (solo si el mes es el actual) para la variación diaria.
+        :returns: ver _get_management_overview_data.
         """
         self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
+        return self._get_management_overview_data(month)
+
+    def _get_management_overview_data(self, month=None, force_all_warehouses=False):
+        """Consolida todos los indicadores del Resumen diario para un mes, SIN el
+        guard de permisos, para reutilizarlo desde el reporte PDF / cron (que corren
+        sin usuario del panel).
+
+        :param month: str 'YYYY-MM'. None ⇒ mes en curso.
+        :param force_all_warehouses: si True, ignora el filtro de depósitos del
+            usuario (el reporte de Gerencia es a nivel empresa completa). El panel
+            lo deja en False para respetar los permisos por depósito del usuario.
+        :returns: dict con demand/invoiced/produced (rows por categoría + total)
+            y dispatch/packing/picking (piezas), más los aportes de hoy/ayer
+            (solo si el mes es el actual) para la variación diaria. La tasa de
+            servicio usa el denominador ajustado por faltante prolongado
+            (ver _mgmt_service_rate_report).
+        """
         # Respeta el selector multiempresa nativo: todos los indicadores filtran
         # por las compañías tildadas (self.env.companies), no solo la activa.
         # La empresa activa se usa solo para moneda y config de tipos de operación.
@@ -489,10 +582,14 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         dt_from = d_from + ' 00:00:00'
         dt_to = d_to + ' 23:59:59'
 
-        allowed_ids = self._get_wh_domains().allowed_ids
+        if force_all_warehouses:
+            allowed_ids = None
+        else:
+            allowed_ids = self._get_wh_domains().allowed_ids
         no_access = allowed_ids is not None and not allowed_ids
 
         cfg = self.env['mrp.reschedule.config'].get_config()
+        excuse_days = cfg.management_report_service_excuse_days or 0
         disp_types = cfg.management_dispatch_picking_type_ids.ids
         pack_types = cfg.management_packing_picking_type_ids.ids
         pick_types = cfg.management_picking_picking_type_ids.ids
@@ -509,7 +606,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 'currency': active.currency_id.symbol or '$',
                 'demand': empty, 'invoiced': empty_inv, 'produced': dict(empty),
                 'dispatch': zero, 'packing': zero, 'picking': zero,
-                'service': {'ordered': 0.0, 'delivered': 0.0, 'rate': None},
+                'service': {'ordered': 0.0, 'ordered_gross': 0.0, 'excused': 0.0,
+                            'delivered': 0.0, 'rate': None,
+                            'excuse_days': excuse_days},
                 'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
                 'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
                 'daily': {},
@@ -531,7 +630,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         # (by_move) porque así ya coincide — no se toca.
         picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_line=True)
-        service = self._mgmt_service_rate(dt_from, dt_to, company, allowed_ids)
+        service = self._mgmt_service_rate_report(dt_from, dt_to, company, allowed_ids, excuse_days)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}
@@ -584,3 +683,108 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
             'daily': daily,
         }
+
+    # ── Envío del Resumen diario por mail (cron + botón manual) ──────────────
+
+    @api.model
+    def _cron_send_management_report(self):
+        """Cron horario: por cada configuración con el envío activo, si la hora
+        local coincide con la configurada y no se envió hoy, manda el PDF.
+
+        La hora se evalúa en la zona horaria del usuario que ejecuta el cron
+        (Ajustes → Técnico → Acciones planificadas). El cron corre cada hora y
+        dispara el envío al llegar a la hora configurada."""
+        configs = self.env['mrp.reschedule.config'].sudo().search([
+            ('management_report_enabled', '=', True),
+        ])
+        if not configs:
+            return
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        now_local = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
+        today_local = now_local.date()
+        for cfg in configs:
+            try:
+                if int(cfg.management_report_hour or 0) != now_local.hour:
+                    continue
+                if cfg.management_report_last_sent_date == today_local:
+                    continue
+                if not (cfg.management_report_partner_ids or cfg.management_report_extra_emails):
+                    _logger.warning('[MgmtReport] Config %s sin destinatarios; se omite.', cfg.id)
+                    continue
+                if self._send_management_report(cfg, manual=False):
+                    cfg.sudo().management_report_last_sent_date = today_local
+            except Exception as e:
+                _logger.error('[MgmtReport] Error enviando config %s: %s', cfg.id, e, exc_info=True)
+
+    def _send_management_report(self, cfg, manual=False):
+        """Genera el PDF del Resumen diario de la empresa de la config y lo envía
+        como correo DIRECTO (mail.mail) a los destinatarios configurados.
+
+        Correo directo (no notificación de Odoo) para que llegue por mail aunque el
+        destinatario sea un usuario con notificaciones en bandeja. Lo usan el cron
+        y el botón "Enviar ahora".
+
+        :param manual: si True (botón), propaga errores de envío al usuario; el cron
+            los deja registrados en el log.
+        :returns: True si se envió.
+        """
+        company = cfg.management_report_company_id or cfg.company_id or self.env.company
+
+        # Destinatarios: emails de contactos + emails sueltos, deduplicados.
+        emails = set()
+        for partner in cfg.management_report_partner_ids:
+            if partner.email:
+                emails.add(partner.email.strip())
+        for raw in re.split(r'[;,\n]+', cfg.management_report_extra_emails or ''):
+            raw = raw.strip()
+            if raw:
+                emails.add(raw)
+        if not emails:
+            _logger.warning('[MgmtReport] Config %s sin emails válidos; no se envía.', cfg.id)
+            return False
+
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        today_local = pytz.utc.localize(datetime.utcnow()).astimezone(tz).date()
+        month = '%04d-%02d' % (today_local.year, today_local.month)
+        date_str = today_local.strftime('%d/%m/%Y')
+
+        # El PDF se calcula a nivel empresa completa (force_all_warehouses) y con la
+        # empresa reportada fijada en el contexto (afecta free_qty de la tasa).
+        rec = self.create({})
+        pdf_content, _ct = self.env['ir.actions.report'].sudo().with_company(
+            company)._render_qweb_pdf(
+            'odoo_mrp_planner.action_report_management_daily', rec.ids,
+            data={'company_id': company.id, 'month': month,
+                  'report_date': fields.Date.to_string(today_local)})
+
+        fname = _('Resumen diario %(company)s %(date)s.pdf',
+                  company=company.name, date=today_local)
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': fname,
+            'type': 'binary',
+            'datas': base64.b64encode(pdf_content),
+            'mimetype': 'application/pdf',
+        })
+        subject = _('Resumen diario de Gerencia — %(company)s — %(date)s',
+                    company=company.name, date=date_str)
+        body = _(
+            '<p>Hola,</p>'
+            '<p>Adjuntamos el <strong>Resumen diario de Gerencia</strong> de '
+            '%(company)s correspondiente al %(date)s, con la demanda, facturado, '
+            'producido, despachos, embalajes, picking y la tasa de servicio del mes.</p>'
+            '<p>Este correo se genera automáticamente desde el planificador. '
+            'Ante dudas, respondé a este mail.</p>'
+            '<p>Saludos.</p>',
+            company=company.name, date=date_str)
+        mail = self.env['mail.mail'].sudo().create({
+            'subject': subject,
+            'body_html': body,
+            'email_from': company.email or (self.env.user.email_formatted or False),
+            'email_to': ','.join(sorted(emails)),
+            'attachment_ids': [(4, attachment.id)],
+            'auto_delete': True,
+        })
+        mail.send(raise_exception=manual)
+        _logger.info('[MgmtReport] Enviado a %s (config %s, manual=%s).',
+                     ', '.join(sorted(emails)), cfg.id, manual)
+        return True

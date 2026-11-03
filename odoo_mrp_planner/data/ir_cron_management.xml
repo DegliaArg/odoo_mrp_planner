@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Cron horario del envío del Resumen diario de Gerencia por mail.
+         noupdate="1": el estado activo lo administra la configuración (campo
+         management_report_enabled por empresa); el método sale solo si ninguna
+         config tiene el envío activado. El cron corre cada hora y dispara el
+         envío al llegar a la hora configurada (en la zona del usuario del cron). -->
+    <data noupdate="1">
+        <record id="ir_cron_management_daily_report" model="ir.cron">
+            <field name="name">Planificador: envío del Resumen diario de Gerencia</field>
+            <field name="model_id" ref="model_mrp_planner_dashboard"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_send_management_report()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="active">True</field>
+        </record>
+    </data>
+
+</odoo>

@@ -110,6 +110,49 @@
                                        options="{'no_create': True, 'no_create_edit': True}"
                                        placeholder="Depósitos a considerar en producido (vacío = todos)…"/>
                             </group>
+                            <group string="Tasa de servicio del Resumen diario">
+                                <div class="text-muted small mb-2">
+                                    La tasa de servicio (panel y PDF) descuenta del denominador la
+                                    demanda de pedidos pendientes sin stock disponible para pickear
+                                    hace más de estos días, para no penalizar por quiebres.
+                                </div>
+                                <field name="management_report_service_excuse_days"/>
+                            </group>
+                        </div>
+                        <div class="col-5">
+                            <group string="Envío automático por mail">
+                                <div class="text-muted small mb-2">
+                                    Enviá todos los días el Resumen diario en PDF a los destinatarios,
+                                    a la hora configurada. El correo sale directo por mail (aunque el
+                                    contacto sea un usuario con notificaciones en bandeja).
+                                </div>
+                                <field name="management_report_enabled"/>
+                                <field name="management_report_hour" widget="float_time"
+                                       invisible="not management_report_enabled"/>
+                                <field name="management_report_company_id"
+                                       invisible="not management_report_enabled"
+                                       options="{'no_create': True, 'no_create_edit': True}"
+                                       placeholder="Vacío = empresa de esta configuración…"/>
+                                <field name="management_report_partner_ids"
+                                       widget="many2many_tags"
+                                       invisible="not management_report_enabled"
+                                       placeholder="Contactos destinatarios…"/>
+                                <field name="management_report_extra_emails"
+                                       invisible="not management_report_enabled"
+                                       placeholder="otro@correo.com, tercero@correo.com"/>
+                                <field name="management_report_last_sent_date" readonly="1"
+                                       invisible="not management_report_enabled"/>
+                            </group>
+                            <div class="mt-2">
+                                <button name="action_send_management_report_now" type="object"
+                                        string="Enviar ahora (probar)"
+                                        class="btn btn-primary"
+                                        icon="fa-paper-plane"
+                                        confirm="Se enviará el Resumen diario en PDF a los destinatarios configurados. ¿Continuar?"/>
+                                <div class="text-muted small mt-1">
+                                    Envía el PDF al instante a los destinatarios, sin esperar al horario.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </page>

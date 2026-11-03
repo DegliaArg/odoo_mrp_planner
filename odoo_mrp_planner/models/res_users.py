@@ -112,11 +112,53 @@ class ResUsers(models.Model):
                         f'Habilitá al menos una sección antes de guardar.'
                     )
 
+    # ── Sincronización de destinatarios del Resumen diario de Gerencia ───────
+
+    @api.model
+    def _mgmt_gerencia_groups(self):
+        """Grupos de Gerencia (Lectura + Administrador)."""
+        groups = self.env['res.groups']
+        for xmlid in ('odoo_mrp_planner.group_management_read',
+                      'odoo_mrp_planner.group_management'):
+            grp = self.env.ref(xmlid, raise_if_not_found=False)
+            if grp:
+                groups |= grp
+        return groups
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        users = super().create(vals_list)
+        grp = self._mgmt_gerencia_groups()
+        if grp:
+            new_members = users.filtered(lambda u: u.groups_id & grp)
+            if new_members:
+                self.env['mrp.reschedule.config']._mgmt_report_add_partners(
+                    new_members.partner_id)
+        return users
+
     def write(self, vals):
+        # Foto de la pertenencia a Gerencia ANTES del write, para detectar altas/bajas.
+        track_groups = 'groups_id' in vals
+        grp = self._mgmt_gerencia_groups() if track_groups else self.env['res.groups']
+        before = {u.id: bool(u.groups_id & grp) for u in self} if (track_groups and grp) else {}
+
         res = super().write(vals)
+
         if 'mrp_planner_all_warehouses' in vals or 'mrp_planner_warehouse_ids' in vals:
             # _get_allowed_wh_ids (mrp.planner.dashboard) está cacheado con ormcache:
             # sin esta invalidación el usuario seguiría viendo los depósitos viejos
             # hasta el próximo reinicio del registry.
             self.env.registry.clear_cache()
+
+        # Alta/baja en los grupos de Gerencia → sincroniza los destinatarios del PDF.
+        if track_groups and grp:
+            Config = self.env['mrp.reschedule.config']
+            added = self.browse([u.id for u in self
+                                 if (u.groups_id & grp) and not before.get(u.id)])
+            removed = self.browse([u.id for u in self
+                                   if not (u.groups_id & grp) and before.get(u.id)])
+            if added:
+                Config._mgmt_report_add_partners(added.partner_id)
+            if removed:
+                Config._mgmt_report_remove_partners(removed.partner_id)
         return res

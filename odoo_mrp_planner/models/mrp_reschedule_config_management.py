@@ -87,39 +87,22 @@ class MrpRescheduleConfigManagement(models.Model):
              'selector multiempresa del panel). Vacío = la empresa de esta '
              'configuración.',
     )
-    management_report_group_recipients = fields.Boolean(
-        string='Enviar a los usuarios del grupo Gerencia',
-        default=True,
-        help='Si está activo, el PDF se envía SIEMPRE a los contactos de todos los '
-             'usuarios que tengan el grupo Gerencia (Lectura o Administrador). '
-             'Se resuelve en el momento del envío, así que al agregar o quitar '
-             'usuarios de esos grupos la lista de destinatarios se actualiza sola.',
-    )
     management_report_partner_ids = fields.Many2many(
         'res.partner',
         'mrp_resched_cfg_mgmt_report_partner_rel', 'config_id', 'partner_id',
-        string='Destinatarios adicionales (contactos)',
-        help='Contactos EXTRA que reciben el PDF además de los del grupo Gerencia. '
-             'Se usa su email. El envío es un correo directo, así que llega por mail '
-             'aunque el contacto sea un usuario con notificaciones en bandeja de Odoo.',
-    )
-    management_report_excluded_partner_ids = fields.Many2many(
-        'res.partner',
-        'mrp_resched_cfg_mgmt_report_excl_rel', 'config_id', 'partner_id',
-        string='Excluir destinatarios',
-        help='Contactos que NO deben recibir el PDF aunque estén en el grupo Gerencia. '
-             'Sirve para sacar manualmente a alguien del envío automático.',
+        string='Destinatarios (contactos)',
+        default=lambda self: self._management_report_group_users().partner_id,
+        help='Contactos que reciben el PDF. Viene precargado con los contactos de los '
+             'usuarios del grupo Gerencia (Lectura/Admin) y se mantiene al día cuando '
+             'se agregan o quitan usuarios de esos grupos, pero es totalmente editable: '
+             'sumá o sacá los contactos que quieras. El envío es un correo directo, así '
+             'que llega por mail aunque el contacto sea un usuario con notificaciones en '
+             'bandeja de Odoo.',
     )
     management_report_extra_emails = fields.Char(
-        string='Destinatarios (emails sueltos)',
-        help='Emails adicionales separados por coma, que no necesitan ser contactos '
-             'de Odoo. Se combinan con el resto de los destinatarios.',
-    )
-    management_report_recipients_preview = fields.Char(
-        string='Destinatarios resueltos',
-        compute='_compute_management_report_recipients_preview',
-        help='Lista final de emails a los que saldría el PDF ahora mismo '
-             '(grupo Gerencia + adicionales − excluidos + emails sueltos).',
+        string='Emails sueltos (opcional)',
+        help='Emails adicionales separados por coma que no son contactos de Odoo. '
+             'Se suman a los destinatarios de arriba.',
     )
     management_report_service_excuse_days = fields.Integer(
         string='Días de faltante para excusar la tasa de servicio',
@@ -149,33 +132,38 @@ class MrpRescheduleConfigManagement(models.Model):
         return groups.users
 
     def _management_report_recipient_emails(self):
-        """Set de emails a los que sale el PDF, resuelto EN VIVO:
-
-        (contactos del grupo Gerencia si está activo + contactos adicionales
-        − contactos excluidos) ∪ emails sueltos. Al resolverse en cada envío, la
-        lista refleja siempre la membresía actual de los grupos.
-        """
+        """Set de emails a los que sale el PDF: emails de los contactos del campo
+        de destinatarios + emails sueltos."""
         self.ensure_one()
-        partners = self.management_report_partner_ids
-        if self.management_report_group_recipients:
-            partners |= self._management_report_group_users().partner_id
-        partners -= self.management_report_excluded_partner_ids
-        emails = {p.email.strip() for p in partners if p.email}
+        emails = {p.email.strip() for p in self.management_report_partner_ids if p.email}
         for raw in re.split(r'[;,\n]+', self.management_report_extra_emails or ''):
             raw = raw.strip()
             if raw:
                 emails.add(raw)
         return emails
 
-    @api.depends('management_report_group_recipients', 'management_report_partner_ids',
-                 'management_report_excluded_partner_ids', 'management_report_extra_emails')
-    def _compute_management_report_recipients_preview(self):
-        for cfg in self:
-            try:
-                emails = cfg._management_report_recipient_emails()
-            except Exception:
-                emails = set()
-            cfg.management_report_recipients_preview = ', '.join(sorted(emails)) or '—'
+    @api.model
+    def _mgmt_report_add_partners(self, partners):
+        """Agrega contactos al campo de destinatarios de todas las configs (sin pisar
+        los que ya estén). Lo usa el hook de res.users al sumar usuarios al grupo."""
+        partners = partners.filtered(lambda p: p)
+        if not partners:
+            return
+        for cfg in self.sudo().search([]):
+            to_add = partners - cfg.management_report_partner_ids
+            if to_add:
+                cfg.management_report_partner_ids = [(4, p.id) for p in to_add]
+
+    @api.model
+    def _mgmt_report_remove_partners(self, partners):
+        """Quita contactos del campo de destinatarios de todas las configs. Lo usa el
+        hook de res.users al quitar usuarios del grupo Gerencia."""
+        if not partners:
+            return
+        for cfg in self.sudo().search([]):
+            to_rem = partners & cfg.management_report_partner_ids
+            if to_rem:
+                cfg.management_report_partner_ids = [(3, p.id) for p in to_rem]
 
     def action_send_management_report_now(self):
         """Envía el PDF del Resumen diario de inmediato a los destinatarios

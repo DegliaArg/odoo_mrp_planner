@@ -55,7 +55,7 @@ class ReportManagementDaily(models.AbstractModel):
             'doc_ids': docids,
             'doc_model': 'mrp.planner.dashboard',
             'docs': self.env['mrp.planner.dashboard'].browse(docids),
-            'o': overview,
+            'ov': overview,
             'extra': extra,
             'company': primary,
             'company_label': ', '.join(companies.mapped('name')),

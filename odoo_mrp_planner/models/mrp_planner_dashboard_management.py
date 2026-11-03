@@ -548,7 +548,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
         return self._get_management_overview_data(month)
 
-    def _get_management_overview_data(self, month=None, force_all_warehouses=False):
+    def _get_management_overview_data(self, month=None, force_all_warehouses=False,
+                                      invoice_companies=None):
         """Consolida todos los indicadores del Resumen diario para un mes, SIN el
         guard de permisos, para reutilizarlo desde el reporte PDF / cron (que corren
         sin usuario del panel).
@@ -557,17 +558,26 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         :param force_all_warehouses: si True, ignora el filtro de depósitos del
             usuario (el reporte de Gerencia es a nivel empresa completa). El panel
             lo deja en False para respetar los permisos por depósito del usuario.
+        :param invoice_companies: recordset de empresas. Si se pasa (modo INFORME/PDF),
+            FACTURADO se filtra por estas empresas y el RESTO de los indicadores toma
+            TODAS las empresas del sistema. Si es None (panel), todos los indicadores
+            usan self.env.companies (el selector multiempresa nativo).
         :returns: dict con demand/invoiced/produced (rows por categoría + total)
             y dispatch/packing/picking (piezas), más los aportes de hoy/ayer
-            (solo si el mes es el actual) para la variación diaria. La tasa de
-            servicio usa el denominador ajustado por faltante prolongado
-            (ver _mgmt_service_rate_report).
+            (solo si el mes es el actual) para la variación diaria.
         """
-        # Respeta el selector multiempresa nativo: todos los indicadores filtran
-        # por las compañías tildadas (self.env.companies), no solo la activa.
         # La empresa activa se usa solo para moneda y config de tipos de operación.
         active = self.env.company
-        company = self.env.companies
+        report_mode = invoice_companies is not None
+        if report_mode:
+            # Modo informe (PDF): facturado por las empresas de la config; el resto,
+            # TODAS las empresas del sistema (la config de empresas no las limita).
+            invoice_co = invoice_companies
+            all_co = self.env['res.company'].sudo().search([])
+        else:
+            # Panel: todos los indicadores respetan el selector multiempresa nativo.
+            invoice_co = self.env.companies
+            all_co = self.env.companies
         today = fields.Date.context_today(self)
         if not month:
             month = '%04d-%02d' % (today.year, today.month)
@@ -608,23 +618,26 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 'daily': {},
             }
 
-        demand = self._mgmt_demand(dt_from, dt_to, company, allowed_ids)
-        invoiced = self._mgmt_invoiced(d_from, d_to, company)
-        produced = self._mgmt_produced(dt_from, dt_to, company, allowed_ids, prod_wh_ids)
-        dispatch = self._mgmt_move_pieces(disp_types, 'done', company, allowed_ids,
+        # Facturado: SOLO las empresas seleccionadas (en el panel = selector; en el
+        # informe = config). El resto de indicadores usa all_co (en el informe, todas
+        # las del sistema; en el panel, el selector).
+        demand = self._mgmt_demand(dt_from, dt_to, all_co, allowed_ids)
+        invoiced = self._mgmt_invoiced(d_from, d_to, invoice_co)
+        produced = self._mgmt_produced(dt_from, dt_to, all_co, allowed_ids, prod_wh_ids)
+        dispatch = self._mgmt_move_pieces(disp_types, 'done', all_co, allowed_ids,
                                           dt_from, dt_to, with_breakdown=True)
         # Embalajes/Picking filtran por fecha programada del movimiento, que es
         # un datetime UTC: usamos cotas del mes ajustadas a la TZ del usuario
         # para espejar el reporte nativo de inventario (ver _mgmt_move_pieces).
         mdt_from, mdt_to = self._mgmt_month_bounds_utc(first, last)
-        packing = self._mgmt_move_pieces(pack_types, 'assigned', company, allowed_ids,
+        packing = self._mgmt_move_pieces(pack_types, 'assigned', all_co, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_move=True)
         # Picking: a nivel línea (stock.move.line) para coincidir con el reporte
         # nativo Historial de movimientos. Embalajes queda a nivel movimiento
         # (by_move) porque así ya coincide — no se toca.
-        picking = self._mgmt_move_pieces(pick_types, 'assigned', company, allowed_ids,
+        picking = self._mgmt_move_pieces(pick_types, 'assigned', all_co, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_line=True)
-        service = self._mgmt_service_rate_report(dt_from, dt_to, company, allowed_ids)
+        service = self._mgmt_service_rate_report(dt_from, dt_to, all_co, allowed_ids)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}
@@ -634,12 +647,12 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             yd_f, yd_t = self._mgmt_day_bounds(yesterday)
             td_s, yd_s = fields.Date.to_string(today), fields.Date.to_string(yesterday)
 
-            inv_today = self._mgmt_invoiced_day(td_s, td_s, company)
-            inv_yest = self._mgmt_invoiced_day(yd_s, yd_s, company)
+            inv_today = self._mgmt_invoiced_day(td_s, td_s, invoice_co)
+            inv_yest = self._mgmt_invoiced_day(yd_s, yd_s, invoice_co)
             daily = {
                 'demand': {
-                    'today': round(self._mgmt_demand_qty(td_f, td_t, company, allowed_ids), 2),
-                    'yesterday': round(self._mgmt_demand_qty(yd_f, yd_t, company, allowed_ids), 2),
+                    'today': round(self._mgmt_demand_qty(td_f, td_t, all_co, allowed_ids), 2),
+                    'yesterday': round(self._mgmt_demand_qty(yd_f, yd_t, all_co, allowed_ids), 2),
                 },
                 'invoiced_qty': {
                     'today': round(inv_today[0], 2), 'yesterday': round(inv_yest[0], 2),
@@ -648,14 +661,14 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                     'today': round(inv_today[1], 2), 'yesterday': round(inv_yest[1], 2),
                 },
                 'dispatch': {
-                    'today': self._mgmt_move_pieces(disp_types, 'done', company,
+                    'today': self._mgmt_move_pieces(disp_types, 'done', all_co,
                                                     allowed_ids, td_f, td_t)['qty'],
-                    'yesterday': self._mgmt_move_pieces(disp_types, 'done', company,
+                    'yesterday': self._mgmt_move_pieces(disp_types, 'done', all_co,
                                                         allowed_ids, yd_f, yd_t)['qty'],
                 },
                 'produced': {
-                    'today': round(self._mgmt_produced_qty(td_f, td_t, company, allowed_ids, prod_wh_ids), 2),
-                    'yesterday': round(self._mgmt_produced_qty(yd_f, yd_t, company, allowed_ids, prod_wh_ids), 2),
+                    'today': round(self._mgmt_produced_qty(td_f, td_t, all_co, allowed_ids, prod_wh_ids), 2),
+                    'yesterday': round(self._mgmt_produced_qty(yd_f, yd_t, all_co, allowed_ids, prod_wh_ids), 2),
                 },
             }
 

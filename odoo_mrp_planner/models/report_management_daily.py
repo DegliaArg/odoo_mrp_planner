@@ -78,9 +78,13 @@ class ReportManagementDaily(models.AbstractModel):
         companies = (self.env['res.company'].browse(company_ids)
                      if company_ids else self.env.company)
         primary = companies[:1] or self.env.company
+        # invoice_companies=companies → en el informe, FACTURADO se filtra por las
+        # empresas de la config y el resto de indicadores toma TODAS las del sistema.
         ov = self.env['mrp.planner.dashboard'].with_company(primary).with_context(
             allowed_company_ids=companies.ids
-        )._get_management_overview_data(month=data.get('month'), force_all_warehouses=True)
+        )._get_management_overview_data(
+            month=data.get('month'), force_all_warehouses=True,
+            invoice_companies=companies)
 
         cur = ov['currency']
         daily = ov.get('daily') or {}

@@ -2,17 +2,17 @@
 <odoo>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         PAPERFORMAT — A4 vertical, márgenes chicos (todo en una página)
+         PAPERFORMAT — A4 vertical, márgenes chicos (one-pager ejecutivo)
     ════════════════════════════════════════════════════════════════════ -->
     <record id="paperformat_management_daily" model="report.paperformat">
         <field name="name">Resumen diario de Gerencia</field>
         <field name="default" eval="False"/>
         <field name="format">A4</field>
         <field name="orientation">Portrait</field>
-        <field name="margin_top">7</field>
-        <field name="margin_bottom">7</field>
-        <field name="margin_left">8</field>
-        <field name="margin_right">8</field>
+        <field name="margin_top">6</field>
+        <field name="margin_bottom">6</field>
+        <field name="margin_left">7</field>
+        <field name="margin_right">7</field>
         <field name="header_spacing">0</field>
         <field name="header_line" eval="False"/>
         <field name="dpi">96</field>
@@ -31,89 +31,136 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         TEMPLATE — Resumen diario (estética del panel de Gerencia, 1 página)
-         Se usa docs/o + web.basic_layout (patrón estándar) para tener el <head>
-         con charset UTF-8 correcto (si no, los acentos salen mal) y que 'o' sea
-         un registro real (evita el crash por o._name).
+         TEMPLATE — one-pager ejecutivo para Gerencia
     ════════════════════════════════════════════════════════════════════ -->
     <template id="report_management_daily">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
                 <t t-call="web.basic_layout">
-                    <div class="page" style="font-family:'Lato','Helvetica Neue',Arial,sans-serif; color:#1e293b; font-size:9px;">
+                    <div class="page" style="font-family:'Lato','Helvetica Neue',Arial,sans-serif; color:#0f172a; font-size:9px;">
 
-                        <!-- ── Encabezado ─────────────────────────────────── -->
-                        <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+                        <!-- ══════ ENCABEZADO (banda) ══════ -->
+                        <table style="width:100%; border-collapse:collapse; margin-bottom:11px; border-radius:9px; background:#0f172a; overflow:hidden;">
                             <tr>
-                                <td style="vertical-align:bottom; border-bottom:3px solid #2563eb; padding-bottom:6px;">
-                                    <div style="font-size:17px; font-weight:bold; color:#0f172a;" t-out="rep['company_label']"/>
-                                    <div style="font-size:11px; color:#64748b; letter-spacing:0.3px;">Resumen diario de Gerencia</div>
+                                <td style="width:7px; background:#2563eb;"/>
+                                <td style="padding:13px 16px;">
+                                    <div style="font-size:19px; font-weight:bold; color:#ffffff; letter-spacing:0.2px;" t-out="rep['company_label']"/>
+                                    <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:1.6px; margin-top:2px;">Resumen diario de Gerencia</div>
                                 </td>
-                                <td style="vertical-align:bottom; border-bottom:3px solid #2563eb; padding-bottom:6px; text-align:right; font-size:9px; color:#64748b; white-space:nowrap;">
-                                    <div>Mes <span style="font-weight:bold; color:#0f172a;" t-out="rep['month']"/></div>
-                                    <div>Emitido <span t-out="rep['report_date']"/></div>
+                                <td style="padding:13px 18px; text-align:right; white-space:nowrap;">
+                                    <div style="font-size:15px; font-weight:bold; color:#ffffff;" t-out="rep['month_label']"/>
+                                    <div style="font-size:9px; color:#94a3b8; margin-top:2px;">Emitido <span t-out="rep['report_date']"/></div>
                                 </td>
                             </tr>
                         </table>
 
-                        <!-- ── Tira de KPIs (tarjetas) ────────────────────── -->
-                        <table style="width:100%; border-collapse:separate; border-spacing:5px 0; margin-bottom:12px; table-layout:fixed;">
+                        <!-- ══════ KPIs DESTACADOS (3 + tasa de servicio) ══════ -->
+                        <table style="width:100%; border-collapse:separate; border-spacing:7px 0; margin-bottom:8px; table-layout:fixed;">
                             <tr>
-                                <td t-foreach="rep['kpis']" t-as="k" style="vertical-align:top;">
-                                    <div t-attf-style="border:1px solid #e2e8f0; border-top:3px solid {{k['color']}}; border-radius:7px; padding:7px 3px; text-align:center; background:#ffffff;">
-                                        <i t-attf-class="fa {{k['icon']}}" t-attf-style="font-size:15px; color:{{k['color']}};"/>
-                                        <div style="font-size:13px; font-weight:bold; color:#0f172a; margin-top:3px;" t-out="k['value']"/>
-                                        <div style="font-size:7.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.3px;" t-out="k['label']"/>
-                                        <div t-if="k['delta']" style="font-size:7.5px; margin-top:2px; color:#64748b;">
-                                            Hoy
-                                            <span t-attf-style="font-weight:bold; color:{{'#16a34a' if k['delta']['dir']=='up' else ('#dc2626' if k['delta']['dir']=='down' else '#64748b')}};">
-                                                <t t-out="k['delta']['text']"/>
-                                                <i t-if="k['delta']['dir']=='up'" class="fa fa-arrow-up"/>
-                                                <i t-if="k['delta']['dir']=='down'" class="fa fa-arrow-down"/>
-                                            </span>
+                                <td t-foreach="rep['primary']" t-as="k" style="vertical-align:top;">
+                                    <div t-attf-style="border:1px solid #e5e7eb; border-top:3px solid {{k['color']}}; border-radius:9px; background:#ffffff; padding:11px 12px; height:86px;">
+                                        <table style="width:100%; border-collapse:collapse;">
+                                            <tr>
+                                                <td style="vertical-align:middle;">
+                                                    <div t-attf-style="width:26px; height:26px; border-radius:50%; background:{{k['light']}}; text-align:center; line-height:26px;">
+                                                        <i t-attf-class="fa {{k['icon']}}" t-attf-style="color:{{k['color']}}; font-size:13px;"/>
+                                                    </div>
+                                                </td>
+                                                <td t-if="k['delta']" style="vertical-align:middle; text-align:right;">
+                                                    <span t-attf-style="font-size:8px; font-weight:bold; padding:2px 6px; border-radius:9px; white-space:nowrap; background:{{'#dcfce7' if k['delta']['dir']=='up' else ('#fef3c7' if k['delta']['dir']=='down' else '#f1f5f9')}}; color:{{'#16a34a' if k['delta']['dir']=='up' else ('#b45309' if k['delta']['dir']=='down' else '#64748b')}};">
+                                                        <i t-if="k['delta']['dir']=='up'" class="fa fa-arrow-up"/><i t-if="k['delta']['dir']=='down'" class="fa fa-arrow-down"/>
+                                                        Hoy <t t-out="k['delta']['text']"/>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <div style="font-size:20px; font-weight:bold; color:#0f172a; margin-top:7px; line-height:1;">
+                                            <t t-out="k['value']"/><span t-if="k['unit']" style="font-size:9px; font-weight:normal; color:#94a3b8;"> <t t-out="k['unit']"/></span>
                                         </div>
+                                        <div style="font-size:8.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px;" t-out="k['label']"/>
                                     </div>
                                 </td>
                                 <!-- Tasa de servicio -->
                                 <td style="vertical-align:top;">
-                                    <div t-attf-style="border:1px solid #e2e8f0; border-top:3px solid {{rep['service_card']['color']}}; border-radius:7px; padding:7px 3px; text-align:center; background:#ffffff;">
-                                        <i t-attf-class="fa {{rep['service_card']['icon']}}" t-attf-style="font-size:15px; color:{{rep['service_card']['color']}};"/>
-                                        <div t-attf-style="font-size:13px; font-weight:bold; color:{{rep['service_card']['color']}}; margin-top:3px;" t-out="rep['service_card']['value']"/>
-                                        <div style="font-size:7.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.3px;" t-out="rep['service_card']['label']"/>
-                                        <div style="font-size:7.5px; margin-top:2px; color:#64748b;" t-out="rep['service_card']['sub']"/>
+                                    <div t-attf-style="border:1px solid #e5e7eb; border-top:3px solid {{rep['service_card']['color']}}; border-radius:9px; background:#ffffff; padding:11px 12px; height:86px;">
+                                        <div t-attf-style="width:26px; height:26px; border-radius:50%; background:{{rep['service_card']['light']}}; text-align:center; line-height:26px;">
+                                            <i t-attf-class="fa {{rep['service_card']['icon']}}" t-attf-style="color:{{rep['service_card']['color']}}; font-size:13px;"/>
+                                        </div>
+                                        <div t-attf-style="font-size:20px; font-weight:bold; color:{{rep['service_card']['color']}}; margin-top:7px; line-height:1;" t-out="rep['service_card']['value']"/>
+                                        <div style="font-size:8.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-top:3px;" t-out="rep['service_card']['label']"/>
+                                        <div style="font-size:7.5px; color:#94a3b8; margin-top:1px;">
+                                            <t t-out="rep['service_card']['sub']"/> · <t t-out="rep['service_card']['extra']"/>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
                         </table>
 
-                        <!-- ── Secciones por familia (3 columnas, con barras) ─ -->
+                        <!-- ══════ KPIs SECUNDARIOS (tira) ══════ -->
+                        <table style="width:100%; border-collapse:separate; border-spacing:7px 0; margin-bottom:11px; table-layout:fixed;">
+                            <tr>
+                                <td t-foreach="rep['secondary']" t-as="s" style="vertical-align:top;">
+                                    <div style="border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc; padding:8px 11px;">
+                                        <table style="width:100%; border-collapse:collapse;">
+                                            <tr>
+                                                <td style="vertical-align:middle; width:22px;">
+                                                    <i t-attf-class="fa {{s['icon']}}" t-attf-style="color:{{s['color']}}; font-size:14px;"/>
+                                                </td>
+                                                <td style="vertical-align:middle; padding-left:4px;">
+                                                    <div style="font-size:13px; font-weight:bold; color:#0f172a; line-height:1;" t-out="s['value']"/>
+                                                    <div style="font-size:7.5px; color:#64748b; text-transform:uppercase; letter-spacing:0.4px; margin-top:2px;" t-out="s['label']"/>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- ══════ DESGLOSE POR FAMILIA (3 columnas) ══════ -->
                         <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
                             <tr style="vertical-align:top;">
-                                <td t-foreach="rep['sections']" t-as="s" t-attf-style="width:33.33%; padding:{{'0 0 0 6px' if s_index == 2 else ('0 3px' if s_index == 1 else '0 6px 0 0')}};">
-                                    <div t-attf-style="font-size:9px; font-weight:bold; color:#fff; background:{{s['color']}}; padding:3px 6px; border-radius:5px 5px 0 0;">
-                                        <i t-attf-class="fa {{s['icon']}}" style="margin-right:4px;"/><t t-out="s['title']"/>
+                                <td t-foreach="rep['sections']" t-as="sec" t-attf-style="width:33.33%; padding:{{'0 0 0 5px' if sec_index == 2 else ('0 2.5px' if sec_index == 1 else '0 5px 0 0')}};">
+                                    <div style="border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+                                        <!-- Encabezado de sección -->
+                                        <table t-attf-style="width:100%; border-collapse:collapse; background:{{sec['color']}};">
+                                            <tr>
+                                                <td style="padding:5px 8px;">
+                                                    <i t-attf-class="fa {{sec['icon']}}" style="color:#ffffff; font-size:9px; margin-right:4px;"/>
+                                                    <span style="font-size:8.5px; font-weight:bold; color:#ffffff; text-transform:uppercase; letter-spacing:0.4px;" t-out="sec['title']"/>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <!-- Filas con barras -->
+                                        <table style="width:100%; border-collapse:collapse; background:#ffffff;">
+                                            <tr t-foreach="sec['rows']" t-as="r"
+                                                t-attf-style="background:linear-gradient(to right, {{sec['light']}} {{r['bar']}}%, #ffffff {{r['bar']}}%);">
+                                                <td style="padding:2.5px 8px; color:#334155; font-size:8.5px; border-bottom:1px solid #f1f5f9;" t-out="r['name']"/>
+                                                <td style="padding:2.5px 8px; text-align:right; font-weight:bold; color:#0f172a; font-size:8.5px; white-space:nowrap; border-bottom:1px solid #f1f5f9;" t-out="r['value']"/>
+                                            </tr>
+                                            <tr t-if="sec['others']">
+                                                <td style="padding:2.5px 8px; font-style:italic; color:#94a3b8; font-size:8px; border-bottom:1px solid #f1f5f9;">Otras familias</td>
+                                                <td style="padding:2.5px 8px; text-align:right; color:#94a3b8; font-size:8px; white-space:nowrap; border-bottom:1px solid #f1f5f9;" t-out="sec['others']"/>
+                                            </tr>
+                                            <tr t-attf-style="background:{{sec['light']}};">
+                                                <td t-attf-style="padding:4px 8px; font-weight:bold; color:{{sec['color']}}; font-size:9px; border-top:1px solid {{sec['bar']}};">TOTAL</td>
+                                                <td t-attf-style="padding:4px 8px; text-align:right; font-weight:bold; color:{{sec['color']}}; font-size:9px; white-space:nowrap; border-top:1px solid {{sec['bar']}};" t-out="sec['total']"/>
+                                            </tr>
+                                        </table>
                                     </div>
-                                    <table style="width:100%; border-collapse:collapse;">
-                                        <tr t-foreach="s['rows']" t-as="r"
-                                            t-attf-style="border-bottom:1px solid #f1f5f9; background:linear-gradient(to right, {{s['light']}} {{r['bar']}}%, #ffffff {{r['bar']}}%);">
-                                            <td style="padding:2px 5px; color:#334155;" t-out="r['name']"/>
-                                            <td style="padding:2px 5px; text-align:right; font-weight:bold; color:#0f172a; white-space:nowrap;" t-out="r['value']"/>
-                                        </tr>
-                                        <tr t-if="s['others']" style="border-bottom:1px solid #f1f5f9; color:#94a3b8;">
-                                            <td style="padding:2px 5px; font-style:italic;">Otras familias</td>
-                                            <td style="padding:2px 5px; text-align:right; white-space:nowrap;" t-out="s['others']"/>
-                                        </tr>
-                                        <tr t-attf-style="border-top:2px solid {{s['color']}};">
-                                            <td style="padding:3px 5px; font-weight:bold; color:#0f172a;">Total</td>
-                                            <td style="padding:3px 5px; text-align:right; font-weight:bold; color:#0f172a; white-space:nowrap;" t-out="s['total']"/>
-                                        </tr>
-                                    </table>
                                 </td>
                             </tr>
                         </table>
 
-                        <!-- ── Nota de la tasa de servicio ────────────────── -->
-                        <div style="margin-top:10px; font-size:7.5px; color:#94a3b8; border-top:1px solid #f1f5f9; padding-top:5px;" t-out="rep['svc_note']"/>
+                        <!-- ══════ PIE ══════ -->
+                        <table style="width:100%; border-collapse:collapse; margin-top:12px; border-top:1px solid #e5e7eb;">
+                            <tr>
+                                <td style="padding-top:5px; font-size:7.5px; color:#94a3b8; vertical-align:top;" t-out="rep['svc_note']"/>
+                                <td style="padding-top:5px; font-size:7.5px; color:#cbd5e1; text-align:right; white-space:nowrap; vertical-align:top;">
+                                    Generado automáticamente · Módulo KPIs
+                                </td>
+                            </tr>
+                        </table>
 
                     </div>
                 </t>

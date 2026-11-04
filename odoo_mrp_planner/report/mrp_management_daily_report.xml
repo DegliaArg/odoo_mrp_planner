@@ -118,11 +118,7 @@
                         .mg-empty { font-size:8px; color:#9aa6b1; padding:7px 9px;
                                     background:#fff; font-style:italic; }
 
-                        /* ── Nota + pie ── */
-                        .mg-note  { background:#f1f6fb; border-left:3px solid #9fc0dd;
-                                    border-radius:0 6px 6px 0; padding:7px 10px;
-                                    font-size:7.5px; color:#5b6b78; margin-top:13px; }
-                        .mg-note strong { color:#004b88; }
+                        /* ── Pie ── */
                         .mg-foot  { text-align:center; border-top:1px solid #e6edf3;
                                     margin-top:12px; padding-top:7px; font-size:7.5px; color:#9aa6b1; }
                         .mg-foot strong { color:#6b7784; }
@@ -249,9 +245,6 @@
                                 </td>
                             </tr>
                         </table>
-
-                        <!-- ══ Nota ══ -->
-                        <div class="mg-note"><strong>Nota:</strong> <t t-out="rep['svc_note']"/></div>
 
                         <!-- ══ Pie corporativo ══ -->
                         <div class="mg-foot" t-out="rep['footer']"/>

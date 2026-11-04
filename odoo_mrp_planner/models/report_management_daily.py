@@ -214,9 +214,6 @@ class ReportManagementDaily(models.AbstractModel):
             'fam_pair': fam_pair,
             'fam_invoice': fam_invoice,
             'movements': movements,
-            'svc_note': ('la tasa de servicio cuenta solo los pedidos trabajados en el '
-                         'mes (con al menos una entrega en el mes). Es distinta de la tasa '
-                         'de cumplimiento de Ventas, que considera toda la demanda.'),
         }
         return {
             'doc_ids': docids,

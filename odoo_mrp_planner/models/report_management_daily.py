@@ -52,12 +52,23 @@ class ReportManagementDaily(models.AbstractModel):
         txt = (self._money(abs(today), cur) if cur else self._int(abs(today)))
         return {'text': ('+' if today >= 0 else '−') + txt, 'dir': direction}
 
+    @staticmethod
+    def _bar_pct(raw, mx):
+        """Ancho % de la barra proporcional, relativa al máximo de la tabla.
+        Piso de 2% para que las familias chicas muestren una marca mínima."""
+        if not mx or raw <= 0:
+            return 0
+        return max(2, min(100, int(round(raw / mx * 100.0))))
+
     def _fam_rows(self, rows, key, cur=None, top=11):
-        """Filas (name, value) por familia + total de 'otras'."""
+        """Filas (name, value, bar) por familia + total de 'otras'. La barra es
+        proporcional al máximo de las filas mostradas."""
         shown = rows[:top]
+        mx = max((r.get(key) or 0.0) for r in shown) if shown else 0.0
         out = [{'name': r.get('name') or '(sin familia)',
                 'value': (self._money(r.get(key) or 0.0, cur) if cur
-                          else self._int(r.get(key) or 0.0))}
+                          else self._int(r.get(key) or 0.0)),
+                'bar': self._bar_pct(r.get(key) or 0.0, mx)}
                for r in shown]
         others = None
         tail = rows[top:]
@@ -66,14 +77,37 @@ class ReportManagementDaily(models.AbstractModel):
             others = (self._money(s, cur) if cur else self._int(s))
         return out, others
 
-    def _mov_section(self, title, block):
-        """Sección de movimiento (despachos/embalajes/picking) por categoría de venta."""
+    def _inv_rows(self, rows, cur, top=11):
+        """Filas de facturado (name, qty, amount, bar); la barra es proporcional
+        al monto facturado de cada familia."""
+        shown = rows[:top]
+        mx = max((r.get('amount') or 0.0) for r in shown) if shown else 0.0
+        out = [{'name': r.get('name') or '(sin familia)',
+                'qty': self._int(r.get('qty') or 0.0),
+                'amount': self._money(r.get('amount') or 0.0, cur),
+                'bar': self._bar_pct(r.get('amount') or 0.0, mx)}
+               for r in shown]
+        others = None
+        tail = rows[top:]
+        if tail:
+            others = {'qty': self._int(sum((r.get('qty') or 0.0) for r in tail)),
+                      'amount': self._money(sum((r.get('amount') or 0.0) for r in tail), cur)}
+        return out, others
+
+    def _mov_section(self, title, block, now=False):
+        """Sección de movimiento (despachos/embalajes/picking) por categoría de
+        venta, con barras proporcionales. ``now`` marca las fotos del momento
+        (embalajes/picking) para pintarles el chip "Ahora"."""
         if not block.get('configured'):
-            return {'title': title, 'configured': False, 'rows': [], 'total': '—'}
-        rows = [{'name': r.get('name') or '—', 'value': self._int(r.get('qty') or 0.0)}
-                for r in block.get('rows', [])]
+            return {'title': title, 'configured': False, 'rows': [], 'total': '0', 'now': now}
+        src = block.get('rows', [])
+        mx = max((r.get('qty') or 0.0) for r in src) if src else 0.0
+        rows = [{'name': r.get('name') or '—',
+                 'value': self._int(r.get('qty') or 0.0),
+                 'bar': self._bar_pct(r.get('qty') or 0.0, mx)}
+                for r in src]
         return {'title': title, 'configured': True, 'rows': rows,
-                'total': self._int(block.get('qty') or 0.0) + ' pz'}
+                'total': self._int(block.get('qty') or 0.0), 'now': now}
 
     @api.model
     def _get_report_values(self, docids, data=None):
@@ -107,64 +141,87 @@ class ReportManagementDaily(models.AbstractModel):
         else:
             svc_color = '#c0392b'
 
-        # ── KPIs (misma selección que el panel) ───────────────────────────────
+        # ── KPIs (orden y etiquetas del one-pager; ancho relativo por card) ───
         navy = '#004b88'
         kpis = [
-            {'label': 'Demanda del mes', 'value': self._int(ov['demand']['total_qty']) + ' pz',
-             'accent': navy, 'delta': self._delta(dly('demand')), 'sub': None},
-            {'label': 'Producido del mes', 'value': self._int(ov['produced']['total_qty']) + ' pz',
-             'accent': navy, 'delta': self._delta(dly('produced')), 'sub': None},
-            {'label': 'Facturado del mes', 'value': self._money(ov['invoiced']['total_amount'], cur),
-             'accent': navy, 'delta': self._delta(dly('invoiced_amount'), cur), 'sub': None},
-            {'label': 'Facturado (piezas)', 'value': self._int(ov['invoiced']['total_qty']) + ' pz',
-             'accent': navy, 'delta': self._delta(dly('invoiced_qty')), 'sub': None},
-            {'label': 'Despachos del mes', 'value': self._int(ov['dispatch']['qty']) + ' pz',
-             'accent': navy, 'delta': self._delta(dly('dispatch')), 'sub': None},
+            {'label': 'Demanda (pz)', 'value': self._int(ov['demand']['total_qty']),
+             'accent': navy, 'delta': self._delta(dly('demand')), 'subs': [], 'width': 13},
+            {'label': 'Producido (pz)', 'value': self._int(ov['produced']['total_qty']),
+             'accent': navy, 'delta': self._delta(dly('produced')), 'subs': [], 'width': 13},
+            {'label': 'Facturado (pz)', 'value': self._int(ov['invoiced']['total_qty']),
+             'accent': navy, 'delta': self._delta(dly('invoiced_qty')), 'subs': [], 'width': 13},
+            {'label': 'Facturado ($)', 'value': self._money(ov['invoiced']['total_amount'], cur),
+             'accent': navy, 'delta': self._delta(dly('invoiced_amount'), cur), 'subs': [], 'width': 25},
+            {'label': 'Despachos (pz)', 'value': self._int(ov['dispatch']['qty']),
+             'accent': navy, 'delta': self._delta(dly('dispatch')), 'width': 16,
+             'subs': ['%s transferencias' % self._int(ov['dispatch'].get('pickings') or 0)]},
             {'label': 'Tasa de servicio', 'value': self._pct(rate), 'accent': svc_color,
-             'delta': None,
-             'sub': '%s/%s pz · %s de %s ped.' % (
-                 self._int(svc['delivered']), self._int(svc['ordered']),
-                 svc.get('worked_orders', 0), svc.get('total_orders', 0))},
+             'delta': None, 'width': 20,
+             'subs': ['%s/%s pz' % (self._int(svc['delivered']), self._int(svc['ordered'])),
+                      '%s de %s ped. trabajados' % (
+                          svc.get('worked_orders', 0), svc.get('total_orders', 0))]},
         ]
 
-        # ── Desglose por familia ──────────────────────────────────────────────
+        # ── Desglose por familia: Demanda + Producido en par (50/50) ──────────
         dem_rows, dem_others = self._fam_rows(ov['demand']['rows'], 'qty')
         prod_rows, prod_others = self._fam_rows(ov['produced']['rows'], 'qty')
-        inv_rows, inv_others = self._fam_rows(ov['invoiced']['rows'], 'amount', cur)
-        families = [
-            {'title': 'Demanda por familia', 'rows': dem_rows, 'others': dem_others,
-             'total': self._int(ov['demand']['total_qty']) + ' pz'},
-            {'title': 'Producido por familia', 'rows': prod_rows, 'others': prod_others,
-             'total': self._int(ov['produced']['total_qty']) + ' pz'},
-            {'title': 'Facturado por familia', 'rows': inv_rows, 'others': inv_others,
-             'total': self._money(ov['invoiced']['total_amount'], cur)},
+        inv_rows, inv_others = self._inv_rows(ov['invoiced']['rows'], cur)
+        fam_pair = [
+            {'title': 'Demanda por familia', 'col1': 'Pieza final',
+             'total': self._int(ov['demand']['total_qty']),
+             'rows': dem_rows, 'others': dem_others},
+            {'title': 'Producido por familia', 'col1': 'Semiprocesado',
+             'total': self._int(ov['produced']['total_qty']),
+             'rows': prod_rows, 'others': prod_others},
         ]
+        # Facturado por familia: a todo el ancho, con piezas + monto.
+        fam_invoice = {
+            'title': 'Facturado por familia', 'col1': 'Pieza final',
+            'total_pz': self._int(ov['invoiced']['total_qty']),
+            'total_amount': self._money(ov['invoiced']['total_amount'], cur),
+            'rows': inv_rows, 'others': inv_others,
+        }
 
         # ── Movimientos por categoría de venta (Despachos/Embalajes/Picking) ──
         movements = [
             self._mov_section('Despachos', ov['dispatch']),
-            self._mov_section('Embalajes', ov['packing']),
-            self._mov_section('Picking', ov['picking']),
+            self._mov_section('Embalajes', ov['packing'], now=True),
+            self._mov_section('Pickings', ov['picking'], now=True),
         ]
+
+        # ── Membrete (caja de marca) y pie corporativo ────────────────────────
+        co = primary_co
+        brand_logo = None
+        if co.logo:
+            logo = co.logo.decode() if isinstance(co.logo, bytes) else co.logo
+            brand_logo = 'data:image/png;base64,%s' % logo
+        locality = ' '.join(x for x in [co.city, co.state_id.name, co.zip] if x)
+        line2 = ', '.join(p for p in [co.street, co.street2, locality or None,
+                                      co.country_id.name] if p)
+        footer = ' · '.join(p for p in [co.name, line2, co.email, co.vat] if p)
 
         y, m = int(ov['month'][:4]), int(ov['month'][5:7])
         rep = {
             'company_label': ', '.join(companies.mapped('name')),
+            'company_name': co.name,
+            'brand_logo': brand_logo,
+            'footer': footer,
             'month_label': '%s %s' % (_MESES[m], y),
             'report_date': (data.get('report_date')
                             or fields.Date.to_string(fields.Date.context_today(self))),
             'is_current': is_cur,
             'kpis': kpis,
-            'families': families,
+            'fam_pair': fam_pair,
+            'fam_invoice': fam_invoice,
             'movements': movements,
-            'svc_note': ('La tasa de servicio cuenta SOLO los pedidos trabajados en el '
-                         'mes (con al menos una entrega en el mes). Distinta de la Tasa '
+            'svc_note': ('la tasa de servicio cuenta solo los pedidos trabajados en el '
+                         'mes (con al menos una entrega en el mes). Es distinta de la tasa '
                          'de cumplimiento de Ventas, que considera toda la demanda.'),
         }
         return {
             'doc_ids': docids,
             'doc_model': 'mrp.planner.dashboard',
             'docs': self.env['mrp.planner.dashboard'].browse(docids),
-            'company': primary_co,   # membrete (web.external_layout)
+            'company': co,
             'rep': rep,
         }

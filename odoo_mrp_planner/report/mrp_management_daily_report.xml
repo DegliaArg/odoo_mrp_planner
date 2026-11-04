@@ -27,113 +27,167 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         TEMPLATE — Resumen diario (estética Capemi, sin grilla "Excel")
+         TEMPLATE — Resumen diario (estética Capemi: one-pager ejecutivo con
+         membrete de marca, barras proporcionales, badges "Ahora" y pie propio).
+         Sin web.external_layout: header/footer propios para controlar el diseño.
     ════════════════════════════════════════════════════════════════════ -->
     <template id="report_management_daily">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="web.external_layout">
-                    <t t-set="company" t-value="company or o.env.company"/>
+                <t t-set="company" t-value="company or o.env.company"/>
+                <div class="article o_ignore_layout_styling">
 
                     <style>
-                        /* Mata TODOS los bordes/cajas que mete el layout de la empresa
-                           (el que parece Excel). Después reponemos solo líneas suaves. */
-                        .article table, .article tr, .article td, .article th,
-                        .article thead, .article tbody {
-                            border:0 !important; border-radius:0 !important;
-                            box-shadow:none !important; background-image:none !important; }
+                        .article { color:#24323d;
+                                   font-family:"Lato","Helvetica Neue",Arial,sans-serif; }
+                        .article td { border:0; }
 
-                        .mg-title { font-size:19px; font-weight:700; color:#004b88; margin:0; letter-spacing:.2px; }
+                        /* ── Membrete ── */
+                        table.mg-head { width:100%; border-collapse:collapse; }
+                        .mg-brandcell { width:118px; vertical-align:middle; }
+                        .mg-brand { border:2px solid #004b88; border-radius:8px;
+                                    padding:7px 9px; text-align:center; background:#f4f8fc; }
+                        .mg-logo  { max-height:34px; max-width:100px; }
+                        .mg-brandtxt { font-size:16px; font-weight:800; color:#004b88;
+                                       letter-spacing:1px; }
+                        .mg-headmid { vertical-align:middle; padding-left:14px; }
+                        .mg-title { font-size:20px; font-weight:700; color:#004b88;
+                                    margin:0; letter-spacing:.2px; }
                         .mg-sub   { font-size:10px; color:#6b7784; margin:3px 0 0; }
-                        .mg-rule  { border:0; border-top:3px solid #004b88; margin:9px 0 14px; }
+                        .mg-headright { vertical-align:middle; text-align:right;
+                                        white-space:nowrap; }
+                        .mg-emit-l { font-size:8px; color:#9aa6b1; text-transform:uppercase;
+                                     letter-spacing:.6px; }
+                        .mg-emit-v { font-size:11px; font-weight:700; color:#24323d; margin-top:2px; }
+                        .mg-rule  { border:0; border-top:3px solid #004b88; margin:9px 0 13px; }
 
                         .mg-sec   { font-size:11px; font-weight:700; color:#004b88;
                                     text-transform:uppercase; letter-spacing:.6px;
                                     padding-left:8px; border-left:3px solid #004b88;
-                                    margin:16px 0 9px; }
+                                    margin:15px 0 8px; }
 
-                        /* KPIs */
-                        table.mg-kpis { width:100%; border-collapse:separate !important;
-                                        border-spacing:7px 0; table-layout:fixed; }
-                        .mg-kpi   { background:#f6f9fc; border-radius:10px !important;
-                                    padding:12px 8px; text-align:center; }
-                        .mg-kpi-v { font-size:18px; font-weight:700; line-height:1.05; }
+                        /* ── KPIs ── */
+                        table.mg-kpis { width:100%; border-collapse:separate;
+                                        border-spacing:6px 0; table-layout:fixed; }
+                        .mg-kpis > tbody > tr > td { vertical-align:top; }
+                        .mg-kpi   { background:#f6f9fc; border-top:2px solid #004b88;
+                                    border-radius:0 0 9px 9px; padding:11px 7px 10px;
+                                    text-align:center; }
+                        .mg-kpi-v { font-size:17px; font-weight:800; line-height:1.05; }
                         .mg-kpi-l { font-size:7.5px; color:#8a97a3; text-transform:uppercase;
-                                    letter-spacing:.5px; margin-top:5px; }
+                                    letter-spacing:.5px; margin-top:5px; font-weight:700; }
                         .mg-kpi-d { font-size:7.5px; margin-top:4px; }
-                        .mg-kpi-s { font-size:7px; color:#9aa6b1; margin-top:3px; }
+                        .mg-kpi-s { font-size:7px; color:#9aa6b1; margin-top:2px; }
                         .mg-up    { color:#1e7e34; } .mg-dn { color:#b45309; } .mg-fl { color:#8a97a3; }
 
-                        /* Tablas limpias (sin grilla): banda de título + zebra suave */
-                        table.mg-grid { width:100%; border-collapse:collapse !important; table-layout:fixed; }
-                        table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 5px; }
-
-                        .mg-band  { background:#004b88 !important; color:#fff; font-size:9px;
-                                    font-weight:700; text-transform:uppercase; letter-spacing:.4px;
-                                    padding:5px 9px; border-radius:7px 7px 0 0 !important; }
+                        /* ── Cajas + bandas ── */
+                        table.mg-grid { width:100%; border-collapse:collapse; table-layout:fixed; }
+                        table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 4px; }
+                        .mg-col:first-child { padding-left:0 !important; }
+                        .mg-col:last-child  { padding-right:0 !important; }
+                        .mg-box   { border:1px solid #e6edf3; border-radius:8px; overflow:hidden; }
+                        .mg-band  { background:#004b88; color:#fff; font-size:9px; font-weight:700;
+                                    text-transform:uppercase; letter-spacing:.4px; padding:5px 9px; }
                         .mg-band .mg-tot { float:right; font-weight:700; }
+                        .mg-u     { font-size:7px; opacity:.8; }
+                        .mg-now   { display:inline-block; background:#eaf1f8; color:#004b88;
+                                    font-size:6.5px; font-weight:700; letter-spacing:.5px;
+                                    padding:1px 5px; border-radius:7px; margin-left:5px;
+                                    vertical-align:middle; }
 
-                        table.mg-tbl { width:100%; border-collapse:collapse !important;
-                                       font-size:8.5px; background:#fff; }
-                        table.mg-tbl td { padding:3px 9px !important;
-                                          border-bottom:1px solid #eef2f6 !important; }
-                        table.mg-tbl td.mg-r { text-align:right; font-weight:700; color:#0f2a43;
-                                               white-space:nowrap; }
+                        /* ── Tablas ── */
+                        table.mg-tbl { width:100%; border-collapse:collapse; font-size:8.5px;
+                                       background:#fff; table-layout:fixed; }
+                        table.mg-tbl td { padding:3px 9px; border-bottom:1px solid #eef2f6;
+                                          vertical-align:middle; }
+                        .mg-colh td { font-size:7px; color:#9aa6b1; text-transform:uppercase;
+                                      letter-spacing:.5px; font-weight:700; background:#fff;
+                                      padding-top:5px; padding-bottom:4px; }
+                        .mg-nm    { color:#3d4b57; }
+                        .mg-r     { text-align:right; font-weight:700; color:#0f2a43; white-space:nowrap; }
+                        .mg-money { color:#004b88; }
                         table.mg-tbl tbody tr:nth-child(even) td { background:#f7fafc; }
-                        table.mg-tbl td.mg-nm { color:#3d4b57; }
-                        .mg-oth td { color:#9aa6b1 !important; font-style:italic; }
-                        .mg-ttr td { background:#eef4f9 !important; color:#004b88 !important;
-                                     font-weight:700 !important; border-top:2px solid #cfe0ee !important;
-                                     border-bottom:0 !important; }
+                        .mg-oth td { color:#9aa6b1; font-style:italic; }
+
+                        /* ── Barras proporcionales ── */
+                        .mg-barcell { padding-left:4px !important; padding-right:4px !important; }
+                        .mg-barwrap { background:#e8eef4; border-radius:4px; height:7px;
+                                      width:100%; overflow:hidden; }
+                        .mg-bar     { background:#4a7fb5; height:7px; border-radius:4px; }
+
                         .mg-empty { font-size:8px; color:#9aa6b1; padding:7px 9px;
                                     background:#fff; font-style:italic; }
-                        .mg-box   { border:1px solid #e6edf3 !important; border-radius:8px !important;
-                                    overflow:hidden; }
 
-                        .mg-foot  { border-top:1px solid #e6edf3; margin-top:16px; padding-top:6px;
-                                    font-size:7.5px; color:#9aa6b1; }
+                        /* ── Nota + pie ── */
+                        .mg-note  { background:#f1f6fb; border-left:3px solid #9fc0dd;
+                                    border-radius:0 6px 6px 0; padding:7px 10px;
+                                    font-size:7.5px; color:#5b6b78; margin-top:13px; }
+                        .mg-note strong { color:#004b88; }
+                        .mg-foot  { text-align:center; border-top:1px solid #e6edf3;
+                                    margin-top:12px; padding-top:7px; font-size:7.5px; color:#9aa6b1; }
+                        .mg-foot strong { color:#6b7784; }
                     </style>
 
                     <div class="page">
 
-                        <!-- ══ Título ══ -->
-                        <p class="mg-title">Resumen diario de Gerencia</p>
-                        <p class="mg-sub">
-                            <strong t-out="rep['company_label']"/> ·
-                            <t t-out="rep['month_label']"/> · Emitido <t t-out="rep['report_date']"/>
-                        </p>
+                        <!-- ══ Membrete ══ -->
+                        <table class="mg-head">
+                            <tr>
+                                <td class="mg-brandcell">
+                                    <div class="mg-brand">
+                                        <img t-if="rep['brand_logo']" t-att-src="rep['brand_logo']" class="mg-logo"/>
+                                        <span t-else="" class="mg-brandtxt" t-out="rep['company_name']"/>
+                                    </div>
+                                </td>
+                                <td class="mg-headmid">
+                                    <p class="mg-title">Resumen diario de Gerencia</p>
+                                    <p class="mg-sub">
+                                        <strong t-out="rep['company_label']"/> · <t t-out="rep['month_label']"/>
+                                    </p>
+                                </td>
+                                <td class="mg-headright">
+                                    <div class="mg-emit-l">Emitido</div>
+                                    <div class="mg-emit-v" t-out="rep['report_date']"/>
+                                </td>
+                            </tr>
+                        </table>
                         <hr class="mg-rule"/>
 
                         <!-- ══ KPIs ══ -->
-                        <table class="mg-kpis o_ignore_layout_styling">
+                        <table class="mg-kpis">
                             <tr>
-                                <td t-foreach="rep['kpis']" t-as="k" style="width:16.66%;">
+                                <td t-foreach="rep['kpis']" t-as="k" t-attf-style="width:{{k['width']}}%;">
                                     <div class="mg-kpi">
                                         <div class="mg-kpi-v" t-attf-style="color:{{k['accent']}};" t-out="k['value']"/>
                                         <div class="mg-kpi-l" t-out="k['label']"/>
                                         <div t-if="k['delta']" t-attf-class="mg-kpi-d {{'mg-up' if k['delta']['dir']=='up' else ('mg-dn' if k['delta']['dir']=='down' else 'mg-fl')}}">
                                             Hoy <t t-out="k['delta']['text']"/>
                                         </div>
-                                        <div t-if="k['sub']" class="mg-kpi-s" t-out="k['sub']"/>
+                                        <div t-foreach="k['subs']" t-as="s" class="mg-kpi-s" t-out="s"/>
                                     </div>
                                 </td>
                             </tr>
                         </table>
 
-                        <!-- ══ Por familia ══ -->
+                        <!-- ══ Por familia: Demanda + Producido (50/50) ══ -->
                         <p class="mg-sec">Por familia</p>
-                        <table class="mg-grid o_ignore_layout_styling">
+                        <table class="mg-grid">
                             <tr>
-                                <td t-foreach="rep['families']" t-as="f" class="mg-col" style="width:33.33%;">
+                                <td t-foreach="rep['fam_pair']" t-as="f" class="mg-col" style="width:50%;">
                                     <div class="mg-box">
-                                        <div class="mg-band"><t t-out="f['title']"/><span class="mg-tot" t-out="f['total']"/></div>
+                                        <div class="mg-band"><t t-out="f['title']"/>
+                                            <span class="mg-tot"><t t-out="f['total']"/> <span class="mg-u">pz</span></span>
+                                        </div>
                                         <table class="mg-tbl">
+                                            <colgroup><col style="width:40%;"/><col style="width:34%;"/><col style="width:26%;"/></colgroup>
+                                            <tr class="mg-colh"><td t-out="f['col1']"/><td/><td class="mg-r">Piezas</td></tr>
                                             <tr t-foreach="f['rows']" t-as="r">
                                                 <td class="mg-nm" t-out="r['name']"/>
+                                                <td class="mg-barcell"><div class="mg-barwrap"><div class="mg-bar" t-attf-style="width:{{r['bar']}}%;"/></div></td>
                                                 <td class="mg-r" t-out="r['value']"/>
                                             </tr>
                                             <tr t-if="f['others']" class="mg-oth">
-                                                <td>Otras familias</td><td class="mg-r" t-out="f['others']"/>
+                                                <td>Otras familias</td><td/><td class="mg-r" t-out="f['others']"/>
                                             </tr>
                                         </table>
                                     </div>
@@ -141,18 +195,49 @@
                             </tr>
                         </table>
 
+                        <!-- ══ Facturado por familia (ancho completo) ══ -->
+                        <div class="mg-box" style="margin-top:9px;">
+                            <div class="mg-band"><t t-out="rep['fam_invoice']['title']"/>
+                                <span class="mg-tot"><t t-out="rep['fam_invoice']['total_pz']"/>
+                                    <span class="mg-u">pz</span> · <t t-out="rep['fam_invoice']['total_amount']"/></span>
+                            </div>
+                            <table class="mg-tbl">
+                                <colgroup><col style="width:30%;"/><col style="width:24%;"/><col style="width:19%;"/><col style="width:27%;"/></colgroup>
+                                <tr class="mg-colh">
+                                    <td t-out="rep['fam_invoice']['col1']"/><td/>
+                                    <td class="mg-r">Piezas</td><td class="mg-r">Monto</td>
+                                </tr>
+                                <tr t-foreach="rep['fam_invoice']['rows']" t-as="r">
+                                    <td class="mg-nm" t-out="r['name']"/>
+                                    <td class="mg-barcell"><div class="mg-barwrap"><div class="mg-bar" t-attf-style="width:{{r['bar']}}%;"/></div></td>
+                                    <td class="mg-r" t-out="r['qty']"/>
+                                    <td class="mg-r mg-money" t-out="r['amount']"/>
+                                </tr>
+                                <tr t-if="rep['fam_invoice']['others']" class="mg-oth">
+                                    <td>Otras familias</td><td/>
+                                    <td class="mg-r" t-out="rep['fam_invoice']['others']['qty']"/>
+                                    <td class="mg-r" t-out="rep['fam_invoice']['others']['amount']"/>
+                                </tr>
+                            </table>
+                        </div>
+
                         <!-- ══ Movimientos por categoría de venta ══ -->
                         <p class="mg-sec">Movimientos por categoría de venta</p>
-                        <table class="mg-grid o_ignore_layout_styling">
+                        <table class="mg-grid">
                             <tr>
                                 <td t-foreach="rep['movements']" t-as="mv" class="mg-col" style="width:33.33%;">
                                     <div class="mg-box">
-                                        <div class="mg-band"><t t-out="mv['title']"/><span class="mg-tot" t-out="mv['total']"/></div>
+                                        <div class="mg-band"><t t-out="mv['title']"/>
+                                            <span t-if="mv['now']" class="mg-now">Ahora</span>
+                                            <span class="mg-tot"><t t-out="mv['total']"/> <span class="mg-u">pz</span></span>
+                                        </div>
                                         <t t-if="mv['configured'] and mv['rows']">
                                             <table class="mg-tbl">
+                                                <colgroup><col style="width:36%;"/><col style="width:36%;"/><col style="width:28%;"/></colgroup>
                                                 <tr t-foreach="mv['rows']" t-as="r">
                                                     <td class="mg-nm" t-out="r['name']"/>
-                                                    <td class="mg-r"><t t-out="r['value']"/> pz</td>
+                                                    <td class="mg-barcell"><div class="mg-barwrap"><div class="mg-bar" t-attf-style="width:{{r['bar']}}%;"/></div></td>
+                                                    <td class="mg-r" t-out="r['value']"/>
                                                 </tr>
                                             </table>
                                         </t>
@@ -165,11 +250,14 @@
                             </tr>
                         </table>
 
-                        <!-- ══ Pie ══ -->
-                        <div class="mg-foot" t-out="rep['svc_note']"/>
+                        <!-- ══ Nota ══ -->
+                        <div class="mg-note"><strong>Nota:</strong> <t t-out="rep['svc_note']"/></div>
+
+                        <!-- ══ Pie corporativo ══ -->
+                        <div class="mg-foot" t-out="rep['footer']"/>
 
                     </div>
-                </t>
+                </div>
             </t>
         </t>
     </template>

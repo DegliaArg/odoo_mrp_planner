@@ -40,17 +40,21 @@ class ReportManagementDaily(models.AbstractModel):
         return ('%.1f' % v).replace('.', ',') + '%'
 
     def _delta(self, d, cur=None):
-        """Chip de aporte del día. None si no hay aporte hoy (evita el ruido de '+0').
-        dir up/down/flat compara hoy vs ayer."""
+        """Mini-leyenda del aporte del día, con el MISMO formato que el panel de
+        Gerencia: 'Hoy: {hoy} {flecha}{+/−dif} vs ayer', donde dif = hoy − ayer
+        (lineal). Verde si hoy > ayer, rojo si hoy < ayer, sin flecha si igual.
+        ``cur`` formatea hoy y la diferencia en moneda."""
         if not d:
             return None
         today = d.get('today') or 0.0
-        if abs(today) < 1e-9:
-            return None
         yest = d.get('yesterday') or 0.0
-        direction = 'up' if today > yest else ('down' if today < yest else 'flat')
-        txt = (self._money(abs(today), cur) if cur else self._int(abs(today)))
-        return {'text': ('+' if today >= 0 else '−') + txt, 'dir': direction}
+        diff = today - yest
+        fmt = (lambda v: self._money(v, cur)) if cur else (lambda v: self._int(v))
+        return {
+            'today': fmt(today),
+            'diff': ('+' if diff >= 0 else '−') + fmt(abs(diff)),
+            'dir': 'up' if diff > 0 else ('down' if diff < 0 else 'flat'),
+        }
 
     @staticmethod
     def _bar_pct(raw, mx):

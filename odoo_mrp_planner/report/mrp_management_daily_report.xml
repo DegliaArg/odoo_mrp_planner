@@ -45,8 +45,8 @@
                         /* ── Membrete ── */
                         table.mg-head { width:100%; border-collapse:collapse; }
                         .mg-brandcell { width:132px; vertical-align:middle; }
-                        .mg-brand { border:2px solid #004b88; border-radius:9px;
-                                    padding:9px 11px; text-align:center; background:#f4f8fc; }
+                        .mg-brand { border:0; border-radius:9px;
+                                    padding:9px 11px; text-align:center; background:#eef4fa; }
                         .mg-logo  { max-height:40px; max-width:112px; }
                         .mg-brandtxt { font-size:18px; font-weight:800; color:#004b88;
                                        letter-spacing:1px; }
@@ -79,19 +79,23 @@
                                     white-space:nowrap; }
                         .mg-kpi-l { font-size:8.5px; color:#8a97a3; text-transform:uppercase;
                                     letter-spacing:.5px; margin-top:9px; font-weight:700; }
-                        .mg-kpi-d { font-size:8.5px; margin-top:7px; }
+                        .mg-kpi-d { font-size:8.5px; margin-top:7px; line-height:1.45; }
                         .mg-kpi-s { font-size:8px; color:#9aa6b1; margin-top:4px; }
-                        .mg-up    { color:#1e7e34; } .mg-dn { color:#b45309; } .mg-fl { color:#8a97a3; }
+                        .mg-muted { color:#9aa6b1; }
+                        .mg-today { font-weight:700; color:#3d4b57; white-space:nowrap; }
+                        .mg-dv    { font-weight:700; white-space:nowrap; }
+                        .mg-arrow { font-size:7.5px; }
+                        .mg-up    { color:#1e7e34; } .mg-dn { color:#c0392b; } .mg-fl { color:#8a97a3; }
 
                         /* ── Cajas + bandas ── */
                         table.mg-grid { width:100%; border-collapse:collapse; table-layout:fixed; }
                         table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 5px; }
                         .mg-col:first-child { padding-left:0 !important; }
                         .mg-col:last-child  { padding-right:0 !important; }
-                        /* Sin overflow:hidden ni radio en el cuerpo: el clip con
-                           border-radius deja hairlines en los bordes en Adobe (no en
-                           Chrome). Radio solo arriba (caja + banda); cuerpo recto. */
-                        .mg-box   { border:1px solid #e6edf3; border-radius:9px 9px 0 0; }
+                        /* SIN borde de caja: un borde fino de 1px se ve suave en Chrome
+                           pero Adobe lo dibuja nítido y feo (el "recuadro"). La banda azul
+                           + las filas con separador ya definen cada bloque. */
+                        .mg-box   { border:0; }
                         .mg-band  { background:#004b88; color:#fff; font-size:11.5px; font-weight:700;
                                     text-transform:uppercase; letter-spacing:.4px; padding:9px 12px;
                                     border-radius:8px 8px 0 0; }
@@ -166,10 +170,16 @@
                                     <div class="mg-kpi">
                                         <div class="mg-kpi-v" t-attf-style="color:{{k['accent']}};" t-out="k['value']"/>
                                         <div class="mg-kpi-l" t-out="k['label']"/>
-                                        <div t-if="k['delta']" t-attf-class="mg-kpi-d {{'mg-up' if k['delta']['dir']=='up' else ('mg-dn' if k['delta']['dir']=='down' else 'mg-fl')}}">
-                                            Hoy <t t-out="k['delta']['text']"/>
-                                        </div>
                                         <div t-foreach="k['subs']" t-as="s" class="mg-kpi-s" t-out="s"/>
+                                        <div t-if="k['delta']" class="mg-kpi-d">
+                                            <span class="mg-muted">Hoy: </span>
+                                            <span class="mg-today" t-out="k['delta']['today']"/>
+                                            <t t-if="k['delta']['dir'] != 'flat'">
+                                                <span t-attf-class="mg-arrow {{'mg-up' if k['delta']['dir']=='up' else 'mg-dn'}}"><t t-out="'▲' if k['delta']['dir']=='up' else '▼'"/></span>
+                                                <span t-attf-class="mg-dv {{'mg-up' if k['delta']['dir']=='up' else 'mg-dn'}}" t-out="k['delta']['diff']"/>
+                                                <span class="mg-muted"> vs ayer</span>
+                                            </t>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>

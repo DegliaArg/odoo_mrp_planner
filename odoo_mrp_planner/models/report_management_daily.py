@@ -31,6 +31,13 @@ class ReportManagementDaily(models.AbstractModel):
     def _int(v):
         return '{:,.0f}'.format(v or 0.0).replace(',', '.')
 
+    @staticmethod
+    def _leaf(name):
+        """Nombre de familia sin el prefijo de la categoría padre (el encabezado de
+        la tabla ya dice 'Pieza final'/'Semiprocesado'): acorta y evita el wrap.
+        'Pieza final / Bujes de barra estabilizadora' → 'Bujes de barra estabilizadora'."""
+        return (name or '').rsplit(' / ', 1)[-1].strip() or (name or '')
+
     def _money(self, v, cur):
         return '%s %s' % (cur, self._int(v))
 
@@ -69,7 +76,7 @@ class ReportManagementDaily(models.AbstractModel):
         proporcional al máximo de las filas mostradas."""
         shown = rows[:top]
         mx = max((r.get(key) or 0.0) for r in shown) if shown else 0.0
-        out = [{'name': r.get('name') or '(sin familia)',
+        out = [{'name': self._leaf(r.get('name')) or '(sin familia)',
                 'value': (self._money(r.get(key) or 0.0, cur) if cur
                           else self._int(r.get(key) or 0.0)),
                 'bar': self._bar_pct(r.get(key) or 0.0, mx)}
@@ -86,7 +93,7 @@ class ReportManagementDaily(models.AbstractModel):
         al monto facturado de cada familia."""
         shown = rows[:top]
         mx = max((r.get('amount') or 0.0) for r in shown) if shown else 0.0
-        out = [{'name': r.get('name') or '(sin familia)',
+        out = [{'name': self._leaf(r.get('name')) or '(sin familia)',
                 'qty': self._int(r.get('qty') or 0.0),
                 'amount': self._money(r.get('amount') or 0.0, cur),
                 'bar': self._bar_pct(r.get('amount') or 0.0, mx)}

@@ -66,11 +66,13 @@
                                     padding-left:9px; border-left:4px solid #004b88;
                                     margin:24px 0 12px; }
 
-                        /* ── KPIs (todas del mismo ancho) ── */
+                        /* ── KPIs (mismo ancho y misma altura) ── */
                         table.mg-kpis { width:100%; border-collapse:separate;
                                         border-spacing:7px 0; table-layout:fixed; }
-                        .mg-kpis > tbody > tr > td { vertical-align:top; width:16.66%; }
-                        .mg-kpi   { background:#f6f9fc; border-top:3px solid #004b88;
+                        /* El estilo de card vive en el td: así todas las celdas de la
+                           fila comparten altura (uniformes) aunque tengan más líneas. */
+                        .mg-kpis > tbody > tr > td { vertical-align:top; width:16.66%;
+                                    background:#f6f9fc; border-top:3px solid #004b88;
                                     border-radius:0 0 10px 10px; padding:15px 6px 14px;
                                     text-align:center; }
                         .mg-kpi-v { font-size:16px; font-weight:800; line-height:1.1;
@@ -86,9 +88,13 @@
                         table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 5px; }
                         .mg-col:first-child { padding-left:0 !important; }
                         .mg-col:last-child  { padding-right:0 !important; }
-                        .mg-box   { border:1px solid #e6edf3; border-radius:9px; overflow:hidden; }
+                        /* Sin overflow:hidden ni radio en el cuerpo: el clip con
+                           border-radius deja hairlines en los bordes en Adobe (no en
+                           Chrome). Radio solo arriba (caja + banda); cuerpo recto. */
+                        .mg-box   { border:1px solid #e6edf3; border-radius:9px 9px 0 0; }
                         .mg-band  { background:#004b88; color:#fff; font-size:10.5px; font-weight:700;
-                                    text-transform:uppercase; letter-spacing:.4px; padding:7px 11px; }
+                                    text-transform:uppercase; letter-spacing:.4px; padding:7px 11px;
+                                    border-radius:8px 8px 0 0; }
                         .mg-band .mg-tot { float:right; font-weight:700; white-space:nowrap; }
                         .mg-u     { font-size:8px; opacity:.8; }
                         .mg-now   { display:inline-block; background:#eaf1f8; color:#004b88;
@@ -108,6 +114,9 @@
                         .mg-r     { text-align:right; font-weight:700; color:#0f2a43; white-space:nowrap; }
                         .mg-money { color:#004b88; }
                         table.mg-tbl tbody tr:nth-child(even) td { background:#f7fafc; }
+                        /* Última fila sin borde inferior: evita la línea doble contra
+                           el borde de la caja (se ve en Adobe). */
+                        table.mg-tbl tr:last-child td { border-bottom:0; }
                         .mg-oth td { color:#9aa6b1; font-style:italic; }
 
                         /* ── Barras proporcionales ── */

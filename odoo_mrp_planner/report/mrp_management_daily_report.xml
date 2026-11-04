@@ -44,65 +44,66 @@
 
                         /* ── Membrete ── */
                         table.mg-head { width:100%; border-collapse:collapse; }
-                        .mg-brandcell { width:118px; vertical-align:middle; }
-                        .mg-brand { border:2px solid #004b88; border-radius:8px;
-                                    padding:7px 9px; text-align:center; background:#f4f8fc; }
-                        .mg-logo  { max-height:34px; max-width:100px; }
-                        .mg-brandtxt { font-size:16px; font-weight:800; color:#004b88;
+                        .mg-brandcell { width:132px; vertical-align:middle; }
+                        .mg-brand { border:2px solid #004b88; border-radius:9px;
+                                    padding:9px 11px; text-align:center; background:#f4f8fc; }
+                        .mg-logo  { max-height:40px; max-width:112px; }
+                        .mg-brandtxt { font-size:18px; font-weight:800; color:#004b88;
                                        letter-spacing:1px; }
-                        .mg-headmid { vertical-align:middle; padding-left:14px; }
-                        .mg-title { font-size:20px; font-weight:700; color:#004b88;
+                        .mg-headmid { vertical-align:middle; padding-left:16px; }
+                        .mg-title { font-size:23px; font-weight:700; color:#004b88;
                                     margin:0; letter-spacing:.2px; }
-                        .mg-sub   { font-size:10px; color:#6b7784; margin:3px 0 0; }
+                        .mg-sub   { font-size:11.5px; color:#6b7784; margin:4px 0 0; }
                         .mg-headright { vertical-align:middle; text-align:right;
                                         white-space:nowrap; }
-                        .mg-emit-l { font-size:8px; color:#9aa6b1; text-transform:uppercase;
+                        .mg-emit-l { font-size:9px; color:#9aa6b1; text-transform:uppercase;
                                      letter-spacing:.6px; }
-                        .mg-emit-v { font-size:11px; font-weight:700; color:#24323d; margin-top:2px; }
-                        .mg-rule  { border:0; border-top:3px solid #004b88; margin:9px 0 13px; }
+                        .mg-emit-v { font-size:12.5px; font-weight:700; color:#24323d; margin-top:3px; }
+                        .mg-rule  { border:0; border-top:3px solid #004b88; margin:11px 0 18px; }
 
-                        .mg-sec   { font-size:11px; font-weight:700; color:#004b88;
+                        .mg-sec   { font-size:12.5px; font-weight:700; color:#004b88;
                                     text-transform:uppercase; letter-spacing:.6px;
-                                    padding-left:8px; border-left:3px solid #004b88;
-                                    margin:15px 0 8px; }
+                                    padding-left:9px; border-left:4px solid #004b88;
+                                    margin:24px 0 12px; }
 
-                        /* ── KPIs ── */
+                        /* ── KPIs (todas del mismo ancho) ── */
                         table.mg-kpis { width:100%; border-collapse:separate;
-                                        border-spacing:6px 0; table-layout:fixed; }
-                        .mg-kpis > tbody > tr > td { vertical-align:top; }
-                        .mg-kpi   { background:#f6f9fc; border-top:2px solid #004b88;
-                                    border-radius:0 0 9px 9px; padding:11px 7px 10px;
+                                        border-spacing:7px 0; table-layout:fixed; }
+                        .mg-kpis > tbody > tr > td { vertical-align:top; width:16.66%; }
+                        .mg-kpi   { background:#f6f9fc; border-top:3px solid #004b88;
+                                    border-radius:0 0 10px 10px; padding:15px 6px 14px;
                                     text-align:center; }
-                        .mg-kpi-v { font-size:17px; font-weight:800; line-height:1.05; }
-                        .mg-kpi-l { font-size:7.5px; color:#8a97a3; text-transform:uppercase;
-                                    letter-spacing:.5px; margin-top:5px; font-weight:700; }
-                        .mg-kpi-d { font-size:7.5px; margin-top:4px; }
-                        .mg-kpi-s { font-size:7px; color:#9aa6b1; margin-top:2px; }
+                        .mg-kpi-v { font-size:16px; font-weight:800; line-height:1.1;
+                                    white-space:nowrap; }
+                        .mg-kpi-l { font-size:8px; color:#8a97a3; text-transform:uppercase;
+                                    letter-spacing:.5px; margin-top:7px; font-weight:700; }
+                        .mg-kpi-d { font-size:8px; margin-top:5px; }
+                        .mg-kpi-s { font-size:7.5px; color:#9aa6b1; margin-top:3px; }
                         .mg-up    { color:#1e7e34; } .mg-dn { color:#b45309; } .mg-fl { color:#8a97a3; }
 
                         /* ── Cajas + bandas ── */
                         table.mg-grid { width:100%; border-collapse:collapse; table-layout:fixed; }
-                        table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 4px; }
+                        table.mg-grid > tbody > tr > td.mg-col { vertical-align:top; padding:0 5px; }
                         .mg-col:first-child { padding-left:0 !important; }
                         .mg-col:last-child  { padding-right:0 !important; }
-                        .mg-box   { border:1px solid #e6edf3; border-radius:8px; overflow:hidden; }
-                        .mg-band  { background:#004b88; color:#fff; font-size:9px; font-weight:700;
-                                    text-transform:uppercase; letter-spacing:.4px; padding:5px 9px; }
-                        .mg-band .mg-tot { float:right; font-weight:700; }
-                        .mg-u     { font-size:7px; opacity:.8; }
+                        .mg-box   { border:1px solid #e6edf3; border-radius:9px; overflow:hidden; }
+                        .mg-band  { background:#004b88; color:#fff; font-size:10.5px; font-weight:700;
+                                    text-transform:uppercase; letter-spacing:.4px; padding:7px 11px; }
+                        .mg-band .mg-tot { float:right; font-weight:700; white-space:nowrap; }
+                        .mg-u     { font-size:8px; opacity:.8; }
                         .mg-now   { display:inline-block; background:#eaf1f8; color:#004b88;
-                                    font-size:6.5px; font-weight:700; letter-spacing:.5px;
-                                    padding:1px 5px; border-radius:7px; margin-left:5px;
+                                    font-size:7.5px; font-weight:700; letter-spacing:.5px;
+                                    padding:2px 6px; border-radius:8px; margin-left:6px;
                                     vertical-align:middle; }
 
                         /* ── Tablas ── */
-                        table.mg-tbl { width:100%; border-collapse:collapse; font-size:8.5px;
+                        table.mg-tbl { width:100%; border-collapse:collapse; font-size:10px;
                                        background:#fff; table-layout:fixed; }
-                        table.mg-tbl td { padding:3px 9px; border-bottom:1px solid #eef2f6;
+                        table.mg-tbl td { padding:5.5px 11px; border-bottom:1px solid #eef2f6;
                                           vertical-align:middle; }
-                        .mg-colh td { font-size:7px; color:#9aa6b1; text-transform:uppercase;
+                        .mg-colh td { font-size:8px; color:#9aa6b1; text-transform:uppercase;
                                       letter-spacing:.5px; font-weight:700; background:#fff;
-                                      padding-top:5px; padding-bottom:4px; }
+                                      padding-top:7px; padding-bottom:5px; }
                         .mg-nm    { color:#3d4b57; }
                         .mg-r     { text-align:right; font-weight:700; color:#0f2a43; white-space:nowrap; }
                         .mg-money { color:#004b88; }
@@ -110,17 +111,17 @@
                         .mg-oth td { color:#9aa6b1; font-style:italic; }
 
                         /* ── Barras proporcionales ── */
-                        .mg-barcell { padding-left:4px !important; padding-right:4px !important; }
-                        .mg-barwrap { background:#e8eef4; border-radius:4px; height:7px;
+                        .mg-barcell { padding-left:5px !important; padding-right:5px !important; }
+                        .mg-barwrap { background:#e8eef4; border-radius:5px; height:9px;
                                       width:100%; overflow:hidden; }
-                        .mg-bar     { background:#4a7fb5; height:7px; border-radius:4px; }
+                        .mg-bar     { background:#4a7fb5; height:9px; border-radius:5px; }
 
-                        .mg-empty { font-size:8px; color:#9aa6b1; padding:7px 9px;
+                        .mg-empty { font-size:9.5px; color:#9aa6b1; padding:10px 11px;
                                     background:#fff; font-style:italic; }
 
                         /* ── Pie ── */
                         .mg-foot  { text-align:center; border-top:1px solid #e6edf3;
-                                    margin-top:12px; padding-top:7px; font-size:7.5px; color:#9aa6b1; }
+                                    margin-top:20px; padding-top:10px; font-size:8.5px; color:#9aa6b1; }
                         .mg-foot strong { color:#6b7784; }
                     </style>
 
@@ -152,7 +153,7 @@
                         <!-- ══ KPIs ══ -->
                         <table class="mg-kpis">
                             <tr>
-                                <td t-foreach="rep['kpis']" t-as="k" t-attf-style="width:{{k['width']}}%;">
+                                <td t-foreach="rep['kpis']" t-as="k" style="width:16.66%;">
                                     <div class="mg-kpi">
                                         <div class="mg-kpi-v" t-attf-style="color:{{k['accent']}};" t-out="k['value']"/>
                                         <div class="mg-kpi-l" t-out="k['label']"/>
@@ -192,7 +193,7 @@
                         </table>
 
                         <!-- ══ Facturado por familia (ancho completo) ══ -->
-                        <div class="mg-box" style="margin-top:9px;">
+                        <div class="mg-box" style="margin-top:14px;">
                             <div class="mg-band"><t t-out="rep['fam_invoice']['title']"/>
                                 <span class="mg-tot"><t t-out="rep['fam_invoice']['total_pz']"/>
                                     <span class="mg-u">pz</span> · <t t-out="rep['fam_invoice']['total_amount']"/></span>

@@ -453,18 +453,36 @@ class MrpPlannerDashboardManagement(models.TransientModel):
     def _mgmt_agg_by_sale_category(self, pairs):
         """Agrega (product_id, piezas) por categoría de venta (x_sale_category A–E).
 
+        ``x_sale_category`` es company-dependent: vive por empresa en
+        ``mrp.product.company.category``. El informe consolida varias empresas y
+        corre bajo la empresa de facturación, que puede NO ser aquella donde se
+        cargaron las categorías → por eso salían todas "Sin cat. venta". Resolvemos
+        leyendo la tabla por empresa directamente, prefiriendo la categoría de la
+        empresa activa y, si no tiene, la de cualquier empresa que la tenga.
+
         :param pairs: list[(product_id, qty)].
         :returns: list[dict] con key, name y qty, ordenada A, B, C, D, E y
             finalmente los sin categoría de venta.
         """
         prod_ids = {pid for pid, _v in pairs}
         prods = self.env['product.product'].sudo().browse(list(prod_ids))
-        cat_of = {p.id: (p.product_tmpl_id.x_sale_category or '') for p in prods}
+        tmpl_of = {p.id: p.product_tmpl_id.id for p in prods}
+        tmpl_ids = set(tmpl_of.values())
+        active_cid = self.env.company.id
+        cat_by_tmpl = {}
+        if tmpl_ids:
+            for r in self.env['mrp.product.company.category'].sudo().search([
+                    ('product_tmpl_id', 'in', list(tmpl_ids)),
+                    ('sale_category', '!=', False)]):
+                tid = r.product_tmpl_id.id
+                # La empresa activa pisa a cualquier otra; si no, vale la primera.
+                if r.company_id.id == active_cid or tid not in cat_by_tmpl:
+                    cat_by_tmpl[tid] = r.sale_category
         names = {'A': 'Cat. A', 'B': 'Cat. B', 'C': 'Cat. C',
                  'D': 'Cat. D', 'E': 'Cat. E', '': 'Sin cat. venta'}
         agg = defaultdict(float)
         for pid, v in pairs:
-            agg[cat_of.get(pid, '')] += v
+            agg[cat_by_tmpl.get(tmpl_of.get(pid), '') or ''] += v
         order = ['A', 'B', 'C', 'D', 'E', '']
         return [{'key': k or 'none', 'name': names.get(k, k), 'qty': round(agg[k], 2)}
                 for k in order if k in agg]

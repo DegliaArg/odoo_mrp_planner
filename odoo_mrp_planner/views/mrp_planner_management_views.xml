@@ -117,6 +117,8 @@
                                     Enviá todos los días el Resumen diario en PDF a los destinatarios,
                                     a la hora configurada. El correo sale directo por mail (aunque el
                                     contacto sea un usuario con notificaciones en bandeja).
+                                    La hora es local (formato 24 h) y se interpreta en la zona horaria
+                                    de la empresa.
                                 </div>
                                 <field name="management_report_enabled"/>
                                 <field name="management_report_hour" widget="float_time"

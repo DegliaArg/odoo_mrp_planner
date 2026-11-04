@@ -5,7 +5,8 @@
          noupdate="1": el estado activo lo administra la configuración (campo
          management_report_enabled por empresa); el método sale solo si ninguna
          config tiene el envío activado. El cron corre cada hora y dispara el
-         envío al llegar a la hora configurada (en la zona del usuario del cron). -->
+         envío al llegar a la hora configurada (interpretada en la zona horaria
+         de la empresa de cada configuración, no en la del usuario del cron). -->
     <data noupdate="1">
         <record id="ir_cron_management_daily_report" model="ir.cron">
             <field name="name">Planificador: envío del Resumen diario de Gerencia</field>

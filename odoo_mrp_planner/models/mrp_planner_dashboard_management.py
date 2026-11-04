@@ -720,6 +720,25 @@ class MrpPlannerDashboardManagement(models.TransientModel):
     # ── Envío del Resumen diario por mail (cron + botón manual) ──────────────
 
     @api.model
+    def _management_report_tz(self, cfg):
+        """Zona horaria en la que se interpreta la hora de envío configurada.
+
+        NO usamos la TZ del usuario que ejecuta el cron: en Odoo.sh el cron corre
+        como OdooBot (sin TZ → UTC), por lo que '08:00' terminaba disparándose a
+        las 05:00 hora local (Argentina = UTC-3). Resolvemos contra la empresa de
+        la configuración (su contacto), con respaldos deterministas."""
+        name = (
+            (cfg.company_id.partner_id.tz if cfg and cfg.company_id else False)
+            or self.env.company.partner_id.tz
+            or self.env.user.tz
+            or 'America/Argentina/Buenos_Aires'
+        )
+        try:
+            return pytz.timezone(name)
+        except Exception:
+            return pytz.timezone('America/Argentina/Buenos_Aires')
+
+    @api.model
     def _cron_send_management_report(self):
         """Cron horario: por cada configuración con el envío activo, si la hora
         local coincide con la configurada y no se envió hoy, manda el PDF.
@@ -732,11 +751,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         ])
         if not configs:
             return
-        tz = pytz.timezone(self.env.user.tz or 'UTC')
-        now_local = pytz.utc.localize(datetime.utcnow()).astimezone(tz)
-        today_local = now_local.date()
+        now_utc = pytz.utc.localize(datetime.utcnow())
         for cfg in configs:
             try:
+                now_local = now_utc.astimezone(self._management_report_tz(cfg))
+                today_local = now_local.date()
                 if int(cfg.management_report_hour or 0) != now_local.hour:
                     continue
                 if cfg.management_report_last_sent_date == today_local:
@@ -771,7 +790,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             _logger.warning('[MgmtReport] Config %s sin emails válidos; no se envía.', cfg.id)
             return False
 
-        tz = pytz.timezone(self.env.user.tz or 'UTC')
+        tz = self._management_report_tz(cfg)
         today_local = pytz.utc.localize(datetime.utcnow()).astimezone(tz).date()
         month = '%04d-%02d' % (today_local.year, today_local.month)
         date_str = today_local.strftime('%d/%m/%Y')

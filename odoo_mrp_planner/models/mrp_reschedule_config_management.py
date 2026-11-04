@@ -72,11 +72,13 @@ class MrpRescheduleConfigManagement(models.Model):
              'Gerencia en PDF a los destinatarios, a la hora configurada.',
     )
     management_report_hour = fields.Float(
-        string='Hora de envío',
+        string='Hora de envío (hora local)',
         default=8.0,
-        help='Hora (del día, en la zona horaria del usuario que ejecuta el cron) '
-             'a la que se envía el PDF. El cron corre cada hora y dispara el envío '
-             'al llegar a esta hora. Ej.: 8.0 = 08:00, 18.5 = 18:30.',
+        help='Hora local del día (formato 24 h, HH:MM) a la que se envía el PDF; '
+             'se interpreta en la zona horaria de la empresa de esta configuración '
+             '(no en UTC ni en la del cron). Elegila en el selector de hora: p. ej. '
+             '08:00 = 8 de la mañana, 18:30 = 6:30 de la tarde. El cron corre cada '
+             'hora y dispara el envío al llegar a la hora elegida.',
     )
     management_report_company_ids = fields.Many2many(
         'res.company',

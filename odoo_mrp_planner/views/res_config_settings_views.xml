@@ -879,6 +879,8 @@
                                                invisible="not dispatch_stock_log_enabled"/>
                                         <field name="dispatch_available_denominator_method"
                                                invisible="not dispatch_stock_log_enabled"/>
+                                        <field name="dispatch_available_count_late" widget="boolean_toggle"
+                                               invisible="not dispatch_stock_log_enabled"/>
                                         <field name="dispatch_pending_cutoff_months"/>
                                         <field name="inventory_force_integer" widget="boolean_toggle"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1">

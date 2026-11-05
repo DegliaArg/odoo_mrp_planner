@@ -190,7 +190,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
     @api.model
     def _inventory_delivery_figures(self, company, d_from, d_to, dt_from, dt_to,
-                                    warehouse_ids, type_ids, method):
+                                    warehouse_ids, type_ids, method, count_late=True):
         """Numerador y parte pendiente del denominador de la Tasa de entrega,
         por eslabón, en el rango exacto [d_from, d_to].
 
@@ -231,12 +231,13 @@ class MrpPlannerDashboard(models.TransientModel):
         # ── Denominador pendiente: disponible no hecho de esos tipos ──
         den_pending = self._inventory_pending_available(
             company, d_from, d_to, warehouse_ids, type_ids, method,
-            exclude_pick_ids=set(done_picks.ids))
+            exclude_pick_ids=set(done_picks.ids), count_late=count_late)
         return num, den_pending
 
     @api.model
     def _inventory_pending_available(self, company, d_from, d_to, warehouse_ids,
-                                     type_ids, method, exclude_pick_ids=None):
+                                     type_ids, method, exclude_pick_ids=None,
+                                     count_late=True):
         """Parte pendiente del denominador de la Tasa de entrega: disponible
         (qty_reserved) de las operaciones pendientes de ``type_ids`` en los
         snapshots del rango, que NO terminó validado dentro del rango ni está
@@ -280,6 +281,11 @@ class MrpPlannerDashboard(models.TransientModel):
         cancelled = {pid for pid, p in pinfo.items() if p['state'] == 'cancel'}
         type_set = set(type_ids)
         excl = (exclude_pick_ids or set()) | cancelled
+        # Con count_late=False, lo hecho en un mes POSTERIOR tampoco cuenta (si se
+        # terminó haciendo, no penaliza aunque haya sido tarde). Los done dentro
+        # del rango ya están en exclude_pick_ids; acá se suman los done restantes.
+        if not count_late:
+            excl |= {pid for pid, p in pinfo.items() if p['state'] == 'done'}
         rows = [r for r in rows
                 if r['picking_id'] and ptype.get(r['picking_id'][0]) in type_set
                 and r['picking_id'][0] not in excl]
@@ -591,7 +597,8 @@ class MrpPlannerDashboard(models.TransientModel):
             d_from, d_to, dt_from, dt_to = self._inventory_parse_range(date_from, date_to)
             method = cfg._inventory_denominator_method()
             num, den_pending = self._inventory_delivery_figures(
-                company, d_from, d_to, dt_from, dt_to, warehouse_ids, type_ids, method)
+                company, d_from, d_to, dt_from, dt_to, warehouse_ids, type_ids, method,
+                count_late=cfg.dispatch_available_count_late)
             if den_pending is None:
                 # Sin snapshots en el rango: el denominador es desconocido; se
                 # muestra "—" en vez de un 100% engañoso.

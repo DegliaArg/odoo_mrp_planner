@@ -79,6 +79,20 @@ class MrpRescheduleConfigInventory(models.Model):
              'stock. Punto medio: suaviza los picos de un solo día, pero castiga el '
              'stock que quedó parado muchos días. Castigo intermedio.')
 
+    dispatch_available_count_late = fields.Boolean(
+        string='Contar la demora (hecho en meses posteriores)',
+        default=True,
+        help='Qué hacer con un remito que tuvo stock en el período pero se hizo '
+             '(recolectó/validó) en un mes POSTERIOR, en el denominador de la tasa '
+             'de entrega:\n'
+             '• Activado (recomendado): cuenta como "no hecho en el período" — es una '
+             'demora y penaliza la tasa del período. La tasa de un mes cerrado queda '
+             'ESTABLE (no cambia con el tiempo).\n'
+             '• Desactivado: lo hecho tarde NO penaliza (el denominador solo suma lo '
+             'que sigue sin hacerse). Ojo: la tasa de un mes ya cerrado puede seguir '
+             'SUBIENDO con el tiempo, a medida que se completan los pendientes.\n'
+             'Los remitos cancelados nunca cuentan, en ninguno de los dos casos.')
+
     def _inventory_denominator_method(self):
         """Método configurado para la parte pendiente del denominador de la
         Tasa de entrega (ver dispatch_available_denominator_method)."""

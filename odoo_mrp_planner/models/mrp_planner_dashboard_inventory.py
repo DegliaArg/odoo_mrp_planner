@@ -19,13 +19,14 @@ Fuentes de datos:
   (_inventory_state_stock_map), y las líneas más viejas que el corte de
   antigüedad configurado quedan fuera de todo el panel.
 - state='done' / date_done: entregado del período y atraso de entrega.
-- mrp.dispatch.stock.log: denominador de la "Tasa de entrega s/ disponible"
-  del mes en curso (y meses aún no consolidados).
-- mrp.planner.kpi.monthly: meses cerrados (histórico congelado).
+- mrp.dispatch.stock.log: disponible pendiente que forma el denominador de la
+  "Tasa de entrega". La tasa se calcula EN VIVO desde los snapshots (no hay
+  consolidado congelado): meses más viejos que la retención no tienen tasa.
 
 Todas las lecturas de stock/ventas usan sudo() con guard de grupo previo,
 mismo criterio que el análisis de clientes.
 """
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import pytz
@@ -175,160 +176,113 @@ class MrpPlannerDashboard(models.TransientModel):
                       key=lambda d: d['name'])
 
     @api.model
-    def get_inventory_dashboard_data(self, period_from, period_to, warehouse_ids=None,
-                                     picking_type_ids=None):
-        """
-        Payload de la zona superior del panel (una sola llamada RPC):
-
-        :returns: dict con:
-            - 'enabled' (bool): registro de disponibilidad activo en Ajustes.
-            - 'trend' (list[dict]): evolución mensual de la tasa en el rango,
-              cada mes con su origen ('monthly' congelado o 'live').
-            - 'pending_by_wh' (list[dict]): composición actual del pendiente
-              (disponible vs. sin stock) por depósito.
-
-        Las cards KPI del panel NO salen de acá: viven en la zona tabla
-        (get_inventory_pending_table). "Con stock" = la cantidad reservada de
-        cada movimiento cuyo estado cuenta como con stock en Ajustes
-        (_inventory_state_stock_map). Las líneas más viejas que el corte de
-        antigüedad configurado quedan fuera, y las cantidades en piezas
-        respetan "Forzar cantidades enteras" de Ajustes.
-
-        :param picking_type_ids: filtro opcional de tipos de operación de la
-            cadena. Aplica al pendiente por depósito (composición actual), pero
-            NO a la tasa/evolución: la tasa es un indicador de la cadena de
-            despacho completa (recolección → … → salida outgoing) y filtrarla
-            por un eslabón intermedio la dejaría en 0%. La tasa respeta solo el
-            depósito.
-        """
-        self._inventory_ensure_group()
-        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
-        company = self.env.company
-        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
-        log_enabled = bool(cfg and cfg.dispatch_stock_log_enabled)
-        d_from, d_to, dt_from, dt_to = self._inventory_parse_range(period_from, period_to)
-
-        # ── Estado actual del pendiente (no depende del período) ─────────────
-        # Universo = TODA operación pendiente (entradas, internas y la cadena
-        # de entrega). Se filtra por ESTADO DEL MOVIMIENTO (como el análisis de
-        # movimientos nativo), no del remito, para no dejar afuera operaciones.
-        chain_type_ids, type_info = self._inventory_universe_types(
-            company, warehouse_ids or None)
+    def _inventory_chain_types(self, company, warehouse_ids, picking_type_ids):
+        """Tipos de operación de la CADENA de entrega (recolección/embalaje/
+        salida) de los depósitos visibles, acotados al filtro de tipo de
+        operación si se pasa. La Tasa de entrega se calcula sobre estos
+        eslabones: a diferencia de antes, SÍ respeta el filtro (recolección,
+        embalaje o entrega dan cada uno su propia tasa)."""
+        chain_ids, _info = self.env['mrp.dispatch.stock.log'].sudo() \
+            ._dispatch_chain_types(company, warehouse_ids or None)
         if picking_type_ids:
-            type_info = {t: info for t, info in type_info.items()
-                         if t in picking_type_ids}
-            chain_type_ids = list(type_info)
-        # Clasificación Con/Sin stock por estado del movimiento (Ajustes)
-        smap = cfg._inventory_state_stock_map()
-        # Corte de antigüedad por línea (fecha programada del movimiento)
-        cutoff_dom = cfg._dispatch_pending_cutoff_domain('date')
-        pending_moves = self.env['stock.move'].sudo().search([
+            chain_ids = [t for t in chain_ids if t in picking_type_ids]
+        return chain_ids
+
+    @api.model
+    def _inventory_delivery_figures(self, company, d_from, d_to, dt_from, dt_to,
+                                    warehouse_ids, type_ids, method):
+        """Numerador y parte pendiente del denominador de la Tasa de entrega,
+        por eslabón, en el rango exacto [d_from, d_to].
+
+        - num (validado del período): operaciones VALIDADAS de los tipos
+          ``type_ids`` con date_done en el rango — el MISMO número que la card
+          "Validados del período" para esos tipos. Es "cuánto hice" del eslabón.
+        - den_pending (lo que tuve stock y no hice): disponible pendiente
+          (qty_reserved) de esos tipos, de los snapshots del rango, agregado
+          según ``method`` (closing/peak/average) y excluyendo lo que terminó
+          validado en el rango (ya cuenta en num).
+
+        :returns: (num, den_pending) floats sin redondear.
+        """
+        if not type_ids:
+            return 0.0, 0.0
+        Picking = self.env['stock.picking'].sudo()
+        Move = self.env['stock.move'].sudo()
+
+        # ── Numerador: validado del período (cantidad hecha de los tipos) ──
+        done_dom = [
             ('company_id', '=', company.id),
-            ('picking_id.picking_type_id', 'in', chain_type_ids),
-            ('state', 'in', list(smap)),
-        ] + cutoff_dom) if chain_type_ids else self.env['stock.move'].sudo()
-        by_wh = {}  # {(wh_id, wh_name): [available, blocked]}
-        if pending_moves:
-            rows = pending_moves.read(['picking_id', 'product_uom_qty', 'state', 'quantity'])
-            all_pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
-            pick_type = {p['id']: p['picking_type_id'][0] if p['picking_type_id'] else False
-                         for p in self.env['stock.picking'].sudo()
-                                      .browse(list(all_pick_ids)).read(['picking_type_id'])}
-            for r in rows:
-                qty = r['product_uom_qty'] or 0.0
-                # Con stock = cantidad reservada del movimiento si su estado
-                # cuenta como con stock en Ajustes; el resto es sin stock.
-                avail = min(r['quantity'] or 0.0, qty) if smap.get(r['state']) == 'con' else 0.0
-                pick = r['picking_id'][0] if r['picking_id'] else False
-                info = type_info.get(pick_type.get(pick))
-                wh_key = (info[0], info[1]) if info else (False, _('Sin depósito'))
-                by_wh.setdefault(wh_key, [0.0, 0.0])
-                by_wh[wh_key][0] += avail
-                by_wh[wh_key][1] += qty - avail
+            ('picking_type_id', 'in', type_ids),
+            ('state', '=', 'done'),
+            ('date_done', '>=', dt_from), ('date_done', '<', dt_to),
+        ]
+        if warehouse_ids:
+            done_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+        done_picks = Picking.search(done_dom)
+        num = 0.0
+        if done_picks:
+            d_moves = Move.search([('picking_id', 'in', done_picks.ids),
+                                   ('state', '=', 'done')])
+            num = sum(r['quantity'] or 0.0 for r in d_moves.read(['quantity']))
 
-        # ── Evolución mensual de la tasa s/ disponible ────────────────────────
-        # La tasa NO toma el filtro de tipo de operación (ver docstring): es un
-        # indicador de la cadena completa y solo respeta el depósito.
-        trend = self._inventory_rate_trend(company, d_from, d_to, warehouse_ids, cfg) \
-            if log_enabled else []
-
-        # Cantidades en piezas con el redondeo configurado (las tasas no).
-        # Las cards KPI viven en la zona tabla (get_inventory_pending_table /
-        # _inventory_period_kpis): esta llamada alimenta solo los gráficos.
-        qround = lambda v: self._inventory_qround(cfg, v)
-        return {
-            'enabled': log_enabled,
-            'trend': trend,
-            'pending_by_wh': [
-                {'warehouse_id': wh_id, 'warehouse': wh_name,
-                 'available': qround(vals[0]), 'blocked': qround(vals[1])}
-                for (wh_id, wh_name), vals in sorted(by_wh.items(), key=lambda kv: kv[0][1])
-            ],
-        }
+        # ── Denominador pendiente: disponible no hecho de esos tipos ──
+        den_pending = self._inventory_pending_available(
+            company, d_from, d_to, warehouse_ids, type_ids, method,
+            exclude_pick_ids=set(done_picks.ids))
+        return num, den_pending
 
     @api.model
-    def _inventory_rate_trend(self, company, d_from, d_to, warehouse_ids, cfg=None):
-        """Tasa s/ disponible por mes del rango: consolidado si el mes está
-        cerrado en mrp.planner.kpi.monthly, cálculo vivo desde los snapshots
-        si no. Es un indicador de la cadena de despacho completa: respeta el
-        depósito pero NO el tipo de operación (filtrar por un eslabón
-        intermedio dejaría la tasa en 0%). Meses sin datos quedan con num/den 0
-        y rate None. Las cantidades num/den_extra respetan el redondeo
-        configurado; la tasa no."""
+    def _inventory_pending_available(self, company, d_from, d_to, warehouse_ids,
+                                     type_ids, method, exclude_pick_ids=None):
+        """Parte pendiente del denominador de la Tasa de entrega: disponible
+        (qty_reserved) de las operaciones pendientes de ``type_ids`` en los
+        snapshots del rango, que NO terminó validado, agregado según ``method``:
+
+        - closing (default): disponible del ÚLTIMO snapshot del rango (foto al
+          cierre) — lo que al final seguía pendiente con stock para hacer.
+        - peak: máximo por (remito, producto) visto en el rango.
+        - average: promedio diario del disponible pendiente.
+
+        El snapshot no guarda el tipo de operación: se resuelve vía el remito.
+        """
         Log = self.env['mrp.dispatch.stock.log'].sudo()
-        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
-        months = []
-        cur = d_from.replace(day=1)
-        last = d_to.replace(day=1)
-        while cur <= last:
-            months.append(cur)
-            cur = (cur.replace(day=28) + timedelta(days=6)).replace(day=1)
-
-        trend = []
-        for month_start in months:
-            base_dom = [
-                ('kpi', '=', 'dispatch_available'),
-                ('company_id', '=', company.id),
-                ('period', '=', month_start),
-            ]
-            has_marker = Monthly.search_count(
-                base_dom + [('product_id', '=', False), ('warehouse_id', '=', False)])
-            if has_marker:
-                if warehouse_ids:
-                    rows = Monthly.search(base_dom + [
-                        ('warehouse_id', 'in', warehouse_ids),
-                        ('product_id', '!=', False),
-                    ]).read(['qty_num', 'qty_den_extra'])
-                else:
-                    rows = Monthly.search(base_dom + [
-                        ('product_id', '=', False), ('warehouse_id', '=', False),
-                    ]).read(['qty_num', 'qty_den_extra'])
-                num = sum(r['qty_num'] for r in rows)
-                den_extra = sum(r['qty_den_extra'] for r in rows)
-                source = 'monthly'
-            else:
-                num, den_extra = self._inventory_rate_live_month(
-                    company, month_start, warehouse_ids, Log)
-                source = 'live'
-            total = num + den_extra
-            trend.append({
-                'ym':        month_start.strftime('%Y-%m'),
-                'num':       self._inventory_qround(cfg, num),
-                'den_extra': self._inventory_qround(cfg, den_extra),
-                'rate':      round(num / total * 100, 1) if total > 0 else None,
-                'source':    source,
-            })
-        return trend
-
-    @api.model
-    def _inventory_rate_live_month(self, company, month_start, warehouse_ids, Log):
-        """Numerador y denominador extra de un mes NO consolidado, desde los
-        snapshots crudos. Delegado al mismo helper que usa el cierre mensual
-        (_dispatch_month_figures: deduplicación por cadena, exclusión de lo
-        entregado hasta fin de mes) para que en vivo y congelado den igual."""
-        num, den = Log._dispatch_month_figures(
-            company, month_start, warehouse_ids=warehouse_ids or None)
-        return sum(num.values()), sum(den.values())
+        log_dom = [
+            ('company_id', '=', company.id),
+            ('snapshot_date', '>=', d_from), ('snapshot_date', '<=', d_to),
+            ('qty_reserved', '>', 0),
+        ]
+        if warehouse_ids:
+            log_dom.append(('warehouse_id', 'in', warehouse_ids))
+        logs = Log.search(log_dom)
+        if not logs:
+            return 0.0
+        rows = logs.read(['snapshot_date', 'picking_id', 'product_id', 'qty_reserved'])
+        pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
+        ptype = {p['id']: (p['picking_type_id'][0] if p['picking_type_id'] else False)
+                 for p in self.env['stock.picking'].sudo()
+                              .browse(list(pick_ids)).read(['picking_type_id'])}
+        type_set = set(type_ids)
+        excl = exclude_pick_ids or set()
+        rows = [r for r in rows
+                if r['picking_id'] and ptype.get(r['picking_id'][0]) in type_set
+                and r['picking_id'][0] not in excl]
+        if not rows:
+            return 0.0
+        if method == 'peak':
+            best = {}
+            for r in rows:
+                k = (r['picking_id'][0], r['product_id'][0] if r['product_id'] else 0)
+                if r['qty_reserved'] > best.get(k, 0.0):
+                    best[k] = r['qty_reserved']
+            return sum(best.values())
+        if method == 'average':
+            by_date = defaultdict(float)
+            for r in rows:
+                by_date[r['snapshot_date']] += r['qty_reserved']
+            return sum(by_date.values()) / len(by_date) if by_date else 0.0
+        # closing (default): disponible del último snapshot del rango.
+        last_date = max(r['snapshot_date'] for r in rows)
+        return sum(r['qty_reserved'] for r in rows if r['snapshot_date'] == last_date)
 
     # ── Llamada 2: tabla operativa ────────────────────────────────────────────
 
@@ -377,12 +331,12 @@ class MrpPlannerDashboard(models.TransientModel):
         chain_type_ids, type_info = self._inventory_universe_types(
             company, warehouse_ids or None)
 
-        # La tasa (única métrica que necesita snapshots/consolidado) viaja
-        # como period_kpis; los validados ahora son filas de la tabla y sus
-        # KPIs se calculan en el cliente. La tasa es de cadena completa: NO
-        # toma el filtro de tipo de operación (solo el depósito).
+        # La tasa (única métrica que necesita snapshots) viaja como period_kpis;
+        # los validados son filas de la tabla y sus KPIs se calculan en el
+        # cliente. La tasa ahora es POR ESLABÓN: respeta el filtro de tipo de
+        # operación (su numerador = los validados de esos tipos) y el depósito.
         period = self._inventory_period_kpis(company, cfg, warehouse_ids,
-                                             date_from, date_to)
+                                             date_from, date_to, picking_type_ids)
 
         if picking_type_ids:
             type_info = {t: info for t, info in type_info.items()
@@ -600,22 +554,25 @@ class MrpPlannerDashboard(models.TransientModel):
                 'dispatch_enabled': dispatch_enabled, 'period_kpis': period}
 
     @api.model
-    def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to):
-        """Tasa de entrega s/ disponible del rango de la tabla — la única
-        métrica que necesita el servidor (snapshots/consolidado). Los
-        validados son filas de la tabla y sus KPIs se calculan en el cliente.
-        Requiere rango completo; siempre semántica de salidas de cadena
-        completa (respeta el depósito, no el tipo de operación).
+    def _inventory_period_kpis(self, company, cfg, warehouse_ids, date_from, date_to,
+                               picking_type_ids=None):
+        """Tasa de entrega del rango de la tabla, por eslabón (respeta el filtro
+        de tipo de operación). num = validado del período de esos tipos — el
+        MISMO número que la card "Validados del período"; den = num + disponible
+        pendiente no hecho (método configurable en Ajustes). Requiere rango
+        completo.
 
         :returns: dict — rate_available(_num/_den).
         """
         rate = rate_num = rate_den = None
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
-            trend = self._inventory_rate_trend(
-                company, fields.Date.from_string(date_from),
-                fields.Date.from_string(date_to), warehouse_ids, cfg)
-            rate_num = sum(m['num'] for m in trend)
-            rate_den = rate_num + sum(m['den_extra'] for m in trend)
+            type_ids = self._inventory_chain_types(company, warehouse_ids, picking_type_ids)
+            d_from, d_to, dt_from, dt_to = self._inventory_parse_range(date_from, date_to)
+            method = cfg._inventory_denominator_method()
+            num, den_pending = self._inventory_delivery_figures(
+                company, d_from, d_to, dt_from, dt_to, warehouse_ids, type_ids, method)
+            rate_num = num
+            rate_den = num + den_pending
             rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
         qround = lambda v: self._inventory_qround(cfg, v)
         return {

@@ -3,14 +3,14 @@ Módulo: mrp_reschedule_config_inventory.py
 Modelo: extensión de mrp.reschedule.config
 
 Configuración del Panel de Inventario (pestaña Inventario de los Ajustes):
-registro de disponibilidad (snapshot diario que alimenta la "Tasa de entrega
-s/ disponible"), hora y retención de los snapshots, corte de antigüedad de
-pendientes y redondeo de presentación. El circuito de despacho es una
-extensión aparte en odoo_mrp_planner_dispatch.
+registro de disponibilidad (snapshot diario que alimenta la "Tasa de
+entrega"), hora y retención de los snapshots, método del denominador de la
+tasa, corte de antigüedad de pendientes y redondeo de presentación. El
+circuito de despacho es una extensión aparte en odoo_mrp_planner_dispatch.
 
 Relacionado con:
-- mrp.dispatch.stock.log / mrp.planner.kpi.monthly: snapshots y consolidado
-  mensual que estos campos habilitan y parametrizan.
+- mrp.dispatch.stock.log: snapshots diarios que estos campos habilitan y
+  parametrizan (la Tasa de entrega se calcula en vivo sobre ellos).
 - ir_cron_dispatch_stock_snapshot: cron cuyo horario sincroniza
   _dispatch_sync_snapshot_cron (llamado desde write/create del singleton).
 """
@@ -29,7 +29,7 @@ class MrpRescheduleConfigInventory(models.Model):
         string='Registrar disponibilidad de stock para entregas',
         default=False,
         help='Activa el snapshot diario de las salidas pendientes (cantidad pendiente '
-             'vs. reservada). Alimenta la "Tasa de entrega s/ disponible" del Panel de '
+             'vs. reservada). Alimenta la "Tasa de entrega" del Panel de '
              'Inventario: sin registro no hay tasa.')
     dispatch_snapshot_hour = fields.Float(
         string='Hora del snapshot', default=20.0,
@@ -53,6 +53,24 @@ class MrpRescheduleConfigInventory(models.Model):
              'y de Movimientos (las tasas y porcentajes conservan su decimal). '
              'Es independiente del "Forzar cantidades enteras" de la comparativa '
              'del forecast (Ajustes → Producción).')
+    dispatch_available_denominator_method = fields.Selection(
+        [('closing', 'Disponible al cierre del período'),
+         ('peak', 'Pico de disponible del período'),
+         ('average', 'Promedio de disponible del período')],
+        string='Base de la Tasa de entrega', default='closing', required=True,
+        help='Cómo se mide la parte pendiente del denominador de la "Tasa de entrega" '
+             '(lo que tuve stock para hacer en el eslabón filtrado y no hice):\n'
+             '• Disponible al cierre: lo pendiente-con-stock en el último snapshot del '
+             'período (foto al cierre). Recomendado: da un denominador menor a la demanda.\n'
+             '• Pico de disponible: el máximo visto en cualquier snapshot del período '
+             '(infla el denominador hacia la demanda).\n'
+             '• Promedio de disponible: el promedio diario de pendiente-con-stock.\n'
+             'El numerador es siempre lo validado del período del eslabón filtrado.')
+
+    def _inventory_denominator_method(self):
+        """Método configurado para la parte pendiente del denominador de la
+        Tasa de entrega (ver dispatch_available_denominator_method)."""
+        return (self[:1].dispatch_available_denominator_method) or 'closing'
 
     # ── Clasificación Con stock / Sin stock por estado del stock.move ────────
     # El Panel de Inventario reparte la demanda pendiente en "Con stock" y "Sin

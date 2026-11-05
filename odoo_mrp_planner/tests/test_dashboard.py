@@ -394,22 +394,23 @@ class TestMrpPlannerDashboard(TransactionCase):
         with self.assertRaises(AccessError):
             dash.with_user(user_no_perms).action_refresh_compras()
 
-    # ── Test 6: la tasa de entrega ignora el filtro de tipo de operación ───────
+    # ── Test 6: la Tasa de entrega respeta el filtro de tipo de operación ──────
 
-    def test_delivery_rate_ignores_operation_type_filter(self):
+    def test_delivery_rate_respects_operation_type_filter(self):
         """
-        Regresión (Panel de Inventario): la "Tasa de entrega s/ disponible" es
-        un indicador de la CADENA de despacho completa (recolección → … →
-        salida outgoing). No debe vaciarse al poner el filtro de Tipo de
-        operación en un eslabón que no sea la salida final.
+        Panel de Inventario: la "Tasa de entrega" es POR ESLABÓN. Su numerador
+        es lo validado del período de los tipos filtrados (coincide con la card
+        "Validados del período"); su denominador agrega lo que tuve stock para
+        hacer en ese eslabón y no hice. Filtrar por un eslabón fuera de la
+        cadena (sin validaciones) deja la tasa en None.
 
         Escenario:
-        - Se habilita el registro de disponibilidad (snapshots).
-        - Se crea UNA salida a cliente validada en el mes en curso (numerador).
-        - Se pide la evolución filtrando por un tipo INTERNO (no-outgoing).
-        - Antes del fix el numerador quedaba en 0 (intersección vacía) y la
-          tasa en 0%/None; ahora la tasa se calcula sobre la cadena completa
-          del depósito y sigue siendo > 0.
+        - Se habilita el registro de disponibilidad.
+        - Se crea UNA salida a cliente validada en el mes en curso.
+        - Filtrando por el tipo de SALIDA: numerador = 5 y, sin snapshots (el
+          denominador pendiente es 0), la tasa del eslabón es 100%.
+        - Filtrando por un tipo INTERNO (fuera de la cadena de entrega): sin
+          validaciones, el numerador es 0 y la tasa queda en None.
         """
         company = self.env.company
         self.env.user.write({"mrp_planner_all_warehouses": True})
@@ -453,21 +454,29 @@ class TestMrpPlannerDashboard(TransactionCase):
         first = today.replace(day=1).strftime("%Y-%m-%d")
         last = today.strftime("%Y-%m-%d")
 
-        data = dash.get_inventory_dashboard_data(
+        # Filtrando por la SALIDA: la validación cuenta en el numerador y, sin
+        # disponible pendiente, la tasa del eslabón es 100%.
+        out_kpi = dash.get_inventory_pending_table(
             first, last, warehouse_ids=[wh.id],
-            picking_type_ids=[internal_type.id])
-        ym = today.strftime("%Y-%m")
-        month = next((m for m in data["trend"] if m["ym"] == ym), None)
-        self.assertIsNotNone(month, "El mes en curso debe estar en la evolución")
-        self.assertGreater(
-            month["num"], 0,
-            "La salida validada debe contar en el numerador pese al filtro")
-        self.assertIsNotNone(
-            month["rate"],
-            "La tasa no debe ser None con una salida validada")
-        self.assertGreater(
-            month["rate"], 0,
-            "La tasa no debe quedar en 0% por el filtro de tipo de operación")
+            picking_type_ids=[out_type.id])["period_kpis"]
+        self.assertEqual(
+            out_kpi["rate_available_num"], 5.0,
+            "El numerador debe ser lo validado del eslabón de salida")
+        self.assertEqual(
+            out_kpi["rate_available"], 100.0,
+            "Sin disponible pendiente, la tasa del eslabón de salida es 100%")
+
+        # Filtrando por un eslabón INTERNO (fuera de la cadena): sin validados,
+        # numerador 0 y tasa None (antes la tasa ignoraba el filtro).
+        int_kpi = dash.get_inventory_pending_table(
+            first, last, warehouse_ids=[wh.id],
+            picking_type_ids=[internal_type.id])["period_kpis"]
+        self.assertEqual(
+            int_kpi["rate_available_num"], 0.0,
+            "Un eslabón sin validaciones no suma al numerador")
+        self.assertIsNone(
+            int_kpi["rate_available"],
+            "Sin numerador ni denominador, la tasa es None")
 
     # ── Test 7: el selector de tipos de operación excluye archivados ───────────
 

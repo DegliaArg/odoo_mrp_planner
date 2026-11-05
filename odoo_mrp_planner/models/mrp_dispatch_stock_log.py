@@ -1,16 +1,16 @@
 """
 Módulo: mrp_dispatch_stock_log.py (odoo_mrp_planner)
-Modelos: mrp.dispatch.stock.log y mrp.planner.kpi.monthly
+Modelos: mrp.dispatch.stock.log y mrp.planner.kpi.monthly (legacy)
 
-Snapshots diarios de disponibilidad de stock de las salidas pendientes y
-consolidado mensual de KPIs. Alimentan la "Tasa de entrega s/ disponible"
-del Panel de Inventario: el mes en curso se calcula desde los snapshots
-crudos; los meses cerrados se leen del consolidado, que nunca se purga.
+Snapshots diarios de disponibilidad de stock de las salidas pendientes.
+Alimentan la "Tasa de entrega" del Panel de Inventario, que se calcula EN
+VIVO desde estos snapshots (ya no hay consolidado mensual): meses más viejos
+que la retención configurada no tienen tasa.
 
 El panel usa solo datos estándar de Odoo: pendiente = demanda en los
 eslabones de la cadena de entrega sin validar (por tipos de operación),
-entregado = salida validada (state done, por date_done). No depende del
-circuito de despacho (x_dispatch_state), que es una extensión opcional.
+disponible = cantidad reservada siguiendo la cadena de abastecimiento. No
+depende del circuito de despacho (x_dispatch_state), extensión opcional.
 
 Ciclo del cron diario (_cron_dispatch_snapshot):
 1. Snapshot: una fila por remito-producto pendiente con su cantidad
@@ -18,14 +18,15 @@ Ciclo del cron diario (_cron_dispatch_snapshot):
    La disponibilidad se evalúa siguiendo la cadena de abastecimiento de
    cada movimiento (_chain_available_qty), y las salidas más viejas que
    el corte de antigüedad configurado quedan fuera.
-2. Cierre mensual: consolida en mrp.planner.kpi.monthly los meses
-   anteriores que aún no tengan su fila resumen.
-3. Retención: purga snapshots crudos más viejos que la retención
-   configurada, SOLO si su mes ya está consolidado.
+2. Retención: purga snapshots crudos más viejos que la retención
+   configurada (por antigüedad; ya no depende de ningún consolidado).
+
+mrp.planner.kpi.monthly queda como modelo LEGACY (sin escrituras ni lecturas):
+sus filas del KPI 'dispatch_available' se borran en la migración 18.0.13.10.0.
 
 Relacionado con:
 - mrp.reschedule.config: dispatch_stock_log_enabled / dispatch_snapshot_hour /
-  dispatch_log_retention_months (agregados por este módulo).
+  dispatch_log_retention_months / dispatch_available_denominator_method.
 - mrp.planner.run.log: cada corrida del cron queda en el historial.
 """
 import logging
@@ -71,18 +72,6 @@ class MrpDispatchStockLog(models.Model):
             return pytz.timezone(tz_name)
         except Exception:
             return pytz.utc
-
-    @api.model
-    def _month_utc_bounds(self, year, month, company):
-        """Límites del mes local de la empresa como Datetimes naive en UTC."""
-        tz = self._company_tz(company)
-        start_local = tz.localize(datetime(year, month, 1))
-        if month == 12:
-            end_local = tz.localize(datetime(year + 1, 1, 1))
-        else:
-            end_local = tz.localize(datetime(year, month + 1, 1))
-        to_utc = lambda d: d.astimezone(pytz.utc).replace(tzinfo=None)
-        return to_utc(start_local), to_utc(end_local)
 
     # ── Disponibilidad de cadena ──────────────────────────────────────────────
 
@@ -197,60 +186,6 @@ class MrpDispatchStockLog(models.Model):
                 info[w['pack_type_id'][0]] = (w['id'], w['name'], 'pack')
         return list(info), info
 
-    @api.model
-    def _dispatch_chain_keys(self, picking_ids):
-        """Clave de cadena por remito: el pedido de venta si existe (todos los
-        eslabones de una misma entrega comparten sale_id vía el grupo de
-        abastecimiento), o el propio remito como fallback. Permite deduplicar
-        la misma demanda cuando avanza de eslabón entre snapshots.
-
-        :returns: {picking_id: ('s', sale_id) | ('p', picking_id)}
-        """
-        keys = {}
-        if not picking_ids:
-            return keys
-        for p in self.env['stock.picking'].sudo().browse(list(picking_ids)).read(['sale_id']):
-            keys[p['id']] = ('s', p['sale_id'][0]) if p['sale_id'] else ('p', p['id'])
-        return keys
-
-    @api.model
-    def _dispatch_delivered_chain_products(self, chain_keys, dt_to):
-        """Pares (clave de cadena, producto) que ya alcanzaron una entrega
-        (salida validada) antes de dt_to. Se usa para excluir del denominador
-        la demanda cuyos snapshots quedaron en eslabones anteriores pero
-        terminó entregada.
-
-        :param chain_keys: iterable de claves ('s', sale_id) / ('p', picking_id).
-        :returns: set de (clave, product_id).
-        """
-        sale_ids = [k[1] for k in chain_keys if k and k[0] == 's']
-        pick_ids = [k[1] for k in chain_keys if k and k[0] == 'p']
-        result = set()
-        dom_common = [
-            ('picking_type_code', '=', 'outgoing'),
-            ('state', '=', 'done'),
-            ('date_done', '<', dt_to),
-        ]
-        picks = self.env['stock.picking'].sudo()
-        if sale_ids:
-            picks |= picks.search(dom_common + [('sale_id', 'in', sale_ids)])
-        if pick_ids:
-            picks |= picks.search(dom_common + [('id', 'in', pick_ids)])
-        if not picks:
-            return result
-        sale_by_pick = {p['id']: (p['sale_id'][0] if p['sale_id'] else None)
-                        for p in picks.read(['sale_id'])}
-        d_moves = self.env['stock.move'].sudo().search([
-            ('picking_id', 'in', picks.ids), ('state', '=', 'done')])
-        for r in d_moves.read(['picking_id', 'product_id']):
-            pick = r['picking_id'][0] if r['picking_id'] else None
-            prod = r['product_id'][0] if r['product_id'] else None
-            if not pick or not prod:
-                continue
-            sale = sale_by_pick.get(pick)
-            result.add((('s', sale) if sale else ('p', pick), prod))
-        return result
-
     # ── Cron ──────────────────────────────────────────────────────────────────
 
     @api.model
@@ -264,12 +199,9 @@ class MrpDispatchStockLog(models.Model):
             started = fields.Datetime.now()
             try:
                 count = self._dispatch_take_snapshot(company, cfg)
-                months = self._dispatch_consolidate_months(company)
                 purged = self._dispatch_apply_retention(company, cfg)
                 duration = (fields.Datetime.now() - started).total_seconds()
                 parts = [f'{count} líneas registradas']
-                if months:
-                    parts.append(f'{months} mes(es) consolidado(s)')
                 if purged:
                     parts.append(f'{purged} snapshots purgados')
                 self.env['mrp.planner.run.log'].log_run(
@@ -365,171 +297,15 @@ class MrpDispatchStockLog(models.Model):
             self.sudo().create(vals_list)
         return len(vals_list)
 
-    # ── Paso 2: cierre mensual ────────────────────────────────────────────────
-
-    @api.model
-    def _dispatch_consolidate_months(self, company):
-        """Consolida en mrp.planner.kpi.monthly los meses anteriores con snapshots
-        que aún no tengan su fila resumen (la fila sin producto ni depósito actúa
-        como marcador de mes cerrado y como agregado global de lectura rápida).
-
-        :returns: int — meses consolidados en esta pasada.
-        """
-        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
-        tz = self._company_tz(company)
-        today_local = datetime.now(pytz.utc).astimezone(tz).date()
-        current_month_start = today_local.replace(day=1)
-
-        self.env.cr.execute("""
-            SELECT DISTINCT date_trunc('month', snapshot_date)::date
-              FROM mrp_dispatch_stock_log
-             WHERE company_id = %s AND snapshot_date < %s
-        """, (company.id, current_month_start))
-        months = [r[0] for r in self.env.cr.fetchall()]
-
-        done = 0
-        for month_start in sorted(months):
-            marker = Monthly.search_count([
-                ('kpi', '=', 'dispatch_available'),
-                ('company_id', '=', company.id),
-                ('period', '=', month_start),
-                ('product_id', '=', False),
-                ('warehouse_id', '=', False),
-            ])
-            if marker:
-                continue
-            self._dispatch_consolidate_one_month(company, month_start)
-            done += 1
-        return done
-
-    @api.model
-    def _dispatch_month_figures(self, company, month_start, warehouse_ids=None):
-        """Numerador y denominador extra de un mes, por depósito y producto.
-
-        - Numerador: cantidad entregada en el mes — salidas a cliente
-          validadas, por fecha de validación (date_done).
-        - Denominador extra: demanda que estuvo disponible en algún snapshot
-          del mes y NO llegó a entregarse antes de fin de mes. Se deduplica
-          por (clave de cadena, producto) con la máxima cantidad vista: así
-          una misma entrega que avanza de recolección a salida entre
-          snapshots cuenta una sola vez, y si terminó entregada se excluye
-          aunque sus snapshots hayan quedado en eslabones anteriores.
-
-        Lo comparten el cierre mensual (consolidado) y el cálculo en vivo del
-        panel, para que ambos den el mismo número.
-
-        La tasa es un indicador de la CADENA de despacho completa: el numerador
-        son siempre las salidas 'outgoing' y el denominador todos los eslabones
-        disponibles. Por eso NO filtra por tipo de operación (filtrar por un
-        eslabón intermedio dejaría el numerador en 0 y la tasa en 0%); solo
-        respeta el depósito.
-
-        :returns: (num, den) — dicts {(warehouse_id, product_id): qty}.
-        """
-        dt_from, dt_to = self._month_utc_bounds(month_start.year, month_start.month, company)
-
-        # ── Numerador: entregado en el mes ────────────────────────────────────
-        disp_dom = [
-            ('company_id', '=', company.id),
-            ('picking_type_code', '=', 'outgoing'),
-            ('state', '=', 'done'),
-            ('date_done', '>=', dt_from),
-            ('date_done', '<', dt_to),
-        ]
-        if warehouse_ids:
-            disp_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
-        dispatched_picks = self.env['stock.picking'].sudo().search(disp_dom)
-        num = {}  # {(warehouse_id, product_id): qty}
-        if dispatched_picks:
-            wh_by_pick = {p.id: p.picking_type_id.warehouse_id.id or False
-                          for p in dispatched_picks}
-            d_moves = self.env['stock.move'].sudo().search([
-                ('picking_id', 'in', dispatched_picks.ids),
-                ('state', '=', 'done'),
-            ])
-            for r in d_moves.read(['picking_id', 'product_id', 'quantity']):
-                pick = r['picking_id'][0] if r['picking_id'] else False
-                prod = r['product_id'][0] if r['product_id'] else False
-                if not pick or not prod:
-                    continue
-                key = (wh_by_pick.get(pick) or False, prod)
-                num[key] = num.get(key, 0.0) + (r['quantity'] or 0.0)
-
-        # ── Denominador extra: disponible no despachado, deduplicado por cadena ──
-        month_end = (month_start.replace(day=28) + timedelta(days=6)).replace(day=1)
-        log_dom = [
-            ('company_id', '=', company.id),
-            ('snapshot_date', '>=', month_start),
-            ('snapshot_date', '<', month_end),
-            ('qty_reserved', '>', 0),
-        ]
-        if warehouse_ids:
-            log_dom.append(('warehouse_id', 'in', warehouse_ids))
-        logs = self.sudo().search(log_dom)
-        den = {}  # {(warehouse_id, product_id): qty}
-        if logs:
-            log_rows = logs.read(['picking_id', 'product_id', 'warehouse_id', 'qty_reserved'])
-            log_pick_ids = {r['picking_id'][0] for r in log_rows if r['picking_id']}
-            chain_key = self._dispatch_chain_keys(log_pick_ids)
-            # Máxima cantidad disponible vista por (cadena, producto)
-            best = {}  # {(chain_key, product): (warehouse, max_qty)}
-            for r in log_rows:
-                pick = r['picking_id'][0] if r['picking_id'] else False
-                prod = r['product_id'][0] if r['product_id'] else False
-                if not pick or not prod:
-                    continue
-                ck = chain_key.get(pick, ('p', pick))
-                wh = r['warehouse_id'][0] if r['warehouse_id'] else False
-                key = (ck, prod)
-                if key not in best or r['qty_reserved'] > best[key][1]:
-                    best[key] = (wh, r['qty_reserved'])
-            dispatched = self._dispatch_delivered_chain_products(
-                {ck for ck, _prod in best}, dt_to)
-            for (ck, prod), (wh, qty) in best.items():
-                if (ck, prod) in dispatched:
-                    continue
-                den[(wh, prod)] = den.get((wh, prod), 0.0) + qty
-        return num, den
-
-    @api.model
-    def _dispatch_consolidate_one_month(self, company, month_start):
-        """Congela un mes: numerador (entregado en el mes) y denominador extra
-        (disponible en algún snapshot del mes y no entregado hasta fin de mes),
-        por depósito y producto, más la fila resumen global."""
-        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
-        num, den = self._dispatch_month_figures(company, month_start)
-
-        # ── Filas por depósito-producto + fila resumen (marcador) ────────────
-        vals_list = []
-        for key in set(num) | set(den):
-            wh, prod = key
-            vals_list.append({
-                'kpi':           'dispatch_available',
-                'period':        month_start,
-                'company_id':    company.id,
-                'warehouse_id':  wh,
-                'product_id':    prod,
-                'qty_num':       round(num.get(key, 0.0), 2),
-                'qty_den_extra': round(den.get(key, 0.0), 2),
-            })
-        vals_list.append({
-            'kpi':           'dispatch_available',
-            'period':        month_start,
-            'company_id':    company.id,
-            'warehouse_id':  False,
-            'product_id':    False,
-            'qty_num':       round(sum(num.values()), 2),
-            'qty_den_extra': round(sum(den.values()), 2),
-        })
-        Monthly.create(vals_list)
-        _logger.info('Despacho: mes %s consolidado para %s (%s filas).',
-                     month_start.strftime('%Y-%m'), company.name, len(vals_list))
-
-    # ── Paso 3: retención ─────────────────────────────────────────────────────
+    # ── Paso 2: retención ─────────────────────────────────────────────────────
 
     @api.model
     def _dispatch_apply_retention(self, company, cfg):
-        """Purga snapshots más viejos que la retención, solo de meses ya consolidados.
+        """Purga snapshots más viejos que la retención, por antigüedad.
+
+        La Tasa de entrega se calcula en vivo desde los snapshots (ya no hay
+        consolidado mensual), así que la purga depende SOLO de la antigüedad:
+        se borra todo lo anterior al primer día del mes N meses atrás.
 
         :returns: int — filas eliminadas.
         """
@@ -541,41 +317,26 @@ class MrpDispatchStockLog(models.Model):
         month = (today_local.month - 1 - months_keep) % 12 + 1
         cutoff = today_local.replace(year=year, month=month, day=1)
 
-        self.env.cr.execute("""
-            SELECT DISTINCT date_trunc('month', snapshot_date)::date
-              FROM mrp_dispatch_stock_log
-             WHERE company_id = %s AND snapshot_date < %s
-        """, (company.id, cutoff))
-        purged = 0
-        Monthly = self.env['mrp.planner.kpi.monthly'].sudo()
-        for (month_start,) in self.env.cr.fetchall():
-            consolidated = Monthly.search_count([
-                ('kpi', '=', 'dispatch_available'),
-                ('company_id', '=', company.id),
-                ('period', '=', month_start),
-                ('product_id', '=', False),
-                ('warehouse_id', '=', False),
-            ])
-            if not consolidated:
-                continue
-            month_end = (month_start.replace(day=28) + timedelta(days=6)).replace(day=1)
-            stale = self.sudo().search([
-                ('company_id', '=', company.id),
-                ('snapshot_date', '>=', month_start),
-                ('snapshot_date', '<', month_end),
-            ])
-            purged += len(stale)
-            stale.unlink()
+        stale = self.sudo().search([
+            ('company_id', '=', company.id),
+            ('snapshot_date', '<', cutoff),
+        ])
+        purged = len(stale)
+        stale.unlink()
         return purged
 
 
 class MrpPlannerKpiMonthly(models.Model):
+    # LEGACY: ya no se escribe ni se lee. Guardaba el consolidado mensual de la
+    # vieja "Tasa de entrega s/ disponible"; la tasa nueva se calcula en vivo
+    # desde los snapshots. Las filas se borran en la migración 18.0.13.10.0. El
+    # modelo se conserva para no arrastrar una baja de modelo con sus ACLs.
     _name = 'mrp.planner.kpi.monthly'
-    _description = 'KPIs mensuales consolidados del planificador'
+    _description = 'KPIs mensuales consolidados del planificador (legacy)'
     _order = 'period desc, id'
 
     kpi = fields.Selection([
-        ('dispatch_available', 'Tasa de entrega s/ disponible'),
+        ('dispatch_available', 'Tasa de entrega'),
     ], string='KPI', required=True, index=True)
     period = fields.Date(string='Mes', required=True, index=True,
                          help='Primer día del mes consolidado.')
@@ -585,11 +346,9 @@ class MrpPlannerKpiMonthly(models.Model):
     product_id = fields.Many2one('product.product', string='Artículo', ondelete='cascade',
                                  help='Vacío en la fila resumen global del mes.')
     qty_num = fields.Float(string='Numerador', digits='Product Unit of Measure',
-                           help='Tasa de entrega s/ disponible: cantidad entregada en el mes '
-                                '(salidas a cliente validadas, por fecha de validación).')
+                           help='Legacy: numerador del consolidado viejo de la Tasa de entrega.')
     qty_den_extra = fields.Float(string='Denominador extra', digits='Product Unit of Measure',
-                                 help='Tasa de entrega s/ disponible: cantidad que estuvo disponible '
-                                      'en algún snapshot del mes y no se entregó.')
+                                 help='Legacy: denominador extra del consolidado viejo de la Tasa de entrega.')
     rate = fields.Float(string='Tasa (%)', compute='_compute_rate', digits=(12, 1))
 
     _sql_constraints = [

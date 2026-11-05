@@ -1,6 +1,6 @@
 {
     'name': 'KPIs',
-    'version': '18.0.13.9.0',
+    'version': '18.0.13.10.0',
     'summary': 'Planificación, control y alertas de producción en tiempo real',
     'description': """
 Panel de control centralizado para la gestión operativa de producción en Odoo 18.
@@ -33,8 +33,8 @@ Forecast
 Inventario
 - Panel de Inventario con Análisis de movimientos: toda operación del rango
   (recepciones, transferencias internas y la cadena de entrega) en todos los
-  estados, con KPIs dinámicos, validados del período y tasa de entrega
-  s/ disponible con snapshots diarios y consolidado mensual.
+  estados, con KPIs dinámicos, validados del período y Tasa de entrega por
+  eslabón (validado ÷ lo que tuve stock para hacer) desde snapshots diarios.
 - Grupos Inventario Lectura/Administrador y pestaña propia en los Ajustes.
 
 Programación y reprogramación

@@ -63,7 +63,7 @@
     <record id="group_inventory_read" model="res.groups">
         <field name="name">Inventario - Lectura</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
-        <field name="comment">Ve el Panel de Inventario y el de Movimientos: KPIs de entregas, evolución de la tasa s/ disponible, composición del pendiente y las tablas operativas. No puede cambiar la configuración.</field>
+        <field name="comment">Ve el Panel de Inventario y el de Movimientos: KPIs de entregas, Tasa de entrega, composición del pendiente y las tablas operativas. No puede cambiar la configuración.</field>
         <field name="users" eval="[]"/>
     </record>
 

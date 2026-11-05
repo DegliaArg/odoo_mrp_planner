@@ -107,7 +107,7 @@ class MrpPlannerDashboardHome(models.TransientModel):
         if can('odoo_mrp_planner.group_inventory_read', 'odoo_mrp_planner.group_inventory_admin'):
             panels.append({
                 'section': 'Inventario', 'name': 'Panel de inventario',
-                'desc': 'Tasa de entrega s/ disponible y análisis de movimientos',
+                'desc': 'Tasa de entrega y análisis de movimientos',
                 'icon': 'fa-cubes', 'method': 'action_open_inventory',
             })
         return panels

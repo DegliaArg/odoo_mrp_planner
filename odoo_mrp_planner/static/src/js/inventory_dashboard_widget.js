@@ -6,14 +6,12 @@
  * date_done); el circuito de despacho, si está activo, agrega únicamente la
  * cola "Validado s/ despachar" y el botón masivo en la tabla.
  *
- * Dos zonas con barras de filtros independientes (misma estructura que el
- * panel de ventas):
- *   - Zona superior: KPIs de entregas + gráficos (evolución mensual de la
- *     tasa de entrega s/ disponible y composición del pendiente por depósito).
- *     RPC: get_inventory_dashboard_data(periodFrom, periodTo, warehouseIds).
- *   - Zona inferior: tabla operativa de salidas pendientes (con selección y
- *     "Marcar despachado" masivo solo si el circuito está activo).
- *     RPC: get_inventory_pending_table(dateFrom, dateTo, warehouseIds, search).
+ * Una sola zona: tabla operativa de salidas pendientes con sus cards KPI
+ * (incluida la "Tasa de entrega", por eslabón, que respeta el filtro de tipo
+ * de operación y cuyo numerador coincide con los "Validados del período"),
+ * selección de filas y "Marcar despachado" masivo si el circuito está activo.
+ *   RPC: get_inventory_pending_table(dateFrom, dateTo, warehouseIds, search,
+ *        pickingTypeIds) → filas + period_kpis (la tasa).
  *
  * Reutiliza los patrones compartidos del módulo base para mantener la
  * estética de los demás paneles:
@@ -28,10 +26,9 @@
 
 /** @odoo-module **/
 
-import { Component, useState, onMounted, onPatched, onWillUnmount, useRef } from "@odoo/owl";
+import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { loadBundle } from "@web/core/assets";
 import { fmt, fmtPct, svcClass, sortIcon, kpiNumClass } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
@@ -43,7 +40,6 @@ import { downloadCsv } from "@odoo_mrp_planner/js/planner_export";
 
 // Filtros persistidos por empresa (mismo patrón que los demás paneles)
 const INV_PERSIST_KEYS = [
-    "chartFrom", "chartTo", "chartWhIds", "chartTypeIds",
     "tblFrom", "tblTo", "tblSearch", "tblFilter", "tblGroupBy",
     "tblSelectedGroup", "tblWhIds", "tblTypeIds", "visibleCols",
     "sortCol", "sortDir", "numFilters",
@@ -101,28 +97,13 @@ class InventoryDashboardWidget extends Component {
         this.orm          = useService("orm");
         this.action       = useService("action");
         this.notification = useService("notification");
-        this.trendRef     = useRef("trendCanvas");
-        this.pendingRef   = useRef("pendingCanvas");
-        this.trendChart   = null;
-        this.pendingChart = null;
         this.tableCols    = COLS;
         this.numColOptions = INV_NUM_COLS;
         // Columnas reordenables/redimensionables — mismo hook que el forecast
         this.cols         = useColManager("inventory_static", COLS);
 
         this.state = useState({
-            // ── Zona gráficos ──
-            chartFrom:      firstOfMonth(),
-            chartTo:        lastOfMonth(),
-            chartWhIds:     [],
-            chartTypeIds:   [],
-            whDropdownOpen: false,
-            typeDropdownOpen: false,
             warehouses:     [],
-            pickingTypes:   [],
-            data:           null,
-            chartLoading:   true,
-            chartError:     null,
             // ── Zona tabla ── (arranca en el mes en curso)
             tblFrom:        firstOfMonth(),
             tblTo:          lastOfMonth(),
@@ -158,31 +139,15 @@ class InventoryDashboardWidget extends Component {
         });
 
         this._closeAll = () => {
-            this.state.whDropdownOpen    = false;
-            this.state.typeDropdownOpen  = false;
             this.state.tblWhDropdownOpen = false;
             this.state.tblTypeOpen       = false;
             this.state.colsDropdownOpen  = false;
         };
 
         // ── Mecánica compartida de los paneles (planner_*) ──
-        // Los 4 dropdowns multi-selección (depósitos y tipos, de gráficos y de
-        // tabla), la selección de filas y el paginador delegan en las factories
-        // comunes; los métodos del template son wrappers de una línea.
-        this.whFilter = makeMultiFilter(this, {
-            open: "whDropdownOpen", ids: "chartWhIds",
-            items: () => this.state.warehouses,
-            all: "Todos los depósitos", one: "depósito", many: "depósitos",
-            closeOthers: this._closeAll,
-            onChange: () => this._onChartWhChanged(),
-        });
-        this.typeFilter = makeMultiFilter(this, {
-            open: "typeDropdownOpen", ids: "chartTypeIds",
-            items: () => this.state.pickingTypes,
-            all: "Todos los tipos", one: "tipo", many: "tipos",
-            closeOthers: this._closeAll,
-            onChange: () => this._loadCharts(),
-        });
+        // Los dropdowns multi-selección de la tabla (depósitos y tipos), la
+        // selección de filas y el paginador delegan en las factories comunes;
+        // los métodos del template son wrappers de una línea.
         this.tblWhFilter = makeMultiFilter(this, {
             open: "tblWhDropdownOpen", ids: "tblWhIds",
             items: () => this.state.warehouses,
@@ -200,7 +165,7 @@ class InventoryDashboardWidget extends Component {
         this.sel   = makeSelection(this, { key: "picking_id", pageRows: () => this.pagedRows });
         this.pager = makePager(this, () => this.sortedRows.length);
         // Restaurar filtros de la última visita (por empresa). Se guardan en
-        // _loadCharts/_loadTable y en los setters client-side.
+        // _loadTable y en los setters client-side.
         const companyId = this.env.services.company?.currentCompany?.id || 0;
         this._persistKey = `inventory_dashboard.${companyId}`;
         restoreFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
@@ -208,29 +173,17 @@ class InventoryDashboardWidget extends Component {
         this.state.visibleCols = { qty_done: true, type_name: false, route: false, ...this.state.visibleCols };
 
         this._tblDebounceTimer = null;
-        // En la primera carga los canvas no existen todavía (t-if del spinner):
-        // el flag deja el redibujo pendiente y onPatched lo completa cuando el
-        // DOM ya tiene los lienzos (mismo patrón que el gráfico de ventas).
-        this._chartsDirty = false;
 
         onMounted(async () => {
             document.addEventListener("click", this._closeAll);
-            await loadBundle("web.chartjs_lib");
-            // Los depósitos, los tipos, los gráficos y la tabla son RPCs independientes
-            await Promise.all([this._loadWarehouses(), this._loadPickingTypes(),
-                               this._loadTblTypes(), this._loadCharts(),
+            // Los depósitos, los tipos y la tabla son RPCs independientes
+            await Promise.all([this._loadWarehouses(), this._loadTblTypes(),
                                this._loadTable()]);
-        });
-        onPatched(() => {
-            if (this._chartsDirty && (this.trendRef.el || this.pendingRef.el)) {
-                this._renderCharts();
-            }
         });
         onWillUnmount(() => {
             document.removeEventListener("click", this._closeAll);
             clearTimeout(this._tblDebounceTimer);
             this.cols.cancelResize();
-            this._destroyCharts();
         });
     }
 
@@ -246,22 +199,12 @@ class InventoryDashboardWidget extends Component {
     /** Clase de tamaño de los números de las cards KPI (compartida). */
     kpiNumClass(text) { return kpiNumClass(text); }
 
-    // ── Zona gráficos ─────────────────────────────────────────────────────────
+    // ── Carga de datos (depósitos, tipos de operación y tabla) ────────────────
 
     async _loadWarehouses() {
         try {
             this.state.warehouses = await this.orm.call(
                 "mrp.planner.dashboard", "get_warehouses_for_forecast", []);
-        } catch (e) {
-            if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
-        }
-    }
-
-    async _loadPickingTypes() {
-        try {
-            this.state.pickingTypes = await this.orm.call(
-                "mrp.planner.dashboard", "get_inventory_picking_types",
-                [this.state.chartWhIds]);
         } catch (e) {
             if (e.message !== "Component is destroyed") console.error("[InventoryPanel]", e);
         }
@@ -277,150 +220,8 @@ class InventoryDashboardWidget extends Component {
         }
     }
 
-    /** Al cambiar los depósitos de los gráficos, la lista de tipos se recarga
-     *  acotada a esos depósitos y la selección pierde los tipos que ya no
-     *  aplican; recién después se recargan los gráficos. */
-    async _onChartWhChanged() {
-        await this._loadPickingTypes();
-        const valid = new Set(this.state.pickingTypes.map(t => t.id));
-        this.state.chartTypeIds = this.state.chartTypeIds.filter(id => valid.has(id));
-        this._loadCharts();
-    }
-
     _persist() {
         saveFilters(this._persistKey, this.state, INV_PERSIST_KEYS);
-    }
-
-    async _loadCharts() {
-        this._persist();
-        this.state.chartLoading = true;
-        this.state.chartError   = null;
-        try {
-            this.state.data = await this.orm.call(
-                "mrp.planner.dashboard", "get_inventory_dashboard_data",
-                [this.state.chartFrom, this.state.chartTo, this.state.chartWhIds,
-                 this.state.chartTypeIds]);
-            this._chartsDirty = true;
-            this._renderCharts();
-        } catch (e) {
-            console.error("[InventoryPanel]", e);
-            this.state.chartError = (e && e.data && e.data.message) || e.message || String(e);
-        } finally {
-            this.state.chartLoading = false;
-        }
-    }
-
-    onChartFromChange(ev) { this.state.chartFrom = ev.target.value; this._loadCharts(); }
-    onChartToChange(ev)   { this.state.chartTo   = ev.target.value; this._loadCharts(); }
-    setCurrentMonth() {
-        this.state.chartFrom = firstOfMonth();
-        this.state.chartTo   = lastOfMonth();
-        this._loadCharts();
-    }
-    /** True si el rango activo coincide con el mes en curso (para pintar el preset). */
-    get isCurrentMonth() {
-        return this.state.chartFrom === firstOfMonth() && this.state.chartTo === lastOfMonth();
-    }
-    // Dropdowns de depósitos y tipos de los gráficos: mecánica compartida
-    toggleWhDropdown(ev)  { this.whFilter.toggleOpen(ev); }
-    toggleWarehouse(whId) { this.whFilter.toggleItem(whId); }
-    clearChartWhs()       { this.whFilter.clear(); }
-    get whFilterLabel()   { return this.whFilter.label; }
-
-    toggleTypeDropdown(ev)  { this.typeFilter.toggleOpen(ev); }
-    togglePickingType(typeId) { this.typeFilter.toggleItem(typeId); }
-    clearChartTypes()       { this.typeFilter.clear(); }
-    get typeFilterLabel()   { return this.typeFilter.label; }
-
-    _destroyCharts() {
-        if (this.trendChart)   { this.trendChart.destroy();   this.trendChart = null; }
-        if (this.pendingChart) { this.pendingChart.destroy(); this.pendingChart = null; }
-    }
-
-    _renderCharts() {
-        this._destroyCharts();
-        const d = this.state.data;
-        if (!d || typeof Chart === "undefined") {
-            this._chartsDirty = false;
-            return;
-        }
-        // Canvas aún no montados (primera carga): onPatched reintenta
-        if (!this.trendRef.el && !this.pendingRef.el) return;
-        this._chartsDirty = false;
-
-        // ── Evolución mensual de la tasa s/ disponible ──
-        if (this.trendRef.el && d.trend && d.trend.length) {
-            const labels = d.trend.map(m => {
-                const [y, mo] = m.ym.split("-");
-                return new Date(+y, +mo - 1, 1).toLocaleString("es", { month: "short", year: "2-digit" });
-            });
-            this.trendChart = new Chart(this.trendRef.el, {
-                type: "line",
-                data: {
-                    labels,
-                    datasets: [{
-                        label: "Tasa de entrega s/ disponible",
-                        data: d.trend.map(m => m.rate),
-                        borderColor: "#0d6efd",
-                        backgroundColor: "rgba(13,110,253,0.10)",
-                        fill: true,
-                        spanGaps: true,
-                        tension: 0.25,
-                        pointRadius: 4,
-                        // Meses en vivo (sin consolidar) con punto vacío
-                        pointBackgroundColor: d.trend.map(
-                            m => m.source === "monthly" ? "#0d6efd" : "#ffffff"),
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { min: 0, max: 100, ticks: { callback: v => v + "%" } } },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (ctx) => {
-                                    const m = d.trend[ctx.dataIndex];
-                                    const src = m.source === "monthly" ? "consolidado" : "en vivo";
-                                    return m.rate === null
-                                        ? "Sin datos"
-                                        : `${m.rate}% (${src}) — entr. ${fmt(m.num)} / disp. no entr. ${fmt(m.den_extra)}`;
-                                },
-                            },
-                        },
-                    },
-                },
-            });
-        }
-
-        // ── Composición del pendiente por depósito ──
-        if (this.pendingRef.el && d.pending_by_wh && d.pending_by_wh.length) {
-            this.pendingChart = new Chart(this.pendingRef.el, {
-                type: "bar",
-                data: {
-                    labels: d.pending_by_wh.map(w => w.warehouse),
-                    datasets: [
-                        {
-                            label: "Con stock",
-                            data: d.pending_by_wh.map(w => w.available),
-                            backgroundColor: "rgba(13,202,240,0.75)",
-                        },
-                        {
-                            label: "Sin stock",
-                            data: d.pending_by_wh.map(w => w.blocked),
-                            backgroundColor: "rgba(220,53,69,0.65)",
-                        },
-                    ],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { x: { stacked: true }, y: { stacked: true } },
-                    plugins: { legend: { position: "bottom" } },
-                },
-            });
-        }
     }
 
     // ── Tooltips de KPIs y columnas ───────────────────────────────────────────
@@ -457,7 +258,7 @@ class InventoryDashboardWidget extends Component {
             case "delivered":
                 return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye TODAS las operaciones (recepciones, internas y toda la cadena): la misma mercadería puede sumar en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de entrega\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} en ${this.validatedKpis.pickings} remito(s)`;
             case "rate":
-                return `De lo que estuvo disponible en el rango de la tabla, cuánto se entregó\nEntregado ÷ (entregado + disponible no entregado) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nMeses cerrados desde el consolidado; mes en curso desde los snapshots diarios. Requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA entregado, que no está en la tabla." : ""}`;
+                return `De lo que tuve stock para hacer en el rango (del eslabón filtrado), cuánto hice\nValidado ÷ (validado + disponible pendiente no hecho) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nEl numerador coincide con "Validados del período". La parte pendiente del denominador (base de la tasa) se configura en Ajustes → Inventario. Calculada en vivo desde los snapshots; requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA validado." : ""}`;
             default:
                 return "";
         }
@@ -850,7 +651,7 @@ class InventoryDashboardWidget extends Component {
             await this.orm.call("stock.picking", "action_mark_dispatched", [ids]);
             this.notification.add(
                 `${ids.length} remito(s) marcados como despachados.`, { type: "success" });
-            await Promise.all([this._loadTable(), this._loadCharts()]);
+            await this._loadTable();
         } catch (e) {
             console.error("[InventoryPanel]", e);
             this.notification.add(

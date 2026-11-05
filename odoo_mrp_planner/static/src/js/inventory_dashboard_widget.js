@@ -231,6 +231,16 @@ class InventoryDashboardWidget extends Component {
         return this.state.periodKpis || {};
     }
 
+    /** Etiqueta del método de la base de la tasa (Ajustes → Inventario), para
+     *  el subtítulo de la card "Disponible no hecho". */
+    rateMethodLabel() {
+        const m = this.periodKpis.rate_method;
+        if (m === "peak")    return "pico del período";
+        if (m === "average") return "promedio del período";
+        if (m === "closing") return "al cierre";
+        return "";
+    }
+
     /** Tooltips de las cards: descripción, fórmula y sustitución numérica
      *  (→ X ÷ Y = Z), misma estructura que los demás paneles. La navegación
      *  a las listas es SOLO por el botón "Ver →" de cada card. */
@@ -252,7 +262,12 @@ class InventoryDashboardWidget extends Component {
             case "overdue":
                 return `Remitos de ${scope} con la fecha programada vencida o que vencen hoy\n→ ${fmt(t.overdue)} remito(s)`;
             case "pct":
-                return `Parte del pendiente de ${scope} que podría entregarse hoy\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
+                return `Parte del pendiente de ${scope} que podría entregarse HOY (deriva de "con stock", que es la reserva de hoy)\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
+            case "pending_base":
+                if (k.rate_no_snapshots) {
+                    return `Sin datos: el rango no tiene ningún snapshot de disponibilidad\nEs la parte pendiente del denominador de la tasa de entrega; sin snapshots no se puede medir, así que muestra "—".`;
+                }
+                return `Lo que tuve stock para hacer en el rango (del eslabón filtrado) y NO hice — la parte PENDIENTE del denominador de la tasa de entrega\nSe mide según la Base de la tasa de entrega (Ajustes → Inventario): ${this.rateMethodLabel() || "—"}. Viene de los snapshots diarios (histórico), no de la reserva de hoy.\n→ ${fmt(k.rate_pending_available)}\nCon los Validados forma el denominador: ${fmt(k.rate_available_num)} + ${fmt(k.rate_pending_available)} = ${fmt(k.rate_available_den)}`;
             // ── Validados: filas hechas de la tabla (dinámica como todas).
             //    La tasa sigue siendo la única card de servidor. ──
             case "delivered":

@@ -27,11 +27,12 @@
             </div>
 
             <!-- ── Cards KPI: dos filas de 3 ──
-                 Fila 1: Validados · Pendiente total · Tasa de entrega.
-                 Fila 2: Pendiente con stock · Pendiente sin stock · % disponible.
-                 Todas dinámicas con la tabla (fechas, búsqueda, filtros, pestaña
-                 y selección), salvo la Tasa de entrega, que es del período. La
-                 navegación a las listas es solo por el botón "Ver →". -->
+                 Fila 1 (numerador · denominador pendiente · resultado de la tasa):
+                   Validados · Disponible no hecho (según método) · Tasa de entrega.
+                 Fila 2 (foto de HOY): Pendiente con stock · sin stock · % disponible.
+                 Las de la tabla son dinámicas (fechas, búsqueda, filtros, pestaña
+                 y selección); Disponible no hecho y Tasa de entrega son del período
+                 (snapshots). La navegación a las listas es por el botón "Ver →". -->
             <div class="d-flex gap-2 mb-2">
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
@@ -53,19 +54,18 @@
                 </div>
                 <div class="flex-fill" style="min-width:0; flex-basis:0;">
                     <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                         t-att-title="kpiTooltip('pending')">
+                         t-att-title="kpiTooltip('pending_base')">
                         <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
-                            <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
-                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.pending))"
-                                 t-esc="fmt(tableKpis.pending)"/>
-                            <div class="o_planner_label">Pendiente total</div>
-                            <div class="text-muted mt-1" style="font-size:10px;">
-                                <t t-esc="tableKpis.pickings"/> remito(s)
+                            <i class="fa fa-hourglass-half fa-lg text-secondary mb-1 d-block"/>
+                            <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(periodKpis.rate_pending_available))"
+                                 t-esc="fmt(periodKpis.rate_pending_available)"/>
+                            <div class="o_planner_label">Disponible no hecho</div>
+                            <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
+                                sin snapshots en el rango
                             </div>
-                        </div>
-                        <div class="card-footer p-0">
-                            <button class="btn btn-sm btn-link w-100 py-1"
-                                    t-on-click="() => this.openPending('all')">Ver →</button>
+                            <div t-elif="rateMethodLabel()" class="text-muted mt-1" style="font-size:10px;">
+                                <t t-esc="rateMethodLabel()"/>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -125,6 +125,7 @@
                             <div t-att-class="'o_planner_number ' + svcClass(tableKpis.pct_available) + ' ' + kpiNumClass(fmtPct(tableKpis.pct_available))"
                                  t-esc="fmtPct(tableKpis.pct_available)"/>
                             <div class="o_planner_label">% disponible</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">reserva de hoy</div>
                         </div>
                     </div>
                 </div>

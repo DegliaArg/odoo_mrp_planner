@@ -576,7 +576,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
         :returns: dict — rate_available(_num/_den) + rate_no_snapshots.
         """
-        rate = rate_num = rate_den = None
+        rate = rate_num = rate_den = pending_avail = method = None
         no_snapshots = False
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
             type_ids = self._inventory_chain_types(company, warehouse_ids, picking_type_ids)
@@ -591,14 +591,19 @@ class MrpPlannerDashboard(models.TransientModel):
                 rate_num = num
             else:
                 rate_num = num
+                pending_avail = den_pending
                 rate_den = num + den_pending
                 rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
         qround = lambda v: self._inventory_qround(cfg, v)
         return {
-            'rate_available':     rate,
-            'rate_available_num': qround(rate_num) if rate_num is not None else None,
-            'rate_available_den': qround(rate_den) if rate_den is not None else None,
-            'rate_no_snapshots':  no_snapshots,
+            'rate_available':         rate,
+            'rate_available_num':     qround(rate_num) if rate_num is not None else None,
+            'rate_available_den':     qround(rate_den) if rate_den is not None else None,
+            # Parte pendiente del denominador (disponible no hecho del período,
+            # según el método configurado) — su propia card.
+            'rate_pending_available': qround(pending_avail) if pending_avail is not None else None,
+            'rate_method':            method,
+            'rate_no_snapshots':      no_snapshots,
         }
 
     # ── Hooks del circuito de despacho ────────────────────────────────────────

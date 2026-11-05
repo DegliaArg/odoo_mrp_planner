@@ -827,9 +827,10 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     @api.model
     def _cron_send_management_report(self):
-        """Cron cada 15 min: por cada configuración con el envío activo, si la
-        hora:minuto local cae dentro de la ventana de la hora configurada y no se
-        envió hoy, manda el PDF.
+        """Cron cada 15 min: por cada configuración con el envío activo, si es
+        día hábil (lunes a viernes), la hora:minuto local cae dentro de la ventana
+        de la hora configurada y no se envió hoy, manda el PDF. Sábados y domingos
+        el automático no se envía (el botón manual "Enviar ahora" sí puede).
 
         La hora se evalúa en la zona horaria de la empresa de la configuración (su
         contacto; ver _management_report_tz), no en la del usuario del cron. Respeta
@@ -844,6 +845,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             try:
                 now_local = now_utc.astimezone(self._management_report_tz(cfg))
                 today_local = now_local.date()
+                # Solo de lunes a viernes (en la TZ de la empresa): los fines de
+                # semana no se envía el automático. El botón "Enviar ahora" manual
+                # no pasa por acá, así que se puede mandar igual un sábado/domingo.
+                if now_local.weekday() >= 5:
+                    continue
                 if cfg.management_report_last_sent_date == today_local:
                     continue
                 target_min = int(round((cfg.management_report_hour or 0.0) * 60))

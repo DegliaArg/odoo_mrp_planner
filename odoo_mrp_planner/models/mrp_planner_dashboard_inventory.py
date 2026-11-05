@@ -239,7 +239,9 @@ class MrpPlannerDashboard(models.TransientModel):
                                      type_ids, method, exclude_pick_ids=None):
         """Parte pendiente del denominador de la Tasa de entrega: disponible
         (qty_reserved) de las operaciones pendientes de ``type_ids`` en los
-        snapshots del rango, que NO terminó validado, agregado según ``method``:
+        snapshots del rango, que NO terminó validado dentro del rango ni está
+        cancelado (un pedido cancelado no es "tuve stock y no hice"), agregado
+        según ``method``:
 
         - closing (default): disponible del ÚLTIMO snapshot del rango (foto al
           cierre) — lo que al final seguía pendiente con stock para hacer.
@@ -267,11 +269,17 @@ class MrpPlannerDashboard(models.TransientModel):
             return 0.0
         rows = logs.read(['snapshot_date', 'picking_id', 'product_id', 'qty_reserved'])
         pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
-        ptype = {p['id']: (p['picking_type_id'][0] if p['picking_type_id'] else False)
-                 for p in self.env['stock.picking'].sudo()
-                              .browse(list(pick_ids)).read(['picking_type_id'])}
+        pinfo = {p['id']: p for p in self.env['stock.picking'].sudo()
+                     .browse(list(pick_ids)).read(['picking_type_id', 'state'])}
+        ptype = {pid: (p['picking_type_id'][0] if p['picking_type_id'] else False)
+                 for pid, p in pinfo.items()}
+        # Los remitos CANCELADOS no cuentan: su demanda desapareció, no es "tuve
+        # stock y no hice" (a fin de octubre 2026, ~2/3 del denominador en vivo
+        # eran pedidos cancelados que habían tenido stock). Los ya validados
+        # dentro del rango tampoco (vienen en exclude_pick_ids: ya están en num).
+        cancelled = {pid for pid, p in pinfo.items() if p['state'] == 'cancel'}
         type_set = set(type_ids)
-        excl = exclude_pick_ids or set()
+        excl = (exclude_pick_ids or set()) | cancelled
         rows = [r for r in rows
                 if r['picking_id'] and ptype.get(r['picking_id'][0]) in type_set
                 and r['picking_id'][0] not in excl]

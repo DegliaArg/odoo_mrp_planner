@@ -23,12 +23,8 @@
                             </div>
                         </div>
 
-                        <!-- MOVIMIENTOS -->
+                        <!-- Panel (el widget pone su propio título de sección) -->
                         <div class="o_planner_section mb-4">
-                            <div class="o_planner_section_title mb-3">
-                                <i class="fa fa-exchange me-2 text-muted"/>
-                                <span class="text-uppercase fw-bold text-muted small">Movimientos</span>
-                            </div>
                             <widget name="inventory_dashboard_widget"/>
                         </div>
 

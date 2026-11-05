@@ -164,6 +164,17 @@
                                                 <span class="text-muted ms-1">vs ayer</span>
                                             </t>
                                         </div>
+                                        <!-- Desglose por mes de la orden de venta (se despachan pedidos viejos) -->
+                                        <div t-if="state.data.dispatch.by_order_month and state.data.dispatch.by_order_month.length"
+                                             class="text-muted mt-1 pt-1 border-top" style="font-size:9px;">
+                                            <div class="fw-semibold" style="font-size:9px;">Por mes del pedido</div>
+                                            <t t-foreach="state.data.dispatch.by_order_month" t-as="m" t-key="m.ym">
+                                                <div class="d-flex justify-content-between">
+                                                    <span t-esc="m.label"/>
+                                                    <span class="fw-semibold ms-2" t-esc="fmt(m.qty)"/>
+                                                </div>
+                                            </t>
+                                        </div>
                                     </t>
                                     <t t-else="">
                                         <div class="o_planner_label">Despachos</div>
@@ -188,6 +199,30 @@
                                         <t t-esc="fmt(state.data.service.delivered)"/> / <t t-esc="fmt(state.data.service.ordered)"/> pz
                                         <t t-if="state.data.service.worked_orders">
                                             <br/><t t-esc="state.data.service.worked_orders"/> ped. trabajados
+                                        </t>
+                                    </div>
+                                </div>
+                                <div t-if="state.data.service.worked_orders" class="card-footer p-0">
+                                    <button class="btn btn-sm btn-link w-100 py-1"
+                                            title="Ver las líneas de los pedidos trabajados del mes (el detalle de productos de la tasa de servicio)"
+                                            t-on-click="openServiceLines">Ver →</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tasa de scrap del mes (igual criterio que Análisis de producción) -->
+                        <div class="flex-fill" style="min-width:150px; flex-basis:0;">
+                            <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                                 title="Tasa de scrap del mes: desecho validado de productos terminados ÷ (producido + ese desecho), con el mismo criterio que el panel de Análisis de producción. Acá más alto es peor. 's/prod' si no hubo producción en el mes.">
+                                <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                                    <i class="fa fa-trash-o fa-lg text-secondary mb-1 d-block"/>
+                                    <div t-att-class="'o_planner_number ' + scrapClass(state.data.scrap.rate)"
+                                         t-esc="state.data.scrap.rate === null ? 's/prod' : fmtPct(state.data.scrap.rate)"/>
+                                    <div class="o_planner_label">Tasa de scrap</div>
+                                    <div class="text-muted mt-1" style="font-size:10px;">
+                                        <t t-esc="fmt(state.data.scrap.qty)"/> pz desechadas
+                                        <t t-if="state.data.scrap.ops">
+                                            <br/><t t-esc="state.data.scrap.ops"/> operación(es)
                                         </t>
                                     </div>
                                 </div>

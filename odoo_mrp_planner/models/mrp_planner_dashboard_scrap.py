@@ -183,6 +183,34 @@ class MrpPlannerDashboardScrap(models.TransientModel):
             },
         }
 
+    def _mgmt_scrap_report(self, d_from, d_to):
+        """Tasa de scrap del mes para el Resumen diario de Gerencia, con el MISMO
+        criterio que el panel de Análisis de producción: desecho validado de
+        productos TERMINADOS (con producción propia en el período) ÷ (producido +
+        ese desecho). Reutiliza el motor de scrap (``_scrap_domain``,
+        ``_scrap_produced_by_product``, ``_scrap_rate``) para traer exactamente el
+        mismo número que ese panel.
+
+        Se calcula sobre la empresa del recordset (``self``): llamarlo con el
+        ``.with_company(op_company)`` que el panel ya usa para el producido.
+
+        :param d_from, d_to: fechas 'YYYY-MM-DD' del mes.
+        :returns: dict {'qty', 'produced', 'rate', 'products', 'ops'} — ``rate``
+            None si no hubo producción en el período.
+        """
+        first_day, last_day = self._wc_parse_range(d_from, d_to)
+        scraps = self.env['stock.scrap'].search(self._scrap_domain(first_day, last_day))
+        produced_map, total_produced = self._scrap_produced_by_product(first_day, last_day)
+        terminados = scraps.filtered(lambda s: produced_map.get(s.product_id.id, 0.0) > 0)
+        scrap_terminados = sum(s.scrap_qty or 0.0 for s in terminados)
+        return {
+            'qty': round(scrap_terminados, 2),
+            'produced': round(total_produced, 2),
+            'rate': self._scrap_rate(scrap_terminados, total_produced),
+            'products': len(terminados.mapped('product_id')),
+            'ops': len(terminados),
+        }
+
     @api.model
     def get_scrap_trend(self, date_from, date_to, tag_ids=None, product_type_ids=None,
                         shift_ids=None):

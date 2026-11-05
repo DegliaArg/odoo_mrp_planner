@@ -71,7 +71,7 @@
                                         border-spacing:6px 0; table-layout:fixed; }
                         /* El estilo de card vive en el td: así todas las celdas de la
                            fila comparten altura (uniformes) aunque tengan más líneas. */
-                        .mg-kpis > tbody > tr > td { vertical-align:top; width:16.66%;
+                        .mg-kpis > tbody > tr > td { vertical-align:top;
                                     background:#f6f9fc; border-top:3px solid #004b88;
                                     border-radius:0 0 9px 9px; padding:11px 6px 10px;
                                     text-align:center; }
@@ -166,7 +166,7 @@
                         <!-- ══ KPIs ══ -->
                         <table class="mg-kpis">
                             <tr>
-                                <td t-foreach="rep['kpis']" t-as="k" style="width:16.66%;">
+                                <td t-foreach="rep['kpis']" t-as="k" t-attf-style="width:{{k['width']}}%;">
                                     <div class="mg-kpi">
                                         <div class="mg-kpi-v" t-attf-style="color:{{k['accent']}};" t-out="k['value']"/>
                                         <div class="mg-kpi-l" t-out="k['label']"/>

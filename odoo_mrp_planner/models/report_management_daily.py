@@ -152,25 +152,41 @@ class ReportManagementDaily(models.AbstractModel):
         else:
             svc_color = '#c0392b'
 
+        # ── Semáforo de la tasa de scrap (acá "más alto = peor") ─────────────
+        scr = ov.get('scrap') or {}
+        scrap_rate = scr.get('rate')
+        if scrap_rate is None:
+            scrap_color = '#64748b'
+        elif scrap_rate >= 10:
+            scrap_color = '#c0392b'
+        elif scrap_rate >= 3:
+            scrap_color = '#b45309'
+        else:
+            scrap_color = '#1e7e34'
+
         # ── KPIs (orden y etiquetas del one-pager; ancho relativo por card) ───
         navy = '#004b88'
         kpis = [
             {'label': 'Demanda (pz)', 'value': self._int(ov['demand']['total_qty']),
-             'accent': navy, 'delta': self._delta(dly('demand')), 'subs': [], 'width': 13},
+             'accent': navy, 'delta': self._delta(dly('demand')), 'subs': [], 'width': 12},
             {'label': 'Producido (pz)', 'value': self._int(ov['produced']['total_qty']),
-             'accent': navy, 'delta': self._delta(dly('produced')), 'subs': [], 'width': 13},
+             'accent': navy, 'delta': self._delta(dly('produced')), 'subs': [], 'width': 12},
             {'label': 'Facturado (pz)', 'value': self._int(ov['invoiced']['total_qty']),
-             'accent': navy, 'delta': self._delta(dly('invoiced_qty')), 'subs': [], 'width': 13},
+             'accent': navy, 'delta': self._delta(dly('invoiced_qty')), 'subs': [], 'width': 12},
             {'label': 'Facturado ($)', 'value': self._money(ov['invoiced']['total_amount'], cur),
-             'accent': navy, 'delta': self._delta(dly('invoiced_amount'), cur), 'subs': [], 'width': 25},
+             'accent': navy, 'delta': self._delta(dly('invoiced_amount'), cur), 'subs': [], 'width': 22},
             {'label': 'Despachos (pz)', 'value': self._int(ov['dispatch']['qty']),
-             'accent': navy, 'delta': self._delta(dly('dispatch')), 'width': 16,
+             'accent': navy, 'delta': self._delta(dly('dispatch')), 'width': 14,
              'subs': ['%s transferencias' % self._int(ov['dispatch'].get('pickings') or 0)]},
             {'label': 'Tasa de servicio', 'value': self._pct(rate), 'accent': svc_color,
-             'delta': None, 'width': 20,
+             'delta': None, 'width': 14,
              'subs': ['%s/%s pz' % (self._int(svc['delivered']), self._int(svc['ordered'])),
                       '%s de %s ped. trabajados' % (
                           svc.get('worked_orders', 0), svc.get('total_orders', 0))]},
+            {'label': 'Tasa de scrap',
+             'value': ('s/prod' if scrap_rate is None else self._pct(scrap_rate)),
+             'accent': scrap_color, 'delta': None, 'width': 14,
+             'subs': ['%s pz desechadas' % self._int(scr.get('qty') or 0.0)]},
         ]
 
         # ── Desglose por familia: Demanda + Producido en par (50/50) ──────────

@@ -36,6 +36,7 @@ class ManagementOverviewWidget extends Component {
 
     setup() {
         this.orm = useService("orm");
+        this.action = useService("action");
 
         const now = new Date();
         this.state = useState({
@@ -136,6 +137,20 @@ class ManagementOverviewWidget extends Component {
     }
 
     /**
+     * Color de semáforo de la tasa de scrap. Acá "más alto = peor" (inverso de la
+     * tasa de servicio): mismos umbrales que el panel de Análisis de producción
+     * (≥10% rojo, ≥3% amarillo, resto verde).
+     * @param {number|null} v
+     * @returns {string} clase de texto Bootstrap.
+     */
+    scrapClass(v) {
+        if (v === null || v === undefined) return "text-muted";
+        if (v >= 10) return "text-danger";
+        if (v >= 3) return "text-warning";
+        return "text-success";
+    }
+
+    /**
      * Variación de hoy vs ayer para un indicador acumulable, en términos
      * LINEALES (hoy − ayer), sin porcentuales.
      * @param {{today:number, yesterday:number}} d
@@ -170,6 +185,30 @@ class ManagementOverviewWidget extends Component {
         const max = Math.max(...rows.map(r => Math.abs(r[f] || 0)), 0);
         const v = Math.abs(row[f] || 0);
         return max > 0 ? Math.max(2, Math.round(v / max * 100)) : 0;
+    }
+
+    // ── Drilldowns ───────────────────────────────────────────────────────────
+
+    /**
+     * Abre el detalle de productos de la Tasa de servicio: las líneas de los
+     * pedidos trabajados en el mes (el denominador de la tasa). Cada fila es un
+     * producto pedido, con su cantidad pedida y entregada visibles en la lista.
+     */
+    openServiceLines() {
+        const ids = this.state.data?.service?.worked_so_ids || [];
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: "Pedidos trabajados del mes — líneas",
+            res_model: "sale.order.line",
+            views: [[false, "list"], [false, "form"]],
+            domain: [
+                ["order_id", "in", ids],
+                ["product_id", "!=", false],
+                ["product_id.sale_ok", "=", true],
+            ],
+            context: { list_view_ref: "odoo_mrp_planner.view_sale_order_line_planner_list" },
+            target: "current",
+        });
     }
 }
 

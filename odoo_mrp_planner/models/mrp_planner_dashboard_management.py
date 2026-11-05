@@ -53,6 +53,11 @@ _logger = logging.getLogger(__name__)
 _GRP_READ = 'odoo_mrp_planner.group_management_read'
 _GRP_ADMIN = 'odoo_mrp_planner.group_management'
 
+# Nombres abreviados de mes en español (índice = month - 1), para etiquetar el
+# desglose mensual del despacho por fecha de la orden de venta.
+_MGMT_MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
 
 class MrpPlannerDashboardManagement(models.TransientModel):
     _inherit = 'mrp.planner.dashboard'
@@ -254,7 +259,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'total_orders'} — rate None si no hay pedidos trabajados.
         """
         empty = {'ordered': 0.0, 'delivered': 0.0, 'rate': None,
-                 'worked_orders': 0, 'total_orders': 0}
+                 'worked_orders': 0, 'total_orders': 0, 'worked_so_ids': []}
         so_dom = [
             ('state', 'in', ['sale', 'done']),
             ('date_order', '>=', dt_from),
@@ -306,6 +311,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'rate': rate,
             'worked_orders': len(worked_so_ids),
             'total_orders': len(sos),
+            'worked_so_ids': worked_so_ids,
         }
 
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
@@ -571,6 +577,53 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         return {'configured': True, 'qty': round(qty, 2),
                 'pickings': pickings_count, 'rows': rows}
 
+    def _mgmt_dispatch_by_order_month(self, picking_type_ids, company, allowed_ids,
+                                      dt_from, dt_to):
+        """Desglosa las piezas despachadas del mes (los MISMOS movimientos que la
+        card de Despacho) por el MES de la fecha de la orden de venta asociada.
+
+        Permite ver cuánto de lo despachado en el mes corresponde a pedidos de
+        meses anteriores (habitualmente se despachan pedidos viejos). La suma de
+        las filas coincide con el total de la card de Despacho.
+
+        :returns: list[dict] {'ym', 'label', 'qty'} ordenada por mes DESCENDENTE
+            (lo más reciente primero); los despachos sin orden de venta quedan al
+            final con label 'Sin pedido'.
+        """
+        if not picking_type_ids:
+            return []
+        dom = [
+            ('picking_type_id', 'in', picking_type_ids),
+            ('state', '=', 'done'),
+            ('company_id', 'in', company.ids),
+        ]
+        if allowed_ids is not None:
+            dom.append(('picking_type_id.warehouse_id', 'in', allowed_ids))
+        if dt_from and dt_to:
+            dom += [('date_done', '>=', dt_from), ('date_done', '<=', dt_to)]
+        pickings = self.env['stock.picking'].sudo().search(dom)
+        by_month = defaultdict(float)
+        for move in pickings.mapped('move_ids'):
+            so = move.picking_id.sale_id
+            if so and so.date_order:
+                local = fields.Datetime.context_timestamp(self, so.date_order)
+                ym = '%04d-%02d' % (local.year, local.month)
+            else:
+                ym = None
+            by_month[ym] += move.quantity or 0.0
+        out = []
+        for ym, q in by_month.items():
+            if q <= 0:
+                continue
+            if ym:
+                y, m = ym.split('-')
+                label = '%s %s' % (_MGMT_MONTHS_ES[int(m) - 1], y)
+            else:
+                label = _('Sin pedido')
+            out.append({'ym': ym or '0000-00', 'label': label, 'qty': round(q, 2)})
+        out.sort(key=lambda r: r['ym'], reverse=True)
+        return out
+
     # ── Punto de entrada del panel ───────────────────────────────────────────
 
     @api.model
@@ -656,7 +709,9 @@ class MrpPlannerDashboardManagement(models.TransientModel):
                 'demand': empty, 'invoiced': empty_inv, 'produced': dict(empty),
                 'dispatch': zero, 'packing': zero, 'picking': zero,
                 'service': {'ordered': 0.0, 'delivered': 0.0, 'rate': None,
-                            'worked_orders': 0, 'total_orders': 0},
+                            'worked_orders': 0, 'total_orders': 0, 'worked_so_ids': []},
+                'scrap': {'qty': 0.0, 'produced': 0.0, 'rate': None,
+                          'products': 0, 'ops': 0},
                 'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,
                 'rate_warn_pct':  (cfg.customer_analysis_delivery_crit_pct if cfg else 0) or 60,
                 'daily': {},
@@ -682,6 +737,12 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         picking = self._mgmt_move_pieces(pick_types, 'assigned', all_co, allowed_ids,
                                          mdt_from, mdt_to, with_breakdown=True, by_line=True)
         service = self._mgmt_service_rate_report(dt_from, dt_to, all_co, allowed_ids)
+        # Tasa de scrap del mes (mismo criterio que Análisis de producción). Se
+        # calcula sobre la empresa operativa (donde vive la producción).
+        scrap = op_self._mgmt_scrap_report(d_from, d_to)
+        # Desglose del despacho por mes de la orden de venta (pedidos viejos).
+        dispatch['by_order_month'] = self._mgmt_dispatch_by_order_month(
+            disp_types, all_co, allowed_ids, dt_from, dt_to)
 
         # ── Variación diaria (solo mes en curso; snapshots quedan sin delta) ──
         daily = {}
@@ -728,6 +789,7 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'packing': packing,
             'picking': picking,
             'service': service,
+            'scrap': scrap,
             # Umbrales de color de la tasa de servicio: mismos que el panel de
             # Ventas y el análisis de clientes (Ajustes → Ventas).
             'rate_green_pct': (cfg.customer_analysis_delivery_warn_pct if cfg else 0) or 80,

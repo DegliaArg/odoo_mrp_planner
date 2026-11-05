@@ -756,14 +756,22 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         except Exception:
             return pytz.timezone('America/Argentina/Buenos_Aires')
 
+    # Ventana de disparo (en minutos) a partir de la hora exacta configurada. El
+    # cron corre cada 15 min; 20 garantiza que al menos un tick caiga dentro de la
+    # ventana (20 > 15), y la marca de "último envío" del día evita repetir si
+    # llegan a entrar dos ticks. Es lo que da la precisión al minuto: el envío sale
+    # dentro de los ~20 min posteriores a la hora:minuto elegidos.
+    _MGMT_REPORT_WINDOW_MIN = 20
+
     @api.model
     def _cron_send_management_report(self):
-        """Cron horario: por cada configuración con el envío activo, si la hora
-        local coincide con la configurada y no se envió hoy, manda el PDF.
+        """Cron cada 15 min: por cada configuración con el envío activo, si la
+        hora:minuto local cae dentro de la ventana de la hora configurada y no se
+        envió hoy, manda el PDF.
 
-        La hora se evalúa en la zona horaria del usuario que ejecuta el cron
-        (Ajustes → Técnico → Acciones planificadas). El cron corre cada hora y
-        dispara el envío al llegar a la hora configurada."""
+        La hora se evalúa en la zona horaria de la empresa de la configuración (su
+        contacto; ver _management_report_tz), no en la del usuario del cron. Respeta
+        los minutos: 'management_report_hour' = 15.5 → 15:30."""
         configs = self.env['mrp.reschedule.config'].sudo().search([
             ('management_report_enabled', '=', True),
         ])
@@ -774,9 +782,11 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             try:
                 now_local = now_utc.astimezone(self._management_report_tz(cfg))
                 today_local = now_local.date()
-                if int(cfg.management_report_hour or 0) != now_local.hour:
-                    continue
                 if cfg.management_report_last_sent_date == today_local:
+                    continue
+                target_min = int(round((cfg.management_report_hour or 0.0) * 60))
+                now_min = now_local.hour * 60 + now_local.minute
+                if not (0 <= now_min - target_min < self._MGMT_REPORT_WINDOW_MIN):
                     continue
                 if not cfg._management_report_recipient_emails():
                     _logger.warning('[MgmtReport] Config %s sin destinatarios; se omite.', cfg.id)

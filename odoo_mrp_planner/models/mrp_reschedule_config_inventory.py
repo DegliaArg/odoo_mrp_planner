@@ -57,15 +57,27 @@ class MrpRescheduleConfigInventory(models.Model):
         [('closing', 'Disponible al cierre del período'),
          ('peak', 'Pico de disponible del período'),
          ('average', 'Promedio de disponible del período')],
-        string='Base de la Tasa de entrega', default='closing', required=True,
-        help='Cómo se mide la parte pendiente del denominador de la "Tasa de entrega" '
-             '(lo que tuve stock para hacer en el eslabón filtrado y no hice):\n'
-             '• Disponible al cierre: lo pendiente-con-stock en el último snapshot del '
-             'período (foto al cierre). Recomendado: da un denominador menor a la demanda.\n'
-             '• Pico de disponible: el máximo visto en cualquier snapshot del período '
-             '(infla el denominador hacia la demanda).\n'
-             '• Promedio de disponible: el promedio diario de pendiente-con-stock.\n'
-             'El numerador es siempre lo validado del período del eslabón filtrado.')
+        string='Base de la tasa de entrega', default='closing', required=True,
+        help='Cómo se mide la parte pendiente del denominador de la tasa de entrega: '
+             'lo que tuve stock para hacer en el eslabón filtrado y NO hice. Cuanto '
+             'más grande esa parte, MÁS BAJA la tasa (más castigo). El numerador es '
+             'siempre lo validado del período del eslabón filtrado.\n'
+             '\n'
+             '• Disponible al cierre (recomendado): toma solo lo pendiente-con-stock '
+             'del ÚLTIMO snapshot del período. Es la foto del remanente final: si '
+             'durante el período hubo stock parado pero lo terminaste despachando, NO '
+             'castiga; solo pesa lo que quedó sin hacer al cierre. Es la base más '
+             'indulgente (tasa más alta) y la más fácil de auditar.\n'
+             '\n'
+             '• Pico de disponible: toma el MÁXIMO disponible visto en cualquier día '
+             'del período (por remito y producto). Castiga haber tenido stock sin '
+             'despachar en algún momento, aunque después lo hayas hecho. Es la base '
+             'más exigente (tasa más baja): mide "de todo lo que en algún momento '
+             'pude hacer, cuánto hice".\n'
+             '\n'
+             '• Promedio de disponible: toma el promedio diario de lo pendiente-con-'
+             'stock. Punto medio: suaviza los picos de un solo día, pero castiga el '
+             'stock que quedó parado muchos días. Castigo intermedio.')
 
     def _inventory_denominator_method(self):
         """Método configurado para la parte pendiente del denominador de la

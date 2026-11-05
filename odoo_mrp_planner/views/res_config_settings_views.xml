@@ -886,7 +886,7 @@
                                             alimenta la <b>Tasa de entrega</b> del Panel de Inventario. La tasa se
                                             calcula en vivo sobre los snapshots: numerador = validado del período del
                                             eslabón filtrado; denominador = ese validado + lo que tuve stock para hacer
-                                            y no hice, según la <b>Base de la Tasa de entrega</b>. Los snapshots crudos
+                                            y no hice, según la <b>Base de la tasa de entrega</b>. Los snapshots crudos
                                             se conservan según la retención configurada. Cada corrida queda en el
                                             Registro de ejecuciones. Con <b>Ignorar pendientes anteriores a (meses)</b>
                                             &gt; 0, las salidas con fecha programada más vieja que ese corte no cuentan

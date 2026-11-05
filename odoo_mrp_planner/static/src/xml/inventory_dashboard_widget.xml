@@ -77,6 +77,9 @@
                             <div t-att-class="'o_planner_number ' + svcClass(periodKpis.rate_available) + ' ' + kpiNumClass(fmtPct(periodKpis.rate_available))"
                                  t-esc="fmtPct(periodKpis.rate_available)"/>
                             <div class="o_planner_label">Tasa de entrega</div>
+                            <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
+                                sin snapshots en el rango
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -90,6 +93,7 @@
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.available))"
                                  t-esc="fmt(tableKpis.available)"/>
                             <div class="o_planner_label">Pendiente con stock</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">reserva de hoy</div>
                         </div>
                         <div class="card-footer p-0">
                             <button class="btn btn-sm btn-link w-100 py-1"
@@ -105,6 +109,7 @@
                             <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(tableKpis.blocked))"
                                  t-esc="fmt(tableKpis.blocked)"/>
                             <div class="o_planner_label">Pendiente sin stock</div>
+                            <div class="text-muted mt-1" style="font-size:10px;">reserva de hoy</div>
                         </div>
                         <div class="card-footer p-0">
                             <button class="btn btn-sm btn-link w-100 py-1"

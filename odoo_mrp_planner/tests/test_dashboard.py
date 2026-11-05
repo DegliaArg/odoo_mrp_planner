@@ -454,17 +454,21 @@ class TestMrpPlannerDashboard(TransactionCase):
         first = today.replace(day=1).strftime("%Y-%m-%d")
         last = today.strftime("%Y-%m-%d")
 
-        # Filtrando por la SALIDA: la validación cuenta en el numerador y, sin
-        # disponible pendiente, la tasa del eslabón es 100%.
+        # Filtrando por la SALIDA: la validación cuenta en el numerador. Como el
+        # test no crea snapshots, el rango no tiene ninguno → la tasa es None
+        # (muestra "—") y se marca rate_no_snapshots, NO un 100% engañoso.
         out_kpi = dash.get_inventory_pending_table(
             first, last, warehouse_ids=[wh.id],
             picking_type_ids=[out_type.id])["period_kpis"]
         self.assertEqual(
             out_kpi["rate_available_num"], 5.0,
             "El numerador debe ser lo validado del eslabón de salida")
-        self.assertEqual(
-            out_kpi["rate_available"], 100.0,
-            "Sin disponible pendiente, la tasa del eslabón de salida es 100%")
+        self.assertIsNone(
+            out_kpi["rate_available"],
+            "Sin snapshots en el rango, la tasa es None (no 100%)")
+        self.assertTrue(
+            out_kpi["rate_no_snapshots"],
+            "Debe marcar que el rango no tiene snapshots")
 
         # Filtrando por un eslabón INTERNO (fuera de la cadena): sin validados,
         # numerador 0 y tasa None (antes la tasa ignoraba el filtro).

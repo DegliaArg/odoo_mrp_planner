@@ -200,9 +200,12 @@ class MrpPlannerDashboard(models.TransientModel):
         - den_pending (lo que tuve stock y no hice): disponible pendiente
           (qty_reserved) de esos tipos, de los snapshots del rango, agregado
           según ``method`` (closing/peak/average) y excluyendo lo que terminó
-          validado en el rango (ya cuenta en num).
+          validado en el rango (ya cuenta en num). Es ``None`` si el rango NO
+          tiene ningún snapshot (registro recién activado, o empresa sin
+          registro): el denominador es desconocido y la tasa no se puede calcular.
 
-        :returns: (num, den_pending) floats sin redondear.
+        :returns: (num, den_pending) — den_pending float, o None si no hay
+            snapshots en el rango.
         """
         if not type_ids:
             return 0.0, 0.0
@@ -244,16 +247,22 @@ class MrpPlannerDashboard(models.TransientModel):
         - average: promedio diario del disponible pendiente.
 
         El snapshot no guarda el tipo de operación: se resuelve vía el remito.
+
+        :returns: float con el disponible pendiente, o ``None`` si el rango no
+            tiene NINGÚN snapshot (denominador desconocido). Un rango CON
+            snapshots pero sin pendiente-con-stock de ese eslabón devuelve 0.0.
         """
         Log = self.env['mrp.dispatch.stock.log'].sudo()
-        log_dom = [
+        scope_dom = [
             ('company_id', '=', company.id),
             ('snapshot_date', '>=', d_from), ('snapshot_date', '<=', d_to),
-            ('qty_reserved', '>', 0),
         ]
         if warehouse_ids:
-            log_dom.append(('warehouse_id', 'in', warehouse_ids))
-        logs = Log.search(log_dom)
+            scope_dom.append(('warehouse_id', 'in', warehouse_ids))
+        # Sin NINGÚN snapshot en el rango: el denominador es desconocido (no es 0).
+        if not Log.search_count(scope_dom):
+            return None
+        logs = Log.search(scope_dom + [('qty_reserved', '>', 0)])
         if not logs:
             return 0.0
         rows = logs.read(['snapshot_date', 'picking_id', 'product_id', 'qty_reserved'])
@@ -562,23 +571,34 @@ class MrpPlannerDashboard(models.TransientModel):
         pendiente no hecho (método configurable en Ajustes). Requiere rango
         completo.
 
-        :returns: dict — rate_available(_num/_den).
+        Si el rango no tiene ningún snapshot (``den_pending`` None), la tasa es
+        None y se marca ``rate_no_snapshots`` para que el panel lo diga explícito.
+
+        :returns: dict — rate_available(_num/_den) + rate_no_snapshots.
         """
         rate = rate_num = rate_den = None
+        no_snapshots = False
         if cfg and cfg.dispatch_stock_log_enabled and date_from and date_to:
             type_ids = self._inventory_chain_types(company, warehouse_ids, picking_type_ids)
             d_from, d_to, dt_from, dt_to = self._inventory_parse_range(date_from, date_to)
             method = cfg._inventory_denominator_method()
             num, den_pending = self._inventory_delivery_figures(
                 company, d_from, d_to, dt_from, dt_to, warehouse_ids, type_ids, method)
-            rate_num = num
-            rate_den = num + den_pending
-            rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
+            if den_pending is None:
+                # Sin snapshots en el rango: el denominador es desconocido; se
+                # muestra "—" en vez de un 100% engañoso.
+                no_snapshots = bool(type_ids)
+                rate_num = num
+            else:
+                rate_num = num
+                rate_den = num + den_pending
+                rate = round(rate_num / rate_den * 100, 1) if rate_den > 0 else None
         qround = lambda v: self._inventory_qround(cfg, v)
         return {
             'rate_available':     rate,
             'rate_available_num': qround(rate_num) if rate_num is not None else None,
             'rate_available_den': qround(rate_den) if rate_den is not None else None,
+            'rate_no_snapshots':  no_snapshots,
         }
 
     # ── Hooks del circuito de despacho ────────────────────────────────────────

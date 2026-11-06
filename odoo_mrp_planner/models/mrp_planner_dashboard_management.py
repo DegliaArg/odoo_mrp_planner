@@ -639,30 +639,50 @@ class MrpPlannerDashboardManagement(models.TransientModel):
 
     @api.model
     def action_download_management_report(self, month=None):
-        """RPC del botón "Descargar PDF" del panel de Gerencia: devuelve la acción
-        de reporte del Resumen diario para el mes indicado, reutilizando el MISMO
-        informe que se envía por mail (odoo_mrp_planner.action_report_management_daily).
+        """RPC del botón "Descargar PDF" del panel de Gerencia: genera el PDF del
+        Resumen diario para el mes indicado EXACTAMENTE como el que se envía por mail
+        (_render_qweb_pdf con data), lo guarda como adjunto y devuelve una acción de
+        descarga directa.
+
+        Se renderiza server-side (no vía report_action) porque mrp.planner.dashboard
+        es un TransientModel: el re-render que dispara el cliente no reencuentra el
+        registro ni el ``data`` y baja una hoja en blanco.
 
         El PDF se calcula a nivel empresa completa (force_all_warehouses) y con las
         empresas del selector multiempresa nativo (self.env.companies), para que el
         documento descargado refleje el alcance que el usuario ve en pantalla.
 
         :param month: str 'YYYY-MM'. None ⇒ mes en curso.
-        :returns: dict de ir.actions.report listo para action.doAction en el cliente.
+        :returns: dict ir.actions.act_url que descarga el PDF.
         """
         self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
         companies = self.env.companies or self.env.company
+        primary = companies[:1] or self.env.company
         today = fields.Date.context_today(self)
         if not month:
             month = '%04d-%02d' % (today.year, today.month)
+
         rec = self.create({})
-        return self.env.ref(
-            'odoo_mrp_planner.action_report_management_daily'
-        ).report_action(rec, data={
-            'company_ids': companies.ids,
-            'month': month,
-            'report_date': fields.Date.to_string(today),
+        pdf_content, _ct = self.env['ir.actions.report'].sudo().with_company(
+            primary).with_context(allowed_company_ids=companies.ids)._render_qweb_pdf(
+            'odoo_mrp_planner.action_report_management_daily', rec.ids,
+            data={'company_ids': companies.ids, 'month': month,
+                  'report_date': fields.Date.to_string(today)})
+
+        company_label = ', '.join(companies.mapped('name'))
+        fname = _('Resumen diario %(company)s %(date)s.pdf',
+                  company=company_label, date=today)
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': fname,
+            'type': 'binary',
+            'datas': base64.b64encode(pdf_content),
+            'mimetype': 'application/pdf',
         })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/web/content/%s?download=true' % attachment.id,
+            'target': 'self',
+        }
 
     def _get_management_overview_data(self, month=None, force_all_warehouses=False,
                                       invoice_companies=None):

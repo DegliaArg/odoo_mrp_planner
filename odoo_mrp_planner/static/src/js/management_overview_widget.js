@@ -45,6 +45,7 @@ class ManagementOverviewWidget extends Component {
             error: null,
             month: this._monthStr(now),
             data: null,
+            downloading: false,  // botón "Descargar PDF" en curso
         });
 
         onMounted(async () => {
@@ -101,6 +102,29 @@ class ManagementOverviewWidget extends Component {
         } finally {
             this.state.loading = false;
             this.state.reloading = false;
+        }
+    }
+
+    // ── Descarga del PDF ───────────────────────────────────────────────────────
+
+    /**
+     * Descarga el PDF del Resumen diario del mes seleccionado reutilizando el MISMO
+     * informe que se envía por mail. El backend devuelve la acción de reporte y la
+     * ejecutamos con el servicio de acciones (descarga/visualiza el PDF).
+     */
+    async onDownloadPdf() {
+        if (this.state.downloading) return;
+        this.state.downloading = true;
+        try {
+            const action = await this.orm.call(
+                "mrp.planner.dashboard", "action_download_management_report",
+                [this.state.month]);
+            await this.action.doAction(action);
+        } catch (e) {
+            console.error("[ManagementOverviewWidget] Descargar PDF", e);
+            this.state.error = e?.data?.message || e?.message || String(e);
+        } finally {
+            this.state.downloading = false;
         }
     }
 

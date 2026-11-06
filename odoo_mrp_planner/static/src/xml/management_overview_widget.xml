@@ -24,6 +24,15 @@
                 <span class="text-muted small fst-italic ms-1">
                     <i class="fa fa-calendar me-1"/><t t-esc="monthLabel"/>
                 </span>
+                <!-- Descargar el PDF del Resumen diario (mismo informe que el mail), a la derecha -->
+                <button class="btn btn-sm btn-outline-secondary ms-auto"
+                        title="Descargar el PDF del Resumen diario del mes seleccionado"
+                        style="white-space:nowrap;"
+                        t-att-disabled="state.downloading ? 'disabled' : undefined"
+                        t-on-click="onDownloadPdf">
+                    <i t-att-class="'fa me-1 ' + (state.downloading ? 'fa-spinner fa-spin' : 'fa-file-pdf-o')"/>
+                    Descargar PDF
+                </button>
             </div>
 
             <!-- Error de backend -->

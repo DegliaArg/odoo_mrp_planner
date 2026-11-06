@@ -637,6 +637,33 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
         return self._get_management_overview_data(month)
 
+    @api.model
+    def action_download_management_report(self, month=None):
+        """RPC del botón "Descargar PDF" del panel de Gerencia: devuelve la acción
+        de reporte del Resumen diario para el mes indicado, reutilizando el MISMO
+        informe que se envía por mail (odoo_mrp_planner.action_report_management_daily).
+
+        El PDF se calcula a nivel empresa completa (force_all_warehouses) y con las
+        empresas del selector multiempresa nativo (self.env.companies), para que el
+        documento descargado refleje el alcance que el usuario ve en pantalla.
+
+        :param month: str 'YYYY-MM'. None ⇒ mes en curso.
+        :returns: dict de ir.actions.report listo para action.doAction en el cliente.
+        """
+        self._ensure_planner_group(_GRP_READ, _GRP_ADMIN)
+        companies = self.env.companies or self.env.company
+        today = fields.Date.context_today(self)
+        if not month:
+            month = '%04d-%02d' % (today.year, today.month)
+        rec = self.create({})
+        return self.env.ref(
+            'odoo_mrp_planner.action_report_management_daily'
+        ).report_action(rec, data={
+            'company_ids': companies.ids,
+            'month': month,
+            'report_date': fields.Date.to_string(today),
+        })
+
     def _get_management_overview_data(self, month=None, force_all_warehouses=False,
                                       invoice_companies=None):
         """Consolida todos los indicadores del Resumen diario para un mes, SIN el

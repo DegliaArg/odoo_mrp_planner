@@ -24,6 +24,7 @@ de la OF es una acción posterior, con aprobación humana.
 Ver docs/plan_panel1_motor_necesidades.md para el detalle y las decisiones.
 """
 import math
+from datetime import datetime, time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -40,6 +41,12 @@ class MrpProductionNeeds(models.TransientModel):
     STATE_NO_FABRICAR = 'NO FABRICAR'
     STATE_STOCK_SUFICIENTE = 'STOCK SUFICIENTE'
     STATE_PROGRAMAR = 'PROGRAMAR'
+
+    def _compute_display_name(self):
+        """El panel es un TransientModel sin campo de nombre; sin esto el
+        breadcrumb mostraría 'mrp.production.needs,<id>'."""
+        for rec in self:
+            rec.display_name = _('Planificación')
 
     # ── API pública ───────────────────────────────────────────────────────────
 
@@ -62,7 +69,8 @@ class MrpProductionNeeds(models.TransientModel):
 
         cfg = self.env['mrp.reschedule.config'].get_config()
         factor = cfg.safety_factor or 1.4
-        wh_id = warehouse_id or (cfg.planning_warehouse_id.id or False)
+        # None = no se pasó (usar config); False = "Todos" explícito desde el panel
+        wh_id = warehouse_id if warehouse_id is not None else (cfg.planning_warehouse_id.id or False)
         manuf_type_id = cfg.manufacturing_type_id.id or False
         company = self.env.company
 
@@ -73,6 +81,8 @@ class MrpProductionNeeds(models.TransientModel):
             'n_months': n_months,
             'safety_factor': factor,
             'warehouse_id': wh_id,
+            'warehouse_name': self.env['stock.warehouse'].browse(wh_id).display_name
+                if wh_id else _('Todos los almacenes'),
             'manufacturing_type_set': bool(manuf_type_id),
         }
 
@@ -264,17 +274,18 @@ class MrpProductionNeeds(models.TransientModel):
     # ── Disparo de OF ───────────────────────────────────────────────────────────
 
     @api.model
-    def action_generate_mo(self, items, warehouse_id=None):
+    def action_generate_mo(self, items, target_month=None):
         """Crea y confirma una OF del producto final por cada ítem.
 
-        Decisión 7: se dispara 1 OF del producto terminado en el almacén elegido;
-        las OF/OC de los componentes las genera Odoo hacia atrás por las rutas de
-        abastecimiento (igual que el circuito actual). La OF queda confirmada pero
-        es responsabilidad del usuario revisarla/planificarla.
+        Decisión 7: se dispara 1 OF del producto terminado en el almacén de la
+        configuración (su operación de Fabricación); las OF/OC de los componentes
+        las genera Odoo hacia atrás por las rutas de abastecimiento. La OF queda
+        confirmada pero es responsabilidad del usuario revisarla/planificarla.
 
         :param items: lista de dicts [{'product_id': int, 'qty': float}, ...]
-        :param warehouse_id: almacén destino; si None se usa el de configuración.
-        :returns: dict con notificación y nº de OF creadas.
+        :param target_month: mes a programar; fija la fecha de inicio prevista de
+            la OF (primer día del mes, sin planificar en el pasado).
+        :returns: acción que abre la(s) OF generada(s).
         """
         self._ensure_scheduling_group()
         items = [it for it in (items or []) if it.get('product_id') and (it.get('qty') or 0) > 0]
@@ -282,11 +293,18 @@ class MrpProductionNeeds(models.TransientModel):
             raise UserError(_('No hay artículos con cantidad a fabricar para generar OF.'))
 
         cfg = self.env['mrp.reschedule.config'].get_config()
-        wh_id = warehouse_id or (cfg.planning_warehouse_id.id or False)
+        wh_id = cfg.planning_warehouse_id.id or False
         warehouse = self.env['stock.warehouse'].browse(wh_id) if wh_id else \
             self.env['stock.warehouse'].search(
                 [('company_id', '=', self.env.company.id)], limit=1)
         picking_type = warehouse.manu_type_id if warehouse else False
+
+        # Fecha de inicio prevista = primer día del mes a programar, nunca en el pasado.
+        date_start = False
+        if target_month:
+            start = datetime.combine(fields.Date.to_date(target_month).replace(day=1), time(8, 0))
+            now = fields.Datetime.now()
+            date_start = start if start > now else now
 
         Production = self.env['mrp.production']
         created = Production.browse()
@@ -300,6 +318,8 @@ class MrpProductionNeeds(models.TransientModel):
             }
             if picking_type:
                 vals['picking_type_id'] = picking_type.id
+            if date_start:
+                vals['date_start'] = date_start
             mo = Production.create(vals)
             mo.action_confirm()
             created |= mo

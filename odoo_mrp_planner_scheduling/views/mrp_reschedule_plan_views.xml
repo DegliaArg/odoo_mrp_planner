@@ -373,12 +373,18 @@
               action="odoo_mrp_planner_scheduling.action_mrp_scheduling_config"
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>
 
+    <!-- APARCADO (2026-11): la puerta manual "Programaciones" (wizard de solicitud)
+         se reemplaza por el Panel 1 "Planificación". La acción y el wizard quedan
+         intactos (se reusa su lógica de explosión BOM como backend del disparo).
+         Ver docs/plan_panel1_motor_necesidades.md §5.
     <menuitem id="mrp_reschedule_menu_request"
               name="Programaciones"
               parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
               sequence="10"
               action="action_mrp_production_request"
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+    -->
+
 
     <!-- APARCADO (2026-11): el reprogramador en cascada se saca de la interfaz
          mientras se construye el motor de necesidades (Panel 1). El código, la

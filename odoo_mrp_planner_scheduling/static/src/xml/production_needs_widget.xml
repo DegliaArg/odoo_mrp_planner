@@ -24,18 +24,6 @@
                        t-att-value="state.dateTo"
                        t-on-change="(ev) => this.onFilterChange('dateTo', ev)"/>
             </div>
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Almacén</label>
-                <select class="form-select form-select-sm" style="max-width:170px;"
-                        t-on-change="(ev) => this.onWarehouseChange(ev)">
-                    <option value="">Todos</option>
-                    <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
-                        <option t-att-value="wh.id" t-att-selected="state.warehouseId === wh.id">
-                            <t t-esc="wh.name"/>
-                        </option>
-                    </t>
-                </select>
-            </div>
             <div class="d-flex align-items-center gap-1 flex-grow-1" style="min-width:180px;">
                 <i class="fa fa-search text-muted"/>
                 <input type="text" class="form-control form-control-sm"
@@ -123,7 +111,7 @@
                 <i class="fa fa-times ms-1" role="button" t-on-click="() => this.setStateFilter('all')"/>
             </span>
             <span class="text-muted small ms-1"
-                  t-esc="'Ventana ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
+                  t-esc="'Almacén: ' + (state.meta.warehouse_name || '—') + ' · ventana ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
             <div class="ms-auto">
                 <button class="btn btn-success btn-sm" t-if="selectedCount > 0"
                         t-on-click="() => this.generateSelected()"

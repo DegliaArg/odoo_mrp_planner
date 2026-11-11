@@ -57,8 +57,6 @@ export class ProductionNeedsWidget extends Component {
             targetMonth: firstOfMonth(0),
             dateFrom: firstOfMonth(-5),
             dateTo: firstOfMonth(0),
-            warehouseId: false,
-            warehouses: [],
             search: "",
             stateFilter: "all",
             rows: [],
@@ -72,8 +70,6 @@ export class ProductionNeedsWidget extends Component {
         });
 
         onWillStart(async () => {
-            this.state.warehouses = await this.orm.searchRead(
-                "stock.warehouse", [], ["id", "name"]);
             await this.load();
         });
     }
@@ -83,8 +79,7 @@ export class ProductionNeedsWidget extends Component {
         try {
             const res = await this.orm.call(
                 "mrp.production.needs", "get_needs_data",
-                [this.state.targetMonth, this.state.dateFrom, this.state.dateTo,
-                 this.state.warehouseId || false]);
+                [this.state.targetMonth, this.state.dateFrom, this.state.dateTo]);
             this.state.rows = res.rows || [];
             this.state.kpis = res.kpis || {};
             this.state.meta = res.meta || {};
@@ -97,11 +92,6 @@ export class ProductionNeedsWidget extends Component {
     // ── Filtros ─────────────────────────────────────────────────────────────
     onFilterChange(field, ev) {
         this.state[field] = ev.target.value;
-        this.load();
-    }
-    onWarehouseChange(ev) {
-        const v = ev.target.value;
-        this.state.warehouseId = v ? parseInt(v, 10) : false;
         this.load();
     }
     setStateFilter(f) { this.state.stateFilter = f; }
@@ -186,8 +176,7 @@ export class ProductionNeedsWidget extends Component {
         this.state.generating = true;
         try {
             const act = await this.orm.call(
-                "mrp.production.needs", "action_generate_mo",
-                [items, this.state.warehouseId || false]);
+                "mrp.production.needs", "action_generate_mo", [items, this.state.targetMonth]);
             this.notification.add(
                 `${items.length} orden(es) de fabricación generada(s).`, { type: "success" });
             if (act) await this.action.doAction(act);

@@ -113,10 +113,10 @@
             <span class="text-muted small ms-1"
                   t-esc="'Almacén: ' + (state.meta.warehouse_name || '—') + ' · ventana ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
             <div class="ms-auto">
-                <button class="btn btn-success btn-sm" t-if="selectedCount > 0"
+                <button class="btn btn-success btn-sm rounded-pill px-3" t-if="selectedCount > 0"
                         t-on-click="() => this.generateSelected()"
                         t-att-disabled="state.generating">
-                    <i class="fa fa-cogs me-1"/>Generar OF (<t t-esc="selectedCount"/>)
+                    <i class="fa fa-play me-1"/>Generar <t t-esc="selectedCount"/> OF
                 </button>
             </div>
         </div>
@@ -125,77 +125,77 @@
         <div t-if="state.loading" class="text-center text-muted py-5">
             <i class="fa fa-spinner fa-spin me-2"/>Calculando necesidades…
         </div>
-        <div t-else="" class="border rounded" style="max-height:68vh; overflow-y:auto;">
-            <table class="table table-sm table-bordered mb-0 align-middle"
-                   style="font-size:12px; width:100%;">
-                <thead style="position:sticky; top:0; z-index:3;">
-                    <tr>
-                        <th class="text-center" style="width:28px; background:var(--bs-tertiary-bg, #f8f9fa);">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-checked="selectedCount > 0"
-                                   t-on-click="() => this.toggleAll()"/>
-                        </th>
-                        <th style="cursor:pointer; background:var(--bs-tertiary-bg, #f8f9fa);"
-                            t-on-click="() => this.sortBy('name')">
-                            Artículo<i t-att-class="sortIcon('name')"/>
-                        </th>
-                        <th style="background:var(--bs-tertiary-bg, #f8f9fa);">Origen</th>
-                        <t t-foreach="cols" t-as="c" t-key="c.key">
-                            <th class="text-end" style="cursor:pointer; white-space:nowrap; background:var(--bs-tertiary-bg, #f8f9fa);"
-                                t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
-                                <t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/>
+        <div t-else="" class="card o_planner_card border-0 shadow-sm">
+            <div class="table-responsive" style="max-height:66vh; overflow-y:auto;">
+                <table class="table align-middle mb-0 o_needs_table" style="font-size:13px; width:100%;">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width:38px;">
+                                <input t-if="hasSelectable" type="checkbox" class="form-check-input"
+                                       t-att-checked="selectedCount > 0"
+                                       t-on-click="() => this.toggleAll()"/>
                             </th>
-                        </t>
-                        <th style="background:var(--bs-tertiary-bg, #f8f9fa);">Máquina</th>
-                        <th class="text-end" style="background:var(--bs-tertiary-bg, #f8f9fa);">Mín/turno</th>
-                        <th style="cursor:pointer; background:var(--bs-tertiary-bg, #f8f9fa);"
-                            t-on-click="() => this.sortBy('state')">
-                            Estado<i t-att-class="sortIcon('state')"/>
-                        </th>
-                        <th class="text-center" style="width:52px; background:var(--bs-tertiary-bg, #f8f9fa);">OF</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id"
-                        t-att-class="state.selected[row.product_id] ? 'table-active' : ''">
-                        <td class="text-center">
-                            <input type="checkbox" class="form-check-input"
-                                   t-att-disabled="!this.isSelectable(row)"
-                                   t-att-checked="state.selected[row.product_id]"
-                                   t-on-click="() => this.toggleRow(row)"/>
-                        </td>
-                        <td>
-                            <div class="fw-semibold text-truncate" style="max-width:280px;" t-esc="row.name"/>
-                            <div class="small text-muted" t-esc="row.code"/>
-                        </td>
-                        <td><span class="small text-muted" t-esc="row.origin"/></td>
-                        <t t-foreach="cols" t-as="c" t-key="c.key">
-                            <td class="text-end" t-esc="this.f(row[c.key])"/>
-                        </t>
-                        <td class="small text-muted text-truncate" style="max-width:110px;" t-esc="row.machine"/>
-                        <td class="text-end" t-esc="this.f(row.min_per_shift)"/>
-                        <td>
-                            <span class="badge rounded-pill" t-att-class="this.stateClass(row.state)"
-                                  t-att-title="row.state_reason" t-esc="row.state"/>
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-outline-success btn-sm py-0 px-1"
-                                    t-if="this.isSelectable(row)"
-                                    t-on-click="() => this.generateRow(row)"
-                                    t-att-disabled="state.generating"
-                                    title="Generar la OF de este artículo">
-                                <i class="fa fa-cogs"/>
-                            </button>
-                        </td>
-                    </tr>
-                    <tr t-if="!visibleRows.length">
-                        <td colspan="99" class="text-center text-muted py-5">
-                            <i class="fa fa-inbox fa-2x d-block mb-2 opacity-50"/>
-                            Sin artículos para los filtros seleccionados.
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                            <th style="cursor:pointer;" t-on-click="() => this.sortBy('name')">
+                                Artículo<i t-att-class="sortIcon('name')"/>
+                            </th>
+                            <th>Origen</th>
+                            <t t-foreach="cols" t-as="c" t-key="c.key">
+                                <th class="text-end" style="cursor:pointer;"
+                                    t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
+                                    <t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/>
+                                </th>
+                            </t>
+                            <th>Máquina</th>
+                            <th class="text-end">Mín/turno</th>
+                            <th style="cursor:pointer;" t-on-click="() => this.sortBy('state')">
+                                Estado<i t-att-class="sortIcon('state')"/>
+                            </th>
+                            <th class="text-center" style="width:44px;"/>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id"
+                            t-att-class="state.selected[row.product_id] ? 'o_row_selected' : ''">
+                            <td class="text-center">
+                                <input t-if="this.isSelectable(row)" type="checkbox" class="form-check-input"
+                                       t-att-checked="state.selected[row.product_id]"
+                                       t-on-click="() => this.toggleRow(row)"/>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-truncate" style="max-width:300px;" t-esc="row.name"/>
+                                <div class="text-muted" style="font-size:11px;" t-esc="row.code"/>
+                            </td>
+                            <td><span class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/></td>
+                            <t t-foreach="cols" t-as="c" t-key="c.key">
+                                <td t-att-class="c.key === 'suggested_qty' and row.suggested_qty > 0 ? 'text-end o_needs_fab text-success' : 'text-end'"
+                                    t-esc="this.f(row[c.key])"/>
+                            </t>
+                            <td class="text-muted text-truncate" style="max-width:120px; font-size:12px;" t-esc="row.machine"/>
+                            <td class="text-end" t-esc="this.f(row.min_per_shift)"/>
+                            <td>
+                                <span class="badge rounded-pill" t-att-class="this.stateClass(row.state)"
+                                      t-att-title="row.state_reason" t-esc="row.state"/>
+                            </td>
+                            <td class="text-center">
+                                <button t-if="this.isSelectable(row)"
+                                        class="btn btn-success rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                                        style="width:28px; height:28px;"
+                                        t-on-click="() => this.generateRow(row)"
+                                        t-att-disabled="state.generating"
+                                        title="Generar la OF de este artículo">
+                                    <i class="fa fa-play" style="font-size:10px;"/>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr t-if="!visibleRows.length">
+                            <td colspan="99" class="text-center text-muted py-5">
+                                <i class="fa fa-inbox fa-2x d-block mb-2 opacity-50"/>
+                                Sin artículos para los filtros seleccionados.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
     </div>

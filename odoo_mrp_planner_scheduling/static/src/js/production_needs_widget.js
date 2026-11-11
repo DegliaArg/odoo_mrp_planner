@@ -152,7 +152,10 @@ export class ProductionNeedsWidget extends Component {
     }
 
     // ── Selección ───────────────────────────────────────────────────────────
-    isSelectable(row) { return (row.suggested_qty || 0) > 0; }
+    // Sólo se puede disparar OF cuando corresponde: estado PROGRAMAR
+    // (hay necesidad, es producción interna y tiene máquina + mínimo definidos).
+    isSelectable(row) { return (row.state || "").includes("PROGRAMAR"); }
+    get hasSelectable() { return this.visibleRows.some(r => this.isSelectable(r)); }
     toggleRow(row) {
         if (!this.isSelectable(row)) return;
         if (this.state.selected[row.product_id]) delete this.state.selected[row.product_id];

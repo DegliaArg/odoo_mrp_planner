@@ -1,6 +1,6 @@
 {
     'name': 'Planificación',
-    'version': '18.0.6.2.0',
+    'version': '18.0.6.3.0',
     'summary': 'Programación desde demanda y reprogramación en cascada para el módulo KPIs',
     'description': """
 Extensión de programación del módulo KPIs de Deglia.
@@ -42,6 +42,7 @@ qué usuarios ven los botones y KPIs asociados.
         'web.assets_backend': [
             'odoo_mrp_planner_scheduling/static/src/js/scheduling_toggle_widget.js',
             'odoo_mrp_planner_scheduling/static/src/xml/scheduling_toggle_widget.xml',
+            'odoo_mrp_planner_scheduling/static/src/scss/production_needs.scss',
             'odoo_mrp_planner_scheduling/static/src/js/production_needs_widget.js',
             'odoo_mrp_planner_scheduling/static/src/xml/production_needs_widget.xml',
         ],

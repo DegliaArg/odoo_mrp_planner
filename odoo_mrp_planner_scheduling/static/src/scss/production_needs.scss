@@ -1,0 +1,53 @@
+// Estética del panel de Planificación (Panel 1) — look de dashboard, no de Excel:
+// sin grilla, header suave y fijo, filas aireadas con hover y separador sutil.
+.o_production_needs_widget {
+
+    .o_needs_table {
+        border-collapse: separate;
+        border-spacing: 0;
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: var(--bs-body-bg, #fff);
+            border: 0;
+            border-bottom: 2px solid var(--bs-border-color, #dee2e6);
+            padding: .55rem .65rem;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            color: var(--bs-secondary-color, #6c757d);
+            white-space: nowrap;
+            user-select: none;
+
+            i { opacity: .5; }
+        }
+
+        tbody td {
+            padding: .5rem .65rem;
+            border: 0;
+            border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, .06));
+            vertical-align: middle;
+        }
+
+        tbody tr:last-child td { border-bottom: 0; }
+
+        tbody tr {
+            transition: background-color .1s ease;
+            &:hover { background: var(--bs-tertiary-bg, #f8f9fa); }
+            &.o_row_selected { background: var(--bs-primary-bg-subtle, #cfe2ff); }
+        }
+
+        // Columna "A fabricar" destacada
+        .o_needs_fab { font-weight: 700; }
+    }
+
+    // Cards KPI: cursor y realce al pasar
+    .o_planner_kpi_card_lg[role="button"] {
+        cursor: pointer;
+        transition: box-shadow .12s ease, transform .12s ease;
+        &:hover { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .08); transform: translateY(-1px); }
+    }
+}

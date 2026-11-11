@@ -2,31 +2,32 @@
 <templates xml:space="preserve">
 
 <t t-name="odoo_mrp_planner_scheduling.ProductionNeedsWidget">
-    <div class="o_planner_needs w-100">
+    <div class="o_production_needs_widget">
 
-        <!-- ── Filtros ────────────────────────────────────────────────────── -->
-        <div class="row g-2 align-items-end mb-3">
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-0">Mes a programar</label>
-                <input type="date" class="form-control form-control-sm"
+        <!-- ════ Barra de controles (una fila, estilo KPIs) ════ -->
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Mes a programar</label>
+                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
                        t-att-value="state.targetMonth"
                        t-on-change="(ev) => this.onFilterChange('targetMonth', ev)"/>
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-0">Promedio desde</label>
-                <input type="date" class="form-control form-control-sm"
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Promedio desde</label>
+                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
                        t-att-value="state.dateFrom"
                        t-on-change="(ev) => this.onFilterChange('dateFrom', ev)"/>
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-0">hasta</label>
-                <input type="date" class="form-control form-control-sm"
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">hasta</label>
+                <input type="date" class="form-control form-control-sm" style="max-width:150px;"
                        t-att-value="state.dateTo"
                        t-on-change="(ev) => this.onFilterChange('dateTo', ev)"/>
             </div>
-            <div class="col-auto">
-                <label class="form-label small text-muted mb-0">Almacén</label>
-                <select class="form-select form-select-sm" t-on-change="(ev) => this.onWarehouseChange(ev)">
+            <div class="d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-muted">Almacén</label>
+                <select class="form-select form-select-sm" style="max-width:170px;"
+                        t-on-change="(ev) => this.onWarehouseChange(ev)">
                     <option value="">Todos</option>
                     <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
                         <option t-att-value="wh.id" t-att-selected="state.warehouseId === wh.id">
@@ -35,76 +36,94 @@
                     </t>
                 </select>
             </div>
-            <div class="col">
-                <label class="form-label small text-muted mb-0">Buscar</label>
+            <div class="d-flex align-items-center gap-1 flex-grow-1" style="min-width:180px;">
+                <i class="fa fa-search text-muted"/>
                 <input type="text" class="form-control form-control-sm"
-                       placeholder="Código o descripción…"
+                       placeholder="Buscar código o descripción…"
                        t-att-value="state.search"
                        t-on-input="(ev) => { state.search = ev.target.value; }"/>
             </div>
-            <div class="col-auto">
-                <button class="btn btn-outline-primary btn-sm" t-on-click="() => this.load()"
-                        t-att-disabled="state.loading">
-                    <i class="fa fa-refresh me-1"/>Actualizar
-                </button>
+            <button class="btn btn-outline-primary btn-sm" t-on-click="() => this.load()"
+                    t-att-disabled="state.loading">
+                <i class="fa fa-refresh me-1"/>Actualizar
+            </button>
+        </div>
+
+        <!-- ════ Cards KPI (fila de 5, estilo paneles) ════ -->
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
+                     t-att-class="state.stateFilter === 'all' ? 'border-primary' : ''"
+                     t-on-click="() => this.setStateFilter('all')"
+                     title="Total de artículos analizados (vendibles o con forecast en la ventana).">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.total)" t-esc="state.kpis.total || 0"/>
+                        <div class="o_planner_label">Artículos</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
+                     t-att-class="state.stateFilter === 'programar' ? 'border-success' : ''"
+                     t-on-click="() => this.setStateFilter('programar')"
+                     title="Artículos listos para disparar la OF (estado PROGRAMAR).">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <i class="fa fa-cogs fa-lg text-success mb-1 d-block"/>
+                        <div class="o_planner_number text-success" t-esc="state.kpis.a_programar || 0"/>
+                        <div class="o_planner_label">A programar</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
+                     t-att-class="state.stateFilter === 'necesidad' ? 'border-primary' : ''"
+                     t-on-click="() => this.setStateFilter('necesidad')"
+                     title="Artículos cuya posición de stock no alcanza el stock objetivo (necesidad neta > 0).">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <i class="fa fa-exclamation-triangle fa-lg text-secondary mb-1 d-block"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.con_necesidad)" t-esc="state.kpis.con_necesidad || 0"/>
+                        <div class="o_planner_label">Con necesidad</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                <div class="card o_planner_card o_planner_kpi_card_lg h-100"
+                     title="Suma de unidades sugeridas a fabricar (sólo producción interna).">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.necesidad_fabricacion)"
+                             t-esc="this.f(state.kpis.necesidad_fabricacion)"/>
+                        <div class="o_planner_label">Necesidad a fabricar (u.)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-fill" style="min-width:0; flex-basis:0;">
+                <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
+                     t-att-class="state.stateFilter === 'revisar' ? 'border-warning' : ''"
+                     t-on-click="() => this.setStateFilter('revisar')"
+                     title="Artículos que requieren revisión de datos (origen, máquina, mínimo, cantidad).">
+                    <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
+                        <i class="fa fa-wrench fa-lg text-warning mb-1 d-block"/>
+                        <div class="o_planner_number text-warning" t-esc="state.kpis.a_revisar || 0"/>
+                        <div class="o_planner_label">A revisar</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- ── KPIs ───────────────────────────────────────────────────────── -->
-        <div class="row g-2 mb-3">
-            <div class="col">
-                <div class="card h-100 o_planner_kpi" role="button"
-                     t-on-click="() => this.setStateFilter('all')">
-                    <div class="card-body py-2">
-                        <div class="small text-muted">Artículos</div>
-                        <div class="h4 mb-0" t-esc="state.kpis.total || 0"/>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card h-100 o_planner_kpi" role="button"
-                     t-on-click="() => this.setStateFilter('programar')">
-                    <div class="card-body py-2">
-                        <div class="small text-muted">A programar</div>
-                        <div class="h4 mb-0 text-success" t-esc="state.kpis.a_programar || 0"/>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card h-100 o_planner_kpi" role="button"
-                     t-on-click="() => this.setStateFilter('necesidad')">
-                    <div class="card-body py-2">
-                        <div class="small text-muted">Con necesidad</div>
-                        <div class="h4 mb-0" t-esc="state.kpis.con_necesidad || 0"/>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card h-100 o_planner_kpi">
-                    <div class="card-body py-2">
-                        <div class="small text-muted">Necesidad a fabricar (u.)</div>
-                        <div class="h4 mb-0" t-esc="this.f(state.kpis.necesidad_fabricacion)"/>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card h-100 o_planner_kpi" role="button"
-                     t-on-click="() => this.setStateFilter('revisar')">
-                    <div class="card-body py-2">
-                        <div class="small text-muted">A revisar</div>
-                        <div class="h4 mb-0 text-warning" t-esc="state.kpis.a_revisar || 0"/>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ── Barra de acción / estado del filtro ────────────────────────── -->
+        <!-- ════ Título de sección + acciones ════ -->
         <div class="d-flex align-items-center mb-2 gap-2">
-            <span class="badge text-bg-light border" t-if="state.stateFilter !== 'all'">
-                Filtro: <t t-esc="state.stateFilter"/>
+            <div class="o_planner_section_title">
+                <i class="fa fa-list-alt me-2 text-muted"/>
+                <span class="text-uppercase fw-bold text-muted small">Necesidades por artículo</span>
+            </div>
+            <span t-if="state.stateFilter !== 'all'" class="badge text-bg-light border">
+                <t t-esc="state.stateFilter"/>
                 <i class="fa fa-times ms-1" role="button" t-on-click="() => this.setStateFilter('all')"/>
             </span>
-            <span class="text-muted small" t-esc="'Ventana: ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
+            <span class="text-muted small ms-1"
+                  t-esc="'Ventana ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
             <div class="ms-auto">
                 <button class="btn btn-success btn-sm" t-if="selectedCount > 0"
                         t-on-click="() => this.generateSelected()"
@@ -114,57 +133,65 @@
             </div>
         </div>
 
-        <!-- ── Tabla ──────────────────────────────────────────────────────── -->
-        <div t-if="state.loading" class="text-center text-muted py-4">
-            <i class="fa fa-spinner fa-spin me-2"/>Calculando…
+        <!-- ════ Tabla ════ -->
+        <div t-if="state.loading" class="text-center text-muted py-5">
+            <i class="fa fa-spinner fa-spin me-2"/>Calculando necesidades…
         </div>
-        <div t-else="" class="table-responsive">
-            <table class="table table-sm table-hover align-middle o_planner_table">
-                <thead>
+        <div t-else="" class="border rounded" style="max-height:68vh; overflow-y:auto;">
+            <table class="table table-sm table-bordered mb-0 align-middle"
+                   style="font-size:12px; width:100%;">
+                <thead style="position:sticky; top:0; z-index:3;">
                     <tr>
-                        <th style="width:28px;">
+                        <th class="text-center" style="width:28px; background:var(--bs-tertiary-bg, #f8f9fa);">
                             <input type="checkbox" class="form-check-input"
                                    t-att-checked="selectedCount > 0"
                                    t-on-click="() => this.toggleAll()"/>
                         </th>
-                        <th role="button" t-on-click="() => this.sortBy('name')">Artículo</th>
-                        <th>Origen</th>
+                        <th style="cursor:pointer; background:var(--bs-tertiary-bg, #f8f9fa);"
+                            t-on-click="() => this.sortBy('name')">
+                            Artículo<i t-att-class="sortIcon('name')"/>
+                        </th>
+                        <th style="background:var(--bs-tertiary-bg, #f8f9fa);">Origen</th>
                         <t t-foreach="cols" t-as="c" t-key="c.key">
-                            <th class="text-end" role="button" t-att-title="c.title"
-                                t-on-click="() => this.sortBy(c.key)">
-                                <t t-esc="c.label"/>
+                            <th class="text-end" style="cursor:pointer; white-space:nowrap; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
+                                <t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/>
                             </th>
                         </t>
-                        <th>Máquina</th>
-                        <th class="text-end">Mín/turno</th>
-                        <th role="button" t-on-click="() => this.sortBy('state')">Estado</th>
-                        <th class="text-center">Acción</th>
+                        <th style="background:var(--bs-tertiary-bg, #f8f9fa);">Máquina</th>
+                        <th class="text-end" style="background:var(--bs-tertiary-bg, #f8f9fa);">Mín/turno</th>
+                        <th style="cursor:pointer; background:var(--bs-tertiary-bg, #f8f9fa);"
+                            t-on-click="() => this.sortBy('state')">
+                            Estado<i t-att-class="sortIcon('state')"/>
+                        </th>
+                        <th class="text-center" style="width:52px; background:var(--bs-tertiary-bg, #f8f9fa);">OF</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id">
-                        <td>
+                    <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id"
+                        t-att-class="state.selected[row.product_id] ? 'table-active' : ''">
+                        <td class="text-center">
                             <input type="checkbox" class="form-check-input"
                                    t-att-disabled="!this.isSelectable(row)"
                                    t-att-checked="state.selected[row.product_id]"
                                    t-on-click="() => this.toggleRow(row)"/>
                         </td>
                         <td>
-                            <div class="fw-semibold" t-esc="row.name"/>
+                            <div class="fw-semibold text-truncate" style="max-width:280px;" t-esc="row.name"/>
                             <div class="small text-muted" t-esc="row.code"/>
                         </td>
-                        <td><span class="small" t-esc="row.origin"/></td>
+                        <td><span class="small text-muted" t-esc="row.origin"/></td>
                         <t t-foreach="cols" t-as="c" t-key="c.key">
                             <td class="text-end" t-esc="this.f(row[c.key])"/>
                         </t>
-                        <td class="small" t-esc="row.machine"/>
+                        <td class="small text-muted text-truncate" style="max-width:110px;" t-esc="row.machine"/>
                         <td class="text-end" t-esc="this.f(row.min_per_shift)"/>
                         <td>
-                            <span class="badge" t-att-class="this.stateClass(row.state)"
+                            <span class="badge rounded-pill" t-att-class="this.stateClass(row.state)"
                                   t-att-title="row.state_reason" t-esc="row.state"/>
                         </td>
                         <td class="text-center">
-                            <button class="btn btn-outline-success btn-sm py-0"
+                            <button class="btn btn-outline-success btn-sm py-0 px-1"
                                     t-if="this.isSelectable(row)"
                                     t-on-click="() => this.generateRow(row)"
                                     t-att-disabled="state.generating"
@@ -174,7 +201,8 @@
                         </td>
                     </tr>
                     <tr t-if="!visibleRows.length">
-                        <td colspan="99" class="text-center text-muted py-4">
+                        <td colspan="99" class="text-center text-muted py-5">
+                            <i class="fa fa-inbox fa-2x d-block mb-2 opacity-50"/>
                             Sin artículos para los filtros seleccionados.
                         </td>
                     </tr>

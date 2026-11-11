@@ -248,7 +248,7 @@ class MrpProductionNeeds(models.TransientModel):
         rec = self.create({})
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Necesidades de producción'),
+            'name': _('Planificación'),
             'res_model': 'mrp.production.needs',
             'res_id': rec.id,
             'view_mode': 'form',

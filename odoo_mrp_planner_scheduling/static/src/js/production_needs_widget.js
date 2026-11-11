@@ -21,7 +21,7 @@
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { fmt } from "@odoo_mrp_planner/js/forecast_formatters";
+import { fmt, kpiNumClass } from "@odoo_mrp_planner/js/forecast_formatters";
 
 function toDateStr(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -145,6 +145,12 @@ export class ProductionNeedsWidget extends Component {
 
     // ── Formateo / estilos ──────────────────────────────────────────────────
     f(n) { return n == null ? "—" : fmt(n); }
+    kpiCls(n) { return kpiNumClass(fmt(n)); }
+
+    sortIcon(col) {
+        if (this.state.sortCol !== col) return "fa fa-sort text-muted opacity-50 ms-1";
+        return this.state.sortDir === "asc" ? "fa fa-sort-up ms-1" : "fa fa-sort-down ms-1";
+    }
 
     stateClass(state) {
         const s = state || "";

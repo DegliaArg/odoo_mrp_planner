@@ -140,3 +140,69 @@ no se gasta esfuerzo en demolición prematura y no se pierde lógica reusable.
 - Vulcanizado: ¿sólo informativo o interviene en el encadenado de OF de semiterminados?
 - Factor 1.4 (PARAMETROS) vs 1.3 (texto PUNTO_PEDIDO) vs 2.3 (spec): se parametriza; confirmar
   el valor vigente al cargar.
+
+---
+
+## 8. Estado de avance (2026-11-11)
+
+### 8.1 Construido y pusheado a `18.0-dev` (módulo `odoo_mrp_planner_scheduling`)
+
+- **v18.0.6.0.0** — Motor `mrp.production.needs` (TransientModel, `get_needs_data`), disparo
+  `action_generate_mo`, parámetros en `mrp.reschedule.config` (`safety_factor`,
+  `planning_warehouse_id`, `manufacturing_type_id`), campo `min_per_shift` en
+  `mrp.product.workcenter`, panel OWL `production_needs_widget` + menú, cascada aparcada.
+- **v18.0.6.1.0** — Renombre a "Planificación" + estética estilo paneles KPI.
+- **v18.0.6.2.0** — Sin filtro de almacén (usa el de config = Depósito despacho); OF con la
+  operación de Fabricación del almacén de config y fecha = primer día del mes a programar;
+  `display_name` del panel; se retira de la UI la config vieja de la cascada; menú
+  "Programaciones" aparcado también.
+- **v18.0.6.3.0** — Tabla con look de dashboard (SCSS `production_needs.scss`, sin grilla,
+  header fijo suave, hover, "A fabricar" resaltada); botón "Generar OF" (redondo, sutil) y
+  checkbox **sólo en filas PROGRAMAR**.
+
+### 8.2 Cargado en staging (vía API; `scripts_tmp/load/odoo_load.js`, Node+JSON-RPC)
+
+Staging `deglia-capemi-test-41165138`. `default_code` = "Código Odoo" (match 200/200).
+- **Tipos de origen**: 7 `mrp.product.type` + 1.618 productos asignados. "Producción Interna" = id 2.
+- **Config**: `manufacturing_type_id`=2, `safety_factor`=1.4, `planning_warehouse_id`=Depósito
+  despacho (id 40, empresa Fábrica). Giacomelli sólo tipo+factor.
+- **Forecast**: ya estaba (12.654 líneas, 2026-07 → 2026-12). No se tocó.
+- **Mínimo por turno (PROVISORIO/falopa)**: 695 `mrp.product.workcenter` con máquina
+  placeholder **RUTIL 202** + el mínimo del Excel (a nivel final). Hace que ~77 filas lleguen a
+  PROGRAMAR para validar el flujo. **Se pisa con el Excel bueno** (máquina+mínimo reales por
+  vulcanizado); hay que limpiar estos placeholders antes.
+- Comandos del loader: `verify | fcrange | whlist | struct <suf> | origin | minload | config | test`.
+- Validación motor (mes 2026-12, ventana jul–dic): 2.303 artículos, 740 con necesidad, 77 PROGRAMAR.
+
+### 8.3 Modelo VULCANIZADO (confirmado, PENDIENTE de implementar)
+
+- Pieza final y semiterminados por sector = productos distintos encadenados por BOM multinivel.
+  Comparten (aprox.) los últimos 5 dígitos; el prefijo cambia por sector y **NO es constante**
+  (vulcanizado visto con prefijos 10105, 01105, 10205…). Ejemplo en vivo (72550):
+  `001072550` (final) → `101070072550` (TF) → `101060072550` (CEP) →
+  **`101050072550` (VL = vulcanizado) @ CHAP 220**.
+- **Reglas confirmadas por el usuario**:
+  1. Necesidad, cantidad a fabricar, forecast y **stock = SIEMPRE la pieza TERMINADA** (final),
+     con `virtual_available` en Depósito despacho.
+  2. **SÓLO la máquina y el mínimo por turno son a nivel VULCANIZADO** (mapear final→vulcanizado
+     y leer el centro preferido + `min_per_shift` del vulcanizado).
+  3. El disparo sigue siendo la OF de la pieza final (Odoo baja por BOM).
+  4. **Finales distintos pueden compartir el mismo vulcanizado** (muchos-a-uno); por eso hay que
+     traer/mostrar la **categoría ABC VL** (ABC del vulcanizado) además de la ABC de venta.
+- Identificación final↔vulcanizado: por la **BOM** (en vivo), una vez que esté la regla de
+  codificación. Alternativa: BD_VULCANIZADO (641/907 PT mapeados).
+
+### 8.4 Pendiente del usuario (NO adivinar — lo pasa, probablemente mañana)
+
+1. **Excel de codificación** → regla para identificar el vulcanizado de cada final por la BOM.
+2. **Excel bueno de máquinas/mínimos** (COMPLETA) → máquina + mínimo por turno reales, a nivel
+   vulcanizado (reemplaza los 695 placeholders).
+3. **Fórmula nueva de "cantidad a fabricar"** → el usuario la cambió; se toma del Excel, no se infiere.
+
+### 8.5 Próximos pasos al retomar
+
+1. Con el Excel de codificación: implementar en el motor el mapeo final→vulcanizado por BOM y
+   leer de ahí máquina + mínimo por turno + ABC VL.
+2. Limpiar los 695 placeholders y cargar máquina+mínimo reales por vulcanizado.
+3. Implementar la fórmula nueva de cantidad a fabricar.
+4. Redeploy + validar en staging (ventana jul–dic 2026, mes dic).

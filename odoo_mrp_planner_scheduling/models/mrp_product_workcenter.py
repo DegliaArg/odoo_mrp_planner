@@ -39,6 +39,13 @@ class MrpProductWorkcenter(models.Model):
         help='Indica el centro de trabajo que se usará por defecto al planificar '
              'órdenes de producción para este producto. Solo puede haber uno por producto.',
     )
+    min_per_shift = fields.Float(
+        string='Mínimo por turno',
+        help='Cantidad mínima a fabricar por turno de este producto en este centro de '
+             'trabajo. El motor de necesidades usa este valor como lote mínimo: la cantidad '
+             'sugerida a fabricar nunca será menor (salvo que no haya necesidad). '
+             'Se toma el valor del centro marcado como "Preferido".',
+    )
     active        = fields.Boolean(
         string='Activo', default=True,
         help='Si está desactivado, este centro no aparece en las planificaciones '

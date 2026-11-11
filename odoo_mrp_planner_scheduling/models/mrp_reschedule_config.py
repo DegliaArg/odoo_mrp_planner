@@ -55,6 +55,30 @@ class MrpRescheduleConfig(models.Model):
              'Puede generar reprogramaciones masivas en instalaciones con alta carga de CTs.',
     )
 
+    # ── Motor de necesidades (Panel 1) ───────────────────────────────────────
+
+    safety_factor = fields.Float(
+        string='Factor de stock de seguridad',
+        default=1.4,
+        help='Multiplica el promedio de forecast para obtener el stock de seguridad. '
+             'Stock objetivo = ROUNDUP(promedio × factor) + forecast del mes. '
+             'Valor de referencia del Excel: 1,4. Editable.',
+    )
+    planning_warehouse_id = fields.Many2one(
+        'stock.warehouse',
+        string='Almacén de planificación',
+        help='Almacén cuyo stock pronosticado (a la mano + entrante − saliente) usa el motor '
+             'de necesidades como posición de stock. Si se deja vacío se consideran todos los '
+             'almacenes de la empresa.',
+    )
+    manufacturing_type_id = fields.Many2one(
+        'mrp.product.type',
+        string='Tipo de origen "Producción interna"',
+        help='Tipo de producto (campo "Tipo de producto" del artículo) que identifica a los '
+             'artículos de producción interna. El motor sólo sugiere cantidad a fabricar para '
+             'los artículos cuyo origen es este tipo; el resto se considera compra-venta.',
+    )
+
     def _sync_scheduling_group(self, enabled):
         """Activa/desactiva los menús y el grupo de scheduling según el toggle.
 

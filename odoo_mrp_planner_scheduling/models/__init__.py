@@ -1,5 +1,6 @@
 from . import mrp_schedule_mixin
 from . import mrp_product_workcenter
+from . import mrp_production_needs
 from . import mrp_reschedule_config
 from . import mrp_reschedule_cascade_mixin
 from . import mrp_reschedule_plan

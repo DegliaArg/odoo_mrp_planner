@@ -380,11 +380,18 @@
               action="action_mrp_production_request"
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>
 
+    <!-- APARCADO (2026-11): el reprogramador en cascada se saca de la interfaz
+         mientras se construye el motor de necesidades (Panel 1). El código, la
+         acción (action_mrp_reschedule_plan) y los modelos quedan intactos; su
+         futuro se define al diseñar el motor de capacidad finita.
+         Ver docs/plan_panel1_motor_necesidades.md §5.1.
     <menuitem id="mrp_reschedule_menu_plans"
               name="Reprogramación"
               parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
               sequence="20"
               action="action_mrp_reschedule_plan"
               groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+    -->
+
 
 </odoo>

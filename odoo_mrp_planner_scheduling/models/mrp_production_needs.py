@@ -1,0 +1,323 @@
+"""
+Módulo: mrp_production_needs.py
+Modelo: mrp.production.needs (TransientModel)
+
+Motor de necesidades de producción — "Panel 1".
+
+Replica dentro de Odoo la hoja PLANIFICACION del Excel que hoy se usa a mano para
+decidir qué fabricar y cuánto. Para un mes a programar y una ventana de promedio de
+forecast, recorre los artículos relevantes y calcula por SKU:
+
+    Posición de stock (K)   = cantidad pronosticada (virtual_available) del almacén
+    Promedio forecast (L)   = SUM(forecast en ventana) / Nº FIJO de meses de la ventana
+    Forecast del mes (M)    = forecast del mes a programar
+    Stock de seguridad (N)  = ROUNDUP(L × factor)
+    Stock objetivo (O)      = N + M
+    Necesidad neta (P)      = MAX(0, ROUNDUP(O − K))
+    Cantidad a fabricar (Q) = 0 si no es producción interna; si P>0 → MAX(mínimo_turno, P)
+    Cobertura (R / S)       = K/L  y  (K+Q)/L   (en meses)
+    Estado (T)              = cascada de validaciones
+
+No crea órdenes ni modifica datos: devuelve filas calculadas para el panel. El disparo
+de la OF es una acción posterior, con aprobación humana.
+
+Ver docs/plan_panel1_motor_necesidades.md para el detalle y las decisiones.
+"""
+import math
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+
+class MrpProductionNeeds(models.TransientModel):
+    _name = 'mrp.production.needs'
+    _description = 'Motor de necesidades de producción (Panel 1)'
+
+    # Estados posibles (col T del Excel). Se exponen para que el panel pueda
+    # ofrecerlos como filtro sin recalcular.
+    STATE_REVISAR_ORIGEN = 'REVISAR ORIGEN'
+    STATE_SIN_FORECAST = 'SIN FORECAST'
+    STATE_NO_FABRICAR = 'NO FABRICAR'
+    STATE_STOCK_SUFICIENTE = 'STOCK SUFICIENTE'
+    STATE_PROGRAMAR = 'PROGRAMAR'
+
+    # ── API pública ───────────────────────────────────────────────────────────
+
+    @api.model
+    def get_needs_data(self, target_month, date_from, date_to, warehouse_id=None):
+        """Calcula las necesidades de producción para el panel.
+
+        :param target_month: fecha (string o date) del mes a programar. Se normaliza
+            al día 1 del mes.
+        :param date_from: fecha del primer mes incluido en el promedio de forecast.
+        :param date_to: fecha del último mes incluido en el promedio.
+        :param warehouse_id: almacén cuyo stock pronosticado se usa como posición.
+            Si es None se toma el de la configuración, y si tampoco hay, todos.
+        :returns: dict {'rows': [...], 'kpis': {...}, 'meta': {...}}
+        """
+        tm = fields.Date.to_date(target_month).replace(day=1)
+        df = fields.Date.to_date(date_from).replace(day=1)
+        dt = fields.Date.to_date(date_to).replace(day=1)
+        n_months = max(1, (dt.year - df.year) * 12 + (dt.month - df.month) + 1)
+
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        factor = cfg.safety_factor or 1.4
+        wh_id = warehouse_id or (cfg.planning_warehouse_id.id or False)
+        manuf_type_id = cfg.manufacturing_type_id.id or False
+        company = self.env.company
+
+        meta = {
+            'target_month': fields.Date.to_string(tm),
+            'date_from': fields.Date.to_string(df),
+            'date_to': fields.Date.to_string(dt),
+            'n_months': n_months,
+            'safety_factor': factor,
+            'warehouse_id': wh_id,
+            'manufacturing_type_set': bool(manuf_type_id),
+        }
+
+        # ── Forecast en ventana y en el mes (batch) ──────────────────────────
+        Forecast = self.env['mrp.forecast.line']
+        fc_company = [('company_id', '=', company.id)]
+        fc_window = {
+            g['product_id'][0]: (g['forecast_qty'] or 0.0)
+            for g in Forecast.read_group(
+                [('product_id', '!=', False), ('period', '>=', df), ('period', '<=', dt)] + fc_company,
+                ['product_id', 'forecast_qty:sum'], ['product_id'])
+            if g['product_id']
+        }
+        fc_month = {
+            g['product_id'][0]: (g['forecast_qty'] or 0.0)
+            for g in Forecast.read_group(
+                [('product_id', '!=', False), ('period', '=', tm)] + fc_company,
+                ['product_id', 'forecast_qty:sum'], ['product_id'])
+            if g['product_id']
+        }
+
+        # ── Universo de artículos relevantes ─────────────────────────────────
+        # Almacenables activos que son vendibles o que tienen forecast en la
+        # ventana (señal de planificación). Evita volcar materias primas sin uso.
+        Product = self.env['product.product']
+        storable = [('is_storable', '=', True)] if 'is_storable' in Product._fields \
+            else [('type', '=', 'product')]
+        base = [('active', '=', True)] + storable + \
+               ['|', ('company_id', '=', company.id), ('company_id', '=', False)]
+        sellable_ids = set(Product.search(base + [('sale_ok', '=', True)]).ids)
+        universe = sorted(sellable_ids | set(fc_window.keys()))
+        products = Product.browse(universe).exists()
+        if not products:
+            return {'rows': [], 'kpis': self._empty_kpis(), 'meta': meta}
+
+        # ── Posición de stock (virtual_available) por almacén ────────────────
+        scoped = products.with_context(warehouse=wh_id) if wh_id else products
+        stock_map = {p.id: (p.virtual_available or 0.0) for p in scoped}
+
+        # ── Maestro: tipo de origen y categoría ──────────────────────────────
+        templates = products.mapped('product_tmpl_id')
+        tmpl_type = {t.id: t.x_product_type_ids[:1] for t in templates}
+        tmpl_categ = {t.id: (t.categ_id.name or '') for t in templates}
+
+        # ── Máquina preferida + mínimo por turno (batch) ─────────────────────
+        pref = {}
+        for wc in self.env['mrp.product.workcenter'].search([
+            ('product_tmpl_id', 'in', templates.ids),
+            ('is_preferred', '=', True),
+            ('active', '=', True),
+        ]):
+            pref.setdefault(wc.product_tmpl_id.id,
+                            (wc.workcenter_id.display_name or '', wc.min_per_shift))
+
+        rows = []
+        for p in products:
+            tmpl_id = p.product_tmpl_id.id
+            origin = tmpl_type.get(tmpl_id)
+            origin_name = origin.name if origin else ''
+            is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+
+            K = stock_map.get(p.id, 0.0)
+            has_fc = p.id in fc_window
+            L = (fc_window[p.id] / n_months) if has_fc else None
+            M = fc_month.get(p.id, 0.0)
+
+            pw = pref.get(tmpl_id)
+            wc_name = pw[0] if pw else ''
+            min_shift = pw[1] if pw else None
+
+            if L is not None:
+                N = math.ceil(L * factor)
+                O = N + M
+                P = max(0, math.ceil(O - K))
+            else:
+                N = O = P = None
+
+            if is_manuf and P and P > 0:
+                Q = max(min_shift or 0.0, P)
+            else:
+                Q = 0.0
+
+            R = (K / L) if L else None
+            S = ((K + Q) / L) if L else None
+
+            state, reason = self._compute_state(origin, is_manuf, L, P, Q, wc_name, min_shift)
+
+            rows.append({
+                'product_id': p.id,
+                'product_tmpl_id': tmpl_id,
+                'code': p.default_code or '',
+                'name': p.display_name,
+                'origin': origin_name,
+                'categ': tmpl_categ.get(tmpl_id, ''),
+                'machine': wc_name,
+                'min_per_shift': min_shift,
+                'stock_position': K,
+                'avg_forecast': L,
+                'month_forecast': M,
+                'safety_stock': N,
+                'target_stock': O,
+                'net_need': P,
+                'suggested_qty': Q,
+                'coverage_now': R,
+                'coverage_plan': S,
+                'state': state,
+                'state_reason': reason,
+            })
+
+        return {'rows': rows, 'kpis': self._compute_kpis(rows), 'meta': meta}
+
+    # ── Lógica de estado (col T del Excel) ─────────────────────────────────────
+
+    def _compute_state(self, origin, is_manuf, L, P, Q, wc_name, min_shift):
+        """Reproduce la cascada de estado del Excel. Devuelve (estado, motivo)."""
+        if not origin:
+            return self.STATE_REVISAR_ORIGEN, 'El artículo no tiene tipo de origen asignado.'
+        if L is None:
+            return self.STATE_SIN_FORECAST, 'No hay forecast cargado en la ventana seleccionada.'
+        if not is_manuf:
+            return self.STATE_NO_FABRICAR, 'El origen no es producción interna (se repone por compra).'
+        if P is not None and P <= 0:
+            return self.STATE_STOCK_SUFICIENTE, 'La posición de stock cubre el stock objetivo.'
+
+        flags = []
+        if P and Q is not None and Q < L:
+            flags.append('REVISAR CANTIDAD')
+        if not wc_name:
+            flags.append('REVISAR MAQUINA')
+        if min_shift is None:
+            flags.append('REVISAR MINIMO')
+        if Q is not None and P is not None and Q > P:
+            flags.append('APLICA MINIMO')
+        if Q is not None and Q >= L and wc_name and min_shift is not None:
+            flags.append(self.STATE_PROGRAMAR)
+
+        if not flags:
+            return self.STATE_PROGRAMAR, 'Listo para programar.'
+        return ' | '.join(flags), 'Necesidad %s u.; revisar los puntos indicados.' % (
+            int(P) if P is not None else 0)
+
+    # ── KPIs superiores del panel ──────────────────────────────────────────────
+
+    def _compute_kpis(self, rows):
+        a_programar = sum(1 for r in rows if self.STATE_PROGRAMAR in (r['state'] or ''))
+        need_fab = sum((r['suggested_qty'] or 0.0) for r in rows)
+        a_revisar = sum(1 for r in rows if 'REVISAR' in (r['state'] or ''))
+        con_necesidad = sum(1 for r in rows if (r['net_need'] or 0) > 0)
+        return {
+            'total': len(rows),
+            'a_programar': a_programar,
+            'con_necesidad': con_necesidad,
+            'necesidad_fabricacion': round(need_fab, 2),
+            'a_revisar': a_revisar,
+        }
+
+    def _empty_kpis(self):
+        return {'total': 0, 'a_programar': 0, 'con_necesidad': 0,
+                'necesidad_fabricacion': 0.0, 'a_revisar': 0}
+
+    # ── Apertura del panel ──────────────────────────────────────────────────────
+
+    @api.model
+    def _ensure_scheduling_group(self):
+        """El panel es de Planificación: deja pasar al grupo de scheduling y admins."""
+        if not self.env['mrp.reschedule.config']._user_in_scheduling_group():
+            raise UserError(_('No tiene permisos para acceder al panel de planificación.'))
+
+    @api.model
+    def action_open_needs(self):
+        """Abre el Panel 1 (vista form sin barra de control, como los demás paneles)."""
+        self._ensure_scheduling_group()
+        rec = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Necesidades de producción'),
+            'res_model': 'mrp.production.needs',
+            'res_id': rec.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref(
+                'odoo_mrp_planner_scheduling.mrp_production_needs_form').id,
+            'target': 'main',
+            'flags': {'withControlPanel': False},
+        }
+
+    def action_refresh_needs(self):
+        return self.action_open_needs()
+
+    # ── Disparo de OF ───────────────────────────────────────────────────────────
+
+    @api.model
+    def action_generate_mo(self, items, warehouse_id=None):
+        """Crea y confirma una OF del producto final por cada ítem.
+
+        Decisión 7: se dispara 1 OF del producto terminado en el almacén elegido;
+        las OF/OC de los componentes las genera Odoo hacia atrás por las rutas de
+        abastecimiento (igual que el circuito actual). La OF queda confirmada pero
+        es responsabilidad del usuario revisarla/planificarla.
+
+        :param items: lista de dicts [{'product_id': int, 'qty': float}, ...]
+        :param warehouse_id: almacén destino; si None se usa el de configuración.
+        :returns: dict con notificación y nº de OF creadas.
+        """
+        self._ensure_scheduling_group()
+        items = [it for it in (items or []) if it.get('product_id') and (it.get('qty') or 0) > 0]
+        if not items:
+            raise UserError(_('No hay artículos con cantidad a fabricar para generar OF.'))
+
+        cfg = self.env['mrp.reschedule.config'].get_config()
+        wh_id = warehouse_id or (cfg.planning_warehouse_id.id or False)
+        warehouse = self.env['stock.warehouse'].browse(wh_id) if wh_id else \
+            self.env['stock.warehouse'].search(
+                [('company_id', '=', self.env.company.id)], limit=1)
+        picking_type = warehouse.manu_type_id if warehouse else False
+
+        Production = self.env['mrp.production']
+        created = Production.browse()
+        for it in items:
+            product = self.env['product.product'].browse(int(it['product_id']))
+            vals = {
+                'product_id': product.id,
+                'product_qty': float(it['qty']),
+                'product_uom_id': product.uom_id.id,
+                'company_id': self.env.company.id,
+            }
+            if picking_type:
+                vals['picking_type_id'] = picking_type.id
+            mo = Production.create(vals)
+            mo.action_confirm()
+            created |= mo
+
+        if len(created) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Orden de fabricación'),
+                'res_model': 'mrp.production',
+                'res_id': created.id,
+                'view_mode': 'form',
+                'target': 'current',
+            }
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Órdenes de fabricación generadas'),
+            'res_model': 'mrp.production',
+            'domain': [('id', 'in', created.ids)],
+            'view_mode': 'list,form',
+            'target': 'current',
+        }

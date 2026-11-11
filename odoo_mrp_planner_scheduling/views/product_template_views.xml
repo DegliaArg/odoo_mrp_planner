@@ -21,6 +21,7 @@
                                 <field name="sequence" widget="handle"/>
                                 <field name="workcenter_id" required="1"/>
                                 <field name="is_preferred"/>
+                                <field name="min_per_shift"/>
                                 <field name="active" widget="boolean_toggle"/>
                                 <field name="exclusion_reason" invisible="active"/>
                             </list>

@@ -53,6 +53,16 @@
                                    help="Incluye como dependientes las OFs que comparten centros de trabajo con la OF pivot, aunque no estén encadenadas por BOM. Útil en plantas con alta carga de CTs, pero puede generar reprogramaciones masivas."/>
                         </group>
 
+                        <group string="Motor de necesidades (planificación de producción)">
+                            <div class="text-muted small mb-2">
+                                Parámetros del cálculo de necesidades de producción: stock objetivo,
+                                almacén considerado y qué artículos son de producción interna.
+                            </div>
+                            <field name="safety_factor"/>
+                            <field name="planning_warehouse_id" options="{'no_create': True}"/>
+                            <field name="manufacturing_type_id" options="{'no_create': True}"/>
+                        </group>
+
                     </div>
 
                 </sheet>

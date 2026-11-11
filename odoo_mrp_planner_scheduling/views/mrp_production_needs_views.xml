@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Panel 1: Necesidades de producción ─────────────────────────────── -->
+    <record id="mrp_production_needs_form" model="ir.ui.view">
+        <field name="name">mrp.production.needs.form</field>
+        <field name="model">mrp.production.needs</field>
+        <field name="arch" type="xml">
+            <form string="Necesidades de producción" create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="o_planner_dashboard container-fluid p-4">
+
+                        <div class="row align-items-center mb-4 pb-3 o_planner_header">
+                            <div class="col">
+                                <h4 class="mb-0 fw-bold">Necesidades de producción</h4>
+                                <div class="text-muted small">
+                                    Qué fabricar y cuánto para cubrir el stock objetivo del mes.
+                                    La cantidad sugerida es una recomendación: la OF se genera con su aprobación.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="o_planner_section mb-4">
+                            <widget name="production_needs_widget"/>
+                        </div>
+
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción de servidor para abrir el panel ─────────────────────────── -->
+    <record id="action_mrp_production_needs_open" model="ir.actions.server">
+        <field name="name">Necesidades de producción</field>
+        <field name="model_id" ref="model_mrp_production_needs"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_needs()</field>
+    </record>
+
+    <!-- ── Menú: primer ítem del app Planificación ────────────────────────── -->
+    <menuitem id="mrp_production_needs_menu"
+              name="Necesidades de producción"
+              parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
+              sequence="1"
+              action="action_mrp_production_needs_open"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+
+</odoo>

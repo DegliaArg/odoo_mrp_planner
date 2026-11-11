@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+<t t-name="odoo_mrp_planner_scheduling.ProductionNeedsWidget">
+    <div class="o_planner_needs w-100">
+
+        <!-- ── Filtros ────────────────────────────────────────────────────── -->
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-0">Mes a programar</label>
+                <input type="date" class="form-control form-control-sm"
+                       t-att-value="state.targetMonth"
+                       t-on-change="(ev) => this.onFilterChange('targetMonth', ev)"/>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-0">Promedio desde</label>
+                <input type="date" class="form-control form-control-sm"
+                       t-att-value="state.dateFrom"
+                       t-on-change="(ev) => this.onFilterChange('dateFrom', ev)"/>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-0">hasta</label>
+                <input type="date" class="form-control form-control-sm"
+                       t-att-value="state.dateTo"
+                       t-on-change="(ev) => this.onFilterChange('dateTo', ev)"/>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-0">Almacén</label>
+                <select class="form-select form-select-sm" t-on-change="(ev) => this.onWarehouseChange(ev)">
+                    <option value="">Todos</option>
+                    <t t-foreach="state.warehouses" t-as="wh" t-key="wh.id">
+                        <option t-att-value="wh.id" t-att-selected="state.warehouseId === wh.id">
+                            <t t-esc="wh.name"/>
+                        </option>
+                    </t>
+                </select>
+            </div>
+            <div class="col">
+                <label class="form-label small text-muted mb-0">Buscar</label>
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="Código o descripción…"
+                       t-att-value="state.search"
+                       t-on-input="(ev) => { state.search = ev.target.value; }"/>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-primary btn-sm" t-on-click="() => this.load()"
+                        t-att-disabled="state.loading">
+                    <i class="fa fa-refresh me-1"/>Actualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- ── KPIs ───────────────────────────────────────────────────────── -->
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <div class="card h-100 o_planner_kpi" role="button"
+                     t-on-click="() => this.setStateFilter('all')">
+                    <div class="card-body py-2">
+                        <div class="small text-muted">Artículos</div>
+                        <div class="h4 mb-0" t-esc="state.kpis.total || 0"/>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 o_planner_kpi" role="button"
+                     t-on-click="() => this.setStateFilter('programar')">
+                    <div class="card-body py-2">
+                        <div class="small text-muted">A programar</div>
+                        <div class="h4 mb-0 text-success" t-esc="state.kpis.a_programar || 0"/>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 o_planner_kpi" role="button"
+                     t-on-click="() => this.setStateFilter('necesidad')">
+                    <div class="card-body py-2">
+                        <div class="small text-muted">Con necesidad</div>
+                        <div class="h4 mb-0" t-esc="state.kpis.con_necesidad || 0"/>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 o_planner_kpi">
+                    <div class="card-body py-2">
+                        <div class="small text-muted">Necesidad a fabricar (u.)</div>
+                        <div class="h4 mb-0" t-esc="this.f(state.kpis.necesidad_fabricacion)"/>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100 o_planner_kpi" role="button"
+                     t-on-click="() => this.setStateFilter('revisar')">
+                    <div class="card-body py-2">
+                        <div class="small text-muted">A revisar</div>
+                        <div class="h4 mb-0 text-warning" t-esc="state.kpis.a_revisar || 0"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Barra de acción / estado del filtro ────────────────────────── -->
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <span class="badge text-bg-light border" t-if="state.stateFilter !== 'all'">
+                Filtro: <t t-esc="state.stateFilter"/>
+                <i class="fa fa-times ms-1" role="button" t-on-click="() => this.setStateFilter('all')"/>
+            </span>
+            <span class="text-muted small" t-esc="'Ventana: ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
+            <div class="ms-auto">
+                <button class="btn btn-success btn-sm" t-if="selectedCount > 0"
+                        t-on-click="() => this.generateSelected()"
+                        t-att-disabled="state.generating">
+                    <i class="fa fa-cogs me-1"/>Generar OF (<t t-esc="selectedCount"/>)
+                </button>
+            </div>
+        </div>
+
+        <!-- ── Tabla ──────────────────────────────────────────────────────── -->
+        <div t-if="state.loading" class="text-center text-muted py-4">
+            <i class="fa fa-spinner fa-spin me-2"/>Calculando…
+        </div>
+        <div t-else="" class="table-responsive">
+            <table class="table table-sm table-hover align-middle o_planner_table">
+                <thead>
+                    <tr>
+                        <th style="width:28px;">
+                            <input type="checkbox" class="form-check-input"
+                                   t-att-checked="selectedCount > 0"
+                                   t-on-click="() => this.toggleAll()"/>
+                        </th>
+                        <th role="button" t-on-click="() => this.sortBy('name')">Artículo</th>
+                        <th>Origen</th>
+                        <t t-foreach="cols" t-as="c" t-key="c.key">
+                            <th class="text-end" role="button" t-att-title="c.title"
+                                t-on-click="() => this.sortBy(c.key)">
+                                <t t-esc="c.label"/>
+                            </th>
+                        </t>
+                        <th>Máquina</th>
+                        <th class="text-end">Mín/turno</th>
+                        <th role="button" t-on-click="() => this.sortBy('state')">Estado</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id">
+                        <td>
+                            <input type="checkbox" class="form-check-input"
+                                   t-att-disabled="!this.isSelectable(row)"
+                                   t-att-checked="state.selected[row.product_id]"
+                                   t-on-click="() => this.toggleRow(row)"/>
+                        </td>
+                        <td>
+                            <div class="fw-semibold" t-esc="row.name"/>
+                            <div class="small text-muted" t-esc="row.code"/>
+                        </td>
+                        <td><span class="small" t-esc="row.origin"/></td>
+                        <t t-foreach="cols" t-as="c" t-key="c.key">
+                            <td class="text-end" t-esc="this.f(row[c.key])"/>
+                        </t>
+                        <td class="small" t-esc="row.machine"/>
+                        <td class="text-end" t-esc="this.f(row.min_per_shift)"/>
+                        <td>
+                            <span class="badge" t-att-class="this.stateClass(row.state)"
+                                  t-att-title="row.state_reason" t-esc="row.state"/>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-outline-success btn-sm py-0"
+                                    t-if="this.isSelectable(row)"
+                                    t-on-click="() => this.generateRow(row)"
+                                    t-att-disabled="state.generating"
+                                    title="Generar la OF de este artículo">
+                                <i class="fa fa-cogs"/>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr t-if="!visibleRows.length">
+                        <td colspan="99" class="text-center text-muted py-4">
+                            Sin artículos para los filtros seleccionados.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</t>
+
+</templates>

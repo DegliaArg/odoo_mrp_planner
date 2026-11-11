@@ -58,16 +58,27 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         y lo pase como ``partner_ids`` a los métodos de análisis, para que la
         fusión "igual que en el análisis" también se dé ahí. Sin CUIT devuelve
         solo ``[partner_id]`` (los contactos sin CUIT nunca se unifican).
+
+        Los contactos del exterior tampoco se unifican: su CUIT es el "CUIT país"
+        que asigna ARCA por país (p. ej. varios clientes de EEUU comparten uno
+        solo por diseño), así que agruparlos mezclaría clientes distintos. Regla:
+        si el país del contacto está seteado y no es Argentina, queda solo.
         """
         partner_id = int(partner_id)
-        # sudo(): solo se leen ids+vat para reconstruir el grupo; el acceso real
-        # a los datos lo revalidan get_customer_analysis_data/get_customer_detail.
-        raw = self.env['res.partner'].sudo().browse(partner_id).vat or ''
+        # sudo(): solo se leen ids+vat+país para reconstruir el grupo; el acceso
+        # real a los datos lo revalidan get_customer_analysis_data/get_customer_detail.
+        base = self.env['res.partner'].sudo().browse(partner_id)
+        raw = base.vat or ''
         digits = ''.join(c for c in raw if c.isdigit())
-        if not digits:
+        # Exterior (país seteado ≠ AR) o sin CUIT → nunca se unifica.
+        if not digits or (base.country_id and base.country_id.code != 'AR'):
             return [partner_id]
+        # Candidatos: solo domésticos (AR o sin país seteado); el exterior
+        # comparte el CUIT país y no debe entrar al grupo.
         candidates = self.env['res.partner'].sudo().search_read(
-            [('vat', '!=', False)], ['id', 'vat'])
+            [('vat', '!=', False),
+             '|', ('country_id', '=', False), ('country_id.code', '=', 'AR')],
+            ['id', 'vat'])
         ids = [c['id'] for c in candidates
                if ''.join(ch for ch in (c['vat'] or '') if ch.isdigit()) == digits]
         return ids or [partner_id]
@@ -527,8 +538,19 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # nombre visible es la razón social de mayor facturación del período.
             # Se hace ANTES del ABC para que la segmentación aplique al unificado.
             if cfg.get('unify_by_vat'):
+                # Id de Argentina para discriminar exterior sin query por fila
+                # (partner_info trae country_id como [id, nombre], no el código).
+                _ar = self.env.ref('base.ar', raise_if_not_found=False)
+                _ar_id = _ar.id if _ar else None
+
                 def _vat_key(pid):
-                    vat = partner_info.get(pid, {}).get('vat') or ''
+                    info = partner_info.get(pid, {})
+                    country = info.get('country_id')  # [id, nombre] o False
+                    # Exterior (país seteado ≠ AR): el CUIT es el "CUIT país"
+                    # compartido por diseño → clave vacía, no se unifica.
+                    if country and _ar_id and country[0] != _ar_id:
+                        return ''
+                    vat = info.get('vat') or ''
                     return ''.join(ch for ch in vat if ch.isdigit())
 
                 by_vat  = defaultdict(list)

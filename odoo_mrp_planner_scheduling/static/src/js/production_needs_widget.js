@@ -95,6 +95,15 @@ export class ProductionNeedsWidget extends Component {
         this.load();
     }
     setStateFilter(f) { this.state.stateFilter = f; }
+    onStateFilterChange(ev) { this.state.stateFilter = ev.target.value || "all"; }
+
+    get stateOptions() {
+        const set = new Set();
+        for (const r of this.state.rows) {
+            for (const tok of (r.state || "").split(" | ")) if (tok) set.add(tok);
+        }
+        return [...set].sort();
+    }
 
     // ── Orden ───────────────────────────────────────────────────────────────
     sortBy(col) {
@@ -115,9 +124,10 @@ export class ProductionNeedsWidget extends Component {
                 (r.code || "").toLowerCase().includes(q));
         }
         const f = this.state.stateFilter;
-        if (f === "programar") rows = rows.filter(r => (r.state || "").includes("PROGRAMAR"));
-        else if (f === "revisar") rows = rows.filter(r => (r.state || "").includes("REVISAR"));
-        else if (f === "necesidad") rows = rows.filter(r => (r.net_need || 0) > 0);
+        if (f && f !== "all") {
+            if (f === "necesidad") rows = rows.filter(r => (r.net_need || 0) > 0);
+            else rows = rows.filter(r => (r.state || "").includes(f));
+        }
 
         const col = this.state.sortCol;
         const dir = this.state.sortDir === "asc" ? 1 : -1;
@@ -145,6 +155,7 @@ export class ProductionNeedsWidget extends Component {
     stateClass(state) {
         const s = state || "";
         if (s.includes("PROGRAMAR")) return "text-bg-success";
+        if (s === "ANALIZAR COBERTURA") return "text-bg-info";
         if (s === "STOCK SUFICIENTE") return "text-bg-light border";
         if (s === "NO FABRICAR") return "text-bg-secondary";
         if (s.includes("REVISAR") || s === "SIN FORECAST") return "text-bg-warning";

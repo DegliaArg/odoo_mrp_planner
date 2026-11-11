@@ -118,3 +118,23 @@ class ProductTemplate(models.Model):
         help='Lista de centros de trabajo habilitados para fabricar este producto. '
              'El centro marcado como "Preferido" se usa por defecto al planificar.',
     )
+    min_per_shift = fields.Float(
+        string='Mínimo por turno',
+        help='Cantidad mínima a fabricar por turno de este producto. El motor de '
+             'necesidades la usa como lote mínimo: la cantidad sugerida a fabricar nunca '
+             'será menor (salvo que no haya necesidad). Es un dato a nivel vulcanizado.',
+    )
+
+
+class MrpProductType(models.Model):
+    """Extiende el catálogo de tipos de producto con el lead time por origen,
+    usado por el motor de necesidades para calcular el stock objetivo."""
+
+    _inherit = 'mrp.product.type'
+
+    lead_time_days = fields.Integer(
+        string='Lead time (días)',
+        help='Plazo de reposición del origen, en días. El motor de necesidades lo usa '
+             'para incluir la demanda durante el lead time en el stock objetivo '
+             '(p. ej. Producción Interna 50, Compra-Venta Nacional 30, importado 120).',
+    )

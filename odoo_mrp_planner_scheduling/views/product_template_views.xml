@@ -15,13 +15,15 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Planificador" name="mrp_planner_tab"
                       invisible="not mrp_enable_scheduling">
-                    <group string="Centros de trabajo">
+                    <group string="Planificación">
+                        <field name="min_per_shift"/>
+                    </group>
+                    <group string="Centros de trabajo (máquina preferida)">
                         <field name="x_centros_compatibles" nolabel="1">
                             <list editable="bottom">
                                 <field name="sequence" widget="handle"/>
                                 <field name="workcenter_id" required="1"/>
                                 <field name="is_preferred"/>
-                                <field name="min_per_shift"/>
                                 <field name="active" widget="boolean_toggle"/>
                                 <field name="exclusion_reason" invisible="active"/>
                             </list>

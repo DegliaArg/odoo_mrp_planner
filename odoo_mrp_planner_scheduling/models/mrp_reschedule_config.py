@@ -59,10 +59,21 @@ class MrpRescheduleConfig(models.Model):
 
     safety_factor = fields.Float(
         string='Factor de stock de seguridad',
-        default=1.4,
-        help='Multiplica el promedio de forecast para obtener el stock de seguridad. '
-             'Stock objetivo = ROUNDUP(promedio × factor) + forecast del mes. '
-             'Valor de referencia del Excel: 1,4. Editable.',
+        default=0.3,
+        help='Multiplica el promedio de forecast para obtener el stock de seguridad '
+             '(stock de seguridad = ROUNDUP(promedio × factor)). Valor del modelo: 0,3. Editable.',
+    )
+    days_per_month = fields.Float(
+        string='Días promedio por mes',
+        default=30.4375,
+        help='Convierte el promedio de forecast mensual a demanda diaria para calcular '
+             'la demanda durante el lead time. Valor del modelo: 30,4375.',
+    )
+    coverage_threshold = fields.Float(
+        string='Umbral de cobertura con programa (meses)',
+        default=7.0,
+        help='Si la cobertura con programa supera este valor, el artículo se marca '
+             '"Analizar cobertura" en lugar de "Programar". Valor del modelo: 7 meses.',
     )
     planning_warehouse_id = fields.Many2one(
         'stock.warehouse',

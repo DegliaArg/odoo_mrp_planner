@@ -40,6 +40,7 @@ class MrpProductionNeeds(models.TransientModel):
     STATE_SIN_FORECAST = 'SIN FORECAST'
     STATE_NO_FABRICAR = 'NO FABRICAR'
     STATE_STOCK_SUFICIENTE = 'STOCK SUFICIENTE'
+    STATE_ANALIZAR_COBERTURA = 'ANALIZAR COBERTURA'
     STATE_PROGRAMAR = 'PROGRAMAR'
 
     def _compute_display_name(self):
@@ -68,7 +69,9 @@ class MrpProductionNeeds(models.TransientModel):
         n_months = max(1, (dt.year - df.year) * 12 + (dt.month - df.month) + 1)
 
         cfg = self.env['mrp.reschedule.config'].get_config()
-        factor = cfg.safety_factor or 1.4
+        factor = cfg.safety_factor or 0.3
+        days_per_month = cfg.days_per_month or 30.4375
+        coverage_threshold = cfg.coverage_threshold or 0.0
         # None = no se pasó (usar config); False = "Todos" explícito desde el panel
         wh_id = warehouse_id if warehouse_id is not None else (cfg.planning_warehouse_id.id or False)
         manuf_type_id = cfg.manufacturing_type_id.id or False
@@ -80,6 +83,7 @@ class MrpProductionNeeds(models.TransientModel):
             'date_to': fields.Date.to_string(dt),
             'n_months': n_months,
             'safety_factor': factor,
+            'coverage_threshold': coverage_threshold,
             'warehouse_id': wh_id,
             'warehouse_name': self.env['stock.warehouse'].browse(wh_id).display_name
                 if wh_id else _('Todos los almacenes'),
@@ -122,20 +126,25 @@ class MrpProductionNeeds(models.TransientModel):
         scoped = products.with_context(warehouse=wh_id) if wh_id else products
         stock_map = {p.id: (p.virtual_available or 0.0) for p in scoped}
 
-        # ── Maestro: tipo de origen y categoría ──────────────────────────────
+        # ── Maestro: tipo de origen, categoría, mínimo por turno ──────────────
         templates = products.mapped('product_tmpl_id')
         tmpl_type = {t.id: t.x_product_type_ids[:1] for t in templates}
         tmpl_categ = {t.id: (t.categ_id.name or '') for t in templates}
+        tmpl_min = {t.id: (t.min_per_shift or 0.0) for t in templates}
 
-        # ── Máquina preferida + mínimo por turno (batch) ─────────────────────
+        # Lead time por origen (mrp.product.type.lead_time_days)
+        origin_ids = list({o.id for o in tmpl_type.values() if o})
+        lead_map = {t.id: (t.lead_time_days or 0)
+                    for t in self.env['mrp.product.type'].browse(origin_ids)}
+
+        # ── Máquina preferida (sólo informativa; ya no es obligatoria) ────────
         pref = {}
         for wc in self.env['mrp.product.workcenter'].search([
             ('product_tmpl_id', 'in', templates.ids),
             ('is_preferred', '=', True),
             ('active', '=', True),
         ]):
-            pref.setdefault(wc.product_tmpl_id.id,
-                            (wc.workcenter_id.display_name or '', wc.min_per_shift))
+            pref.setdefault(wc.product_tmpl_id.id, wc.workcenter_id.display_name or '')
 
         rows = []
         for p in products:
@@ -143,22 +152,24 @@ class MrpProductionNeeds(models.TransientModel):
             origin = tmpl_type.get(tmpl_id)
             origin_name = origin.name if origin else ''
             is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+            lead_days = lead_map.get(origin.id, 0) if origin else 0
 
             K = stock_map.get(p.id, 0.0)
             has_fc = p.id in fc_window
             L = (fc_window[p.id] / n_months) if has_fc else None
             M = fc_month.get(p.id, 0.0)
 
-            pw = pref.get(tmpl_id)
-            wc_name = pw[0] if pw else ''
-            min_shift = pw[1] if pw else None
+            wc_name = pref.get(tmpl_id, '')
+            mn = tmpl_min.get(tmpl_id) or 0.0
+            min_shift = mn if mn else None
 
-            if L is not None:
-                N = math.ceil(L * factor)
-                O = N + M
+            N = math.ceil(L * factor) if L is not None else None
+            # Stock objetivo = forecast del mes + demanda durante lead time + stock de seguridad
+            if L is not None and lead_days and lead_days > 0:
+                O = math.ceil(M + L * lead_days / days_per_month + N)
                 P = max(0, math.ceil(O - K))
             else:
-                N = O = P = None
+                O = P = None
 
             if is_manuf and P and P > 0:
                 Q = max(min_shift or 0.0, P)
@@ -168,7 +179,8 @@ class MrpProductionNeeds(models.TransientModel):
             R = (K / L) if L else None
             S = ((K + Q) / L) if L else None
 
-            state, reason = self._compute_state(origin, is_manuf, L, P, Q, wc_name, min_shift)
+            state, reason = self._compute_state(
+                origin, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold)
 
             rows.append({
                 'product_id': p.id,
@@ -196,27 +208,30 @@ class MrpProductionNeeds(models.TransientModel):
 
     # ── Lógica de estado (col T del Excel) ─────────────────────────────────────
 
-    def _compute_state(self, origin, is_manuf, L, P, Q, wc_name, min_shift):
-        """Reproduce la cascada de estado del Excel. Devuelve (estado, motivo)."""
+    def _compute_state(self, origin, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold):
+        """Cascada de estado del motor (Excel "Modelo Planificación"). Devuelve (estado, motivo)."""
         if not origin:
             return self.STATE_REVISAR_ORIGEN, 'El artículo no tiene tipo de origen asignado.'
         if L is None:
             return self.STATE_SIN_FORECAST, 'No hay forecast cargado en la ventana seleccionada.'
         if not is_manuf:
             return self.STATE_NO_FABRICAR, 'El origen no es producción interna (se repone por compra).'
+        if O is None:
+            return self.STATE_REVISAR_ORIGEN, 'Falta el lead time del origen para calcular el stock objetivo.'
         if P is not None and P <= 0:
             return self.STATE_STOCK_SUFICIENTE, 'La posición de stock cubre el stock objetivo.'
+        if Q and Q > 0 and S is not None and coverage_threshold and S > coverage_threshold:
+            return self.STATE_ANALIZAR_COBERTURA, (
+                'La cobertura con programa (%.1f meses) supera el umbral de %g.' % (S, coverage_threshold))
 
         flags = []
         if P and Q is not None and Q < L:
             flags.append('REVISAR CANTIDAD')
-        if not wc_name:
-            flags.append('REVISAR MAQUINA')
         if min_shift is None:
             flags.append('REVISAR MINIMO')
         if Q is not None and P is not None and Q > P:
             flags.append('APLICA MINIMO')
-        if Q is not None and Q >= L and wc_name and min_shift is not None:
+        if Q is not None and Q >= L and min_shift is not None:
             flags.append(self.STATE_PROGRAMAR)
 
         if not flags:

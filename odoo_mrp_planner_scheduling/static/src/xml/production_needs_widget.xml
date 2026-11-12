@@ -63,9 +63,9 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'PROGRAMAR' ? 'border-success' : ''"
-                     t-on-click="() => this.setStateFilter('PROGRAMAR')"
-                     title="Artículos listos para disparar la OF (estado PROGRAMAR).">
+                     t-att-class="state.stateFilter === 'Programar' ? 'border-success' : ''"
+                     t-on-click="() => this.setStateFilter('Programar')"
+                     title="Artículos listos para disparar la OF (estado Programar).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-cogs fa-lg text-success mb-1 d-block"/>
                         <div class="o_planner_number text-success" t-esc="state.kpis.a_programar || 0"/>
@@ -98,8 +98,8 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'REVISAR' ? 'border-warning' : ''"
-                     t-on-click="() => this.setStateFilter('REVISAR')"
+                     t-att-class="state.stateFilter === 'Revisar' ? 'border-warning' : ''"
+                     t-on-click="() => this.setStateFilter('Revisar')"
                      title="Artículos que requieren revisión de datos (origen, máquina, mínimo, cantidad).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-wrench fa-lg text-warning mb-1 d-block"/>

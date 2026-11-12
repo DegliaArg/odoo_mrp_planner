@@ -36,12 +36,12 @@ class MrpProductionNeeds(models.TransientModel):
 
     # Estados posibles (col T del Excel). Se exponen para que el panel pueda
     # ofrecerlos como filtro sin recalcular.
-    STATE_REVISAR_ORIGEN = 'REVISAR ORIGEN'
-    STATE_SIN_FORECAST = 'SIN FORECAST'
-    STATE_NO_FABRICAR = 'NO FABRICAR'
-    STATE_STOCK_SUFICIENTE = 'STOCK SUFICIENTE'
-    STATE_ANALIZAR_COBERTURA = 'ANALIZAR COBERTURA'
-    STATE_PROGRAMAR = 'PROGRAMAR'
+    STATE_REVISAR_ORIGEN = 'Revisar origen'
+    STATE_SIN_FORECAST = 'Sin forecast'
+    STATE_NO_FABRICAR = 'No fabricar'
+    STATE_STOCK_SUFICIENTE = 'Stock suficiente'
+    STATE_ANALIZAR_COBERTURA = 'Analizar cobertura'
+    STATE_PROGRAMAR = 'Programar'
 
     def _compute_display_name(self):
         """El panel es un TransientModel sin campo de nombre; sin esto el
@@ -226,11 +226,11 @@ class MrpProductionNeeds(models.TransientModel):
 
         flags = []
         if P and Q is not None and Q < L:
-            flags.append('REVISAR CANTIDAD')
+            flags.append('Revisar cantidad')
         if min_shift is None:
-            flags.append('REVISAR MINIMO')
+            flags.append('Revisar mínimo')
         if Q is not None and P is not None and Q > P:
-            flags.append('APLICA MINIMO')
+            flags.append('Aplica mínimo')
         if Q is not None and Q >= L and min_shift is not None:
             flags.append(self.STATE_PROGRAMAR)
 
@@ -244,7 +244,7 @@ class MrpProductionNeeds(models.TransientModel):
     def _compute_kpis(self, rows):
         a_programar = sum(1 for r in rows if self.STATE_PROGRAMAR in (r['state'] or ''))
         need_fab = sum((r['suggested_qty'] or 0.0) for r in rows)
-        a_revisar = sum(1 for r in rows if 'REVISAR' in (r['state'] or ''))
+        a_revisar = sum(1 for r in rows if 'Revisar' in (r['state'] or ''))
         con_necesidad = sum(1 for r in rows if (r['net_need'] or 0) > 0)
         return {
             'total': len(rows),

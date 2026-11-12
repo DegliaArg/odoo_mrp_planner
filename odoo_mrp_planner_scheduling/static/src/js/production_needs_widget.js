@@ -5,7 +5,7 @@
  *
  * Muestra, para un mes a programar y una ventana de promedio de forecast, la
  * necesidad neta y la cantidad sugerida a fabricar por artículo (replica la
- * hoja PLANIFICACION del Excel). Desde cada fila con estado "PROGRAMAR" (o la
+ * hoja PLANIFICACION del Excel). Desde cada fila con estado "Programar" (o la
  * selección múltiple) se dispara la OF del producto terminado; las OF/OC de los
  * componentes las genera Odoo hacia atrás por las rutas de abastecimiento.
  *
@@ -154,18 +154,18 @@ export class ProductionNeedsWidget extends Component {
 
     stateClass(state) {
         const s = state || "";
-        if (s.includes("PROGRAMAR")) return "text-bg-success";
-        if (s === "ANALIZAR COBERTURA") return "text-bg-info";
-        if (s === "STOCK SUFICIENTE") return "text-bg-light border";
-        if (s === "NO FABRICAR") return "text-bg-secondary";
-        if (s.includes("REVISAR") || s === "SIN FORECAST") return "text-bg-warning";
+        if (s.includes("Programar")) return "text-bg-success";
+        if (s === "Analizar cobertura") return "text-bg-info";
+        if (s === "Stock suficiente") return "text-bg-light border";
+        if (s === "No fabricar") return "text-bg-secondary";
+        if (s.includes("Revisar") || s === "Sin forecast") return "text-bg-warning";
         return "text-bg-light border";
     }
 
     // ── Selección ───────────────────────────────────────────────────────────
-    // Sólo se puede disparar OF cuando corresponde: estado PROGRAMAR
+    // Sólo se puede disparar OF cuando corresponde: estado Programar
     // (hay necesidad, es producción interna y tiene máquina + mínimo definidos).
-    isSelectable(row) { return (row.state || "").includes("PROGRAMAR"); }
+    isSelectable(row) { return (row.state || "").includes("Programar"); }
     get hasSelectable() { return this.visibleRows.some(r => this.isSelectable(r)); }
     toggleRow(row) {
         if (!this.isSelectable(row)) return;

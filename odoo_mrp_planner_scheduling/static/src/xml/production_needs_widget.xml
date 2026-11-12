@@ -87,7 +87,7 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100"
-                     title="Suma de unidades sugeridas a fabricar (sólo producción interna).">
+                     title="Suma de unidades sugeridas a fabricar (producción interna y compra-venta).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
                         <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.necesidad_fabricacion)"
@@ -165,11 +165,13 @@
                                     <div class="o_th_cell"><t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/></div>
                                 </th>
                             </t>
-                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
-                                <div class="o_th_cell">Máquina</div>
+                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                title="Producción interna: máquina preferida del vulcanizado. Compra-venta: proveedor preferido.">
+                                <div class="o_th_cell">Máquina / proveedor</div>
                             </th>
-                            <th class="text-end align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
-                                <div class="o_th_cell">Mínimo por turno</div>
+                            <th class="text-end align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                title="Lote mínimo. Producción interna: mínimo por turno del vulcanizado. Compra-venta: cantidad mínima del proveedor.">
+                                <div class="o_th_cell">Mínimo (lote)</div>
                             </th>
                             <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
                                 t-on-click="() => this.sortBy('state')">

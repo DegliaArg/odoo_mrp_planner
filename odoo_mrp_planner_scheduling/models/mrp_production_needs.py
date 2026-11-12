@@ -168,27 +168,55 @@ class MrpProductionNeeds(models.TransientModel):
         ]):
             pref.setdefault(wc.product_tmpl_id.id, wc.workcenter_id.display_name or '')
 
+        # ── Compra-venta: mínimo y lead time del proveedor preferido ──────────
+        # Los artículos de compra-venta igual disparan una OF (las rutas generan la
+        # OC hacia atrás), pero el lote mínimo y el plazo salen del proveedor
+        # (product.supplierinfo): min_qty y delay del proveedor de menor secuencia.
+        sup_by_variant, sup_by_tmpl = {}, {}
+        for s in self.env['product.supplierinfo'].search(
+                ['|', ('product_tmpl_id', 'in', templates.ids),
+                      ('product_id', 'in', products.ids)],
+                order='sequence, min_qty desc, id'):
+            if s.product_id:
+                sup_by_variant.setdefault(s.product_id.id, s)
+            elif s.product_tmpl_id:
+                sup_by_tmpl.setdefault(s.product_tmpl_id.id, s)
+
         rows = []
         for p in products:
             tmpl_id = p.product_tmpl_id.id
             origin = tmpl_type.get(tmpl_id)
             origin_name = origin.name if origin else ''
             is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
-            bom = boms_by_product.get(p)
-            bom_lead = ((bom.produce_delay or 0) + (bom.days_to_prepare_mo or 0)) if bom else 0
-            lead_days = bom_lead or (lead_map.get(origin.id, 0) if origin else 0)
+            seller = sup_by_variant.get(p.id) or sup_by_tmpl.get(tmpl_id)
+            # Compra-venta = no es producción interna pero tiene proveedor de compra.
+            is_purchase = bool(not is_manuf and seller)
+            is_producible = is_manuf or is_purchase
+            origin_lead = lead_map.get(origin.id, 0) if origin else 0
 
             K = stock_map.get(p.id, 0.0)
             has_fc = p.id in fc_window
             L = (fc_window[p.id] / n_months) if has_fc else None
             M = fc_month.get(p.id, 0.0)
 
-            src = vuln_source.get(p.id)
-            src_tmpl_id = src.id if src else tmpl_id
-            wc_name = pref.get(src_tmpl_id, '') or pref.get(tmpl_id, '')
-            # Mínimo por turno: preferimos el del vulcanizado resuelto; si ese no tiene,
-            # usamos el del propio final (el Excel ya trae el mínimo resuelto por final).
-            mn = tmpl_min.get(src_tmpl_id) or tmpl_min.get(tmpl_id) or 0.0
+            if is_manuf:
+                # Producción interna: lead de la BOM, mínimo por turno del vulcanizado.
+                bom = boms_by_product.get(p)
+                bom_lead = ((bom.produce_delay or 0) + (bom.days_to_prepare_mo or 0)) if bom else 0
+                lead_days = bom_lead or origin_lead
+                src = vuln_source.get(p.id)
+                src_tmpl_id = src.id if src else tmpl_id
+                wc_name = pref.get(src_tmpl_id, '') or pref.get(tmpl_id, '')
+                mn = tmpl_min.get(src_tmpl_id) or tmpl_min.get(tmpl_id) or 0.0
+            elif is_purchase:
+                # Compra-venta: lead y lote mínimo del proveedor preferido.
+                lead_days = seller.delay or origin_lead
+                wc_name = seller.partner_id.display_name or ''
+                mn = seller.min_qty or 0.0
+            else:
+                lead_days = origin_lead
+                wc_name = ''
+                mn = 0.0
             min_shift = mn if mn else None
 
             N = math.ceil(L * factor) if L is not None else None
@@ -199,7 +227,7 @@ class MrpProductionNeeds(models.TransientModel):
             else:
                 O = P = None
 
-            if is_manuf and P and P > 0:
+            if is_producible and P and P > 0:
                 Q = max(min_shift or 0.0, P)
             else:
                 Q = 0.0
@@ -208,7 +236,7 @@ class MrpProductionNeeds(models.TransientModel):
             S = ((K + Q) / L) if L else None
 
             state, reason = self._compute_state(
-                origin, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold)
+                origin, is_producible, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold)
 
             rows.append({
                 'product_id': p.id,
@@ -303,16 +331,21 @@ class MrpProductionNeeds(models.TransientModel):
 
     # ── Lógica de estado (col T del Excel) ─────────────────────────────────────
 
-    def _compute_state(self, origin, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold):
-        """Cascada de estado del motor (Excel "Modelo Planificación"). Devuelve (estado, motivo)."""
+    def _compute_state(self, origin, is_producible, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold):
+        """Cascada de estado del motor. Devuelve (estado, motivo).
+
+        Aplica tanto a producción interna como a compra-venta (ambas disparan OF): la
+        diferencia es sólo de dónde salen el mínimo y el lead time. Para compra-venta,
+        un mínimo 0 es válido (no exige revisión); para producción interna, un mínimo
+        ausente sí se marca para revisar (falta el dato del vulcanizado)."""
         if not origin:
             return self.STATE_REVISAR_ORIGEN, 'El artículo no tiene tipo de origen asignado.'
         if L is None:
             return self.STATE_SIN_FORECAST, 'No hay forecast cargado en la ventana seleccionada.'
-        if not is_manuf:
-            return self.STATE_NO_FABRICAR, 'El origen no es producción interna (se repone por compra).'
+        if not is_producible:
+            return self.STATE_NO_FABRICAR, 'El origen no es producción interna ni tiene proveedor de compra.'
         if O is None:
-            return self.STATE_REVISAR_ORIGEN, 'Falta el lead time del origen para calcular el stock objetivo.'
+            return self.STATE_REVISAR_ORIGEN, 'Falta el lead time (BOM o proveedor) para calcular el stock objetivo.'
         if P is not None and P <= 0:
             return self.STATE_STOCK_SUFICIENTE, 'La posición de stock cubre el stock objetivo.'
         if Q and Q > 0 and S is not None and coverage_threshold and S > coverage_threshold:
@@ -320,17 +353,21 @@ class MrpProductionNeeds(models.TransientModel):
                 'La cobertura con programa (%.1f meses) supera el umbral de %g.' % (S, coverage_threshold))
 
         flags = []
-        if P and Q is not None and Q < L:
+        if P and Q is not None and L and Q < L:
             flags.append('Revisar cantidad')
-        if min_shift is None:
+        # El mínimo sólo es obligatorio en producción interna (dato del vulcanizado);
+        # en compra-venta un mínimo 0 significa "sin lote mínimo" y es válido.
+        if is_manuf and min_shift is None:
             flags.append('Revisar mínimo')
         if Q is not None and P is not None and Q > P:
             flags.append('Aplica mínimo')
-        if Q is not None and Q >= L and min_shift is not None:
-            flags.append(self.STATE_PROGRAMAR)
 
-        if not flags:
-            return self.STATE_PROGRAMAR, 'Listo para programar.'
+        blocking = any(f.startswith('Revisar') for f in flags)
+        if not blocking:
+            flags.append(self.STATE_PROGRAMAR)
+            reason = ('Listo para programar.' if len(flags) == 1
+                      else 'Listo para programar (necesidad %s u.).' % (int(P) if P is not None else 0))
+            return ' | '.join(flags), reason
         return ' | '.join(flags), 'Necesidad %s u.; revisar los puntos indicados.' % (
             int(P) if P is not None else 0)
 

@@ -39,7 +39,7 @@ const COLS = [
     { key: "safety_stock",   label: "Stock de seguridad", title: "ROUNDUP(promedio × factor de seguridad)." },
     { key: "target_stock",   label: "Stock objetivo", title: "Stock de seguridad + forecast del mes." },
     { key: "net_need",       label: "Necesidad neta", title: "MAX(0, objetivo − posición)." },
-    { key: "suggested_qty",  label: "Cantidad a fabricar", title: "Cantidad sugerida: MAX(mínimo por turno, necesidad). Sólo producción interna." },
+    { key: "suggested_qty",  label: "Cantidad a fabricar", title: "Cantidad sugerida: MAX(lote mínimo, necesidad). Dispara OF tanto en producción interna como en compra-venta (las rutas generan la OC)." },
     { key: "coverage_now",   label: "Cobertura (meses)", title: "Cobertura actual en meses = posición / promedio de forecast." },
 ];
 

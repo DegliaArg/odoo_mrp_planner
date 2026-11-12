@@ -154,7 +154,7 @@ class MrpProductionNeeds(models.TransientModel):
             if manuf_type_id and tmpl_type.get(p.product_tmpl_id.id)
             and tmpl_type[p.product_tmpl_id.id].id == manuf_type_id
         }
-        # Lee el campo precalculado (planning_vulcanizado_id); no recorre la BOM aquí.
+        # Lee el campo precalculado (vulcanizado_id); no recorre la BOM aquí.
         vuln_source = self._resolve_vulcanizado_sources(products, manuf_ids)
 
         # Mínimo por turno y máquina preferida, leídos de la plantilla fuente (VL).
@@ -173,9 +173,9 @@ class MrpProductionNeeds(models.TransientModel):
         # Los artículos de compra-venta igual disparan una OF (las rutas generan la OC
         # hacia atrás), pero el lote mínimo y el plazo salen del proveedor. El proveedor
         # no está en el final (pasa por envasado) sino en el componente que se compra,
-        # precalculado en planning_purchase_product_id. Si no hay componente detectado,
-        # se usa el propio final (caso: el final ya tiene proveedor directo).
-        purch_by_tmpl = {t.id: t.planning_purchase_product_id for t in templates}
+        # precalculado en purchase_product_id. Si no hay componente, se usa el propio
+        # final (caso: el final ya tiene proveedor directo).
+        purch_by_tmpl = {t.id: t.purchase_product_id for t in templates}
         purch_prod_ids = set(products.ids)
         purch_tmpl_ids = set(templates.ids)
         for bp in purch_by_tmpl.values():
@@ -288,15 +288,14 @@ class MrpProductionNeeds(models.TransientModel):
 
         Lee el campo precalculado (no recorre la BOM en cada carga):
           1. vulcanizado_id manual del final  (override).
-          2. planning_vulcanizado_id (detectado por el recálculo que recorre la BOM).
-          3. el propio artículo final  (fallback).
-        El recorrido de la BOM se hace una sola vez en _recompute_planning_sources.
+          2. el propio artículo final  (fallback).
+        vulcanizado_id lo completa el recálculo (que recorre la BOM una sola vez).
         """
         sources = {}
         for p in products:
             tmpl = p.product_tmpl_id
             if p.id in manuf_ids:
-                vl = tmpl.vulcanizado_id or tmpl.planning_vulcanizado_id
+                vl = tmpl.vulcanizado_id
                 sources[p.id] = vl.product_tmpl_id if vl else tmpl
             else:
                 sources[p.id] = tmpl
@@ -383,9 +382,9 @@ class MrpProductionNeeds(models.TransientModel):
     @api.model
     def _recompute_planning_sources(self):
         """Precalcula, recorriendo la BOM una sola vez, los campos de planificación:
-        planning_vulcanizado_id (producción interna) y planning_purchase_product_id
-        (compra-venta). Lo invoca el botón de configuración y el cron. Así el panel
-        no explora la BOM en cada carga."""
+        vulcanizado_id (producción interna) y purchase_product_id (compra-venta). Lo
+        invoca el botón de configuración y el cron. Así el panel no explora la BOM en
+        cada carga. Sólo escribe cuando detecta un valor; si no, respeta lo cargado."""
         cfg = self.env['mrp.reschedule.config'].get_config()
         manuf_type_id = cfg.manufacturing_type_id.id or False
         vuln_wh = cfg.manufacturing_warehouse_id
@@ -404,6 +403,9 @@ class MrpProductionNeeds(models.TransientModel):
             done.add(tmpl.id)
             origin = tmpl.x_product_type_ids[:1]
             is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+            # El recálculo sólo escribe cuando DETECTA algo; si no encuentra, no toca el
+            # campo (respeta el valor cargado a mano). Como la detección es determinística,
+            # cuando encuentra debería coincidir, así que pisar es seguro.
             if is_manuf:
                 if not vuln_wh:
                     continue
@@ -411,18 +413,16 @@ class MrpProductionNeeds(models.TransientModel):
                     vl = self._find_warehouse_product(p, vuln_wh.id, set(), cache_wh, 0)
                 except Exception:
                     vl = Product
-                new = vl.id if vl else False
-                if tmpl.planning_vulcanizado_id.id != new:
-                    tmpl.planning_vulcanizado_id = new
+                if vl and tmpl.vulcanizado_id.id != vl.id:
+                    tmpl.vulcanizado_id = vl.id
                     n_vuln += 1
             else:
                 try:
                     bp = self._find_purchased_product(p)
                 except Exception:
                     bp = Product
-                new = bp.id if bp else False
-                if tmpl.planning_purchase_product_id.id != new:
-                    tmpl.planning_purchase_product_id = new
+                if bp and tmpl.purchase_product_id.id != bp.id:
+                    tmpl.purchase_product_id = bp.id
                     n_buy += 1
         return {'vulcanizado': n_vuln, 'purchase': n_buy, 'products': len(prods)}
 
@@ -440,7 +440,13 @@ class MrpProductionNeeds(models.TransientModel):
         if L is None:
             return self.STATE_SIN_FORECAST, 'No hay forecast cargado en la ventana seleccionada.'
         if not is_producible:
-            return self.STATE_NO_FABRICAR, 'El origen no es producción interna ni tiene proveedor de compra.'
+            # Tiene demanda (forecast) pero no se pudo resolver cómo abastecerlo: no es
+            # producción interna y no se detectó el componente que se compra. Se marca para
+            # revisar (cargar el proveedor o el componente comprado manual) en vez de
+            # ocultarlo como "No fabricar".
+            return 'Revisar abastecimiento', (
+                'No se detectó el componente que se compra ni hay proveedor. Cargá el '
+                'proveedor del componente o el "Componente comprado (manual)" del artículo.')
         if O is None:
             return self.STATE_REVISAR_ORIGEN, 'Falta el lead time (BOM o proveedor) para calcular el stock objetivo.'
         if P is not None and P <= 0:
@@ -533,8 +539,8 @@ class MrpProductionNeeds(models.TransientModel):
                 bom = False
             bom_lead = ((bom.produce_delay or 0) + (bom.days_to_prepare_mo or 0)) if bom else 0
             return bom_lead or origin_lead
-        # Compra-venta: lead del proveedor del componente comprado (precalculado).
-        purchase = tmpl.planning_purchase_product_id or product
+        # Compra-venta: lead del proveedor del componente comprado (manual o detectado).
+        purchase = tmpl.purchase_product_id or product
         seller = purchase.seller_ids[:1]
         if seller:
             return seller.delay or origin_lead

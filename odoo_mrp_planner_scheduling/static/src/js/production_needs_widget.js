@@ -230,8 +230,10 @@ export class ProductionNeedsWidget extends Component {
             tok === "necesidad" ? (row.net_need || 0) > 0 : (row.state || "").includes(tok));
     }
 
-    get visibleRows() {
-        let rows = [...this.state.rows];
+    // Filas filtradas por búsqueda + origen (sin el filtro de estado). Es la base
+    // tanto de las cards KPI como de la tabla (que además aplica el estado).
+    get baseFilteredRows() {
+        let rows = this.state.rows;
         const q = (this.state.search || "").trim().toLowerCase();
         if (q) {
             rows = rows.filter(r =>
@@ -241,11 +243,29 @@ export class ProductionNeedsWidget extends Component {
         if (this.state.originFilter.length) {
             rows = rows.filter(r => this.state.originFilter.includes(r.origin || ""));
         }
-        rows = rows.filter(r => this._matchesState(r));
+        return rows;
+    }
 
+    // KPIs recalculados sobre la base filtrada (búsqueda + origen) para que las
+    // cards reaccionen a los filtros, como el resto de los paneles.
+    get filteredKpis() {
+        const rows = this.baseFilteredRows;
+        let fab = 0;
+        for (const r of rows) fab += (r.suggested_qty || 0);
+        return {
+            total: rows.length,
+            a_programar: rows.filter(r => (r.state || "").includes("Programar")).length,
+            con_necesidad: rows.filter(r => (r.net_need || 0) > 0).length,
+            necesidad_fabricacion: Math.round(fab * 100) / 100,
+            a_revisar: rows.filter(r => (r.state || "").includes("Revisar")).length,
+        };
+    }
+
+    get visibleRows() {
+        let rows = this.baseFilteredRows.filter(r => this._matchesState(r));
         const col = this.state.sortCol;
         const dir = this.state.sortDir === "asc" ? 1 : -1;
-        rows.sort((a, b) => {
+        rows = [...rows].sort((a, b) => {
             let va = a[col], vb = b[col];
             if (typeof va === "string" || typeof vb === "string") {
                 return dir * String(va || "").localeCompare(String(vb || ""));

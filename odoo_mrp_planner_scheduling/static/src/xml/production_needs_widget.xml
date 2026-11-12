@@ -138,7 +138,7 @@
                      title="Total de artículos analizados (vendibles o con forecast en la ventana).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-cubes fa-lg text-secondary mb-1 d-block"/>
-                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.total)" t-esc="state.kpis.total || 0"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(filteredKpis.total)" t-esc="filteredKpis.total || 0"/>
                         <div class="o_planner_label">Artículos</div>
                     </div>
                 </div>
@@ -150,7 +150,7 @@
                      title="Artículos listos para disparar la OF (estado Programar).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-cogs fa-lg text-success mb-1 d-block"/>
-                        <div class="o_planner_number text-success" t-esc="state.kpis.a_programar || 0"/>
+                        <div class="o_planner_number text-success" t-esc="filteredKpis.a_programar || 0"/>
                         <div class="o_planner_label">A programar</div>
                     </div>
                 </div>
@@ -162,7 +162,7 @@
                      title="Artículos cuya posición de stock no alcanza el stock objetivo (necesidad neta > 0).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-exclamation-triangle fa-lg text-secondary mb-1 d-block"/>
-                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.con_necesidad)" t-esc="state.kpis.con_necesidad || 0"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(filteredKpis.con_necesidad)" t-esc="filteredKpis.con_necesidad || 0"/>
                         <div class="o_planner_label">Con necesidad</div>
                     </div>
                 </div>
@@ -172,8 +172,8 @@
                      title="Suma de unidades sugeridas a fabricar (producción interna y compra-venta).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-industry fa-lg text-secondary mb-1 d-block"/>
-                        <div t-att-class="'o_planner_number ' + kpiCls(state.kpis.necesidad_fabricacion)"
-                             t-esc="this.f(state.kpis.necesidad_fabricacion)"/>
+                        <div t-att-class="'o_planner_number ' + kpiCls(filteredKpis.necesidad_fabricacion)"
+                             t-esc="this.f(filteredKpis.necesidad_fabricacion)"/>
                         <div class="o_planner_label">Necesidad a fabricar (u.)</div>
                     </div>
                 </div>
@@ -185,7 +185,7 @@
                      title="Artículos que requieren revisión de datos (origen, máquina, mínimo, cantidad).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                         <i class="fa fa-wrench fa-lg text-warning mb-1 d-block"/>
-                        <div class="o_planner_number text-warning" t-esc="state.kpis.a_revisar || 0"/>
+                        <div class="o_planner_number text-warning" t-esc="filteredKpis.a_revisar || 0"/>
                         <div class="o_planner_label">A revisar</div>
                     </div>
                 </div>

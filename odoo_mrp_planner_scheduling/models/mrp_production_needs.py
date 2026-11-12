@@ -158,7 +158,11 @@ class MrpProductionNeeds(models.TransientModel):
             if manuf_type_id and tmpl_type.get(p.product_tmpl_id.id)
             and tmpl_type[p.product_tmpl_id.id].id == manuf_type_id
         }
-        vuln_source = self._resolve_vulcanizado_sources(products, vuln_wh, manuf_ids)
+        # Perf: la resolución del vulcanizado recorre la BOM recursivamente; sólo tiene
+        # sentido para los artículos que pueden tener necesidad (los que tienen forecast
+        # en la ventana). El resto usa su propia plantilla sin explorar la BOM.
+        fc_ids = set(fc_window.keys())
+        vuln_source = self._resolve_vulcanizado_sources(products, vuln_wh, manuf_ids & fc_ids)
 
         # Mínimo por turno y máquina preferida, leídos de la plantilla fuente (VL).
         source_tmpl_ids = {t.id for t in vuln_source.values()} | set(templates.ids)

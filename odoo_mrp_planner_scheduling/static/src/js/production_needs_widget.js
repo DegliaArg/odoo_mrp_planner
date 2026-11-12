@@ -33,14 +33,14 @@ function firstOfMonth(offset = 0) {
 
 // Columnas numéricas de la tabla (clave → etiqueta corta + ayuda).
 const COLS = [
-    { key: "stock_position", label: "Posición", title: "Cantidad pronosticada (a la mano + entrante − saliente) del almacén." },
-    { key: "avg_forecast",   label: "Prom. fc", title: "Promedio de forecast = suma de la ventana / Nº de meses de la ventana." },
-    { key: "month_forecast", label: "Fc mes",   title: "Forecast del mes a programar." },
-    { key: "safety_stock",   label: "Stock seg.", title: "ROUNDUP(promedio × factor de seguridad)." },
-    { key: "target_stock",   label: "Objetivo", title: "Stock de seguridad + forecast del mes." },
-    { key: "net_need",       label: "Necesidad", title: "MAX(0, objetivo − posición)." },
-    { key: "suggested_qty",  label: "A fabricar", title: "Cantidad sugerida: MAX(mínimo por turno, necesidad). Sólo producción interna." },
-    { key: "coverage_now",   label: "Cob. (m)", title: "Cobertura actual en meses = posición / promedio de forecast." },
+    { key: "stock_position", label: "Posición de stock", title: "Cantidad pronosticada (a la mano + entrante − saliente) del almacén." },
+    { key: "avg_forecast",   label: "Promedio forecast", title: "Promedio de forecast = suma de la ventana / Nº de meses de la ventana." },
+    { key: "month_forecast", label: "Forecast del mes", title: "Forecast del mes a programar." },
+    { key: "safety_stock",   label: "Stock de seguridad", title: "ROUNDUP(promedio × factor de seguridad)." },
+    { key: "target_stock",   label: "Stock objetivo", title: "Stock de seguridad + forecast del mes." },
+    { key: "net_need",       label: "Necesidad neta", title: "MAX(0, objetivo − posición)." },
+    { key: "suggested_qty",  label: "Cantidad a fabricar", title: "Cantidad sugerida: MAX(mínimo por turno, necesidad). Sólo producción interna." },
+    { key: "coverage_now",   label: "Cobertura (meses)", title: "Cobertura actual en meses = posición / promedio de forecast." },
 ];
 
 export class ProductionNeedsWidget extends Component {

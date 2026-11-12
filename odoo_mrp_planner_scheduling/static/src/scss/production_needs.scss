@@ -13,16 +13,28 @@
             background: var(--bs-body-bg, #fff);
             border: 0;
             border-bottom: 2px solid var(--bs-border-color, #dee2e6);
-            padding: .55rem .65rem;
+            padding: .5rem .6rem;
             font-weight: 600;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: .03em;
+            letter-spacing: .02em;
+            line-height: 1.15;
             color: var(--bs-secondary-color, #6c757d);
-            white-space: nowrap;
+            vertical-align: bottom;
             user-select: none;
 
             i { opacity: .5; }
+
+            // Encabezado completo (sin abreviar): texto en dos renglones si hace falta
+            // y ancho de columna arrastrable (resize del div, que la celda no soporta).
+            .o_th_cell {
+                display: block;
+                white-space: normal;
+                overflow: hidden;
+                resize: horizontal;
+                min-width: 52px;
+                min-height: 1.3em;
+            }
         }
 
         tbody td {

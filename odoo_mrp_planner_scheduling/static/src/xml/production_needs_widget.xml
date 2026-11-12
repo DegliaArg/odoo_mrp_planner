@@ -146,19 +146,19 @@
                                        t-on-click="() => this.toggleAll()"/>
                             </th>
                             <th style="cursor:pointer;" t-on-click="() => this.sortBy('name')">
-                                Artículo<i t-att-class="sortIcon('name')"/>
+                                <div class="o_th_cell">Artículo<i t-att-class="sortIcon('name')"/></div>
                             </th>
-                            <th>Origen</th>
+                            <th><div class="o_th_cell">Origen</div></th>
                             <t t-foreach="cols" t-as="c" t-key="c.key">
                                 <th class="text-end" style="cursor:pointer;"
                                     t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
-                                    <t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/>
+                                    <div class="o_th_cell"><t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/></div>
                                 </th>
                             </t>
-                            <th>Máquina</th>
-                            <th class="text-end">Mín/turno</th>
+                            <th><div class="o_th_cell">Máquina</div></th>
+                            <th class="text-end"><div class="o_th_cell">Mínimo por turno</div></th>
                             <th style="cursor:pointer;" t-on-click="() => this.sortBy('state')">
-                                Estado<i t-att-class="sortIcon('state')"/>
+                                <div class="o_th_cell">Estado<i t-att-class="sortIcon('state')"/></div>
                             </th>
                             <th class="text-center" style="width:44px;"/>
                         </tr>

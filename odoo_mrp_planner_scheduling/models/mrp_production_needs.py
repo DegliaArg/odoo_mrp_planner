@@ -132,10 +132,16 @@ class MrpProductionNeeds(models.TransientModel):
         tmpl_type = {t.id: t.x_product_type_ids[:1] for t in templates}
         tmpl_categ = {t.id: (t.categ_id.name or '') for t in templates}
 
-        # Lead time por origen (mrp.product.type.lead_time_days)
+        # Lead time: se toma de la BOM aplicable (Plazo de fabricación + Días para
+        # preparar la OF); si el artículo no se fabrica, se usa el lead del origen
+        # (mrp.product.type.lead_time_days) como respaldo (compra-venta nacional/importado).
         origin_ids = list({o.id for o in tmpl_type.values() if o})
         lead_map = {t.id: (t.lead_time_days or 0)
                     for t in self.env['mrp.product.type'].browse(origin_ids)}
+        try:
+            boms_by_product = self.env['mrp.bom']._bom_find(products)
+        except Exception:
+            boms_by_product = {}
 
         # ── Resolución final → vulcanizado (de dónde leer máquina + mínimo) ───
         # La máquina y el mínimo por turno son un dato del nivel VULCANIZADO, no del
@@ -168,7 +174,9 @@ class MrpProductionNeeds(models.TransientModel):
             origin = tmpl_type.get(tmpl_id)
             origin_name = origin.name if origin else ''
             is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
-            lead_days = lead_map.get(origin.id, 0) if origin else 0
+            bom = boms_by_product.get(p)
+            bom_lead = ((bom.produce_delay or 0) + (bom.days_to_prepare_mo or 0)) if bom else 0
+            lead_days = bom_lead or (lead_map.get(origin.id, 0) if origin else 0)
 
             K = stock_map.get(p.id, 0.0)
             has_fc = p.id in fc_window
@@ -177,8 +185,10 @@ class MrpProductionNeeds(models.TransientModel):
 
             src = vuln_source.get(p.id)
             src_tmpl_id = src.id if src else tmpl_id
-            wc_name = pref.get(src_tmpl_id, '')
-            mn = tmpl_min.get(src_tmpl_id) or 0.0
+            wc_name = pref.get(src_tmpl_id, '') or pref.get(tmpl_id, '')
+            # Mínimo por turno: preferimos el del vulcanizado resuelto; si ese no tiene,
+            # usamos el del propio final (el Excel ya trae el mínimo resuelto por final).
+            mn = tmpl_min.get(src_tmpl_id) or tmpl_min.get(tmpl_id) or 0.0
             min_shift = mn if mn else None
 
             N = math.ceil(L * factor) if L is not None else None

@@ -100,9 +100,9 @@ class MrpRescheduleConfig(models.Model):
     )
 
     def action_recompute_planning_sources(self):
-        """Botón: recalcula de una vez los campos de planificación (vulcanizado y
-        componente comprado) recorriendo la BOM, para que el panel no la explore en
-        cada carga."""
+        """Botón: recalcula de una vez los campos de planificación (componente
+        fabricado y componente comprado) recorriendo la BOM, para que el panel no la
+        explore en cada carga."""
         res = self.env['mrp.production.needs'].sudo()._recompute_planning_sources()
         return {
             'type': 'ir.actions.client',
@@ -110,9 +110,9 @@ class MrpRescheduleConfig(models.Model):
             'params': {
                 'title': _('Recálculo de planificación'),
                 'message': _(
-                    '%(p)s artículos procesados · %(v)s vulcanizados y %(b)s componentes '
-                    'comprados detectados/actualizados.',
-                    p=res['products'], v=res['vulcanizado'], b=res['purchase']),
+                    '%(p)s artículos procesados · %(v)s componentes fabricados y %(b)s '
+                    'componentes comprados detectados/actualizados.',
+                    p=res['products'], v=res['manufactured'], b=res['purchase']),
                 'type': 'success',
                 'sticky': False,
             },

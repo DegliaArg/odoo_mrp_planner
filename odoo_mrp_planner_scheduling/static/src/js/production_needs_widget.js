@@ -48,8 +48,8 @@ const DATA_COLS = [
     { key: "suggested_qty",  label: "Cantidad a fabricar", type: "num",  def: true,  align: "end", title: "Cantidad sugerida: MAX(lote mínimo, necesidad). Dispara OF tanto en producción interna como en compra-venta (las rutas generan la OC)." },
     { key: "coverage_now",   label: "Cobertura actual (meses)", type: "num", def: true,  align: "end", title: "Cobertura actual en meses = posición de stock / promedio de forecast." },
     { key: "coverage_plan",  label: "Cobertura con programa (meses)", type: "num", def: false, align: "end", title: "Cobertura con programa en meses = (posición de stock + cantidad a fabricar) / promedio de forecast." },
-    { key: "machine",        label: "Máquina / proveedor", type: "text", def: false, align: "start", title: "Producción interna: máquina preferida del vulcanizado. Compra-venta: proveedor preferido." },
-    { key: "min_per_shift",  label: "Mínimo (lote)",      type: "num",   def: true,  align: "end", title: "Lote mínimo. Producción interna: mínimo por turno del vulcanizado. Compra-venta: cantidad mínima del proveedor." },
+    { key: "machine",        label: "Máquina / proveedor", type: "text", def: false, align: "start", title: "Producción interna: máquina preferida del componente fabricado. Compra-venta: proveedor preferido." },
+    { key: "min_per_shift",  label: "Mínimo (lote)",      type: "num",   def: true,  align: "end", title: "Lote mínimo. Producción interna: mínimo por turno del componente fabricado. Compra-venta: cantidad mínima del proveedor." },
 ];
 
 const COLS_STORAGE_KEY = "_planner_needs_visible_cols_v1";

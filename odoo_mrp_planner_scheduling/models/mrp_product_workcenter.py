@@ -122,17 +122,18 @@ class ProductTemplate(models.Model):
         string='Mínimo por turno',
         help='Cantidad mínima a fabricar por turno de este producto. El motor de '
              'necesidades la usa como lote mínimo: la cantidad sugerida a fabricar nunca '
-             'será menor (salvo que no haya necesidad). Es un dato a nivel vulcanizado.',
+             'será menor (salvo que no haya necesidad). Es un dato a nivel del componente '
+             'fabricado.',
     )
-    vulcanizado_id = fields.Many2one(
+    manufactured_product_id = fields.Many2one(
         'product.product',
-        string='Vulcanizado',
-        help='Producción interna: producto de vulcanizado del que se toman la máquina y el '
+        string='Componente fabricado',
+        help='Producción interna: componente fabricado del que se toman la máquina y el '
              'mínimo por turno. Se completa automáticamente recorriendo la BOM (componente '
              'cuyo almacén de fabricación es el configurado) con el botón "Recalcular '
              'planificación" o el cron. Se puede editar a mano: el recálculo sólo lo sobrescribe '
-             'cuando detecta un vulcanizado; si no detecta nada, respeta el valor cargado. '
-             'Varios finales pueden compartirlo.',
+             'cuando detecta un componente fabricado; si no detecta nada, respeta el valor '
+             'cargado. Varios finales pueden compartirlo.',
     )
     purchase_product_id = fields.Many2one(
         'product.product',

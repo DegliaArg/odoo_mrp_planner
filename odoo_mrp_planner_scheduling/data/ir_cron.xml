@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Recalcula los campos de planificación (vulcanizado y componente comprado)
-         recorriendo la BOM, para que el panel no la explore en cada carga. -->
+    <!-- Recalcula los campos de planificación (componente fabricado y componente
+         comprado) recorriendo la BOM, para que el panel no la explore en cada carga. -->
     <record id="ir_cron_recompute_planning_sources" model="ir.cron">
-        <field name="name">Planificación: recalcular vulcanizado y componente comprado</field>
+        <field name="name">Planificación: recalcular componente fabricado y componente comprado</field>
         <field name="model_id" ref="model_mrp_production_needs"/>
         <field name="state">code</field>
         <field name="code">model._recompute_planning_sources()</field>

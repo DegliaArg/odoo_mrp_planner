@@ -1,6 +1,6 @@
 {
     'name': 'Planificación',
-    'version': '18.0.7.5.0',
+    'version': '18.0.7.5.1',
     'summary': 'Programación desde demanda y reprogramación en cascada para el módulo KPIs',
     'description': """
 Extensión de programación del módulo KPIs de Deglia.

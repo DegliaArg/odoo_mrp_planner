@@ -114,7 +114,7 @@
         <div class="d-flex align-items-center mb-2 gap-2">
             <div class="o_planner_section_title">
                 <i class="fa fa-list-alt me-2 text-muted"/>
-                <span class="text-uppercase fw-bold text-muted small">Necesidades por artículo</span>
+                <span class="fw-bold text-muted small">Necesidades por artículo</span>
             </div>
             <span t-if="state.stateFilter !== 'all'" class="badge text-bg-light border">
                 <t t-esc="state.stateFilter"/>
@@ -190,7 +190,6 @@
                             </td>
                             <td style="padding:3px 8px; white-space:nowrap;">
                                 <div class="fw-semibold text-truncate" style="max-width:280px;" t-att-title="row.name" t-esc="row.name"/>
-                                <div class="text-muted" style="font-size:11px;" t-esc="row.code"/>
                             </td>
                             <td style="padding:3px 8px;">
                                 <span class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/>

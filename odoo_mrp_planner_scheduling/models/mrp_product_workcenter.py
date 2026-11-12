@@ -124,6 +124,14 @@ class ProductTemplate(models.Model):
              'necesidades la usa como lote mínimo: la cantidad sugerida a fabricar nunca '
              'será menor (salvo que no haya necesidad). Es un dato a nivel vulcanizado.',
     )
+    vulcanizado_id = fields.Many2one(
+        'product.product',
+        string='Vulcanizado (manual)',
+        help='Producto de vulcanizado de este artículo final. Opcional: si se completa, '
+             'tiene prioridad sobre la detección automática por BOM. Equivale a la tabla '
+             'BD_VULCANIZADO del Excel; sirve para los casos que la BOM no permite resolver. '
+             'Varios finales pueden apuntar al mismo vulcanizado (muchos-a-uno).',
+    )
 
 
 class MrpProductType(models.Model):

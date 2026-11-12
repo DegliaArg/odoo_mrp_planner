@@ -75,6 +75,7 @@ class MrpProductionNeeds(models.TransientModel):
         # None = no se pasó (usar config); False = "Todos" explícito desde el panel
         wh_id = warehouse_id if warehouse_id is not None else (cfg.planning_warehouse_id.id or False)
         manuf_type_id = cfg.manufacturing_type_id.id or False
+        vuln_wh = cfg.vulcanizado_warehouse_id
         company = self.env.company
 
         meta = {
@@ -126,21 +127,36 @@ class MrpProductionNeeds(models.TransientModel):
         scoped = products.with_context(warehouse=wh_id) if wh_id else products
         stock_map = {p.id: (p.virtual_available or 0.0) for p in scoped}
 
-        # ── Maestro: tipo de origen, categoría, mínimo por turno ──────────────
+        # ── Maestro: tipo de origen, categoría ────────────────────────────────
         templates = products.mapped('product_tmpl_id')
         tmpl_type = {t.id: t.x_product_type_ids[:1] for t in templates}
         tmpl_categ = {t.id: (t.categ_id.name or '') for t in templates}
-        tmpl_min = {t.id: (t.min_per_shift or 0.0) for t in templates}
 
         # Lead time por origen (mrp.product.type.lead_time_days)
         origin_ids = list({o.id for o in tmpl_type.values() if o})
         lead_map = {t.id: (t.lead_time_days or 0)
                     for t in self.env['mrp.product.type'].browse(origin_ids)}
 
-        # ── Máquina preferida (sólo informativa; ya no es obligatoria) ────────
+        # ── Resolución final → vulcanizado (de dónde leer máquina + mínimo) ───
+        # La máquina y el mínimo por turno son un dato del nivel VULCANIZADO, no del
+        # artículo final. Para cada final se resuelve de qué producto leerlos
+        # (override manual → componente de la BOM cuyo almacén de fabricación es el
+        # de vulcanizado → el propio final como fallback). Varios finales pueden
+        # compartir el mismo vulcanizado (muchos-a-uno): el dato vive una sola vez.
+        manuf_ids = {
+            p.id for p in products
+            if manuf_type_id and tmpl_type.get(p.product_tmpl_id.id)
+            and tmpl_type[p.product_tmpl_id.id].id == manuf_type_id
+        }
+        vuln_source = self._resolve_vulcanizado_sources(products, vuln_wh, manuf_ids)
+
+        # Mínimo por turno y máquina preferida, leídos de la plantilla fuente (VL).
+        source_tmpl_ids = {t.id for t in vuln_source.values()} | set(templates.ids)
+        source_tmpls = self.env['product.template'].browse(list(source_tmpl_ids))
+        tmpl_min = {t.id: (t.min_per_shift or 0.0) for t in source_tmpls}
         pref = {}
         for wc in self.env['mrp.product.workcenter'].search([
-            ('product_tmpl_id', 'in', templates.ids),
+            ('product_tmpl_id', 'in', list(source_tmpl_ids)),
             ('is_preferred', '=', True),
             ('active', '=', True),
         ]):
@@ -159,8 +175,10 @@ class MrpProductionNeeds(models.TransientModel):
             L = (fc_window[p.id] / n_months) if has_fc else None
             M = fc_month.get(p.id, 0.0)
 
-            wc_name = pref.get(tmpl_id, '')
-            mn = tmpl_min.get(tmpl_id) or 0.0
+            src = vuln_source.get(p.id)
+            src_tmpl_id = src.id if src else tmpl_id
+            wc_name = pref.get(src_tmpl_id, '')
+            mn = tmpl_min.get(src_tmpl_id) or 0.0
             min_shift = mn if mn else None
 
             N = math.ceil(L * factor) if L is not None else None
@@ -205,6 +223,73 @@ class MrpProductionNeeds(models.TransientModel):
             })
 
         return {'rows': rows, 'kpis': self._compute_kpis(rows), 'meta': meta}
+
+    # ── Resolución final → vulcanizado ─────────────────────────────────────────
+
+    def _resolve_vulcanizado_sources(self, products, vuln_wh, manuf_ids):
+        """Para cada producto devuelve la plantilla desde la que leer máquina y mínimo.
+
+        Precedencia:
+          1. vulcanizado_id manual del final  (override, equivale a BD_VULCANIZADO).
+          2. componente de la BOM cuyo almacén de fabricación es el de vulcanizado
+             (auto-detección por la ruta de reabastecimiento del componente).
+          3. el propio artículo final  (fallback: nunca bloquea ni rompe el panel).
+
+        Sólo resuelve para los productos de producción interna; el resto usa su propia
+        plantilla. Soporta cadenas que atraviesan varios almacenes/sectores (recorre la
+        BOM multinivel). Cualquier error al explorar la BOM cae al fallback.
+
+        :returns: {product_id: product.template} (siempre una plantilla no vacía)
+        """
+        sources = {}
+        cache = {}
+        for p in products:
+            tmpl = p.product_tmpl_id
+            if p.id not in manuf_ids:
+                sources[p.id] = tmpl
+                continue
+            if tmpl.vulcanizado_id:
+                sources[p.id] = tmpl.vulcanizado_id.product_tmpl_id
+                continue
+            if vuln_wh:
+                try:
+                    vl = self._find_warehouse_product(p, vuln_wh.id, set(), cache, 0)
+                except Exception:
+                    vl = self.env['product.product']
+                sources[p.id] = vl.product_tmpl_id if vl else tmpl
+            else:
+                sources[p.id] = tmpl
+        return sources
+
+    def _product_supplier_wh_ids(self, product):
+        """Almacenes donde se fabrica/abastece el producto, según el supplier_wh_id de
+        sus rutas de reabastecimiento (dato nativo de Odoo, sin duplicar)."""
+        return {r.supplier_wh_id.id for r in product.route_ids if r.supplier_wh_id}
+
+    def _find_warehouse_product(self, product, vuln_wh_id, seen, cache, depth):
+        """Recorre la BOM multinivel y devuelve el primer componente cuyo almacén de
+        fabricación (supplier_wh_id de su ruta) es el de vulcanizado. product.product
+        vacío si no lo encuentra. Maneja cadenas de más de dos almacenes."""
+        empty = self.env['product.product']
+        if product.id in cache:
+            return cache[product.id]
+        if depth > 15 or product.id in seen:
+            return empty
+        seen.add(product.id)
+        bom = self.env['mrp.bom']._bom_find(product).get(product)
+        result = empty
+        if bom:
+            for line in bom.bom_line_ids:
+                comp = line.product_id
+                if vuln_wh_id in self._product_supplier_wh_ids(comp):
+                    result = comp
+                    break
+                sub = self._find_warehouse_product(comp, vuln_wh_id, seen, cache, depth + 1)
+                if sub:
+                    result = sub
+                    break
+        cache[product.id] = result
+        return result
 
     # ── Lógica de estado (col T del Excel) ─────────────────────────────────────
 

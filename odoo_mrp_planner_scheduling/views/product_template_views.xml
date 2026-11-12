@@ -13,10 +13,14 @@
             <!-- Pestaña de scheduling: solo centros de trabajo compatibles. Desaparece
                  cuando la programación está desactivada. -->
             <xpath expr="//notebook" position="inside">
-                <page string="Planificador" name="mrp_planner_tab"
+                <page string="Planificación" name="mrp_planner_tab"
                       invisible="not mrp_enable_scheduling">
-                    <group string="Planificación">
-                        <field name="min_per_shift"/>
+                    <group>
+                        <group string="Vulcanizado">
+                            <field name="vulcanizado_id"
+                                   options="{'no_create': True}"/>
+                            <field name="min_per_shift"/>
+                        </group>
                     </group>
                     <group string="Centros de trabajo (máquina preferida)">
                         <field name="x_centros_compatibles" nolabel="1">

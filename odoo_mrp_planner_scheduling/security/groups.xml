@@ -9,10 +9,14 @@
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- El Administrador del planificador implica el grupo de Programación -->
+    <!-- APARCADO (2026-11): el Administrador del planificador YA NO implica
+         Programación. Mientras solo está vivo el motor de necesidades (Panel 1),
+         el acceso se asigna manualmente usuario por usuario (p.ej. solo "deglia"
+         en staging). Así nadie recibe la planificación de forma automática.
     <record id="odoo_mrp_planner.group_admin" model="res.groups">
         <field name="implied_ids" eval="[(4, ref('group_scheduling'))]"/>
     </record>
+    -->
 
 
 </odoo>

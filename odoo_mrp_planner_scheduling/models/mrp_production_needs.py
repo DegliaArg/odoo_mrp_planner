@@ -440,6 +440,7 @@ class MrpProductionNeeds(models.TransientModel):
                 'name': _('Orden de fabricación'),
                 'res_model': 'mrp.production',
                 'res_id': created.id,
+                'views': [(False, 'form')],
                 'view_mode': 'form',
                 'target': 'current',
             }
@@ -448,6 +449,7 @@ class MrpProductionNeeds(models.TransientModel):
             'name': _('Órdenes de fabricación generadas'),
             'res_model': 'mrp.production',
             'domain': [('id', 'in', created.ids)],
+            'views': [(False, 'list'), (False, 'form')],
             'view_mode': 'list,form',
             'target': 'current',
         }

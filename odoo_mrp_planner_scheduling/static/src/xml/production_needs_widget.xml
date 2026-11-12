@@ -126,87 +126,98 @@
                 <button class="btn btn-success btn-sm rounded-pill px-3" t-if="selectedCount > 0"
                         t-on-click="() => this.generateSelected()"
                         t-att-disabled="state.generating">
-                    <i class="fa fa-play me-1"/>Generar <t t-esc="selectedCount"/> OF
+                    <i class="fa fa-truck me-1"/>Generar <t t-esc="selectedCount"/> OF
                 </button>
             </div>
         </div>
 
-        <!-- ════ Tabla ════ -->
+        <!-- ════ Tabla (estilo tabla de forecast: bordeada, compacta, header sticky) ════ -->
         <div t-if="state.loading" class="text-center text-muted py-5">
             <i class="fa fa-spinner fa-spin me-2"/>Calculando necesidades…
         </div>
-        <div t-else="" class="card o_planner_card border-0 shadow-sm">
-            <div class="table-responsive" style="max-height:66vh; overflow-y:auto;">
-                <table class="table align-middle mb-0 o_needs_table" style="font-size:13px; width:100%;">
-                    <thead>
+        <t t-else="">
+            <div t-if="!visibleRows.length" class="text-center text-muted py-4 border rounded">
+                <i class="fa fa-inbox fa-2x mb-2 d-block opacity-50"/>
+                Sin artículos para los filtros seleccionados.
+            </div>
+            <div t-else="" class="border rounded" style="overflow:auto; max-height:66vh;">
+                <table class="table table-sm table-bordered table-hover mb-0 o_needs_table"
+                       style="min-width:900px; font-size:12px;">
+                    <thead style="position:sticky; top:0; z-index:3;">
                         <tr>
-                            <th class="text-center" style="width:38px;">
+                            <th class="text-center align-middle"
+                                style="width:34px; padding:4px 6px; background:var(--bs-tertiary-bg, #f8f9fa);">
                                 <input t-if="hasSelectable" type="checkbox" class="form-check-input"
                                        t-att-checked="selectedCount > 0"
                                        t-on-click="() => this.toggleAll()"/>
                             </th>
-                            <th style="cursor:pointer;" t-on-click="() => this.sortBy('name')">
+                            <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                t-on-click="() => this.sortBy('name')">
                                 <div class="o_th_cell">Artículo<i t-att-class="sortIcon('name')"/></div>
                             </th>
-                            <th><div class="o_th_cell">Origen</div></th>
+                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
+                                <div class="o_th_cell">Origen</div>
+                            </th>
                             <t t-foreach="cols" t-as="c" t-key="c.key">
-                                <th class="text-end" style="cursor:pointer;"
+                                <th class="text-end align-middle"
+                                    style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
                                     t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
                                     <div class="o_th_cell"><t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/></div>
                                 </th>
                             </t>
-                            <th><div class="o_th_cell">Máquina</div></th>
-                            <th class="text-end"><div class="o_th_cell">Mínimo por turno</div></th>
-                            <th style="cursor:pointer;" t-on-click="() => this.sortBy('state')">
+                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
+                                <div class="o_th_cell">Máquina</div>
+                            </th>
+                            <th class="text-end align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
+                                <div class="o_th_cell">Mínimo por turno</div>
+                            </th>
+                            <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                t-on-click="() => this.sortBy('state')">
                                 <div class="o_th_cell">Estado<i t-att-class="sortIcon('state')"/></div>
                             </th>
-                            <th class="text-center" style="width:44px;"/>
+                            <th class="text-center align-middle" style="width:42px; padding:4px 6px; background:var(--bs-tertiary-bg, #f8f9fa);"/>
                         </tr>
                     </thead>
                     <tbody>
                         <tr t-foreach="visibleRows" t-as="row" t-key="row.product_id"
                             t-att-class="state.selected[row.product_id] ? 'o_row_selected' : ''">
-                            <td class="text-center">
+                            <td class="text-center" style="padding:3px 6px;">
                                 <input t-if="this.isSelectable(row)" type="checkbox" class="form-check-input"
                                        t-att-checked="state.selected[row.product_id]"
                                        t-on-click="() => this.toggleRow(row)"/>
                             </td>
-                            <td>
-                                <div class="fw-semibold text-truncate" style="max-width:300px;" t-esc="row.name"/>
+                            <td style="padding:3px 8px; white-space:nowrap;">
+                                <div class="fw-semibold text-truncate" style="max-width:280px;" t-att-title="row.name" t-esc="row.name"/>
                                 <div class="text-muted" style="font-size:11px;" t-esc="row.code"/>
                             </td>
-                            <td><span class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/></td>
+                            <td style="padding:3px 8px;">
+                                <span class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/>
+                            </td>
                             <t t-foreach="cols" t-as="c" t-key="c.key">
                                 <td t-att-class="c.key === 'suggested_qty' and row.suggested_qty > 0 ? 'text-end o_needs_fab text-success' : 'text-end'"
-                                    t-esc="this.f(row[c.key])"/>
+                                    style="padding:3px 8px;" t-esc="this.f(row[c.key])"/>
                             </t>
-                            <td class="text-muted text-truncate" style="max-width:120px; font-size:12px;" t-esc="row.machine"/>
-                            <td class="text-end" t-esc="this.f(row.min_per_shift)"/>
-                            <td>
+                            <td class="text-muted text-truncate" style="max-width:120px; padding:3px 8px;" t-att-title="row.machine" t-esc="row.machine"/>
+                            <td class="text-end" style="padding:3px 8px;" t-esc="this.f(row.min_per_shift)"/>
+                            <td style="padding:3px 8px;">
                                 <span class="badge rounded-pill" t-att-class="this.stateClass(row.state)"
                                       t-att-title="row.state_reason" t-esc="row.state"/>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" style="padding:3px 6px;">
                                 <button t-if="this.isSelectable(row)"
                                         class="btn btn-success rounded-circle d-inline-flex align-items-center justify-content-center p-0"
-                                        style="width:28px; height:28px;"
+                                        style="width:26px; height:26px;"
                                         t-on-click="() => this.generateRow(row)"
                                         t-att-disabled="state.generating"
                                         title="Generar la OF de este artículo">
-                                    <i class="fa fa-play" style="font-size:10px;"/>
+                                    <i class="fa fa-truck" style="font-size:11px;"/>
                                 </button>
-                            </td>
-                        </tr>
-                        <tr t-if="!visibleRows.length">
-                            <td colspan="99" class="text-center text-muted py-5">
-                                <i class="fa fa-inbox fa-2x d-block mb-2 opacity-50"/>
-                                Sin artículos para los filtros seleccionados.
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-        </div>
+        </t>
 
     </div>
 </t>

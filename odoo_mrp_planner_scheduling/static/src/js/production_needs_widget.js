@@ -4,8 +4,8 @@
  * Panel 1 — Motor de necesidades de producción.
  *
  * Muestra, para un mes a programar y una ventana de promedio de forecast, la
- * necesidad neta y la cantidad sugerida a fabricar por artículo (replica la
- * hoja PLANIFICACION del Excel). Desde cada fila con estado "Programar" (o la
+ * necesidad neta y la cantidad sugerida a fabricar por artículo. Desde cada fila
+ * con estado "Programar" (o la
  * selección múltiple) se dispara la OF del producto terminado; las OF/OC de los
  * componentes las genera Odoo hacia atrás por las rutas de abastecimiento.
  *

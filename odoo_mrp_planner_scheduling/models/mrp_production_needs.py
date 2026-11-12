@@ -4,24 +4,21 @@ Modelo: mrp.production.needs (TransientModel)
 
 Motor de necesidades de producción — "Panel 1".
 
-Replica dentro de Odoo la hoja PLANIFICACION del Excel que hoy se usa a mano para
-decidir qué fabricar y cuánto. Para un mes a programar y una ventana de promedio de
-forecast, recorre los artículos relevantes y calcula por SKU:
+Para un mes a programar y una ventana de promedio de forecast, recorre los artículos
+relevantes y calcula por SKU:
 
-    Posición de stock (K)   = cantidad pronosticada (virtual_available) del almacén
-    Promedio forecast (L)   = SUM(forecast en ventana) / Nº FIJO de meses de la ventana
-    Forecast del mes (M)    = forecast del mes a programar
-    Stock de seguridad (N)  = ROUNDUP(L × factor)
-    Stock objetivo (O)      = N + M
-    Necesidad neta (P)      = MAX(0, ROUNDUP(O − K))
-    Cantidad a fabricar (Q) = 0 si no es producción interna; si P>0 → MAX(mínimo_turno, P)
-    Cobertura (R / S)       = K/L  y  (K+Q)/L   (en meses)
-    Estado (T)              = cascada de validaciones
+    Posición de stock   = cantidad pronosticada (virtual_available) del almacén
+    Promedio forecast   = SUM(forecast en ventana) / Nº FIJO de meses de la ventana
+    Forecast del mes    = forecast del mes a programar
+    Stock de seguridad  = ROUNDUP(promedio × factor)
+    Stock objetivo      = stock de seguridad + forecast del mes (+ demanda de lead time)
+    Necesidad neta      = MAX(0, ROUNDUP(objetivo − posición))
+    Cantidad a fabricar = 0 si no es producible; si necesidad>0 → MAX(lote mínimo, necesidad)
+    Cobertura           = posición/promedio y (posición+a fabricar)/promedio (en meses)
+    Estado              = cascada de validaciones
 
 No crea órdenes ni modifica datos: devuelve filas calculadas para el panel. El disparo
 de la OF es una acción posterior, con aprobación humana.
-
-Ver docs/plan_panel1_motor_necesidades.md para el detalle y las decisiones.
 """
 import math
 from datetime import timedelta
@@ -34,7 +31,7 @@ class MrpProductionNeeds(models.TransientModel):
     _name = 'mrp.production.needs'
     _description = 'Motor de necesidades de producción (Panel 1)'
 
-    # Estados posibles (col T del Excel). Se exponen para que el panel pueda
+    # Estados posibles. Se exponen para que el panel pueda
     # ofrecerlos como filtro sin recalcular.
     STATE_REVISAR_ORIGEN = 'Revisar origen'
     STATE_SIN_FORECAST = 'Sin forecast'
@@ -290,7 +287,7 @@ class MrpProductionNeeds(models.TransientModel):
         """Plantilla desde la que leer máquina y mínimo para cada producto interno.
 
         Lee el campo precalculado (no recorre la BOM en cada carga):
-          1. vulcanizado_id manual del final  (override, equivale a BD_VULCANIZADO).
+          1. vulcanizado_id manual del final  (override).
           2. planning_vulcanizado_id (detectado por el recálculo que recorre la BOM).
           3. el propio artículo final  (fallback).
         El recorrido de la BOM se hace una sola vez en _recompute_planning_sources.
@@ -336,30 +333,52 @@ class MrpProductionNeeds(models.TransientModel):
         cache[product.id] = result
         return result
 
-    def _find_purchased_product(self, product, seen, cache, depth):
-        """Recorre la BOM hacia abajo y devuelve el primer componente que tiene
-        proveedor (el que realmente se compra). El artículo final de compra-venta
-        suele pasar por procesos mínimos (envasado) antes del ítem comprado."""
-        empty = self.env['product.product']
-        if product.id in cache:
-            return cache[product.id]
+    @staticmethod
+    def _code_digits(code):
+        return ''.join(ch for ch in (code or '') if ch.isdigit())
+
+    def _common_tail_len(self, a, b):
+        """Cantidad de dígitos finales que comparten dos códigos (el semiterminado
+        que se compra comparte la cola del código con el artículo final; los
+        consumibles/packaging no)."""
+        da, db = self._code_digits(a), self._code_digits(b)
+        i = 0
+        while i < len(da) and i < len(db) and da[-1 - i] == db[-1 - i]:
+            i += 1
+        return i
+
+    def _gather_purchasable(self, product, seen, acc, depth):
+        """Junta TODOS los componentes con proveedor de la BOM multinivel (a cualquier
+        profundidad); el ítem que se compra suele estar 2 o más niveles hacia abajo."""
         if depth > 15 or product.id in seen:
-            return empty
+            return
         seen.add(product.id)
         bom = self.env['mrp.bom']._bom_find(product).get(product)
-        result = empty
-        if bom:
-            for line in bom.bom_line_ids:
-                comp = line.product_id
-                if comp.seller_ids:
-                    result = comp
-                    break
-                sub = self._find_purchased_product(comp, seen, cache, depth + 1)
-                if sub:
-                    result = sub
-                    break
-        cache[product.id] = result
-        return result
+        if not bom:
+            return
+        for line in bom.bom_line_ids:
+            comp = line.product_id
+            if comp.seller_ids:
+                acc.append(comp)
+            self._gather_purchasable(comp, seen, acc, depth + 1)
+
+    def _find_purchased_product(self, product):
+        """Componente semiterminado que realmente se compra al proveedor. Entre todos
+        los componentes con proveedor de la BOM (a cualquier profundidad), elige el que
+        comparte el código con el artículo final; así descarta consumibles y packaging
+        (bolsas, etiquetas, etc.) que también tienen proveedor pero no comparten código."""
+        empty = self.env['product.product']
+        acc = []
+        self._gather_purchasable(product, set(), acc, 0)
+        if not acc:
+            return empty
+        best, best_len = empty, 0
+        for comp in acc:
+            n = self._common_tail_len(product.default_code, comp.default_code)
+            if n > best_len:
+                best, best_len = comp, n
+        # Requiere una coincidencia de cola significativa para no tomar packaging.
+        return best if best_len >= 5 else empty
 
     @api.model
     def _recompute_planning_sources(self):
@@ -376,7 +395,7 @@ class MrpProductionNeeds(models.TransientModel):
         prods = Product.search(
             [('active', '=', True)] + storable
             + [('product_tmpl_id.x_product_type_ids', '!=', False)])
-        cache_wh, cache_buy, done = {}, {}, set()
+        cache_wh, done = {}, set()
         n_vuln = n_buy = 0
         for p in prods:
             tmpl = p.product_tmpl_id
@@ -398,7 +417,7 @@ class MrpProductionNeeds(models.TransientModel):
                     n_vuln += 1
             else:
                 try:
-                    bp = self._find_purchased_product(p, set(), cache_buy, 0)
+                    bp = self._find_purchased_product(p)
                 except Exception:
                     bp = Product
                 new = bp.id if bp else False
@@ -407,7 +426,7 @@ class MrpProductionNeeds(models.TransientModel):
                     n_buy += 1
         return {'vulcanizado': n_vuln, 'purchase': n_buy, 'products': len(prods)}
 
-    # ── Lógica de estado (col T del Excel) ─────────────────────────────────────
+    # ── Lógica de estado ───────────────────────────────────────────────────────
 
     def _compute_state(self, origin, is_producible, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold):
         """Cascada de estado del motor. Devuelve (estado, motivo).

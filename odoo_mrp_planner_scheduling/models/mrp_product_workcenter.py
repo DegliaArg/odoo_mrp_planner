@@ -128,9 +128,9 @@ class ProductTemplate(models.Model):
         'product.product',
         string='Vulcanizado (manual)',
         help='Producto de vulcanizado de este artículo final. Opcional: si se completa, '
-             'tiene prioridad sobre la detección automática por BOM. Equivale a la tabla '
-             'BD_VULCANIZADO del Excel; sirve para los casos que la BOM no permite resolver. '
-             'Varios finales pueden apuntar al mismo vulcanizado (muchos-a-uno).',
+             'tiene prioridad sobre la detección automática por BOM; sirve para los casos '
+             'que la BOM no permite resolver. Varios finales pueden apuntar al mismo '
+             'vulcanizado (muchos-a-uno).',
     )
     planning_vulcanizado_id = fields.Many2one(
         'product.product',

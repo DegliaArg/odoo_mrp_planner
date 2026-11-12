@@ -127,10 +127,14 @@ class MrpProductionNeeds(models.TransientModel):
         scoped = products.with_context(warehouse=wh_id) if wh_id else products
         stock_map = {p.id: (p.virtual_available or 0.0) for p in scoped}
 
-        # ── Maestro: tipo de origen, categoría ────────────────────────────────
+        # ── Maestro: tipo de origen, categorías, precio ───────────────────────
         templates = products.mapped('product_tmpl_id')
         tmpl_type = {t.id: t.x_product_type_ids[:1] for t in templates}
         tmpl_categ = {t.id: (t.categ_id.name or '') for t in templates}
+        has_sale_cat = 'x_sale_category' in self.env['product.template']._fields
+        tmpl_sale_cat = {t.id: (getattr(t, 'x_sale_category', '') or '') for t in templates} \
+            if has_sale_cat else {}
+        tmpl_price = {t.id: (t.list_price or 0.0) for t in templates}
 
         # Lead time: se toma de la BOM aplicable (Plazo de fabricación + Días para
         # preparar la OF); si el artículo no se fabrica, se usa el lead del origen
@@ -245,6 +249,8 @@ class MrpProductionNeeds(models.TransientModel):
                 'name': p.display_name,
                 'origin': origin_name,
                 'categ': tmpl_categ.get(tmpl_id, ''),
+                'sale_category': tmpl_sale_cat.get(tmpl_id, ''),
+                'list_price': tmpl_price.get(tmpl_id, 0.0),
                 'machine': wc_name,
                 'min_per_shift': min_shift,
                 'stock_position': K,
@@ -469,6 +475,18 @@ class MrpProductionNeeds(models.TransientModel):
                 vals['date_start'] = date_start
             mo = Production.create(vals)
             mo.action_confirm()
+            # Trazabilidad: deja constancia en el chatter de que la OF nació del panel
+            # de Planificación (y con qué mes/cantidad sugerida).
+            try:
+                mes = fields.Date.to_string(fields.Date.to_date(target_month).replace(day=1)) \
+                    if target_month else _('sin especificar')
+                mo.message_post(body=_(
+                    'Orden de fabricación generada desde el panel de <b>Planificación</b> '
+                    '(motor de necesidades). Mes a programar: %(mes)s · cantidad sugerida: %(qty)s.',
+                    mes=mes, qty=float(it['qty']),
+                ))
+            except Exception:
+                pass
             created |= mo
 
         if len(created) == 1:

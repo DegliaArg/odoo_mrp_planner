@@ -12,9 +12,9 @@
  *   RPC: mrp.production.needs.get_needs_data(targetMonth, dateFrom, dateTo, warehouseId)
  *        mrp.production.needs.action_generate_mo(items, warehouseId)
  *
- * Reutiliza el formateador de números es-AR del módulo base para mantener la
- * estética de los demás paneles. El filtrado por texto/estado y el orden se
- * aplican client-side sobre state.rows.
+ * Reutiliza el formateador de números es-AR del módulo base. El filtrado por
+ * texto/estado/origen (ambos con multiselección), el orden y la visibilidad de
+ * columnas se aplican client-side sobre state.rows.
  */
 /** @odoo-module **/
 
@@ -31,17 +31,27 @@ function firstOfMonth(offset = 0) {
     return toDateStr(new Date(d.getFullYear(), d.getMonth() + offset, 1));
 }
 
-// Columnas numéricas de la tabla (clave → etiqueta corta + ayuda).
-const COLS = [
-    { key: "stock_position", label: "Posición de stock", title: "Cantidad pronosticada (a la mano + entrante − saliente) del almacén." },
-    { key: "avg_forecast",   label: "Promedio forecast", title: "Promedio de forecast = suma de la ventana / Nº de meses de la ventana." },
-    { key: "month_forecast", label: "Forecast del mes", title: "Forecast del mes a programar." },
-    { key: "safety_stock",   label: "Stock de seguridad", title: "ROUNDUP(promedio × factor de seguridad)." },
-    { key: "target_stock",   label: "Stock objetivo", title: "Stock de seguridad + forecast del mes." },
-    { key: "net_need",       label: "Necesidad neta", title: "MAX(0, objetivo − posición)." },
-    { key: "suggested_qty",  label: "Cantidad a fabricar", title: "Cantidad sugerida: MAX(lote mínimo, necesidad). Dispara OF tanto en producción interna como en compra-venta (las rutas generan la OC)." },
-    { key: "coverage_now",   label: "Cobertura (meses)", title: "Cobertura actual en meses = posición / promedio de forecast." },
+// Columnas de datos de la tabla, todas mostrables/ocultables desde el selector.
+//   type:  'num' | 'badge' | 'text' | 'money'
+//   def:   visible por defecto
+const DATA_COLS = [
+    { key: "origin",         label: "Origen",             type: "badge", def: true,  align: "start", title: "Tipo de origen del artículo (producción interna, compra-venta, etc.)." },
+    { key: "sale_category",  label: "Categoría de venta", type: "badge", def: false, align: "center", title: "Categoría de venta (A–E) almacenada en el artículo." },
+    { key: "categ",          label: "Categoría de producción", type: "text", def: false, align: "start", title: "Categoría interna del artículo (categ_id)." },
+    { key: "list_price",     label: "Precio de venta",    type: "money", def: false, align: "end", title: "Precio de venta de la ficha del artículo." },
+    { key: "stock_position", label: "Posición de stock",  type: "num",   def: true,  align: "end", title: "Cantidad pronosticada (a la mano + entrante − saliente) del almacén." },
+    { key: "avg_forecast",   label: "Promedio forecast",  type: "num",   def: true,  align: "end", title: "Promedio de forecast = suma de la ventana / Nº de meses de la ventana." },
+    { key: "month_forecast", label: "Forecast del mes",   type: "num",   def: true,  align: "end", title: "Forecast del mes a programar." },
+    { key: "safety_stock",   label: "Stock de seguridad", type: "num",   def: true,  align: "end", title: "ROUNDUP(promedio × factor de seguridad)." },
+    { key: "target_stock",   label: "Stock objetivo",     type: "num",   def: true,  align: "end", title: "Stock de seguridad + forecast del mes." },
+    { key: "net_need",       label: "Necesidad neta",     type: "num",   def: true,  align: "end", title: "MAX(0, objetivo − posición)." },
+    { key: "suggested_qty",  label: "Cantidad a fabricar", type: "num",  def: true,  align: "end", title: "Cantidad sugerida: MAX(lote mínimo, necesidad). Dispara OF tanto en producción interna como en compra-venta (las rutas generan la OC)." },
+    { key: "coverage_now",   label: "Cobertura (meses)",  type: "num",   def: true,  align: "end", title: "Cobertura actual en meses = posición / promedio de forecast." },
+    { key: "machine",        label: "Máquina / proveedor", type: "text", def: false, align: "start", title: "Producción interna: máquina preferida del vulcanizado. Compra-venta: proveedor preferido." },
+    { key: "min_per_shift",  label: "Mínimo (lote)",      type: "num",   def: true,  align: "end", title: "Lote mínimo. Producción interna: mínimo por turno del vulcanizado. Compra-venta: cantidad mínima del proveedor." },
 ];
+
+const COLS_STORAGE_KEY = "_planner_needs_visible_cols_v1";
 
 export class ProductionNeedsWidget extends Component {
     static template = "odoo_mrp_planner_scheduling.ProductionNeedsWidget";
@@ -51,14 +61,15 @@ export class ProductionNeedsWidget extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
-        this.cols = COLS;
+        this.allCols = DATA_COLS;
 
         this.state = useState({
             targetMonth: firstOfMonth(0),
             dateFrom: firstOfMonth(-5),
             dateTo: firstOfMonth(0),
             search: "",
-            stateFilter: "all",
+            stateFilter: [],    // multiselección; vacío = todos. Admite el token especial "necesidad".
+            originFilter: [],   // multiselección; vacío = todos
             rows: [],
             kpis: {},
             meta: {},
@@ -67,12 +78,44 @@ export class ProductionNeedsWidget extends Component {
             selected: {},   // {product_id: true}
             loading: false,
             generating: false,
+            visibleCols: this._loadVisibleCols(),
+            openMenu: null,     // 'cols' | 'origin' | 'state' | null
         });
 
         onWillStart(async () => {
             await this.load();
         });
     }
+
+    // ── Menús desplegables (columnas, origen, estado) ─────────────────────────
+    toggleMenu(name) { this.state.openMenu = this.state.openMenu === name ? null : name; }
+    isMenuOpen(name) { return this.state.openMenu === name; }
+    closeMenus() { this.state.openMenu = null; }
+
+    // ── Visibilidad de columnas (persistida en localStorage) ──────────────────
+    _loadVisibleCols() {
+        const def = Object.fromEntries(DATA_COLS.map(c => [c.key, c.def]));
+        try {
+            const raw = localStorage.getItem(COLS_STORAGE_KEY);
+            if (!raw) return def;
+            const saved = JSON.parse(raw);
+            for (const c of DATA_COLS) if (c.key in saved) def[c.key] = !!saved[c.key];
+            return def;
+        } catch (e) { return def; }
+    }
+    _saveVisibleCols() {
+        try { localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(this.state.visibleCols)); } catch (e) {}
+    }
+    toggleCol(key) {
+        this.state.visibleCols[key] = !this.state.visibleCols[key];
+        this._saveVisibleCols();
+    }
+    resetCols() {
+        for (const c of DATA_COLS) this.state.visibleCols[c.key] = c.def;
+        this._saveVisibleCols();
+    }
+    get dataCols() { return DATA_COLS.filter(c => this.state.visibleCols[c.key]); }
+    get hiddenColsCount() { return DATA_COLS.filter(c => !this.state.visibleCols[c.key]).length; }
 
     async load() {
         this.state.loading = true;
@@ -89,19 +132,51 @@ export class ProductionNeedsWidget extends Component {
         }
     }
 
-    // ── Filtros ─────────────────────────────────────────────────────────────
+    // ── Filtros de fecha ──────────────────────────────────────────────────────
     onFilterChange(field, ev) {
         this.state[field] = ev.target.value;
         this.load();
     }
-    setStateFilter(f) { this.state.stateFilter = f; }
-    onStateFilterChange(ev) { this.state.stateFilter = ev.target.value || "all"; }
+
+    // ── Filtro de estado (multiselección) ─────────────────────────────────────
+    // Las cards KPI fijan un único estado (reemplazan la selección); el menú
+    // desplegable permite combinar varios.
+    setStateFilter(tok) {
+        this.state.stateFilter = tok === "all" ? [] : [tok];
+    }
+    toggleStateTok(tok) {
+        const arr = this.state.stateFilter;
+        const i = arr.indexOf(tok);
+        if (i === -1) arr.push(tok); else arr.splice(i, 1);
+    }
+    isStateActive(tok) { return this.state.stateFilter.includes(tok); }
+    get stateFilterEmpty() { return this.state.stateFilter.length === 0; }
+    // Para resaltar las cards: activas sólo si es el único token seleccionado.
+    isCardActive(tok) {
+        if (tok === "all") return this.state.stateFilter.length === 0;
+        return this.state.stateFilter.length === 1 && this.state.stateFilter[0] === tok;
+    }
+
+    // ── Filtro de origen (multiselección) ─────────────────────────────────────
+    toggleOriginTok(tok) {
+        const arr = this.state.originFilter;
+        const i = arr.indexOf(tok);
+        if (i === -1) arr.push(tok); else arr.splice(i, 1);
+    }
+    isOriginActive(tok) { return this.state.originFilter.includes(tok); }
+    clearOriginFilter() { this.state.originFilter = []; }
+    clearStateFilter() { this.state.stateFilter = []; }
 
     get stateOptions() {
         const set = new Set();
         for (const r of this.state.rows) {
             for (const tok of (r.state || "").split(" | ")) if (tok) set.add(tok);
         }
+        return [...set].sort();
+    }
+    get originOptions() {
+        const set = new Set();
+        for (const r of this.state.rows) if (r.origin) set.add(r.origin);
         return [...set].sort();
     }
 
@@ -115,6 +190,13 @@ export class ProductionNeedsWidget extends Component {
         }
     }
 
+    _matchesState(row) {
+        const sel = this.state.stateFilter;
+        if (!sel.length) return true;
+        return sel.some(tok =>
+            tok === "necesidad" ? (row.net_need || 0) > 0 : (row.state || "").includes(tok));
+    }
+
     get visibleRows() {
         let rows = [...this.state.rows];
         const q = (this.state.search || "").trim().toLowerCase();
@@ -123,11 +205,10 @@ export class ProductionNeedsWidget extends Component {
                 (r.name || "").toLowerCase().includes(q) ||
                 (r.code || "").toLowerCase().includes(q));
         }
-        const f = this.state.stateFilter;
-        if (f && f !== "all") {
-            if (f === "necesidad") rows = rows.filter(r => (r.net_need || 0) > 0);
-            else rows = rows.filter(r => (r.state || "").includes(f));
+        if (this.state.originFilter.length) {
+            rows = rows.filter(r => this.state.originFilter.includes(r.origin || ""));
         }
+        rows = rows.filter(r => this._matchesState(r));
 
         const col = this.state.sortCol;
         const dir = this.state.sortDir === "asc" ? 1 : -1;
@@ -147,9 +228,26 @@ export class ProductionNeedsWidget extends Component {
     f(n) { return n == null ? "—" : fmt(n); }
     kpiCls(n) { return kpiNumClass(fmt(n)); }
 
+    cellValue(row, col) {
+        const v = row[col.key];
+        if (col.type === "num" || col.type === "money") return this.f(v);
+        return v || "—";
+    }
+    cellClass(row, col) {
+        let c = "text-" + (col.align || "start");
+        if (col.key === "suggested_qty" && row.suggested_qty > 0) c += " o_needs_fab text-success";
+        return c;
+    }
+
     sortIcon(col) {
         if (this.state.sortCol !== col) return "fa fa-sort text-muted opacity-50 ms-1";
         return this.state.sortDir === "asc" ? "fa fa-sort-up ms-1" : "fa fa-sort-down ms-1";
+    }
+
+    saleCatBadge(cat) {
+        const map = { A: "text-bg-success", B: "text-bg-info", C: "text-bg-primary",
+                      D: "text-bg-warning", E: "text-bg-secondary" };
+        return "badge rounded-pill " + (map[cat] || "text-bg-light border");
     }
 
     stateClass(state) {
@@ -163,8 +261,6 @@ export class ProductionNeedsWidget extends Component {
     }
 
     // ── Selección ───────────────────────────────────────────────────────────
-    // Sólo se puede disparar OF cuando corresponde: estado Programar
-    // (hay necesidad, es producción interna y tiene máquina + mínimo definidos).
     isSelectable(row) { return (row.state || "").includes("Programar"); }
     get hasSelectable() { return this.visibleRows.some(r => this.isSelectable(r)); }
     toggleRow(row) {

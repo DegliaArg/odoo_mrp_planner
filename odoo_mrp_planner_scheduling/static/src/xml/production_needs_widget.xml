@@ -24,15 +24,97 @@
                        t-att-value="state.dateTo"
                        t-on-change="(ev) => this.onFilterChange('dateTo', ev)"/>
             </div>
-            <div class="d-flex align-items-center gap-1">
-                <label class="form-label mb-0 small text-muted">Estado</label>
-                <select class="form-select form-select-sm" style="max-width:200px;"
-                        t-on-change="(ev) => this.onStateFilterChange(ev)">
-                    <option value="all" t-att-selected="state.stateFilter === 'all'">Todos</option>
-                    <t t-foreach="stateOptions" t-as="st" t-key="st">
-                        <option t-att-value="st" t-att-selected="state.stateFilter === st"><t t-esc="st"/></option>
-                    </t>
-                </select>
+            <!-- Filtro de origen (multiselección) -->
+            <div class="position-relative">
+                <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+                        t-on-click="() => this.toggleMenu('origin')">
+                    <i class="fa fa-filter"/>Origen
+                    <span t-if="state.originFilter.length" class="badge rounded-pill text-bg-primary"
+                          t-esc="state.originFilter.length"/>
+                    <i class="fa fa-caret-down"/>
+                </button>
+                <div t-if="isMenuOpen('origin')" class="card shadow position-absolute mt-1"
+                     style="z-index:30; min-width:230px; max-height:320px; overflow:auto;">
+                    <div class="p-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-muted">Origen</span>
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    t-on-click="() => this.clearOriginFilter()">Limpiar</button>
+                        </div>
+                        <t t-foreach="originOptions" t-as="o" t-key="o">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       t-att-id="'orig_' + o_index"
+                                       t-att-checked="isOriginActive(o)"
+                                       t-on-change="() => this.toggleOriginTok(o)"/>
+                                <label class="form-check-label small" t-att-for="'orig_' + o_index"
+                                       t-esc="o"/>
+                            </div>
+                        </t>
+                        <div t-if="!originOptions.length" class="text-muted small">Sin datos.</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Filtro de estado (multiselección) -->
+            <div class="position-relative">
+                <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+                        t-on-click="() => this.toggleMenu('state')">
+                    <i class="fa fa-filter"/>Estado
+                    <span t-if="state.stateFilter.length" class="badge rounded-pill text-bg-primary"
+                          t-esc="state.stateFilter.length"/>
+                    <i class="fa fa-caret-down"/>
+                </button>
+                <div t-if="isMenuOpen('state')" class="card shadow position-absolute mt-1"
+                     style="z-index:30; min-width:230px; max-height:320px; overflow:auto;">
+                    <div class="p-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-muted">Estado</span>
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    t-on-click="() => this.clearStateFilter()">Limpiar</button>
+                        </div>
+                        <t t-foreach="stateOptions" t-as="st" t-key="st">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       t-att-id="'st_' + st_index"
+                                       t-att-checked="isStateActive(st)"
+                                       t-on-change="() => this.toggleStateTok(st)"/>
+                                <label class="form-check-label small" t-att-for="'st_' + st_index"
+                                       t-esc="st"/>
+                            </div>
+                        </t>
+                        <div t-if="!stateOptions.length" class="text-muted small">Sin datos.</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Selector de columnas (mostrar/ocultar) -->
+            <div class="position-relative">
+                <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+                        t-on-click="() => this.toggleMenu('cols')">
+                    <i class="fa fa-table"/>Columnas
+                    <span t-if="hiddenColsCount" class="badge rounded-pill text-bg-secondary"
+                          t-attf-title="{{hiddenColsCount}} ocultas" t-esc="hiddenColsCount"/>
+                    <i class="fa fa-caret-down"/>
+                </button>
+                <div t-if="isMenuOpen('cols')" class="card shadow position-absolute mt-1"
+                     style="z-index:30; min-width:240px; max-height:340px; overflow:auto;">
+                    <div class="p-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-bold text-muted">Columnas visibles</span>
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    t-on-click="() => this.resetCols()">Restablecer</button>
+                        </div>
+                        <t t-foreach="allCols" t-as="c" t-key="c.key">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       t-att-id="'col_' + c.key"
+                                       t-att-checked="state.visibleCols[c.key]"
+                                       t-on-change="() => this.toggleCol(c.key)"/>
+                                <label class="form-check-label small" t-att-for="'col_' + c.key"
+                                       t-esc="c.label"/>
+                            </div>
+                        </t>
+                    </div>
+                </div>
             </div>
             <div class="d-flex align-items-center gap-1 flex-grow-1" style="min-width:160px;">
                 <i class="fa fa-search text-muted"/>
@@ -51,7 +133,7 @@
         <div class="d-flex gap-2 mb-3 flex-wrap">
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'all' ? 'border-primary' : ''"
+                     t-att-class="isCardActive('all') ? 'border-primary' : ''"
                      t-on-click="() => this.setStateFilter('all')"
                      title="Total de artículos analizados (vendibles o con forecast en la ventana).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -63,7 +145,7 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'Programar' ? 'border-success' : ''"
+                     t-att-class="isCardActive('Programar') ? 'border-success' : ''"
                      t-on-click="() => this.setStateFilter('Programar')"
                      title="Artículos listos para disparar la OF (estado Programar).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -75,7 +157,7 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'necesidad' ? 'border-primary' : ''"
+                     t-att-class="isCardActive('necesidad') ? 'border-primary' : ''"
                      t-on-click="() => this.setStateFilter('necesidad')"
                      title="Artículos cuya posición de stock no alcanza el stock objetivo (necesidad neta > 0).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -98,7 +180,7 @@
             </div>
             <div class="flex-fill" style="min-width:0; flex-basis:0;">
                 <div class="card o_planner_card o_planner_kpi_card_lg h-100" role="button"
-                     t-att-class="state.stateFilter === 'Revisar' ? 'border-warning' : ''"
+                     t-att-class="isCardActive('Revisar') ? 'border-warning' : ''"
                      t-on-click="() => this.setStateFilter('Revisar')"
                      title="Artículos que requieren revisión de datos (origen, máquina, mínimo, cantidad).">
                     <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
@@ -116,9 +198,13 @@
                 <i class="fa fa-list-alt me-2 text-muted"/>
                 <span class="fw-bold text-muted small">Necesidades por artículo</span>
             </div>
-            <span t-if="state.stateFilter !== 'all'" class="badge text-bg-light border">
-                <t t-esc="state.stateFilter"/>
-                <i class="fa fa-times ms-1" role="button" t-on-click="() => this.setStateFilter('all')"/>
+            <span t-foreach="state.stateFilter" t-as="sf" t-key="sf" class="badge text-bg-light border">
+                <t t-esc="sf"/>
+                <i class="fa fa-times ms-1" role="button" t-on-click="() => this.toggleStateTok(sf)"/>
+            </span>
+            <span t-foreach="state.originFilter" t-as="of" t-key="of" class="badge text-bg-light border">
+                <t t-esc="of"/>
+                <i class="fa fa-times ms-1" role="button" t-on-click="() => this.toggleOriginTok(of)"/>
             </span>
             <span class="text-muted small ms-1"
                   t-esc="'Almacén: ' + (state.meta.warehouse_name || '—') + ' · ventana ' + (state.meta.n_months || 0) + ' meses · factor ' + (state.meta.safety_factor || '')"/>
@@ -155,24 +241,13 @@
                                 t-on-click="() => this.sortBy('name')">
                                 <div class="o_th_cell">Artículo<i t-att-class="sortIcon('name')"/></div>
                             </th>
-                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">
-                                <div class="o_th_cell">Origen</div>
-                            </th>
-                            <t t-foreach="cols" t-as="c" t-key="c.key">
-                                <th class="text-end align-middle"
+                            <t t-foreach="dataCols" t-as="c" t-key="c.key">
+                                <th t-att-class="'align-middle text-' + c.align"
                                     style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
                                     t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
                                     <div class="o_th_cell"><t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/></div>
                                 </th>
                             </t>
-                            <th class="align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
-                                title="Producción interna: máquina preferida del vulcanizado. Compra-venta: proveedor preferido.">
-                                <div class="o_th_cell">Máquina / proveedor</div>
-                            </th>
-                            <th class="text-end align-middle" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
-                                title="Lote mínimo. Producción interna: mínimo por turno del vulcanizado. Compra-venta: cantidad mínima del proveedor.">
-                                <div class="o_th_cell">Mínimo (lote)</div>
-                            </th>
                             <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
                                 t-on-click="() => this.sortBy('state')">
                                 <div class="o_th_cell">Estado<i t-att-class="sortIcon('state')"/></div>
@@ -191,15 +266,26 @@
                             <td style="padding:3px 8px; white-space:nowrap;">
                                 <div class="fw-semibold text-truncate" style="max-width:280px;" t-att-title="row.name" t-esc="row.name"/>
                             </td>
-                            <td style="padding:3px 8px;">
-                                <span class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/>
-                            </td>
-                            <t t-foreach="cols" t-as="c" t-key="c.key">
-                                <td t-att-class="c.key === 'suggested_qty' and row.suggested_qty > 0 ? 'text-end o_needs_fab text-success' : 'text-end'"
-                                    style="padding:3px 8px;" t-esc="this.f(row[c.key])"/>
+                            <t t-foreach="dataCols" t-as="c" t-key="c.key">
+                                <td t-att-class="cellClass(row, c)" style="padding:3px 8px;">
+                                    <t t-if="c.key === 'origin'">
+                                        <span t-if="row.origin" class="badge rounded-pill text-bg-light border fw-normal" t-esc="row.origin"/>
+                                        <span t-else="" class="text-muted">—</span>
+                                    </t>
+                                    <t t-elif="c.key === 'sale_category'">
+                                        <span t-if="row.sale_category" t-att-class="saleCatBadge(row.sale_category)"
+                                              style="font-size:10px; padding:2px 7px;" t-esc="row.sale_category"/>
+                                        <span t-else="" class="text-muted">—</span>
+                                    </t>
+                                    <t t-elif="c.type === 'text'">
+                                        <span class="text-truncate d-inline-block" style="max-width:160px;"
+                                              t-att-title="row[c.key]" t-esc="row[c.key] || '—'"/>
+                                    </t>
+                                    <t t-else="">
+                                        <t t-esc="cellValue(row, c)"/>
+                                    </t>
+                                </td>
                             </t>
-                            <td class="text-muted text-truncate" style="max-width:120px; padding:3px 8px;" t-att-title="row.machine" t-esc="row.machine"/>
-                            <td class="text-end" style="padding:3px 8px;" t-esc="this.f(row.min_per_shift)"/>
                             <td style="padding:3px 8px;">
                                 <span class="badge rounded-pill" t-att-class="this.stateClass(row.state)"
                                       t-att-title="row.state_reason" t-esc="row.state"/>

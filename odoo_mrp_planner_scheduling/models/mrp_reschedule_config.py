@@ -91,7 +91,7 @@ class MrpRescheduleConfig(models.Model):
     )
     vulcanizado_warehouse_id = fields.Many2one(
         'stock.warehouse',
-        string='Almacén de vulcanizado',
+        string='Almacén de fabricación del vulcanizado',
         help='Almacén (sector) donde se fabrica el vulcanizado. El motor busca, en la BOM de '
              'cada artículo final, el componente cuyo almacén de fabricación es éste (vía la '
              'ruta de reabastecimiento del componente, supplier_wh_id) y lee de ahí la máquina '

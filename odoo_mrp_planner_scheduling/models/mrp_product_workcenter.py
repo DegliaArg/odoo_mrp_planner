@@ -132,6 +132,23 @@ class ProductTemplate(models.Model):
              'BD_VULCANIZADO del Excel; sirve para los casos que la BOM no permite resolver. '
              'Varios finales pueden apuntar al mismo vulcanizado (muchos-a-uno).',
     )
+    planning_vulcanizado_id = fields.Many2one(
+        'product.product',
+        string='Vulcanizado (detectado)',
+        help='Vulcanizado detectado automáticamente recorriendo la BOM (componente cuyo '
+             'almacén de fabricación es el configurado). Se calcula de una sola vez con el '
+             'botón "Recalcular planificación" de la configuración (o el cron), para que el '
+             'panel no tenga que explorar la BOM en cada carga. El campo manual tiene prioridad.',
+    )
+    planning_purchase_product_id = fields.Many2one(
+        'product.product',
+        string='Componente comprado (detectado)',
+        help='Para artículos de compra-venta: componente que realmente se compra, detectado '
+             'recorriendo la BOM hacia abajo hasta el primer componente con proveedor (el final '
+             'suele pasar por procesos mínimos de envasado). De ese componente se toman el lote '
+             'mínimo (min_qty) y el lead time (delay) del proveedor. Se calcula con el botón '
+             '"Recalcular planificación" o el cron; evita recorrer la BOM en cada carga.',
+    )
 
 
 class MrpProductType(models.Model):

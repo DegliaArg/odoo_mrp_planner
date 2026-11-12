@@ -25,6 +25,16 @@
                         <field name="manufacturing_type_id" options="{'no_create': True}"/>
                         <field name="manufacturing_warehouse_id" options="{'no_create': True}"/>
                     </group>
+                    <group string="Mantenimiento">
+                        <div class="text-muted small mb-2">
+                            Recorre la BOM una sola vez y guarda, en cada artículo, el vulcanizado
+                            (producción interna) y el componente que se compra (compra-venta). El
+                            panel usa esos campos precalculados y no explora la BOM en cada carga.
+                            Conviene correrlo tras cambios en listas de materiales o rutas.
+                        </div>
+                        <button name="action_recompute_planning_sources" type="object"
+                                string="Recalcular planificación" class="btn-primary"/>
+                    </group>
 
                 </sheet>
             </form>

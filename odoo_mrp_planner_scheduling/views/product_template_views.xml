@@ -13,10 +13,12 @@
                 <page string="Planificación" name="mrp_planner_tab"
                       groups="odoo_mrp_planner_scheduling.group_scheduling">
                     <group>
-                        <group string="Vulcanizado">
+                        <group string="Vulcanizado / abastecimiento">
                             <field name="vulcanizado_id"
                                    options="{'no_create': True}"/>
                             <field name="min_per_shift"/>
+                            <field name="planning_vulcanizado_id" readonly="1"/>
+                            <field name="planning_purchase_product_id" readonly="1"/>
                         </group>
                     </group>
                     <group string="Centros de trabajo (máquina preferida)">

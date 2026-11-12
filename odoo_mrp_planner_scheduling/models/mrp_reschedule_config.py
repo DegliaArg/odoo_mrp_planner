@@ -13,7 +13,7 @@ También implementa los hooks que el módulo base expone
 (_scheduling_ui_enabled, _user_in_scheduling_group, _config_editor_groups)
 para que los paneles muestren u oculten la UI de programación.
 """
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 
 
 class MrpRescheduleConfig(models.Model):
@@ -98,6 +98,25 @@ class MrpRescheduleConfig(models.Model):
              'del componente, supplier_wh_id) y lee de ahí esos datos. Si se deja vacío (o no '
              'se puede resolver), el motor usa el propio artículo final. Opcional, no bloqueante.',
     )
+
+    def action_recompute_planning_sources(self):
+        """Botón: recalcula de una vez los campos de planificación (vulcanizado y
+        componente comprado) recorriendo la BOM, para que el panel no la explore en
+        cada carga."""
+        res = self.env['mrp.production.needs'].sudo()._recompute_planning_sources()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Recálculo de planificación'),
+                'message': _(
+                    '%(p)s artículos procesados · %(v)s vulcanizados y %(b)s componentes '
+                    'comprados detectados/actualizados.',
+                    p=res['products'], v=res['vulcanizado'], b=res['purchase']),
+                'type': 'success',
+                'sticky': False,
+            },
+        }
 
     @api.model
     def _config_editor_groups(self):

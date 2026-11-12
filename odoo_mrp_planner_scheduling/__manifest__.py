@@ -1,6 +1,6 @@
 {
     'name': 'Planificación',
-    'version': '18.0.8.3.0',
+    'version': '18.0.9.0.0',
     'summary': 'Programación desde demanda y reprogramación en cascada para el módulo KPIs',
     'description': """
 Extensión de programación del módulo KPIs de Deglia.
@@ -29,6 +29,7 @@ qué usuarios ven los botones y KPIs asociados.
         'security/groups.xml',
         'security/ir_rules.xml',
         'security/ir.model.access.csv',
+        'data/ir_cron.xml',
         'views/mrp_production_views.xml',
         'views/mrp_reschedule_alert_views.xml',
         'views/res_config_settings_views.xml',

@@ -46,12 +46,14 @@ const DATA_COLS = [
     { key: "target_stock",   label: "Stock objetivo",     type: "num",   def: true,  align: "end", title: "Stock de seguridad + forecast del mes." },
     { key: "net_need",       label: "Necesidad neta",     type: "num",   def: true,  align: "end", title: "MAX(0, objetivo − posición)." },
     { key: "suggested_qty",  label: "Cantidad a fabricar", type: "num",  def: true,  align: "end", title: "Cantidad sugerida: MAX(lote mínimo, necesidad). Dispara OF tanto en producción interna como en compra-venta (las rutas generan la OC)." },
-    { key: "coverage_now",   label: "Cobertura (meses)",  type: "num",   def: true,  align: "end", title: "Cobertura actual en meses = posición / promedio de forecast." },
+    { key: "coverage_now",   label: "Cobertura actual (meses)", type: "num", def: true,  align: "end", title: "Cobertura actual en meses = posición de stock / promedio de forecast." },
+    { key: "coverage_plan",  label: "Cobertura con programa (meses)", type: "num", def: false, align: "end", title: "Cobertura con programa en meses = (posición de stock + cantidad a fabricar) / promedio de forecast." },
     { key: "machine",        label: "Máquina / proveedor", type: "text", def: false, align: "start", title: "Producción interna: máquina preferida del vulcanizado. Compra-venta: proveedor preferido." },
     { key: "min_per_shift",  label: "Mínimo (lote)",      type: "num",   def: true,  align: "end", title: "Lote mínimo. Producción interna: mínimo por turno del vulcanizado. Compra-venta: cantidad mínima del proveedor." },
 ];
 
 const COLS_STORAGE_KEY = "_planner_needs_visible_cols_v1";
+const WIDTHS_STORAGE_KEY = "_planner_needs_col_widths_v1";
 
 export class ProductionNeedsWidget extends Component {
     static template = "odoo_mrp_planner_scheduling.ProductionNeedsWidget";
@@ -79,6 +81,7 @@ export class ProductionNeedsWidget extends Component {
             loading: false,
             generating: false,
             visibleCols: this._loadVisibleCols(),
+            colWidths: this._loadColWidths(),   // {colKey: px}
             openMenu: null,     // 'cols' | 'origin' | 'state' | null
         });
 
@@ -116,6 +119,36 @@ export class ProductionNeedsWidget extends Component {
     }
     get dataCols() { return DATA_COLS.filter(c => this.state.visibleCols[c.key]); }
     get hiddenColsCount() { return DATA_COLS.filter(c => !this.state.visibleCols[c.key]).length; }
+
+    // ── Ancho de columnas (arrastrando el borde derecho; persistido) ──────────
+    _loadColWidths() {
+        try { return JSON.parse(localStorage.getItem(WIDTHS_STORAGE_KEY) || "{}") || {}; }
+        catch (e) { return {}; }
+    }
+    _saveColWidths() {
+        try { localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify(this.state.colWidths)); } catch (e) {}
+    }
+    colStyle(key) {
+        const w = this.state.colWidths[key];
+        return w ? `width:${w}px; min-width:${w}px; max-width:${w}px;` : "";
+    }
+    onResizeStart(key, ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const th = ev.currentTarget.closest("th");
+        const startX = ev.clientX;
+        const startW = th ? th.offsetWidth : (this.state.colWidths[key] || 100);
+        const onMove = (e) => {
+            this.state.colWidths[key] = Math.max(40, startW + e.clientX - startX);
+        };
+        const onUp = () => {
+            this._saveColWidths();
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }
 
     async load() {
         this.state.loading = true;

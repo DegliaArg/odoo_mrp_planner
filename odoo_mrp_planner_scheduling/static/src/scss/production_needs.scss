@@ -5,24 +5,35 @@
     .o_needs_table {
 
         thead th {
+            position: relative;
             font-weight: 600;
             font-size: 11px;
             color: var(--bs-secondary-color, #6c757d);
             white-space: nowrap;
             vertical-align: middle;
 
-            i { opacity: .5; }
+            i.fa-sort, i.fa-sort-up, i.fa-sort-down { opacity: .5; }
 
-            // Encabezado completo (sin abreviar): dos renglones si hace falta y
-            // ancho de columna arrastrable (resize del div, que la celda no soporta).
+            // Encabezado completo (sin abreviar): dos renglones si hace falta.
             .o_th_cell {
                 display: block;
                 white-space: normal;
                 overflow: hidden;
-                resize: horizontal;
-                min-width: 52px;
-                min-height: 1.3em;
+                min-width: 40px;
             }
+
+            // Handle para redimensionar arrastrando el borde derecho de la columna.
+            .o_col_resize_handle {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 6px;
+                height: 100%;
+                cursor: col-resize;
+                user-select: none;
+                z-index: 1;
+            }
+            .o_col_resize_handle:hover { background: var(--bs-primary, #0d6efd); opacity: .35; }
         }
 
         tbody td { vertical-align: middle; }

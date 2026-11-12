@@ -237,20 +237,23 @@
                                        t-att-checked="selectedCount > 0"
                                        t-on-click="() => this.toggleAll()"/>
                             </th>
-                            <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
+                            <th class="align-middle" t-att-style="'padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);' + colStyle('name')"
                                 t-on-click="() => this.sortBy('name')">
                                 <div class="o_th_cell">Artículo<i t-att-class="sortIcon('name')"/></div>
+                                <div class="o_col_resize_handle" t-on-mousedown="(ev) => this.onResizeStart('name', ev)" t-on-click.stop=""/>
                             </th>
                             <t t-foreach="dataCols" t-as="c" t-key="c.key">
                                 <th t-att-class="'align-middle text-' + c.align"
-                                    style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
+                                    t-att-style="'padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);' + colStyle(c.key)"
                                     t-att-title="c.title" t-on-click="() => this.sortBy(c.key)">
                                     <div class="o_th_cell"><t t-esc="c.label"/><i t-att-class="sortIcon(c.key)"/></div>
+                                    <div class="o_col_resize_handle" t-on-mousedown="(ev) => this.onResizeStart(c.key, ev)" t-on-click.stop=""/>
                                 </th>
                             </t>
-                            <th class="align-middle" style="padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);"
+                            <th class="align-middle" t-att-style="'padding:4px 8px; cursor:pointer; user-select:none; background:var(--bs-tertiary-bg, #f8f9fa);' + colStyle('state')"
                                 t-on-click="() => this.sortBy('state')">
                                 <div class="o_th_cell">Estado<i t-att-class="sortIcon('state')"/></div>
+                                <div class="o_col_resize_handle" t-on-mousedown="(ev) => this.onResizeStart('state', ev)" t-on-click.stop=""/>
                             </th>
                             <th class="text-center align-middle" style="width:42px; padding:4px 6px; background:var(--bs-tertiary-bg, #f8f9fa);"/>
                         </tr>

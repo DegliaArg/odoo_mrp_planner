@@ -24,7 +24,7 @@ de la OF es una acción posterior, con aprobación humana.
 Ver docs/plan_panel1_motor_necesidades.md para el detalle y las decisiones.
 """
 import math
-from datetime import datetime, time
+from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -426,6 +426,27 @@ class MrpProductionNeeds(models.TransientModel):
 
     # ── Disparo de OF ───────────────────────────────────────────────────────────
 
+    def _lead_days_for_product(self, product, cfg):
+        """Lead time (días) de un artículo, con la misma lógica que el panel:
+        producción interna → BOM (produce_delay + days_to_prepare_mo); compra-venta →
+        delay del proveedor preferido; respaldo → lead del tipo de origen."""
+        tmpl = product.product_tmpl_id
+        origin = tmpl.x_product_type_ids[:1]
+        manuf_type_id = cfg.manufacturing_type_id.id or False
+        is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+        origin_lead = (origin.lead_time_days or 0) if origin else 0
+        if is_manuf:
+            try:
+                bom = self.env['mrp.bom']._bom_find(product).get(product)
+            except Exception:
+                bom = False
+            bom_lead = ((bom.produce_delay or 0) + (bom.days_to_prepare_mo or 0)) if bom else 0
+            return bom_lead or origin_lead
+        seller = product.seller_ids[:1]
+        if seller:
+            return seller.delay or origin_lead
+        return origin_lead
+
     @api.model
     def action_generate_mo(self, items, target_month=None):
         """Crea y confirma una OF del producto final por cada ítem.
@@ -452,38 +473,36 @@ class MrpProductionNeeds(models.TransientModel):
                 [('company_id', '=', self.env.company.id)], limit=1)
         picking_type = warehouse.manu_type_id if warehouse else False
 
-        # Fecha de inicio prevista = primer día del mes a programar, nunca en el pasado.
-        date_start = False
-        if target_month:
-            start = datetime.combine(fields.Date.to_date(target_month).replace(day=1), time(8, 0))
-            now = fields.Datetime.now()
-            date_start = start if start > now else now
-
+        now = fields.Datetime.now()
         Production = self.env['mrp.production']
         created = Production.browse()
         for it in items:
             product = self.env['product.product'].browse(int(it['product_id']))
+            # Fecha programada = hoy + lead time del artículo (BOM para producción
+            # interna; delay del proveedor para compra-venta).
+            lead_days = self._lead_days_for_product(product, cfg)
+            date_start = now + timedelta(days=lead_days)
             vals = {
                 'product_id': product.id,
                 'product_qty': float(it['qty']),
                 'product_uom_id': product.uom_id.id,
                 'company_id': self.env.company.id,
+                'date_start': date_start,
             }
             if picking_type:
                 vals['picking_type_id'] = picking_type.id
-            if date_start:
-                vals['date_start'] = date_start
             mo = Production.create(vals)
             mo.action_confirm()
             # Trazabilidad: deja constancia en el chatter de que la OF nació del panel
-            # de Planificación (y con qué mes/cantidad sugerida).
+            # de Planificación (mes, cantidad y lead aplicado).
             try:
                 mes = fields.Date.to_string(fields.Date.to_date(target_month).replace(day=1)) \
                     if target_month else _('sin especificar')
                 mo.message_post(body=_(
                     'Orden de fabricación generada desde el panel de <b>Planificación</b> '
-                    '(motor de necesidades). Mes a programar: %(mes)s · cantidad sugerida: %(qty)s.',
-                    mes=mes, qty=float(it['qty']),
+                    '(motor de necesidades). Mes a programar: %(mes)s · cantidad sugerida: %(qty)s · '
+                    'fecha programada: hoy + %(lead)s días de lead time.',
+                    mes=mes, qty=float(it['qty']), lead=lead_days,
                 ))
             except Exception:
                 pass

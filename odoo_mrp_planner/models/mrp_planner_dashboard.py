@@ -33,9 +33,9 @@ _logger = logging.getLogger(__name__)
 class MrpPlannerDashboard(models.TransientModel):
     _name = 'mrp.planner.dashboard'
     _inherit = ['mrp.planner.dashboard.actions.mixin']
-    _description = 'Panel del planificador de producción'
+    _description = 'Tablero de Gestión'
 
-    name = fields.Char(default='Panel del Planificador', help='Nombre descriptivo del panel (solo uso interno de la vista).')
+    name = fields.Char(default='Tablero de Gestión', help='Nombre descriptivo del panel (solo uso interno de la vista).')
 
     # ── Alertas — contadores ─────────────────────────────────────────────────
 

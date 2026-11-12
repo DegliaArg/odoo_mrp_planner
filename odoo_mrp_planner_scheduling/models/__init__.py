@@ -10,4 +10,3 @@ from . import mrp_reschedule_alert
 from . import mrp_production
 from . import mrp_planner_dashboards
 from . import product_template
-from . import res_users

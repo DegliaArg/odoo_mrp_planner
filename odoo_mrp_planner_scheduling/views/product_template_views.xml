@@ -7,14 +7,11 @@
         <field name="model">product.template</field>
         <field name="inherit_id" ref="product.product_template_form_view"/>
         <field name="arch" type="xml">
-            <field name="categ_id" position="after">
-                <field name="mrp_enable_scheduling" invisible="1"/>
-            </field>
-            <!-- Pestaña de scheduling: solo centros de trabajo compatibles. Desaparece
-                 cuando la programación está desactivada. -->
+            <!-- Pestaña de planificación: visible para los usuarios del grupo
+                 Programación (sin toggle maestro; el grupo es la única fuente de verdad). -->
             <xpath expr="//notebook" position="inside">
                 <page string="Planificación" name="mrp_planner_tab"
-                      invisible="not mrp_enable_scheduling">
+                      groups="odoo_mrp_planner_scheduling.group_scheduling">
                     <group>
                         <group string="Vulcanizado">
                             <field name="vulcanizado_id"

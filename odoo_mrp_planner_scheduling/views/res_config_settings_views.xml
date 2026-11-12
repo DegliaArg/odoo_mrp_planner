@@ -10,25 +10,10 @@
                 <sheet>
                     <h2>Planificación</h2>
 
-                    <!-- ══ HABILITACIÓN MAESTRA ══════════════════════════════════ -->
-                    <group string="Activación">
-                        <field name="enable_scheduling" widget="scheduling_toggle" nolabel="1"/>
-                        <div class="text-muted small border-start border-2 ps-2 mt-1">
-                            <p class="mb-1">
-                                Interruptor maestro del módulo de Planificación. Instalar el
-                                módulo <b>no</b> lo activa: se habilita desde aquí.
-                            </p>
-                            <p class="mb-0">
-                                Cuando está <b>desactivado</b> se ocultan el menú de
-                                Planificación y la pestaña de centros de trabajo de los
-                                artículos para los usuarios no administradores.
-                            </p>
-                        </div>
-                    </group>
-
-                    <!-- Nota: las opciones del reprogramador en cascada (fallback de CT,
-                         prioridad, heurística) se retiran de la UI mientras esa función
-                         está aparcada. Los campos siguen en el modelo. -->
+                    <!-- El acceso al módulo se controla por el grupo "Programación"
+                         (no hay interruptor maestro). Las opciones del reprogramador en
+                         cascada (fallback de CT, prioridad, heurística) se retiran de la UI
+                         mientras esa función está aparcada; los campos siguen en el modelo. -->
                     <group string="Motor de necesidades (planificación de producción)">
                         <div class="text-muted small mb-2">
                             Parámetros del cálculo de necesidades de producción: factor de stock

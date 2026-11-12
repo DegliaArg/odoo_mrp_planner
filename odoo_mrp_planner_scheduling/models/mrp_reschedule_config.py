@@ -99,47 +99,6 @@ class MrpRescheduleConfig(models.Model):
              'se puede resolver), el motor usa el propio artículo final. Opcional, no bloqueante.',
     )
 
-    def _sync_scheduling_group(self, enabled):
-        """Activa/desactiva los menús y el grupo de scheduling según el toggle.
-
-        Usa SQL directo en ir_ui_menu para garantizar que el cambio llegue a la
-        base de datos incluso si env.ref() falla por caché o estado del registry.
-        Invalida el caché ORM del modelo después del UPDATE para que la sesión
-        actual no devuelva datos obsoletos.
-
-        En entornos multi-empresa, solo oculta los menús si ninguna otra empresa
-        tiene scheduling activo, para evitar afectar a usuarios de otras empresas.
-        """
-        if not enabled:
-            # sudo(): necesario para verificar otros registros de config sin importar el usuario activo
-            other_enabled = self.env['mrp.reschedule.config'].sudo().search([
-                ('id', 'not in', self.ids),
-                ('enable_scheduling', '=', True),
-            ], limit=1)
-            if other_enabled:
-                return
-        cr = self.env.cr
-        menu_xmlids = [
-            ('odoo_mrp_planner_scheduling', 'mrp_reschedule_menu_plans'),
-            ('odoo_mrp_planner_scheduling', 'mrp_reschedule_menu_request'),
-        ]
-        for module, name in menu_xmlids:
-            cr.execute(
-                "SELECT res_id FROM ir_model_data WHERE module=%s AND name=%s LIMIT 1",
-                (module, name),
-            )
-            row = cr.fetchone()
-            if row:
-                cr.execute("UPDATE ir_ui_menu SET active=%s WHERE id=%s", (enabled, row[0]))
-        self.env['ir.ui.menu'].invalidate_model(['active'])
-
-        group = self.env.ref('odoo_mrp_planner_scheduling.group_scheduling', raise_if_not_found=False)
-        if not group:
-            return
-        if not enabled:
-            # sudo(): ir.groups pertenece al sistema; el admin del módulo no tiene acceso directo
-            group.sudo().write({'users': [(5,)]})
-
     @api.model
     def _config_editor_groups(self):
         return super()._config_editor_groups() + ['odoo_mrp_planner_scheduling.group_scheduling']
@@ -163,8 +122,6 @@ class MrpRescheduleConfig(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if 'enable_scheduling' in vals:
-            self._sync_scheduling_group(vals['enable_scheduling'])
         sp = self.env['ir.config_parameter'].sudo()
         company_id = self.env.company.id
         if 'wc_fallback' in vals:
@@ -178,8 +135,6 @@ class MrpRescheduleConfig(models.Model):
         records = super().create(vals_list)
         sp = self.env['ir.config_parameter'].sudo()
         for rec in records:
-            if rec.enable_scheduling:
-                rec._sync_scheduling_group(True)
             sp.set_param(f'mrp_reschedule.wc_fallback.{rec.company_id.id}', rec.wc_fallback)
             sp.set_param(f'mrp_reschedule.priority.{rec.company_id.id}', rec.priority)
         return records

@@ -89,14 +89,14 @@ class MrpRescheduleConfig(models.Model):
              'artículos de producción interna. El motor sólo sugiere cantidad a fabricar para '
              'los artículos cuyo origen es este tipo; el resto se considera compra-venta.',
     )
-    vulcanizado_warehouse_id = fields.Many2one(
+    manufacturing_warehouse_id = fields.Many2one(
         'stock.warehouse',
-        string='Almacén de fabricación del vulcanizado',
-        help='Almacén (sector) donde se fabrica el vulcanizado. El motor busca, en la BOM de '
-             'cada artículo final, el componente cuyo almacén de fabricación es éste (vía la '
-             'ruta de reabastecimiento del componente, supplier_wh_id) y lee de ahí la máquina '
-             'y el mínimo por turno. Si se deja vacío (o no se puede resolver), el motor usa el '
-             'propio artículo final. Opcional, no bloqueante.',
+        string='Almacén de fabricación',
+        help='Almacén (sector) de fabricación cuyo componente, dentro de la BOM del artículo '
+             'final, aporta la máquina y el mínimo por turno. El motor busca en la BOM el '
+             'componente cuyo almacén de fabricación es éste (vía la ruta de reabastecimiento '
+             'del componente, supplier_wh_id) y lee de ahí esos datos. Si se deja vacío (o no '
+             'se puede resolver), el motor usa el propio artículo final. Opcional, no bloqueante.',
     )
 
     def _sync_scheduling_group(self, enabled):

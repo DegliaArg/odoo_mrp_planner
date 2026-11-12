@@ -75,7 +75,7 @@ class MrpProductionNeeds(models.TransientModel):
         # None = no se pasó (usar config); False = "Todos" explícito desde el panel
         wh_id = warehouse_id if warehouse_id is not None else (cfg.planning_warehouse_id.id or False)
         manuf_type_id = cfg.manufacturing_type_id.id or False
-        vuln_wh = cfg.vulcanizado_warehouse_id
+        vuln_wh = cfg.manufacturing_warehouse_id
         company = self.env.company
 
         meta = {

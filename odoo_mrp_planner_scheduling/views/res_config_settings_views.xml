@@ -38,7 +38,7 @@
                         <field name="safety_factor"/>
                         <field name="planning_warehouse_id" options="{'no_create': True}"/>
                         <field name="manufacturing_type_id" options="{'no_create': True}"/>
-                        <field name="vulcanizado_warehouse_id" options="{'no_create': True}"/>
+                        <field name="manufacturing_warehouse_id" options="{'no_create': True}"/>
                     </group>
 
                 </sheet>

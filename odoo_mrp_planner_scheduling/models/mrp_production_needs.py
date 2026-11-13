@@ -308,27 +308,36 @@ class MrpProductionNeeds(models.TransientModel):
         sus rutas de reabastecimiento (dato nativo de Odoo, sin duplicar)."""
         return {r.supplier_wh_id.id for r in product.route_ids if r.supplier_wh_id}
 
-    def _find_warehouse_product(self, product, manuf_wh_id, seen, cache, depth):
-        """Recorre la BOM multinivel y devuelve el primer componente cuyo almacén de
-        fabricación (supplier_wh_id de su ruta) es el configurado."""
+    def _all_bom_components(self, product):
+        """Componentes de TODAS las BOM del producto (un artículo puede tener varias: una
+        para fabricar y otra para comprar/envasar). _bom_find devolvería sólo una."""
+        boms = self.env['mrp.bom'].search([
+            '|', ('product_id', '=', product.id),
+            '&', ('product_id', '=', False),
+                 ('product_tmpl_id', '=', product.product_tmpl_id.id),
+        ])
+        return boms.mapped('bom_line_ids').mapped('product_id')
+
+    def _find_warehouse_product(self, product, manuf_wh_id, manuf_route, seen, cache, depth):
+        """Recorre las BOM multinivel y devuelve el primer componente que se fabrica en el
+        almacén configurado (supplier_wh_id de su ruta) y además tiene la ruta
+        "Manufactura" tildada (debe ser un ítem que se fabrica, no que se compra)."""
         empty = self.env['product.product']
         if product.id in cache:
             return cache[product.id]
         if depth > 15 or product.id in seen:
             return empty
         seen.add(product.id)
-        bom = self.env['mrp.bom']._bom_find(product).get(product)
         result = empty
-        if bom:
-            for line in bom.bom_line_ids:
-                comp = line.product_id
-                if manuf_wh_id in self._product_supplier_wh_ids(comp):
-                    result = comp
-                    break
-                sub = self._find_warehouse_product(comp, manuf_wh_id, seen, cache, depth + 1)
-                if sub:
-                    result = sub
-                    break
+        for comp in self._all_bom_components(product):
+            if (manuf_wh_id in self._product_supplier_wh_ids(comp)
+                    and (not manuf_route or manuf_route.id in comp.route_ids.ids)):
+                result = comp
+                break
+            sub = self._find_warehouse_product(comp, manuf_wh_id, manuf_route, seen, cache, depth + 1)
+            if sub:
+                result = sub
+                break
         cache[product.id] = result
         return result
 
@@ -337,47 +346,58 @@ class MrpProductionNeeds(models.TransientModel):
         return ''.join(ch for ch in (code or '') if ch.isdigit())
 
     def _common_tail_len(self, a, b):
-        """Cantidad de dígitos finales que comparten dos códigos (el semiterminado
-        que se compra comparte la cola del código con el artículo final; los
-        consumibles/packaging no)."""
+        """Cantidad de dígitos finales que comparten dos códigos (el semiterminado que se
+        compra comparte la cola del código con el artículo final; el packaging no). Sólo
+        se usa como desempate cuando quedan varios componentes comprables."""
         da, db = self._code_digits(a), self._code_digits(b)
         i = 0
         while i < len(da) and i < len(db) and da[-1 - i] == db[-1 - i]:
             i += 1
         return i
 
-    def _gather_purchasable(self, product, seen, acc, depth):
-        """Junta TODOS los componentes con proveedor de la BOM multinivel (a cualquier
-        profundidad); el ítem que se compra suele estar 2 o más niveles hacia abajo."""
+    def _is_purchasable(self, product, buy_route):
+        """Un componente cuenta como comprable si tiene marcado "Se puede comprar"
+        (purchase_ok) y la ruta "Comprar" tildada. Así se descartan los semiterminados
+        que se fabrican (ruta Fabricar) aunque compartan código."""
+        if not product.purchase_ok:
+            return False
+        if buy_route and buy_route.id not in product.route_ids.ids:
+            return False
+        return True
+
+    def _gather_purchasable(self, product, buy_route, seen, acc, depth):
+        """Junta los componentes COMPRABLES (purchase_ok + ruta Comprar) de todas las BOM
+        multinivel; el ítem que se compra suele estar 2 o más niveles hacia abajo, y un
+        artículo puede tener una BOM de fabricación y otra de compra."""
         if depth > 15 or product.id in seen:
             return
         seen.add(product.id)
-        bom = self.env['mrp.bom']._bom_find(product).get(product)
-        if not bom:
-            return
-        for line in bom.bom_line_ids:
-            comp = line.product_id
-            if comp.seller_ids:
+        for comp in self._all_bom_components(product):
+            if self._is_purchasable(comp, buy_route):
                 acc.append(comp)
-            self._gather_purchasable(comp, seen, acc, depth + 1)
+            self._gather_purchasable(comp, buy_route, seen, acc, depth + 1)
 
     def _find_purchased_product(self, product):
-        """Componente semiterminado que realmente se compra al proveedor. Entre todos
-        los componentes con proveedor de la BOM (a cualquier profundidad), elige el que
-        comparte el código con el artículo final; así descarta consumibles y packaging
-        (bolsas, etiquetas, etc.) que también tienen proveedor pero no comparten código."""
+        """Componente que realmente se compra al proveedor. Criterio principal: el
+        componente es comprable (purchase_ok + ruta "Comprar"), lo que descarta los
+        semiterminados que se fabrican. Si queda más de un comprable (p. ej. el semi y el
+        packaging), desempata por el que comparte el código con el artículo final."""
         empty = self.env['product.product']
+        buy_route = self.env.ref('purchase_stock.route_warehouse0_buy', raise_if_not_found=False)
         acc = []
-        self._gather_purchasable(product, set(), acc, 0)
-        if not acc:
+        self._gather_purchasable(product, buy_route, set(), acc, 0)
+        uniq = {c.id: c for c in acc}
+        cands = list(uniq.values())
+        if not cands:
             return empty
+        if len(cands) == 1:
+            return cands[0]
         best, best_len = empty, 0
-        for comp in acc:
+        for comp in cands:
             n = self._common_tail_len(product.default_code, comp.default_code)
             if n > best_len:
                 best, best_len = comp, n
-        # Requiere una coincidencia de cola significativa para no tomar packaging.
-        return best if best_len >= 5 else empty
+        return best if best_len >= 4 else empty
 
     @api.model
     def _recompute_planning_sources(self):
@@ -388,6 +408,7 @@ class MrpProductionNeeds(models.TransientModel):
         cfg = self.env['mrp.reschedule.config'].get_config()
         manuf_type_id = cfg.manufacturing_type_id.id or False
         manuf_wh = cfg.manufacturing_warehouse_id
+        manuf_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
         Product = self.env['product.product']
         storable = [('is_storable', '=', True)] if 'is_storable' in Product._fields \
             else [('type', '=', 'product')]
@@ -410,7 +431,7 @@ class MrpProductionNeeds(models.TransientModel):
                 if not manuf_wh:
                     continue
                 try:
-                    mp = self._find_warehouse_product(p, manuf_wh.id, set(), cache_wh, 0)
+                    mp = self._find_warehouse_product(p, manuf_wh.id, manuf_route, set(), cache_wh, 0)
                 except Exception:
                     mp = Product
                 if mp and tmpl.manufactured_product_id.id != mp.id:

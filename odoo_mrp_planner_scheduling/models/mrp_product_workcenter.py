@@ -153,6 +153,15 @@ class MrpProductType(models.Model):
 
     _inherit = 'mrp.product.type'
 
+    supply_mode = fields.Selection(
+        [('manufacture', 'Fabricar'), ('buy', 'Comprar')],
+        string='Modo de abastecimiento',
+        help='Cómo trata el planificador a los artículos de este tipo de origen:\n'
+             '• Fabricar: lógica de producción interna (lead de la BOM, mínimo por turno del '
+             'componente fabricado).\n'
+             '• Comprar: lógica de compra (lead y lote mínimo del proveedor).\n'
+             '• En blanco: el tipo no se planifica (queda fuera del motor de necesidades).',
+    )
     lead_time_days = fields.Integer(
         string='Lead time (días)',
         help='Plazo de reposición del origen, en días. El motor de necesidades lo usa '

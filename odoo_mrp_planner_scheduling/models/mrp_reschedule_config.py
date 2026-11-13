@@ -82,13 +82,6 @@ class MrpRescheduleConfig(models.Model):
              'de necesidades como posición de stock. Si se deja vacío se consideran todos los '
              'almacenes de la empresa.',
     )
-    manufacturing_type_id = fields.Many2one(
-        'mrp.product.type',
-        string='Tipo de origen "Producción interna"',
-        help='Tipo de producto (campo "Tipo de producto" del artículo) que identifica a los '
-             'artículos de producción interna. El motor sólo sugiere cantidad a fabricar para '
-             'los artículos cuyo origen es este tipo; el resto se considera compra-venta.',
-    )
     manufacturing_warehouse_id = fields.Many2one(
         'stock.warehouse',
         string='Almacén de fabricación',

@@ -71,7 +71,6 @@ class MrpProductionNeeds(models.TransientModel):
         coverage_threshold = cfg.coverage_threshold or 0.0
         # None = no se pasó (usar config); False = "Todos" explícito desde el panel
         wh_id = warehouse_id if warehouse_id is not None else (cfg.planning_warehouse_id.id or False)
-        manuf_type_id = cfg.manufacturing_type_id.id or False
         company = self.env.company
 
         meta = {
@@ -84,7 +83,6 @@ class MrpProductionNeeds(models.TransientModel):
             'warehouse_id': wh_id,
             'warehouse_name': self.env['stock.warehouse'].browse(wh_id).display_name
                 if wh_id else _('Todos los almacenes'),
-            'manufacturing_type_set': bool(manuf_type_id),
         }
 
         # ── Forecast en ventana y en el mes (batch) ──────────────────────────
@@ -149,10 +147,13 @@ class MrpProductionNeeds(models.TransientModel):
         # leerlos (override manual → componente de la BOM cuyo almacén de fabricación es
         # el configurado → el propio final como fallback). Varios finales pueden
         # compartir el mismo componente fabricado (muchos-a-uno): el dato vive una sola vez.
+        # Clasificación por el modo de abastecimiento del tipo de origen (campo
+        # supply_mode de mrp.product.type): 'manufacture' se fabrica, 'buy' se compra,
+        # en blanco no se planifica.
         manuf_ids = {
             p.id for p in products
-            if manuf_type_id and tmpl_type.get(p.product_tmpl_id.id)
-            and tmpl_type[p.product_tmpl_id.id].id == manuf_type_id
+            if (tmpl_type.get(p.product_tmpl_id.id)
+                and tmpl_type[p.product_tmpl_id.id].supply_mode == 'manufacture')
         }
         # Lee el campo precalculado (manufactured_product_id); no recorre la BOM aquí.
         manuf_source = self._resolve_manufactured_sources(products, manuf_ids)
@@ -197,17 +198,18 @@ class MrpProductionNeeds(models.TransientModel):
             tmpl_id = p.product_tmpl_id.id
             origin = tmpl_type.get(tmpl_id)
             origin_name = origin.name if origin else ''
-            is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+            supply_mode = origin.supply_mode if origin else False
+            is_manuf = supply_mode == 'manufacture'
+            is_buy_type = supply_mode == 'buy'
             # Proveedor del componente comprado (precalculado) o del propio final.
             seller = None
-            if not is_manuf:
+            if is_buy_type:
                 bp = purch_by_tmpl.get(tmpl_id)
                 if bp:
                     seller = sup_by_variant.get(bp.id) or sup_by_tmpl.get(bp.product_tmpl_id.id)
                 else:
                     seller = sup_by_variant.get(p.id) or sup_by_tmpl.get(tmpl_id)
-            # Compra-venta = no es producción interna pero tiene proveedor de compra.
-            is_purchase = bool(not is_manuf and seller)
+            is_purchase = bool(is_buy_type and seller)
             is_producible = is_manuf or is_purchase
             origin_lead = lead_map.get(origin.id, 0) if origin else 0
 
@@ -253,7 +255,8 @@ class MrpProductionNeeds(models.TransientModel):
             S = ((K + Q) / L) if L else None
 
             state, reason = self._compute_state(
-                origin, is_producible, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold)
+                origin, supply_mode, is_producible, is_manuf, is_buy_type,
+                L, O, P, Q, min_shift, S, coverage_threshold)
 
             rows.append({
                 'product_id': p.id,
@@ -406,7 +409,6 @@ class MrpProductionNeeds(models.TransientModel):
         Lo invoca el botón de configuración y el cron. Así el panel no explora la BOM en
         cada carga. Sólo escribe cuando detecta un valor; si no, respeta lo cargado."""
         cfg = self.env['mrp.reschedule.config'].get_config()
-        manuf_type_id = cfg.manufacturing_type_id.id or False
         manuf_wh = cfg.manufacturing_warehouse_id
         manuf_route = self.env.ref('mrp.route_warehouse0_manufacture', raise_if_not_found=False)
         Product = self.env['product.product']
@@ -423,11 +425,11 @@ class MrpProductionNeeds(models.TransientModel):
                 continue
             done.add(tmpl.id)
             origin = tmpl.x_product_type_ids[:1]
-            is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
+            supply_mode = origin.supply_mode if origin else False
             # El recálculo sólo escribe cuando DETECTA algo; si no encuentra, no toca el
             # campo (respeta el valor cargado a mano). Como la detección es determinística,
             # cuando encuentra debería coincidir, así que pisar es seguro.
-            if is_manuf:
+            if supply_mode == 'manufacture':
                 if not manuf_wh:
                     continue
                 try:
@@ -437,7 +439,7 @@ class MrpProductionNeeds(models.TransientModel):
                 if mp and tmpl.manufactured_product_id.id != mp.id:
                     tmpl.manufactured_product_id = mp.id
                     n_manuf += 1
-            else:
+            elif supply_mode == 'buy':
                 try:
                     bp = self._find_purchased_product(p)
                 except Exception:
@@ -449,7 +451,8 @@ class MrpProductionNeeds(models.TransientModel):
 
     # ── Lógica de estado ───────────────────────────────────────────────────────
 
-    def _compute_state(self, origin, is_producible, is_manuf, L, O, P, Q, min_shift, S, coverage_threshold):
+    def _compute_state(self, origin, supply_mode, is_producible, is_manuf, is_buy_type,
+                       L, O, P, Q, min_shift, S, coverage_threshold):
         """Cascada de estado del motor. Devuelve (estado, motivo).
 
         Aplica tanto a producción interna como a compra-venta (ambas disparan OF): la
@@ -458,16 +461,21 @@ class MrpProductionNeeds(models.TransientModel):
         ausente sí se marca para revisar (falta el dato del componente fabricado)."""
         if not origin:
             return self.STATE_REVISAR_ORIGEN, 'El artículo no tiene tipo de origen asignado.'
+        if not supply_mode:
+            # El tipo de origen no tiene modo de abastecimiento (ni Fabricar ni Comprar):
+            # intencionalmente fuera del motor de necesidades.
+            return self.STATE_NO_FABRICAR, (
+                'El tipo de origen "%s" no tiene modo de abastecimiento (Fabricar/Comprar); '
+                'no se planifica.' % (origin.name or ''))
         if L is None:
             return self.STATE_SIN_FORECAST, 'No hay forecast cargado en la ventana seleccionada.'
-        if not is_producible:
-            # Tiene demanda (forecast) pero no se pudo resolver cómo abastecerlo: no es
-            # producción interna y no se detectó el componente que se compra. Se marca para
-            # revisar (cargar el proveedor o el componente comprado manual) en vez de
-            # ocultarlo como "No fabricar".
+        if is_buy_type and not is_producible:
+            # Es de comprar pero no se detectó el componente comprado ni hay proveedor.
             return 'Revisar abastecimiento', (
                 'No se detectó el componente que se compra ni hay proveedor. Cargá el '
-                'proveedor del componente o el "Componente comprado (manual)" del artículo.')
+                'proveedor del componente o el "Componente comprado" del artículo.')
+        if not is_producible:
+            return self.STATE_NO_FABRICAR, 'El artículo no es fabricable ni comprable.'
         if O is None:
             return self.STATE_REVISAR_ORIGEN, 'Falta el lead time (BOM o proveedor) para calcular el stock objetivo.'
         if P is not None and P <= 0:
@@ -550,10 +558,8 @@ class MrpProductionNeeds(models.TransientModel):
         delay del proveedor preferido; respaldo → lead del tipo de origen."""
         tmpl = product.product_tmpl_id
         origin = tmpl.x_product_type_ids[:1]
-        manuf_type_id = cfg.manufacturing_type_id.id or False
-        is_manuf = bool(manuf_type_id and origin and origin.id == manuf_type_id)
         origin_lead = (origin.lead_time_days or 0) if origin else 0
-        if is_manuf:
+        if origin and origin.supply_mode == 'manufacture':
             try:
                 bom = self.env['mrp.bom']._bom_find(product).get(product)
             except Exception:

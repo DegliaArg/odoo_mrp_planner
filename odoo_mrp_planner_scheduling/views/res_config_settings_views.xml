@@ -1,6 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ── Tipos de origen: modo de abastecimiento (crear/editar/borrar) ── -->
+    <record id="mrp_product_type_planning_list" model="ir.ui.view">
+        <field name="name">mrp.product.type.planning.list</field>
+        <field name="model">mrp.product.type</field>
+        <field name="arch" type="xml">
+            <list string="Tipos de origen" editable="bottom">
+                <field name="name"/>
+                <field name="supply_mode"/>
+                <field name="lead_time_days"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_mrp_product_type" model="ir.actions.act_window">
+        <field name="name">Tipos de origen</field>
+        <field name="res_model">mrp.product.type</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="mrp_product_type_planning_list"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Definí los tipos de origen</p>
+            <p>Cada tipo indica cómo lo planifica el motor: Fabricar, Comprar o
+               (en blanco) no planificar. El lead time es el plazo de reposición por defecto.</p>
+        </field>
+    </record>
+
+    <menuitem id="mrp_scheduling_menu_product_types"
+              name="Tipos de origen"
+              parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
+              sequence="95"
+              action="action_mrp_product_type"
+              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+
     <!-- ── Vista propia de configuración del módulo de Planificación ── -->
     <record id="mrp_scheduling_config_form_view" model="ir.ui.view">
         <field name="name">mrp.reschedule.config.scheduling.form</field>
@@ -17,13 +49,21 @@
                     <group string="Motor de necesidades (planificación de producción)">
                         <div class="text-muted small mb-2">
                             Parámetros del cálculo de necesidades de producción: factor de stock
-                            de seguridad, almacén cuyo stock se considera, y qué tipo de artículo
-                            es de producción interna.
+                            de seguridad y almacenes considerados.
                         </div>
                         <field name="safety_factor"/>
                         <field name="planning_warehouse_id" options="{'no_create': True}"/>
-                        <field name="manufacturing_type_id" options="{'no_create': True}"/>
                         <field name="manufacturing_warehouse_id" options="{'no_create': True}"/>
+                    </group>
+                    <group string="Modos de abastecimiento (tipos de origen)">
+                        <div class="text-muted small mb-2">
+                            Cada tipo de origen indica cómo lo planifica el motor:
+                            <b>Fabricar</b> (lógica de producción interna) o <b>Comprar</b>
+                            (lógica de proveedor). Los que quedan en blanco no se planifican.
+                        </div>
+                        <button name="%(action_mrp_product_type)d" type="action"
+                                string="Gestionar tipos de origen" class="btn-link"
+                                icon="fa-arrow-right"/>
                     </group>
                     <group string="Mantenimiento">
                         <div class="text-muted small mb-2">

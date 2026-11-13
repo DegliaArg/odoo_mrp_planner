@@ -9,7 +9,6 @@
             <list string="Tipos de origen" editable="bottom">
                 <field name="name"/>
                 <field name="supply_mode"/>
-                <field name="lead_time_days"/>
             </list>
         </field>
     </record>
@@ -22,7 +21,7 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Definí los tipos de origen</p>
             <p>Cada tipo indica cómo lo planifica el motor: Fabricar, Comprar o
-               (en blanco) no planificar. El lead time es el plazo de reposición por defecto.</p>
+               (en blanco) no planificar.</p>
         </field>
     </record>
 
@@ -65,7 +64,6 @@
                             <list editable="bottom">
                                 <field name="name"/>
                                 <field name="supply_mode"/>
-                                <field name="lead_time_days"/>
                             </list>
                         </field>
                     </group>

@@ -1,22 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Programación -->
+    <!-- Categoría propia del módulo de Planificación, separada de la del módulo KPIs
+         (odoo_mrp_planner). Así en el formulario del usuario los permisos de
+         Planificación aparecen en su propia sección, independiente de los de KPIs. -->
+    <record id="module_category_planning" model="ir.module.category">
+        <field name="name">Planificación</field>
+        <field name="description">Permisos del módulo de Planificación (motor de necesidades).</field>
+        <field name="sequence">21</field>
+    </record>
+
+    <!-- Usuario: usa el panel de Planificación (necesidades), genera OFs, ve la
+         pestaña Planificación del artículo. NO ve la configuración. Es el grupo base;
+         conserva el xmlid "group_scheduling" para no romper referencias existentes. -->
     <record id="group_scheduling" model="res.groups">
-        <field name="name">Programación</field>
-        <field name="category_id" ref="odoo_mrp_planner.module_category_mrp_planner"/>
-        <field name="comment">Habilita las funciones de programación y reprogramación: pestaña Programaciones en el panel de producción, botones de reprogramación en OFs y KPIs asociados. También permite modificar la configuración de reprogramación.</field>
+        <field name="name">Usuario</field>
+        <field name="category_id" ref="module_category_planning"/>
+        <field name="comment">Acceso al panel de Planificación (motor de necesidades): consultar necesidades, generar OFs y ver la pestaña Planificación de los artículos. No incluye la configuración.</field>
         <field name="users" eval="[]"/>
     </record>
 
-    <!-- APARCADO (2026-11): el Administrador del planificador YA NO implica
-         Programación. Mientras solo está vivo el motor de necesidades (Panel 1),
-         el acceso se asigna manualmente usuario por usuario (p.ej. solo "deglia"
-         en staging). Así nadie recibe la planificación de forma automática.
-    <record id="odoo_mrp_planner.group_admin" model="res.groups">
+    <!-- Administrador: además de todo lo del Usuario, ve y edita la configuración del
+         planificador y los tipos de origen. Implica el grupo Usuario. -->
+    <record id="group_scheduling_admin" model="res.groups">
+        <field name="name">Administrador</field>
+        <field name="category_id" ref="module_category_planning"/>
+        <field name="comment">Todo lo del Usuario de Planificación, más la configuración del motor (parámetros, almacenes, recálculo) y la gestión de los tipos de origen.</field>
         <field name="implied_ids" eval="[(4, ref('group_scheduling'))]"/>
+        <field name="users" eval="[]"/>
     </record>
-    -->
-
 
 </odoo>

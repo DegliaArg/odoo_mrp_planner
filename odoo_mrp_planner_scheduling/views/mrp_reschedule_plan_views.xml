@@ -371,7 +371,7 @@
               parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
               sequence="99"
               action="odoo_mrp_planner_scheduling.action_mrp_scheduling_config"
-              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+              groups="odoo_mrp_planner_scheduling.group_scheduling_admin"/>
 
     <!-- APARCADO (2026-11): la puerta manual "Programaciones" (wizard de solicitud)
          se reemplaza por el Panel 1 "Planificación". La acción y el wizard quedan

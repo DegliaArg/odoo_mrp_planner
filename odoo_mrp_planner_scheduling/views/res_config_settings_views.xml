@@ -31,7 +31,7 @@
               parent="odoo_mrp_planner_scheduling.mrp_scheduling_menu_root"
               sequence="95"
               action="action_mrp_product_type"
-              groups="odoo_mrp_planner_scheduling.group_scheduling"/>
+              groups="odoo_mrp_planner_scheduling.group_scheduling_admin"/>
 
     <!-- ── Vista propia de configuración del módulo de Planificación ── -->
     <record id="mrp_scheduling_config_form_view" model="ir.ui.view">

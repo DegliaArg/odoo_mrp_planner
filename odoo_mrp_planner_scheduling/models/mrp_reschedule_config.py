@@ -113,7 +113,9 @@ class MrpRescheduleConfig(models.Model):
 
     @api.model
     def _config_editor_groups(self):
-        return super()._config_editor_groups() + ['odoo_mrp_planner_scheduling.group_scheduling']
+        # Editar la configuración del planificador es sólo del Administrador de
+        # Planificación; el Usuario la lee pero no la modifica.
+        return super()._config_editor_groups() + ['odoo_mrp_planner_scheduling.group_scheduling_admin']
 
     @api.model
     def _user_in_scheduling_group(self, user=None):

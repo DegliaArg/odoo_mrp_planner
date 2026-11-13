@@ -56,14 +56,18 @@
                         <field name="manufacturing_warehouse_id" options="{'no_create': True}"/>
                     </group>
                     <group string="Modos de abastecimiento (tipos de origen)">
-                        <div class="text-muted small mb-2">
+                        <div class="text-muted small mb-2" colspan="2">
                             Cada tipo de origen indica cómo lo planifica el motor:
                             <b>Fabricar</b> (lógica de producción interna) o <b>Comprar</b>
                             (lógica de proveedor). Los que quedan en blanco no se planifican.
                         </div>
-                        <button name="%(action_mrp_product_type)d" type="action"
-                                string="Gestionar tipos de origen" class="btn-link"
-                                icon="fa-arrow-right"/>
+                        <field name="product_type_ids" nolabel="1" colspan="2">
+                            <list editable="bottom">
+                                <field name="name"/>
+                                <field name="supply_mode"/>
+                                <field name="lead_time_days"/>
+                            </list>
+                        </field>
                     </group>
                     <group string="Mantenimiento">
                         <div class="text-muted small mb-2">

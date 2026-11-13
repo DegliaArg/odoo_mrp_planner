@@ -92,6 +92,25 @@ class MrpRescheduleConfig(models.Model):
              'se puede resolver), el motor usa el propio artículo final. Opcional, no bloqueante.',
     )
 
+    product_type_ids = fields.Many2many(
+        'mrp.product.type',
+        compute='_compute_product_type_ids',
+        inverse='_inverse_product_type_ids',
+        string='Tipos de origen',
+        help='Todos los tipos de origen, para editar su modo de abastecimiento y lead '
+             'time directamente desde la configuración.',
+    )
+
+    def _compute_product_type_ids(self):
+        types = self.env['mrp.product.type'].search([])
+        for rec in self:
+            rec.product_type_ids = types
+
+    def _inverse_product_type_ids(self):
+        # No persiste la relación (es sólo un listado de todos los tipos); las ediciones
+        # y altas de filas impactan directamente en los registros mrp.product.type.
+        return
+
     def action_recompute_planning_sources(self):
         """Botón: recalcula de una vez los campos de planificación (componente
         fabricado y componente comprado) recorriendo la BOM, para que el panel no la

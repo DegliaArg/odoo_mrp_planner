@@ -35,6 +35,8 @@ from datetime import datetime, time as dt_time, timedelta
 import pytz
 
 from odoo import models, fields, api
+from odoo.tools import SQL
+from odoo.addons.odoo_mrp_planner.models.const import SALE_CAT_SELECTION
 
 _logger = logging.getLogger(__name__)
 
@@ -61,6 +63,67 @@ class MrpDispatchStockLog(models.Model):
                                      'movimiento hacia atrás (move_orig_ids): en entregas de 2/3 pasos '
                                      'cuenta lo reservado en el eslabón pendiente más temprano de la '
                                      'cadena, más lo que ya avanzó.')
+
+    # ── Columnas para el drill "Disponible no hecho" (lista nativa) ──
+    # Todas related/compute NO almacenadas; las dos categorías llevan _field_to_sql
+    # para poder FILTRAR/AGRUPAR/ORDENAR por ellas sin columnas nuevas.
+    partner_id = fields.Many2one(related='picking_id.partner_id', string='Cliente',
+                                 store=False)
+    picking_scheduled_date = fields.Datetime(related='picking_id.scheduled_date',
+                                             string='Fecha programada', store=False)
+    picking_state = fields.Selection(related='picking_id.state', string='Estado remito',
+                                     store=False)
+    x_product_categ_id = fields.Many2one(
+        'product.category', string='Categoría de producto',
+        compute='_compute_x_categs', search='_search_x_product_categ_id',
+        help='Categoría de producto estándar del artículo.')
+    x_sale_category = fields.Selection(
+        SALE_CAT_SELECTION, string='Categoría de venta',
+        compute='_compute_x_categs', search='_search_x_sale_category',
+        help='Categoría de venta ABC del artículo (por empresa).')
+
+    @api.depends('product_id')
+    def _compute_x_categs(self):
+        for rec in self:
+            rec.x_product_categ_id = rec.product_id.categ_id
+            rec.x_sale_category = rec.product_id.product_tmpl_id.x_sale_category
+
+    def _search_x_product_categ_id(self, operator, value):
+        return [('product_id.categ_id', operator, value)]
+
+    def _search_x_sale_category(self, operator, value):
+        return [('product_id.product_tmpl_id.x_sale_category', operator, value)]
+
+    def _field_to_sql(self, alias, fname, query=None, flush=True):
+        """Categorías por SQL (JOIN al producto/plantilla y, para la de venta, a
+        la tabla por empresa), para filtrar/agrupar/ordenar sin almacenarlas.
+        Mismo patrón que product.template._field_to_sql."""
+        if fname == 'x_product_categ_id':
+            pp = query.make_alias(alias, 'x_pcateg_pp')
+            query.add_join('LEFT JOIN', pp, 'product_product', SQL(
+                "%s = %s", SQL.identifier(pp, 'id'),
+                SQL.identifier(alias, 'product_id')))
+            pt = query.make_alias(pp, 'x_pcateg_pt')
+            query.add_join('LEFT JOIN', pt, 'product_template', SQL(
+                "%s = %s", SQL.identifier(pt, 'id'),
+                SQL.identifier(pp, 'product_tmpl_id')))
+            return SQL.identifier(pt, 'categ_id')
+        if fname == 'x_sale_category':
+            if flush:
+                self.env['mrp.product.company.category'].flush_model(
+                    ['product_tmpl_id', 'company_id', 'sale_category'])
+            pp = query.make_alias(alias, 'x_scat_pp')
+            query.add_join('LEFT JOIN', pp, 'product_product', SQL(
+                "%s = %s", SQL.identifier(pp, 'id'),
+                SQL.identifier(alias, 'product_id')))
+            cat = query.make_alias(pp, 'x_scat_cat')
+            query.add_join('LEFT JOIN', cat, 'mrp_product_company_category', SQL(
+                "%s = %s AND %s = %s",
+                SQL.identifier(cat, 'product_tmpl_id'),
+                SQL.identifier(pp, 'product_tmpl_id'),
+                SQL.identifier(cat, 'company_id'), self.env.company.id))
+            return SQL.identifier(cat, 'sale_category')
+        return super()._field_to_sql(alias, fname, query, flush)
 
     # ── Helpers de calendario ─────────────────────────────────────────────────
 

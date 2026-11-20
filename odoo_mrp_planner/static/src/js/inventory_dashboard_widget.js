@@ -238,7 +238,6 @@ class InventoryDashboardWidget extends Component {
     rateMethodLabel() {
         const m = this.periodKpis.rate_method;
         if (m === "peak")    return "pico del período";
-        if (m === "average") return "promedio del período";
         if (m === "closing") return "al cierre";
         return "";
     }
@@ -405,13 +404,12 @@ class InventoryDashboardWidget extends Component {
             || !(this.periodKpis.rate_pending_available > 0);
     }
 
-    /** Abre la lista de las LÍNEAS (stock.move) que componen "Disponible no
-     *  hecho". El backend resuelve CUÁLES movimientos (de los (remito, producto)
-     *  que salen de los snapshots con los mismos filtros de la tabla); se abre
-     *  una lista NATIVA de stock.move con esos ids para filtrar/agrupar (p. ej.
-     *  por categoría de producto), igual que las otras cards.
-     *  OJO: la lista nativa muestra las cantidades de HOY, no el "disponible al
-     *  cierre" del snapshot, así que su total no reproduce el número de la card. */
+    /** Abre la lista de los SNAPSHOTS (mrp.dispatch.stock.log) que componen
+     *  "Disponible no hecho". El backend resuelve CUÁLES snapshots (según método
+     *  al cierre/pico y los mismos filtros de la tabla); se abre una lista NATIVA
+     *  con esos ids para filtrar/agrupar (p. ej. por categoría de producto o de
+     *  venta). La cantidad es qty_reserved del snapshot: su total CIERRA EXACTO
+     *  contra el número de la card. */
     async openAvailableNotDone() {
         if (this.state.notDoneLoading) return;
         this.state.notDoneLoading = true;
@@ -420,7 +418,7 @@ class InventoryDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_inventory_available_not_done_detail",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblTypeIds]);
-            const ids = res.move_ids || [];
+            const ids = res.log_ids || [];
             if (!ids.length) {
                 this.notification.add(
                     "No hay disponible no hecho para los filtros seleccionados.",
@@ -429,8 +427,8 @@ class InventoryDashboardWidget extends Component {
             }
             this.action.doAction({
                 type: "ir.actions.act_window",
-                name: "Disponible no hecho — líneas",
-                res_model: "stock.move",
+                name: "Disponible no hecho — detalle",
+                res_model: "mrp.dispatch.stock.log",
                 domain: [["id", "in", ids]],
                 views: [[false, "list"], [false, "form"]],
                 limit: Math.max(ids.length, 80),
@@ -438,8 +436,8 @@ class InventoryDashboardWidget extends Component {
                     create: false,
                     // Lista propia del drill con columnas de categoría (producto
                     // y venta), filtrables y agrupables.
-                    list_view_ref: "odoo_mrp_planner.view_stock_move_list_available_not_done",
-                    search_view_ref: "odoo_mrp_planner.view_stock_move_search_available_not_done",
+                    list_view_ref: "odoo_mrp_planner.view_dispatch_log_list_available_not_done",
+                    search_view_ref: "odoo_mrp_planner.view_dispatch_log_search_available_not_done",
                 },
                 target: "current",
             });

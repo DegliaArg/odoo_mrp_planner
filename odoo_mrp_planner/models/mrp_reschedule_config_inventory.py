@@ -55,8 +55,7 @@ class MrpRescheduleConfigInventory(models.Model):
              'del forecast (Ajustes → Producción).')
     dispatch_available_denominator_method = fields.Selection(
         [('closing', 'Disponible al cierre del período'),
-         ('peak', 'Pico de disponible del período'),
-         ('average', 'Promedio de disponible del período')],
+         ('peak', 'Pico de disponible del período')],
         string='Base de la tasa de entrega', default='closing', required=True,
         help='Cómo se mide la parte pendiente del denominador de la tasa de entrega: '
              'lo que tuve stock para hacer en el eslabón filtrado y NO hice. Cuanto '
@@ -73,11 +72,7 @@ class MrpRescheduleConfigInventory(models.Model):
              'del período (por remito y producto). Castiga haber tenido stock sin '
              'despachar en algún momento, aunque después lo hayas hecho. Es la base '
              'más exigente (tasa más baja): mide "de todo lo que en algún momento '
-             'pude hacer, cuánto hice".\n'
-             '\n'
-             '• Promedio de disponible: toma el promedio diario de lo pendiente-con-'
-             'stock. Punto medio: suaviza los picos de un solo día, pero castiga el '
-             'stock que quedó parado muchos días. Castigo intermedio.')
+             'pude hacer, cuánto hice".')
 
     dispatch_available_count_late = fields.Boolean(
         string='Contar la demora (hecho en meses posteriores)',

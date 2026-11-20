@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Drill "Disponible no hecho — detalle" ──
+         Lista de snapshots (mrp.dispatch.stock.log) que componen el número de la
+         card "Disponible no hecho". El "Ver →" del panel la elige vía
+         list_view_ref + search_view_ref. La cantidad es qty_reserved del
+         snapshot: su total CIERRA EXACTO contra la card. Incluye categorías de
+         producto y de venta, filtrables y agrupables. -->
+
+    <record id="view_dispatch_log_list_available_not_done" model="ir.ui.view">
+        <field name="name">mrp.dispatch.stock.log.list.available.not.done</field>
+        <field name="model">mrp.dispatch.stock.log</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Disponible no hecho — detalle" create="false" edit="false">
+                <field name="picking_id" decoration-bf="1" string="Remito"/>
+                <field name="partner_id" optional="show" string="Cliente"/>
+                <field name="product_id" string="Producto"/>
+                <field name="x_product_categ_id" optional="show" string="Categoría de producto"/>
+                <field name="x_sale_category" optional="show" string="Categoría de venta"/>
+                <field name="qty_reserved" sum="Total" string="Disponible"/>
+                <field name="qty_pending" optional="hide" string="Demanda"/>
+                <field name="picking_scheduled_date" optional="show" string="Fecha programada"/>
+                <field name="snapshot_date" optional="hide" string="Fecha del snapshot"/>
+                <field name="warehouse_id" optional="hide" string="Depósito"/>
+                <field name="picking_state" widget="badge" optional="show" string="Estado"
+                       decoration-success="picking_state == 'done'"
+                       decoration-info="picking_state == 'assigned'"
+                       decoration-muted="picking_state == 'cancel'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dispatch_log_search_available_not_done" model="ir.ui.view">
+        <field name="name">mrp.dispatch.stock.log.search.available.not.done</field>
+        <field name="model">mrp.dispatch.stock.log</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <search string="Disponible no hecho — detalle">
+                <field name="picking_id" string="Remito"/>
+                <field name="product_id" string="Producto"/>
+                <field name="x_product_categ_id" string="Categoría de producto"/>
+                <field name="x_sale_category" string="Categoría de venta"/>
+                <field name="partner_id" string="Cliente"/>
+                <field name="warehouse_id" string="Depósito"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="gb_prod_categ" string="Categoría de producto"
+                            context="{'group_by': 'x_product_categ_id'}"/>
+                    <filter name="gb_sale_cat" string="Categoría de venta"
+                            context="{'group_by': 'x_sale_category'}"/>
+                    <filter name="gb_product" string="Producto"
+                            context="{'group_by': 'product_id'}"/>
+                    <filter name="gb_picking" string="Remito"
+                            context="{'group_by': 'picking_id'}"/>
+                    <filter name="gb_warehouse" string="Depósito"
+                            context="{'group_by': 'warehouse_id'}"/>
+                    <filter name="gb_snapshot" string="Fecha del snapshot"
+                            context="{'group_by': 'snapshot_date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

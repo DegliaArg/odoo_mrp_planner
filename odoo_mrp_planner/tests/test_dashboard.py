@@ -527,10 +527,11 @@ class TestMrpPlannerDashboard(TransactionCase):
 
     def test_available_not_done_detail_reconciles_with_card(self):
         """
-        Panel de Inventario: el detalle de la card "Disponible no hecho" debe
-        cerrar EXACTO contra el número de la card (``rate_pending_available``) en
-        los TRES métodos de la Base de la tasa (al cierre / pico / promedio),
-        porque ambos salen del mismo helper de renglones.
+        Panel de Inventario: el detalle de la card "Disponible no hecho" (lista de
+        snapshots) debe cerrar EXACTO contra el número de la card
+        (``rate_pending_available``) en los DOS métodos de la Base de la tasa (al
+        cierre / pico), porque los log_ids del detalle salen del mismo helper de
+        renglones y su Σ qty_reserved es el total.
 
         Escenario: registro de disponibilidad activo, un remito de salida
         pendiente con dos productos y snapshots en tres días con cantidades
@@ -541,8 +542,6 @@ class TestMrpPlannerDashboard(TransactionCase):
 
         cfg = self.env["mrp.reschedule.config"].sudo().get_config()
         cfg.dispatch_stock_log_enabled = True
-        # Redondeo a 2 decimales (no forzar enteros) para que el promedio no se
-        # distorsione por el redondeo al comparar card vs detalle.
         cfg.inventory_force_integer = False
 
         wh = self.warehouse
@@ -560,9 +559,9 @@ class TestMrpPlannerDashboard(TransactionCase):
             "company_id": company.id,
         })
 
-        # Tres snapshots con cantidades que hacen diferir los tres métodos:
-        #   A: 10, 40, 20  → cierre 20 · pico 40 · prom (10+40+20)/3
-        #   B:  5,  5, 15  → cierre 15 · pico 15 · prom ( 5+ 5+15)/3
+        # Tres snapshots con cantidades que hacen diferir cierre y pico:
+        #   A: 10, 40, 20  → cierre 20 · pico 40
+        #   B:  5,  5, 15  → cierre 15 · pico 15
         today = date.today()
         dates = [today - timedelta(days=2), today - timedelta(days=1), today]
         plan = {self.product.id: [10.0, 40.0, 20.0], product_b.id: [5.0, 5.0, 15.0]}
@@ -584,7 +583,7 @@ class TestMrpPlannerDashboard(TransactionCase):
         d_to = dates[-1].strftime("%Y-%m-%d")
 
         totals = {}
-        for method in ("closing", "peak", "average"):
+        for method in ("closing", "peak"):
             cfg.dispatch_available_denominator_method = method
             card = dash.get_inventory_pending_table(
                 d_from, d_to, warehouse_ids=[wh.id],
@@ -595,21 +594,19 @@ class TestMrpPlannerDashboard(TransactionCase):
             self.assertFalse(
                 card["rate_no_snapshots"],
                 f"[{method}] con snapshots en el rango la tasa es calculable")
-            self.assertEqual(
-                detail["method"], method,
-                f"[{method}] el detalle usa el método de la config")
+            # El total del detalle debe dar el número de la card.
             self.assertAlmostEqual(
                 detail["total"], card["rate_pending_available"], places=2,
                 msg=f"[{method}] el total del detalle debe dar el número de la card")
-            # Una fila por (remito, producto): dos productos → dos renglones.
-            self.assertEqual(
-                len(detail["rows"]), 2,
-                f"[{method}] una fila por (remito, producto)")
+            # Y la Σ qty_reserved de los snapshots que el detalle apunta (log_ids)
+            # debe reproducir ese mismo total: la lista nativa cierra exacto.
+            logs = Log.browse(detail["log_ids"])
+            self.assertAlmostEqual(
+                sum(logs.mapped("qty_reserved")), card["rate_pending_available"],
+                places=2,
+                msg=f"[{method}] la Σ qty_reserved de los log_ids debe cerrar")
             totals[method] = detail["total"]
 
-        # Los tres métodos deben dar números distintos (si no, el test no prueba
-        # que el detalle sea dinámico según el método).
+        # Cierre y pico deben diferir con estos snapshots (detalle dinámico).
         self.assertNotEqual(totals["closing"], totals["peak"],
                             "Cierre y pico deben diferir con estos snapshots")
-        self.assertNotEqual(totals["closing"], totals["average"],
-                            "Cierre y promedio deben diferir con estos snapshots")

@@ -22,7 +22,7 @@
                 <field name="qty_reserved" sum="Total" string="Disponible"/>
                 <field name="qty_pending" optional="hide" string="Demanda"/>
                 <field name="picking_scheduled_date" optional="show" string="Fecha programada"/>
-                <field name="snapshot_date" optional="hide" string="Fecha del snapshot"/>
+                <field name="snapshot_date" optional="hide" string="Fecha de la foto diaria"/>
                 <field name="warehouse_id" optional="hide" string="Depósito"/>
                 <field name="picking_state" widget="badge" optional="show" string="Estado"
                        decoration-success="picking_state == 'done'"
@@ -55,7 +55,7 @@
                             context="{'group_by': 'picking_id'}"/>
                     <filter name="gb_warehouse" string="Depósito"
                             context="{'group_by': 'warehouse_id'}"/>
-                    <filter name="gb_snapshot" string="Fecha del snapshot"
+                    <filter name="gb_snapshot" string="Fecha de la foto diaria"
                             context="{'group_by': 'snapshot_date'}"/>
                 </group>
             </search>

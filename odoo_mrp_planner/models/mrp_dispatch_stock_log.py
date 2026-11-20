@@ -45,10 +45,10 @@ PENDING_PICKING_STATES = ('confirmed', 'waiting', 'assigned')
 
 class MrpDispatchStockLog(models.Model):
     _name = 'mrp.dispatch.stock.log'
-    _description = 'Snapshot diario de disponibilidad para despacho'
+    _description = 'Foto diaria de disponibilidad para despacho'
     _order = 'snapshot_date desc, id desc'
 
-    snapshot_date = fields.Date(string='Fecha del snapshot', required=True, index=True)
+    snapshot_date = fields.Date(string='Fecha de la foto diaria', required=True, index=True)
     company_id = fields.Many2one('res.company', string='Empresa', required=True, index=True)
     warehouse_id = fields.Many2one('stock.warehouse', string='Depósito', index=True)
     picking_id = fields.Many2one('stock.picking', string='Remito', required=True,
@@ -56,9 +56,9 @@ class MrpDispatchStockLog(models.Model):
     product_id = fields.Many2one('product.product', string='Artículo', required=True,
                                  index=True, ondelete='cascade')
     qty_pending = fields.Float(string='Cantidad pendiente', digits='Product Unit of Measure',
-                               help='Cantidad demandada por el remito para el artículo al momento del snapshot.')
+                               help='Cantidad demandada por el remito para el artículo al momento de la foto diaria.')
     qty_reserved = fields.Float(string='Cantidad reservada', digits='Product Unit of Measure',
-                                help='Cantidad disponible para despachar al momento del snapshot, topeada '
+                                help='Cantidad disponible para despachar al momento de la foto diaria, topeada '
                                      'a la pendiente. Se evalúa siguiendo la cadena de abastecimiento del '
                                      'movimiento hacia atrás (move_orig_ids): en entregas de 2/3 pasos '
                                      'cuenta lo reservado en el eslabón pendiente más temprano de la '

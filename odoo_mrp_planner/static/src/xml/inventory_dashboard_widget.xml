@@ -61,7 +61,7 @@
                                  t-esc="fmt(periodKpis.rate_pending_available)"/>
                             <div class="o_planner_label">Disponible no hecho</div>
                             <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
-                                sin snapshots en el rango
+                                sin fotos diarias en el rango
                             </div>
                             <div t-elif="rateMethodLabel()" class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="rateMethodLabel()"/>
@@ -87,7 +87,7 @@
                                  t-esc="fmtPct(periodKpis.rate_available)"/>
                             <div class="o_planner_label">Tasa de entrega</div>
                             <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
-                                sin snapshots en el rango
+                                sin fotos diarias en el rango
                             </div>
                         </div>
                     </div>
@@ -425,8 +425,8 @@
                                             </td>
                                             <td t-elif="col.key === 'days_available'" class="text-end"
                                                 t-att-title="row.days_available !== null
-                                                             ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según los snapshots'
-                                                             : 'Sin snapshots con stock para este remito'">
+                                                             ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según las fotos diarias'
+                                                             : 'Sin fotos diarias con stock para este remito'">
                                                 <t t-esc="row.days_available !== null ? row.days_available : '—'"/>
                                             </td>
                                             <td t-elif="col.key === 'state'">

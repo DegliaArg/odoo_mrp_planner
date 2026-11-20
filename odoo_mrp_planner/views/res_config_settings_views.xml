@@ -884,15 +884,15 @@
                                         <field name="dispatch_pending_cutoff_months"/>
                                         <field name="inventory_force_integer" widget="boolean_toggle"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1">
-                                            Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
+                                            Foto diaria de las salidas pendientes (pendiente vs. reservado) que
                                             alimenta la <b>Tasa de entrega</b> del Panel de Inventario. La tasa se
-                                            calcula en vivo sobre los snapshots: numerador = validado del período del
+                                            calcula en vivo sobre las fotos diarias: numerador = validado del período del
                                             eslabón filtrado; denominador = ese validado + lo que tuve stock para hacer
-                                            y no hice, según la <b>Base de la tasa de entrega</b>. Los snapshots crudos
+                                            y no hice, según la <b>Base de la tasa de entrega</b>. Las fotos diarias
                                             se conservan según la retención configurada. Cada corrida queda en el
                                             Registro de ejecuciones. Con <b>Ignorar pendientes anteriores a (meses)</b>
                                             &gt; 0, las salidas con fecha programada más vieja que ese corte no cuentan
-                                            en el panel ni en los snapshots.
+                                            en el panel ni en las fotos diarias.
                                         </div>
                                     </group>
                                 </div>

@@ -257,7 +257,7 @@ class InventoryDashboardWidget extends Component {
             case "pending":
                 return `Demanda aún no entregada de ${scope}, de cualquier operación (cadena de entrega, transferencias internas y recepciones)\nSuma de las cantidades pendientes de las líneas visibles\n→ ${fmt(t.pending)} en ${t.pickings} remito(s)`;
             case "available":
-                return `Del pendiente de ${scope}, cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible)\nEs la RESERVA DE HOY (foto en vivo del stock.move, no de los snapshots). El conjunto de remitos se recorta por la fecha programada de la línea (el filtro Desde/Hasta), no por cuándo tuvieron stock.\nSuma por línea de la cantidad reservada de esos movimientos\n→ ${fmt(t.available)}`;
+                return `Del pendiente de ${scope}, cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible)\nEs la RESERVA DE HOY (en vivo del movimiento, no de las fotos diarias). El conjunto de remitos se recorta por la fecha programada de la línea (el filtro Desde/Hasta), no por cuándo tuvieron stock.\nSuma por línea de la cantidad reservada de esos movimientos\n→ ${fmt(t.available)}`;
             case "blocked":
                 return `Del pendiente de ${scope}, cantidad sin stock reservado (estados En espera / En espera de otro movimiento, o la parte no reservada de los parcialmente disponibles)\nEs la foto DE HOY: lo que ahora mismo no tiene reserva. El conjunto de remitos se recorta por la fecha programada de la línea (el filtro Desde/Hasta).\nPendiente − Con stock\n→ ${fmt(t.pending)} − ${fmt(t.available)} = ${fmt(t.blocked)}`;
             case "overdue":
@@ -266,18 +266,18 @@ class InventoryDashboardWidget extends Component {
                 return `Parte del pendiente de ${scope} que podría entregarse HOY (deriva de "con stock", que es la reserva de hoy)\nCon stock ÷ Pendiente × 100\n→ ${fmt(t.available)} ÷ ${fmt(t.pending)} × 100 = ${fmtPct(t.pct_available)}`;
             case "pending_base":
                 if (k.rate_no_snapshots) {
-                    return `Sin datos: el rango no tiene ningún snapshot de disponibilidad\nEs la parte pendiente del denominador de la tasa de entrega; sin snapshots no se puede medir, así que muestra "—".`;
+                    return `Sin datos: el rango no tiene ninguna foto diaria de disponibilidad\nEs la parte pendiente del denominador de la tasa de entrega; sin fotos diarias no se puede medir, así que muestra "—".`;
                 }
-                return `Lo que tuve stock para hacer en el rango (del eslabón filtrado) y NO hice — la parte PENDIENTE del denominador de la tasa de entrega\nSe mide según la Base de la tasa de entrega (Ajustes → Inventario): ${this.rateMethodLabel() || "—"}. Viene de los snapshots diarios (histórico), no de la reserva de hoy.\n→ ${fmt(k.rate_pending_available)}\nCon los Validados forma el denominador: ${fmt(k.rate_available_num)} + ${fmt(k.rate_pending_available)} = ${fmt(k.rate_available_den)}`;
+                return `Lo que tuve stock para hacer en el rango (del eslabón filtrado) y NO hice — la parte PENDIENTE del denominador de la tasa de entrega\nSe mide según la Base de la tasa de entrega (Ajustes → Inventario): ${this.rateMethodLabel() || "—"}. Viene de las fotos diarias (histórico), no de la reserva de hoy.\n→ ${fmt(k.rate_pending_available)}\nCon los Validados forma el denominador: ${fmt(k.rate_available_num)} + ${fmt(k.rate_pending_available)} = ${fmt(k.rate_available_den)}`;
             // ── Validados: filas hechas de la tabla (dinámica como todas).
             //    La tasa sigue siendo la única card de servidor. ──
             case "delivered":
                 return `Remitos HECHOS que muestra la tabla (validados en el rango, por fecha de validación), de ${scope}\nSin tipos seleccionados incluye TODAS las operaciones (recepciones, internas y toda la cadena): la misma mercadería puede sumar en cada eslabón que validó; para ver solo lo que salió, filtrá los tipos de entrega\nSuma de las cantidades hechas\n→ ${fmt(this.validatedKpis.qty)} en ${this.validatedKpis.pickings} remito(s)`;
             case "rate":
                 if (k.rate_no_snapshots) {
-                    return `Sin datos: el rango no tiene ningún snapshot de disponibilidad (el registro recién se activó, o la empresa seleccionada no lo tiene activo)\nSin snapshots no se puede calcular el denominador, así que se muestra "—" en vez de un 100% engañoso\nSe activa en Ajustes → Inventario; la tasa se vuelve calculable a medida que se acumulan snapshots día a día.`;
+                    return `Sin datos: el rango no tiene ninguna foto diaria de disponibilidad (el registro recién se activó, o la empresa seleccionada no lo tiene activo)\nSin fotos diarias no se puede calcular el denominador, así que se muestra "—" en vez de un 100% engañoso\nSe activa en Ajustes → Inventario; la tasa se vuelve calculable a medida que se acumulan fotos diarias día a día.`;
                 }
-                return `De lo que tuve stock para hacer en el rango (del eslabón filtrado), cuánto hice\nValidado ÷ (validado + disponible pendiente no hecho) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nEl numerador coincide con "Validados del período". La parte pendiente del denominador (base de la tasa) se configura en Ajustes → Inventario. Calculada en vivo desde los snapshots; requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA validado." : ""}`;
+                return `De lo que tuve stock para hacer en el rango (del eslabón filtrado), cuánto hice\nValidado ÷ (validado + disponible pendiente no hecho) × 100\n→ ${fmt(k.rate_available_num)} ÷ ${fmt(k.rate_available_den)} × 100 = ${fmtPct(k.rate_available)}\nEl numerador coincide con "Validados del período". La parte pendiente del denominador (base de la tasa) se configura en Ajustes → Inventario. Calculada en vivo desde las fotos diarias; requiere rango de fechas completo.${this.selectedRows.length ? "\nLa selección de filas no aplica acá: mide lo YA validado." : ""}`;
             default:
                 return "";
         }
@@ -297,7 +297,7 @@ class InventoryDashboardWidget extends Component {
             qty_pending:    "Cantidad demandada por el remito aún no entregada (en canceladas: la demanda original, informativa).",
             qty_done:       "Cantidad hecha del remito (solo filas validadas).",
             qty_available:  "Cantidad reservada de los movimientos cuyo estado cuenta como con stock (Ajustes → Inventario; por defecto Disponible y Parcialmente disponible).",
-            days_available: "Días corridos desde el primer snapshot en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
+            days_available: "Días corridos desde la primera foto diaria en que el remito apareció con stock reservado — hace cuánto podría haberse entregado.",
             state:          "Estado nativo del remito en Odoo.",
         };
         const base = titles[col.key] || col.label;

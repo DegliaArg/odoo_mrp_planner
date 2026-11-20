@@ -720,36 +720,6 @@ class MrpPlannerDashboard(models.TransientModel):
     # desde el MISMO helper de renglones que la card, por eso cierra exacto.
 
     @api.model
-    def _inventory_order_status(self, sale):
-        """Normaliza el estado de un pedido de venta a open / closed / cancel
-        para el detalle de "Disponible no hecho".
-
-        - cancel: el pedido fue cancelado.
-        - closed: ya NO admite más entregas — bloqueado (``locked``) o entregado
-          completo (``delivery_status == 'full'``), o el histórico ``state ==
-          'done'`` si la base lo tuviera. Es el caso "tenías stock reservado y el
-          pedido se cerró sin entregar eso".
-        - open: cualquier otro (incluye remitos que no vienen de una venta).
-
-        El mapeo es tolerante a la ausencia de campos (se lee un dict del read):
-        si esta base usa un campo propio (``x_studio_*``) para "cerrado", este es
-        el único lugar a tocar.
-
-        :param sale: dict con el read del pedido (o None/falsy si no hay venta).
-        """
-        if not sale:
-            return 'open'
-        if sale.get('state') == 'cancel':
-            return 'cancel'
-        if sale.get('state') == 'done':
-            return 'closed'
-        if sale.get('locked'):
-            return 'closed'
-        if sale.get('delivery_status') == 'full':
-            return 'closed'
-        return 'open'
-
-    @api.model
     def get_inventory_available_not_done_detail(self, date_from, date_to,
                                                 warehouse_ids=None,
                                                 picking_type_ids=None):
@@ -808,16 +778,6 @@ class MrpPlannerDashboard(models.TransientModel):
         prod_data = {p['id']: p for p in self.env['product.product'].sudo()
                      .browse(prod_ids).read(['display_name', 'uom_id'])}
 
-        # Estado del pedido (venta): se leen solo los campos que existan en la base.
-        sale_ids = sorted({pick_data[p]['sale_id'][0] for p in pick_ids
-                           if has_sale and pick_data[p].get('sale_id')})
-        sale_data = {}
-        if sale_ids:
-            SaleOrder = self.env['sale.order'].sudo()
-            s_fields = ['name', 'state'] + [f for f in ('locked', 'delivery_status')
-                                            if f in SaleOrder._fields]
-            sale_data = {s['id']: s for s in SaleOrder.browse(sale_ids).read(s_fields)}
-
         # Días disponible: primer snapshot del remito con reserva (mismo patrón
         # que get_inventory_pending_table).
         self.env.cr.execute("""
@@ -830,17 +790,11 @@ class MrpPlannerDashboard(models.TransientModel):
 
         _ids, type_info = self._inventory_universe_types(company, warehouse_ids or None)
         stage_labels = self._inventory_stage_labels()
-        order_status_labels = {
-            'open':   _('Abierto'),
-            'closed': _('Cerrado'),
-            'cancel': _('Cancelado'),
-        }
         # Qué pasó DESPUÉS del cierre (responde "por qué no entregué eso").
         outcome_labels = {
             'still_pending':   _('Sigue pendiente'),
             'delivered_later': _('Entregado después'),
             'cancelled':       _('Cancelado'),
-            'order_closed':    _('Pedido cerrado sin entregar'),
         }
 
         rows = []
@@ -855,25 +809,22 @@ class MrpPlannerDashboard(models.TransientModel):
             pstate = pdata.get('state')
             total += r['qty_available']
 
+            # Pedido (venta) para poder abrirlo desde el detalle; el concepto de
+            # "pedido cerrado" del cliente es propio de su base y se definirá
+            # aparte, así que acá NO se clasifica el estado del pedido.
             order_model = order_id = False
-            order_name = order_state = ''
-            sale = None
+            order_name = ''
             if has_sale and pdata.get('sale_id'):
                 order_model = 'sale.order'
                 order_id = pdata['sale_id'][0]
                 order_name = pdata['sale_id'][1]
-                sale = sale_data.get(order_id)
-                order_state = sale.get('state') if sale else ''
-            order_status = self._inventory_order_status(sale)
 
             # outcome: cancelado → entregado después (done tras el cierre) →
-            # pedido cerrado sin entregar → sigue pendiente.
-            if pstate == 'cancel' or order_status == 'cancel':
+            # sigue pendiente. Solo usa el estado real del remito.
+            if pstate == 'cancel':
                 outcome = 'cancelled'
             elif pstate == 'done':
                 outcome = 'delivered_later'
-            elif order_status == 'closed':
-                outcome = 'order_closed'
             else:
                 outcome = 'still_pending'
 
@@ -888,26 +839,23 @@ class MrpPlannerDashboard(models.TransientModel):
             avail_since = first_avail.get(pid)
 
             rows.append({
-                'picking_id':        pid,
-                'name':              pdata.get('name') or '',
-                'partner':           pdata['partner_id'][1] if pdata.get('partner_id') else '',
-                'product_id':        r['product_id'],
-                'product_name':      prod.get('display_name') or '',
-                'uom_name':          prod['uom_id'][1] if prod.get('uom_id') else '',
-                'qty_available':     qround(r['qty_available']),
-                'stage':             stage,
-                'stage_label':       stage_labels.get(stage, stage),
-                'days_available':    (today - avail_since).days if avail_since else None,
-                'scheduled':         sched_str,
-                'overdue_days':      max(0, overdue) if overdue is not None else None,
-                'order_model':       order_model,
-                'order_id':          order_id,
-                'order_name':        order_name or '',
-                'order_state':       order_state,
-                'order_status':      order_status,
-                'order_status_label': order_status_labels.get(order_status, order_status),
-                'outcome':           outcome,
-                'outcome_label':     outcome_labels.get(outcome, outcome),
+                'picking_id':     pid,
+                'name':           pdata.get('name') or '',
+                'partner':        pdata['partner_id'][1] if pdata.get('partner_id') else '',
+                'product_id':     r['product_id'],
+                'product_name':   prod.get('display_name') or '',
+                'uom_name':       prod['uom_id'][1] if prod.get('uom_id') else '',
+                'qty_available':  qround(r['qty_available']),
+                'stage':          stage,
+                'stage_label':    stage_labels.get(stage, stage),
+                'days_available': (today - avail_since).days if avail_since else None,
+                'scheduled':      sched_str,
+                'overdue_days':   max(0, overdue) if overdue is not None else None,
+                'order_model':    order_model,
+                'order_id':       order_id,
+                'order_name':     order_name or '',
+                'outcome':        outcome,
+                'outcome_label':  outcome_labels.get(outcome, outcome),
             })
         # El total sale de qround(Σ) igual que la card (no Σ de celdas redondeadas):
         # así reconcilia al centavo aunque haya mezcla de UoM y redondeo por fila.

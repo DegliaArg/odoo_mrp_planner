@@ -33,7 +33,7 @@ Panel de control centralizado para la gestión operativa de producción.
 ### Inventario
 - Panel con análisis de movimientos: recepciones, transferencias internas y cadena de entrega en todos los estados.
 - KPIs dinámicos, validados del período y tasa de entrega s/ disponible con snapshots diarios y consolidado mensual.
-- Card "Disponible no hecho" con botón "Ver →": abre el detalle (renglón por remito y producto) que compone exacto ese número a partir de los snapshots, según el método configurado (al cierre / pico / promedio). Muestra UdM por renglón, el estado del pedido (Abierto / Cerrado / Cancelado) con pestaña "Pedidos cerrados" y el resultado de cada renglón (sigue pendiente, entregado después, pedido cerrado sin entregar, cancelado) para responder "¿por qué no entregué eso que tenía disponible?".
+- Card "Disponible no hecho" con botón "Ver →": abre en un diálogo el detalle (renglón por remito y producto) que compone exacto ese número a partir de los snapshots, según el método configurado (al cierre / pico / promedio). Muestra UdM por renglón, enlace al pedido y el resultado de cada renglón (sigue pendiente, entregado después, cancelado) para responder "¿por qué no entregué eso que tenía disponible?".
 
 ## Módulos relacionados
 

@@ -29,7 +29,6 @@
 import { Component, useState, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/core/dialog/dialog";
 import { fmt, fmtPct, svcClass, sortIcon, kpiNumClass } from "@odoo_mrp_planner/js/forecast_formatters";
 import { PlannerSearchBar } from "@odoo_mrp_planner/js/planner_search_bar";
 import { useColManager } from "@odoo_mrp_planner/js/column_manager";
@@ -89,55 +88,6 @@ const STATE_LABELS = {
     done:      "Validado",
 };
 
-/**
- * Diálogo del detalle "Disponible no hecho". Se abre como modal (no como una
- * segunda tabla dentro del panel, que se confundía con la tabla fija). Recibe
- * los renglones ya resueltos por el backend y resuelve su propia navegación
- * (remito/producto/pedido) con el action service.
- */
-class AvailableNotDoneDialog extends Component {
-    static template = "odoo_mrp_planner.AvailableNotDoneDialog";
-    static components = { Dialog };
-    static props = {
-        close: Function,          // lo inyecta el dialog service
-        rows: Array,
-        total: Number,
-        methodLabel: { type: String, optional: true },
-    };
-
-    setup() {
-        this.action = useService("action");
-    }
-
-    fmt(n) { return fmt(n); }
-
-    outcomeClass(outcome) {
-        if (outcome === "cancelled")       return "text-bg-danger";
-        if (outcome === "delivered_later") return "text-bg-success";
-        return "text-bg-light text-dark border";
-    }
-
-    openPicking(row) {
-        this.action.doAction({
-            type: "ir.actions.act_window", res_model: "stock.picking",
-            res_id: row.picking_id, views: [[false, "form"]], target: "current",
-        });
-    }
-    openProduct(productId) {
-        this.action.doAction({
-            type: "ir.actions.act_window", res_model: "product.product",
-            res_id: productId, views: [[false, "form"]], target: "current",
-        });
-    }
-    openOrder(row) {
-        if (!row.order_id) return;
-        this.action.doAction({
-            type: "ir.actions.act_window", res_model: row.order_model || "sale.order",
-            res_id: row.order_id, views: [[false, "form"]], target: "current",
-        });
-    }
-}
-
 class InventoryDashboardWidget extends Component {
     static template = "odoo_mrp_planner.InventoryDashboardWidget";
     static components = { PlannerSearchBar };
@@ -147,7 +97,6 @@ class InventoryDashboardWidget extends Component {
         this.orm          = useService("orm");
         this.action       = useService("action");
         this.notification = useService("notification");
-        this.dialog       = useService("dialog");
         this.tableCols    = COLS;
         this.numColOptions = INV_NUM_COLS;
         // Columnas reordenables/redimensionables — mismo hook que el forecast
@@ -456,10 +405,12 @@ class InventoryDashboardWidget extends Component {
             || !(this.periodKpis.rate_pending_available > 0);
     }
 
-    /** Abre el detalle en un MODAL. Trae el desglose con los MISMOS filtros
-     *  activos de la tabla (fechas, depósitos, tipos); el método (al cierre/
-     *  pico/promedio) lo decide el backend según Ajustes y su total reproduce
-     *  el número de la card. */
+    /** Abre la lista de los remitos que componen "Disponible no hecho".
+     *  El backend resuelve CUÁLES remitos (sale de los snapshots con los mismos
+     *  filtros de la tabla); se abre una lista NATIVA de stock.picking con esos
+     *  ids para poder filtrar/agrupar, igual que las otras cards.
+     *  OJO: la lista nativa muestra las cantidades de HOY, no el "disponible al
+     *  cierre" del snapshot, así que su total no reproduce el número de la card. */
     async openAvailableNotDone() {
         if (this.state.notDoneLoading) return;
         this.state.notDoneLoading = true;
@@ -468,16 +419,22 @@ class InventoryDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_inventory_available_not_done_detail",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblTypeIds]);
-            if (res.no_snapshots || !(res.rows || []).length) {
+            const ids = [...new Set((res.rows || []).map(r => r.picking_id))];
+            if (!ids.length) {
                 this.notification.add(
                     "No hay disponible no hecho para los filtros seleccionados.",
                     { type: "info" });
                 return;
             }
-            this.dialog.add(AvailableNotDoneDialog, {
-                rows: res.rows || [],
-                total: res.total || 0,
-                methodLabel: this.rateMethodLabel(),
+            this.action.doAction({
+                type: "ir.actions.act_window",
+                name: "Disponible no hecho — detalle",
+                res_model: "stock.picking",
+                domain: [["id", "in", ids]],
+                views: [[false, "list"], [false, "form"]],
+                limit: Math.max(ids.length, 80),
+                context: { create: false },
+                target: "current",
             });
         } catch (e) {
             console.error("[InventoryPanel]", e);

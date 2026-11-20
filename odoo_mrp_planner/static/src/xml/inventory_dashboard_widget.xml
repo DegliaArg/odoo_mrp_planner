@@ -140,9 +140,10 @@
                 </div>
             </div>
 
-            <!-- El detalle "Disponible no hecho" se abre en un MODAL
-                 (AvailableNotDoneDialog), no inline, para no confundirlo con la
-                 tabla fija del panel. -->
+            <!-- El botón "Ver →" de "Disponible no hecho" abre una lista nativa
+                 de stock.picking con los remitos que componen el número (resueltos
+                 en el backend desde los snapshots) — igual que las otras cards,
+                 para poder filtrar/agrupar. Ver openAvailableNotDone en el JS. -->
 
             <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->
             <div class="d-flex align-items-center gap-2 mb-3">
@@ -524,108 +525,6 @@
             </t>
 
         </div>
-    </t>
-
-    <!-- ══ Detalle "Disponible no hecho" en MODAL ══
-         Composición exacta del número de la card (sale de snapshots, cierra
-         exacto) + qué pasó con cada renglón. Se abre como diálogo para no
-         confundirse con la tabla fija del panel. -->
-    <t t-name="odoo_mrp_planner.AvailableNotDoneDialog">
-        <Dialog size="'xl'" title="'Disponible no hecho — detalle'">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span t-if="props.methodLabel" class="badge text-bg-light text-dark border">
-                    <t t-esc="props.methodLabel"/>
-                </span>
-                <span class="text-muted small">
-                    Lo que tuve stock para hacer en el rango y no hice, renglón por renglón.
-                </span>
-            </div>
-            <div class="text-muted fst-italic small mb-2">
-                <i class="fa fa-info-circle me-1"/>
-                Las cantidades combinan unidades de medida distintas; mostramos la UdM por renglón y el total es referencial.
-            </div>
-
-            <div class="border rounded" style="max-height:60vh; overflow-y:auto;">
-                <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:12px; width:100%;">
-                    <thead style="position:sticky; top:0; z-index:3;">
-                        <tr>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Remito</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Cliente</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Producto</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">UdM</th>
-                            <th class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
-                                title="Disponible del snapshot según el método vigente; su total reconstruye el número de la card.">Disponible</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Etapa</th>
-                            <th class="text-end" style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Días disp.</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Fecha prog.</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);">Pedido</th>
-                            <th style="padding:4px 8px; background:var(--bs-tertiary-bg, #f8f9fa);"
-                                title="Qué pasó con este renglón después del cierre del período.">Resultado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <t t-foreach="props.rows" t-as="row" t-key="row.picking_id + '_' + row.product_id">
-                            <tr>
-                                <td>
-                                    <a href="#" class="fw-semibold"
-                                       t-on-click.prevent="() => this.openPicking(row)"
-                                       t-esc="row.name"/>
-                                </td>
-                                <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                    t-att-title="row.partner" t-esc="row.partner"/>
-                                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                    t-att-title="row.product_name">
-                                    <a href="#"
-                                       t-on-click.prevent="() => this.openProduct(row.product_id)"
-                                       t-esc="row.product_name"/>
-                                </td>
-                                <td t-esc="row.uom_name"/>
-                                <td class="text-end" t-esc="fmt(row.qty_available)"/>
-                                <td>
-                                    <span class="badge text-bg-light text-dark border" t-esc="row.stage_label"/>
-                                </td>
-                                <td class="text-end"
-                                    t-att-title="row.days_available !== null
-                                                 ? 'Con stock disponible desde hace ' + row.days_available + ' día(s)'
-                                                 : 'Sin snapshots con stock'"
-                                    t-esc="row.days_available !== null ? row.days_available : '—'"/>
-                                <td style="white-space:nowrap;">
-                                    <t t-esc="row.scheduled || '—'"/>
-                                    <span t-if="row.overdue_days !== null and row.overdue_days >= 0"
-                                          class="badge text-bg-danger ms-1"
-                                          t-esc="row.overdue_days > 0 ? '+' + row.overdue_days + ' d' : 'hoy'"/>
-                                </td>
-                                <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                    t-att-title="row.order_name">
-                                    <a t-if="row.order_id" href="#"
-                                       t-on-click.prevent="() => this.openOrder(row)"
-                                       t-esc="row.order_name"/>
-                                    <t t-else="" t-esc="row.order_name || '—'"/>
-                                </td>
-                                <td>
-                                    <span t-att-class="'badge ' + outcomeClass(row.outcome)"
-                                          t-esc="row.outcome_label"/>
-                                </td>
-                            </tr>
-                        </t>
-                    </tbody>
-                    <tfoot class="fw-bold" style="background:var(--bs-tertiary-bg, #f8f9fa);">
-                        <tr>
-                            <td colspan="4">
-                                <span title="Coincide con el número de la card «Disponible no hecho».">
-                                    Total (<t t-esc="props.rows.length"/> renglón/es)
-                                </span>
-                            </td>
-                            <td class="text-end" t-esc="fmt(props.total)"/>
-                            <td colspan="5"/>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <div class="text-muted small mt-2">
-                El total reproduce el número de la card «Disponible no hecho».
-            </div>
-        </Dialog>
     </t>
 
 </templates>

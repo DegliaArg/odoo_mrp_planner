@@ -405,10 +405,11 @@ class InventoryDashboardWidget extends Component {
             || !(this.periodKpis.rate_pending_available > 0);
     }
 
-    /** Abre la lista de los remitos que componen "Disponible no hecho".
-     *  El backend resuelve CUÁLES remitos (sale de los snapshots con los mismos
-     *  filtros de la tabla); se abre una lista NATIVA de stock.picking con esos
-     *  ids para poder filtrar/agrupar, igual que las otras cards.
+    /** Abre la lista de las LÍNEAS (stock.move) que componen "Disponible no
+     *  hecho". El backend resuelve CUÁLES movimientos (de los (remito, producto)
+     *  que salen de los snapshots con los mismos filtros de la tabla); se abre
+     *  una lista NATIVA de stock.move con esos ids para filtrar/agrupar (p. ej.
+     *  por categoría de producto), igual que las otras cards.
      *  OJO: la lista nativa muestra las cantidades de HOY, no el "disponible al
      *  cierre" del snapshot, así que su total no reproduce el número de la card. */
     async openAvailableNotDone() {
@@ -419,7 +420,7 @@ class InventoryDashboardWidget extends Component {
                 "mrp.planner.dashboard", "get_inventory_available_not_done_detail",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblTypeIds]);
-            const ids = [...new Set((res.rows || []).map(r => r.picking_id))];
+            const ids = res.move_ids || [];
             if (!ids.length) {
                 this.notification.add(
                     "No hay disponible no hecho para los filtros seleccionados.",
@@ -428,12 +429,18 @@ class InventoryDashboardWidget extends Component {
             }
             this.action.doAction({
                 type: "ir.actions.act_window",
-                name: "Disponible no hecho — detalle",
-                res_model: "stock.picking",
+                name: "Disponible no hecho — líneas",
+                res_model: "stock.move",
                 domain: [["id", "in", ids]],
                 views: [[false, "list"], [false, "form"]],
                 limit: Math.max(ids.length, 80),
-                context: { create: false },
+                context: {
+                    create: false,
+                    // Lista propia del drill con columnas de categoría (producto
+                    // y venta), filtrables y agrupables.
+                    list_view_ref: "odoo_mrp_planner.view_stock_move_list_available_not_done",
+                    search_view_ref: "odoo_mrp_planner.view_stock_move_search_available_not_done",
+                },
                 target: "current",
             });
         } catch (e) {

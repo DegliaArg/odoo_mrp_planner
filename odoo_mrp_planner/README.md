@@ -33,7 +33,7 @@ Panel de control centralizado para la gestión operativa de producción.
 ### Inventario
 - Panel con análisis de movimientos: recepciones, transferencias internas y cadena de entrega en todos los estados.
 - KPIs dinámicos, validados del período y tasa de entrega s/ disponible con snapshots diarios y consolidado mensual.
-- Card "Disponible no hecho" con botón "Ver →": abre la lista nativa de los remitos que componen ese número (resueltos en el backend desde los snapshots con los mismos filtros de la tabla), para poder filtrar/agrupar como en las demás cards. El método (al cierre / pico / promedio) se toma de Ajustes → Inventario.
+- Card "Disponible no hecho" con botón "Ver →": abre la lista de las líneas (stock.move) que componen ese número (resueltas en el backend desde los snapshots con los mismos filtros de la tabla), con columnas de categoría de producto y categoría de venta (filtrables y agrupables), para analizar como en las demás cards. El método (al cierre / pico / promedio) se toma de Ajustes → Inventario.
 
 ## Módulos relacionados
 

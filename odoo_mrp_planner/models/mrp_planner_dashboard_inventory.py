@@ -861,5 +861,20 @@ class MrpPlannerDashboard(models.TransientModel):
         # así reconcilia al centavo aunque haya mezcla de UoM y redondeo por fila.
         out['rows'] = rows
         out['total'] = qround(total)
+
+        # Ids de los movimientos (líneas) de esos (remito, producto): el botón
+        # "Ver →" abre una lista NATIVA de stock.move con estos ids, para filtrar
+        # y agrupar (p. ej. por categoría de producto). Solo las líneas de las
+        # claves elegidas, no todas las del remito.
+        pairs = {(r['picking_id'], r['product_id']) for r in rows_raw if r['product_id']}
+        move_ids = []
+        if pairs:
+            moves = self.env['stock.move'].sudo().search([('picking_id', 'in', pick_ids)])
+            for m in moves.read(['picking_id', 'product_id']):
+                pk = m['picking_id'][0] if m['picking_id'] else False
+                pr = m['product_id'][0] if m['product_id'] else False
+                if (pk, pr) in pairs:
+                    move_ids.append(m['id'])
+        out['move_ids'] = move_ids
         return out
 

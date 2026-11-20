@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Drill "Disponible no hecho — líneas" ──
+         Lista de stock.move (una fila por línea de remito) que compone el
+         número de la card "Disponible no hecho". El "Ver →" del panel la elige
+         vía list_view_ref + search_view_ref. Incluye las categorías de producto
+         y de venta como columnas, filtrables y agrupables. -->
+
+    <record id="view_stock_move_list_available_not_done" model="ir.ui.view">
+        <field name="name">stock.move.list.available.not.done</field>
+        <field name="model">stock.move</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <list string="Disponible no hecho — líneas" create="false" edit="false">
+                <field name="picking_id" decoration-bf="1" string="Remito"/>
+                <field name="partner_id" optional="hide" string="Contacto"/>
+                <field name="product_id" string="Producto"/>
+                <field name="x_product_categ_id" optional="show" string="Categoría de producto"/>
+                <field name="x_sale_category" optional="show" string="Categoría de venta"/>
+                <field name="product_uom_qty" sum="Total" string="Demanda"/>
+                <field name="quantity" sum="Total" string="Hecho/Reservado"/>
+                <field name="product_uom" optional="hide" string="UdM" groups="uom.group_uom"/>
+                <field name="date" optional="show" string="Fecha prog."/>
+                <field name="state" widget="badge" optional="show"
+                       decoration-success="state == 'done'"
+                       decoration-info="state == 'assigned'"
+                       decoration-muted="state == 'cancel'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_stock_move_search_available_not_done" model="ir.ui.view">
+        <field name="name">stock.move.search.available.not.done</field>
+        <field name="model">stock.move</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <search string="Disponible no hecho — líneas">
+                <field name="picking_id" string="Remito"/>
+                <field name="product_id" string="Producto"/>
+                <field name="x_product_categ_id" string="Categoría de producto"/>
+                <field name="x_sale_category" string="Categoría de venta"/>
+                <field name="partner_id" string="Contacto"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="gb_prod_categ" string="Categoría de producto"
+                            context="{'group_by': 'x_product_categ_id'}"/>
+                    <filter name="gb_sale_cat" string="Categoría de venta"
+                            context="{'group_by': 'x_sale_category'}"/>
+                    <filter name="gb_product" string="Producto"
+                            context="{'group_by': 'product_id'}"/>
+                    <filter name="gb_picking" string="Remito"
+                            context="{'group_by': 'picking_id'}"/>
+                    <filter name="gb_state" string="Estado"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

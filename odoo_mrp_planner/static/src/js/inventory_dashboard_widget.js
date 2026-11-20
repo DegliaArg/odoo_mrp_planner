@@ -136,6 +136,13 @@ class InventoryDashboardWidget extends Component {
             sortCol:        "scheduled",
             sortDir:        "asc",
             dispatching:    false,
+            // ── Detalle "Disponible no hecho" (sale de snapshots, no de la
+            //    tabla en vivo: se trae con su propio RPC y cierra contra la card) ──
+            and: {
+                open: false, loading: false, error: null,
+                rows: [], total: 0, method: null, noSnapshots: false,
+                filter: "all",   // "all" | "closed"
+            },
         });
 
         this._closeAll = () => {
@@ -393,6 +400,93 @@ class InventoryDashboardWidget extends Component {
             target: "current",
         });
     }
+    /** Abre el pedido (venta) de una fila del detalle "Disponible no hecho". */
+    openOrder(row) {
+        if (!row.order_id) return;
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: row.order_model || "sale.order",
+            res_id: row.order_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+
+    // ── Detalle "Disponible no hecho" (snapshots, no tabla en vivo) ────────────
+
+    /** El botón "Ver →" de la card no abre nada si no hay dato (sin snapshots)
+     *  o si el número es 0: no habría composición que mostrar. */
+    get availableNotDoneDisabled() {
+        return !!this.periodKpis.rate_no_snapshots
+            || !(this.periodKpis.rate_pending_available > 0);
+    }
+
+    /** Abre/cierra la sección de detalle. Al abrir trae el desglose con los
+     *  MISMOS filtros activos de la tabla (fechas, depósitos, tipos); el método
+     *  (al cierre/pico/promedio) lo decide el backend según Ajustes. */
+    async openAvailableNotDone() {
+        if (this.state.and.open) { this.state.and.open = false; return; }
+        this.state.and.open = true;
+        this.state.and.loading = true;
+        this.state.and.error = null;
+        this.state.and.filter = "all";
+        try {
+            const res = await this.orm.call(
+                "mrp.planner.dashboard", "get_inventory_available_not_done_detail",
+                [this.state.tblFrom || null, this.state.tblTo || null,
+                 this.state.tblWhIds, this.state.tblTypeIds]);
+            this.state.and.rows        = res.rows || [];
+            this.state.and.total       = res.total || 0;
+            this.state.and.method      = res.method || null;
+            this.state.and.noSnapshots = !!res.no_snapshots;
+        } catch (e) {
+            console.error("[InventoryPanel]", e);
+            this.state.and.error = (e && e.data && e.data.message) || e.message || String(e);
+        } finally {
+            this.state.and.loading = false;
+        }
+    }
+
+    setAndFilter(key) { this.state.and.filter = key; }
+
+    /** Filas del detalle según la pestaña activa (Todos / Pedidos cerrados). */
+    get availableNotDoneRows() {
+        const rows = this.state.and.rows || [];
+        if (this.state.and.filter === "closed") {
+            return rows.filter(r => r.order_status === "closed");
+        }
+        return rows;
+    }
+
+    /** Cantidad de renglones con pedido cerrado (para el contador de la pestaña). */
+    get availableNotDoneClosedCount() {
+        return (this.state.and.rows || []).filter(r => r.order_status === "closed").length;
+    }
+
+    /** Total mostrado: el de la card (= número exacto) con "Todos"; el subtotal
+     *  del subconjunto con la pestaña "Pedidos cerrados". */
+    get availableNotDoneShownTotal() {
+        if (this.state.and.filter === "closed") {
+            return Math.round(this.availableNotDoneRows
+                .reduce((s, r) => s + (r.qty_available || 0), 0) * 100) / 100;
+        }
+        return this.state.and.total;
+    }
+
+    /** Clase del badge del estado del pedido. */
+    orderStatusClass(status) {
+        if (status === "closed") return "text-bg-warning";
+        if (status === "cancel") return "text-bg-danger";
+        return "text-bg-light text-dark border";
+    }
+
+    /** Clase del badge del resultado (outcome). */
+    outcomeClass(outcome) {
+        if (outcome === "order_closed")    return "text-bg-warning";
+        if (outcome === "cancelled")       return "text-bg-danger";
+        if (outcome === "delivered_later") return "text-bg-success";
+        return "text-bg-light text-dark border";
+    }
 
     // ── Zona tabla ────────────────────────────────────────────────────────────
 
@@ -400,6 +494,9 @@ class InventoryDashboardWidget extends Component {
         this._persist();
         this.state.tableLoading = true;
         this.state.tableError   = null;
+        // El detalle "Disponible no hecho" depende de estos filtros: se cierra
+        // para no mostrar un desglose viejo tras cambiar fechas/depósitos/tipos.
+        this.state.and.open = false;
         try {
             const res = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_pending_table",

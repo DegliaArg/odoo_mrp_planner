@@ -522,3 +522,94 @@ class TestMrpPlannerDashboard(TransactionCase):
         self.assertIn(
             wh.int_type_id.id, selector_ids,
             "Los tipos activos del depósito deben seguir en el selector")
+
+    # ── Test 8: el detalle "Disponible no hecho" reconcilia con la card ────────
+
+    def test_available_not_done_detail_reconciles_with_card(self):
+        """
+        Panel de Inventario: el detalle de la card "Disponible no hecho" debe
+        cerrar EXACTO contra el número de la card (``rate_pending_available``) en
+        los TRES métodos de la Base de la tasa (al cierre / pico / promedio),
+        porque ambos salen del mismo helper de renglones.
+
+        Escenario: registro de disponibilidad activo, un remito de salida
+        pendiente con dos productos y snapshots en tres días con cantidades
+        reservadas distintas (así cada método da un número diferente).
+        """
+        company = self.env.company
+        self.env.user.write({"mrp_planner_all_warehouses": True})
+
+        cfg = self.env["mrp.reschedule.config"].sudo().get_config()
+        cfg.dispatch_stock_log_enabled = True
+        # Redondeo a 2 decimales (no forzar enteros) para que el promedio no se
+        # distorsione por el redondeo al comparar card vs detalle.
+        cfg.inventory_force_integer = False
+
+        wh = self.warehouse
+        out_type = wh.out_type_id
+        self.assertTrue(out_type, "El depósito del test debe tener tipo de salida")
+
+        product_b = self.env["product.product"].create({
+            "name": "Producto Test Detalle B", "type": "consu"})
+
+        # Remito de salida PENDIENTE (sin validar: no entra a 'done'/'cancel').
+        picking = self.env["stock.picking"].create({
+            "picking_type_id": out_type.id,
+            "location_id": out_type.default_location_src_id.id,
+            "location_dest_id": out_type.default_location_dest_id.id,
+            "company_id": company.id,
+        })
+
+        # Tres snapshots con cantidades que hacen diferir los tres métodos:
+        #   A: 10, 40, 20  → cierre 20 · pico 40 · prom (10+40+20)/3
+        #   B:  5,  5, 15  → cierre 15 · pico 15 · prom ( 5+ 5+15)/3
+        today = date.today()
+        dates = [today - timedelta(days=2), today - timedelta(days=1), today]
+        plan = {self.product.id: [10.0, 40.0, 20.0], product_b.id: [5.0, 5.0, 15.0]}
+        Log = self.env["mrp.dispatch.stock.log"].sudo()
+        for prod_id, qtys in plan.items():
+            for snap_date, qty in zip(dates, qtys):
+                Log.create({
+                    "snapshot_date": snap_date,
+                    "company_id": company.id,
+                    "warehouse_id": wh.id,
+                    "picking_id": picking.id,
+                    "product_id": prod_id,
+                    "qty_pending": qty,
+                    "qty_reserved": qty,
+                })
+
+        dash = self._new_dashboard()
+        d_from = dates[0].strftime("%Y-%m-%d")
+        d_to = dates[-1].strftime("%Y-%m-%d")
+
+        totals = {}
+        for method in ("closing", "peak", "average"):
+            cfg.dispatch_available_denominator_method = method
+            card = dash.get_inventory_pending_table(
+                d_from, d_to, warehouse_ids=[wh.id],
+                picking_type_ids=[out_type.id])["period_kpis"]
+            detail = dash.get_inventory_available_not_done_detail(
+                d_from, d_to, warehouse_ids=[wh.id],
+                picking_type_ids=[out_type.id])
+            self.assertFalse(
+                card["rate_no_snapshots"],
+                f"[{method}] con snapshots en el rango la tasa es calculable")
+            self.assertEqual(
+                detail["method"], method,
+                f"[{method}] el detalle usa el método de la config")
+            self.assertAlmostEqual(
+                detail["total"], card["rate_pending_available"], places=2,
+                msg=f"[{method}] el total del detalle debe dar el número de la card")
+            # Una fila por (remito, producto): dos productos → dos renglones.
+            self.assertEqual(
+                len(detail["rows"]), 2,
+                f"[{method}] una fila por (remito, producto)")
+            totals[method] = detail["total"]
+
+        # Los tres métodos deben dar números distintos (si no, el test no prueba
+        # que el detalle sea dinámico según el método).
+        self.assertNotEqual(totals["closing"], totals["peak"],
+                            "Cierre y pico deben diferir con estos snapshots")
+        self.assertNotEqual(totals["closing"], totals["average"],
+                            "Cierre y promedio deben diferir con estos snapshots")

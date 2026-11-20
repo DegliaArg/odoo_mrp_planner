@@ -763,7 +763,7 @@ class PurchaseAnalysisWidget extends Component {
 </div>
 
 <div class="rpt-footer">
-  <span class="rpt-footer-left">${coName ? coName + " — " : ""}Planificador de Producción</span>
+  <span class="rpt-footer-left">${coName ? coName + " — " : ""}KPIs</span>
   <span class="rpt-footer-right">Impreso el ${now}</span>
 </div>
 <div class="rpt-band rpt-band-sm"></div>

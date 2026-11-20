@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Registro singleton del planificador (se crea una sola vez) -->
+    <!-- Registro singleton de KPIs (se crea una sola vez) -->
     <data noupdate="1">
         <record id="mrp_reschedule_config_singleton" model="mrp.reschedule.config">
             <field name="cron_interval_number">30</field>
@@ -37,7 +37,7 @@
                                     <group string="Preferencias por usuario">
                                         <div class="text-muted small mb-3">
                                             Configurá qué depósitos puede ver cada usuario y qué secciones
-                                            se muestran en cada panel del Planificador MRP.
+                                            se muestran en cada panel del KPIs.
                                         </div>
                                         <button name="action_open_user_warehouses"
                                                 type="object"

@@ -3,7 +3,7 @@ Módulo: res_users.py
 Modelo: extensión de res.users
 
 Extiende el modelo de usuarios de Odoo para incorporar preferencias de acceso
-y visualización del Planificador MRP.
+y visualización del KPIs.
 
 Responsabilidades:
 - Controlar si el usuario visualiza todos los depósitos o solo un subconjunto
@@ -13,21 +13,21 @@ Responsabilidades:
 
 Relacionado con:
 - stock.warehouse: depósitos que el usuario tiene permitido consultar en el
-  Planificador MRP
+  KPIs
 """
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 
 class ResUsers(models.Model):
-    """Extensión de res.users con preferencias de visibilidad del Planificador MRP."""
+    """Extensión de res.users con preferencias de visibilidad del KPIs."""
 
     _inherit = 'res.users'
 
     mrp_planner_all_warehouses = fields.Boolean(
         string='Todos los depósitos',
         default=True,
-        help='Si está activo, el usuario puede ver datos de todos los depósitos en el Planificador MRP. '
+        help='Si está activo, el usuario puede ver datos de todos los depósitos en KPIs. '
              'Si está inactivo, solo verá los depósitos seleccionados abajo.',
     )
 
@@ -37,7 +37,7 @@ class ResUsers(models.Model):
         'user_id',
         'warehouse_id',
         string='Depósitos permitidos',
-        help='Depósitos que el usuario puede ver en el Planificador MRP '
+        help='Depósitos que el usuario puede ver en KPIs '
              'cuando "Todos los depósitos" está desactivado.',
     )
 

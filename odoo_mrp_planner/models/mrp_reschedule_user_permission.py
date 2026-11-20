@@ -3,7 +3,7 @@ from odoo import models, fields
 
 class MrpRescheduleUserPermission(models.Model):
     _name = 'mrp.reschedule.user.permission'
-    _description = 'Permiso de usuario en el planificador'
+    _description = 'Permiso de usuario en KPIs'
     _rec_name = 'user_id'
 
     # constraint a nivel DB para evitar duplicados y auto-escalada de privilegios

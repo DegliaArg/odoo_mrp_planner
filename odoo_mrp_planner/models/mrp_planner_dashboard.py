@@ -2,7 +2,7 @@
 Módulo: mrp_planner_dashboard.py
 Modelo: mrp.planner.dashboard
 
-Panel de control transitorio del planificador de producción MRP.
+Panel de control transitorio de KPIs de producción MRP.
 
 Responsabilidades:
 - Agregar y exponer contadores de alertas, OFs, OCs y programaciones para el dashboard.
@@ -263,7 +263,7 @@ class MrpPlannerDashboard(models.TransientModel):
         El ACL del modelo transient es amplio (base.group_user) porque el panel
         se abre para cualquier empleado; los métodos que leen datos sensibles con
         sudo() deben verificar acá que el usuario pertenezca a alguno de los
-        grupos del planificador indicados. Admin y system siempre pasan.
+        grupos de KPIs indicados. Admin y system siempre pasan.
 
         :param group_xmlids: xml_ids de grupos aceptados (ej: 'odoo_mrp_planner.group_sales_read').
         :raises AccessError: si el usuario no pertenece a ninguno.
@@ -273,7 +273,7 @@ class MrpPlannerDashboard(models.TransientModel):
             return
         if any(u.has_group(g) for g in group_xmlids):
             return
-        raise AccessError(_("No tenés permisos para ver esta sección del planificador."))
+        raise AccessError(_("No tenés permisos para ver esta sección de KPIs."))
 
     @tools.ormcache('self.env.uid', 'self.env.company.id')
     def _get_allowed_wh_ids(self):
@@ -494,7 +494,7 @@ class MrpPlannerDashboard(models.TransientModel):
     @api.model
     def action_open(self):
         """
-        Abre el panel principal del planificador MRP.
+        Abre el panel principal de KPIs MRP.
 
         Crea un registro transitorio nuevo y retorna una acción de ventana que
         lo muestra en la vista form principal (sin barra de control).

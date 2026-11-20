@@ -4,7 +4,7 @@
 Módulo: mrp_planner_dashboard_forecast.py
 Modelo: extensión de 'mrp.planner.dashboard'
 
-Extiende el dashboard del planificador MRP con toda la lógica de Forecast:
+Extiende el dashboard de KPIs MRP con toda la lógica de Forecast:
 consulta líneas de forecast, ÓFs planificadas, entregas y demanda real de ventas
 para construir una tabla pivotada por producto × mes con KPIs de cobertura,
 precisión de forecast y rotación de stock.
@@ -214,7 +214,7 @@ class MrpPlannerDashboardForecast(models.TransientModel):
         """
         Devuelve KPIs y tabla pivotada forecast vs ÓFs para el rango de meses indicado.
 
-        Requiere pertenecer a un grupo de ventas del planificador (lee con sudo).
+        Requiere pertenecer a un grupo de ventas de KPIs (lee con sudo).
 
         Construye el payload completo que consume el widget de forecast del dashboard.
         El proceso interno sigue este orden:

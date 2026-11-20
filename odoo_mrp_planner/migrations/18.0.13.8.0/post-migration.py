@@ -10,7 +10,7 @@ hay que actualizarlo acá. La granularidad de 15 min es la que permite respetar
 los minutos de la hora de envío (p. ej. 15:30 y no solo la hora redonda).
 
 Se adelanta además el próximo disparo a 'ahora' para que la nueva cadencia de
-15 min arranque en la próxima pasada del planificador, sin esperar al viejo
+15 min arranque en la próxima pasada de KPIs, sin esperar al viejo
 nextcall (que podía estar hasta una hora en el futuro).
 """
 from odoo import api, fields, SUPERUSER_ID

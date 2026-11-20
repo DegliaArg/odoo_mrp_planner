@@ -2,7 +2,7 @@
 Módulo: mrp_planner_run_log.py
 Modelo: mrp.planner.run.log
 
-Historial de ejecuciones de los procesos del planificador: asignación de
+Historial de ejecuciones de los procesos de KPIs: asignación de
 categorías (venta/proveedor/cliente), chequeo de alertas e importación de
 forecast. Cada corrida —manual o por cron— deja una fila con su resultado.
 
@@ -35,7 +35,7 @@ PROCESS_SELECTION = [
 
 class MrpPlannerRunLog(models.Model):
     _name = 'mrp.planner.run.log'
-    _description = 'Registro de ejecuciones del planificador'
+    _description = 'Registro de ejecuciones de KPIs'
     _order = 'run_date desc, id desc'
 
     run_date = fields.Datetime(string='Fecha y hora', required=True,

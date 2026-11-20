@@ -14,7 +14,7 @@
                 <field name="x_sale_category"
                        string="Categoría de venta"
                        invisible="not sale_ok or not mrp_enable_sale_cat"
-                       help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración del planificador."/>
+                       help="Clasificación A–E de rotación del artículo (A = mayor rotación). Se puede asignar automáticamente desde Configuración de KPIs."/>
                 <field name="x_product_type_ids"
                        string="Tipo de producto"
                        widget="many2many_tags"

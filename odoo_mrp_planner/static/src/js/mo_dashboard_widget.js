@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * @description Widget de órdenes de fabricación para el dashboard del planificador.
+ * @description Widget de órdenes de fabricación para el dashboard de KPIs.
  *   Muestra KPIs de OFs, solicitudes de programación y comparativo producción vs plan.
  *   Paginado y ordenamiento server-side para OFs y solicitudes; client-side para comparativo.
  * @fires RPC mrp.planner.dashboard.get_mo_widget_data — KPIs + lista de OFs paginada

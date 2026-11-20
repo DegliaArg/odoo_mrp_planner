@@ -314,7 +314,7 @@ class MrpDispatchStockLog(models.Model):
         cutoff_dom = cfg._dispatch_pending_cutoff_domain('date')
 
         # ── Demanda pendiente en cualquier eslabón (recolección/embalaje/salida).
-        # sudo(): mismo criterio que las demás lecturas de stock del planificador.
+        # sudo(): mismo criterio que las demás lecturas de stock de KPIs.
         moves = self.env['stock.move'].sudo().search([
             ('company_id', '=', company.id),
             ('picking_id.picking_type_id', 'in', chain_type_ids),
@@ -395,7 +395,7 @@ class MrpPlannerKpiMonthly(models.Model):
     # desde los snapshots. Las filas se borran en la migración 18.0.13.10.0. El
     # modelo se conserva para no arrastrar una baja de modelo con sus ACLs.
     _name = 'mrp.planner.kpi.monthly'
-    _description = 'KPIs mensuales consolidados del planificador (legacy)'
+    _description = 'KPIs mensuales consolidados de KPIs (legacy)'
     _order = 'period desc, id'
 
     kpi = fields.Selection([

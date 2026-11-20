@@ -4,7 +4,7 @@
 Módulo: mrp_planner_dashboard_stock.py
 Modelo: extensión de mrp.planner.dashboard
 
-Extiende el dashboard del planificador MRP con el widget de quiebres de stock.
+Extiende el dashboard de KPIs MRP con el widget de quiebres de stock.
 
 Responsabilidades:
 - Calcular el stock actual de productos vendibles en una o varias ubicaciones internas.

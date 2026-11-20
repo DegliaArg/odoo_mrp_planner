@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * Mecánica de tabla compartida por los paneles del planificador
+ * Mecánica de tabla compartida por los paneles de KPIs
  * (Inventario, Quiebres de stock, Análisis de clientes): ordenamiento
  * genérico, pestañas de agrupación y paginación client-side.
  *

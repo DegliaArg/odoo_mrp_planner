@@ -2,10 +2,10 @@
 <odoo>
 
     <!-- Cron de alertas: noupdate="0" para que el upgrade pueda actualizar el intervalo
-         sincronizado desde la pantalla de Configuración del planificador. -->
+         sincronizado desde la pantalla de Configuración de KPIs. -->
     <data noupdate="0">
         <record id="ir_cron_check_delays" model="ir.cron">
-            <field name="name">Planificador: detectar desvíos de producción</field>
+            <field name="name">KPIs: detectar desvíos de producción</field>
             <field name="model_id" ref="model_mrp_reschedule_alert"/>
             <field name="state">code</field>
             <field name="code">model._cron_check_delays()</field>
@@ -20,7 +20,7 @@
     <data noupdate="1">
         <!-- Cron para actualización automática de categorías de venta (inactivo por defecto) -->
         <record id="ir_cron_auto_assign_sale_categories" model="ir.cron">
-            <field name="name">Planificador: actualizar categorías de venta</field>
+            <field name="name">KPIs: actualizar categorías de venta</field>
             <field name="model_id" ref="model_mrp_reschedule_config"/>
             <field name="state">code</field>
             <field name="code">model._cron_auto_assign_sale_categories()</field>
@@ -30,7 +30,7 @@
         </record>
 
         <record id="ir_cron_compute_supplier_categories" model="ir.cron">
-            <field name="name">Planificador: actualizar categorías de proveedor</field>
+            <field name="name">KPIs: actualizar categorías de proveedor</field>
             <field name="model_id" ref="model_mrp_reschedule_config"/>
             <field name="state">code</field>
             <field name="code">model._cron_compute_supplier_categories()</field>
@@ -40,7 +40,7 @@
         </record>
 
         <record id="ir_cron_compute_customer_categories" model="ir.cron">
-            <field name="name">Planificador: actualizar categorías de cliente</field>
+            <field name="name">KPIs: actualizar categorías de cliente</field>
             <field name="model_id" ref="model_mrp_reschedule_config"/>
             <field name="state">code</field>
             <field name="code">model._cron_compute_customer_categories()</field>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Listas de los drills de los paneles del planificador ──
+    <!-- ── Listas de los drills de los paneles de KPIs ──
          Vistas dedicadas (priority alta para no ser las default de
          stock.picking); los "Ver →" de los paneles las eligen vía
          list_view_ref. El módulo de despacho les agrega su columna. -->

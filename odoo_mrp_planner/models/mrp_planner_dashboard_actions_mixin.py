@@ -2,7 +2,7 @@
 Mixin: mrp_planner_dashboard_actions_mixin.py
 Modelo: mrp.planner.dashboard.actions.mixin  (AbstractModel)
 
-Acciones de drill-down del panel del planificador: los métodos action_view_*
+Acciones de drill-down del panel de KPIs: los métodos action_view_*
 que abren vistas de lista filtradas de alertas al clicar los contadores del
 dashboard principal (vista mrp_planner_dashboard_views.xml).
 
@@ -20,7 +20,7 @@ from odoo import models, _
 
 class MrpPlannerDashboardActionsMixin(models.AbstractModel):
     _name = 'mrp.planner.dashboard.actions.mixin'
-    _description = 'Mixin de acciones de drill-down del panel del planificador'
+    _description = 'Mixin de acciones de drill-down del panel de KPIs'
 
     # ── Navegación — alertas ─────────────────────────────────────────────────
 

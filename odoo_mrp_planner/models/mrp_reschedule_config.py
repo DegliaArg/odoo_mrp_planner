@@ -2,7 +2,7 @@
 Módulo: mrp_reschedule_config.py
 Modelo: mrp.reschedule.config
 
-Singleton (por empresa) de configuración central del planificador MRP:
+Singleton (por empresa) de configuración central de KPIs MRP:
 definición del modelo, alertas, análisis de proveedores y de clientes,
 quiebres de stock, registro de ejecuciones, permisos de edición y la
 sincronización con los ir.cron del módulo al guardar.
@@ -23,11 +23,11 @@ from odoo.exceptions import UserError, AccessError
 
 class MrpRescheduleConfig(models.Model):
     _name = 'mrp.reschedule.config'
-    _description = 'Configuración del planificador de producción'
+    _description = 'Configuración de KPIs de producción'
     _rec_name = 'name'
     _sql_constraints = [
         ('singleton', 'UNIQUE(singleton_check, company_id)',
-         'Solo puede existir una configuración del planificador por empresa.'),
+         'Solo puede existir una configuración de KPIs por empresa.'),
     ]
 
     singleton_check = fields.Boolean(default=True, string='Singleton')
@@ -345,11 +345,11 @@ class MrpRescheduleConfig(models.Model):
         Depende de: ningún campo (nombre constante).
         """
         for rec in self:
-            rec.name = 'Configuración del planificador'
+            rec.name = 'Configuración de KPIs'
 
     def action_open_user_warehouses(self):
         """
-        Abre la lista unificada de usuarios con depósitos y secciones visibles del Planificador MRP.
+        Abre la lista unificada de usuarios con depósitos y secciones visibles del KPIs.
 
         :returns: dict — acción de ventana (ir.actions.act_window) que muestra
                   res.users con la vista personalizada view_users_mrp_warehouse_list,
@@ -366,7 +366,7 @@ class MrpRescheduleConfig(models.Model):
         }
 
     def _user_can_edit_config(self):
-        """True si el usuario actual puede editar la configuración del planificador.
+        """True si el usuario actual puede editar la configuración de KPIs.
 
         Además del Administrador del módulo, los administradores de área
         (Producción, Programación, Ventas y Compras) pueden guardar la
@@ -491,7 +491,7 @@ class MrpRescheduleConfig(models.Model):
         Crea el registro de configuración aplicando la restricción singleton.
 
         Lanza UserError si ya existe un registro, garantizando que solo haya una
-        instancia del planificador. Tras la creación sincroniza el cron de
+        instancia de KPIs. Tras la creación sincroniza el cron de
         detección de retrasos con los valores del nuevo registro.
 
         :param vals_list: list[dict] — lista de valores para crear.
@@ -508,7 +508,7 @@ class MrpRescheduleConfig(models.Model):
             cid = vals.get('company_id') or self.env.company.id
             if self.search_count([('company_id', '=', cid)]) > 0:
                 raise UserError(_(
-                    'Ya existe una configuración del planificador para esta empresa. '
+                    'Ya existe una configuración de KPIs para esta empresa. '
                     'Editá el registro existente en lugar de crear uno nuevo.'
                 ))
         records = super().create(vals_list)
@@ -529,7 +529,7 @@ class MrpRescheduleConfig(models.Model):
     @api.model
     def action_open(self):
         """
-        Abre el formulario de configuración del planificador (singleton).
+        Abre el formulario de configuración de KPIs (singleton).
 
         Busca el único registro existente y retorna una acción de ventana apuntando
         a su formulario con paginador oculto (no_pager) para reforzar la experiencia
@@ -546,7 +546,7 @@ class MrpRescheduleConfig(models.Model):
             config = self.sudo().create({'company_id': self.env.company.id})
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Configuración del planificador',
+            'name': 'Configuración de KPIs',
             'res_model': self._name,
             'view_mode': 'form',
             'view_id': self.env.ref('odoo_mrp_planner.mrp_reschedule_config_form_view').id,

@@ -5,7 +5,7 @@ from .const import DEFAULT_PO_CRITICAL_DAYS
 
 class MrpPlannerDetailDashboard(models.TransientModel):
     _name = 'mrp.planner.detail.dashboard'
-    _description = 'Panel de detalle del planificador'
+    _description = 'Panel de detalle de KPIs'
 
     category = fields.Selection([
         ('mos', 'Órdenes de fabricación'),

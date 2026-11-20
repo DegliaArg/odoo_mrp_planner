@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ── Extensión del form de mrp.production: indicadores del planificador ──
+    <!-- ── Extensión del form de mrp.production: indicadores de KPIs ──
          El id externo conserva el nombre histórico (mrp_production_form_inherit_reschedule)
          a propósito: así el upgrade sobreescribe el registro existente en lugar de
          crear una vista nueva y dejar la vieja (que referencia campos movidos a

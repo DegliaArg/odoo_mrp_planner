@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * Dropdown de filtro multi-selección de los paneles del planificador
+ * Dropdown de filtro multi-selección de los paneles de KPIs
  * (depósitos y tipos de operación de Inventario, ubicaciones de Quiebres).
  *
  * Cada instancia opera sobre dos claves del state del widget: el flag de

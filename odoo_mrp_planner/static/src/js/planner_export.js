@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * Export a archivo compartido por las tablas de los paneles del planificador:
+ * Export a archivo compartido por las tablas de los paneles de KPIs:
  * CSV (Inventario, Quiebres) y Excel XML (Análisis de clientes).
  *
  * Cada widget aporta sus encabezados y una función de celda; acá vive solo

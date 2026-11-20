@@ -25,7 +25,7 @@ from odoo.exceptions import AccessError
 
 @tagged("post_install", "-at_install")
 class TestMrpPlannerDashboard(TransactionCase):
-    """Suite de tests para el panel de control del planificador MRP."""
+    """Suite de tests para el panel de control de KPIs MRP."""
 
     @classmethod
     def setUpClass(cls):

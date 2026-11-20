@@ -138,7 +138,9 @@ class InventoryDashboardWidget extends Component {
             dispatching:    false,
             // ── Detalle "Disponible no hecho" (sale de snapshots, no de la
             //    tabla en vivo: se trae con su propio RPC y cierra contra la card) ──
-            and: {
+            // OJO: no llamar esta clave "and" — OWL traduce el token `and` a `&&`
+            //      en las expresiones del template y rompe la compilación.
+            notDone: {
                 open: false, loading: false, error: null,
                 rows: [], total: 0, method: null, noSnapshots: false,
                 filter: "all",   // "all" | "closed"
@@ -425,34 +427,34 @@ class InventoryDashboardWidget extends Component {
      *  MISMOS filtros activos de la tabla (fechas, depósitos, tipos); el método
      *  (al cierre/pico/promedio) lo decide el backend según Ajustes. */
     async openAvailableNotDone() {
-        if (this.state.and.open) { this.state.and.open = false; return; }
-        this.state.and.open = true;
-        this.state.and.loading = true;
-        this.state.and.error = null;
-        this.state.and.filter = "all";
+        if (this.state.notDone.open) { this.state.notDone.open = false; return; }
+        this.state.notDone.open = true;
+        this.state.notDone.loading = true;
+        this.state.notDone.error = null;
+        this.state.notDone.filter = "all";
         try {
             const res = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_available_not_done_detail",
                 [this.state.tblFrom || null, this.state.tblTo || null,
                  this.state.tblWhIds, this.state.tblTypeIds]);
-            this.state.and.rows        = res.rows || [];
-            this.state.and.total       = res.total || 0;
-            this.state.and.method      = res.method || null;
-            this.state.and.noSnapshots = !!res.no_snapshots;
+            this.state.notDone.rows        = res.rows || [];
+            this.state.notDone.total       = res.total || 0;
+            this.state.notDone.method      = res.method || null;
+            this.state.notDone.noSnapshots = !!res.no_snapshots;
         } catch (e) {
             console.error("[InventoryPanel]", e);
-            this.state.and.error = (e && e.data && e.data.message) || e.message || String(e);
+            this.state.notDone.error = (e && e.data && e.data.message) || e.message || String(e);
         } finally {
-            this.state.and.loading = false;
+            this.state.notDone.loading = false;
         }
     }
 
-    setAndFilter(key) { this.state.and.filter = key; }
+    setAndFilter(key) { this.state.notDone.filter = key; }
 
     /** Filas del detalle según la pestaña activa (Todos / Pedidos cerrados). */
     get availableNotDoneRows() {
-        const rows = this.state.and.rows || [];
-        if (this.state.and.filter === "closed") {
+        const rows = this.state.notDone.rows || [];
+        if (this.state.notDone.filter === "closed") {
             return rows.filter(r => r.order_status === "closed");
         }
         return rows;
@@ -460,17 +462,17 @@ class InventoryDashboardWidget extends Component {
 
     /** Cantidad de renglones con pedido cerrado (para el contador de la pestaña). */
     get availableNotDoneClosedCount() {
-        return (this.state.and.rows || []).filter(r => r.order_status === "closed").length;
+        return (this.state.notDone.rows || []).filter(r => r.order_status === "closed").length;
     }
 
     /** Total mostrado: el de la card (= número exacto) con "Todos"; el subtotal
      *  del subconjunto con la pestaña "Pedidos cerrados". */
     get availableNotDoneShownTotal() {
-        if (this.state.and.filter === "closed") {
+        if (this.state.notDone.filter === "closed") {
             return Math.round(this.availableNotDoneRows
                 .reduce((s, r) => s + (r.qty_available || 0), 0) * 100) / 100;
         }
-        return this.state.and.total;
+        return this.state.notDone.total;
     }
 
     /** Clase del badge del estado del pedido. */
@@ -496,7 +498,7 @@ class InventoryDashboardWidget extends Component {
         this.state.tableError   = null;
         // El detalle "Disponible no hecho" depende de estos filtros: se cierra
         // para no mostrar un desglose viejo tras cambiar fechas/depósitos/tipos.
-        this.state.and.open = false;
+        this.state.notDone.open = false;
         try {
             const res = await this.orm.call(
                 "mrp.planner.dashboard", "get_inventory_pending_table",

@@ -575,12 +575,13 @@ class MrpProductionNeeds(models.TransientModel):
 
     @api.model
     def action_generate_mo(self, items, target_month=None):
-        """Crea y confirma una OF del producto final por cada ítem.
+        """Crea una OF en borrador del producto final por cada ítem.
 
         Decisión 7: se dispara 1 OF del producto terminado en el almacén de la
-        configuración (su operación de Fabricación); las OF/OC de los componentes
-        las genera Odoo hacia atrás por las rutas de abastecimiento. La OF queda
-        confirmada pero es responsabilidad del usuario revisarla/planificarla.
+        configuración (su operación de Fabricación). La OF queda en estado
+        borrador: es responsabilidad del usuario revisarla, confirmarla y
+        planificarla. Al confirmarla, Odoo genera hacia atrás las OF/OC de los
+        componentes por las rutas de abastecimiento.
 
         :param items: lista de dicts [{'product_id': int, 'qty': float}, ...]
         :param target_month: mes a programar; fija la fecha de inicio prevista de
@@ -617,17 +618,17 @@ class MrpProductionNeeds(models.TransientModel):
             }
             if picking_type:
                 vals['picking_type_id'] = picking_type.id
+            # Queda en borrador: no se confirma. El usuario revisa y confirma.
             mo = Production.create(vals)
-            mo.action_confirm()
             # Trazabilidad: deja constancia en el chatter de que la OF nació del panel
             # de Planificación (mes, cantidad y lead aplicado).
             try:
                 mes = fields.Date.to_string(fields.Date.to_date(target_month).replace(day=1)) \
                     if target_month else _('sin especificar')
                 mo.message_post(body=_(
-                    'Orden de fabricación generada desde el panel de <b>Planificación</b> '
-                    '(motor de necesidades). Mes a programar: %(mes)s · cantidad sugerida: %(qty)s · '
-                    'fecha programada: hoy + %(lead)s días de lead time.',
+                    'Orden de fabricación generada en <b>borrador</b> desde el panel de '
+                    '<b>Planificación</b> (motor de necesidades). Mes a programar: %(mes)s · '
+                    'cantidad sugerida: %(qty)s · fecha programada: hoy + %(lead)s días de lead time.',
                     mes=mes, qty=float(it['qty']), lead=lead_days,
                 ))
             except Exception:

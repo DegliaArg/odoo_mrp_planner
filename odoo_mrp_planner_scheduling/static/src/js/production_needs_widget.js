@@ -341,7 +341,7 @@ export class ProductionNeedsWidget extends Component {
             const act = await this.orm.call(
                 "mrp.production.needs", "action_generate_mo", [items, this.state.targetMonth]);
             this.notification.add(
-                `${items.length} orden(es) de fabricación generada(s).`, { type: "success" });
+                `${items.length} orden(es) de fabricación generada(s) en borrador.`, { type: "success" });
             if (act) await this.action.doAction(act);
         } finally {
             this.state.generating = false;

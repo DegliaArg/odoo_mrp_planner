@@ -11,7 +11,7 @@
          permite respetar los minutos, p. ej. 15:30 y no solo la hora redonda. -->
     <data noupdate="1">
         <record id="ir_cron_management_daily_report" model="ir.cron">
-            <field name="name">Planificador: envío del Resumen diario de Gerencia</field>
+            <field name="name">KPIs: envío del Resumen diario de Gerencia</field>
             <field name="model_id" ref="model_mrp_planner_dashboard"/>
             <field name="state">code</field>
             <field name="code">model._cron_send_management_report()</field>

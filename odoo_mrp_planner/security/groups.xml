@@ -3,9 +3,9 @@
 
     <!-- Categoría del módulo en la ficha de usuario -->
     <record id="module_category_mrp_planner" model="ir.module.category">
-        <field name="name">Planificador MRP</field>
+        <field name="name">KPIs</field>
         <field name="sequence">100</field>
-        <field name="description">Permisos para el módulo Planificador de producción (Deglia).</field>
+        <field name="description">Permisos para el módulo KPIs (Deglia).</field>
     </record>
 
     <!-- Producción – Lectura -->
@@ -71,7 +71,7 @@
     <record id="group_inventory_admin" model="res.groups">
         <field name="name">Inventario - Administrador</field>
         <field name="category_id" ref="module_category_mrp_planner"/>
-        <field name="comment">Ve los paneles de Inventario y Movimientos y modifica la pestaña Inventario de los Ajustes del planificador (registro de disponibilidad, corte de antigüedad y redondeo).</field>
+        <field name="comment">Ve los paneles de Inventario y Movimientos y modifica la pestaña Inventario de los Ajustes de KPIs (registro de disponibilidad, corte de antigüedad y redondeo).</field>
         <field name="users" eval="[]"/>
         <field name="implied_ids" eval="[(4, ref('group_inventory_read'))]"/>
     </record>

@@ -675,6 +675,23 @@ Documentación (`README.md`, `docs/ARQUITECTURA.md`, `docs/docs.md`, `docs/formu
 
 Documentación (`README.md`, `docs/ARQUITECTURA.md`, `docs/docs.md`) actualizada; `formulas.md` ya estaba al día.
 
+## Base de salida (factura) + fix pronóstico de quiebres + columna lead time en planificación (2026-11-24)
+
+**Contexto.** Rama `18.0-dev`. Tres cambios independientes sobre `odoo_mrp_planner` (Clientes, Gerencia, Forecast, quiebres) y `odoo_mrp_planner_scheduling` (panel de planificación).
+
+- ✅ **Base de salida (`customer_exit_basis`, default `packing`):** un único ajuste en Ajustes → Ventas → "Análisis de clientes — Medición" → grupo "Base de salida (cumplimiento y lead time)" define qué evento cuenta como "salida física". Dos opciones: **Embalaje** (orden de entrega validada — `qty_delivered` / `date_done`, comportamiento histórico) o **Factura** (candado real de salida; el remito se imprime desde la factura — `qty_invoiced` / `invoice_date`).
+  - **Decisión (no casar entregas con facturas):** un pedido tiene N entregas y N facturas, y Odoo no guarda correspondencia a nivel de unidades. En vez de reconciliar los dos flujos (pegado FIFO frágil), se cambia la **unidad de medida** del indicador: `qty_invoiced` es el gemelo nativo de `qty_delivered` por línea; lead time / puntualidad iteran las **facturas posteadas** (igual que antes iteraban las órdenes de entrega).
+  - **Alcance (re-base con base factura):** Tasa de cumplimiento (cliente), Lead time de entrega (3 métodos), Puntualidad / % a tiempo, Precio promedio entregado, Demanda insatisfecha (%, pendiente, drills), más los campos de línea `delivery_status`/`unmet_qty`/`unmet_amount` (basis-aware, recálculo diferido). Forecast: card "Cumplimiento de demanda" y "Tasa de cumplimiento" (vía `_so_demand_delivered_by_product`). Gerencia: numerador de la Tasa de servicio del Resumen diario (panel + PDF del mail); "pedidos trabajados" = pedidos con ≥1 factura posteada en el período.
+  - **Setting único que gobierna las tres zonas (Clientes + Gerencia + Forecast)** para que no diverjan — la Tasa de servicio de Gerencia sale por mail a diario y es prima hermana del cumplimiento de Ventas.
+  - **NO se tocan:** el "entregado por mes de ENTREGA" del Forecast (`del_data`, precisión de pronóstico, siempre física), Despachos y Facturado de Gerencia, % físico / Tasa física, e Inventario (Tasa de entrega por eslabón).
+  - **Caveat:** `qty_invoiced` **netea notas de crédito** (una NC de ajuste de precio baja la "salida" sin devolución física); consistente con el Facturado de Gerencia, que ya netea NC. El CRM hereda la base automáticamente (reúsa el análisis de clientes).
+  - **Reorg de Ajustes → Ventas:** la sección "Análisis de clientes" se partió en 3 grupos — "Medición (base, métodos y umbrales)", "Valorización y segmentación" y "Demanda insatisfecha — Antigüedad del pendiente".
+  - **Terminología:** en textos nuevos "orden de entrega" (no "remito") para el picking de salida; "remito" se reserva al documento impreso desde la factura. Etiqueta "primera entrega" → "primera salida".
+
+- ✅ **Fix pronóstico de quiebres de stock:** la columna "Pronóstico" tomaba el `qty_forecast` del punto de reorden (atado a su ubicación exacta), que ignoraba lo entrante destinado a otras sub-ubicaciones del depósito y daba valores errados (p. ej. −687 en vez de 913). Ahora usa `virtual_available` del producto en el **mismo ámbito de ubicaciones** (`child_of`) que el Stock actual — igual que el "Pronosticado" nativo de Odoo (a mano + entrante − saliente).
+
+- ✅ **Columna "Lead time (días)" en el panel de planificación** (`odoo_mrp_planner_scheduling`, visible por defecto): expone el plazo que el motor ya consideraba para cada artículo en el stock objetivo, con etiqueta de origen — Producción (Plazo de fabricación + Días para preparar la OF de la BOM), Compra-venta (proveedor preferido) u Origen (tipo de origen, respaldo).
+
 ## Backlog post-producción
 
 - **Umbrales de % hardcodeados** en forecast/comparativo (95/80 y 90/50) vs. los

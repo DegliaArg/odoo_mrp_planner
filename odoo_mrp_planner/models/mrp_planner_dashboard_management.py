@@ -272,16 +272,25 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         if not sos:
             return empty
 
-        # Pedidos TRABAJADOS: tuvieron ≥1 entrega de salida validada EN el período.
-        worked = self.env['stock.move.line'].sudo().search([
-            ('state', '=', 'done'),
-            ('picking_id.picking_type_id.code', '=', 'outgoing'),
-            ('picking_id.sale_id', 'in', sos.ids),
-            ('product_id.sale_ok', '=', True),
-            ('company_id', 'in', company.ids),
-            ('date', '>=', dt_from), ('date', '<=', dt_to),
-        ])
-        worked_so_ids = list(set(worked.mapped('picking_id.sale_id').ids))
+        # Base de salida (Ajustes de Ventas): define qué cuenta como "salida", igual
+        # que en el Análisis de clientes, para que ambos no diverjan.
+        #   packing → entregas de salida validadas (embalaje).
+        #   invoice → facturas de cliente posteadas (salida física).
+        basis = self.env['mrp.reschedule.config'].get_config().customer_exit_basis or 'packing'
+
+        # Pedidos TRABAJADOS: tuvieron ≥1 salida EN el período según la base.
+        if basis == 'invoice':
+            worked_so_ids = self._mgmt_orders_invoiced_in_period(sos, dt_from, dt_to, company)
+        else:
+            worked = self.env['stock.move.line'].sudo().search([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('picking_id.sale_id', 'in', sos.ids),
+                ('product_id.sale_ok', '=', True),
+                ('company_id', 'in', company.ids),
+                ('date', '>=', dt_from), ('date', '<=', dt_to),
+            ])
+            worked_so_ids = list(set(worked.mapped('picking_id.sale_id').ids))
         if not worked_so_ids:
             return dict(empty, total_orders=len(sos))
 
@@ -294,15 +303,19 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         ], ['product_uom_qty:sum'], [])
         ordered = (dem[0]['product_uom_qty'] or 0.0) if dem and dem[0] else 0.0
 
-        # Numerador: entregado (cualquier fecha) de los pedidos trabajados.
-        deliv = self.env['stock.move.line'].sudo().read_group([
-            ('state', '=', 'done'),
-            ('picking_id.picking_type_id.code', '=', 'outgoing'),
-            ('picking_id.sale_id', 'in', worked_so_ids),
-            ('product_id.sale_ok', '=', True),
-            ('company_id', 'in', company.ids),
-        ], ['quantity:sum'], [])
-        delivered = (deliv[0]['quantity'] or 0.0) if deliv and deliv[0] else 0.0
+        # Numerador: lo SALIDO (cualquier fecha) de los pedidos trabajados. Con base
+        # factura netea notas de crédito (out_refund), como la card Facturado.
+        if basis == 'invoice':
+            delivered = self._mgmt_invoiced_qty_for_orders(worked_so_ids, company)
+        else:
+            deliv = self.env['stock.move.line'].sudo().read_group([
+                ('state', '=', 'done'),
+                ('picking_id.picking_type_id.code', '=', 'outgoing'),
+                ('picking_id.sale_id', 'in', worked_so_ids),
+                ('product_id.sale_ok', '=', True),
+                ('company_id', 'in', company.ids),
+            ], ['quantity:sum'], [])
+            delivered = (deliv[0]['quantity'] or 0.0) if deliv and deliv[0] else 0.0
 
         rate = round(delivered / ordered * 100, 1) if ordered > 0 else None
         return {
@@ -313,6 +326,62 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'total_orders': len(sos),
             'worked_so_ids': worked_so_ids,
         }
+
+    # ── Base de salida = factura: helpers de la tasa de servicio ──────────────
+
+    def _mgmt_orders_invoiced_in_period(self, sos, dt_from, dt_to, company):
+        """IDs de los pedidos de ``sos`` con ≥1 factura de cliente posteada
+        (``out_invoice``) cuya ``invoice_date`` cae en el período. Es el
+        equivalente, para la base factura, de "pedidos con ≥1 entrega validada en
+        el período" de la base embalaje.
+
+        ``dt_from``/``dt_to`` llegan como datetime; ``invoice_date`` es Date, así
+        que se compara solo la parte de fecha.
+        """
+        if not sos:
+            return []
+        lines = self.env['account.move.line'].sudo().search_read([
+            ('move_id.move_type', '=', 'out_invoice'),
+            ('parent_state', '=', 'posted'),
+            # Odoo 18: las líneas de producto de factura tienen display_type='product'.
+            ('display_type', '=', 'product'),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+            ('sale_line_ids.order_id', 'in', sos.ids),
+            ('move_id.invoice_date', '>=', dt_from[:10]),
+            ('move_id.invoice_date', '<=', dt_to[:10]),
+        ], ['sale_line_ids'])
+        if not lines:
+            return []
+        sol_ids = {sid for l in lines for sid in l['sale_line_ids']}
+        so_by_sol = {}
+        if sol_ids:
+            for s in self.env['sale.order.line'].sudo().browse(list(sol_ids)).read(['id', 'order_id']):
+                so_by_sol[s['id']] = s['order_id'][0] if s.get('order_id') else None
+        so_set = set(sos.ids)
+        worked = {so_by_sol.get(sid) for l in lines for sid in l['sale_line_ids']}
+        return [oid for oid in worked if oid in so_set]
+
+    def _mgmt_invoiced_qty_for_orders(self, order_ids, company):
+        """Piezas netas facturadas (``out_invoice`` − ``out_refund``, cualquier
+        fecha) de ``order_ids``. Netea notas de crédito igual que la card
+        Facturado, para que ambas lecturas sean consistentes."""
+        if not order_ids:
+            return 0.0
+        AML = self.env['account.move.line'].sudo()
+        base = [
+            ('parent_state', '=', 'posted'),
+            # Odoo 18: las líneas de producto de factura tienen display_type='product'.
+            ('display_type', '=', 'product'),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+            ('sale_line_ids.order_id', 'in', list(order_ids)),
+        ]
+        qty = 0.0
+        for mtype, sign in (('out_invoice', 1.0), ('out_refund', -1.0)):
+            res = AML.read_group(base + [('move_id.move_type', '=', mtype)], ['quantity:sum'], [])
+            qty += sign * ((res[0]['quantity'] or 0.0) if res and res[0] else 0.0)
+        return qty
 
     # ── Facturado (facturas de cliente) ──────────────────────────────────────
 

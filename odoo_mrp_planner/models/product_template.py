@@ -7,7 +7,7 @@ campos de clasificación usados por el planificador MRP.
 
 Responsabilidades:
 - Almacenar la categoría de venta ABC asignada al artículo.
-- Relacionar el artículo con uno o varios tipos de producto del planificador.
+- Relacionar el artículo con uno o varios tipos de producto de KPIs.
 - Exponer el flag de visibilidad que controla si la categoría de venta se
   muestra en la vista de formulario según la configuración activa.
 
@@ -29,7 +29,7 @@ class ProductTemplate(models.Model):
         SALE_CAT_SELECTION,
         string='Categoría de venta',
         help='Clasificación A–E de rotación del artículo (A = mayor rotación). '
-             'Se puede asignar manualmente o de forma automática desde Configuración del planificador.',
+             'Se puede asignar manualmente o de forma automática desde Configuración de KPIs.',
         compute='_compute_sale_category',
         inverse='_set_sale_category',
         search='_search_sale_category',
@@ -47,7 +47,7 @@ class ProductTemplate(models.Model):
 
     mrp_enable_sale_cat = fields.Boolean(
         compute='_compute_mrp_sale_cat_flag',
-        help='Indicador calculado: True si la configuración activa del planificador '
+        help='Indicador calculado: True si la configuración activa de KPIs '
              'tiene habilitada la visualización de categorías de venta. '
              'Se usa en la vista para mostrar u ocultar el campo x_sale_category.',
     )
@@ -112,13 +112,13 @@ class ProductTemplate(models.Model):
         """
         Calcula mrp_enable_sale_cat para cada registro.
 
-        Fórmula: lee el único registro de configuración del planificador y
+        Fórmula: lee el único registro de configuración de KPIs y
         propaga su campo enable_sale_categories a todos los artículos del
         conjunto. Si no existe configuración, el flag se mantiene en False.
         Depende de: contexto de compañía (se recomputa al cambiar de compañía);
         mrp.reschedule.config.enable_sale_categories.
         """
-        # sudo() necesario: mrp.reschedule.config puede no ser accesible para usuarios sin permisos de admin del planificador.
+        # sudo() necesario: mrp.reschedule.config puede no ser accesible para usuarios sin permisos de admin de KPIs.
         config = self.env['mrp.reschedule.config'].sudo().get_config()
         enable = config.enable_sale_categories if config else False
         for rec in self:

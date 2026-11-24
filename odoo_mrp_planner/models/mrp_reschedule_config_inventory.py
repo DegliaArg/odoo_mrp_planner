@@ -28,24 +28,24 @@ class MrpRescheduleConfigInventory(models.Model):
     dispatch_stock_log_enabled = fields.Boolean(
         string='Registrar disponibilidad de stock para entregas',
         default=False,
-        help='Activa el snapshot diario de las salidas pendientes (cantidad pendiente '
+        help='Activa la foto diaria de las salidas pendientes (cantidad pendiente '
              'vs. reservada). Alimenta la "Tasa de entrega" del Panel de '
              'Inventario: sin registro no hay tasa.')
     dispatch_snapshot_hour = fields.Float(
-        string='Hora del snapshot', default=20.0,
-        help='Hora local (0-23.99) en que corre el snapshot diario de disponibilidad. '
+        string='Hora de la foto diaria', default=20.0,
+        help='Hora local (0-23.99) en que se toma la foto diaria de disponibilidad. '
              'El cron es único para toda la base: si hay varias empresas con el registro '
              'activo, rige la hora guardada más recientemente.')
     dispatch_log_retention_months = fields.Integer(
-        string='Retención de snapshots (meses)', default=12,
-        help='Los snapshots crudos más viejos que esta cantidad de meses se purgan, '
+        string='Retención de fotos diarias (meses)', default=12,
+        help='Las fotos diarias más viejas que esta cantidad de meses se purgan, '
              'solo después de que su mes quede consolidado en el histórico mensual '
              '(que no se purga nunca).')
     dispatch_pending_cutoff_months = fields.Integer(
         string='Ignorar pendientes anteriores a (meses)', default=0,
         help='Las líneas pendientes cuya fecha programada (fecha del movimiento) es '
              'más vieja que esta cantidad de meses no cuentan en el Panel de '
-             'Inventario ni en los snapshots de disponibilidad (0 = sin corte).')
+             'Inventario ni en las fotos diarias de disponibilidad (0 = sin corte).')
     inventory_force_integer = fields.Boolean(
         string='Forzar cantidades enteras',
         default=False,
@@ -55,8 +55,7 @@ class MrpRescheduleConfigInventory(models.Model):
              'del forecast (Ajustes → Producción).')
     dispatch_available_denominator_method = fields.Selection(
         [('closing', 'Disponible al cierre del período'),
-         ('peak', 'Pico de disponible del período'),
-         ('average', 'Promedio de disponible del período')],
+         ('peak', 'Pico de disponible del período')],
         string='Base de la tasa de entrega', default='closing', required=True,
         help='Cómo se mide la parte pendiente del denominador de la tasa de entrega: '
              'lo que tuve stock para hacer en el eslabón filtrado y NO hice. Cuanto '
@@ -64,7 +63,7 @@ class MrpRescheduleConfigInventory(models.Model):
              'siempre lo validado del período del eslabón filtrado.\n'
              '\n'
              '• Disponible al cierre (recomendado): toma solo lo pendiente-con-stock '
-             'del ÚLTIMO snapshot del período. Es la foto del remanente final: si '
+             'de la ÚLTIMA foto diaria del período. Es la foto del remanente final: si '
              'durante el período hubo stock parado pero lo terminaste despachando, NO '
              'castiga; solo pesa lo que quedó sin hacer al cierre. Es la base más '
              'indulgente (tasa más alta) y la más fácil de auditar.\n'
@@ -73,11 +72,7 @@ class MrpRescheduleConfigInventory(models.Model):
              'del período (por remito y producto). Castiga haber tenido stock sin '
              'despachar en algún momento, aunque después lo hayas hecho. Es la base '
              'más exigente (tasa más baja): mide "de todo lo que en algún momento '
-             'pude hacer, cuánto hice".\n'
-             '\n'
-             '• Promedio de disponible: toma el promedio diario de lo pendiente-con-'
-             'stock. Punto medio: suaviza los picos de un solo día, pero castiga el '
-             'stock que quedó parado muchos días. Castigo intermedio.')
+             'pude hacer, cuánto hice".')
 
     dispatch_available_count_late = fields.Boolean(
         string='Contar la demora (hecho en meses posteriores)',

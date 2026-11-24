@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * @description Barra de búsqueda estilo Odoo reutilizable para los widgets del planificador.
+ * @description Barra de búsqueda estilo Odoo reutilizable para los widgets de KPIs.
  *   Muestra un input con chips para los filtros activos y un dropdown con tres secciones:
  *   Filtros, Agrupar por y Favoritos (guardados en localStorage).
  *

@@ -39,6 +39,13 @@ class MrpProductWorkcenter(models.Model):
         help='Indica el centro de trabajo que se usará por defecto al planificar '
              'órdenes de producción para este producto. Solo puede haber uno por producto.',
     )
+    min_per_shift = fields.Float(
+        string='Mínimo por turno',
+        help='Cantidad mínima a fabricar por turno de este producto en este centro de '
+             'trabajo. El motor de necesidades usa este valor como lote mínimo: la cantidad '
+             'sugerida a fabricar nunca será menor (salvo que no haya necesidad). '
+             'Se toma el valor del centro marcado como "Preferido".',
+    )
     active        = fields.Boolean(
         string='Activo', default=True,
         help='Si está desactivado, este centro no aparece en las planificaciones '
@@ -110,4 +117,54 @@ class ProductTemplate(models.Model):
         string='Centros de trabajo compatibles',
         help='Lista de centros de trabajo habilitados para fabricar este producto. '
              'El centro marcado como "Preferido" se usa por defecto al planificar.',
+    )
+    min_per_shift = fields.Float(
+        string='Mínimo por turno',
+        help='Cantidad mínima a fabricar por turno de este producto. El motor de '
+             'necesidades la usa como lote mínimo: la cantidad sugerida a fabricar nunca '
+             'será menor (salvo que no haya necesidad). Es un dato a nivel del componente '
+             'fabricado.',
+    )
+    manufactured_product_id = fields.Many2one(
+        'product.product',
+        string='Componente fabricado',
+        help='Producción interna: componente fabricado del que se toman la máquina y el '
+             'mínimo por turno. Se completa automáticamente recorriendo la BOM (componente '
+             'cuyo almacén de fabricación es el configurado) con el botón "Recalcular '
+             'planificación" o el cron. Se puede editar a mano: el recálculo sólo lo sobrescribe '
+             'cuando detecta un componente fabricado; si no detecta nada, respeta el valor '
+             'cargado. Varios finales pueden compartirlo.',
+    )
+    purchase_product_id = fields.Many2one(
+        'product.product',
+        string='Componente comprado',
+        help='Compra-venta: componente que realmente se compra al proveedor (el final suele '
+             'pasar por procesos mínimos de envasado; el ítem comprado está varios niveles de '
+             'BOM hacia abajo). De él se toman el lote mínimo y el lead time del proveedor. Se '
+             'completa automáticamente con "Recalcular planificación" o el cron. Se puede editar '
+             'a mano: el recálculo sólo lo sobrescribe cuando detecta un componente; si no '
+             'detecta nada, respeta el valor cargado.',
+    )
+
+
+class MrpProductType(models.Model):
+    """Extiende el catálogo de tipos de producto con el lead time por origen,
+    usado por el motor de necesidades para calcular el stock objetivo."""
+
+    _inherit = 'mrp.product.type'
+
+    supply_mode = fields.Selection(
+        [('manufacture', 'Fabricar'), ('buy', 'Comprar')],
+        string='Modo de abastecimiento',
+        help='Cómo trata el planificador a los artículos de este tipo de origen:\n'
+             '• Fabricar: lógica de producción interna (lead de la BOM, mínimo por turno del '
+             'componente fabricado).\n'
+             '• Comprar: lógica de compra (lead y lote mínimo del proveedor).\n'
+             '• En blanco: el tipo no se planifica (queda fuera del motor de necesidades).',
+    )
+    lead_time_days = fields.Integer(
+        string='Lead time (días)',
+        help='Plazo de reposición del origen, en días. El motor de necesidades lo usa '
+             'para incluir la demanda durante el lead time en el stock objetivo '
+             '(p. ej. Producción Interna 50, Compra-Venta Nacional 30, importado 120).',
     )

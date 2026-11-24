@@ -4,7 +4,7 @@
 Módulo: mrp_planner_dashboard_mo.py
 Modelo: extensión de 'mrp.planner.dashboard'
 
-Agrega al dashboard del planificador MRP los métodos de consulta de Órdenes
+Agrega al dashboard de KPIs MRP los métodos de consulta de Órdenes
 de Fabricación (OFs), alertas y programaciones de producción que alimentan
 los widgets del panel principal.
 

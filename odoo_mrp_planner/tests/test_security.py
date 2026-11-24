@@ -1,6 +1,6 @@
 """
 Módulo: test_security.py
-Tests: guards de seguridad del Sprint 1 del Planificador MRP
+Tests: guards de seguridad del Sprint 1 del KPIs
 
 Cubre los guards implementados en:
 - mrp.planner.dashboard.action_refresh          → group_prod | group_admin
@@ -208,7 +208,7 @@ class TestMrpPlannerSecurity(TransactionCase):
     # ── Test 4: mrp.reschedule.config.write requiere administrador ────────────
 
     def test_config_write_requires_admin(self):
-        """Un usuario sin ningún grupo del planificador no puede hacer write()
+        """Un usuario sin ningún grupo de KPIs no puede hacer write()
         en mrp.reschedule.config. Los administradores de área (group_prod,
         group_purchase_admin, etc.) y group_admin sí pueden, en línea con los
         permisos de escritura declarados en ir.model.access.csv.
@@ -222,11 +222,11 @@ class TestMrpPlannerSecurity(TransactionCase):
                 'company_id': self.env.company.id,
             })
 
-        # Usuario interno sin grupos del planificador → debe fallar
+        # Usuario interno sin grupos de KPIs → debe fallar
         user_plain = self._new_user('test_config_write_plain', groups=[])
 
         with self.assertRaises(AccessError,
-                               msg="config.write debe lanzar AccessError sin grupos del planificador"):
+                               msg="config.write debe lanzar AccessError sin grupos de KPIs"):
             config.with_user(user_plain).write({'alert_mo_critical_days': 5})
 
         # Usuario con group_prod (administrador de área) → debe poder escribir

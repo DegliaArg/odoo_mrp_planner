@@ -61,11 +61,20 @@
                                  t-esc="fmt(periodKpis.rate_pending_available)"/>
                             <div class="o_planner_label">Disponible no hecho</div>
                             <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
-                                sin snapshots en el rango
+                                sin fotos diarias en el rango
                             </div>
                             <div t-elif="rateMethodLabel()" class="text-muted mt-1" style="font-size:10px;">
                                 <t t-esc="rateMethodLabel()"/>
                             </div>
+                        </div>
+                        <div class="card-footer p-0">
+                            <button class="btn btn-sm btn-link w-100 py-1"
+                                    t-att-disabled="availableNotDoneDisabled or state.notDoneLoading"
+                                    title="Abrir el detalle: la composición exacta de este número y qué pasó con cada renglón (por qué no se entregó)"
+                                    t-on-click="openAvailableNotDone">
+                                <t t-if="state.notDoneLoading"><i class="fa fa-spinner fa-spin"/></t>
+                                <t t-else="">Ver →</t>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -78,7 +87,7 @@
                                  t-esc="fmtPct(periodKpis.rate_available)"/>
                             <div class="o_planner_label">Tasa de entrega</div>
                             <div t-if="periodKpis.rate_no_snapshots" class="text-muted mt-1" style="font-size:10px;">
-                                sin snapshots en el rango
+                                sin fotos diarias en el rango
                             </div>
                         </div>
                     </div>
@@ -130,6 +139,11 @@
                     </div>
                 </div>
             </div>
+
+            <!-- El botón "Ver →" de "Disponible no hecho" abre una lista nativa
+                 de stock.picking con los remitos que componen el número (resueltos
+                 en el backend desde los snapshots) — igual que las otras cards,
+                 para poder filtrar/agrupar. Ver openAvailableNotDone en el JS. -->
 
             <!-- Barra de controles de la tabla — una sola fila, estilo forecast -->
             <div class="d-flex align-items-center gap-2 mb-3">
@@ -411,8 +425,8 @@
                                             </td>
                                             <td t-elif="col.key === 'days_available'" class="text-end"
                                                 t-att-title="row.days_available !== null
-                                                             ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según los snapshots'
-                                                             : 'Sin snapshots con stock para este remito'">
+                                                             ? 'Con stock disponible desde hace ' + row.days_available + ' día(s) según las fotos diarias'
+                                                             : 'Sin fotos diarias con stock para este remito'">
                                                 <t t-esc="row.days_available !== null ? row.days_available : '—'"/>
                                             </td>
                                             <td t-elif="col.key === 'state'">

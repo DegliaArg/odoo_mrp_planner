@@ -656,7 +656,7 @@ class StockBreakWidget extends Component {
 
     /**
      * Clases del badge de categoría de venta A–E. Delegado a forecast_formatters
-     * para usar la misma paleta en todos los widgets del planificador.
+     * para usar la misma paleta en todos los widgets de KPIs.
      * @param {string} cat - Categoría 'A'…'E'
      * @returns {string} Clases Bootstrap del badge
      */
@@ -853,7 +853,7 @@ class StockBreakWidget extends Component {
     }
 
     /**
-     * Abre la vista de configuración de reprogramación del planificador MRP
+     * Abre la vista de configuración de reprogramación de KPIs MRP
      * usando la acción XML `action_mrp_reschedule_config`.
      * @returns {Promise<void>}
      */

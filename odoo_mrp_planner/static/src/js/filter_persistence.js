@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * @description Persistencia de filtros de los widgets del planificador en localStorage.
+ * @description Persistencia de filtros de los widgets de KPIs en localStorage.
  *   Los widgets del tablero pierden su estado OWL al navegar a una sublista y volver
  *   (el componente se remonta). Guardando los filtros por widget y empresa, el usuario
  *   recupera fechas, búsquedas, agrupados y paginación al volver — y también en la

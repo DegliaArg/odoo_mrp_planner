@@ -91,7 +91,7 @@ class MrpPartnerCategory(models.Model):
 
         El horizonte de análisis es sale_cat_lookback_months (por defecto 3 meses).
 
-        Requiere permiso de Administrador del planificador o de Ventas - Administrador:
+        Requiere permiso de Administrador de KPIs o de Ventas - Administrador:
         escribe en product.template.x_sale_category.
 
         :returns: dict ir.actions.client con notificación de éxito.
@@ -100,7 +100,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('odoo_mrp_planner.group_sales') or
                 self.env.user.has_group('base.group_system')):
-            raise UserError(_('Esta acción está restringida a administradores del planificador o de ventas.'))
+            raise UserError(_('Esta acción está restringida a administradores de KPIs o de ventas.'))
         config = self.get_config()
         if not config:
             return
@@ -318,7 +318,7 @@ class MrpPartnerCategory(models.Model):
         El horizonte de análisis es configurable mediante supplier_cat_lookback_months
         (por defecto 12 meses).
 
-        Requiere permiso de Administrador del planificador o de Compras - Administrador:
+        Requiere permiso de Administrador de KPIs o de Compras - Administrador:
         escribe en res.partner.x_supplier_category.
 
         :returns: dict ir.actions.client con notificación de éxito o advertencia (modo manual).
@@ -327,7 +327,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('odoo_mrp_planner.group_purchase_admin') or
                 self.env.user.has_group('base.group_system')):
-            raise UserError(_('Esta acción está restringida a administradores del planificador o de compras.'))
+            raise UserError(_('Esta acción está restringida a administradores de KPIs o de compras.'))
         config = self.get_config()
         if not config or config.supplier_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -667,7 +667,7 @@ class MrpPartnerCategory(models.Model):
         El horizonte de análisis es configurable mediante customer_cat_lookback_months
         (por defecto 12 meses).
 
-        Requiere permiso de Administrador del planificador o de Ventas - Administrador:
+        Requiere permiso de Administrador de KPIs o de Ventas - Administrador:
         escribe en res.partner.x_customer_category.
 
         :returns: dict ir.actions.client con notificación de éxito o advertencia (modo manual).
@@ -676,7 +676,7 @@ class MrpPartnerCategory(models.Model):
         if not (self.env.user.has_group('odoo_mrp_planner.group_admin') or
                 self.env.user.has_group('odoo_mrp_planner.group_sales') or
                 self.env.user.has_group('base.group_system')):
-            raise UserError(_('Esta acción está restringida a administradores del planificador o de ventas.'))
+            raise UserError(_('Esta acción está restringida a administradores de KPIs o de ventas.'))
         config = self.get_config()
         if not config or config.customer_cat_method == 'manual':
             return {'type': 'ir.actions.client', 'tag': 'display_notification',

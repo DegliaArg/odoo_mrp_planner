@@ -40,23 +40,34 @@ class SaleOrderLine(models.Model):
         related='product_id.categ_id', store=True, index=True,
     )
 
-    @api.depends('qty_delivered', 'product_uom_qty')
+    def _exit_qty_field(self):
+        """Campo de cantidad 'salida' según la Base de salida (Ajustes → Ventas):
+        'qty_invoiced' con base factura, 'qty_delivered' con base embalaje (default).
+        Al cambiar la base, mrp.reschedule.config.write() reprograma el recálculo
+        de estos campos (la base no es una dependencia @api.depends)."""
+        basis = self.env['mrp.reschedule.config'].sudo().get_config().customer_exit_basis or 'packing'
+        return 'qty_invoiced' if basis == 'invoice' else 'qty_delivered'
+
+    @api.depends('qty_delivered', 'qty_invoiced', 'product_uom_qty')
     def _compute_line_delivery_status(self):
+        _f = self._exit_qty_field()
         for line in self:
-            if line.qty_delivered >= line.product_uom_qty:
+            done = line[_f] or 0.0
+            if done >= line.product_uom_qty:
                 line.delivery_status = 'full'
-            elif line.qty_delivered > 0:
+            elif done > 0:
                 line.delivery_status = 'partial'
             else:
                 line.delivery_status = 'pending'
 
-    @api.depends('qty_delivered', 'product_uom_qty', 'price_subtotal')
+    @api.depends('qty_delivered', 'qty_invoiced', 'product_uom_qty', 'price_subtotal')
     def _compute_demand_split(self):
+        _f = self._exit_qty_field()
         for line in self:
             ordered   = line.product_uom_qty or 0.0
-            # Entregado topeado en 0: una devolución (qty_delivered negativo) no
-            # aumenta el pendiente. Coherente con el cálculo del panel y el Forecast.
-            delivered = max(0.0, line.qty_delivered or 0.0)
+            # Salido topeado en 0: una devolución (cantidad negativa) no aumenta el
+            # pendiente. Coherente con el cálculo del panel y el Forecast.
+            delivered = max(0.0, line[_f] or 0.0)
             unmet     = max(0.0, ordered - delivered)
             line.unmet_qty    = unmet
             line.unmet_amount = (line.price_subtotal or 0.0) * (unmet / ordered) if ordered else 0.0

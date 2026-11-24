@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Registro singleton del planificador (se crea una sola vez) -->
+    <!-- Registro singleton de KPIs (se crea una sola vez) -->
     <data noupdate="1">
         <record id="mrp_reschedule_config_singleton" model="mrp.reschedule.config">
             <field name="cron_interval_number">30</field>
@@ -37,7 +37,7 @@
                                     <group string="Preferencias por usuario">
                                         <div class="text-muted small mb-3">
                                             Configurá qué depósitos puede ver cada usuario y qué secciones
-                                            se muestran en cada panel del Planificador MRP.
+                                            se muestran en cada panel del KPIs.
                                         </div>
                                         <button name="action_open_user_warehouses"
                                                 type="object"
@@ -650,42 +650,18 @@
                                 <div class="col-6">
 
                                     <!-- ── Análisis de clientes (junto al forecast) ── -->
-                                    <group string="Análisis de clientes">
+                                    <group string="Análisis de clientes — Medición (base, métodos y umbrales)">
 
-                                        <group string="Valorización monetaria">
-                                            <field name="sales_amount_method" widget="radio" nolabel="1"
-                                                   help="Cómo se valorizan todos los montos del análisis de clientes (columna Monto, KPI, precio promedio, tendencia, ABC del período, gráficos y panel del cliente)."/>
+                                        <group string="Base de salida (cumplimiento y lead time)">
+                                            <field name="customer_exit_basis" widget="radio" nolabel="1"
+                                                   help="Qué evento cuenta como 'salida' para la Tasa de cumplimiento y el Lead time de entrega (Análisis de clientes) y la Tasa de servicio de Gerencia."/>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                 invisible="sales_amount_method != 'pxq'">
-                                                <b>PxQ a precio de lista</b> — cantidad × precio de venta <b>actual</b> de la ficha del artículo. Precios constantes: no lo afectan descuentos ni inflación.<br/>
-                                                · <i>Aviso: NO considera precios históricos (si cambia la lista, el pasado se revaloriza) y no cuadra con la facturación.</i>
+                                                 invisible="customer_exit_basis != 'packing'">
+                                                <b>Embalaje</b> — cuenta desde que se valida la orden de entrega. La pieza queda embalada y lista, pero todavía dentro de la empresa. Es el comportamiento histórico.
                                             </div>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                 invisible="sales_amount_method != 'real'">
-                                                <b>Importe real</b> — precio efectivo de cada línea de pedido, con descuentos, sin impuestos. Cuadra con los pedidos y la facturación.
-                                            </div>
-                                        </group>
-
-                                        <group string="Clientes con varias razones sociales">
-                                            <field name="customer_unify_by_vat" widget="boolean_toggle"
-                                                   help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>
-                                        </group>
-
-                                        <group string="Servicios">
-                                            <field name="customer_analysis_exclude_services" widget="boolean_toggle"
-                                                   help="Cuando está activo, las líneas de productos de tipo Servicio no se cuentan ni en el análisis de clientes ni en el panel de ventas (Demanda real, Cumplimiento de demanda y agregados sin FC de las tasas). Las entregas físicas no cambian: los servicios no generan remitos."/>
-                                        </group>
-
-                                        <group string="Demanda insatisfecha — Antigüedad del pendiente">
-                                            <field name="unmet_backlog_age_method" widget="radio" nolabel="1"
-                                                   help="Cómo se calcula la columna 'Antigüedad del pendiente' del análisis de demanda insatisfecha."/>
-                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                 invisible="unmet_backlog_age_method != 'weighted'">
-                                                <b>Ponderada por cantidad</b> — Σ(pendiente × días desde el pedido) ÷ Σ pendiente. Es la espera de la unidad pendiente promedio; menos sensible a un pedido viejo suelto.
-                                            </div>
-                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
-                                                 invisible="unmet_backlog_age_method != 'oldest'">
-                                                <b>Pedido más antiguo</b> — días desde el pedido pendiente más viejo. Más crudo y alarmante.
+                                                 invisible="customer_exit_basis != 'invoice'">
+                                                <b>Salida física (factura)</b> — cuenta desde la factura del cliente, el candado real de salida (nada sale sin factura; el remito se imprime desde ella). Mide piezas que ya salieron, no solo embaladas. Aplica por igual a Ventas y a la Tasa de servicio de Gerencia para que no diverjan. Las cantidades usan qty facturada, que netea notas de crédito.
                                             </div>
                                         </group>
 
@@ -711,31 +687,19 @@
 
                                         <group string="Método — Lead time de entrega">
                                             <field name="customer_leadtime_method" widget="radio" nolabel="1"
-                                                   help="Cómo se promedia el tiempo de entrega cuando un pedido tiene entregas parciales. Todos los métodos miden días desde la confirmación del pedido hasta la fecha efectiva de cada remito."/>
+                                                   help="Cómo se promedia el tiempo de entrega cuando un pedido tiene salidas parciales. Todos los métodos miden días desde la confirmación del pedido hasta la fecha efectiva de cada salida (orden de entrega o factura, según la Base de salida)."/>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'weighted'">
-                                                Promedia los días de cada entrega parcial pesándolos por la cantidad entregada: responde "¿cuántos días esperó la pieza promedio?". Entregar 90% al día 3 y 10% al día 40 da ~7 días, no 21,5. Incluye pedidos aún incompletos con lo entregado hasta ahora.
+                                                Promedia los días de cada salida parcial pesándolos por la cantidad salida: responde "¿cuántos días esperó la pieza promedio?". Salir 90% al día 3 y 10% al día 40 da ~7 días, no 21,5. Incluye pedidos aún incompletos con lo salido hasta ahora.
                                             </div>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'first'">
-                                                Días hasta el primer remito de cada pedido: mide la velocidad de reacción — cuándo el cliente empezó a recibir. No refleja cuánto tardó el resto del pedido.
+                                                Días hasta la primera salida de cada pedido: mide la velocidad de reacción — cuándo el cliente empezó a recibir. No refleja cuánto tardó el resto del pedido.
                                             </div>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'complete'">
-                                                Días hasta el remito que completó el pedido (lead time de punta a punta). Solo cuenta pedidos totalmente entregados: los incompletos no entran, lo que puede sesgar el número a la baja.
+                                                Días hasta la salida que completó el pedido (lead time de punta a punta). Solo cuenta pedidos totalmente salidos: los incompletos no entran, lo que puede sesgar el número a la baja.
                                             </div>
-                                        </group>
-
-                                        <group string="Ranking ABC del período">
-                                            <div class="text-muted small mb-2">
-                                                Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto.
-                                            </div>
-                                            <field name="customer_analysis_abc_a_pct"
-                                                   string="A ≤ % acumulado"
-                                                   help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>
-                                            <field name="customer_analysis_abc_b_pct"
-                                                   string="B — % acumulado adicional (C = resto)"
-                                                   help="Tras el segmento A, los clientes que acumulan el siguiente X% del monto total se clasifican como B: el corte del segmento B es A% + B% acumulado (def. 20% + 50% = 70%). El resto queda en C."/>
                                         </group>
 
                                         <group string="Umbrales semáforo — % Cumplim. / % Físico">
@@ -752,11 +716,64 @@
                                                    help="Por debajo de este porcentaje de entregas a tiempo, la celda se muestra en rojo."/>
                                         </group>
 
+                                    </group>
+
+                                    <group string="Análisis de clientes — Valorización y segmentación">
+
+                                        <group string="Valorización monetaria">
+                                            <field name="sales_amount_method" widget="radio" nolabel="1"
+                                                   help="Cómo se valorizan todos los montos del análisis de clientes (columna Monto, KPI, precio promedio, tendencia, ABC del período, gráficos y panel del cliente)."/>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="sales_amount_method != 'pxq'">
+                                                <b>PxQ a precio de lista</b> — cantidad × precio de venta <b>actual</b> de la ficha del artículo. Precios constantes: no lo afectan descuentos ni inflación.<br/>
+                                                · <i>Aviso: NO considera precios históricos (si cambia la lista, el pasado se revaloriza) y no cuadra con la facturación.</i>
+                                            </div>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="sales_amount_method != 'real'">
+                                                <b>Importe real</b> — precio efectivo de cada línea de pedido, con descuentos, sin impuestos. Cuadra con los pedidos y la facturación.
+                                            </div>
+                                        </group>
+
+                                        <group string="Clientes con varias razones sociales">
+                                            <field name="customer_unify_by_vat" widget="boolean_toggle"
+                                                   help="Fusiona en una sola fila del análisis los contactos que comparten el mismo CUIT/NIF (razones sociales del mismo cliente). Se muestra la razón social de mayor facturación del período. Los contactos sin CUIT no se unifican."/>
+                                        </group>
+
+                                        <group string="Servicios">
+                                            <field name="customer_analysis_exclude_services" widget="boolean_toggle"
+                                                   help="Cuando está activo, las líneas de productos de tipo Servicio no se cuentan ni en el análisis de clientes ni en el panel de ventas (Demanda real, Cumplimiento de demanda y agregados sin FC de las tasas). Las entregas físicas no cambian: los servicios no generan remitos."/>
+                                        </group>
+
+                                        <group string="Ranking ABC del período">
+                                            <div class="text-muted small mb-2">
+                                                Clasifica a los clientes del período según cuánto compraron en esa ventana de tiempo. No altera la categoría permanente del contacto.
+                                            </div>
+                                            <field name="customer_analysis_abc_a_pct"
+                                                   string="A ≤ % acumulado"
+                                                   help="Clientes que acumulan el primer X% del monto total del período se clasifican como A. Se ordena de mayor a menor monto antes de acumular."/>
+                                            <field name="customer_analysis_abc_b_pct"
+                                                   string="B — % acumulado adicional (C = resto)"
+                                                   help="Tras el segmento A, los clientes que acumulan el siguiente X% del monto total se clasifican como B: el corte del segmento B es A% + B% acumulado (def. 20% + 50% = 70%). El resto queda en C."/>
+                                        </group>
+
                                         <group string="General">
                                             <field name="customer_analysis_risk_days"
                                                    help="Un cliente que no compra hace más de este número de días se clasifica como &quot;en riesgo&quot; en la columna de segmento de frecuencia."/>
                                         </group>
 
+                                    </group>
+
+                                    <group string="Demanda insatisfecha — Antigüedad del pendiente">
+                                        <field name="unmet_backlog_age_method" widget="radio" nolabel="1"
+                                               help="Cómo se calcula la columna 'Antigüedad del pendiente' del análisis de demanda insatisfecha."/>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="unmet_backlog_age_method != 'weighted'">
+                                            <b>Ponderada por cantidad</b> — Σ(pendiente × días desde el pedido) ÷ Σ pendiente. Es la espera de la unidad pendiente promedio; menos sensible a un pedido viejo suelto.
+                                        </div>
+                                        <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                             invisible="unmet_backlog_age_method != 'oldest'">
+                                            <b>Pedido más antiguo</b> — días desde el pedido pendiente más viejo. Más crudo y alarmante.
+                                        </div>
                                     </group>
 
 
@@ -884,15 +901,15 @@
                                         <field name="dispatch_pending_cutoff_months"/>
                                         <field name="inventory_force_integer" widget="boolean_toggle"/>
                                         <div class="text-muted small border-start border-2 ps-2 mt-1">
-                                            Snapshot diario de las salidas pendientes (pendiente vs. reservado) que
+                                            Foto diaria de las salidas pendientes (pendiente vs. reservado) que
                                             alimenta la <b>Tasa de entrega</b> del Panel de Inventario. La tasa se
-                                            calcula en vivo sobre los snapshots: numerador = validado del período del
+                                            calcula en vivo sobre las fotos diarias: numerador = validado del período del
                                             eslabón filtrado; denominador = ese validado + lo que tuve stock para hacer
-                                            y no hice, según la <b>Base de la tasa de entrega</b>. Los snapshots crudos
+                                            y no hice, según la <b>Base de la tasa de entrega</b>. Las fotos diarias
                                             se conservan según la retención configurada. Cada corrida queda en el
                                             Registro de ejecuciones. Con <b>Ignorar pendientes anteriores a (meses)</b>
                                             &gt; 0, las salidas con fecha programada más vieja que ese corte no cuentan
-                                            en el panel ni en los snapshots.
+                                            en el panel ni en las fotos diarias.
                                         </div>
                                     </group>
                                 </div>

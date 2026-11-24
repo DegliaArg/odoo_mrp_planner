@@ -21,7 +21,7 @@ from odoo import fields, models
 
 class MrpProductType(models.Model):
     """
-    Catálogo de tipos de producto del planificador MRP.
+    Catálogo de tipos de producto de KPIs MRP.
 
     Cada registro representa una categoría personalizada (p. ej. "Materia Prima",
     "Semielaborado", "Producto Terminado") que puede asignarse a productos para

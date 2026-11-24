@@ -32,6 +32,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         return {
             'ontime_method':   cfg.customer_analysis_ontime_method or 'commitment_date',
             'leadtime_method': cfg.customer_leadtime_method or 'weighted',
+            'exit_basis':      cfg.customer_exit_basis or 'packing',
             'sla_days':        cfg.customer_analysis_sla_days or 5,
             'delivery_warn':   cfg.customer_analysis_delivery_warn_pct or 80,
             'delivery_crit':   cfg.customer_analysis_delivery_crit_pct or 60,
@@ -46,6 +47,95 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             'amount_method':   cfg.sales_amount_method or 'pxq',
             'backlog_age_method': cfg.unmet_backlog_age_method or 'weighted',
         }
+
+    def _ca_exit_events(self, order_ids, basis):
+        """Eventos de "salida" por pedido, para lead time y puntualidad.
+
+        Devuelve ``{order_id: [{'date': date, 'qty': float, 'sched': date|None}]}``.
+        Es la única fuente de verdad de la base de salida: la usan tanto la tabla
+        principal como el detalle del cliente.
+
+        - ``basis='packing'``: órdenes de entrega de salida validadas (``date_done``);
+          qty = piezas de la orden de entrega (``stock.move.line`` done); ``sched`` =
+          fecha programada del picking (para el método "entrega a tiempo = fecha
+          programada").
+        - ``basis='invoice'``: facturas de cliente posteadas (``out_invoice``)
+          ligadas al pedido por la línea de venta; ``date`` = ``invoice_date``;
+          qty = piezas facturadas de ese pedido en esa factura; ``sched`` = None
+          (la factura no tiene fecha programada propia). Las notas de crédito NO
+          se cuentan como salida (no son un envío).
+        """
+        events = defaultdict(list)
+        oid_set = set(order_ids)
+        if not oid_set:
+            return events
+        if basis == 'invoice':
+            # sudo(): el usuario no tiene acceso directo a account.move.line; se
+            # leen solo los agregados necesarios para el dashboard.
+            aml = self.env['account.move.line'].sudo().search_read(
+                [('move_id.move_type', '=', 'out_invoice'),
+                 ('parent_state', '=', 'posted'),
+                 # En Odoo 18 las líneas de producto de factura tienen
+                 # display_type='product' (no False): filtrarlo así aísla las ventas.
+                 ('display_type', '=', 'product'),
+                 ('product_id', '!=', False),
+                 ('sale_line_ids.order_id', 'in', list(oid_set))],
+                ['quantity', 'move_id', 'sale_line_ids'])
+            if not aml:
+                return events
+            sol_ids = {sid for l in aml for sid in l['sale_line_ids']}
+            sol_order = {}
+            if sol_ids:
+                for s in self.env['sale.order.line'].sudo().browse(list(sol_ids)).read(['id', 'order_id']):
+                    sol_order[s['id']] = s['order_id'][0] if s.get('order_id') else None
+            move_ids = {l['move_id'][0] for l in aml if l.get('move_id')}
+            move_date = {}
+            if move_ids:
+                for m in self.env['account.move'].sudo().browse(list(move_ids)).read(['id', 'invoice_date']):
+                    move_date[m['id']] = m.get('invoice_date')
+            # Agrega qty por (pedido, factura): una pieza por factura con su fecha.
+            agg = defaultdict(float)
+            for l in aml:
+                if not l.get('move_id'):
+                    continue
+                oid = None
+                for sid in l['sale_line_ids']:
+                    cand = sol_order.get(sid)
+                    if cand in oid_set:
+                        oid = cand
+                        break
+                if oid is None:
+                    continue
+                agg[(oid, l['move_id'][0])] += l['quantity'] or 0.0
+            for (oid, mid), q in agg.items():
+                d = move_date.get(mid)
+                if not d:
+                    continue
+                events[oid].append({'date': self._to_date(d), 'qty': q, 'sched': None})
+        else:
+            # sudo(): el usuario no tiene acceso directo a stock.picking; solo agregados.
+            picks = self.env['stock.picking'].sudo().search_read(
+                [('sale_id', 'in', list(oid_set)),
+                 ('state', '=', 'done'),
+                 ('picking_type_code', '=', 'outgoing')],
+                ['id', 'sale_id', 'date_done', 'scheduled_date'])
+            if not picks:
+                return events
+            qty_by_pick = defaultdict(float)
+            for g in self.env['stock.move.line'].sudo().read_group(
+                    [('picking_id', 'in', [p['id'] for p in picks]), ('state', '=', 'done')],
+                    ['picking_id', 'quantity:sum'], ['picking_id']):
+                if g.get('picking_id'):
+                    qty_by_pick[g['picking_id'][0]] = g.get('quantity') or 0.0
+            for p in picks:
+                if not p.get('date_done'):
+                    continue
+                events[p['sale_id'][0]].append({
+                    'date':  self._to_date(p['date_done']),
+                    'qty':   qty_by_pick.get(p['id'], 0.0),
+                    'sched': self._to_date(p['scheduled_date']) if p.get('scheduled_date') else None,
+                })
+        return events
 
     @api.model
     def _ca_unify_group_ids(self, partner_id):
@@ -190,16 +280,22 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # cuentan (cantidades, montos ni top de artículos).
             exclude_services = bool(cfg.get('exclude_services'))
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
+            # Base de salida: con 'invoice' la cantidad "entregada/salida" se mide por
+            # lo FACTURADO (qty_invoiced, candado real de salida); con 'packing', por
+            # lo embalado (qty_delivered, orden de entrega validada). El campo interno
+            # sigue llamándose 'delivered' pero su significado lo fija la base.
+            exit_basis = cfg.get('exit_basis', 'packing')
+            _basis_qty_field = 'qty_invoiced' if exit_basis == 'invoice' else 'qty_delivered'
             # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_groups = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)] + svc_dom,
-                ['order_id', 'product_uom_qty:sum', 'qty_delivered:sum'],
+                ['order_id', 'product_uom_qty:sum', _basis_qty_field + ':sum'],
                 ['order_id'],
             )
             sol_qty_by_order = {
                 g['order_id'][0]: {
                     'ordered':   g['product_uom_qty'] or 0.0,
-                    'delivered': g['qty_delivered']   or 0.0,
+                    'delivered': g[_basis_qty_field]  or 0.0,
                 }
                 for g in sol_groups
             }
@@ -212,7 +308,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
             sol_detail = self.env['sale.order.line'].sudo().read_group(
                 [('order_id', 'in', orders.ids)] + svc_dom,
-                ['order_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum', 'qty_delivered:sum'],
+                ['order_id', 'product_id', 'price_subtotal:sum', 'product_uom_qty:sum', _basis_qty_field + ':sum'],
                 ['order_id', 'product_id'],
                 lazy=False,
             )
@@ -241,7 +337,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             for g in sol_detail:
                 _pi      = prod_info.get(g['product_id'][0], {}) if g.get('product_id') else {}
                 _qty     = g.get('product_uom_qty') or 0.0
-                _qd      = g.get('qty_delivered')   or 0.0
+                _qd      = g.get(_basis_qty_field)  or 0.0
                 _lst     = _pi.get('lst_price') or 0.0
                 amt_pxq  = _qty * _lst
                 amt_real = g.get('price_subtotal') or 0.0
@@ -264,25 +360,11 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 if categ:
                     partner_fam[pid][categ]  += amt
 
-            # ── 4. Pickings para puntualidad ─────────────────────────────────
-            # sudo(): usuario no tiene acceso directo a stock.picking; se lee sólo el agregado para el dashboard
-            pickings = self.env['stock.picking'].sudo().search([
-                ('sale_id', 'in', orders.ids),
-                ('state', '=', 'done'),
-                ('picking_type_code', '=', 'outgoing'),
-            ]).read(['id', 'sale_id', 'date_done', 'scheduled_date'])
-            pick_by_so    = defaultdict(list)
-            for p in pickings:
-                pick_by_so[p['sale_id'][0]].append(p)
-            # Cantidad entregada por remito, para el lead time ponderado.
-            # sudo(): mismo criterio que la lectura de pickings de arriba.
-            qty_by_pick = {}
-            if pickings:
-                for g in self.env['stock.move.line'].sudo()._read_group(
-                    [('picking_id', 'in', [p['id'] for p in pickings]), ('state', '=', 'done')],
-                    ['picking_id'], ['quantity:sum'],
-                ):
-                    qty_by_pick[g[0].id] = g[1] or 0.0
+            # ── 4. Eventos de salida para puntualidad y lead time ─────────────
+            # Según la Base de salida (Ajustes): órdenes de entrega validadas (embalaje)
+            # o facturas posteadas (salida física). exit_by_so[order_id] = lista de
+            # eventos {'date', 'qty', 'sched'}.
+            exit_by_so    = self._ca_exit_events(orders.ids, exit_basis)
             so_commitment = {s['id']: s.get('commitment_date') for s in so_data}
             so_date_order = {s['id']: s['date_order']          for s in so_data}
 
@@ -424,24 +506,27 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
 
                 ot_total = ot_ok = 0
                 for s in sos:
-                    for pk in pick_by_so.get(s['id'], []):
-                        if not pk.get('date_done'):
-                            continue
-                        date_done = self._to_date(pk['date_done'])
+                    for ev in exit_by_so.get(s['id'], []):
+                        actual = ev['date']  # fecha de salida (orden de entrega o factura según base)
                         if ontime_method == 'commitment_date':
                             raw = so_commitment.get(s['id'])
                             if not raw:
                                 continue
                             deadline = self._to_date(raw)
                         elif ontime_method == 'scheduled_date':
-                            raw = pk.get('scheduled_date')
-                            if not raw:
-                                continue
-                            deadline = self._to_date(raw)
+                            # Con base factura el evento no trae fecha programada;
+                            # se usa la fecha compromiso del pedido como respaldo.
+                            if ev['sched']:
+                                deadline = ev['sched']
+                            else:
+                                raw = so_commitment.get(s['id'])
+                                if not raw:
+                                    continue
+                                deadline = self._to_date(raw)
                         else:
                             deadline = self._to_date(so_date_order[s['id']]) + timedelta(days=sla_days)
                         ot_total += 1
-                        if date_done <= deadline:
+                        if actual <= deadline:
                             ot_ok += 1
                 ontime_pct = round(ot_ok / ot_total * 100, 1) if ot_total > 0 else None
 
@@ -450,14 +535,13 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
                 lt_first_sum, lt_first_n = 0.0, 0  # primera entrega: promedio simple por pedido
                 lt_comp_sum, lt_comp_n = 0.0, 0    # pedido completo: solo pedidos 100% entregados
                 for s_ in sos:
-                    pks = [pk for pk in pick_by_so.get(s_['id'], []) if pk.get('date_done')]
-                    if not pks:
+                    evs = exit_by_so.get(s_['id'], [])
+                    if not evs:
                         continue
                     od = self._to_date(s_['date_order'])
                     per_pick = [
-                        (max(0, (self._to_date(pk['date_done']) - od).days),
-                         qty_by_pick.get(pk['id'], 0.0))
-                        for pk in pks
+                        (max(0, (ev['date'] - od).days), ev['qty'])
+                        for ev in evs
                     ]
                     for dys, q in per_pick:
                         if q > 0:
@@ -823,10 +907,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             _cfg_detail = dict(_cfg_detail, amount_method=amount_method_override)
         exclude_services = bool(_cfg_detail.get('exclude_services'))
         use_pxq          = _cfg_detail.get('amount_method', 'pxq') == 'pxq'
+        # Base de salida (ver get_customer_analysis_data): 'invoice' usa qty facturada,
+        # 'packing' qty entregada. _bqf es el campo de la línea que define la cantidad
+        # "salida" para cumplimiento, monto entregado y lead "pedido completo".
+        exit_basis       = _cfg_detail.get('exit_basis', 'packing')
+        _bqf             = 'qty_invoiced' if exit_basis == 'invoice' else 'qty_delivered'
         svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
         # sudo(): usuario no tiene acceso directo a sale.order.line; se lee sólo el agregado para el dashboard
         lines     = self.env['sale.order.line'].sudo().search([('order_id', 'in', orders.ids)] + svc_dom)
-        lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'])
+        lines_data = lines.read(['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'price_subtotal'])
 
         prod_ids  = list({l['product_id'][0] for l in lines_data if l.get('product_id')})
         # sudo(): usuario no tiene acceso directo a product.product; se lee sólo el agregado para el dashboard
@@ -842,9 +931,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             return l['price_subtotal'] or 0.0
 
         def _line_amt_delivered(l):
-            """Monto ENTREGADO de una línea: precio unitario × cantidad entregada
-            (qty_delivered). Misma valorización que _line_amt (PxQ o real)."""
-            qd = l['qty_delivered'] or 0.0
+            """Monto SALIDO de una línea: precio unitario × cantidad salida (entregada
+            o facturada según la base). Misma valorización que _line_amt (PxQ o real)."""
+            qd = l.get(_bqf) or 0.0
             if use_pxq:
                 _pid = l['product_id'][0] if l.get('product_id') else None
                 return qd * (_lst_by_prod.get(_pid, 0.0) if _pid else 0.0)
@@ -937,7 +1026,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             monthly[mk]['orders']  += 1
             for l in sol_by_order.get(s['id'], []):
                 monthly[mk]['qty_ordered']   += l['product_uom_qty'] or 0.0
-                monthly[mk]['qty_delivered'] += l['qty_delivered']   or 0.0
+                monthly[mk]['qty_delivered'] += l.get(_bqf)          or 0.0
 
         monthly_data = []
         # Unión de meses con pedidos y meses con entregas físicas (puede haber meses
@@ -997,7 +1086,7 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             pid = l['product_id'][0]
             prod_names[pid] = l['product_id'][1]
             prod_totals[pid]['qty_ordered']      += l['product_uom_qty'] or 0.0
-            prod_totals[pid]['qty_delivered']    += l['qty_delivered']   or 0.0
+            prod_totals[pid]['qty_delivered']    += l.get(_bqf)          or 0.0
             prod_totals[pid]['amount']           += _line_amt(l)
             prod_totals[pid]['amount_delivered'] += _line_amt_delivered(l)
             prod_totals[pid]['orders'].add(l['order_id'][0])
@@ -1031,24 +1120,8 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         ], key=lambda x: x['amount'], reverse=True)
 
         # Lista de OVs
-        # ── Lead time por pedido: remitos hechos de los pedidos del período ──
-        # sudo(): mismo criterio que las demás lecturas de picking del dashboard.
-        det_picks = self.env['stock.picking'].sudo().search_read(
-            [('sale_id', 'in', [s['id'] for s in so_data]),
-             ('state', '=', 'done'),
-             ('picking_type_code', '=', 'outgoing')],
-            ['id', 'sale_id', 'date_done'])
-        det_pick_by_so = defaultdict(list)
-        for p in det_picks:
-            det_pick_by_so[p['sale_id'][0]].append(p)
-        det_qty_by_pick = defaultdict(float)
-        if det_picks:
-            for g in self.env['stock.move.line'].sudo().read_group(
-                [('picking_id', 'in', [p['id'] for p in det_picks]), ('state', '=', 'done')],
-                ['picking_id', 'quantity:sum'], ['picking_id'],
-            ):
-                if g.get('picking_id'):
-                    det_qty_by_pick[g['picking_id'][0]] = g.get('quantity') or 0.0
+        # ── Lead time por pedido: eventos de salida según la base (órdenes de entrega o facturas) ──
+        det_exit_by_so = self._ca_exit_events([s['id'] for s in so_data], exit_basis)
         _lt_main_key = {'weighted': 'lead_weighted', 'first': 'lead_first', 'complete': 'lead_complete'}[
             _cfg_detail.get('leadtime_method', 'weighted')]
 
@@ -1056,16 +1129,15 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
         for s in sorted(so_data, key=lambda x: x['date_order'], reverse=True):
             sols      = sol_by_order.get(s['id'], [])
             ord_qty   = sum(l['product_uom_qty'] or 0 for l in sols)
-            del_qty   = sum(l['qty_delivered']   or 0 for l in sols)
+            del_qty   = sum(l.get(_bqf)          or 0 for l in sols)
             dp        = round(del_qty / ord_qty * 100, 1) if ord_qty > 0 else None
             state_map = {'sale': 'Confirmado', 'done': 'Hecho', 'cancel': 'Cancelado', 'draft': 'Borrador'}
-            # Lead time del pedido (días desde confirmación a cada remito hecho)
+            # Lead time del pedido (días desde confirmación a cada evento de salida)
             lw = lf = lc = None
-            pks = det_pick_by_so.get(s['id'], [])
-            if pks:
+            evs = det_exit_by_so.get(s['id'], [])
+            if evs:
                 od  = self._to_date(s['date_order'])
-                per = [(max(0, (self._to_date(p['date_done']) - od).days),
-                        det_qty_by_pick.get(p['id'], 0.0)) for p in pks]
+                per = [(max(0, (ev['date'] - od).days), ev['qty']) for ev in evs]
                 num = sum(q * d for d, q in per if q > 0)
                 den = sum(q for _, q in per if q > 0)
                 lw  = round(num / den, 1) if den > 0 else None

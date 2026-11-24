@@ -8,52 +8,44 @@
         <field name="arch" type="xml">
             <form string="Configuración de planificación" create="false" delete="false">
                 <sheet>
-                    <h2>Planificación y reprogramación</h2>
+                    <h2>Planificación</h2>
 
-                    <!-- ══ HABILITACIÓN MAESTRA ══════════════════════════════════ -->
-                    <group string="Activación">
-                        <field name="enable_scheduling" widget="scheduling_toggle" nolabel="1"/>
-                        <div class="text-muted small border-start border-2 ps-2 mt-1">
-                            <p class="mb-1">
-                                Interruptor maestro de todas las funciones de programación
-                                y reprogramación. Installar el módulo <b>no</b> activa estas
-                                funciones automáticamente: se habilitan desde aquí.
-                            </p>
-                            <p class="mb-0">
-                                Cuando está <b>desactivado</b> se ocultan:
-                                los botones de reprogramación en las OFs,
-                                las tarjetas KPI "Para reprogramar" y "Con reprogramación"
-                                en el panel de producción,
-                                y la pestaña de centros de trabajo compatibles en los artículos.
-                            </p>
+                    <!-- El acceso al módulo se controla por el grupo "Programación"
+                         (no hay interruptor maestro). Las opciones del reprogramador en
+                         cascada (fallback de CT, prioridad, heurística) se retiran de la UI
+                         mientras esa función está aparcada; los campos siguen en el modelo. -->
+                    <group string="Motor de necesidades (planificación de producción)">
+                        <div class="text-muted small mb-2">
+                            Parámetros del cálculo de necesidades de producción: factor de stock
+                            de seguridad y almacenes considerados.
                         </div>
+                        <field name="safety_factor"/>
+                        <field name="planning_warehouse_id" options="{'no_create': True}"/>
+                        <field name="manufacturing_warehouse_id" options="{'no_create': True}"/>
                     </group>
-
-                    <!-- ══ OPCIONES DE REPROGRAMACIÓN (visibles solo si habilitado) ══ -->
-                    <div invisible="not enable_scheduling">
-
-                        <group string="Centro de trabajo sin configurar">
-                            <div class="text-muted small mb-2">
-                                Qué hace el motor de reprogramación cuando una OF corresponde a
-                                un producto que no tiene centros de trabajo compatibles asignados.
-                            </div>
-                            <field name="wc_fallback" widget="radio" nolabel="1"/>
-                        </group>
-
-                        <group string="Criterio de prioridad entre OFs">
-                            <div class="text-muted small mb-2">
-                                Cuando dos o más OFs compiten por el mismo centro de trabajo,
-                                este criterio define cuál se programa primero.
-                            </div>
-                            <field name="priority" widget="radio" nolabel="1"/>
-                        </group>
-
-                        <group string="Opciones avanzadas">
-                            <field name="include_wc_heuristic" widget="boolean_toggle"
-                                   help="Incluye como dependientes las OFs que comparten centros de trabajo con la OF pivot, aunque no estén encadenadas por BOM. Útil en plantas con alta carga de CTs, pero puede generar reprogramaciones masivas."/>
-                        </group>
-
-                    </div>
+                    <group string="Modos de abastecimiento (tipos de origen)">
+                        <div class="text-muted small mb-2" colspan="2">
+                            Cada tipo de origen indica cómo lo planifica el motor:
+                            <b>Fabricar</b> (lógica de producción interna) o <b>Comprar</b>
+                            (lógica de proveedor). Los que quedan en blanco no se planifican.
+                        </div>
+                        <field name="product_type_ids" nolabel="1" colspan="2">
+                            <list editable="bottom">
+                                <field name="name"/>
+                                <field name="supply_mode"/>
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Mantenimiento">
+                        <div class="text-muted small mb-2">
+                            Recorre la BOM una sola vez y guarda, en cada artículo, el componente
+                            fabricado (producción interna) y el componente que se compra (compra-venta). El
+                            panel usa esos campos precalculados y no explora la BOM en cada carga.
+                            Conviene correrlo tras cambios en listas de materiales o rutas.
+                        </div>
+                        <button name="action_recompute_planning_sources" type="object"
+                                string="Recalcular planificación" class="btn-primary"/>
+                    </group>
 
                 </sheet>
             </form>

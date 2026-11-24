@@ -1,7 +1,7 @@
 """
 Módulo: mrp_planner_helpers.py
 
-Utilidades compartidas del planificador, sin modelos propios.
+Utilidades compartidas de KPIs, sin modelos propios.
 
 Responsabilidades:
 - Construir el dominio que excluye órdenes de fabricación subcontratadas

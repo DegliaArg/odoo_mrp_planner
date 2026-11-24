@@ -62,7 +62,7 @@ class MrpPlannerDashboard(models.TransientModel):
 
     def _inventory_ensure_group(self):
         # El panel es de los grupos Inventario (el guard del módulo base deja
-        # pasar además a admin del planificador y system, como en todos los
+        # pasar además a admin de KPIs y system, como en todos los
         # paneles: es control de datos; la visibilidad la maneja el menú).
         self._ensure_planner_group(
             'odoo_mrp_planner.group_inventory_read',
@@ -115,6 +115,19 @@ class MrpPlannerDashboard(models.TransientModel):
             return allowed or [0]
         effective = [w for w in selected if w in allowed]
         return effective or [0]
+
+    @api.model
+    def _inventory_stage_labels(self):
+        """Etiquetas (traducidas) de la etapa de la operación — fuente única
+        para la tabla operativa y el detalle de "Disponible no hecho"."""
+        return {
+            'pick':  _('Recolección'),
+            'pack':  _('Embalaje'),
+            'ship':  _('Entrega'),
+            'in':    _('Recepción'),
+            'int':   _('Transferencia'),
+            'ready': _('Validado s/ despachar'),
+        }
 
     # ── Llamada 1: KPIs + gráficos ────────────────────────────────────────────
 
@@ -189,6 +202,30 @@ class MrpPlannerDashboard(models.TransientModel):
         return chain_ids
 
     @api.model
+    def _inventory_done_picks(self, company, dt_from, dt_to, warehouse_ids, type_ids):
+        """Remitos de ``type_ids`` VALIDADOS (date_done) dentro del rango.
+
+        Es a la vez el numerador de la Tasa de entrega y lo que se EXCLUYE del
+        denominador pendiente (ya se hizo dentro del rango). Fuente única para
+        que la card "Disponible no hecho" y su detalle usen exactamente el mismo
+        conjunto de exclusión y cierren al centavo.
+
+        :returns: recordset de stock.picking (vacío si no hay type_ids).
+        """
+        Picking = self.env['stock.picking'].sudo()
+        if not type_ids:
+            return Picking
+        done_dom = [
+            ('company_id', '=', company.id),
+            ('picking_type_id', 'in', type_ids),
+            ('state', '=', 'done'),
+            ('date_done', '>=', dt_from), ('date_done', '<', dt_to),
+        ]
+        if warehouse_ids:
+            done_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
+        return Picking.search(done_dom)
+
+    @api.model
     def _inventory_delivery_figures(self, company, d_from, d_to, dt_from, dt_to,
                                     warehouse_ids, type_ids, method, count_late=True):
         """Numerador y parte pendiente del denominador de la Tasa de entrega,
@@ -199,7 +236,7 @@ class MrpPlannerDashboard(models.TransientModel):
           "Validados del período" para esos tipos. Es "cuánto hice" del eslabón.
         - den_pending (lo que tuve stock y no hice): disponible pendiente
           (qty_reserved) de esos tipos, de los snapshots del rango, agregado
-          según ``method`` (closing/peak/average) y excluyendo lo que terminó
+          según ``method`` (closing/peak) y excluyendo lo que terminó
           validado en el rango (ya cuenta en num). Es ``None`` si el rango NO
           tiene ningún snapshot (registro recién activado, o empresa sin
           registro): el denominador es desconocido y la tasa no se puede calcular.
@@ -209,19 +246,11 @@ class MrpPlannerDashboard(models.TransientModel):
         """
         if not type_ids:
             return 0.0, 0.0
-        Picking = self.env['stock.picking'].sudo()
         Move = self.env['stock.move'].sudo()
 
         # ── Numerador: validado del período (cantidad hecha de los tipos) ──
-        done_dom = [
-            ('company_id', '=', company.id),
-            ('picking_type_id', 'in', type_ids),
-            ('state', '=', 'done'),
-            ('date_done', '>=', dt_from), ('date_done', '<', dt_to),
-        ]
-        if warehouse_ids:
-            done_dom.append(('picking_type_id.warehouse_id', 'in', warehouse_ids))
-        done_picks = Picking.search(done_dom)
+        done_picks = self._inventory_done_picks(
+            company, dt_from, dt_to, warehouse_ids, type_ids)
         num = 0.0
         if done_picks:
             d_moves = Move.search([('picking_id', 'in', done_picks.ids),
@@ -247,13 +276,41 @@ class MrpPlannerDashboard(models.TransientModel):
         - closing (default): disponible del ÚLTIMO snapshot del rango (foto al
           cierre) — lo que al final seguía pendiente con stock para hacer.
         - peak: máximo por (remito, producto) visto en el rango.
-        - average: promedio diario del disponible pendiente.
 
         El snapshot no guarda el tipo de operación: se resuelve vía el remito.
 
         :returns: float con el disponible pendiente, o ``None`` si el rango no
             tiene NINGÚN snapshot (denominador desconocido). Un rango CON
             snapshots pero sin pendiente-con-stock de ese eslabón devuelve 0.0.
+        """
+        rows, has_snapshots = self._inventory_pending_available_rows(
+            company, d_from, d_to, warehouse_ids, type_ids, method,
+            exclude_pick_ids=exclude_pick_ids, count_late=count_late)
+        if not has_snapshots:
+            return None
+        return sum(r['qty_available'] for r in rows)
+
+    @api.model
+    def _inventory_pending_available_rows(self, company, d_from, d_to, warehouse_ids,
+                                          type_ids, method, exclude_pick_ids=None,
+                                          count_late=True):
+        """Renglones elegidos de la parte pendiente del denominador de la Tasa
+        de entrega: UNA fila por (remito, producto), con la cantidad disponible
+        que le corresponde según ``method`` y los ids de los snapshots (``log_ids``)
+        que la forman. Es la fuente única de verdad: el Σ de ``qty_available`` es
+        idéntico al float que retorna ``_inventory_pending_available`` para los
+        mismos filtros, en ambos métodos — así la card "Disponible no hecho" y su
+        detalle (lista de snapshots) reconcilian al centavo.
+
+        - closing (default): filas del ÚLTIMO snapshot_date del rango;
+          qty_available = su qty_reserved. log_ids = esas filas del snapshot.
+        - peak: una fila por clave con el MÁXIMO qty_reserved visto en el rango.
+          log_ids = la fila del snapshot del día del pico.
+
+        :returns: (rows, has_snapshots) — rows = list[dict] {picking_id,
+            product_id, qty_available, log_ids}; has_snapshots False si el rango
+            no tiene NINGÚN snapshot (denominador desconocido). has_snapshots True
+            con rows vacío = hay snapshots pero nada pendiente-con-stock del eslabón.
         """
         Log = self.env['mrp.dispatch.stock.log'].sudo()
         scope_dom = [
@@ -264,11 +321,11 @@ class MrpPlannerDashboard(models.TransientModel):
             scope_dom.append(('warehouse_id', 'in', warehouse_ids))
         # Sin NINGÚN snapshot en el rango: el denominador es desconocido (no es 0).
         if not Log.search_count(scope_dom):
-            return None
+            return [], False
         logs = Log.search(scope_dom + [('qty_reserved', '>', 0)])
         if not logs:
-            return 0.0
-        rows = logs.read(['snapshot_date', 'picking_id', 'product_id', 'qty_reserved'])
+            return [], True
+        rows = logs.read(['id', 'snapshot_date', 'picking_id', 'product_id', 'qty_reserved'])
         pick_ids = {r['picking_id'][0] for r in rows if r['picking_id']}
         pinfo = {p['id']: p for p in self.env['stock.picking'].sudo()
                      .browse(list(pick_ids)).read(['picking_type_id', 'state'])}
@@ -290,22 +347,32 @@ class MrpPlannerDashboard(models.TransientModel):
                 if r['picking_id'] and ptype.get(r['picking_id'][0]) in type_set
                 and r['picking_id'][0] not in excl]
         if not rows:
-            return 0.0
+            return [], True
+        key = lambda r: (r['picking_id'][0],
+                         r['product_id'][0] if r['product_id'] else 0)
+        agg = defaultdict(float)
+        log_ids = defaultdict(list)
         if method == 'peak':
-            best = {}
+            # Máximo qty_reserved por clave + la fila del snapshot de ese pico.
+            best = {}  # key -> (qty, log_id)
             for r in rows:
-                k = (r['picking_id'][0], r['product_id'][0] if r['product_id'] else 0)
-                if r['qty_reserved'] > best.get(k, 0.0):
-                    best[k] = r['qty_reserved']
-            return sum(best.values())
-        if method == 'average':
-            by_date = defaultdict(float)
+                k = key(r)
+                if r['qty_reserved'] > best.get(k, (0.0, None))[0]:
+                    best[k] = (r['qty_reserved'], r['id'])
+            for k, (q, lid) in best.items():
+                agg[k] = q
+                log_ids[k] = [lid]
+        else:
+            # closing (default): disponible del último snapshot del rango.
+            last_date = max(r['snapshot_date'] for r in rows)
             for r in rows:
-                by_date[r['snapshot_date']] += r['qty_reserved']
-            return sum(by_date.values()) / len(by_date) if by_date else 0.0
-        # closing (default): disponible del último snapshot del rango.
-        last_date = max(r['snapshot_date'] for r in rows)
-        return sum(r['qty_reserved'] for r in rows if r['snapshot_date'] == last_date)
+                if r['snapshot_date'] == last_date:
+                    agg[key(r)] += r['qty_reserved']
+                    log_ids[key(r)].append(r['id'])
+        out = [{'picking_id': k[0], 'product_id': k[1],
+                'qty_available': q, 'log_ids': log_ids.get(k, [])}
+               for k, q in agg.items()]
+        return out, True
 
     # ── Llamada 2: tabla operativa ────────────────────────────────────────────
 
@@ -502,14 +569,7 @@ class MrpPlannerDashboard(models.TransientModel):
         """, (picks.ids,))
         first_avail = dict(self.env.cr.fetchall())
 
-        stage_labels = {
-            'pick':  _('Recolección'),
-            'pack':  _('Embalaje'),
-            'ship':  _('Entrega'),
-            'in':    _('Recepción'),
-            'int':   _('Transferencia'),
-            'ready': _('Validado s/ despachar'),
-        }
+        stage_labels = self._inventory_stage_labels()
         # Etiquetas NATIVAS (traducidas) del estado del remito: la tabla
         # muestra exactamente lo mismo que el remito abierto
         state_sel = dict(self.env['stock.picking']
@@ -647,4 +707,53 @@ class MrpPlannerDashboard(models.TransientModel):
     # Nota: los drills de los KPIs de pendiente se arman en el cliente con los
     # ids exactos de las filas visibles (openPending del widget) — un dominio
     # servidor no puede replicar búsqueda, filtros, pestaña y selección.
+
+    # El drill de "Disponible no hecho" es la excepción: ese número SALE de los
+    # snapshots (foto al cierre/pico), no de las filas en vivo de la tabla, así
+    # que no se puede reconstruir en el cliente. Este método devuelve los ids de
+    # los snapshots (mrp.dispatch.stock.log) que forman el número; el cliente
+    # abre una lista nativa de ESE modelo, donde qty_reserved suma EXACTO la card.
+
+    @api.model
+    def get_inventory_available_not_done_detail(self, date_from, date_to,
+                                                warehouse_ids=None,
+                                                picking_type_ids=None):
+        """Ids de los snapshots que componen "Disponible no hecho", para abrir el
+        detalle como lista nativa de ``mrp.dispatch.stock.log``.
+
+        DINÁMICO según el método de la Base de la tasa de entrega (Ajustes →
+        Inventario): toma el mismo ``method`` (al cierre / pico), los mismos
+        depósitos/tipos efectivos y el mismo ``count_late`` que la card, desde
+        ``_inventory_pending_available_rows`` (fuente única). Por eso la Σ de
+        ``qty_reserved`` de esos snapshots == ``rate_pending_available`` de la card.
+
+        :returns: dict {'log_ids': list[int], 'total': float, 'no_snapshots': bool}.
+        """
+        self._inventory_ensure_group()
+        warehouse_ids = self._inventory_effective_whs(warehouse_ids)
+        company = self.env.company
+        cfg = self.env['mrp.reschedule.config'].sudo().get_config()
+        out = {'log_ids': [], 'total': 0.0, 'no_snapshots': False}
+        if not (cfg and cfg.dispatch_stock_log_enabled and date_from and date_to):
+            return out
+        # Mismos filtros que la card: eslabones de la cadena acotados al tipo.
+        type_ids = self._inventory_chain_types(company, warehouse_ids, picking_type_ids)
+        if not type_ids:
+            return out
+        d_from, d_to, dt_from, dt_to = self._inventory_parse_range(date_from, date_to)
+        count_late = cfg.dispatch_available_count_late
+        # Exclusión idéntica a la card: lo validado del rango ya está en el numerador.
+        done_picks = self._inventory_done_picks(
+            company, dt_from, dt_to, warehouse_ids, type_ids)
+        rows_raw, has_snapshots = self._inventory_pending_available_rows(
+            company, d_from, d_to, warehouse_ids, type_ids,
+            cfg._inventory_denominator_method(),
+            exclude_pick_ids=set(done_picks.ids), count_late=count_late)
+        if not has_snapshots:
+            out['no_snapshots'] = True
+            return out
+        out['log_ids'] = [i for r in rows_raw for i in r.get('log_ids', [])]
+        out['total'] = self._inventory_qround(
+            cfg, sum(r['qty_available'] for r in rows_raw))
+        return out
 

@@ -2,7 +2,7 @@
 Módulo: mrp_reschedule_config.py
 Modelo: mrp.reschedule.config
 
-Singleton (por empresa) de configuración central del planificador MRP:
+Singleton (por empresa) de configuración central de KPIs MRP:
 definición del modelo, alertas, análisis de proveedores y de clientes,
 quiebres de stock, registro de ejecuciones, permisos de edición y la
 sincronización con los ir.cron del módulo al guardar.
@@ -17,17 +17,21 @@ Los demás dominios de configuración extienden este modelo por archivo
 - odoo_mrp_planner_scheduling agrega los campos de programación
   (enable_scheduling, wc_fallback, priority) por herencia.
 """
+import logging
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, AccessError
+
+_logger = logging.getLogger(__name__)
 
 
 class MrpRescheduleConfig(models.Model):
     _name = 'mrp.reschedule.config'
-    _description = 'Configuración del planificador de producción'
+    _description = 'Configuración de KPIs de producción'
     _rec_name = 'name'
     _sql_constraints = [
         ('singleton', 'UNIQUE(singleton_check, company_id)',
-         'Solo puede existir una configuración del planificador por empresa.'),
+         'Solo puede existir una configuración de KPIs por empresa.'),
     ]
 
     singleton_check = fields.Boolean(default=True, string='Singleton')
@@ -238,20 +242,37 @@ class MrpRescheduleConfig(models.Model):
         help='Solo aplica cuando el método es "Días desde confirmación". '
              'Define cuántos días tiene la empresa para entregar desde que se confirma el pedido.')
     customer_leadtime_method = fields.Selection([
-        ('weighted', 'Ponderado por cantidades entregadas'),
-        ('first',    'Primera entrega'),
+        ('weighted', 'Ponderado por cantidades'),
+        ('first',    'Primera salida'),
         ('complete', 'Pedido completo'),
     ], string='Método — Lead time de entrega', default='weighted',
-       help='Cómo se calcula el tiempo promedio de entrega de los pedidos con entregas '
+       help='Cómo se calcula el tiempo promedio de entrega de los pedidos con salidas '
             'parciales. Todos los métodos miden días desde la confirmación del pedido '
-            'hasta la fecha efectiva de cada remito de salida.\n'
+            'hasta la fecha efectiva de cada salida (orden de entrega o factura, según la '
+            'Base de salida).\n'
             '• Ponderado: promedia los días de cada parcial pesándolos por la cantidad '
-            'entregada — cuántos días esperó la pieza promedio.\n'
-            '• Primera entrega: días hasta el primer remito — velocidad de reacción.\n'
-            '• Pedido completo: días hasta el remito que completó el pedido; solo cuenta '
-            'pedidos totalmente entregados.\n'
+            'salida — cuántos días esperó la pieza promedio.\n'
+            '• Primera salida: días hasta la primera salida — velocidad de reacción.\n'
+            '• Pedido completo: días hasta la salida que completó el pedido; solo cuenta '
+            'pedidos totalmente salidos.\n'
             'El método elegido manda en el KPI y la columna; los otros dos se muestran '
             'como referencia secundaria y en el tooltip.')
+    customer_exit_basis = fields.Selection([
+        ('packing', 'Embalaje (orden de entrega validada)'),
+        ('invoice', 'Salida física (factura)'),
+    ], string='Base de salida', default='packing',
+       help='Define qué evento cuenta como "salida" para la Tasa de cumplimiento y el '
+            'Lead time de entrega del Análisis de clientes, y para la Tasa de servicio de '
+            'Gerencia (panel + mail diario).\n'
+            '• Embalaje: el momento en que se valida la orden de entrega. Es cuando '
+            'la pieza queda embalada y lista, pero todavía dentro de la empresa. Es el '
+            'comportamiento histórico.\n'
+            '• Salida física (factura): el momento de la factura del cliente, que acá actúa '
+            'como el candado real de salida (nada sale sin factura; el remito al cliente se '
+            'imprime desde ella). Mide las piezas que ya salieron físicamente, no solo las embaladas.\n'
+            'Afecta por igual a Ventas y a la Tasa de servicio de Gerencia para que no diverjan. '
+            'Aviso: con base factura, las cantidades usan qty facturada, que netea notas de '
+            'crédito.')
     customer_analysis_delivery_warn_pct = fields.Integer(
         string='Tasas — umbral verde (%)', default=80,
         help='Desde este porcentaje, las tasas de entrega se muestran en verde. Aplica a las tasas del análisis de clientes y a las tasas física y de cumplimiento del panel de ventas.'
@@ -345,11 +366,11 @@ class MrpRescheduleConfig(models.Model):
         Depende de: ningún campo (nombre constante).
         """
         for rec in self:
-            rec.name = 'Configuración del planificador'
+            rec.name = 'Configuración de KPIs'
 
     def action_open_user_warehouses(self):
         """
-        Abre la lista unificada de usuarios con depósitos y secciones visibles del Planificador MRP.
+        Abre la lista unificada de usuarios con depósitos y secciones visibles del KPIs.
 
         :returns: dict — acción de ventana (ir.actions.act_window) que muestra
                   res.users con la vista personalizada view_users_mrp_warehouse_list,
@@ -366,7 +387,7 @@ class MrpRescheduleConfig(models.Model):
         }
 
     def _user_can_edit_config(self):
-        """True si el usuario actual puede editar la configuración del planificador.
+        """True si el usuario actual puede editar la configuración de KPIs.
 
         Además del Administrador del módulo, los administradores de área
         (Producción, Programación, Ventas y Compras) pueden guardar la
@@ -483,6 +504,20 @@ class MrpRescheduleConfig(models.Model):
                     cust_cron.sudo().write(cust_vals)
         if 'dispatch_snapshot_hour' in vals or vals.get('dispatch_stock_log_enabled'):
             self._dispatch_sync_snapshot_cron()
+        # Al cambiar la Base de salida, los campos computados almacenados de
+        # sale.order.line (delivery_status, unmet_qty, unmet_amount) que alimentan
+        # los drills de Demanda insatisfecha quedan desactualizados (la base no es
+        # una dependencia @api.depends). Se marcan para recálculo diferido (lazy):
+        # se recalculan al próximo acceso, sin un recálculo sincrónico pesado.
+        if 'customer_exit_basis' in vals:
+            try:
+                SOL = self.env['sale.order.line'].sudo().search(
+                    [('order_id.state', 'in', ('sale', 'done'))])
+                for _fname in ('delivery_status', 'unmet_qty', 'unmet_amount'):
+                    self.env.add_to_compute(SOL._fields[_fname], SOL)
+            except Exception as _e:
+                _logger.warning('No se pudo reprogramar el recálculo de '
+                                'sale.order.line tras cambiar la base de salida: %s', _e)
         return res
 
     @api.model_create_multi
@@ -491,7 +526,7 @@ class MrpRescheduleConfig(models.Model):
         Crea el registro de configuración aplicando la restricción singleton.
 
         Lanza UserError si ya existe un registro, garantizando que solo haya una
-        instancia del planificador. Tras la creación sincroniza el cron de
+        instancia de KPIs. Tras la creación sincroniza el cron de
         detección de retrasos con los valores del nuevo registro.
 
         :param vals_list: list[dict] — lista de valores para crear.
@@ -508,7 +543,7 @@ class MrpRescheduleConfig(models.Model):
             cid = vals.get('company_id') or self.env.company.id
             if self.search_count([('company_id', '=', cid)]) > 0:
                 raise UserError(_(
-                    'Ya existe una configuración del planificador para esta empresa. '
+                    'Ya existe una configuración de KPIs para esta empresa. '
                     'Editá el registro existente en lugar de crear uno nuevo.'
                 ))
         records = super().create(vals_list)
@@ -529,7 +564,7 @@ class MrpRescheduleConfig(models.Model):
     @api.model
     def action_open(self):
         """
-        Abre el formulario de configuración del planificador (singleton).
+        Abre el formulario de configuración de KPIs (singleton).
 
         Busca el único registro existente y retorna una acción de ventana apuntando
         a su formulario con paginador oculto (no_pager) para reforzar la experiencia
@@ -546,7 +581,7 @@ class MrpRescheduleConfig(models.Model):
             config = self.sudo().create({'company_id': self.env.company.id})
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Configuración del planificador',
+            'name': 'Configuración de KPIs',
             'res_model': self._name,
             'view_mode': 'form',
             'view_id': self.env.ref('odoo_mrp_planner.mrp_reschedule_config_form_view').id,

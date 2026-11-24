@@ -3,19 +3,19 @@ Módulo: res_partner.py
 Modelo: extensión de 'res.partner'
 
 Extiende el modelo de contactos (clientes y proveedores) con campos de
-clasificación ABC propios del planificador MRP y flags de visibilidad que
+clasificación ABC propios de KPIs MRP y flags de visibilidad que
 reflejan la configuración activa del módulo.
 
 Responsabilidades:
 - Agregar categorías A–E de proveedor y cliente al contacto.
 - Exponer flags booleanos de visibilidad para que las vistas oculten o
-  muestren esos campos según la configuración del planificador.
+  muestren esos campos según la configuración de KPIs.
 
 Relacionado con:
 - mrp.reschedule.config: fuente de los flags enable_supplier_categories y
   enable_customer_categories que controlan la visibilidad de los campos.
 - const.SALE_CAT_SELECTION: lista de valores A/B/C/D/E compartida con otros
-  modelos del planificador.
+  modelos de KPIs.
 """
 from odoo import models, fields, api
 from odoo.addons.odoo_mrp_planner.models.const import SALE_CAT_SELECTION
@@ -42,13 +42,13 @@ class ResPartner(models.Model):
     mrp_enable_supplier_cat = fields.Boolean(
         compute='_compute_mrp_cat_flags',
         help='Indica si la categoría de proveedor está habilitada en la '
-             'configuración del planificador. Usado para ocultar/mostrar el '
+             'configuración de KPIs. Usado para ocultar/mostrar el '
              'campo x_supplier_category en las vistas.',
     )
     mrp_enable_customer_cat = fields.Boolean(
         compute='_compute_mrp_cat_flags',
         help='Indica si la categoría de cliente está habilitada en la '
-             'configuración del planificador. Usado para ocultar/mostrar el '
+             'configuración de KPIs. Usado para ocultar/mostrar el '
              'campo x_customer_category en las vistas.',
     )
 
@@ -123,7 +123,7 @@ class ResPartner(models.Model):
         return [('id', 'in', cats.mapped('partner_id').ids)]
 
     # Usar @api.depends con la ruta cross-model para que Odoo invalide el cache
-    # cuando cambia la configuración del planificador.
+    # cuando cambia la configuración de KPIs.
     @api.depends_context('company')
     def _compute_mrp_cat_flags(self):
         """
@@ -135,7 +135,7 @@ class ResPartner(models.Model):
         Depende de: contexto de compañía (company); los cambios en
         mrp.reschedule.config invalidan el caché vía depends_context.
         """
-        # sudo() necesario: mrp.reschedule.config puede no ser accesible para usuarios sin permisos de admin del planificador.
+        # sudo() necesario: mrp.reschedule.config puede no ser accesible para usuarios sin permisos de admin de KPIs.
         config = self.env['mrp.reschedule.config'].sudo().get_config()
         enable_sup  = config.enable_supplier_categories if config else False
         enable_cust = config.enable_customer_categories if config else False

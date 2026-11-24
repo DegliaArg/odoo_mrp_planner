@@ -189,12 +189,16 @@ class MrpPlannerDashboardForecast(models.TransientModel):
             if _period_so_ids and _exit_basis == 'invoice':
                 # Facturado de los pedidos del período, por producto, agrupado por el
                 # mes de confirmación del pedido (igual criterio que la entrega).
+                # SIN filtro de empresa: la facturación puede correr en una empresa
+                # distinta a la del pedido (en Capemi, las OV de "Fábrica" se facturan
+                # mayormente desde "A. GIACOMELLI S.A."). El link sale_line_ids.order_id
+                # ya acota a los pedidos del período; filtrar por company_id dejaba
+                # afuera la mayoría de las facturas y hundía la tasa.
                 _aml = self.env['account.move.line'].sudo().search_read([
                     ('move_id.move_type', '=', 'out_invoice'),
                     ('parent_state', '=', 'posted'),
                     ('display_type', '=', 'product'),
                     ('product_id.sale_ok', '=', True),
-                    ('company_id', '=', company_id),
                     ('sale_line_ids.order_id', 'in', _period_so_ids),
                 ], ['product_id', 'quantity', 'sale_line_ids'])
                 _sol_ids = {sid for l in _aml for sid in l['sale_line_ids']}

@@ -340,13 +340,16 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         """
         if not sos:
             return []
+        # SIN filtro de empresa en las facturas: la facturación puede correr en una
+        # empresa distinta a la del pedido (en Capemi las OV se facturan mayormente
+        # desde otra empresa del grupo). El link sale_line_ids.order_id ya acota a los
+        # pedidos del período; filtrar por company_id hundía la tasa a ~1/4.
         lines = self.env['account.move.line'].sudo().search_read([
             ('move_id.move_type', '=', 'out_invoice'),
             ('parent_state', '=', 'posted'),
             # Odoo 18: las líneas de producto de factura tienen display_type='product'.
             ('display_type', '=', 'product'),
             ('product_id.sale_ok', '=', True),
-            ('company_id', 'in', company.ids),
             ('sale_line_ids.order_id', 'in', sos.ids),
             ('move_id.invoice_date', '>=', dt_from[:10]),
             ('move_id.invoice_date', '<=', dt_to[:10]),
@@ -369,12 +372,13 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         if not order_ids:
             return 0.0
         AML = self.env['account.move.line'].sudo()
+        # SIN filtro de empresa: ver nota en _mgmt_orders_invoiced_in_period. Las
+        # facturas de estos pedidos pueden estar en otra empresa del grupo.
         base = [
             ('parent_state', '=', 'posted'),
             # Odoo 18: las líneas de producto de factura tienen display_type='product'.
             ('display_type', '=', 'product'),
             ('product_id.sale_ok', '=', True),
-            ('company_id', 'in', company.ids),
             ('sale_line_ids.order_id', 'in', list(order_ids)),
         ]
         qty = 0.0

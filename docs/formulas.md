@@ -201,6 +201,18 @@ LABEL: Diferencia stock vs. mínimo
 
 ---
 
+### 1.10b Pronóstico de stock — quiebres de stock
+DESCRIPCION: La columna "Pronóstico" del panel de quiebres estima el stock proyectado del producto: lo que hay a mano más lo entrante menos lo saliente, en el MISMO ámbito de ubicaciones que el "Stock actual" (todas las sub-ubicaciones hijas de las ubicaciones seleccionadas). Equivale al "Pronosticado" nativo de Odoo (virtual_available). Antes se tomaba el pronóstico del punto de reorden, atado a su ubicación exacta, que ignoraba lo entrante destinado a otras sub-ubicaciones del depósito y daba valores errados (p. ej. −687 en vez de 913 cuando una OF ingresa a otra sub-ubicación del mismo depósito).
+VARIABLES:
+- S = stock a mano en el ámbito de ubicaciones (child_of las ubicaciones seleccionadas)
+- entrante = movimientos entrantes proyectados al ámbito
+- saliente = movimientos salientes proyectados del ámbito
+- F = pronóstico = virtual_available del producto en ese ámbito
+FORMULA: F = S + entrante − saliente   (= virtual_available, mismo ámbito que el Stock actual)
+LABEL: Pronóstico (quiebres de stock)
+
+---
+
 ### 1.11 Rotación en quiebres de stock — por unidades
 DESCRIPCION: Estima los días de inventario disponible dividiendo el stock promedio del período por el promedio mensual de salidas, expresado en días. El período es el configurado para el análisis de quiebres.
 VARIABLES:
@@ -760,6 +772,7 @@ VARIABLES:
 - TS = tasa de servicio (%)
 FORMULA: TS = E_tot / OV_tot * 100
 LABEL: Tasa de servicio global (%)
+CONFIG/Base de salida (§4.0): la "entrega" del numerador (y la card "Cumplimiento de demanda", que comparten el método de entregado por producto) se re-basa a facturado con base factura (qty_invoiced); con base embalaje (default) usa qty_delivered. NO cambia el "entregado por mes de ENTREGA" de la comparación forecast vs. real (precisión de pronóstico, siempre entrega física).
 CONDICIONES:
 - TS >= 95 -> verde
 - 80 <= TS < 95 -> amarillo
@@ -1118,6 +1131,30 @@ CONDICIONES (los cortes son configurables en Ajustes → "Parámetros RFM", comp
 
 ---
 
+### 4.0 Base de salida — qué evento cuenta como "salida física" (config transversal)
+DESCRIPCION: Un único ajuste define qué evento se considera la "salida física" de las piezas al cliente, y gobierna a la vez el Análisis de clientes, la Tasa de servicio de Gerencia y los indicadores de cumplimiento del Forecast, para que nunca diverjan. Dos opciones:
+- **Embalaje (orden de entrega validada)** — PREDETERMINADO. La salida se mide por la orden de entrega validada: cantidad entregada (qty_delivered) y fecha de validación de la orden de entrega (date_done). Es el comportamiento histórico; con esta base NINGUNA fórmula cambia respecto a versiones anteriores.
+- **Salida física (factura)** — candado real de salida: nada sale sin factura y el remito al cliente se imprime desde ella. La salida se mide por la cantidad facturada (qty_invoiced, que NETEA notas de crédito) y la fecha de la factura del cliente posteada (invoice_date). No se casan entregas con facturas una a una: se cambia la unidad de medida del indicador (qty_invoiced es el gemelo nativo de qty_delivered por línea de venta; para lead time / puntualidad se iteran las facturas posteadas igual que antes se iteraban las órdenes de entrega).
+VARIABLES:
+- base = base de salida activa (packing | invoice)
+- Q_salida = qty_delivered (base packing) | qty_invoiced (base invoice)
+- D_salida = date_done de la orden de entrega (base packing) | invoice_date de la factura (base invoice)
+LABEL: Base de salida (cumplimiento y lead time)
+CONFIG: Ajustes → Ventas → "Análisis de clientes — Medición" → grupo "Base de salida (cumplimiento y lead time)" (customer_exit_basis: packing | invoice; def packing)
+ALCANCE (fórmulas/indicadores re-basados con base factura; con base embalaje no cambia nada):
+- Análisis de clientes: Tasa de cumplimiento (§4.1), Lead time de entrega (3 métodos), Puntualidad / % a tiempo, Precio promedio entregado (§4.10), Backlog / demanda insatisfecha (§4.11, §4.12).
+- Forecast: "Tasa de servicio / cumplimiento" (§3.5) y card "Cumplimiento de demanda" — comparten el método `_so_demand_delivered_by_product`, re-basado a facturado.
+- Gerencia: Tasa de servicio del Resumen diario (panel + PDF del mail): "pedidos trabajados" pasa a ser pedidos con ≥1 factura posteada en el período (en vez de ≥1 orden de entrega validada) y el numerador pasa a lo facturado neto de esos pedidos; el denominador (demanda pedida) no cambia.
+- Campos de línea de venta delivery_status / unmet_qty / unmet_amount son basis-aware; al cambiar la base se reprograma su recálculo (diferido/lazy).
+EXCLUSIONES (NO cambian con la base):
+- Forecast — "entregado por mes de ENTREGA" (comparación forecast vs. real por mes): siempre sobre la entrega física real, porque mide precisión de pronóstico, no cumplimiento.
+- Gerencia — Despachos (pz): volumen físico de depósito por date_done; Facturado (pz/$): ya es base factura por definición.
+- Inventario — Tasa de entrega s/ disponible (§5.4) y toda la Sección 5: no se tocan.
+- % físico / Tasa física (§4.1b): no se re-basa.
+CAVEAT: con base factura las cantidades usan qty facturada, que NETEA notas de crédito (una NC de ajuste de precio, sin devolución física, baja la cantidad "salida"). Es consistente con el Facturado de Gerencia, que ya netea NC. El panel de KPIs del cliente del CRM (en la oportunidad) hereda la base automáticamente porque reúsa el análisis de clientes.
+
+---
+
 ### 4.1 % de cumplimiento (tasa de cumplimiento por cliente)
 DESCRIPCION: Mide qué fracción de las unidades pedidas en órdenes de venta confirmadas del período ya fue entregada al cliente, sin importar cuándo se entregó (la entrega puede ser posterior al período). Responde: "de lo que este cliente pidió en el período, ¿cuánto le entregué?". Equivale a la Tasa de cumplimiento del panel de ventas, calculada por cliente. Se aplica también por mes, por producto y por pedido en el detalle del cliente.
 VARIABLES:
@@ -1126,6 +1163,7 @@ VARIABLES:
 - pct_entr = porcentaje de cumplimiento
 FORMULA: pct_entr = Q_entr / Q_ped * 100
 LABEL: % de cumplimiento (cliente)
+CONFIG/Base de salida (§4.0): con base factura el numerador usa qty facturada (qty_invoiced) en vez de qty_delivered; con base embalaje (default) no cambia.
 
 ---
 
@@ -1263,6 +1301,7 @@ VARIABLES:
 FORMULA: p_ped = M_ped / Q_ped ; p_ent = M_ent / Q_ent
 LABEL: Precio prom. pedido / Precio prom. entregado (cliente)
 CONFIG: Valorización monetaria de ventas (sales_amount_method: PxQ a precio de lista | Real)
+CONFIG/Base de salida (§4.0): el lado "entregado" (M_ent, Q_ent) se mide por lo facturado (qty_invoiced) con base factura; con base embalaje (default) usa qty_delivered.
 CONDICIONES:
 - Q_ped <= 0 -> p_ped = 0 ; Q_ent <= 0 -> p_ent = 0
 - p_ent difiere de p_ped cuando el mix entregado != mix pedido
@@ -1278,6 +1317,7 @@ VARIABLES:
 FORMULA: pend_l = max(0, q_ped_l - q_ent_l) ; monto_pend = sum(pend_l * pu_l)
 LABEL: Pendiente / Monto pendiente
 CONFIG: Valorización monetaria de ventas (sales_amount_method)
+CONFIG/Base de salida (§4.0): lo "entregado/salido" (q_ent y, por lo tanto, el pendiente y el "Cumplimiento %") usa qty facturada (qty_invoiced) con base factura; con base embalaje (default) usa qty_delivered.
 CONDICIONES:
 - pct_cumpl = q_ent / q_ped * 100 (entregado sobre pedido)
 - pct_insat = pend / q_ped * 100 (cuánto de lo pedido quedó sin entregar)

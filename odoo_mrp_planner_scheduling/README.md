@@ -8,6 +8,7 @@ Extensión de programación del módulo KPIs de Deglia. Agrega un app independie
 - Expansión automática de BOM con rutas, lead times y stock disponible.
 - Detección de faltantes y reabastecimiento automático (min/max).
 - Creación de OFs desde una solicitud de programación.
+- Columna **"Lead time (días)"** en el panel de planificación (visible por defecto): muestra el plazo que el motor considera para cada artículo en el stock objetivo, con una etiqueta de su origen — **Producción** (Plazo de fabricación + Días para preparar la OF de la BOM), **Compra-venta** (plazo del proveedor preferido) u **Origen** (plazo del tipo de origen, como respaldo). El lead ya se usaba en el cálculo; la columna lo expone en la tabla.
 
 ### Reprogramación en cascada
 - Recalcula fechas de OFs encadenadas respetando el calendario laboral.

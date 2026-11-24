@@ -513,7 +513,10 @@ El nombre de la categoría mostrado en los tabs y en el dropdown de ubicaciones 
 | Stock actual | Suma de cantidades en ubicaciones internas             | `stock.quant.quantity`                       |
 | Mínimo       | Cantidad mínima del punto de reorden                   | `stock.warehouse.orderpoint.product_min_qty` |
 | Diferencia   | stock actual − mínimo (negativo indica quiebre)        | Calculado                                    |
+| Pronóstico   | Stock proyectado (a mano + entrante − saliente) en el mismo ámbito de ubicaciones que el Stock actual; equivale al "Pronosticado" nativo de Odoo | `product.product.virtual_available` (con `location` = ubicaciones del panel) |
 | Estado       | `Quiebre` / `OK` / `Sin mínimo` según condición        | Calculado                                    |
+
+> **Pronóstico — fix.** Antes esta columna tomaba el pronóstico del punto de reorden (`stock.warehouse.orderpoint.qty_forecast`), atado a la ubicación exacta del orderpoint: ignoraba lo entrante destinado a otras sub-ubicaciones del mismo depósito y podía dar valores errados (p. ej. −687 en vez de 913 cuando una OF ingresa a otra sub-ubicación). Ahora usa `virtual_available` del producto en el mismo `child_of` de ubicaciones que el Stock actual.
 
 ---
 
@@ -1060,6 +1063,8 @@ El resultado se guarda en `product.template.x_sale_category`. La fuente son sali
 | Amarillo | entre 80 % y 94 % |
 | Rojo     | < 80 %            |
 
+> **Base de salida y el Forecast.** El Forecast también expone un indicador de **Cumplimiento de demanda / Tasa de cumplimiento** (card, vía `_so_demand_delivered_by_product`: lo entregado de los pedidos del período ÷ lo pedido), que SÍ sigue la Base de salida (`customer_exit_basis`): con base `invoice` se mide por lo facturado (`qty_invoiced`) en vez de lo entregado (`qty_delivered`). En cambio, la columna **Entregado** y la **Tasa de servicio** descritas aquí usan el entregado por **mes de entrega física** (`del_data`, `stock.move(.line).quantity`) y **NO** cambian con la base, porque miden precisión de pronóstico, no cumplimiento.
+
 **Colores de Gap de demanda** (sobre el valor absoluto)
 
 | Color    | Condición                                      |
@@ -1340,6 +1345,8 @@ Cada cliente muestra dos tasas de entrega, espejando la "Tasa de cumplimiento" y
 
 > El % físico puede superar 100 % si se despachan pedidos de períodos anteriores. El tooltip desglosa las entregas por mes de confirmación del pedido de origen. Ambas tasas usan el mismo semáforo configurable en Ajustes.
 
+> **Base de salida (`customer_exit_basis`).** Ajuste en Ajustes → Ventas → "Análisis de clientes — Medición" → "Base de salida (cumplimiento y lead time)", con dos valores: **`packing`** (Embalaje — orden de entrega validada, PREDETERMINADO) o **`invoice`** (Salida física — factura). Define qué evento cuenta como "salida física" y gobierna de forma transversal el Análisis de clientes, la Tasa de servicio de Gerencia y el cumplimiento del Forecast, para que no diverjan. Con `packing` todo queda como se describe arriba (`qty_delivered` / `date_done`). Con `invoice`, el **% de cumplimiento** usa `qty_invoiced` en vez de `qty_delivered`; el **lead time**, la **puntualidad** y la **demanda insatisfecha** usan la factura del cliente posteada (`invoice_date`) en lugar de la orden de entrega. `qty_invoiced` netea notas de crédito. El **% físico** (§ arriba) NO se re-basa. El panel de KPIs del cliente del CRM hereda la base automáticamente porque reúsa el análisis de clientes.
+
 ---
 
 ### Análisis de clientes — % a tiempo
@@ -1359,6 +1366,8 @@ ontime_pct = pickings_a_tiempo / total_pickings × 100
 | `sla_days` | `date_done ≤ date_order + N días` (N = `customer_sla_days` configurable) | `sale.order.date_order + timedelta(days=sla_days)` |
 
 > Si un picking no tiene la fecha de referencia configurada (por ejemplo, `commitment_date` vacío), ese picking no se incluye en el cómputo de `ot_total`.
+
+> Con **Base de salida = `invoice`** (ver arriba), tanto el **% a tiempo** como el **lead time de entrega** (3 métodos: ponderado / primera salida / pedido completo) iteran las **facturas posteadas** del pedido y comparan contra la **fecha de factura** (`invoice_date`) en vez de la fecha de validación de la orden de entrega (`date_done`). La etiqueta "primera entrega" se neutralizó a "primera salida".
 
 ---
 
@@ -1462,6 +1471,8 @@ Clasifica cada cliente según la regularidad y recencia de sus pedidos.
 ## Panel de Ventas — Análisis de demanda insatisfecha
 
 De los pedidos confirmados (`state in ('sale','done')`) del período, mide el **backlog pendiente** = pedido − entregado a la fecha, valuado a precio unitario, agregado por una dimensión conmutable: **cliente, producto o familia**. Comparte la base del análisis de clientes (filtro de empresa/almacén, exclusión de servicios y valorización PxQ/Real). Modelo: `mrp_planner_dashboard_unmet.py` (`get_unmet_demand_data`).
+
+> **Base de salida.** El "entregado" que define el pendiente, el "% Cumplimiento" y los drills siguen la Base de salida (`customer_exit_basis`): con base `invoice` se mide por lo facturado (`qty_invoiced`) en vez de `qty_delivered`; con base `packing` (default), por `qty_delivered` como se describe. Los campos de línea `delivery_status` / `unmet_qty` / `unmet_amount` son basis-aware y se recalculan de forma diferida al cambiar la base.
 
 Tiene **dos líneas de filtros independientes** (período · dimensión · PxQ/Real) con datasets separados: la de arriba afecta solo al gráfico; la segunda, las cards y la tabla. En la sección inferior las **cards se muestran arriba** de la barra de filtros.
 

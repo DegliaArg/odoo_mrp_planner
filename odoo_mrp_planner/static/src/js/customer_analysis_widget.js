@@ -570,7 +570,7 @@ class CustomerAnalysisWidget extends Component {
 
     /** Tooltip del lead time de un pedido de la tabla inline: los 3 métodos. */
     orderLeadTooltip(ord) {
-        return `Lead time del pedido (método principal: ${this.leadMethodLabel()}). Días desde la confirmación hasta la fecha efectiva de cada remito.\nPonderado por cantidad: ${this.fmtDays(ord.lead_weighted)}\nPrimera entrega: ${this.fmtDays(ord.lead_first)}\nPedido completo: ${this.fmtDays(ord.lead_complete)}${ord.lead_complete == null ? ' (aún sin entregar por completo)' : ''}`;
+        return `Lead time del pedido (método principal: ${this.leadMethodLabel()}). Días desde la confirmación hasta la fecha efectiva de cada salida.\nPonderado por cantidad: ${this.fmtDays(ord.lead_weighted)}\nPrimera entrega: ${this.fmtDays(ord.lead_first)}\nPedido completo: ${this.fmtDays(ord.lead_complete)}${ord.lead_complete == null ? ' (aún sin salir por completo)' : ''}` + this.basisNote();
     }
 
     // ── Handlers de controles ─────────────────────────────────────────────────
@@ -1056,6 +1056,27 @@ class CustomerAnalysisWidget extends Component {
             ? '\n(Líneas de servicios excluidas según Ajustes → Ventas)' : '';
     }
 
+    /** True si la Base de salida (Ajustes) es Factura (salida física). */
+    get isInvoiceBasis() {
+        return !!(this.state.config && this.state.config.exit_basis === 'invoice');
+    }
+
+    /** Sufijo corto para labels de cumplimiento/lead según la base de salida. */
+    get basisLabelSuffix() {
+        return this.isInvoiceBasis ? ' (s/ factura)' : '';
+    }
+
+    /** Nota para tooltips de cumplimiento, lead time y puntualidad: deja EXPLÍCITO
+     *  qué evento se está midiendo según la Base de salida de Ajustes. */
+    basisNote() {
+        return this.isInvoiceBasis
+            ? '\n━━\nBase de salida: FACTURA (salida física). Mide piezas ya FACTURADAS '
+              + '(cuando salieron de la empresa), no las embaladas. La cantidad facturada '
+              + 'netea notas de crédito. Cambiable en Ajustes → Ventas.'
+            : '\n━━\nBase de salida: ÓRDENES DE ENTREGA (embalaje). Mide piezas embaladas al '
+              + 'validar la orden de entrega, aún dentro de la empresa. Cambiable en Ajustes → Ventas.';
+    }
+
     openCustomerOrders(partnerId) {
         // Con "Unificar por CUIT" la fila puede agrupar varios partners.
         const row = this.state.allRows.find(r => r.partner_id === partnerId);
@@ -1323,15 +1344,15 @@ class CustomerAnalysisWidget extends Component {
             case 'total_qty':
                 return `Demanda real: piezas pedidas en el período (suma de cantidades de todas las líneas de los clientes visibles). Mismo concepto que "Demanda real" del panel de ventas.\nTotal: ${f(k.total_qty)} Pz en ${f(k.total_orders)} pedidos` + this.svcNote();
             case 'total_delivered':
-                return `Cumplimiento de demanda: piezas ya entregadas de los pedidos del período (acumulado a la fecha, cualquier fecha de entrega). Suma dinámica de la tabla visible — mismo criterio que la columna "Cumpl. demanda".\nTotal: ${f(k.total_delivered)} Pz entregadas de ${f(k.total_qty)} pedidas` + this.svcNote();
+                return `Cumplimiento de demanda: piezas ya salidas de los pedidos del período (acumulado a la fecha, cualquier fecha). Suma dinámica de la tabla visible — mismo criterio que la columna "Cumpl. demanda".\nTotal: ${f(k.total_delivered)} Pz salidas de ${f(k.total_qty)} pedidas` + this.svcNote() + this.basisNote();
             case 'fulfillment_pct':
-                return `Tasa de cumplimiento del período: de lo pedido en el período, cuánto ya se entregó\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${k.fulfillment_pct != null ? k.fulfillment_pct + '%' : '—'}\nVerde ≥ ${this.state.config.delivery_warn || 80}% | Amarillo ≥ ${this.state.config.delivery_crit || 60}% (umbrales configurables en Ajustes)` + this.svcNote();
+                return `Tasa de cumplimiento del período: de lo pedido en el período, cuánto ya salió\nSalido ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_qty)} = ${k.fulfillment_pct != null ? k.fulfillment_pct + '%' : '—'}\nVerde ≥ ${this.state.config.delivery_warn || 80}% | Amarillo ≥ ${this.state.config.delivery_crit || 60}% (umbrales configurables en Ajustes)` + this.svcNote() + this.basisNote();
             case 'avg_price':
                 return `Precio promedio pedido: por unidad pedida del período\nMonto pedido ÷ Demanda real\n→ ${m(k.total_amount)} ÷ ${f(k.total_qty)} = ${m(k.avg_price)}` + this.amountNote() + this.svcNote();
             case 'avg_price_delivered':
                 return `Precio promedio entregado: por unidad efectivamente entregada del período\nMonto entregado ÷ Cumplimiento de demanda\n→ ${m(k.total_amount_delivered)} ÷ ${f(k.total_delivered)} = ${m(k.avg_price_delivered)}\nDifiere del pedido cuando el mix entregado ≠ mix pedido.` + this.amountNote() + this.svcNote();
             case 'lead_time':
-                return `Lead time de entrega de los pedidos del período (clientes visibles). Días desde la confirmación hasta la fecha efectiva de cada remito de salida.\nMétodo principal (${this.leadMethodLabel()}, configurable en Ajustes): ${this.fmtDays(k.lead_time)}\n• Ponderado por cantidad: ${this.fmtDays(k.lead_weighted)} — promedia cada entrega parcial pesada por sus piezas; es lo que esperó la pieza promedio\n• Primera entrega: ${this.fmtDays(k.lead_first)} — promedio de días hasta el primer remito de cada pedido (velocidad de reacción)\n• Pedido completo: ${this.fmtDays(k.lead_complete)} — promedio de punta a punta, solo pedidos totalmente entregados`;
+                return `Lead time de entrega de los pedidos del período (clientes visibles). Días desde la confirmación hasta la fecha efectiva de cada salida.\nMétodo principal (${this.leadMethodLabel()}, configurable en Ajustes): ${this.fmtDays(k.lead_time)}\n• Ponderado por cantidad: ${this.fmtDays(k.lead_weighted)} — promedia cada salida parcial pesada por sus piezas; es lo que esperó la pieza promedio\n• Primera entrega: ${this.fmtDays(k.lead_first)} — promedio de días hasta la primera salida de cada pedido (velocidad de reacción)\n• Pedido completo: ${this.fmtDays(k.lead_complete)} — promedio de punta a punta, solo pedidos totalmente salidos` + this.basisNote();
             case 'avg_days_between':
                 return `Promedio de días entre pedidos consecutivos, calculado entre todos los clientes con más de 1 pedido\n→ ${k.avg_days_between != null ? k.avg_days_between + ' días promedio' : '—'}`;
             default:
@@ -1352,15 +1373,15 @@ class CustomerAnalysisWidget extends Component {
             case 'qty_ordered':
                 return `Piezas pedidas por el cliente en el período (suma de cantidades de todas las líneas)\n→ ${f(row.qty_ordered)} piezas de ${f(k.total_qty)} totales${pct(row.qty_ordered, k.total_qty)}` + this.svcNote();
             case 'qty_delivered':
-                return `Cumplimiento de demanda: piezas ya entregadas de los pedidos del período del cliente (acumulado a la fecha, cualquier fecha de entrega). Mismo concepto que "Cumplimiento de demanda" del panel del cliente.\nQty entregada de las líneas de sus pedidos del período\n→ ${n(row.qty_delivered)} Pz entregadas de ${n(row.qty_ordered)} pedidas${row.delivery_pct != null ? ' (' + row.delivery_pct + '%)' : ''}` + this.svcNote();
+                return `Cumplimiento de demanda: piezas ya salidas de los pedidos del período del cliente (acumulado a la fecha, cualquier fecha). Mismo concepto que "Cumplimiento de demanda" del panel del cliente.\nQty salida de las líneas de sus pedidos del período\n→ ${n(row.qty_delivered)} Pz salidas de ${n(row.qty_ordered)} pedidas${row.delivery_pct != null ? ' (' + row.delivery_pct + '%)' : ''}` + this.svcNote() + this.basisNote();
             case 'total_amount':
                 return `Monto de ventas del cliente en el período\n→ ${m(row.total_amount)} de ${m(k.total_amount)} total${pct(row.total_amount, k.total_amount)}` + this.amountNote() + this.svcNote();
             case 'delivery_pct':
-                return `Tasa de cumplimiento: entregado de los pedidos del período (cualquier fecha de entrega) ÷ pedido\nQty entregada ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}`;
+                return `Tasa de cumplimiento: salido de los pedidos del período (cualquier fecha) ÷ pedido\nQty salida ÷ Qty pedida × 100\n→ ${n(row.qty_delivered)} u ÷ ${n(row.qty_ordered)} u = ${row.delivery_pct != null ? row.delivery_pct + '%' : '—'}` + this.basisNote();
             case 'lead_time':
-                return `Lead time de entrega (método principal: ${this.leadMethodLabel()}, configurable en Ajustes). Días desde la confirmación del pedido hasta la fecha efectiva de cada remito.\nPonderado por cantidad: ${this.fmtDays(row.lead_weighted)} (cuántos días esperó la pieza promedio)\nPrimera entrega: ${this.fmtDays(row.lead_first)} (promedio de días hasta el primer remito)\nPedido completo: ${this.fmtDays(row.lead_complete)} (solo pedidos 100% entregados: ${row.lt_comp_n || 0} de ${row.order_count})`;
+                return `Lead time de entrega (método principal: ${this.leadMethodLabel()}, configurable en Ajustes). Días desde la confirmación del pedido hasta la fecha efectiva de cada salida.\nPonderado por cantidad: ${this.fmtDays(row.lead_weighted)} (cuántos días esperó la pieza promedio)\nPrimera entrega: ${this.fmtDays(row.lead_first)} (promedio de días hasta la primera salida)\nPedido completo: ${this.fmtDays(row.lead_complete)} (solo pedidos 100% salidos: ${row.lt_comp_n || 0} de ${row.order_count})` + this.basisNote();
             case 'ontime_pct':
-                return `Entregas realizadas dentro del plazo acordado respecto al total de entregas del cliente\nEntregas a tiempo ÷ Total entregas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}`;
+                return `Salidas realizadas dentro del plazo acordado respecto al total de salidas del cliente\nSalidas a tiempo ÷ Total salidas × 100\n→ ${row.ontime_ok} ÷ ${row.ontime_total} = ${row.ontime_pct != null ? row.ontime_pct + '%' : '—'}` + this.basisNote();
             case 'avg_price':
                 return `Precio promedio pedido: por unidad pedida del cliente en el período\nMonto pedido ÷ Demanda real\n→ ${m(row.total_amount)} ÷ ${f(row.qty_ordered)} = ${m(row.avg_price)}` + this.amountNote() + this.svcNote();
             case 'avg_price_delivered':

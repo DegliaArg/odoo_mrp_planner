@@ -689,6 +689,19 @@
                                             </div>
                                         </group>
 
+                                        <group string="Base de salida (cumplimiento y lead time)">
+                                            <field name="customer_exit_basis" widget="radio" nolabel="1"
+                                                   help="Qué evento cuenta como 'salida' para la Tasa de cumplimiento y el Lead time de entrega (Análisis de clientes) y la Tasa de servicio de Gerencia."/>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="customer_exit_basis != 'packing'">
+                                                <b>Embalaje</b> — cuenta desde que se valida la orden de entrega. La pieza queda embalada y lista, pero todavía dentro de la empresa. Es el comportamiento histórico.
+                                            </div>
+                                            <div class="text-muted small border-start border-2 ps-2 mt-1"
+                                                 invisible="customer_exit_basis != 'invoice'">
+                                                <b>Salida física (factura)</b> — cuenta desde la factura del cliente, el candado real de salida (nada sale sin factura; el remito se imprime desde ella). Mide piezas que ya salieron, no solo embaladas. Aplica por igual a Ventas y a la Tasa de servicio de Gerencia para que no diverjan. Las cantidades usan qty facturada, que netea notas de crédito.
+                                            </div>
+                                        </group>
+
                                         <group string="Método — Entrega a tiempo">
                                             <field name="customer_analysis_ontime_method" widget="radio" nolabel="1"
                                                    help="Define cómo se calcula si una entrega fue a tiempo: comparando con la fecha pactada en el pedido, con la fecha del picking de salida, o con un plazo fijo en días desde la confirmación."/>

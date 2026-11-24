@@ -252,6 +252,22 @@ class MrpRescheduleConfig(models.Model):
             'pedidos totalmente entregados.\n'
             'El método elegido manda en el KPI y la columna; los otros dos se muestran '
             'como referencia secundaria y en el tooltip.')
+    customer_exit_basis = fields.Selection([
+        ('packing', 'Embalaje (orden de entrega validada)'),
+        ('invoice', 'Salida física (factura)'),
+    ], string='Base de salida', default='packing',
+       help='Define qué evento cuenta como "salida" para la Tasa de cumplimiento y el '
+            'Lead time de entrega del Análisis de clientes, y para la Tasa de servicio de '
+            'Gerencia (panel + mail diario).\n'
+            '• Embalaje: el momento en que se valida la orden de entrega. Es cuando '
+            'la pieza queda embalada y lista, pero todavía dentro de la empresa. Es el '
+            'comportamiento histórico.\n'
+            '• Salida física (factura): el momento de la factura del cliente, que acá actúa '
+            'como el candado real de salida (nada sale sin factura; el remito al cliente se '
+            'imprime desde ella). Mide las piezas que ya salieron físicamente, no solo las embaladas.\n'
+            'Afecta por igual a Ventas y a la Tasa de servicio de Gerencia para que no diverjan. '
+            'Aviso: con base factura, las cantidades usan qty facturada, que netea notas de '
+            'crédito.')
     customer_analysis_delivery_warn_pct = fields.Integer(
         string='Tasas — umbral verde (%)', default=80,
         help='Desde este porcentaje, las tasas de entrega se muestran en verde. Aplica a las tasas del análisis de clientes y a las tasas física y de cumplimiento del panel de ventas.'

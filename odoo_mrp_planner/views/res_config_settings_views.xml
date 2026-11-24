@@ -724,18 +724,18 @@
 
                                         <group string="Método — Lead time de entrega">
                                             <field name="customer_leadtime_method" widget="radio" nolabel="1"
-                                                   help="Cómo se promedia el tiempo de entrega cuando un pedido tiene entregas parciales. Todos los métodos miden días desde la confirmación del pedido hasta la fecha efectiva de cada remito."/>
+                                                   help="Cómo se promedia el tiempo de entrega cuando un pedido tiene salidas parciales. Todos los métodos miden días desde la confirmación del pedido hasta la fecha efectiva de cada salida (orden de entrega o factura, según la Base de salida)."/>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'weighted'">
-                                                Promedia los días de cada entrega parcial pesándolos por la cantidad entregada: responde "¿cuántos días esperó la pieza promedio?". Entregar 90% al día 3 y 10% al día 40 da ~7 días, no 21,5. Incluye pedidos aún incompletos con lo entregado hasta ahora.
+                                                Promedia los días de cada salida parcial pesándolos por la cantidad salida: responde "¿cuántos días esperó la pieza promedio?". Salir 90% al día 3 y 10% al día 40 da ~7 días, no 21,5. Incluye pedidos aún incompletos con lo salido hasta ahora.
                                             </div>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'first'">
-                                                Días hasta el primer remito de cada pedido: mide la velocidad de reacción — cuándo el cliente empezó a recibir. No refleja cuánto tardó el resto del pedido.
+                                                Días hasta la primera salida de cada pedido: mide la velocidad de reacción — cuándo el cliente empezó a recibir. No refleja cuánto tardó el resto del pedido.
                                             </div>
                                             <div class="text-muted small border-start border-2 ps-2 mt-1"
                                                  invisible="customer_leadtime_method != 'complete'">
-                                                Días hasta el remito que completó el pedido (lead time de punta a punta). Solo cuenta pedidos totalmente entregados: los incompletos no entran, lo que puede sesgar el número a la baja.
+                                                Días hasta la salida que completó el pedido (lead time de punta a punta). Solo cuenta pedidos totalmente salidos: los incompletos no entran, lo que puede sesgar el número a la baja.
                                             </div>
                                         </group>
 

@@ -178,7 +178,45 @@ class MrpPlannerDashboardForecast(models.TransientModel):
                 so.id: so.date_order.strftime('%Y-%m')
                 for so in _period_sos if so.date_order
             }
-            if _period_so_ids:
+            # Base de salida (Ajustes de Ventas): el "entregado" del cumplimiento
+            # mide contra la orden de entrega validada ('packing') o contra la
+            # factura del cliente ('invoice'). Afecta la card "Cumplimiento de
+            # demanda" y la "Tasa de cumplimiento" del Forecast y el "Cumplimiento %"
+            # de Demanda insatisfecha (que comparten este método). El "entregado por
+            # mes de ENTREGA" (del_data) es otra cosa: precisión de forecast, queda
+            # siempre sobre la entrega física.
+            _exit_basis = (cfg and cfg.customer_exit_basis) or 'packing'
+            if _period_so_ids and _exit_basis == 'invoice':
+                # Facturado de los pedidos del período, por producto, agrupado por el
+                # mes de confirmación del pedido (igual criterio que la entrega).
+                _aml = self.env['account.move.line'].sudo().search_read([
+                    ('move_id.move_type', '=', 'out_invoice'),
+                    ('parent_state', '=', 'posted'),
+                    ('display_type', '=', 'product'),
+                    ('product_id.sale_ok', '=', True),
+                    ('company_id', '=', company_id),
+                    ('sale_line_ids.order_id', 'in', _period_so_ids),
+                ], ['product_id', 'quantity', 'sale_line_ids'])
+                _sol_ids = {sid for l in _aml for sid in l['sale_line_ids']}
+                _sol_so = {}
+                if _sol_ids:
+                    for _s in self.env['sale.order.line'].sudo().browse(list(_sol_ids)).read(['id', 'order_id']):
+                        _sol_so[_s['id']] = _s['order_id'][0] if _s['order_id'] else None
+                for _l in _aml:
+                    _pid = _l['product_id'][0] if _l['product_id'] else False
+                    if not _pid:
+                        continue
+                    _so_id = None
+                    for sid in _l['sale_line_ids']:
+                        cand = _sol_so.get(sid)
+                        if cand in _so_to_ym:
+                            _so_id = cand
+                            break
+                    _ym = _so_to_ym.get(_so_id) if _so_id else None
+                    if _ym:
+                        demand_del_data.setdefault(_pid, {})
+                        demand_del_data[_pid][_ym] = demand_del_data[_pid].get(_ym, 0.0) + (_l['quantity'] or 0.0)
+            elif _period_so_ids:
                 demand_del_dom = [
                     ('state', '=', 'done'),
                     ('picking_id.picking_type_id.code', '=', 'outgoing'),

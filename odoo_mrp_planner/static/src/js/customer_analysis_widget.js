@@ -547,7 +547,7 @@ class CustomerAnalysisWidget extends Component {
     /** Etiqueta corta del método de lead time configurado en Ajustes. */
     leadMethodLabel(method) {
         const m = method || this.state.config.leadtime_method || 'weighted';
-        return { weighted: 'ponderado', first: '1ª entrega', complete: 'pedido completo' }[m] || m;
+        return { weighted: 'ponderado', first: '1ª salida', complete: 'pedido completo' }[m] || m;
     }
 
     /** Pills secundarias del KPI de lead time: los métodos NO elegidos en Ajustes. */

@@ -106,14 +106,21 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
         # Mismo dominio que las cards (y que el Forecast), sin sudo → el "Ver" suma
         # exactamente lo mismo que la card (ambos respetan las reglas del usuario).
-        read_fields = ['id', 'product_uom_qty', 'qty_delivered']
+        # Base de salida (Ajustes): 'invoice' mide "entregado/salido" por lo facturado.
+        # Se lee el campo de la base y se normaliza a la clave 'qty_delivered' para no
+        # tocar el resto de la lógica.
+        _bqf = 'qty_invoiced' if self._ca_config().get('exit_basis', 'packing') == 'invoice' else 'qty_delivered'
+        read_fields = ['id', 'product_uom_qty', _bqf]
         if group_field:
             read_fields.append(group_field)
         lines = self.env['sale.order.line'].search_read(
             self._unmet_line_domain(period_from, period_to), read_fields)
+        if _bqf != 'qty_delivered':
+            for l in lines:
+                l['qty_delivered'] = l.get(_bqf) or 0.0
 
         def _ordered(l):   return l['product_uom_qty'] or 0.0
-        # Entregado topeado en 0 (devoluciones no cuentan), igual que el panel.
+        # Salido topeado en 0 (devoluciones no cuentan), igual que el panel.
         def _delivered(l): return max(0.0, l['qty_delivered'] or 0.0)
         def _gkey(l):      return (l[group_field][0] if l[group_field] else False) if group_field else None
 
@@ -334,12 +341,17 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             # sale_ok=True + exclusión de servicios: mismo filtro que el Forecast.
             # Sin sudo: respeta las reglas de registro del usuario (igual que el Forecast).
             svc_dom = [('product_id.type', '!=', 'service')] if exclude_services else []
+            # Base de salida (Ajustes): 'invoice' mide lo salido por lo facturado.
+            _bqf = 'qty_invoiced' if self._ca_config().get('exit_basis', 'packing') == 'invoice' else 'qty_delivered'
             lines = self.env['sale.order.line'].search_read(
                 [('order_id', 'in', orders.ids), ('product_id.sale_ok', '=', True)] + svc_dom + cross_dom,
-                ['order_id', 'product_id', 'product_uom_qty', 'qty_delivered', 'price_subtotal'],
+                ['order_id', 'product_id', 'product_uom_qty', _bqf, 'price_subtotal'],
             )
             if not lines:
                 return _empty()
+            if _bqf != 'qty_delivered':
+                for l in lines:
+                    l['qty_delivered'] = l.get(_bqf) or 0.0
 
             prod_ids = list({l['product_id'][0] for l in lines})
             prod_info = {
@@ -676,12 +688,13 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             return empty
         try:
             dom = self._unmet_line_domain(period_from, period_to) + [('product_id', '=', product_id)]
+            _bqf = 'qty_invoiced' if self._ca_config().get('exit_basis', 'packing') == 'invoice' else 'qty_delivered'
             sol = self.env['sale.order.line'].search_read(
-                dom, ['product_uom_qty', 'qty_delivered', 'order_id'])
+                dom, ['product_uom_qty', _bqf, 'order_id'])
             pend = []
             for l in sol:
                 ordered = l['product_uom_qty'] or 0.0
-                delivered = max(0.0, l['qty_delivered'] or 0.0)
+                delivered = max(0.0, l.get(_bqf) or 0.0)
                 unmet = ordered - delivered
                 if unmet > 1e-6:
                     pend.append((l['order_id'][0], unmet))

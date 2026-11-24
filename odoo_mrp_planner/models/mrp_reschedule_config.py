@@ -17,8 +17,12 @@ Los demás dominios de configuración extienden este modelo por archivo
 - odoo_mrp_planner_scheduling agrega los campos de programación
   (enable_scheduling, wc_fallback, priority) por herencia.
 """
+import logging
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, AccessError
+
+_logger = logging.getLogger(__name__)
 
 
 class MrpRescheduleConfig(models.Model):
@@ -238,18 +242,19 @@ class MrpRescheduleConfig(models.Model):
         help='Solo aplica cuando el método es "Días desde confirmación". '
              'Define cuántos días tiene la empresa para entregar desde que se confirma el pedido.')
     customer_leadtime_method = fields.Selection([
-        ('weighted', 'Ponderado por cantidades entregadas'),
-        ('first',    'Primera entrega'),
+        ('weighted', 'Ponderado por cantidades'),
+        ('first',    'Primera salida'),
         ('complete', 'Pedido completo'),
     ], string='Método — Lead time de entrega', default='weighted',
-       help='Cómo se calcula el tiempo promedio de entrega de los pedidos con entregas '
+       help='Cómo se calcula el tiempo promedio de entrega de los pedidos con salidas '
             'parciales. Todos los métodos miden días desde la confirmación del pedido '
-            'hasta la fecha efectiva de cada remito de salida.\n'
+            'hasta la fecha efectiva de cada salida (orden de entrega o factura, según la '
+            'Base de salida).\n'
             '• Ponderado: promedia los días de cada parcial pesándolos por la cantidad '
-            'entregada — cuántos días esperó la pieza promedio.\n'
-            '• Primera entrega: días hasta el primer remito — velocidad de reacción.\n'
-            '• Pedido completo: días hasta el remito que completó el pedido; solo cuenta '
-            'pedidos totalmente entregados.\n'
+            'salida — cuántos días esperó la pieza promedio.\n'
+            '• Primera salida: días hasta la primera salida — velocidad de reacción.\n'
+            '• Pedido completo: días hasta la salida que completó el pedido; solo cuenta '
+            'pedidos totalmente salidos.\n'
             'El método elegido manda en el KPI y la columna; los otros dos se muestran '
             'como referencia secundaria y en el tooltip.')
     customer_exit_basis = fields.Selection([
@@ -499,6 +504,20 @@ class MrpRescheduleConfig(models.Model):
                     cust_cron.sudo().write(cust_vals)
         if 'dispatch_snapshot_hour' in vals or vals.get('dispatch_stock_log_enabled'):
             self._dispatch_sync_snapshot_cron()
+        # Al cambiar la Base de salida, los campos computados almacenados de
+        # sale.order.line (delivery_status, unmet_qty, unmet_amount) que alimentan
+        # los drills de Demanda insatisfecha quedan desactualizados (la base no es
+        # una dependencia @api.depends). Se marcan para recálculo diferido (lazy):
+        # se recalculan al próximo acceso, sin un recálculo sincrónico pesado.
+        if 'customer_exit_basis' in vals:
+            try:
+                SOL = self.env['sale.order.line'].sudo().search(
+                    [('order_id.state', 'in', ('sale', 'done'))])
+                for _fname in ('delivery_status', 'unmet_qty', 'unmet_amount'):
+                    self.env.add_to_compute(SOL._fields[_fname], SOL)
+            except Exception as _e:
+                _logger.warning('No se pudo reprogramar el recálculo de '
+                                'sale.order.line tras cambiar la base de salida: %s', _e)
         return res
 
     @api.model_create_multi

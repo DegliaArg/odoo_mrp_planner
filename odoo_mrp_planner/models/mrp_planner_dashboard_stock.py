@@ -214,9 +214,8 @@ class MrpPlannerDashboardStock(models.TransientModel):
 
         product_ids = product_ids_all
 
-        # Puntos de reorden con ruta fabricación → min_qty por producto.
-        # read_group no funciona con qty_forecast (campo computed no stored),
-        # así que se usa .search() + loop tomando el máximo por producto.
+        # Puntos de reorden con ruta fabricación → min_qty por producto
+        # (se toma el máximo por producto cuando hay varios orderpoints).
         op_domain = [('product_id', 'in', product_ids)]
         if mfg_route:
             op_domain.append(('route_id', '=', mfg_route.id))
@@ -224,13 +223,23 @@ class MrpPlannerDashboardStock(models.TransientModel):
             op_domain.append(('warehouse_id', 'in', allowed_ids))
         orderpoints = self.env['stock.warehouse.orderpoint'].search(op_domain)
         min_qty_map = {}
-        forecast_map = {}
         for op in orderpoints:
             pid = op.product_id.id
             op_min = op.product_min_qty
             if pid not in min_qty_map or op_min > min_qty_map[pid]:
                 min_qty_map[pid] = op_min
-                forecast_map[pid] = getattr(op, 'qty_forecast', None)
+
+        # Pronóstico = virtual_available del producto en el MISMO ámbito de
+        # ubicaciones que el Stock actual (child_of ``locations``). Es el
+        # "Pronosticado" nativo de Odoo: a mano + entrante − saliente. Antes se
+        # tomaba el qty_forecast del punto de reorden, atado a su ubicación exacta,
+        # que ignoraba lo entrante destinado a otras sub-ubicaciones del depósito
+        # (p. ej. una OF que ingresa 1.600 a stock daba pronóstico −687 en vez de 913).
+        forecast_map = {}
+        _prods_fc = self.env['product.product'].browse(product_ids).with_context(
+            location=locations.ids)
+        for _p in _prods_fc:
+            forecast_map[_p.id] = _p.virtual_available
 
         # Stock en ubicaciones seleccionadas (batch via read_group)
         # Fix 17: añadir location_id.usage='internal' para excluir ubicaciones no internas

@@ -1061,11 +1061,6 @@ class CustomerAnalysisWidget extends Component {
         return !!(this.state.config && this.state.config.exit_basis === 'invoice');
     }
 
-    /** Sufijo corto para labels de cumplimiento/lead según la base de salida. */
-    get basisLabelSuffix() {
-        return this.isInvoiceBasis ? ' (s/ factura)' : '';
-    }
-
     /** Nota para tooltips de cumplimiento, lead time y puntualidad: deja EXPLÍCITO
      *  qué evento se está midiendo según la Base de salida de Ajustes. */
     basisNote() {

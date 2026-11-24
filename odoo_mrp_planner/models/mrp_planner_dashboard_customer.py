@@ -75,7 +75,9 @@ class MrpPlannerDashboardCustomer(models.TransientModel):
             aml = self.env['account.move.line'].sudo().search_read(
                 [('move_id.move_type', '=', 'out_invoice'),
                  ('parent_state', '=', 'posted'),
-                 ('display_type', '=', False),
+                 # En Odoo 18 las líneas de producto de factura tienen
+                 # display_type='product' (no False): filtrarlo así aísla las ventas.
+                 ('display_type', '=', 'product'),
                  ('product_id', '!=', False),
                  ('sale_line_ids.order_id', 'in', list(oid_set))],
                 ['quantity', 'move_id', 'sale_line_ids'])

@@ -343,7 +343,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         lines = self.env['account.move.line'].sudo().search_read([
             ('move_id.move_type', '=', 'out_invoice'),
             ('parent_state', '=', 'posted'),
-            ('display_type', '=', False),
+            # Odoo 18: las líneas de producto de factura tienen display_type='product'.
+            ('display_type', '=', 'product'),
             ('product_id.sale_ok', '=', True),
             ('company_id', 'in', company.ids),
             ('sale_line_ids.order_id', 'in', sos.ids),
@@ -370,7 +371,8 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         AML = self.env['account.move.line'].sudo()
         base = [
             ('parent_state', '=', 'posted'),
-            ('display_type', '=', False),
+            # Odoo 18: las líneas de producto de factura tienen display_type='product'.
+            ('display_type', '=', 'product'),
             ('product_id.sale_ok', '=', True),
             ('company_id', 'in', company.ids),
             ('sale_line_ids.order_id', 'in', list(order_ids)),

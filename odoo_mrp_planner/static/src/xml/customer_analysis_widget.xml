@@ -291,7 +291,7 @@
                                 <i t-att-class="'fa fa-percent fa-lg mb-1 d-block ' + deliveryClass(state.kpis.fulfillment_pct)"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmtPct(state.kpis.fulfillment_pct)) + ' ' + deliveryClass(state.kpis.fulfillment_pct)"
                                      t-esc="fmtPct(state.kpis.fulfillment_pct)"/>
-                                <div class="o_planner_label text-nowrap" t-esc="'Tasa cumplimiento' + basisLabelSuffix"/>
+                                <div class="o_planner_label text-nowrap">Tasa cumplimiento</div>
                             </div>
                             <div class="card-footer p-0">
                                 <button class="btn btn-sm btn-link w-100 py-1"
@@ -307,7 +307,7 @@
                                 <i class="fa fa-clock-o fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmtDays(state.kpis.lead_time))"
                                      t-esc="fmtDays(state.kpis.lead_time)"/>
-                                <div class="o_planner_label" t-esc="'Lead entrega (' + leadMethodLabel() + ')' + basisLabelSuffix"/>
+                                <div class="o_planner_label" t-esc="'Lead entrega (' + leadMethodLabel() + ')'"/>
                                 <div class="d-flex flex-wrap justify-content-center gap-1 mt-1">
                                     <t t-foreach="leadPills()" t-as="pill" t-key="pill.key">
                                         <span class="text-muted border rounded px-1"

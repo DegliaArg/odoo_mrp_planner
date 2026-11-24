@@ -49,6 +49,7 @@ const DATA_COLS = [
     { key: "coverage_now",   label: "Cobertura actual (meses)", type: "num", def: true,  align: "end", title: "Cobertura actual en meses = posición de stock / promedio de forecast." },
     { key: "coverage_plan",  label: "Cobertura con programa (meses)", type: "num", def: false, align: "end", title: "Cobertura con programa en meses = (posición de stock + cantidad a fabricar) / promedio de forecast." },
     { key: "machine",        label: "Máquina / proveedor", type: "text", def: false, align: "start", title: "Producción interna: máquina preferida del componente fabricado. Compra-venta: proveedor preferido." },
+    { key: "lead_days",      label: "Lead time (días)",   type: "num",   def: true,  align: "end", title: "Plazo (días) que se está considerando para este artículo en el stock objetivo. Producción: Plazo de fabricación + Días para preparar la OF de la BOM. Compra-venta: plazo del proveedor preferido. Respaldo: plazo del tipo de origen. La etiqueta indica de dónde sale." },
     { key: "min_per_shift",  label: "Mínimo (lote)",      type: "num",   def: true,  align: "end", title: "Lote mínimo. Producción interna: mínimo por turno del componente fabricado. Compra-venta: cantidad mínima del proveedor." },
 ];
 
@@ -301,6 +302,11 @@ export class ProductionNeedsWidget extends Component {
         const map = { A: "text-bg-success", B: "text-bg-info", C: "text-bg-primary",
                       D: "text-bg-warning", E: "text-bg-secondary" };
         return "badge rounded-pill " + (map[cat] || "text-bg-light border");
+    }
+
+    /** Etiqueta legible del origen del lead time de una fila. */
+    leadSourceLabel(src) {
+        return { produccion: "Producción", compra: "Compra-venta", origen: "Origen" }[src] || "";
     }
 
     stateClass(state) {

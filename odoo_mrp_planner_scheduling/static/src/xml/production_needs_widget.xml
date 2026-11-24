@@ -280,6 +280,15 @@
                                               style="font-size:10px; padding:2px 7px;" t-esc="row.sale_category"/>
                                         <span t-else="" class="text-muted">—</span>
                                     </t>
+                                    <t t-elif="c.key === 'lead_days'">
+                                        <t t-if="row.lead_days || row.lead_days === 0">
+                                            <span class="fw-semibold"><t t-esc="row.lead_days"/> d</span>
+                                            <span t-if="leadSourceLabel(row.lead_source)"
+                                                  class="d-block text-muted" style="font-size:10px; line-height:1;"
+                                                  t-esc="leadSourceLabel(row.lead_source)"/>
+                                        </t>
+                                        <span t-else="" class="text-muted">—</span>
+                                    </t>
                                     <t t-elif="c.type === 'text'">
                                         <span class="text-truncate d-inline-block" style="max-width:160px;"
                                               t-att-title="row[c.key]" t-esc="row[c.key] || '—'"/>

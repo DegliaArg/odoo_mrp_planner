@@ -268,6 +268,13 @@ class MrpProductionNeeds(models.TransientModel):
                 'sale_category': tmpl_sale_cat.get(tmpl_id, ''),
                 'list_price': tmpl_price.get(tmpl_id, 0.0),
                 'machine': wc_name,
+                'lead_days': lead_days,
+                # De dónde sale el lead que se está usando para este producto:
+                # la BOM si se fabrica, el proveedor preferido si se compra, o el
+                # lead del tipo de origen (mrp.product.type) como respaldo.
+                'lead_source': ('produccion' if is_manuf
+                                else 'compra' if is_purchase
+                                else 'origen'),
                 'min_per_shift': min_shift,
                 'stock_position': K,
                 'avg_forecast': L,

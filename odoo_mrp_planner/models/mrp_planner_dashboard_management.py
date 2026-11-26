@@ -278,19 +278,10 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         #   invoice → facturas de cliente posteadas (salida física).
         basis = self.env['mrp.reschedule.config'].get_config().customer_exit_basis or 'packing'
 
-        # Pedidos TRABAJADOS: tuvieron ≥1 salida EN el período según la base.
-        if basis == 'invoice':
-            worked_so_ids = self._mgmt_orders_invoiced_in_period(sos, dt_from, dt_to, company)
-        else:
-            worked = self.env['stock.move.line'].sudo().search([
-                ('state', '=', 'done'),
-                ('picking_id.picking_type_id.code', '=', 'outgoing'),
-                ('picking_id.sale_id', 'in', sos.ids),
-                ('product_id.sale_ok', '=', True),
-                ('company_id', 'in', company.ids),
-                ('date', '>=', dt_from), ('date', '<=', dt_to),
-            ])
-            worked_so_ids = list(set(worked.mapped('picking_id.sale_id').ids))
+        # Pedidos TRABAJADOS: tuvieron ≥1 salida EN el período según la base. El
+        # criterio vive en _worked_so_ids para que lo comparta tal cual el panel
+        # de Demanda insatisfecha (modo "solo pedidos trabajados") y no diverjan.
+        worked_so_ids = self._worked_so_ids(sos, dt_from, dt_to, company, basis=basis)
         if not worked_so_ids:
             return dict(empty, total_orders=len(sos))
 
@@ -326,6 +317,43 @@ class MrpPlannerDashboardManagement(models.TransientModel):
             'total_orders': len(sos),
             'worked_so_ids': worked_so_ids,
         }
+
+    def _worked_so_ids(self, sos, dt_from, dt_to, company, basis=None):
+        """IDs de los pedidos de ``sos`` TRABAJADOS en el período: los que tuvieron
+        ≥1 salida validada dentro del período según la base de salida configurada
+        (``customer_exit_basis``).
+
+        Es el criterio ÚNICO de "pedido trabajado", compartido por la Tasa de
+        servicio del Resumen de Gerencia (``_mgmt_service_rate_report``) y por el
+        modo "solo pedidos trabajados" del panel de Demanda insatisfecha
+        (``_unmet_worked_so_ids``), para que ambos nunca diverjan.
+
+        - ``packing``: ≥1 ``stock.move.line`` de salida validada (``state='done'``,
+          picking saliente, producto vendible) con ``date`` dentro del período.
+        - ``invoice``: ≥1 factura de cliente posteada con ``invoice_date`` dentro
+          del período (ver ``_mgmt_orders_invoiced_in_period``).
+
+        :param sos: recordset de ``sale.order`` candidatos (universo del período).
+        :param dt_from/dt_to: str 'YYYY-MM-DD HH:MM:SS' (o fecha) — límites del período.
+        :param company: recordset de empresas en alcance.
+        :param basis: 'packing' | 'invoice' | None (None → lee la config).
+        :returns: list[int] de ids de ``sale.order`` trabajados.
+        """
+        if not sos:
+            return []
+        if basis is None:
+            basis = self.env['mrp.reschedule.config'].get_config().customer_exit_basis or 'packing'
+        if basis == 'invoice':
+            return self._mgmt_orders_invoiced_in_period(sos, dt_from, dt_to, company)
+        worked = self.env['stock.move.line'].sudo().search([
+            ('state', '=', 'done'),
+            ('picking_id.picking_type_id.code', '=', 'outgoing'),
+            ('picking_id.sale_id', 'in', sos.ids),
+            ('product_id.sale_ok', '=', True),
+            ('company_id', 'in', company.ids),
+            ('date', '>=', dt_from), ('date', '<=', dt_to),
+        ])
+        return list(set(worked.mapped('picking_id.sale_id').ids))
 
     # ── Base de salida = factura: helpers de la tasa de servicio ──────────────
 

@@ -58,28 +58,71 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         return dt_from, dt_to
 
     @api.model
-    def _unmet_line_domain(self, period_from, period_to):
-        """Dominio de sale.order.line del período, IDÉNTICO a la 'Demanda real' del
+    def _unmet_worked_so_ids(self, orders, dt_from, dt_to):
+        """IDs de los pedidos de ``orders`` TRABAJADOS en el período: los que
+        tuvieron ≥1 salida validada dentro del período según la base de salida
+        configurada. Es el modo "solo pedidos trabajados" del panel.
+
+        Reutiliza el criterio canónico ``_worked_so_ids`` —el MISMO que usa la
+        Tasa de servicio del Resumen de Gerencia— para que ambos coincidan exacto.
+
+        Permisos: ``_worked_so_ids`` lee stock.move.line/facturas con ``sudo()``
+        (el usuario de ventas puede no tener acceso), pero el resultado se
+        intersecta con ``orders`` —que el panel trae SIN sudo, respetando las
+        reglas de registro del usuario— así no se cuela ningún pedido fuera de su
+        universo visible.
+
+        :param orders: recordset de ``sale.order`` ya visible para el usuario.
+        :param dt_from/dt_to: datetime naive UTC (límites del período del panel).
+        :returns: list[int] de ids de ``sale.order`` trabajados y visibles.
+        """
+        if not orders:
+            return []
+        basis = self._ca_config().get('exit_basis', 'packing')
+        worked = self._worked_so_ids(
+            orders, fields.Datetime.to_string(dt_from),
+            fields.Datetime.to_string(dt_to), self.env.company, basis=basis)
+        visible = set(orders.ids)
+        return [oid for oid in worked if oid in visible]
+
+    @api.model
+    def _unmet_line_domain(self, period_from, period_to, worked_only=False):
+        """Dominio de sale.order.line del período, IDÉNTICO a la 'Demanda' del
         panel de Forecast: pedidos confirmados (sale/done), producto vendible
         (sale_ok), exclusión de servicios según config, a nivel compañía. Así la
-        demanda/entregado/pendiente de este panel coinciden con el Forecast."""
+        demanda/entregado/pendiente de este panel coinciden con el Forecast.
+
+        Con ``worked_only=True`` acota además a los pedidos TRABAJADOS del período
+        (≥1 salida validada en el período), para que los drill-downs cuadren con
+        las cards cuando el panel está en ese modo."""
         dt_from, dt_to = self._unmet_period_bounds(period_from, period_to)
         try:
             cfg = self._ca_config()
         except Exception:
             cfg = {}
         svc_dom = [('product_id.type', '!=', 'service')] if bool(cfg.get('exclude_services')) else []
-        return [
+        dom = [
             ('order_id.state', 'in', ('sale', 'done')),
             ('order_id.date_order', '>=', fields.Datetime.to_string(dt_from)),
             ('order_id.date_order', '<=', fields.Datetime.to_string(dt_to)),
             ('product_id.sale_ok', '=', True),
             ('company_id', '=', self.env.company.id),
         ] + svc_dom
+        if worked_only:
+            # Mismo universo de pedidos que las cards, acotado a los trabajados.
+            orders = self.env['sale.order'].search([
+                ('state', 'in', ('sale', 'done')),
+                ('date_order', '>=', fields.Datetime.to_string(dt_from)),
+                ('date_order', '<=', fields.Datetime.to_string(dt_to)),
+                ('company_id', '=', self.env.company.id),
+            ])
+            dom.append(('order_id', 'in', self._unmet_worked_so_ids(orders, dt_from, dt_to)))
+        return dom
 
     @api.model
     def action_open_unmet_lines(self, period_from, period_to, warehouse_ids=None,
-                                focus='pending', group_dimension=None):
+                                focus='pending', group_dimension=None,
+                                worked_only=False):
         """Drill-down de las cards: abre la lista de líneas de pedido del período,
         enfocada según la card desde la que se abre.
 
@@ -91,6 +134,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             - 'fulfillment' → todas las líneas, columnas Pedido y Entregado.
         :param group_dimension: si se pasa ('customer' | 'product' | 'family'),
             la lista se abre agrupada por esa dimensión (para la card de afectados).
+        :param worked_only: si True, limita a los pedidos trabajados del período
+            (≥1 entrega en el período), igual que las cards en ese modo.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
@@ -114,7 +159,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         if group_field:
             read_fields.append(group_field)
         lines = self.env['sale.order.line'].search_read(
-            self._unmet_line_domain(period_from, period_to), read_fields)
+            self._unmet_line_domain(period_from, period_to, worked_only=worked_only), read_fields)
         if _bqf != 'qty_delivered':
             for l in lines:
                 l['qty_delivered'] = l.get(_bqf) or 0.0
@@ -174,18 +219,20 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         }
 
     @api.model
-    def get_unmet_family_universe(self, period_from, period_to):
+    def get_unmet_family_universe(self, period_from, period_to, worked_only=False):
         """IDs de familias (product.category hoja) presentes en el universo de
         análisis del período — las categorías de los productos de las líneas
         confirmadas (mismo dominio que las cards). Sirve para acotar el
         autocompletado del filtro cruzado por familia a lo que realmente existe,
         en vez de todo el maestro de categorías. Independiente de la dimensión y
-        de los demás filtros cruzados."""
+        de los demás filtros cruzados. Respeta el modo "solo pedidos trabajados"
+        (``worked_only``) vía el dominio compartido, para no ofrecer familias de
+        pedidos que el panel ya excluyó."""
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
         try:
             lines = self.env['sale.order.line'].search_read(
-                self._unmet_line_domain(period_from, period_to), ['product_id'])
+                self._unmet_line_domain(period_from, period_to, worked_only=worked_only), ['product_id'])
             prod_ids = list({l['product_id'][0] for l in lines if l['product_id']})
             if not prod_ids:
                 return []
@@ -198,7 +245,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
     @api.model
     def get_unmet_demand_data(self, period_from, period_to, dimension='customer',
                               warehouse_ids=None, amount_method_override=None,
-                              include_all=False, cross_filters=None):
+                              include_all=False, cross_filters=None,
+                              worked_only=False):
         """
         Devuelve las filas de demanda insatisfecha del período, agregadas por la
         dimensión pedida, más los KPIs globales.
@@ -216,6 +264,11 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             con filtros CRUZADOS independientes de la dimensión de agregación
             (p. ej. ver por producto pero acotado a un cliente). Cada uno recorta
             las líneas analizadas → cards, tabla y KPIs reflejan el subconjunto.
+        :param worked_only: si True, considera SOLO los pedidos trabajados del
+            período (los que tuvieron ≥1 entrega en el período, mismo criterio que
+            la Tasa de servicio de Gerencia). Los pedidos sin ninguna salida en el
+            período quedan fuera de cards, KPIs, tabla y drill-downs. Defecto False
+            (comportamiento histórico: toda la demanda confirmada del período).
         :returns: dict con 'rows', 'kpis', 'config', 'dimension'.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
@@ -274,6 +327,11 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 ('date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('company_id', '=', company_id),
             ])
+            # Modo "solo pedidos trabajados": descarta los pedidos sin ninguna
+            # entrega en el período (quedan fuera de cards, KPIs, tabla y drills).
+            if worked_only and orders:
+                worked_ids = set(self._unmet_worked_so_ids(orders, dt_from, dt_to))
+                orders = orders.filtered(lambda o: o.id in worked_ids)
             if not orders:
                 return _empty()
             order_rows    = orders.read(['partner_id', 'date_order'])
@@ -667,7 +725,8 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
 
     # ── Análisis de entregabilidad (on-demand, al expandir un producto) ──────────
     @api.model
-    def get_unmet_delivery_analysis(self, product_id, period_from, period_to):
+    def get_unmet_delivery_analysis(self, product_id, period_from, period_to,
+                                    worked_only=False):
         """Análisis de entregabilidad de un producto (on-demand al expandir su fila).
 
         Por cada pedido pendiente cuenta los días de su ventana en que el stock
@@ -687,7 +746,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         except (TypeError, ValueError):
             return empty
         try:
-            dom = self._unmet_line_domain(period_from, period_to) + [('product_id', '=', product_id)]
+            dom = self._unmet_line_domain(period_from, period_to, worked_only=worked_only) + [('product_id', '=', product_id)]
             _bqf = 'qty_invoiced' if self._ca_config().get('exit_basis', 'packing') == 'invoice' else 'qty_delivered'
             sol = self.env['sale.order.line'].search_read(
                 dom, ['product_uom_qty', _bqf, 'order_id'])

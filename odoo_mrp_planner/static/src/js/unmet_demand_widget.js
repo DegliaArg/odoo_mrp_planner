@@ -9,9 +9,9 @@
  * Tiene DOS conjuntos de filtros independientes (período · dimensión · PxQ/Real):
  *   - los de arriba afectan SOLO al gráfico (dataset chartData);
  *   - los de la segunda línea afectan el dataset de la tabla (dataset data).
- * Las cards (Demanda real / Cumplimiento de demanda / Pendiente) son totales
+ * Las cards (Demanda / Cumplimiento de demanda / Pendiente) son totales
  * FIJOS del período que llegan del backend en `data.kpis`: cierran entre sí
- * (Demanda real = Cumplimiento + Pendiente) y no dependen de la dimensión ni de
+ * (Demanda = Cumplimiento + Pendiente) y no dependen de la dimensión ni de
  * los filtros de la tabla — la dimensión y los filtros solo desagregan el detalle.
  * La tabla incluye un selector de columnas para armarla a gusto.
  *
@@ -80,7 +80,7 @@ const PERSIST_KEYS = [
     "chartMetric", "chartTopN",
     "dateFrom", "dateTo", "dimension", "amountMethod",
     "sortCol", "sortDir", "pageSize", "colsVisible", "showAll", "groupBy",
-    "crossFilters",
+    "crossFilters", "workedOnly",
 ];
 function loadFilters() {
     try {
@@ -148,6 +148,7 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
+            workedOnly:   pick("workedOnly", false), // toggle: solo pedidos trabajados (≥1 entrega en el período)
             crossFilters: pick("crossFilters", {}), // {customer|product|family: {id, name}} — filtros cruzados
             familyUniverse: [],                     // ids de familias presentes en el período (acota el cruce por familia)
             groupBy:       pick("groupBy", null),   // null | 'category' — agrupador por pestañas
@@ -210,7 +211,7 @@ class UnmetDemandWidget extends Component {
                 "mrp.planner.dashboard", "get_unmet_demand_data",
                 [this.state.dateFrom, this.state.dateTo, this.state.dimension,
                  [], this.state.amountMethod || null, this.state.showAll,
-                 this._crossFilterIds()]);
+                 this._crossFilterIds(), this.state.workedOnly]);
         } catch (e) {
             console.error("[UnmetDemandWidget] table", e);
             this.state.data      = null;
@@ -229,7 +230,8 @@ class UnmetDemandWidget extends Component {
             this.state.chartData = await this.orm.call(
                 "mrp.planner.dashboard", "get_unmet_demand_data",
                 [this.state.chartDateFrom, this.state.chartDateTo, this.state.chartDimension,
-                 [], this.state.chartAmountMethod || null]);
+                 [], this.state.chartAmountMethod || null, false, null,
+                 this.state.workedOnly]);
         } catch (e) {
             console.error("[UnmetDemandWidget] chart", e);
             this.state.chartData  = null;
@@ -244,7 +246,7 @@ class UnmetDemandWidget extends Component {
         try {
             this.state.familyUniverse = await this.orm.call(
                 "mrp.planner.dashboard", "get_unmet_family_universe",
-                [this.state.dateFrom, this.state.dateTo]);
+                [this.state.dateFrom, this.state.dateTo, this.state.workedOnly]);
         } catch (e) {
             console.error("[UnmetDemandWidget] family universe", e);
             this.state.familyUniverse = [];
@@ -297,6 +299,17 @@ class UnmetDemandWidget extends Component {
     /** Toggle tabla: mostrar todas las entidades del período (footer cuadra con las
      *  cards) o solo las que tienen faltante (defecto, foco en lo insatisfecho). */
     toggleShowAll() { this.state.showAll = !this.state.showAll; this._load(); }
+    /** Toggle "solo pedidos trabajados": filtra todo el panel (cards, KPIs, tabla,
+     *  gráfico, familias y drills) a los pedidos con ≥1 entrega en el período —
+     *  mismo criterio que la Tasa de servicio de Gerencia. Defecto apagado. */
+    toggleWorkedOnly() {
+        this.state.workedOnly = !this.state.workedOnly;
+        this.state.expandedKey = null;   // el detalle expandido depende del modo
+        this.state.expandData  = {};      // invalida la cache del expand
+        this._load();
+        this._loadChart();
+        this._loadFamilyUniverse();
+    }
 
     // ── Filtros cruzados (cliente/producto/familia) ─────────────────────────────
     /** Dimensiones cruzables = las tres menos la que se está agrupando (cruzar por
@@ -349,7 +362,8 @@ class UnmetDemandWidget extends Component {
             const action = await this.orm.call(
                 "mrp.planner.dashboard", "action_open_unmet_lines",
                 [this.state.dateFrom, this.state.dateTo, [], focus,
-                 groupByDimension ? this.state.dimension : null]);
+                 groupByDimension ? this.state.dimension : null,
+                 this.state.workedOnly]);
             this.action.doAction(action);
         } catch (e) {
             console.error("[UnmetDemandWidget] drill", e);
@@ -576,7 +590,8 @@ class UnmetDemandWidget extends Component {
             try {
                 const res = await this.orm.call(
                     "mrp.planner.dashboard", "get_unmet_delivery_analysis",
-                    [row.key, this.state.dateFrom, this.state.dateTo]);
+                    [row.key, this.state.dateFrom, this.state.dateTo,
+                     this.state.workedOnly]);
                 this.state.expandData = { ...this.state.expandData, [row.key]: res };
             } catch (e) {
                 console.error("[UnmetDemandWidget] delivery analysis", e);
@@ -824,11 +839,11 @@ class UnmetDemandWidget extends Component {
             case "total_unmet_amount":
                 return `Valorización del pendiente del período\nCantidad pendiente × precio unitario\n→ ${m(k.total_unmet_amount)}` + this.amountNote();
             case "total_unmet_qty":
-                return `Pendiente del período: Demanda real − Cumplimiento de demanda\n→ ${f(k.total_ordered)} − ${f(k.total_delivered)} = ${f(k.total_unmet_qty)} u.\nSe desagrega por cliente/producto/familia en la tabla.`;
+                return `Pendiente del período: Demanda − Cumplimiento de demanda\n→ ${f(k.total_ordered)} − ${f(k.total_delivered)} = ${f(k.total_unmet_qty)} u.\nSe desagrega por cliente/producto/familia en la tabla.`;
             case "fulfillment_pct":
-                return `Tasa de cumplimiento del período\nCumplimiento de demanda ÷ Demanda real × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
+                return `Tasa de cumplimiento del período\nCumplimiento de demanda ÷ Demanda × 100\n→ ${f(k.total_delivered)} ÷ ${f(k.total_ordered)} = ${p(k.fulfillment_pct)}\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_ordered":
-                return `Demanda real del período: unidades pedidas en pedidos de venta confirmados\n→ ${f(k.total_ordered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.\nDemanda real = Cumplimiento de demanda + Pendiente.`;
+                return `Demanda del período: unidades pedidas en pedidos de venta confirmados\n→ ${f(k.total_ordered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.\nDemanda = Cumplimiento de demanda + Pendiente.`;
             case "total_delivered":
                 return `Cumplimiento de demanda del período: suma de lo entregado (qty_delivered) de las líneas de esos pedidos, sin importar la fecha de entrega\n→ ${f(k.total_delivered)} u.\nTotal del período; no depende de la dimensión ni de los filtros de la tabla.`;
             case "total_rows":

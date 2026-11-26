@@ -16,6 +16,10 @@ Cobertura:
 - test_picking_types_selector_excludes_archived: el selector de Tipo de
   operación ofrece solo tipos activos, aunque el cálculo del universo siga
   incluyendo los archivados (remitos históricos).
+- test_unmet_demand_worked_only_excludes_unworked_orders: el modo "solo pedidos
+  trabajados" del panel de Demanda insatisfecha descarta los pedidos sin ninguna
+  entrega en el período (cards, KPIs y drill-downs), y el defecto toma toda la
+  demanda confirmada.
 """
 from datetime import date, datetime, timedelta
 
@@ -610,3 +614,86 @@ class TestMrpPlannerDashboard(TransactionCase):
         # Cierre y pico deben diferir con estos snapshots (detalle dinámico).
         self.assertNotEqual(totals["closing"], totals["peak"],
                             "Cierre y pico deben diferir con estos snapshots")
+
+    # ── Test 9: demanda insatisfecha en modo "solo pedidos trabajados" ─────────
+
+    def test_unmet_demand_worked_only_excludes_unworked_orders(self):
+        """
+        Panel de Demanda insatisfecha: el modo "solo pedidos trabajados"
+        (``worked_only=True``) descarta los pedidos SIN ninguna entrega en el
+        período, mientras que el defecto (``worked_only=False``) toma toda la
+        demanda confirmada.
+
+        Escenario (base de salida 'packing', por defecto):
+        - Un pedido TRABAJADO: confirmado y con su entrega validada en el período.
+        - Un pedido NO trabajado: confirmado pero sin ninguna entrega validada.
+        Ambos del mismo cliente (se cruza por cliente para aislar el resto de la
+        base). Con el toggle apagado cuentan los dos; con el toggle prendido, solo
+        el trabajado.
+        """
+        company = self.env.company
+        self.env.user.write({"mrp_planner_all_warehouses": True})
+
+        cfg = self.env["mrp.reschedule.config"].sudo().get_config()
+        cfg.customer_exit_basis = "packing"   # base por defecto (embalaje)
+
+        partner = self.env["res.partner"].create({"name": "Cliente Test Unmet"})
+        product = self.env["product.product"].create({
+            "name": "Producto Test Unmet", "type": "consu", "sale_ok": True})
+
+        def _make_confirmed_so(qty):
+            so = self.env["sale.order"].create({
+                "partner_id": partner.id,
+                "company_id": company.id,
+                "order_line": [(0, 0, {
+                    "product_id": product.id, "product_uom_qty": qty})],
+            })
+            so.action_confirm()
+            return so
+
+        so_worked = _make_confirmed_so(10.0)
+        so_unworked = _make_confirmed_so(7.0)
+
+        # Entrega validada del pedido "trabajado": se fuerza la salida a 'done' con
+        # fecha en el período (misma técnica que el test de inventario, para no
+        # depender del flujo de validación con asistentes).
+        pick = so_worked.picking_ids[:1]
+        self.assertTrue(pick, "El pedido confirmado debe generar una entrega")
+        self.assertEqual(
+            pick.picking_type_id.code, "outgoing",
+            "La entrega del pedido debe ser de tipo salida")
+        move = pick.move_ids[:1]
+        move.write({"state": "done", "quantity": 10.0})
+        pick.write({"state": "done", "date_done": datetime.now()})
+
+        dash = self._new_dashboard()
+        today = date.today()
+        first = today.replace(day=1).strftime("%Y-%m-%d")
+        last = today.strftime("%Y-%m-%d")
+        cross = {"customer": partner.id}   # aísla a los pedidos de este cliente
+
+        # Toggle APAGADO: toda la demanda confirmada → cuentan los dos pedidos.
+        base = dash.get_unmet_demand_data(
+            first, last, "customer", cross_filters=cross, worked_only=False)
+        self.assertAlmostEqual(
+            base["kpis"]["total_ordered"], 17.0, places=1,
+            msg="Sin filtro deben contar ambos pedidos (10 + 7)")
+
+        # Toggle PRENDIDO: solo el pedido trabajado (con entrega) → 10 u.
+        worked = dash.get_unmet_demand_data(
+            first, last, "customer", cross_filters=cross, worked_only=True)
+        self.assertAlmostEqual(
+            worked["kpis"]["total_ordered"], 10.0, places=1,
+            msg="Con 'solo trabajados' el pedido sin entrega queda fuera")
+
+        # El drill-down "Ver" debe seguir el mismo universo que las cards.
+        dom_all = dash._unmet_line_domain(first, last, worked_only=False)
+        dom_worked = dash._unmet_line_domain(first, last, worked_only=True)
+        so_in = lambda dom, so: self.env["sale.order.line"].search_count(
+            dom + [("order_id", "=", so.id)]) > 0
+        self.assertTrue(so_in(dom_all, so_unworked),
+                        "Sin filtro, el pedido no trabajado está en el drill")
+        self.assertFalse(so_in(dom_worked, so_unworked),
+                         "Con 'solo trabajados', el pedido no trabajado sale del drill")
+        self.assertTrue(so_in(dom_worked, so_worked),
+                        "El pedido trabajado permanece en el drill")

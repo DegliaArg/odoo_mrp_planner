@@ -90,16 +90,16 @@
             <t t-if="state.data and baseRows.length">
                 <!-- Cards globales -->
                 <div class="d-flex gap-2 mb-3 flex-wrap">
-                    <!-- 1 · Demanda real -->
+                    <!-- 1 · Demanda -->
                     <div class="flex-fill" style="min-width:130px; flex-basis:0;">
                         <div class="card o_planner_card o_planner_kpi_card_lg h-100" t-att-title="kpiTooltip('total_ordered')">
                             <div class="card-body text-center py-2 d-flex flex-column justify-content-center">
                                 <i class="fa fa-shopping-cart fa-lg text-secondary mb-1 d-block"/>
                                 <div t-att-class="'o_planner_number ' + kpiNumClass(fmt(kpis.total_ordered))" t-esc="fmt(kpis.total_ordered)"/>
-                                <div class="o_planner_label">Demanda real</div>
+                                <div class="o_planner_label">Demanda</div>
                             </div>
                             <div class="card-footer p-0">
-                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas del período (columna Demanda real)"
+                                <button class="btn btn-sm btn-link w-100 py-1" title="Ver todas las líneas del período (columna Demanda)"
                                         t-on-click="() => this.openCardLines('ordered')">Ver →</button>
                             </div>
                         </div>
@@ -235,6 +235,14 @@
                            t-att-checked="!state.showAll"
                            t-on-change="toggleShowAll"/>
                     <label class="form-check-label text-nowrap" for="unmet_only_shortage" style="cursor:pointer;">Solo faltantes</label>
+                </div>
+                <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
+                        t-att-title="state.workedOnly ? 'Considerando SOLO los pedidos trabajados: los que tuvieron al menos una entrega en el período. Mismo criterio que la Tasa de servicio de Gerencia. Desactivá para incluir toda la demanda confirmada del período.' : 'Incluyendo toda la demanda confirmada del período. Activá para considerar solo los pedidos trabajados (con al menos una entrega en el período).'">
+                    <input class="form-check-input ms-0 mt-0" type="checkbox" role="switch"
+                           id="unmet_worked_only"
+                           t-att-checked="state.workedOnly"
+                           t-on-change="toggleWorkedOnly"/>
+                    <label class="form-check-label text-nowrap" for="unmet_worked_only" style="cursor:pointer;">Solo pedidos trabajados</label>
                 </div>
                 <div class="position-relative" t-on-click.stop="">
                     <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"

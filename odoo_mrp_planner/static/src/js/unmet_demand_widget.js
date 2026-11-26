@@ -148,7 +148,7 @@ class UnmetDemandWidget extends Component {
             page:         1,
             pageSize:     pick("pageSize", 50),
             showAll:      pick("showAll", false),   // toggle: todas las entidades vs solo con faltante
-            workedOnly:   pick("workedOnly", false), // toggle: solo pedidos trabajados (≥1 entrega en el período)
+            workedOnly:   pick("workedOnly", false), // toggle: solo pedidos trabajados (ya con algo entregado/facturado)
             crossFilters: pick("crossFilters", {}), // {customer|product|family: {id, name}} — filtros cruzados
             familyUniverse: [],                     // ids de familias presentes en el período (acota el cruce por familia)
             groupBy:       pick("groupBy", null),   // null | 'category' — agrupador por pestañas
@@ -300,8 +300,9 @@ class UnmetDemandWidget extends Component {
      *  cards) o solo las que tienen faltante (defecto, foco en lo insatisfecho). */
     toggleShowAll() { this.state.showAll = !this.state.showAll; this._load(); }
     /** Toggle "solo pedidos trabajados": filtra todo el panel (cards, KPIs, tabla,
-     *  gráfico, familias y drills) a los pedidos con ≥1 entrega en el período —
-     *  mismo criterio que la Tasa de servicio de Gerencia. Defecto apagado. */
+     *  gráfico, familias y drills) a los pedidos que ya tienen algo entregado/
+     *  facturado (cualquier fecha). El cumplimiento no se mueve (los no trabajados
+     *  aportan 0); solo bajan la demanda y el pendiente. Defecto apagado. */
     toggleWorkedOnly() {
         this.state.workedOnly = !this.state.workedOnly;
         this.state.expandedKey = null;   // el detalle expandido depende del modo

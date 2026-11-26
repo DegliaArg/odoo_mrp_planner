@@ -237,7 +237,7 @@
                     <label class="form-check-label text-nowrap" for="unmet_only_shortage" style="cursor:pointer;">Solo faltantes</label>
                 </div>
                 <div class="form-check form-switch d-flex align-items-center gap-2 ps-0 mb-0"
-                        t-att-title="state.workedOnly ? 'Considerando SOLO los pedidos trabajados: los que tuvieron al menos una entrega en el período. Mismo criterio que la Tasa de servicio de Gerencia. Desactivá para incluir toda la demanda confirmada del período.' : 'Incluyendo toda la demanda confirmada del período. Activá para considerar solo los pedidos trabajados (con al menos una entrega en el período).'">
+                        t-att-title="state.workedOnly ? 'Considerando SOLO los pedidos trabajados: los que ya tienen algo entregado/facturado (en cualquier fecha). Los no empezados quedan fuera; el cumplimiento no se mueve, solo bajan la demanda y el pendiente. Desactivá para incluir toda la demanda confirmada del período.' : 'Incluyendo toda la demanda confirmada del período. Activá para considerar solo los pedidos trabajados (los que ya tienen algo entregado/facturado).'">
                     <input class="form-check-input ms-0 mt-0" type="checkbox" role="switch"
                            id="unmet_worked_only"
                            t-att-checked="state.workedOnly"

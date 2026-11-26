@@ -58,32 +58,47 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         return dt_from, dt_to
 
     @api.model
-    def _unmet_worked_so_ids(self, orders, dt_from, dt_to):
-        """IDs de los pedidos de ``orders`` TRABAJADOS en el período: los que
-        tuvieron ≥1 salida validada dentro del período según la base de salida
-        configurada. Es el modo "solo pedidos trabajados" del panel.
+    def _unmet_worked_so_ids(self, orders):
+        """IDs de los pedidos de ``orders`` TRABAJADOS: los que ya tienen algo
+        salido (entregado/facturado > 0) en CUALQUIER fecha. Es el modo "solo
+        pedidos trabajados" del panel.
 
-        Reutiliza el criterio canónico ``_worked_so_ids`` —el MISMO que usa la
-        Tasa de servicio del Resumen de Gerencia— para que ambos coincidan exacto.
+        Se define sobre la MISMA medida que la card "Cumplimiento" del panel
+        (``qty_delivered`` con base embalaje, ``qty_invoiced`` con base factura) y
+        con el mismo filtro de líneas (vendible + exclusión de servicios según
+        config). Así la propiedad clave se cumple por construcción: un pedido NO
+        trabajado aporta 0 al cumplimiento, de modo que prender el toggle **nunca
+        mueve el total entregado** — solo recorta la demanda y el pendiente de los
+        pedidos que todavía no se empezaron a despachar.
 
-        Permisos: ``_worked_so_ids`` lee stock.move.line/facturas con ``sudo()``
-        (el usuario de ventas puede no tener acceso), pero el resultado se
-        intersecta con ``orders`` —que el panel trae SIN sudo, respetando las
-        reglas de registro del usuario— así no se cuela ningún pedido fuera de su
-        universo visible.
+        Ojo: a diferencia de la Tasa de servicio del Resumen de Gerencia
+        (``_worked_so_ids``, que solo cuenta entregas DENTRO del período porque es
+        un indicador mensual de servicio), acá "trabajado" es SIN ventana de
+        fecha: el foco es el backlog de los pedidos ya empezados, no el servicio
+        del mes. Por eso los criterios divergen a propósito.
 
-        :param orders: recordset de ``sale.order`` ya visible para el usuario.
-        :param dt_from/dt_to: datetime naive UTC (límites del período del panel).
-        :returns: list[int] de ids de ``sale.order`` trabajados y visibles.
+        Lee ``sale.order.line`` SIN sudo (mismo acceso que el resto del panel): las
+        líneas de ``orders`` ya son visibles para el usuario.
+
+        :param orders: recordset de ``sale.order`` del universo del panel.
+        :returns: list[int] de ids de ``sale.order`` con algo entregado/facturado.
         """
         if not orders:
             return []
-        basis = self._ca_config().get('exit_basis', 'packing')
-        worked = self._worked_so_ids(
-            orders, fields.Datetime.to_string(dt_from),
-            fields.Datetime.to_string(dt_to), self.env.company, basis=basis)
-        visible = set(orders.ids)
-        return [oid for oid in worked if oid in visible]
+        try:
+            cfg = self._ca_config()
+        except Exception:
+            cfg = {}
+        qf = 'qty_invoiced' if cfg.get('exit_basis', 'packing') == 'invoice' else 'qty_delivered'
+        svc_dom = [('product_id.type', '!=', 'service')] if bool(cfg.get('exclude_services')) else []
+        # Pedidos con ≥1 línea elegible y algo salido (cualquier fecha). Mismo
+        # dominio de elegibilidad que las líneas de las que sale el cumplimiento.
+        lines = self.env['sale.order.line'].search_read(
+            [('order_id', 'in', orders.ids),
+             ('product_id.sale_ok', '=', True),
+             (qf, '>', 0.0)] + svc_dom,
+            ['order_id'])
+        return list({l['order_id'][0] for l in lines if l['order_id']})
 
     @api.model
     def _unmet_line_domain(self, period_from, period_to, worked_only=False):
@@ -92,9 +107,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
         (sale_ok), exclusión de servicios según config, a nivel compañía. Así la
         demanda/entregado/pendiente de este panel coinciden con el Forecast.
 
-        Con ``worked_only=True`` acota además a los pedidos TRABAJADOS del período
-        (≥1 salida validada en el período), para que los drill-downs cuadren con
-        las cards cuando el panel está en ese modo."""
+        Con ``worked_only=True`` acota además a los pedidos TRABAJADOS (los que ya
+        tienen algo entregado/facturado, cualquier fecha; ver
+        ``_unmet_worked_so_ids``), para que los drill-downs cuadren con las cards
+        cuando el panel está en ese modo."""
         dt_from, dt_to = self._unmet_period_bounds(period_from, period_to)
         try:
             cfg = self._ca_config()
@@ -116,7 +132,7 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 ('date_order', '<=', fields.Datetime.to_string(dt_to)),
                 ('company_id', '=', self.env.company.id),
             ])
-            dom.append(('order_id', 'in', self._unmet_worked_so_ids(orders, dt_from, dt_to)))
+            dom.append(('order_id', 'in', self._unmet_worked_so_ids(orders)))
         return dom
 
     @api.model
@@ -134,8 +150,9 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             - 'fulfillment' → todas las líneas, columnas Pedido y Entregado.
         :param group_dimension: si se pasa ('customer' | 'product' | 'family'),
             la lista se abre agrupada por esa dimensión (para la card de afectados).
-        :param worked_only: si True, limita a los pedidos trabajados del período
-            (≥1 entrega en el período), igual que las cards en ese modo.
+        :param worked_only: si True, limita a los pedidos trabajados (los que ya
+            tienen algo entregado/facturado, cualquier fecha), igual que las cards
+            en ese modo.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
                                    'odoo_mrp_planner.group_sales')
@@ -264,11 +281,13 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
             con filtros CRUZADOS independientes de la dimensión de agregación
             (p. ej. ver por producto pero acotado a un cliente). Cada uno recorta
             las líneas analizadas → cards, tabla y KPIs reflejan el subconjunto.
-        :param worked_only: si True, considera SOLO los pedidos trabajados del
-            período (los que tuvieron ≥1 entrega en el período, mismo criterio que
-            la Tasa de servicio de Gerencia). Los pedidos sin ninguna salida en el
-            período quedan fuera de cards, KPIs, tabla y drill-downs. Defecto False
-            (comportamiento histórico: toda la demanda confirmada del período).
+        :param worked_only: si True, considera SOLO los pedidos trabajados: los que
+            ya tienen algo entregado/facturado (en cualquier fecha). Los pedidos sin
+            ninguna salida quedan fuera de cards, KPIs, tabla y drill-downs. Como un
+            pedido no trabajado aporta 0 al cumplimiento, prender el toggle NO mueve
+            el total entregado: solo recorta la demanda y el pendiente de los pedidos
+            no empezados. Defecto False (comportamiento histórico: toda la demanda
+            confirmada del período). Ver ``_unmet_worked_so_ids``.
         :returns: dict con 'rows', 'kpis', 'config', 'dimension'.
         """
         self._ensure_planner_group('odoo_mrp_planner.group_sales_read',
@@ -328,9 +347,10 @@ class MrpPlannerDashboardUnmet(models.TransientModel):
                 ('company_id', '=', company_id),
             ])
             # Modo "solo pedidos trabajados": descarta los pedidos sin ninguna
-            # entrega en el período (quedan fuera de cards, KPIs, tabla y drills).
+            # salida (entregado/facturado 0). Al aportar 0 al cumplimiento, el
+            # total entregado no se mueve; solo baja la demanda y el pendiente.
             if worked_only and orders:
-                worked_ids = set(self._unmet_worked_so_ids(orders, dt_from, dt_to))
+                worked_ids = set(self._unmet_worked_so_ids(orders))
                 orders = orders.filtered(lambda o: o.id in worked_ids)
             if not orders:
                 return _empty()

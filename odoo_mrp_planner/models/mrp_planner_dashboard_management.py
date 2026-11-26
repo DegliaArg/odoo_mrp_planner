@@ -323,10 +323,12 @@ class MrpPlannerDashboardManagement(models.TransientModel):
         ≥1 salida validada dentro del período según la base de salida configurada
         (``customer_exit_basis``).
 
-        Es el criterio ÚNICO de "pedido trabajado", compartido por la Tasa de
-        servicio del Resumen de Gerencia (``_mgmt_service_rate_report``) y por el
-        modo "solo pedidos trabajados" del panel de Demanda insatisfecha
-        (``_unmet_worked_so_ids``), para que ambos nunca diverjan.
+        Criterio de "trabajado" de la Tasa de servicio del Resumen de Gerencia
+        (``_mgmt_service_rate_report``): un indicador MENSUAL de servicio, por eso
+        solo cuenta entregas DENTRO del período. No confundir con el modo "solo
+        pedidos trabajados" del panel de Demanda insatisfecha
+        (``_unmet_worked_so_ids``), que mira el backlog y cuenta entregas de
+        cualquier fecha; los criterios divergen a propósito.
 
         - ``packing``: ≥1 ``stock.move.line`` de salida validada (``state='done'``,
           picking saliente, producto vendible) con ``date`` dentro del período.

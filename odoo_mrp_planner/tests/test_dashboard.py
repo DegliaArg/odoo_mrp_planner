@@ -18,8 +18,8 @@ Cobertura:
   incluyendo los archivados (remitos históricos).
 - test_unmet_demand_worked_only_excludes_unworked_orders: el modo "solo pedidos
   trabajados" del panel de Demanda insatisfecha descarta los pedidos sin ninguna
-  entrega en el período (cards, KPIs y drill-downs), y el defecto toma toda la
-  demanda confirmada.
+  salida (nada entregado/facturado) en cards, KPIs y drill-downs, sin mover el
+  total entregado; el defecto toma toda la demanda confirmada.
 """
 from datetime import date, datetime, timedelta
 
@@ -620,16 +620,18 @@ class TestMrpPlannerDashboard(TransactionCase):
     def test_unmet_demand_worked_only_excludes_unworked_orders(self):
         """
         Panel de Demanda insatisfecha: el modo "solo pedidos trabajados"
-        (``worked_only=True``) descarta los pedidos SIN ninguna entrega en el
-        período, mientras que el defecto (``worked_only=False``) toma toda la
-        demanda confirmada.
+        (``worked_only=True``) descarta los pedidos SIN ninguna salida (los que no
+        tienen nada entregado/facturado), mientras que el defecto
+        (``worked_only=False``) toma toda la demanda confirmada.
 
         Escenario (base de salida 'packing', por defecto):
-        - Un pedido TRABAJADO: confirmado y con su entrega validada en el período.
-        - Un pedido NO trabajado: confirmado pero sin ninguna entrega validada.
+        - Un pedido TRABAJADO: confirmado y con su entrega validada.
+        - Un pedido NO trabajado: confirmado pero sin ninguna entrega.
         Ambos del mismo cliente (se cruza por cliente para aislar el resto de la
         base). Con el toggle apagado cuentan los dos; con el toggle prendido, solo
-        el trabajado.
+        el trabajado. Clave: como el no trabajado aporta 0 al cumplimiento, el
+        total ENTREGADO NO cambia entre los dos modos (solo bajan demanda y
+        pendiente).
         """
         company = self.env.company
         self.env.user.write({"mrp_planner_all_warehouses": True})
@@ -685,6 +687,13 @@ class TestMrpPlannerDashboard(TransactionCase):
         self.assertAlmostEqual(
             worked["kpis"]["total_ordered"], 10.0, places=1,
             msg="Con 'solo trabajados' el pedido sin entrega queda fuera")
+
+        # Invariante clave: el total ENTREGADO (cumplimiento) no se mueve con el
+        # toggle, porque el pedido no trabajado aporta 0 piezas entregadas.
+        self.assertAlmostEqual(
+            base["kpis"]["total_delivered"], worked["kpis"]["total_delivered"],
+            places=1,
+            msg="El cumplimiento no debe cambiar al prender 'solo trabajados'")
 
         # El drill-down "Ver" debe seguir el mismo universo que las cards.
         dom_all = dash._unmet_line_domain(first, last, worked_only=False)
